@@ -1,266 +1,245 @@
-# Implementation Plan: Character Persistence System (Save/Load)
+# Implementation Plan: Location/World System
 
 ## 1. SPECIFICATION
 
-### 1.1 Core Requirements
-- JSON-based character save/load system in `src/cli_rpg/persistence.py`
-- Multiple character saves support with unique filenames
-- Integration with main menu's "Load Character" option
-- Leverage existing `Character.to_dict()` and `Character.from_dict()` methods
+### Location Model Requirements
+**File**: `src/cli_rpg/models/location.py`
 
-### 1.2 File Storage Spec
-- **Save Directory**: `saves/` in project root (create if not exists)
-- **File Format**: `{character_name}_{timestamp}.json` (e.g., `Gandalf_20240101_120000.json`)
-- **File Content**: JSON with character data from `Character.to_dict()`
+**Attributes**:
+- `name: str` - Location name (2-50 characters, required)
+- `description: str` - Location description (1-500 characters, required)
+- `connections: dict[str, str]` - Maps direction names to location names
+  - Direction keys: "north", "south", "east", "west", "up", "down"
+  - Values: location names (strings)
+  - Default: empty dict
 
-### 1.3 Function Specifications
+**Validation Requirements**:
+- Name: 2-50 characters, non-empty, stripped
+- Description: 1-500 characters, non-empty, stripped
+- Connections: valid direction keys only, non-empty location names
+- Direction keys must be from allowed set
 
-#### `save_character(character: Character, save_dir: str = "saves") -> str`
-- Saves character to JSON file
-- Creates save directory if it doesn't exist
-- Generates unique filename with timestamp
-- Returns full path to saved file
-- Raises `IOError` on write failure
+**Methods**:
+- `add_connection(direction: str, location_name: str) -> None` - Add connection
+- `remove_connection(direction: str) -> None` - Remove connection
+- `get_connection(direction: str) -> Optional[str]` - Get connected location name
+- `get_available_directions() -> list[str]` - List all available directions
+- `has_connection(direction: str) -> bool` - Check if direction exists
+- `to_dict() -> dict` - Serialize to dictionary
+- `from_dict(data: dict) -> Location` - Deserialize from dictionary (classmethod)
+- `__str__() -> str` - Human-readable representation
 
-#### `load_character(filepath: str) -> Character`
-- Loads character from JSON file
-- Validates file exists and is readable
-- Deserializes using `Character.from_dict()`
-- Raises `FileNotFoundError` if file doesn't exist
-- Raises `ValueError` if JSON is invalid or character data is corrupted
+**Class Constants**:
+- `MIN_NAME_LENGTH: ClassVar[int] = 2`
+- `MAX_NAME_LENGTH: ClassVar[int] = 50`
+- `MIN_DESCRIPTION_LENGTH: ClassVar[int] = 1`
+- `MAX_DESCRIPTION_LENGTH: ClassVar[int] = 500`
+- `VALID_DIRECTIONS: ClassVar[set[str]] = {"north", "south", "east", "west", "up", "down"}`
 
-#### `list_saves(save_dir: str = "saves") -> list[dict[str, str]]`
-- Lists all available character saves in directory
-- Returns list of dicts with keys: `name`, `filepath`, `timestamp`
-- Returns empty list if directory doesn't exist or is empty
-- Sorts by timestamp (most recent first)
+---
 
-#### `delete_save(filepath: str) -> bool`
-- Deletes a save file
-- Returns True if successful, False if file doesn't exist
-- Raises `OSError` on permission errors
+## 2. DEVELOP TESTS (TDD)
 
-### 1.4 Integration Points
-- `main.py`: Update option "2" to show save selection menu
-- `main.py`: Add option to save character after creation
-- Character creation flow: Optional auto-save after confirmation
+### Test File: `tests/test_location.py`
 
-## 2. TEST DEVELOPMENT (TDD - Write Tests First)
+#### Test Class 1: TestLocationCreation
+Test location instantiation and validation following Character model pattern.
 
-### 2.1 Create Test File: `tests/test_persistence.py`
+**Tests**:
+1. `test_location_creation_valid()` - Create location with valid attributes
+   - Verify name, description, empty connections dict
+   
+2. `test_location_creation_with_connections()` - Create with initial connections
+   - Verify connections dict is properly stored
+   
+3. `test_location_creation_defaults_empty_connections()` - No connections arg
+   - Verify connections defaults to empty dict
+   
+4. `test_location_name_validation_too_short()` - Name < 2 chars
+   - Expect ValueError with "at least 2 characters"
+   
+5. `test_location_name_validation_too_long()` - Name > 50 chars
+   - Expect ValueError with "at most 50 characters"
+   
+6. `test_location_name_validation_empty()` - Empty/whitespace name
+   - Expect ValueError with "cannot be empty"
+   
+7. `test_location_description_validation_empty()` - Empty description
+   - Expect ValueError with "cannot be empty"
+   
+8. `test_location_description_validation_too_long()` - Description > 500 chars
+   - Expect ValueError with "at most 500 characters"
+   
+9. `test_location_connections_validation_invalid_direction()` - Bad direction key
+   - Expect ValueError with "Invalid direction"
+   
+10. `test_location_connections_validation_empty_location_name()` - Empty value
+    - Expect ValueError with "cannot be empty"
 
-#### Test Class: `TestSaveCharacter`
-1. `test_save_character_creates_file` - Verify file is created with correct name
-2. `test_save_character_returns_filepath` - Returns valid path string
-3. `test_save_character_creates_directory` - Creates save dir if missing
-4. `test_save_character_unique_filenames` - Multiple saves create unique files
-5. `test_save_character_valid_json` - File contains valid JSON
-6. `test_save_character_contains_correct_data` - JSON matches character data
-7. `test_save_character_custom_directory` - Respects custom save_dir parameter
-8. `test_save_character_io_error` - Handles permission/write errors gracefully
-9. `test_save_character_filename_sanitization` - Handles special chars in names
+#### Test Class 2: TestLocationConnectionMethods
+Test connection manipulation methods.
 
-#### Test Class: `TestLoadCharacter`
-1. `test_load_character_success` - Loads valid saved character
-2. `test_load_character_restores_all_attributes` - All stats match original
-3. `test_load_character_damaged_health` - Preserves reduced health state
-4. `test_load_character_file_not_found` - Raises FileNotFoundError
-5. `test_load_character_invalid_json` - Raises ValueError for malformed JSON
-6. `test_load_character_missing_required_fields` - Raises ValueError
-7. `test_load_character_invalid_stat_values` - Validates character constraints
-8. `test_load_character_empty_file` - Handles empty file gracefully
+**Tests**:
+1. `test_add_connection_valid()` - Add valid connection
+   - Verify connection exists in dict
+   
+2. `test_add_connection_invalid_direction()` - Add with bad direction
+   - Expect ValueError
+   
+3. `test_add_connection_empty_location_name()` - Add with empty location
+   - Expect ValueError
+   
+4. `test_add_connection_overwrites_existing()` - Add to existing direction
+   - Verify new location replaces old
+   
+5. `test_remove_connection_existing()` - Remove existing connection
+   - Verify connection no longer exists
+   
+6. `test_remove_connection_nonexistent()` - Remove non-existing
+   - Should not raise error (silent)
+   
+7. `test_get_connection_existing()` - Get existing connection
+   - Returns correct location name
+   
+8. `test_get_connection_nonexistent()` - Get non-existing
+   - Returns None
+   
+9. `test_has_connection_existing()` - Check existing
+   - Returns True
+   
+10. `test_has_connection_nonexistent()` - Check non-existing
+    - Returns False
+    
+11. `test_get_available_directions_multiple()` - Multiple connections
+    - Returns sorted list of directions
+    
+12. `test_get_available_directions_empty()` - No connections
+    - Returns empty list
 
-#### Test Class: `TestListSaves`
-1. `test_list_saves_empty_directory` - Returns empty list
-2. `test_list_saves_nonexistent_directory` - Returns empty list
-3. `test_list_saves_single_save` - Returns list with one entry
-4. `test_list_saves_multiple_saves` - Returns all saves
-5. `test_list_saves_sorted_by_timestamp` - Most recent first
-6. `test_list_saves_correct_structure` - Each dict has name, filepath, timestamp
-7. `test_list_saves_ignores_non_json` - Ignores non-JSON files
-8. `test_list_saves_custom_directory` - Respects custom save_dir parameter
+#### Test Class 3: TestLocationSerialization
+Test serialization/deserialization following Character pattern.
 
-#### Test Class: `TestDeleteSave`
-1. `test_delete_save_success` - Returns True and removes file
-2. `test_delete_save_file_not_found` - Returns False
-3. `test_delete_save_permission_error` - Raises OSError
+**Tests**:
+1. `test_location_to_dict()` - Serialize to dict
+   - Verify all attributes present and correct
+   
+2. `test_location_to_dict_with_connections()` - Serialize with connections
+   - Verify connections dict preserved
+   
+3. `test_location_from_dict_basic()` - Deserialize basic location
+   - Verify attributes match
+   
+4. `test_location_from_dict_with_connections()` - Deserialize with connections
+   - Verify connections restored correctly
+   
+5. `test_location_from_dict_missing_required_field()` - Missing name/description
+   - Expect ValueError or KeyError
+   
+6. `test_location_roundtrip_serialization()` - to_dict -> from_dict
+   - Verify original equals restored
+   
+7. `test_location_str_representation()` - __str__ output
+   - Verify name, description, available directions in output
 
-#### Test Class: `TestIntegrationSaveLoad`
-1. `test_round_trip_save_and_load` - Save then load produces identical character
-2. `test_multiple_characters_save_load` - Multiple characters don't interfere
-3. `test_save_load_with_special_states` - Edge cases (0 health, max stats, etc.)
-
-### 2.2 Test Fixtures (in `tests/test_persistence.py`)
-```python
-@pytest.fixture
-def temp_save_dir(tmp_path):
-    """Provide temporary save directory for tests"""
-    save_dir = tmp_path / "test_saves"
-    return str(save_dir)
-
-@pytest.fixture
-def sample_character():
-    """Provide sample character for testing"""
-    return Character(name="TestHero", strength=10, dexterity=12, intelligence=8)
-
-@pytest.fixture
-def damaged_character():
-    """Provide character with reduced health"""
-    char = Character(name="WoundedHero", strength=15, dexterity=10, intelligence=10)
-    char.take_damage(50)
-    return char
-```
+---
 
 ## 3. IMPLEMENTATION
 
-### 3.1 Create `src/cli_rpg/persistence.py`
+### Step 1: Create Location Model Skeleton
+**File**: `src/cli_rpg/models/location.py`
 
-#### Imports
-```python
-import json
-import os
-from datetime import datetime
-from pathlib import Path
-from typing import Optional
-from cli_rpg.models.character import Character
-```
+1. Import required modules: `dataclasses`, `typing`
+2. Define class constants (MIN/MAX lengths, VALID_DIRECTIONS)
+3. Create `@dataclass` with attributes: name, description, connections
+4. Set connections default to `field(default_factory=dict)`
 
-#### Helper Functions
-1. `_sanitize_filename(name: str) -> str`
-   - Remove/replace invalid filesystem characters
-   - Replace spaces with underscores
-   - Limit length to reasonable max (50 chars)
+### Step 2: Implement __post_init__ Validation
+**File**: `src/cli_rpg/models/location.py`
 
-2. `_generate_filename(character_name: str) -> str`
-   - Format: `{sanitized_name}_{timestamp}.json`
-   - Timestamp format: `%Y%m%d_%H%M%S`
+1. Validate name:
+   - Check not empty/whitespace
+   - Check length >= MIN_NAME_LENGTH
+   - Check length <= MAX_NAME_LENGTH
+   - Strip whitespace
 
-#### Core Functions (implement in order)
+2. Validate description:
+   - Check not empty/whitespace
+   - Check length >= MIN_DESCRIPTION_LENGTH
+   - Check length <= MAX_DESCRIPTION_LENGTH
+   - Strip whitespace
 
-1. **`save_character()`**
-   - Create Path object for save_dir
-   - Create directory with `mkdir(parents=True, exist_ok=True)`
-   - Generate filename using helper
-   - Serialize character with `character.to_dict()`
-   - Write JSON with `json.dump(f, indent=2)`
-   - Handle IOError with descriptive message
-   - Return full filepath as string
+3. Validate connections:
+   - Iterate through connections dict
+   - Validate each direction key in VALID_DIRECTIONS
+   - Validate each location_name is non-empty string
+   - Raise ValueError with specific messages
 
-2. **`load_character()`**
-   - Check file exists with `Path(filepath).exists()`
-   - Open and parse JSON with `json.load()`
-   - Catch `json.JSONDecodeError` and raise ValueError
-   - Validate required keys exist in data
-   - Use `Character.from_dict()` to deserialize
-   - Catch Character validation errors and re-raise as ValueError
-   - Return Character instance
+### Step 3: Implement Connection Methods
+**File**: `src/cli_rpg/models/location.py`
 
-3. **`list_saves()`**
-   - Create Path object for save_dir
-   - Check if directory exists
-   - Use `glob("*.json")` to find all save files
-   - Parse each filename to extract character name and timestamp
-   - Build list of dicts with metadata
-   - Sort by timestamp (parse timestamp string)
-   - Return sorted list
+1. `add_connection(direction, location_name)`:
+   - Validate direction in VALID_DIRECTIONS
+   - Validate location_name non-empty
+   - Add/update connections[direction] = location_name
 
-4. **`delete_save()`**
-   - Create Path object for filepath
-   - Check if file exists
-   - Use `Path.unlink()` to delete
-   - Return True on success
-   - Return False if FileNotFoundError
-   - Let OSError propagate for permission issues
+2. `remove_connection(direction)`:
+   - Use dict.pop(direction, None) for silent removal
 
-### 3.2 Update `src/cli_rpg/main.py`
+3. `get_connection(direction)`:
+   - Return connections.get(direction)
 
-#### Add Import
-```python
-from cli_rpg.persistence import save_character, load_character, list_saves
-```
+4. `has_connection(direction)`:
+   - Return direction in connections
 
-#### Add Helper Function: `prompt_save_character(character: Character) -> None`
-- Ask user if they want to save
-- Call `save_character()` if yes
-- Display success message with filepath
-- Handle exceptions gracefully
+5. `get_available_directions()`:
+   - Return sorted(list(connections.keys()))
 
-#### Add Helper Function: `select_and_load_character() -> Optional[Character]`
-- Call `list_saves()` to get available saves
-- Display numbered list to user
-- Show: index, character name, timestamp
-- Allow user to select by number or cancel
-- Call `load_character()` with selected filepath
-- Display loaded character summary
-- Handle exceptions and show error messages
-- Return loaded Character or None
+### Step 4: Implement Serialization Methods
+**File**: `src/cli_rpg/models/location.py`
 
-#### Update `main()` Function
-- After option "1" (Create New Character):
-  - Add prompt to save character after successful creation
-  - Call `prompt_save_character(current_character)`
-  
-- Replace option "2" (Load Character):
-  - Remove stub message
-  - Call `select_and_load_character()`
-  - Assign result to `current_character` if not None
-  - Display success message with character details
+1. `to_dict()`:
+   - Return dict with name, description, connections
+   - Ensure connections is shallow copy
 
-### 3.3 Run Tests and Iterate
-1. Run `pytest tests/test_persistence.py -v`
-2. Fix failing tests one by one
-3. Ensure all tests pass
-4. Run full test suite: `pytest tests/ -v`
-5. Verify no regressions in existing tests
+2. `from_dict(data)` classmethod:
+   - Extract name, description, connections from data
+   - Use .get() for connections with default {}
+   - Create and return Location instance
 
-## 4. VERIFICATION
+3. `__str__()`:
+   - Format: "{name}\n{description}\n"
+   - If connections: "Exits: {comma-separated directions}"
+   - If no connections: "Exits: None"
 
-### 4.1 Unit Test Verification
-- All tests in `test_persistence.py` pass
-- Code coverage for `persistence.py` > 95%
-- Edge cases handled correctly
+### Step 5: Update Models __init__.py
+**File**: `src/cli_rpg/models/__init__.py`
 
-### 4.2 Integration Test Verification
-Create `tests/test_integration_persistence.py`:
-1. `test_create_save_load_workflow` - Full workflow from main menu
-2. `test_multiple_saves_list_and_load` - Create multiple, list, load specific one
-3. `test_save_overwrite_protection` - Verify unique filenames prevent overwrites
+1. Add import: `from cli_rpg.models.location import Location`
+2. Update `__all__` if present
 
-### 4.3 Manual Testing Checklist
-- [ ] Create character and save successfully
-- [ ] Load saved character and verify stats
-- [ ] Create multiple characters with same name (unique files)
-- [ ] List saves shows all characters correctly
-- [ ] Load character with damaged health preserves state
-- [ ] Handle missing save directory gracefully
-- [ ] Handle corrupted JSON file gracefully
-- [ ] Handle non-existent file selection gracefully
-- [ ] Cancel operations work correctly
-- [ ] Special characters in names handled properly
+### Step 6: Run Tests and Fix Issues
 
-## 5. IMPLEMENTATION ORDER SUMMARY
+1. Run: `pytest tests/test_location.py -v`
+2. Fix any failing tests by adjusting implementation
+3. Ensure 100% test pass rate
+4. Verify test coverage with: `pytest tests/test_location.py --cov=src/cli_rpg/models/location`
 
-### Phase 1: Tests (TDD)
-1. Create `tests/test_persistence.py` with all test cases
-2. Create test fixtures
-3. Run tests (all should fail - no implementation yet)
+### Step 7: Validation Testing
 
-### Phase 2: Core Implementation
-4. Create `src/cli_rpg/persistence.py`
-5. Implement helper functions
-6. Implement `save_character()` - run tests, iterate until passing
-7. Implement `load_character()` - run tests, iterate until passing
-8. Implement `list_saves()` - run tests, iterate until passing
-9. Implement `delete_save()` - run tests, iterate until passing
+1. Run full test suite: `pytest tests/ -v`
+2. Verify no regressions in existing tests
+3. Verify Location model integrates with existing codebase patterns
 
-### Phase 3: Integration
-10. Update `src/cli_rpg/main.py` with helper functions
-11. Integrate save prompt after character creation
-12. Replace load character stub with full implementation
-13. Create integration tests in `tests/test_integration_persistence.py`
-14. Run all tests, fix any issues
+---
 
-### Phase 4: Final Verification
-15. Run complete test suite
-16. Perform manual testing
-17. Verify all requirements met
+## VERIFICATION CHECKLIST
+
+- [ ] All tests in TestLocationCreation pass (10 tests)
+- [ ] All tests in TestLocationConnectionMethods pass (12 tests)
+- [ ] All tests in TestLocationSerialization pass (7 tests)
+- [ ] Total: 29 tests passing
+- [ ] No regression in existing tests
+- [ ] Location model follows Character model patterns
+- [ ] Validation matches specification requirements
+- [ ] Serialization supports persistence pattern
+- [ ] Code follows existing style conventions (dataclass, ClassVar, docstrings)
