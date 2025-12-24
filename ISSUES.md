@@ -1,13 +1,31 @@
 ## Active Issues
 
-###  High prio: Generate whole areas
+###  High prio: Closed Border MISUNDERSTOOD
 **Status**: ACTIVE
 
-instead of generating just the next exit, we should always generate whole areas which should cover different topics
-there should be a method of checking if the world border is completely closed, there might be still a situation where
-all exits are visited and no way of getting to a tile whih triggers regeneration, THIS SHOULD BE AVOIDED in any case
+The requirement for a closed border was misunderstood. We always want a border which is open at least at one point, otherwise
+the world cannot stretch forever which is the goal of the game
 
 ## Resolved Issues
+
+### Generate whole areas
+**Status**: RESOLVED
+
+**Original Problem**: Instead of generating just the next exit, we should always generate whole areas which should cover different topics. There should be a method of checking if the world border is completely closed, there might be still a situation where all exits are visited and no way of getting to a tile which triggers regeneration, THIS SHOULD BE AVOIDED in any case.
+
+**Solution Implemented**:
+- Added `AIService.generate_area()` method that generates clusters of 4-7 connected locations per expansion
+- Added `expand_area()` function in `ai_world.py` that places the generated area on the grid
+- Added border validation methods to `WorldGrid`:
+  - `find_unreachable_exits()`: Identifies exits pointing to non-existent coordinates
+  - `validate_border_closure()`: Returns True if all cardinal exits point to existing locations
+  - `get_frontier_locations()`: Returns locations with exits to empty coordinates
+- Updated `GameState.move()` to use `expand_area` instead of `expand_world` when AI is available
+- Area generation uses sub-theme hints (mystical forest, ancient ruins, etc.) for variety
+- Fallback to single-location expansion if area generation fails
+- 16 new tests cover area generation and border validation
+
+---
 
 ### User can access impossible locations
 **Status**: RESOLVED

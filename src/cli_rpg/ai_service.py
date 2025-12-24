@@ -384,10 +384,284 @@ class AIService:
     
     def _set_cached(self, prompt: str, data: dict) -> None:
         """Store location data in cache.
-        
+
         Args:
             prompt: The prompt used as cache key
             data: Location data to cache
         """
         cache_key = hashlib.md5(prompt.encode()).hexdigest()
         self._cache[cache_key] = (data.copy(), time.time())
+
+    def generate_area(
+        self,
+        theme: str,
+        sub_theme_hint: str,
+        entry_direction: str,
+        context_locations: list[str],
+        size: int = 5
+    ) -> list[dict]:
+        """Generate a cluster of connected locations forming a thematic area.
+
+        Creates 4-7 interconnected locations with a consistent sub-theme that
+        fits the world theme. The entry location is at relative coordinates (0, 0).
+
+        Args:
+            theme: World theme (e.g., "fantasy", "sci-fi")
+            sub_theme_hint: Hint for the area's sub-theme (e.g., "graveyard", "forest")
+            entry_direction: Direction from which the player enters the area
+            context_locations: List of existing location names in the world
+            size: Target number of locations (4-7, default 5)
+
+        Returns:
+            List of dictionaries, each containing:
+            - name: Location name (2-50 characters)
+            - description: Location description (1-500 characters)
+            - relative_coords: [dx, dy] relative to entry point (entry is [0, 0])
+            - connections: Dict mapping directions to location names
+
+        Raises:
+            AIGenerationError: If generation fails or response is invalid
+            AIServiceError: If API call fails
+            AITimeoutError: If request times out
+        """
+        # Clamp size to valid range
+        size = max(4, min(7, size))
+
+        # Build the prompt for area generation
+        prompt = self._build_area_prompt(
+            theme=theme,
+            sub_theme_hint=sub_theme_hint,
+            entry_direction=entry_direction,
+            context_locations=context_locations,
+            size=size
+        )
+
+        # Check cache if enabled
+        if self.config.enable_caching:
+            cached_result = self._get_cached_list(prompt)
+            if cached_result is not None:
+                return cached_result
+
+        # Call LLM
+        response_text = self._call_llm(prompt)
+
+        # Parse and validate response
+        area_data = self._parse_area_response(response_text, size)
+
+        # Cache result if enabled
+        if self.config.enable_caching:
+            self._set_cached_list(prompt, area_data)
+
+        return area_data
+
+    def _build_area_prompt(
+        self,
+        theme: str,
+        sub_theme_hint: str,
+        entry_direction: str,
+        context_locations: list[str],
+        size: int
+    ) -> str:
+        """Build prompt for area generation.
+
+        Args:
+            theme: World theme
+            sub_theme_hint: Hint for area sub-theme
+            entry_direction: Direction player enters from
+            context_locations: Existing location names
+            size: Number of locations to generate
+
+        Returns:
+            Formatted prompt string
+        """
+        # Get opposite direction for the back-connection
+        opposites = {
+            "north": "south",
+            "south": "north",
+            "east": "west",
+            "west": "east"
+        }
+        back_direction = opposites.get(entry_direction, "south")
+
+        # Format context
+        if context_locations:
+            location_list = ", ".join(context_locations[:10])  # Limit to 10
+        else:
+            location_list = "None yet"
+
+        prompt = f"""You are a creative game world designer. Generate a connected area of {size} locations for a {theme} RPG game.
+
+Area Theme: {sub_theme_hint}
+World Theme: {theme}
+Existing Locations: {location_list}
+Entry Direction: Player enters from the {entry_direction} (so entry location should have a {back_direction} exit back)
+
+Requirements:
+1. Generate exactly {size} interconnected locations that form a cohesive themed area
+2. Each location needs a unique name (2-50 characters) that fits the "{sub_theme_hint}" theme
+3. Each location needs a vivid description (1-500 characters)
+4. The FIRST location is the entry point at relative coordinates [0, 0]
+5. Use relative coordinates: north = +y, south = -y, east = +x, west = -x
+6. All locations must be connected to at least one other location in the area
+7. The entry location MUST have a "{back_direction}" exit (to connect back to the existing world)
+8. Valid directions: north, south, east, west (no up/down for this area)
+9. Ensure internal consistency: if A connects north to B, then B must connect south to A
+
+Respond with valid JSON array (no additional text):
+[
+  {{
+    "name": "Entry Location Name",
+    "description": "Description of entry location",
+    "relative_coords": [0, 0],
+    "connections": {{"{back_direction}": "EXISTING_WORLD", "north": "Next Location Name"}}
+  }},
+  {{
+    "name": "Next Location Name",
+    "description": "Description",
+    "relative_coords": [0, 1],
+    "connections": {{"south": "Entry Location Name"}}
+  }}
+]
+
+Note: Use "EXISTING_WORLD" as placeholder for the connection back to the source location."""
+
+        return prompt
+
+    def _parse_area_response(self, response_text: str, expected_size: int) -> list[dict]:
+        """Parse and validate LLM response for area generation.
+
+        Args:
+            response_text: Raw response text from LLM
+            expected_size: Expected number of locations
+
+        Returns:
+            List of validated location dictionaries
+
+        Raises:
+            AIGenerationError: If parsing fails or validation fails
+        """
+        # Try to parse JSON
+        try:
+            data = json.loads(response_text)
+        except json.JSONDecodeError as e:
+            raise AIGenerationError(f"Failed to parse response as JSON: {str(e)}") from e
+
+        # Validate it's a list
+        if not isinstance(data, list):
+            raise AIGenerationError("Response must be a JSON array of locations")
+
+        # Validate minimum size
+        if len(data) < 1:
+            raise AIGenerationError("Response must contain at least one location")
+
+        # Validate each location
+        validated_locations = []
+        for idx, loc in enumerate(data):
+            validated_loc = self._validate_area_location(loc, idx)
+            validated_locations.append(validated_loc)
+
+        return validated_locations
+
+    def _validate_area_location(self, loc: dict, index: int) -> dict:
+        """Validate a single location in an area response.
+
+        Args:
+            loc: Location dictionary from LLM response
+            index: Index of location in array (for error messages)
+
+        Returns:
+            Validated location dictionary
+
+        Raises:
+            AIGenerationError: If validation fails
+        """
+        # Check required fields
+        required_fields = ["name", "description", "relative_coords", "connections"]
+        for field in required_fields:
+            if field not in loc:
+                raise AIGenerationError(
+                    f"Location {index} missing required field: {field}"
+                )
+
+        # Validate name
+        name = loc["name"].strip()
+        if len(name) < Location.MIN_NAME_LENGTH:
+            raise AIGenerationError(
+                f"Location {index} name too short (min {Location.MIN_NAME_LENGTH} chars): {name}"
+            )
+        if len(name) > Location.MAX_NAME_LENGTH:
+            raise AIGenerationError(
+                f"Location {index} name too long (max {Location.MAX_NAME_LENGTH} chars): {name}"
+            )
+
+        # Validate description
+        description = loc["description"].strip()
+        if len(description) < Location.MIN_DESCRIPTION_LENGTH:
+            raise AIGenerationError(
+                f"Location {index} description too short (min {Location.MIN_DESCRIPTION_LENGTH} chars)"
+            )
+        if len(description) > Location.MAX_DESCRIPTION_LENGTH:
+            raise AIGenerationError(
+                f"Location {index} description too long (max {Location.MAX_DESCRIPTION_LENGTH} chars)"
+            )
+
+        # Validate relative_coords
+        coords = loc["relative_coords"]
+        if not isinstance(coords, list) or len(coords) != 2:
+            raise AIGenerationError(
+                f"Location {index} relative_coords must be [x, y] array"
+            )
+
+        # Validate connections
+        connections = loc["connections"]
+        if not isinstance(connections, dict):
+            raise AIGenerationError(f"Location {index} connections must be a dictionary")
+
+        valid_directions = {"north", "south", "east", "west"}
+        for direction in connections.keys():
+            if direction not in valid_directions:
+                raise AIGenerationError(
+                    f"Location {index} invalid direction '{direction}'. "
+                    f"Must be one of: {', '.join(sorted(valid_directions))}"
+                )
+
+        return {
+            "name": name,
+            "description": description,
+            "relative_coords": coords,
+            "connections": connections
+        }
+
+    def _get_cached_list(self, prompt: str) -> Optional[list]:
+        """Get cached area data (list of locations).
+
+        Args:
+            prompt: The prompt used as cache key
+
+        Returns:
+            Cached list of location data if found and not expired, None otherwise
+        """
+        cache_key = hashlib.md5(prompt.encode()).hexdigest()
+
+        if cache_key in self._cache:
+            data, timestamp = self._cache[cache_key]
+
+            if time.time() - timestamp < self.config.cache_ttl:
+                # Deep copy the list
+                import copy
+                return copy.deepcopy(data)
+            else:
+                del self._cache[cache_key]
+
+        return None
+
+    def _set_cached_list(self, prompt: str, data: list) -> None:
+        """Store area data (list of locations) in cache.
+
+        Args:
+            prompt: The prompt used as cache key
+            data: List of location data to cache
+        """
+        import copy
+        cache_key = hashlib.md5(prompt.encode()).hexdigest()
+        self._cache[cache_key] = (copy.deepcopy(data), time.time())

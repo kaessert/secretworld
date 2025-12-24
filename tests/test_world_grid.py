@@ -318,3 +318,145 @@ class TestWorldGridSerialization:
         assert grid.get_by_name("Town Square") is not None
         assert grid.get_by_name("Forest") is not None
         # Legacy locations should still be accessible by name
+
+
+class TestWorldGridBorderValidation:
+    """Test border validation methods for area generation.
+
+    Spec: find_unreachable_exits and validate_border_closure methods ensure
+    that the world border is "closed" - all exits either point to existing
+    locations or are reachable via frontier movement.
+    """
+
+    def test_find_unreachable_exits_empty_world(self):
+        """Single-location world with no exits has no unreachable exits.
+
+        Spec: A world with just one location and no connections should
+        return an empty list from find_unreachable_exits.
+        """
+        grid = WorldGrid()
+        loc = Location(name="Start", description="Starting location")
+        grid.add_location(loc, 0, 0)
+
+        unreachable = grid.find_unreachable_exits()
+        assert unreachable == []
+
+    def test_find_unreachable_exits_detects_orphan(self):
+        """Detects exit pointing to coordinates that can't be reached.
+
+        Spec: If a location has an exit to coordinates where no location
+        exists, and that exit cannot be reached from the player (frontier),
+        it should be detected as unreachable.
+        """
+        grid = WorldGrid()
+        loc = Location(
+            name="Start",
+            description="Starting location",
+            connections={"north": "Unreachable Place"}  # Points to (0, 1) but nothing there
+        )
+        grid.add_location(loc, 0, 0)
+
+        # Add another location to the east that also points north to empty space
+        loc2 = Location(
+            name="East",
+            description="East location",
+            connections={"north": "Another Unreachable"}  # Points to (1, 1) but nothing there
+        )
+        grid.add_location(loc2, 1, 0)
+
+        unreachable = grid.find_unreachable_exits()
+        # Both dangling exits should be detected
+        assert len(unreachable) == 2
+        # Each entry is (location_name, direction, target_coords)
+        exit_info = [(name, direction) for name, direction, coords in unreachable]
+        assert ("Start", "north") in exit_info
+        assert ("East", "north") in exit_info
+
+    def test_find_unreachable_exits_ignores_valid_connections(self):
+        """Does not report exits that point to existing locations.
+
+        Spec: Exits pointing to coordinates with existing locations are
+        not unreachable.
+        """
+        grid = WorldGrid()
+        start = Location(name="Start", description="Starting location")
+        north = Location(name="North", description="North location")
+        grid.add_location(start, 0, 0)
+        grid.add_location(north, 0, 1)
+
+        # Both locations now have connections to each other (created by WorldGrid)
+        unreachable = grid.find_unreachable_exits()
+        assert unreachable == []
+
+    def test_validate_border_closure_true_when_closed(self):
+        """Returns True when all exits point to existing locations.
+
+        Spec: validate_border_closure returns True if no orphaned exits.
+        """
+        grid = WorldGrid()
+        start = Location(name="Start", description="Starting location")
+        north = Location(name="North", description="North location")
+        grid.add_location(start, 0, 0)
+        grid.add_location(north, 0, 1)
+
+        assert grid.validate_border_closure() is True
+
+    def test_validate_border_closure_false_when_orphan(self):
+        """Returns False when there are unreachable exits.
+
+        Spec: validate_border_closure returns False if any orphaned exits.
+        """
+        grid = WorldGrid()
+        loc = Location(
+            name="Start",
+            description="Starting location",
+            connections={"north": "Nowhere"}  # Dangling exit
+        )
+        grid.add_location(loc, 0, 0)
+
+        assert grid.validate_border_closure() is False
+
+    def test_get_frontier_locations_returns_border_locations(self):
+        """Returns locations with exits to empty coordinates.
+
+        Spec: get_frontier_locations finds locations at world border with
+        dangling exits that can trigger area generation.
+        """
+        grid = WorldGrid()
+        center = Location(name="Center", description="Center location")
+        grid.add_location(center, 0, 0)
+
+        north = Location(
+            name="North",
+            description="North location",
+            connections={"north": "Far North"}  # Dangling exit
+        )
+        grid.add_location(north, 0, 1)
+
+        east = Location(name="East", description="East location")
+        grid.add_location(east, 1, 0)
+
+        frontier = grid.get_frontier_locations()
+        frontier_names = [loc.name for loc in frontier]
+        # North has a dangling exit
+        assert "North" in frontier_names
+        # East has no dangling exits (only connections to existing locations)
+        # So East might or might not be in frontier depending on implementation
+
+    def test_find_unreachable_exits_with_cardinal_directions_only(self):
+        """Only considers cardinal directions (north, south, east, west).
+
+        Spec: Exits to non-cardinal directions (up, down) don't affect
+        coordinate-based border validation.
+        """
+        grid = WorldGrid()
+        loc = Location(
+            name="Start",
+            description="Starting location",
+            connections={"up": "Sky", "down": "Basement"}  # Non-cardinal
+        )
+        grid.add_location(loc, 0, 0)
+
+        unreachable = grid.find_unreachable_exits()
+        # up/down don't have coordinate offsets, so they shouldn't be in unreachable
+        assert unreachable == []

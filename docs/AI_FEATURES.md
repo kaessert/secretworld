@@ -7,12 +7,13 @@ The CLI RPG includes AI-powered dynamic location generation using OpenAI's GPT m
 ## Features
 
 ### 1. Dynamic World Generation
-- Locations are generated dynamically as players explore
+- **Area-based expansion**: When exploring new territory, the AI generates clusters of 4-7 connected locations at once, creating thematic areas (mystical forests, ancient ruins, haunted grounds, etc.)
 - AI creates contextually appropriate locations based on:
   - World theme (fantasy, sci-fi, cyberpunk, etc.)
   - Existing locations
   - Direction of exploration
   - Source location
+  - Sub-theme hints for area variety
 
 ### 2. Intelligent Caching
 - Generated locations are cached to reduce API calls
@@ -97,8 +98,8 @@ This ensures users are always aware when AI generation fails, rather than unknow
 ### As a Player
 Just play the game normally! When you move to a new direction, the game will:
 1. Check if the location exists
-2. If not, generate it using AI (if configured)
-3. Or use the default world structure
+2. If not, generate an entire area (4-7 connected locations) using AI (if configured)
+3. Or use the default world structure if AI is unavailable
 
 **Saving and Loading:**
 - Use the `save` command to save your complete game state, including:
@@ -170,17 +171,23 @@ loaded_game.ai_service = ai_service
    - Manages caching
    - Validates responses
    - Auto-detects provider from configuration
+   - `generate_area()`: Generates clusters of 4-7 connected locations with thematic consistency
 
 3. **AI World** (`ai_world.py`)
    - Creates initial AI world using grid coordinates
-   - Expands world dynamically with spatial consistency
+   - `expand_area()`: Places generated area on the grid with proper connections
+   - `expand_world()`: Single-location fallback expansion
    - Manages connections via WorldGrid
-   - Handles fallbacks
+   - Handles fallbacks gracefully
 
 4. **WorldGrid** (`world_grid.py`)
    - Coordinate-based world storage
    - Automatic bidirectional connections
    - Direction offsets: north=(0,+1), south=(0,-1), east=(+1,0), west=(-1,0)
+   - Border validation methods:
+     - `find_unreachable_exits()`: Identifies exits pointing to empty coordinates
+     - `validate_border_closure()`: Checks if world border is "closed"
+     - `get_frontier_locations()`: Returns locations at the expansion frontier
    - Backward-compatible serialization
 
 5. **GameState Integration** (`game_state.py`)

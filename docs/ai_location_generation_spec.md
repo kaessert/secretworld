@@ -76,6 +76,13 @@ Core service for interacting with LLM APIs.
 `_set_cached(cache_key: str, data: dict) -> None`
 - Store location data in cache
 
+`generate_area(theme: str, sub_theme_hint: str = "", entry_direction: str = "north", context_locations: list[str] = [], size: int = 5) -> list[dict]`
+- Generate a cluster of 4-7 connected locations forming a thematic area
+- Returns list of dicts: `{"name": str, "description": str, "relative_coords": [int, int], "connections": dict[str, str]}`
+- Entry location is always at relative coordinates [0, 0]
+- Uses sub-theme hints (mystical forest, ancient ruins, haunted grounds, etc.) for variety
+- Supports caching for performance
+
 ### 3.3 WorldGrid
 
 Coordinate-based world storage for spatial consistency.
@@ -90,6 +97,9 @@ Coordinate-based world storage for spatial consistency.
 - `as_dict()`: Returns `dict[str, Location]` for backward compatibility
 - `to_dict()` / `from_dict()`: Serialization with coordinates
 - `from_legacy_dict()`: Handles old saves without coordinates
+- `find_unreachable_exits()`: Returns list of exits pointing to empty coordinates
+- `validate_border_closure()`: Returns True if all cardinal exits point to existing locations
+- `get_frontier_locations()`: Returns locations with exits to empty coordinates (expansion candidates)
 
 **Direction Offsets:**
 - north: (0, +1)
@@ -111,8 +121,18 @@ Coordinate-based world storage for spatial consistency.
 - Validate all connections are bidirectional
 - Return Location dictionary compatible with GameState (via `WorldGrid.as_dict()`)
 
+**`expand_area(world: dict[str, Location], ai_service: AIService, from_location: str, direction: str, theme: str, target_coords: Tuple[int, int]) -> dict[str, Location]`**
+- Generate a thematic area (4-7 connected locations) using `AIService.generate_area()`
+- Places locations on the grid at calculated absolute coordinates
+- Creates bidirectional connections between area locations
+- Connects the area entry point back to the source location
+- Handles coordinate conflicts and duplicate names gracefully
+- Falls back to single-location expansion (`expand_world`) if needed
+- Randomly selects sub-theme hints for variety (mystical forest, ancient ruins, haunted grounds, etc.)
+- Return updated world
+
 **`expand_world(world: dict[str, Location], ai_service: AIService, from_location: str, direction: str, theme: str) -> dict[str, Location]`**
-- Generate new location in specified direction
+- Generate single new location in specified direction (fallback for area generation)
 - Calculate coordinates based on source location and direction offset
 - Direction offsets: north=(0,+1), south=(0,-1), east=(+1,0), west=(-1,0)
 - Add bidirectional connections based on spatial positions
@@ -328,6 +348,17 @@ The E2E test suite (`tests/test_e2e_world_expansion.py`) validates dynamic world
 - Game state preservation during expansion
 - World integrity after multiple expansions
 - Dead-end prevention (locations always have forward exploration options)
+- **Area generation tests** (`tests/test_area_generation.py`):
+  - Area returns 4-7 connected locations
+  - Entry location at origin [0,0]
+  - All locations connected and reachable
+  - Border closure after expansion
+  - Existing world preservation
+  - Entry connects to source location
+- **Border validation tests** (`tests/test_world_grid.py`):
+  - `find_unreachable_exits` detects orphan exits
+  - `validate_border_closure` verification
+  - `get_frontier_locations` returns correct locations
 
 **Test Infrastructure:**
 - Fixtures for different world configurations

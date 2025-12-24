@@ -228,3 +228,71 @@ class WorldGrid:
     def keys(self):
         """Return keys view for dict-like iteration."""
         return self._by_name.keys()
+
+    def find_unreachable_exits(self) -> List[Tuple[str, str, Tuple[int, int]]]:
+        """Find exits pointing to empty coordinates.
+
+        Identifies all exits from existing locations that point to coordinates
+        where no location exists. These are "dangling" exits that would need
+        generation when traveled to.
+
+        Only considers cardinal directions (north, south, east, west) since
+        up/down don't have coordinate offsets.
+
+        Returns:
+            List of tuples (location_name, direction, target_coords) for each
+            exit pointing to empty coordinates.
+        """
+        unreachable = []
+
+        for location in self._by_name.values():
+            if location.coordinates is None:
+                continue
+
+            x, y = location.coordinates
+            for direction, target_name in location.connections.items():
+                # Only check cardinal directions that have coordinate offsets
+                if direction not in DIRECTION_OFFSETS:
+                    continue
+
+                dx, dy = DIRECTION_OFFSETS[direction]
+                target_coords = (x + dx, y + dy)
+
+                # Check if target coordinates are empty
+                if target_coords not in self._grid:
+                    unreachable.append((location.name, direction, target_coords))
+
+        return unreachable
+
+    def validate_border_closure(self) -> bool:
+        """Check if all exits point to existing locations.
+
+        Returns True if there are no "dangling" exits pointing to empty
+        coordinates. This ensures the world border is "closed".
+
+        Returns:
+            True if all cardinal exits point to existing locations,
+            False if any exits point to empty coordinates.
+        """
+        return len(self.find_unreachable_exits()) == 0
+
+    def get_frontier_locations(self) -> List[Location]:
+        """Get locations at the world border with exits to empty coordinates.
+
+        These are locations where the player could potentially trigger
+        area generation by moving in a direction that leads to an empty
+        coordinate.
+
+        Returns:
+            List of Location objects that have at least one exit pointing
+            to empty coordinates.
+        """
+        frontier = []
+        seen_names = set()
+
+        for location_name, direction, target_coords in self.find_unreachable_exits():
+            if location_name not in seen_names:
+                seen_names.add(location_name)
+                frontier.append(self._by_name[location_name])
+
+        return frontier

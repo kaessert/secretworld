@@ -13,12 +13,13 @@ from cli_rpg import colors
 # Import AI components (with optional support)
 try:
     from cli_rpg.ai_service import AIService, AIServiceError
-    from cli_rpg.ai_world import expand_world
+    from cli_rpg.ai_world import expand_world, expand_area
     AI_AVAILABLE = True
 except ImportError:
     AI_AVAILABLE = False
     AIService = None
     AIServiceError = Exception
+    expand_area = None
 
 logger = logging.getLogger(__name__)
 
@@ -226,13 +227,13 @@ class GameState:
                 # Location exists at target coordinates - move there
                 self.current_location = target_location.name
             else:
-                # No location at target - try AI generation or fail
-                if self.ai_service is not None and AI_AVAILABLE:
+                # No location at target - try AI area generation or fail
+                if self.ai_service is not None and AI_AVAILABLE and expand_area is not None:
                     try:
                         logger.info(
-                            f"Generating location at {target_coords} from {current.name}"
+                            f"Generating area at {target_coords} from {current.name}"
                         )
-                        expand_world(
+                        expand_area(
                             world=self.world,
                             ai_service=self.ai_service,
                             from_location=self.current_location,
@@ -247,7 +248,7 @@ class GameState:
                         else:
                             return (False, "Failed to generate destination.")
                     except (AIServiceError, Exception) as e:
-                        logger.error(f"Failed to generate location: {e}")
+                        logger.error(f"Failed to generate area: {e}")
                         return (False, f"Failed to generate destination: {str(e)}")
                 else:
                     return (False, "You can't go that way.")

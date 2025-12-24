@@ -308,6 +308,205 @@ def expand_world(
     return world
 
 
+def expand_area(
+    world: dict[str, Location],
+    ai_service: AIService,
+    from_location: str,
+    direction: str,
+    theme: str,
+    target_coords: tuple[int, int],
+    size: int = 5
+) -> dict[str, Location]:
+    """Expand world by generating an entire thematic area (4-7 locations).
+
+    This function generates a cluster of connected locations at the target
+    coordinates, placing them on the grid and connecting them to the source
+    location.
+
+    Args:
+        world: Existing world dictionary
+        ai_service: AIService instance with generate_area capability
+        from_location: Source location name (where player is coming from)
+        direction: Direction of expansion from source
+        theme: World theme for generation
+        target_coords: Coordinates where the entry location should be placed
+        size: Target number of locations in the area (4-7, default 5)
+
+    Returns:
+        Updated world dictionary (same object, modified in place)
+
+    Raises:
+        ValueError: If source location not found or direction invalid
+        AIServiceError: If generation fails
+    """
+    # Validate inputs
+    if from_location not in world:
+        raise ValueError(f"Location '{from_location}' not found in world")
+
+    if direction not in Location.VALID_DIRECTIONS:
+        raise ValueError(
+            f"Invalid direction '{direction}'. Must be one of: "
+            f"{', '.join(sorted(Location.VALID_DIRECTIONS))}"
+        )
+
+    source_loc = world[from_location]
+
+    # Generate area sub-theme hint based on source location
+    # This could be enhanced with more sophisticated theme selection
+    sub_theme_hints = [
+        "mystical forest", "ancient ruins", "haunted grounds",
+        "mountain pass", "coastal region", "underground cavern",
+        "enchanted garden", "abandoned settlement", "wild frontier"
+    ]
+    import random
+    sub_theme = random.choice(sub_theme_hints)
+
+    # Generate the area
+    logger.info(f"Expanding area: {direction} from {from_location} with theme '{sub_theme}'")
+    area_data = ai_service.generate_area(
+        theme=theme,
+        sub_theme_hint=sub_theme,
+        entry_direction=direction,
+        context_locations=list(world.keys()),
+        size=size
+    )
+
+    if not area_data:
+        logger.warning("No area data generated, falling back to single location")
+        return expand_world(
+            world=world,
+            ai_service=ai_service,
+            from_location=from_location,
+            direction=direction,
+            theme=theme,
+            target_coords=target_coords
+        )
+
+    # Place area locations on the grid
+    opposite = get_opposite_direction(direction)
+    entry_name = None
+    placed_locations = {}
+
+    # First pass: create Location objects and calculate absolute coordinates
+    for loc_data in area_data:
+        rel_x, rel_y = loc_data["relative_coords"]
+        abs_x = target_coords[0] + rel_x
+        abs_y = target_coords[1] + rel_y
+
+        # Skip if coordinates already occupied
+        existing = None
+        for loc in world.values():
+            if loc.coordinates == (abs_x, abs_y):
+                existing = loc
+                break
+
+        if existing is not None:
+            logger.warning(
+                f"Skipping {loc_data['name']}: coordinates ({abs_x}, {abs_y}) "
+                f"already occupied by {existing.name}"
+            )
+            continue
+
+        # Skip if name already exists
+        if loc_data["name"] in world:
+            logger.warning(f"Skipping duplicate location name: {loc_data['name']}")
+            continue
+
+        # Create the location
+        new_loc = Location(
+            name=loc_data["name"],
+            description=loc_data["description"],
+            connections={},
+            coordinates=(abs_x, abs_y)
+        )
+
+        placed_locations[loc_data["name"]] = {
+            "location": new_loc,
+            "connections": loc_data["connections"],
+            "coords": (abs_x, abs_y)
+        }
+
+        # Track entry location (at relative 0,0)
+        if rel_x == 0 and rel_y == 0:
+            entry_name = loc_data["name"]
+
+    # If no entry location was placed, fall back to single location expansion
+    if entry_name is None and placed_locations:
+        # Use first placed location as entry
+        entry_name = next(iter(placed_locations.keys()))
+    elif not placed_locations:
+        logger.warning("No locations could be placed, falling back to single location")
+        return expand_world(
+            world=world,
+            ai_service=ai_service,
+            from_location=from_location,
+            direction=direction,
+            theme=theme,
+            target_coords=target_coords
+        )
+
+    # Second pass: add connections
+    for name, data in placed_locations.items():
+        loc = data["location"]
+        connections = data["connections"]
+
+        for conn_dir, conn_target in connections.items():
+            # Replace EXISTING_WORLD placeholder with actual source location
+            if conn_target == "EXISTING_WORLD":
+                conn_target = from_location
+
+            # Check if target is another placed location or existing location
+            if conn_target in placed_locations or conn_target in world:
+                loc.add_connection(conn_dir, conn_target)
+
+    # Add locations to world
+    for name, data in placed_locations.items():
+        world[name] = data["location"]
+
+    # Connect source location to entry
+    if entry_name:
+        world[from_location].add_connection(direction, entry_name)
+        # Ensure entry has back-connection
+        if not world[entry_name].has_connection(opposite):
+            world[entry_name].add_connection(opposite, from_location)
+
+    # Add bidirectional connections between placed locations based on coordinates
+    for name, data in placed_locations.items():
+        loc = data["location"]
+        coords = data["coords"]
+
+        for check_dir, offset in DIRECTION_OFFSETS.items():
+            neighbor_coords = (coords[0] + offset[0], coords[1] + offset[1])
+
+            # Find neighbor by coordinates
+            neighbor = None
+            for n_name, n_data in placed_locations.items():
+                if n_data["coords"] == neighbor_coords:
+                    neighbor = n_data["location"]
+                    break
+
+            # Also check existing world locations
+            if neighbor is None:
+                for existing_loc in world.values():
+                    if existing_loc.coordinates == neighbor_coords:
+                        neighbor = existing_loc
+                        break
+
+            if neighbor is not None:
+                # Ensure bidirectional connection
+                if not loc.has_connection(check_dir):
+                    loc.add_connection(check_dir, neighbor.name)
+                rev_dir = get_opposite_direction(check_dir)
+                if not neighbor.has_connection(rev_dir):
+                    neighbor.add_connection(rev_dir, loc.name)
+
+    logger.info(
+        f"Added area with {len(placed_locations)} locations, "
+        f"entry: '{entry_name}'"
+    )
+    return world
+
+
 def create_world_with_fallback(
     ai_service: Optional[AIService] = None,
     theme: str = "fantasy"
