@@ -30,6 +30,12 @@ The CLI RPG now includes AI-powered dynamic location generation using OpenAI's G
 - Bidirectional connections maintained
 - Validates against game constraints
 
+### 5. Theme Persistence
+- Theme setting is saved with game state
+- Restored when loading saved games
+- Ensures consistent AI generation across sessions
+- AI service continues using saved theme for new locations
+
 ## Setup
 
 ### 1. Get an OpenAI API Key
@@ -63,6 +69,15 @@ Just play the game normally! When you move to a new direction, the game will:
 2. If not, generate it using AI (if configured)
 3. Or use the default world structure
 
+**Saving and Loading:**
+- Use the `save` command to save your complete game state, including:
+  - All generated locations and world structure
+  - Your current location
+  - Theme setting for consistent AI generation
+- When you load a saved game, you'll resume exactly where you left off
+- AI service can continue generating new locations in the saved world
+- The game maintains theme consistency across save/load cycles
+
 **Note**: Combat commands (attack, defend, flee) are only available during combat encounters. The save command is not available during combat to maintain game integrity.
 
 ### As a Developer
@@ -73,6 +88,7 @@ from cli_rpg.ai_service import AIService
 from cli_rpg.world import create_world
 from cli_rpg.game_state import GameState
 from cli_rpg.models.character import Character
+from cli_rpg.persistence import save_game_state, load_game_state
 
 # Load AI configuration
 config = load_ai_config()
@@ -97,6 +113,14 @@ game = GameState(
 
 # Move around - locations generated dynamically!
 success, message = game.move("north")
+
+# Save complete game state (world, location, character, theme)
+filepath = save_game_state(game)
+
+# Later: Load game state and continue from exact same spot
+loaded_game = load_game_state(filepath)
+# Re-attach AI service for continued world expansion
+loaded_game.ai_service = ai_service
 ```
 
 ## Architecture

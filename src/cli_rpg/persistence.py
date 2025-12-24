@@ -175,6 +175,40 @@ def list_saves(save_dir: str = "saves") -> list[dict[str, str]]:
     return saves
 
 
+def detect_save_type(filepath: str) -> str:
+    """Detect whether save file is character-only or full game state.
+    
+    Args:
+        filepath: Path to save file
+        
+    Returns:
+        "character" for character-only saves
+        "game_state" for full game state saves
+        
+    Raises:
+        FileNotFoundError: If file doesn't exist
+        ValueError: If JSON is invalid
+    """
+    # Check if file exists
+    file_path = Path(filepath)
+    if not file_path.exists():
+        raise FileNotFoundError(f"Save file not found: {filepath}")
+    
+    try:
+        # Load and parse JSON
+        with open(filepath, 'r') as f:
+            data = json.load(f)
+        
+        # Check for presence of "world" key to determine save type
+        if "world" in data:
+            return "game_state"
+        else:
+            return "character"
+            
+    except json.JSONDecodeError as e:
+        raise ValueError(f"Invalid JSON in save file: {e}")
+
+
 def delete_save(filepath: str) -> bool:
     """Delete a save file.
     

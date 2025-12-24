@@ -1,16 +1,20 @@
 """World module for creating and managing game locations."""
 
+import logging
 from typing import Optional
 from cli_rpg.models.location import Location
+
+logger = logging.getLogger(__name__)
 
 # Import AI components (optional)
 try:
     from cli_rpg.ai_service import AIService
-    from cli_rpg.ai_world import create_world_with_fallback
+    from cli_rpg.ai_world import create_ai_world
     AI_AVAILABLE = True
 except ImportError:
     AI_AVAILABLE = False
     AIService = None
+    create_ai_world = None
 
 
 def create_default_world() -> dict[str, Location]:
@@ -61,17 +65,23 @@ def create_world(
     theme: str = "fantasy"
 ) -> dict[str, Location]:
     """Create a game world, using AI if available.
-    
+
     Args:
         ai_service: Optional AIService for AI-generated world
         theme: World theme (default: "fantasy")
-    
+
     Returns:
         Dictionary mapping location names to Location instances
     """
     if ai_service is not None and AI_AVAILABLE:
-        # Use AI to create world with fallback
-        return create_world_with_fallback(ai_service=ai_service, theme=theme)
+        # Use AI to create world with fallback to default on error
+        try:
+            logger.info("Attempting to create AI-generated world")
+            return create_ai_world(ai_service, theme=theme)
+        except Exception as e:
+            logger.warning(f"AI world generation failed: {e}")
+            logger.info("Falling back to default world")
+            return create_default_world()
     else:
         # Use default world
         return create_default_world()

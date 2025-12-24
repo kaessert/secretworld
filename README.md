@@ -17,7 +17,7 @@ python -m cli_rpg.main
 - **Character Creation**: Create custom characters with customizable attributes (strength, dexterity, intelligence)
 - **AI-Generated Worlds**: Dynamically generated locations using OpenAI's GPT models (optional)
 - **Turn-Based Combat**: Engage enemies with attack, defend, and flee commands
-- **Persistent Saves**: Save and load your game progress
+- **Persistent Saves**: Save and load complete game progress including world state, location, and theme
 - **Exploration**: Navigate through interconnected locations
 - **Experience System**: Level up by defeating enemies
 
@@ -37,7 +37,7 @@ python -m cli_rpg.main
 - `look` - Examine your current location
 - `go <direction>` - Move in a direction (north, south, east, west, up, down)
 - `status` - View your character's stats
-- `save` - Save your game (not available during combat)
+- `save` - Save complete game state including world, location, and theme (not available during combat)
 - `quit` - Exit to main menu
 
 ### Combat System
@@ -56,6 +56,25 @@ Combat encounters occur randomly as you explore. When in combat:
 **Victory**: Gain XP and potentially level up
 **Defeat**: Game over (can restore health for testing)
 **Flee**: Escape without gaining XP
+
+### Save System
+
+The game supports two types of save files:
+
+**Full Game State Saves** (Current)
+- Saves complete game progress including:
+  - Character stats and progress
+  - Entire world structure and locations
+  - Current location where you left off
+  - Theme setting for consistent AI generation
+- Use the `save` command during gameplay to create these saves
+- Resume exactly where you left off with full world intact
+
+**Character-Only Saves** (Legacy)
+- Older save format containing only character data
+- Fully supported for backward compatibility
+- Loading these saves starts a new adventure with the saved character
+- Original saves work without any modification needed
 
 ### AI World Generation (Optional)
 
@@ -90,7 +109,7 @@ src/cli_rpg/
 │   ├── character.py
 │   ├── location.py
 │   └── enemy.py
-└── persistence.py       # Save/load system
+└── persistence.py       # Save/load system (character and full game state)
 ```
 
 ## Documentation

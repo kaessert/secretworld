@@ -2,7 +2,7 @@
 from typing import Optional
 from cli_rpg.character_creation import create_character, get_theme_selection
 from cli_rpg.models.character import Character
-from cli_rpg.persistence import save_character, load_character, list_saves, save_game_state, load_game_state
+from cli_rpg.persistence import save_character, load_character, list_saves, save_game_state, load_game_state, detect_save_type
 from cli_rpg.game_state import GameState, parse_command
 from cli_rpg.world import create_world
 from cli_rpg.config import load_ai_config
@@ -29,18 +29,21 @@ def prompt_save_character(character: Character) -> None:
         print("\nCharacter not saved.")
 
 
-def select_and_load_character() -> Optional[Character]:
-    """Display save selection menu and load chosen character.
+def select_and_load_character() -> tuple[Optional[Character], Optional[GameState]]:
+    """Display save selection menu and load chosen character or game state.
     
     Returns:
-        Loaded Character instance or None if cancelled/failed
+        Tuple of (Character, GameState) where:
+        - (character, None) for character-only saves (backward compatibility)
+        - (None, game_state) for full game state saves
+        - (None, None) if cancelled/failed
     """
     saves = list_saves()
     
     if not saves:
         print("\n⚠ No saved characters found.")
         print("  Create a new character first!")
-        return None
+        return (None, None)
     
     print("\n" + "=" * 50)
     print("LOAD CHARACTER")
@@ -59,29 +62,54 @@ def select_and_load_character() -> Optional[Character]:
         
         if choice_num == len(saves) + 1:
             print("\nLoad cancelled.")
-            return None
+            return (None, None)
         
         if 1 <= choice_num <= len(saves):
             selected_save = saves[choice_num - 1]
-            character = load_character(selected_save['filepath'])
             
-            print(f"\n✓ Character loaded successfully!")
-            print("\n" + str(character))
+            # Detect save type
+            try:
+                save_type = detect_save_type(selected_save['filepath'])
+            except ValueError as e:
+                print(f"\n✗ Corrupted save file: {e}")
+                return (None, None)
             
-            return character
+            # Load based on save type
+            if save_type == "game_state":
+                # Load complete game state
+                try:
+                    game_state = load_game_state(selected_save['filepath'])
+                    print(f"\n✓ Game state loaded successfully!")
+                    print(f"  Location: {game_state.current_location}")
+                    print(f"  Character: {game_state.current_character.name}")
+                    print("\n" + str(game_state.current_character))
+                    return (None, game_state)
+                except Exception as e:
+                    print(f"\n✗ Failed to load game state: {e}")
+                    return (None, None)
+            else:
+                # Load character only (backward compatibility)
+                try:
+                    character = load_character(selected_save['filepath'])
+                    print(f"\n✓ Character loaded successfully!")
+                    print("\n" + str(character))
+                    return (character, None)
+                except Exception as e:
+                    print(f"\n✗ Failed to load character: {e}")
+                    return (None, None)
         else:
             print("\n✗ Invalid selection.")
-            return None
+            return (None, None)
             
     except ValueError:
         print("\n✗ Invalid input. Please enter a number.")
-        return None
+        return (None, None)
     except FileNotFoundError:
         print("\n✗ Save file not found.")
-        return None
+        return (None, None)
     except Exception as e:
-        print(f"\n✗ Failed to load character: {e}")
-        return None
+        print(f"\n✗ Failed to load: {e}")
+        return (None, None)
 
 
 def handle_combat_command(game_state: GameState, command: str, args: list[str]) -> str:
@@ -231,6 +259,54 @@ def handle_exploration_command(game_state: GameState, command: str, args: list[s
         return (True, "\n✗ Unknown command. Type 'look', 'go <direction>', 'status', 'save', or 'quit'")
 
 
+def run_game_loop(game_state: GameState) -> None:
+    """Run the main gameplay loop.
+    
+    Args:
+        game_state: The game state to run the loop for
+    """
+    # Main gameplay loop
+    while True:
+        # Check if player is alive (game over condition)
+        if not game_state.current_character.is_alive():
+            print("\n" + "=" * 50)
+            print("GAME OVER - You have fallen in battle.")
+            print("=" * 50)
+            response = input("\nReturn to main menu? (y/n): ").strip().lower()
+            if response == 'y':
+                break
+            else:
+                # Allow continue even after death (for testing/fun)
+                game_state.current_character.health = game_state.current_character.max_health
+                print("\n✓ Health restored. Returning to town square...")
+                game_state.current_location = "Town Square"
+                game_state.current_combat = None
+        
+        print()
+        command_input = input("> ").strip()
+        
+        if not command_input:
+            continue
+        
+        # Parse command
+        command, args = parse_command(command_input)
+        
+        # Route command based on combat state
+        if game_state.is_in_combat():
+            message = handle_combat_command(game_state, command, args)
+            print(message)
+            
+            # Show combat status after each action if still in combat
+            if game_state.is_in_combat() and game_state.current_combat is not None:
+                print("\n" + game_state.current_combat.get_status())
+        else:
+            continue_game, message = handle_exploration_command(game_state, command, args)
+            print(message)
+            
+            if not continue_game:
+                break
+
+
 def start_game(
     character: Character,
     ai_service: Optional[AIService] = None,
@@ -274,46 +350,8 @@ def start_game(
     # Show starting location
     print("\n" + game_state.look())
     
-    # Main gameplay loop
-    while True:
-        # Check if player is alive (game over condition)
-        if not game_state.current_character.is_alive():
-            print("\n" + "=" * 50)
-            print("GAME OVER - You have fallen in battle.")
-            print("=" * 50)
-            response = input("\nReturn to main menu? (y/n): ").strip().lower()
-            if response == 'y':
-                break
-            else:
-                # Allow continue even after death (for testing/fun)
-                game_state.current_character.health = game_state.current_character.max_health
-                print("\n✓ Health restored. Returning to town square...")
-                game_state.current_location = "Town Square"
-                game_state.current_combat = None
-        
-        print()
-        command_input = input("> ").strip()
-        
-        if not command_input:
-            continue
-        
-        # Parse command
-        command, args = parse_command(command_input)
-        
-        # Route command based on combat state
-        if game_state.is_in_combat():
-            message = handle_combat_command(game_state, command, args)
-            print(message)
-            
-            # Show combat status after each action if still in combat
-            if game_state.is_in_combat() and game_state.current_combat is not None:
-                print("\n" + game_state.current_combat.get_status())
-        else:
-            continue_game, message = handle_exploration_command(game_state, command, args)
-            print(message)
-            
-            if not continue_game:
-                break
+    # Run the game loop
+    run_game_loop(game_state)
 
 
 def show_main_menu() -> str:
@@ -379,12 +417,42 @@ def main() -> int:
                 start_game(character, ai_service=ai_service, theme=theme)
                 
         elif choice == "2":
-            # Load character - note: this will load game state files now
-            character = select_and_load_character()
-            if character:
+            # Load character or game state
+            character, game_state = select_and_load_character()
+            
+            if game_state:
+                # Resume from saved game state
+                print("\n✓ Resuming game from saved state...")
+                # Re-attach AI service if available for continued world expansion
+                game_state.ai_service = ai_service
+                
+                # Display welcome message
+                print("\n" + "=" * 50)
+                print(f"Welcome back, {game_state.current_character.name}!")
+                print("=" * 50)
+                print("\nExploration Commands:")
+                print("  look          - Look around at your surroundings")
+                print("  go <direction> - Move in a direction (north, south, east, west)")
+                print("  status        - View your character status")
+                print("  save          - Save your game (not available during combat)")
+                print("  quit          - Return to main menu")
+                print("\nCombat Commands:")
+                print("  attack        - Attack the enemy")
+                print("  defend        - Take a defensive stance")
+                print("  flee          - Attempt to flee from combat")
+                print("  status        - View combat status")
+                print("=" * 50)
+                
+                # Show current location
+                print("\n" + game_state.look())
+                
+                # Run game loop with restored state
+                run_game_loop(game_state)
+                
+            elif character:
                 # For backward compatibility, if loading an old character-only save,
                 # start a new game with that character
-                # Start with AI service available for dynamic expansion
+                print("\n✓ Starting new adventure with loaded character...")
                 start_game(character, ai_service=ai_service, theme="fantasy")
                 
         elif choice == "3":

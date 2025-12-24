@@ -1,455 +1,327 @@
-# Implementation Plan: Combat Commands Integration into Main Game Loop
+# Implementation Plan: Fix Game State Loading in main.py
 
-## 1. SPECIFICATION
+## Problem
+The `select_and_load_character()` function (lines 32-73) only calls `load_character()` to restore character stats, but doesn't call `load_game_state()` to restore the full game state (world, location, theme). This causes players to lose their world progress when loading a saved game.
 
-### Combat State Detection Requirements
-- Game loop must check `game_state.is_in_combat()` on every iteration
-- Combat state transitions: exploration → combat (via encounter) → exploration (via victory/flee/death)
-- Commands must be routed to appropriate handlers based on combat state
-
-### Combat Command Routing Specification
-**When `is_in_combat() == True`:**
-- `attack` → call `game_state.current_combat.player_attack()`
-- `defend` → call `game_state.current_combat.player_defend()`
-- `flee` → call `game_state.current_combat.player_flee()`
-- `status` → call `game_state.current_combat.get_status()`
-- `look`, `go`, `save`, `quit` → display error: "Can't do that during combat!"
-
-**When `is_in_combat() == False`:**
-- `look` → call `game_state.look()`
-- `go <direction>` → call `game_state.move(direction)`
-- `status` → display character status via `str(game_state.current_character)`
-- `save` → save game state
-- `quit` → exit game
-- `attack`, `defend`, `flee` → display error: "Not in combat."
-
-### Combat Flow Specification
-1. **Player Turn**: Execute player command (attack/defend/flee)
-2. **Enemy Turn**: If combat still active and player didn't flee, enemy attacks
-3. **Victory Check**: If enemy defeated, call `end_combat(victory=True)`
-4. **Flee Check**: If flee successful, call `end_combat(victory=False)` with no XP
-5. **Death Check**: If player health ≤ 0, end combat and handle game over
-6. **Combat End**: Clear `game_state.current_combat` (set to None)
-
-### Display Specification
-- Show available commands based on combat state
-- Display combat status after each action during combat
-- Display clear messages for state transitions
+## Solution Approach
+1. Detect save file type (character-only vs full game state) by inspecting JSON structure
+2. Call appropriate loading function based on file type
+3. Properly restore complete game state including world, location, and AI theme
+4. Maintain backward compatibility with existing character-only saves
+5. Include proper error handling
 
 ---
 
-## 2. TEST IMPLEMENTATION
+## Implementation Steps
 
-### 2.1 Create Test File: `tests/test_main_combat_integration.py`
+### Step 1: Create Specification Document
 
-**Test: Combat command routing during combat**
-- Spec: When in combat, attack/defend/flee commands should execute combat actions
-- Setup: Create game state, trigger encounter, simulate combat commands
-- Assert: Commands call correct CombatEncounter methods and return proper messages
+**File**: `docs/save_file_detection_spec.md`
 
-**Test: Exploration command blocking during combat**
-- Spec: When in combat, look/go/save commands should show error message
-- Setup: Create game state, trigger encounter
-- Assert: Commands return error messages and don't execute exploration actions
+Create specification that defines:
+- Save file type detection logic: Distinguish between character-only saves (contains only: name, strength, dexterity, intelligence, level, health, max_health) vs game state saves (contains: character, world, current_location, theme)
+- Detection method: Check for presence of "world" key in JSON data
+- Loading behavior for each type:
+  - Character-only: Load character and start new game with default world
+  - Game state: Load complete game state including world, location, and theme
+- Backward compatibility: All existing character-only saves must continue to work
+- Error handling: Handle corrupted files, missing keys, invalid data
 
-**Test: Combat command blocking during exploration**
-- Spec: When not in combat, attack/defend/flee commands should show error
-- Setup: Create game state with no combat
-- Assert: Commands return error messages
+### Step 2: Write Tests for Save File Detection
 
-**Test: Status command in exploration mode**
-- Spec: Status command during exploration shows character stats
-- Setup: Create game state, no combat
-- Assert: Status output contains character name, level, health, stats
+**File**: `tests/test_main_save_file_detection.py`
 
-**Test: Status command in combat mode**
-- Spec: Status command during combat shows combat status
-- Setup: Create game state, trigger encounter
-- Assert: Status output contains both player and enemy health
+Create tests that verify:
 
-**Test: Player attack sequence**
-- Spec: Attack command damages enemy, triggers enemy turn if combat continues
-- Setup: Create game state with combat
-- Assert: Enemy health decreases, enemy attacks back if alive
+1. **Test detect character-only save file**
+   - Given: JSON file with character-only data (name, strength, dexterity, intelligence, level, health, max_health)
+   - When: Detecting file type
+   - Then: Returns "character" as file type
 
-**Test: Player defend sequence**
-- Spec: Defend command sets defensive stance, enemy attack does reduced damage
-- Setup: Create game state with combat
-- Assert: Defending flag set, next enemy attack does less damage
+2. **Test detect game state save file**
+   - Given: JSON file with game state data (character, world, current_location, theme)
+   - When: Detecting file type
+   - Then: Returns "game_state" as file type
 
-**Test: Successful flee from combat**
-- Spec: Flee command exits combat without XP when successful
-- Setup: Create game state with high dexterity character in combat
-- Assert: Combat ends, current_combat is None, no XP gained
+3. **Test load character-only file starts new game**
+   - Given: Character-only save file
+   - When: Loading via select_and_load_character()
+   - Then: Character is loaded with default world ("Town Square" as starting location)
 
-**Test: Failed flee from combat**
-- Spec: Failed flee triggers enemy turn and combat continues
-- Setup: Create game state with low dexterity character in combat
-- Assert: Combat still active, player takes damage
+4. **Test load game state file restores complete state**
+   - Given: Game state save file with custom world and location
+   - When: Loading via select_and_load_character()
+   - Then: Complete game state is restored (character, world, exact location, theme)
 
-**Test: Victory ends combat and awards XP**
-- Spec: Defeating enemy ends combat, awards XP, may trigger level up
-- Setup: Create game state with high-damage character vs weak enemy
-- Assert: Enemy defeated, XP gained, combat cleared
+5. **Test backward compatibility with existing saves**
+   - Given: Real existing character-only save file (sasdf_20251224_011809.json)
+   - When: Loading file
+   - Then: Successfully loads without errors
 
-**Test: Player death ends combat**
-- Spec: When player health reaches 0, combat ends
-- Setup: Create game state, reduce player health to critical
-- Assert: Combat ends when health ≤ 0
+6. **Test handle corrupted save file**
+   - Given: Invalid/corrupted JSON file
+   - When: Attempting to load
+   - Then: Gracefully handles error with user-friendly message
 
-**Test: Combat state persists through turns**
-- Spec: Combat encounter object remains active through multiple turns
-- Setup: Create game state with combat
-- Assert: Same combat instance used across turns until resolution
+7. **Test theme preservation in game state loads**
+   - Given: Game state save with theme="sci-fi"
+   - When: Loading game state
+   - Then: Theme is restored and available to AI service
 
-### 2.2 Create Test File: `tests/test_main_game_loop_state_handling.py`
+### Step 3: Write Tests for Modified select_and_load_character()
 
-**Test: Game loop checks combat state each iteration**
-- Spec: Main loop must call is_in_combat() to determine command routing
-- Setup: Mock game loop iteration
-- Assert: is_in_combat() called before command routing
+**File**: `tests/test_main_load_integration.py`
 
-**Test: Transition from exploration to combat**
-- Spec: Random encounter triggers combat state
-- Setup: Create game state, move to new location triggering encounter
-- Assert: is_in_combat() returns True after encounter
+Create integration tests:
 
-**Test: Transition from combat to exploration**
-- Spec: Ending combat (victory/flee) returns to exploration state
-- Setup: Create game state in combat, resolve combat
-- Assert: is_in_combat() returns False after resolution
+1. **Test select and load returns character for character-only save**
+   - Verify character object is returned
+   - Verify character has correct attributes
 
-**Test: Save during exploration allowed**
-- Spec: Save command works when not in combat
-- Setup: Create game state, execute save
-- Assert: Save executes successfully
+2. **Test select and load returns game state for full save**
+   - Verify GameState object is returned
+   - Verify game state has character, world, and location
 
-**Test: Save during combat blocked**
-- Spec: Save command blocked when in combat
-- Setup: Create game state in combat, attempt save
-- Assert: Error message displayed, save not executed
+3. **Test game continuation after loading character-only save**
+   - Load character-only save
+   - Pass character to start_game()
+   - Verify game starts with default world
 
----
+4. **Test game continuation after loading game state save**
+   - Load game state save
+   - Continue gameplay from saved location
+   - Verify world and progress are preserved
 
-## 3. IMPLEMENTATION
+5. **Test list_saves shows both save types**
+   - Create one character-only and one game state save
+   - Call list_saves()
+   - Verify both appear in list
 
-### 3.1 Modify `src/cli_rpg/main.py` - `start_game()` function
+### Step 4: Implement Save File Type Detection
 
-**Step 1: Add combat command handler function (before main loop)**
+**File**: `src/cli_rpg/persistence.py`
+
+Add new function after `list_saves()`:
+
 ```python
-def handle_combat_command(game_state: GameState, command: str, args: list[str]) -> str:
-    """Handle commands during combat.
+def detect_save_type(filepath: str) -> str:
+    """Detect whether save file is character-only or full game state.
     
     Args:
-        game_state: Current game state
-        command: Parsed command
-        args: Command arguments
+        filepath: Path to save file
         
     Returns:
-        Message string to display
+        "character" for character-only saves
+        "game_state" for full game state saves
+        
+    Raises:
+        FileNotFoundError: If file doesn't exist
+        ValueError: If JSON is invalid
     """
-    if not game_state.is_in_combat():
-        return "\n✗ Not in combat."
-    
-    combat = game_state.current_combat
-    
-    if command == "attack":
-        victory, message = combat.player_attack()
-        output = f"\n{message}"
-        
-        if victory:
-            # Enemy defeated
-            end_message = combat.end_combat(victory=True)
-            output += f"\n{end_message}"
-            game_state.current_combat = None
-        else:
-            # Enemy still alive, enemy attacks
-            enemy_message = combat.enemy_turn()
-            output += f"\n{enemy_message}"
-            
-            # Check if player died
-            if not game_state.current_character.is_alive():
-                death_message = combat.end_combat(victory=False)
-                output += f"\n{death_message}"
-                output += "\n\n=== GAME OVER ==="
-                game_state.current_combat = None
-        
-        return output
-    
-    elif command == "defend":
-        _, message = combat.player_defend()
-        output = f"\n{message}"
-        
-        # Enemy attacks
-        enemy_message = combat.enemy_turn()
-        output += f"\n{enemy_message}"
-        
-        # Check if player died
-        if not game_state.current_character.is_alive():
-            death_message = combat.end_combat(victory=False)
-            output += f"\n{death_message}"
-            output += "\n\n=== GAME OVER ==="
-            game_state.current_combat = None
-        
-        return output
-    
-    elif command == "flee":
-        success, message = combat.player_flee()
-        output = f"\n{message}"
-        
-        if success:
-            # Fled successfully
-            game_state.current_combat = None
-            combat.is_active = False
-        else:
-            # Flee failed, enemy attacks
-            enemy_message = combat.enemy_turn()
-            output += f"\n{enemy_message}"
-            
-            # Check if player died
-            if not game_state.current_character.is_alive():
-                death_message = combat.end_combat(victory=False)
-                output += f"\n{death_message}"
-                output += "\n\n=== GAME OVER ==="
-                game_state.current_combat = None
-        
-        return output
-    
-    elif command == "status":
-        return "\n" + combat.get_status()
-    
-    else:
-        return "\n✗ Can't do that during combat! Use: attack, defend, flee, or status"
+    # Implementation:
+    # 1. Check if file exists
+    # 2. Load JSON data
+    # 3. Check for presence of "world" key
+    # 4. Return "game_state" if world key exists, else "character"
+    # 5. Handle JSON decode errors with ValueError
 ```
 
-**Step 2: Add exploration command handler function (before main loop)**
+### Step 5: Modify select_and_load_character() Function
+
+**File**: `src/cli_rpg/main.py`
+
+Modify `select_and_load_character()` function (lines 32-73):
+
+1. **Change return type** from `Optional[Character]` to `tuple[Optional[Character], Optional[GameState]]`
+   - Line 32: Update function signature
+   - Update docstring to reflect new return type
+
+2. **Add save type detection after user selects file** (after line 62):
+   ```python
+   # Detect save type
+   from cli_rpg.persistence import detect_save_type
+   try:
+       save_type = detect_save_type(selected_save['filepath'])
+   except ValueError as e:
+       print(f"\n✗ Corrupted save file: {e}")
+       return (None, None)
+   ```
+
+3. **Add conditional loading logic** (replace lines 63-69):
+   ```python
+   if save_type == "game_state":
+       # Load complete game state
+       try:
+           game_state = load_game_state(selected_save['filepath'])
+           print(f"\n✓ Game state loaded successfully!")
+           print(f"  Location: {game_state.current_location}")
+           print(f"  Character: {game_state.current_character.name}")
+           print("\n" + str(game_state.current_character))
+           return (None, game_state)
+       except Exception as e:
+           print(f"\n✗ Failed to load game state: {e}")
+           return (None, None)
+   else:
+       # Load character only (backward compatibility)
+       try:
+           character = load_character(selected_save['filepath'])
+           print(f"\n✓ Character loaded successfully!")
+           print("\n" + str(character))
+           return (character, None)
+       except Exception as e:
+           print(f"\n✗ Failed to load character: {e}")
+           return (None, None)
+   ```
+
+4. **Update error handling** (lines 74-82):
+   - Return `(None, None)` instead of `None` for all error cases
+   - Keep existing error messages
+
+### Step 6: Update main() to Handle Both Return Types
+
+**File**: `src/cli_rpg/main.py`
+
+Modify `main()` function at the load character branch (around line 368):
+
+1. **Update call to select_and_load_character()** (line 373):
+   ```python
+   elif choice == "2":
+       # Load character or game state
+       character, game_state = select_and_load_character()
+       
+       if game_state:
+           # Resume from saved game state
+           print("\n✓ Resuming game from saved state...")
+           # Re-attach AI service if available for continued world expansion
+           game_state.ai_service = ai_service
+           
+           # Start game loop with restored state
+           # Display welcome message
+           print("\n" + "=" * 50)
+           print(f"Welcome back, {game_state.current_character.name}!")
+           print("=" * 50)
+           # Display command help (copy from start_game)
+           # Show current location
+           print("\n" + game_state.look())
+           
+           # Run main gameplay loop (extract loop logic from start_game into helper)
+           run_game_loop(game_state)
+           
+       elif character:
+           # For backward compatibility, start new game with loaded character
+           print("\n✓ Starting new adventure with loaded character...")
+           start_game(character, ai_service=ai_service, theme="fantasy")
+   ```
+
+### Step 7: Extract Game Loop Logic to Helper Function
+
+**File**: `src/cli_rpg/main.py`
+
+Add new function before `start_game()`:
+
 ```python
-def handle_exploration_command(game_state: GameState, command: str, args: list[str]) -> tuple[bool, str]:
-    """Handle commands during exploration.
+def run_game_loop(game_state: GameState) -> None:
+    """Run the main gameplay loop.
     
     Args:
-        game_state: Current game state
-        command: Parsed command
-        args: Command arguments
-        
-    Returns:
-        Tuple of (continue_game, message)
+        game_state: The game state to run the loop for
     """
-    if command == "look":
-        return (True, "\n" + game_state.look())
-    
-    elif command == "go":
-        if not args:
-            return (True, "\nGo where? Specify a direction (north, south, east, west, up, down)")
-        
-        direction = args[0]
-        success, message = game_state.move(direction)
-        output = f"\n{message}"
-        
-        if success:
-            # Show new location
-            output += "\n\n" + game_state.look()
-        
-        return (True, output)
-    
-    elif command == "status":
-        return (True, "\n" + str(game_state.current_character))
-    
-    elif command == "save":
-        try:
-            filepath = save_game_state(game_state)
-            return (True, f"\n✓ Game saved successfully!\n  Save location: {filepath}")
-        except IOError as e:
-            return (True, f"\n✗ Failed to save game: {e}")
-    
-    elif command == "quit":
-        print("\n" + "=" * 50)
-        response = input("Save before quitting? (y/n): ").strip().lower()
-        if response == 'y':
-            try:
-                filepath = save_game_state(game_state)
-                print(f"\n✓ Game saved successfully!")
-                print(f"  Save location: {filepath}")
-            except IOError as e:
-                print(f"\n✗ Failed to save game: {e}")
-        
-        print("\nReturning to main menu...")
-        return (False, "")
-    
-    elif command in ["attack", "defend", "flee"]:
-        return (True, "\n✗ Not in combat.")
-    
-    elif command == "unknown":
-        return (True, "\n✗ Unknown command. Type 'look', 'go <direction>', 'status', 'save', or 'quit'")
-    
-    else:
-        return (True, "\n✗ Unknown command. Type 'look', 'go <direction>', 'status', 'save', or 'quit'")
+    # Implementation:
+    # 1. Copy the while loop logic from start_game() (lines ~299-330)
+    # 2. Include game over check
+    # 3. Include command parsing
+    # 4. Include combat/exploration routing
+    # 5. Do NOT include welcome message or initial setup
 ```
 
-**Step 3: Replace main game loop in `start_game()`**
+Modify `start_game()` function:
+1. Keep initial setup (lines ~250-295)
+2. Replace main loop with call to `run_game_loop(game_state)`
 
-Replace the existing game loop (lines ~75-120) with:
+### Step 8: Update Imports
 
+**File**: `src/cli_rpg/main.py`
+
+Update import statement (line 5):
 ```python
-    # Main gameplay loop
-    while True:
-        # Check if player is alive (game over condition)
-        if not game_state.current_character.is_alive():
-            print("\n" + "=" * 50)
-            print("GAME OVER - You have fallen in battle.")
-            print("=" * 50)
-            response = input("\nReturn to main menu? (y/n): ").strip().lower()
-            if response == 'y':
-                break
-            else:
-                # Allow continue even after death (for testing/fun)
-                game_state.current_character.health = game_state.current_character.max_health
-                print("\n✓ Health restored. Returning to town square...")
-                game_state.current_location = "Town Square"
-                game_state.current_combat = None
-        
-        print()
-        command_input = input("> ").strip()
-        
-        if not command_input:
-            continue
-        
-        # Parse command
-        command, args = parse_command(command_input)
-        
-        # Route command based on combat state
-        if game_state.is_in_combat():
-            message = handle_combat_command(game_state, command, args)
-            print(message)
-            
-            # Show combat status after each action if still in combat
-            if game_state.is_in_combat():
-                print("\n" + game_state.current_combat.get_status())
-        else:
-            continue_game, message = handle_exploration_command(game_state, command, args)
-            print(message)
-            
-            if not continue_game:
-                break
+from cli_rpg.persistence import save_character, load_character, list_saves, save_game_state, load_game_state, detect_save_type
 ```
 
-### 3.2 Update Command Display in `start_game()` intro
+### Step 9: Update Tests for Modified Function Signatures
 
-Replace lines ~60-70 with:
+**File**: `tests/test_main.py`
 
-```python
-    print("\nExploration Commands:")
-    print("  look          - Look around at your surroundings")
-    print("  go <direction> - Move in a direction (north, south, east, west)")
-    print("  status        - View your character status")
-    print("  save          - Save your game (not available during combat)")
-    print("  quit          - Return to main menu")
-    print("\nCombat Commands:")
-    print("  attack        - Attack the enemy")
-    print("  defend        - Take a defensive stance")
-    print("  flee          - Attempt to flee from combat")
-    print("  status        - View combat status")
-    print("=" * 50)
-```
+Update any tests that call `select_and_load_character()`:
+- Change assertions to expect tuple return value
+- Add tests for both return patterns
 
----
+**File**: `tests/test_main_menu.py`
 
-## 4. VERIFICATION
+Update any menu flow tests:
+- Handle tuple unpacking from select_and_load_character()
+- Add test cases for loading game state saves
 
-### 4.1 Run Test Suite
+### Step 10: Add Integration Test for Complete Flow
+
+**File**: `tests/test_main_complete_load_flow.py`
+
+Create end-to-end test:
+
+1. **Test complete save and load flow**
+   - Create character
+   - Start game (move to different location)
+   - Save game state
+   - Exit game
+   - Load game state from main menu
+   - Verify location and world are restored
+   - Continue playing from restored state
+
+2. **Test backward compatibility flow**
+   - Create character
+   - Save character only (using old save_character)
+   - Exit
+   - Load from main menu
+   - Verify new game starts with loaded character
+
+### Step 11: Verify All Tests Pass
+
+Run test suite:
 ```bash
-pytest tests/test_main_combat_integration.py -v
-pytest tests/test_main_game_loop_state_handling.py -v
-pytest tests/test_game_state_combat.py -v
-pytest tests/test_combat.py -v
+pytest tests/test_main_save_file_detection.py -v
+pytest tests/test_main_load_integration.py -v
+pytest tests/test_persistence.py -v
+pytest tests/test_main.py -v
+pytest tests/test_main_complete_load_flow.py -v
 ```
 
-### 4.2 Run Full Test Suite
-```bash
-pytest tests/ -v
-```
-Verify all 273+ tests pass.
+Ensure:
+- All new tests pass
+- All existing tests still pass
+- No regressions in character loading
+- Backward compatibility maintained
 
-### 4.3 Manual Integration Testing
+### Step 12: Manual Testing
 
-**Test Case 1: Combat Flow**
-1. Start game with new character
-2. Move to Forest (type: `go north`)
-3. Trigger encounter (may need multiple moves)
-4. Use `attack` command
-5. Verify enemy health decreases and enemy attacks back
-6. Continue until victory
-7. Verify XP awarded
-
-**Test Case 2: Defend Mechanic**
-1. Start game, trigger encounter
-2. Use `defend` command
-3. Verify enemy does reduced damage
-4. Continue combat
-
-**Test Case 3: Flee Mechanic**
-1. Start game, trigger encounter
-2. Use `flee` command
-3. Verify combat exits (may need multiple tries)
-4. Verify no XP awarded on successful flee
-
-**Test Case 4: Command Blocking**
-1. Start game, trigger encounter
-2. Try `go north` during combat
-3. Verify error message
-4. Try `save` during combat
-5. Verify error message
-
-**Test Case 5: Status Command**
-1. Start game, use `status` (exploration)
-2. Verify character stats displayed
-3. Trigger encounter, use `status` (combat)
-4. Verify combat status displayed
-
-**Test Case 6: Game Over**
-1. Start game, trigger encounter with strong enemy
-2. Let enemy reduce health to 0
-3. Verify game over message
-4. Verify offered return to menu
+Verify manually:
+1. Load existing character-only save (sasdf_20251224_011809.json)
+2. Verify it loads correctly and starts new game
+3. Create new character, play game, save game state
+4. Load game state save
+5. Verify location, world, and progress are restored
+6. Continue playing from restored state
+7. Test with AI service enabled and disabled
 
 ---
 
-## 5. FILE CHANGES SUMMARY
+## Verification Checklist
 
-### New Files
-- `tests/test_main_combat_integration.py` (12 test functions)
-- `tests/test_main_game_loop_state_handling.py` (6 test functions)
-
-### Modified Files
-- `src/cli_rpg/main.py`:
-  - Add `handle_combat_command()` function (~80 lines)
-  - Add `handle_exploration_command()` function (~55 lines)
-  - Replace main game loop in `start_game()` (~40 lines)
-  - Update command display text (~10 lines)
-  - Total changes: ~185 lines
-
-### Unchanged Files (used by integration)
-- `src/cli_rpg/game_state.py` (already has `is_in_combat()`, `trigger_encounter()`)
-- `src/cli_rpg/combat.py` (all methods already implemented)
-- `src/cli_rpg/models/character.py` (already complete)
-- `src/cli_rpg/models/enemy.py` (already complete)
-
----
-
-## 6. BACKWARD COMPATIBILITY
-
-### Preserved Functionality
-- All exploration commands work identically when not in combat
-- Save/load system unchanged
-- Character creation unchanged
-- World generation unchanged
-- AI integration unchanged
-
-### New Functionality
-- Combat command routing
-- Combat state management
-- Game over handling
-- Status command works in both modes
-
-### Breaking Changes
-- None (pure addition of combat handling to existing exploration system)
+- [ ] detect_save_type() function correctly identifies save file types
+- [ ] select_and_load_character() returns appropriate type based on save file
+- [ ] Character-only saves start new game with default world
+- [ ] Game state saves restore complete state (world, location, theme)
+- [ ] Backward compatibility: existing saves work without modification
+- [ ] Error handling for corrupted files
+- [ ] Theme is preserved and passed to AI service
+- [ ] AI service can be re-attached for continued world expansion
+- [ ] All tests pass
+- [ ] Manual testing confirms expected behavior

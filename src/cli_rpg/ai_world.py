@@ -4,7 +4,6 @@ import logging
 from typing import Optional
 from cli_rpg.ai_service import AIService, AIServiceError
 from cli_rpg.models.location import Location
-from cli_rpg.world import create_default_world
 
 
 # Set up logging
@@ -226,23 +225,24 @@ def create_world_with_fallback(
     ai_service: Optional[AIService] = None,
     theme: str = "fantasy"
 ) -> dict[str, Location]:
-    """Create world with AI or fall back to default.
-    
+    """Create world with AI or raise exception.
+
+    Note: This function is deprecated. Use create_ai_world directly
+    and handle fallback in the caller.
+
     Args:
         ai_service: Optional AIService instance
         theme: World theme
-    
+
     Returns:
         World dictionary
+
+    Raises:
+        ValueError: If ai_service is None
+        AIServiceError: If generation fails
     """
     if ai_service is None:
-        logger.info("No AI service provided, using default world")
-        return create_default_world()
-    
-    try:
-        logger.info("Attempting to create AI-generated world")
-        return create_ai_world(ai_service, theme=theme)
-    except (AIServiceError, Exception) as e:
-        logger.warning(f"AI world generation failed: {e}")
-        logger.info("Falling back to default world")
-        return create_default_world()
+        raise ValueError("AI service is required")
+
+    logger.info("Attempting to create AI-generated world")
+    return create_ai_world(ai_service, theme=theme)
