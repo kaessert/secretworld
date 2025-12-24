@@ -1,12 +1,29 @@
 ## Active Issues
 
-###  High prio: Closed Border MISUNDERSTOOD
+### Invalid connection (down) created
 **Status**: ACTIVE
 
-The requirement for a closed border was misunderstood. We always want a border which is open at least at one point, otherwise
-the world cannot stretch forever which is the goal of the game
+Neon Nexus
+A bustling metropolis of neon lights, towering skyscrapers, and crowded streets filled with augmented individuals and shady characters.
+NPCs: Merchant
+Exits: down, north, south
 
 ## Resolved Issues
+
+### Closed Border MISUNDERSTOOD (High Priority)
+**Status**: RESOLVED
+
+**Original Problem**: The requirement for a closed border was misunderstood. We always want a border which is open at least at one point, otherwise the world cannot stretch forever which is the goal of the game.
+
+**Solution Implemented**:
+- Renamed `find_unreachable_exits()` to `find_frontier_exits()` to clarify semantics (these exits are good - they enable expansion)
+- Added `has_expansion_exits()` method that returns `True` if at least one frontier exit exists
+- Added `ensure_expansion_possible()` method that guarantees at least one frontier exit by adding a dangling exit to an edge location if needed
+- Updated `expand_area()` in `ai_world.py` to call `ensure_expansion_possible()` after area generation
+- Maintained backward compatibility: `find_unreachable_exits()` is now an alias for `find_frontier_exits()`
+- Updated all related tests with correct semantics (test class renamed to `TestWorldGridExpansionValidation`)
+
+---
 
 ### Generate whole areas
 **Status**: RESOLVED
@@ -16,14 +33,17 @@ the world cannot stretch forever which is the goal of the game
 **Solution Implemented**:
 - Added `AIService.generate_area()` method that generates clusters of 4-7 connected locations per expansion
 - Added `expand_area()` function in `ai_world.py` that places the generated area on the grid
-- Added border validation methods to `WorldGrid`:
-  - `find_unreachable_exits()`: Identifies exits pointing to non-existent coordinates
-  - `validate_border_closure()`: Returns True if all cardinal exits point to existing locations
+- Added expansion validation methods to `WorldGrid`:
+  - `find_frontier_exits()`: Identifies exits pointing to unexplored coordinates (expansion opportunities)
+  - `has_expansion_exits()`: Returns True if at least one frontier exit exists
+  - `ensure_expansion_possible()`: Guarantees expansion is always possible
   - `get_frontier_locations()`: Returns locations with exits to empty coordinates
 - Updated `GameState.move()` to use `expand_area` instead of `expand_world` when AI is available
 - Area generation uses sub-theme hints (mystical forest, ancient ruins, etc.) for variety
 - Fallback to single-location expansion if area generation fails
-- 16 new tests cover area generation and border validation
+- 16 new tests cover area generation and expansion validation
+
+**Note**: Method names were updated in the "Closed Border MISUNDERSTOOD" fix above to better reflect intent.
 
 ---
 

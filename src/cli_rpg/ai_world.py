@@ -500,6 +500,17 @@ def expand_area(
                 if not neighbor.has_connection(rev_dir):
                     neighbor.add_connection(rev_dir, loc.name)
 
+    # Ensure the world still has at least one frontier exit for future expansion
+    # Build a temporary WorldGrid to check and fix expansion exits
+    temp_grid = WorldGrid()
+    for name, loc in world.items():
+        if loc.coordinates is not None:
+            temp_grid._grid[loc.coordinates] = loc
+            temp_grid._by_name[name] = loc
+
+    if temp_grid.ensure_expansion_possible():
+        logger.debug("Added frontier exit to ensure world can expand")
+
     logger.info(
         f"Added area with {len(placed_locations)} locations, "
         f"entry: '{entry_name}'"

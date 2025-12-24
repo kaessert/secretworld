@@ -320,39 +320,38 @@ class TestWorldGridSerialization:
         # Legacy locations should still be accessible by name
 
 
-class TestWorldGridBorderValidation:
-    """Test border validation methods for area generation.
+class TestWorldGridExpansionValidation:
+    """Test expansion validation methods for area generation.
 
-    Spec: find_unreachable_exits and validate_border_closure methods ensure
-    that the world border is "closed" - all exits either point to existing
-    locations or are reachable via frontier movement.
+    Spec: The world should always have at least one exit pointing to unexplored
+    coordinates (frontier exits) to enable infinite world expansion. Players
+    should never be trapped in a fully enclosed area.
     """
 
-    def test_find_unreachable_exits_empty_world(self):
-        """Single-location world with no exits has no unreachable exits.
+    def test_find_frontier_exits_empty_world(self):
+        """Single-location world with no exits has no frontier exits.
 
         Spec: A world with just one location and no connections should
-        return an empty list from find_unreachable_exits.
+        return an empty list from find_frontier_exits.
         """
         grid = WorldGrid()
         loc = Location(name="Start", description="Starting location")
         grid.add_location(loc, 0, 0)
 
-        unreachable = grid.find_unreachable_exits()
-        assert unreachable == []
+        frontier = grid.find_frontier_exits()
+        assert frontier == []
 
-    def test_find_unreachable_exits_detects_orphan(self):
-        """Detects exit pointing to coordinates that can't be reached.
+    def test_find_frontier_exits_detects_expansion_opportunities(self):
+        """Detects exits pointing to unexplored coordinates.
 
-        Spec: If a location has an exit to coordinates where no location
-        exists, and that exit cannot be reached from the player (frontier),
-        it should be detected as unreachable.
+        Spec: Frontier exits are exits pointing to coordinates where no location
+        exists yet - these enable world expansion when players travel through them.
         """
         grid = WorldGrid()
         loc = Location(
             name="Start",
             description="Starting location",
-            connections={"north": "Unreachable Place"}  # Points to (0, 1) but nothing there
+            connections={"north": "Unexplored Place"}  # Points to (0, 1) but nothing there
         )
         grid.add_location(loc, 0, 0)
 
@@ -360,23 +359,23 @@ class TestWorldGridBorderValidation:
         loc2 = Location(
             name="East",
             description="East location",
-            connections={"north": "Another Unreachable"}  # Points to (1, 1) but nothing there
+            connections={"north": "Another Unexplored"}  # Points to (1, 1) but nothing there
         )
         grid.add_location(loc2, 1, 0)
 
-        unreachable = grid.find_unreachable_exits()
-        # Both dangling exits should be detected
-        assert len(unreachable) == 2
+        frontier = grid.find_frontier_exits()
+        # Both frontier exits should be detected
+        assert len(frontier) == 2
         # Each entry is (location_name, direction, target_coords)
-        exit_info = [(name, direction) for name, direction, coords in unreachable]
+        exit_info = [(name, direction) for name, direction, coords in frontier]
         assert ("Start", "north") in exit_info
         assert ("East", "north") in exit_info
 
-    def test_find_unreachable_exits_ignores_valid_connections(self):
+    def test_find_frontier_exits_ignores_connected_locations(self):
         """Does not report exits that point to existing locations.
 
         Spec: Exits pointing to coordinates with existing locations are
-        not unreachable.
+        not frontier exits.
         """
         grid = WorldGrid()
         start = Location(name="Start", description="Starting location")
@@ -385,13 +384,14 @@ class TestWorldGridBorderValidation:
         grid.add_location(north, 0, 1)
 
         # Both locations now have connections to each other (created by WorldGrid)
-        unreachable = grid.find_unreachable_exits()
-        assert unreachable == []
+        frontier = grid.find_frontier_exits()
+        assert frontier == []
 
-    def test_validate_border_closure_true_when_closed(self):
-        """Returns True when all exits point to existing locations.
+    def test_has_expansion_exits_false_when_closed(self):
+        """Returns False when no exits point to unexplored territory.
 
-        Spec: validate_border_closure returns True if no orphaned exits.
+        Spec: has_expansion_exits returns False if world is fully closed
+        with no frontier exits - this is an UNDESIRED state.
         """
         grid = WorldGrid()
         start = Location(name="Start", description="Starting location")
@@ -399,22 +399,69 @@ class TestWorldGridBorderValidation:
         grid.add_location(start, 0, 0)
         grid.add_location(north, 0, 1)
 
-        assert grid.validate_border_closure() is True
+        assert grid.has_expansion_exits() is False
 
-    def test_validate_border_closure_false_when_orphan(self):
-        """Returns False when there are unreachable exits.
+    def test_has_expansion_exits_true_when_frontier_exists(self):
+        """Returns True when there are frontier exits.
 
-        Spec: validate_border_closure returns False if any orphaned exits.
+        Spec: has_expansion_exits returns True if at least one frontier exit
+        exists - this is the DESIRED state for infinite expansion.
         """
         grid = WorldGrid()
         loc = Location(
             name="Start",
             description="Starting location",
-            connections={"north": "Nowhere"}  # Dangling exit
+            connections={"north": "Nowhere"}  # Dangling exit (frontier)
         )
         grid.add_location(loc, 0, 0)
 
-        assert grid.validate_border_closure() is False
+        assert grid.has_expansion_exits() is True
+
+    def test_ensure_expansion_possible_adds_exit_when_closed(self):
+        """Adds a frontier exit when world is fully closed.
+
+        Spec: ensure_expansion_possible guarantees at least one frontier exit
+        exists by adding a dangling exit to an edge location if needed.
+        """
+        grid = WorldGrid()
+        start = Location(name="Start", description="Starting location")
+        north = Location(name="North", description="North location")
+        grid.add_location(start, 0, 0)
+        grid.add_location(north, 0, 1)
+
+        # World is closed - no frontier exits
+        assert grid.has_expansion_exits() is False
+
+        # Ensure expansion is possible
+        modified = grid.ensure_expansion_possible()
+        assert modified is True
+
+        # Now should have at least one frontier exit
+        assert grid.has_expansion_exits() is True
+
+    def test_ensure_expansion_possible_noop_when_already_open(self):
+        """Does not modify world if frontier exits already exist.
+
+        Spec: ensure_expansion_possible returns False and does not modify
+        the world if at least one frontier exit already exists.
+        """
+        grid = WorldGrid()
+        loc = Location(
+            name="Start",
+            description="Starting location",
+            connections={"north": "Unexplored"}  # Already has frontier exit
+        )
+        grid.add_location(loc, 0, 0)
+
+        # World already has frontier exit
+        assert grid.has_expansion_exits() is True
+
+        # Should not modify
+        modified = grid.ensure_expansion_possible()
+        assert modified is False
+
+        # Still has frontier exit
+        assert grid.has_expansion_exits() is True
 
     def test_get_frontier_locations_returns_border_locations(self):
         """Returns locations with exits to empty coordinates.
@@ -443,11 +490,11 @@ class TestWorldGridBorderValidation:
         # East has no dangling exits (only connections to existing locations)
         # So East might or might not be in frontier depending on implementation
 
-    def test_find_unreachable_exits_with_cardinal_directions_only(self):
+    def test_find_frontier_exits_with_cardinal_directions_only(self):
         """Only considers cardinal directions (north, south, east, west).
 
         Spec: Exits to non-cardinal directions (up, down) don't affect
-        coordinate-based border validation.
+        coordinate-based frontier validation.
         """
         grid = WorldGrid()
         loc = Location(
@@ -457,6 +504,38 @@ class TestWorldGridBorderValidation:
         )
         grid.add_location(loc, 0, 0)
 
-        unreachable = grid.find_unreachable_exits()
-        # up/down don't have coordinate offsets, so they shouldn't be in unreachable
-        assert unreachable == []
+        frontier = grid.find_frontier_exits()
+        # up/down don't have coordinate offsets, so they shouldn't be in frontier
+        assert frontier == []
+
+    # Backward compatibility tests for old method names
+    def test_find_unreachable_exits_alias(self):
+        """find_unreachable_exits is an alias for find_frontier_exits.
+
+        Spec: Maintain backward compatibility with the old method name.
+        """
+        grid = WorldGrid()
+        loc = Location(
+            name="Start",
+            description="Starting location",
+            connections={"north": "Unexplored"}
+        )
+        grid.add_location(loc, 0, 0)
+
+        # Both should return the same result
+        assert grid.find_unreachable_exits() == grid.find_frontier_exits()
+
+    def test_validate_border_closure_alias(self):
+        """validate_border_closure is maintained for backward compatibility.
+
+        Spec: validate_border_closure returns True when closed (no frontier exits).
+        """
+        grid = WorldGrid()
+        start = Location(name="Start", description="Starting location")
+        north = Location(name="North", description="North location")
+        grid.add_location(start, 0, 0)
+        grid.add_location(north, 0, 1)
+
+        # validate_border_closure returns True when closed (opposite of has_expansion_exits)
+        assert grid.validate_border_closure() is True
+        assert grid.has_expansion_exits() is False

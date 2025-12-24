@@ -270,10 +270,11 @@ class TestExpandArea:
         assert "Area East" in result
         assert "Area Southeast" in result
 
-    def test_expand_area_border_closed(self):
-        """No unreachable exits after area expansion.
+    def test_expand_area_preserves_expansion_exits(self):
+        """Area expansion should preserve ability to expand further.
 
-        Spec: After area generation, validate that no orphaned exits exist.
+        Spec: After area generation, the world should still have at least one
+        frontier exit to enable infinite world expansion.
         """
         # Setup initial world
         grid = WorldGrid()
@@ -334,12 +335,11 @@ class TestExpandArea:
                 new_grid._grid[loc.coordinates] = loc
                 new_grid._by_name[name] = loc
 
-        # Border should be closed - no exits to empty coordinates
-        # Note: The generated area may have frontier exits for future expansion,
-        # which is acceptable as long as they're reachable
-        unreachable = new_grid.find_unreachable_exits()
-        # All unreachable should be valid frontier (can be reached by player)
-        # For now, we just verify the function completes without error
+        # World should have at least one frontier exit for future expansion
+        # This is the DESIRED state - players should always be able to explore more
+        assert new_grid.has_expansion_exits() is True, (
+            "World should have at least one frontier exit after area expansion"
+        )
 
     def test_expand_area_preserves_existing_world(self):
         """Existing locations are unchanged after expansion.

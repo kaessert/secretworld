@@ -229,21 +229,21 @@ class WorldGrid:
         """Return keys view for dict-like iteration."""
         return self._by_name.keys()
 
-    def find_unreachable_exits(self) -> List[Tuple[str, str, Tuple[int, int]]]:
-        """Find exits pointing to empty coordinates.
+    def find_frontier_exits(self) -> List[Tuple[str, str, Tuple[int, int]]]:
+        """Find exits pointing to unexplored coordinates (frontier exits).
 
-        Identifies all exits from existing locations that point to coordinates
-        where no location exists. These are "dangling" exits that would need
-        generation when traveled to.
+        These exits enable world expansion - when a player travels through them,
+        new areas can be generated. At least one frontier exit should always exist
+        to ensure the world can grow infinitely.
 
         Only considers cardinal directions (north, south, east, west) since
         up/down don't have coordinate offsets.
 
         Returns:
             List of tuples (location_name, direction, target_coords) for each
-            exit pointing to empty coordinates.
+            exit pointing to unexplored coordinates.
         """
-        unreachable = []
+        frontier = []
 
         for location in self._by_name.values():
             if location.coordinates is None:
@@ -258,23 +258,76 @@ class WorldGrid:
                 dx, dy = DIRECTION_OFFSETS[direction]
                 target_coords = (x + dx, y + dy)
 
-                # Check if target coordinates are empty
+                # Check if target coordinates are empty (unexplored)
                 if target_coords not in self._grid:
-                    unreachable.append((location.name, direction, target_coords))
+                    frontier.append((location.name, direction, target_coords))
 
-        return unreachable
+        return frontier
+
+    # Backward compatibility alias
+    def find_unreachable_exits(self) -> List[Tuple[str, str, Tuple[int, int]]]:
+        """Alias for find_frontier_exits (backward compatibility)."""
+        return self.find_frontier_exits()
+
+    def has_expansion_exits(self) -> bool:
+        """Check if the world has at least one exit to unexplored territory.
+
+        Returns True if there's at least one frontier exit that can trigger
+        area generation. This is the desired state - the world should always
+        be expandable.
+
+        Returns:
+            True if at least one frontier exit exists, False if world is closed.
+        """
+        return len(self.find_frontier_exits()) > 0
 
     def validate_border_closure(self) -> bool:
-        """Check if all exits point to existing locations.
+        """Check if all exits point to existing locations (backward compatibility).
 
         Returns True if there are no "dangling" exits pointing to empty
-        coordinates. This ensures the world border is "closed".
+        coordinates. This means the world border is "closed".
+
+        Note: A closed border is generally NOT desired - the world should
+        always have at least one frontier exit for expansion. Use
+        has_expansion_exits() to check for the desired state.
 
         Returns:
             True if all cardinal exits point to existing locations,
             False if any exits point to empty coordinates.
         """
-        return len(self.find_unreachable_exits()) == 0
+        return not self.has_expansion_exits()
+
+    def ensure_expansion_possible(self) -> bool:
+        """Ensure the world has at least one frontier exit.
+
+        If no frontier exits exist, adds a dangling exit to a random edge
+        location in a random available direction.
+
+        Returns:
+            True if the world was modified, False if already had frontier exits.
+        """
+        if self.has_expansion_exits():
+            return False
+
+        # Find locations with available directions for expansion
+        import random
+
+        candidates = []
+        for location in self._by_name.values():
+            if location.coordinates is None:
+                continue
+            available_dirs = [d for d in DIRECTION_OFFSETS.keys()
+                             if d not in location.connections]
+            if available_dirs:
+                candidates.append((location, available_dirs))
+
+        if candidates:
+            location, available_dirs = random.choice(candidates)
+            direction = random.choice(available_dirs)
+            location.add_connection(direction, f"Unexplored {direction.title()}")
+            return True
+
+        return False
 
     def get_frontier_locations(self) -> List[Location]:
         """Get locations at the world border with exits to empty coordinates.
@@ -290,7 +343,7 @@ class WorldGrid:
         frontier = []
         seen_names = set()
 
-        for location_name, direction, target_coords in self.find_unreachable_exits():
+        for location_name, direction, target_coords in self.find_frontier_exits():
             if location_name not in seen_names:
                 seen_names.add(location_name)
                 frontier.append(self._by_name[location_name])
