@@ -48,9 +48,21 @@ class TestTalkCommand:
 
     def test_talk_no_args(self, game_with_shop):
         """Talk command shows error when no NPC specified."""
+        # Tests spec: When location has NPCs, show "Talk to whom? Specify an NPC name."
         cont, msg = handle_exploration_command(game_with_shop, "talk", [])
         assert cont is True
         assert "who" in msg.lower() or "specify" in msg.lower()
+
+    def test_talk_no_args_no_npcs_in_location(self):
+        """Talk command shows 'no NPCs here' when location has no NPCs."""
+        # Tests spec: When location has no NPCs, show "There are no NPCs here to talk to."
+        character = Character(name="Test", strength=10, dexterity=10, intelligence=10)
+        location = Location(name="Empty Cave", description="A dark cave.", connections={})
+        game = GameState(character, {"Empty Cave": location}, starting_location="Empty Cave")
+
+        cont, msg = handle_exploration_command(game, "talk", [])
+        assert cont is True
+        assert "no npc" in msg.lower() or "no one" in msg.lower()
 
 
 class TestBuyCommand:

@@ -1,5 +1,25 @@
 ## Active Issues
 
+### Same error message for invalid directions and blocked exits
+**Status**: ACTIVE
+
+**Problem**: When a user enters an invalid direction like `go up` or `go northwest`, the error message is "You can't go that way." - which is the same message shown when trying to move in a valid direction that has no exit (e.g., `go west` from Town Square where there is no western exit).
+
+**Steps to reproduce**:
+1. Start a new game
+2. At Town Square (Exits: east, north), try these commands:
+   - `go west` → "You can't go that way." (correct - no exit in that direction)
+   - `go up` → "You can't go that way." (confusing - 'up' isn't even a valid direction)
+   - `go northwest` → "You can't go that way." (confusing - 'northwest' isn't a valid direction)
+
+**Expected behavior**: Invalid directions should show a different error message like "Invalid direction. Use: north, south, east, or west." to distinguish from the "no exit in that direction" case.
+
+**Actual behavior**: Both cases show "You can't go that way." which is confusing because the user can't tell if:
+- The direction is valid but there's no exit (they could try a different location)
+- The direction itself isn't supported by the game
+
+---
+
 ### Map should not be circular, the array should automatically extend
 **Status**: ACTIVE
 
@@ -56,29 +76,20 @@ instead of generating just the next exit, we should always generate whole areas 
 there should be a method of checking if the world border is completely closed, there might be still a situation where
 all exits are visited and no way of getting to a tile whih triggers regeneration, THIS SHOULD BE AVOIDED in any case
 
-### Misleading error message when using `talk` without arguments in a location with no NPCs
-**Status**: ACTIVE
-
-**Problem**: When a user types the `talk` command without specifying an NPC name in a location that has NO NPCs, the game displays:
-
-```
-Talk to whom? Specify an NPC name.
-```
-
-This is misleading because it implies the user should specify an NPC name when there are actually no NPCs in the current location to talk to.
-
-**Steps to Reproduce**:
-1. Start a new game
-2. Go to a location without NPCs (e.g., `go east` from Town Square to reach Cave)
-3. Type `talk` without any arguments
-
-**Expected Behavior**: The game should say something like "There are no NPCs here to talk to." or "No one is here to talk to."
-
-**Actual Behavior**: The game says "Talk to whom? Specify an NPC name." - which implies the user needs to pick an NPC, when in fact none exist in this location.
-
-**Note**: When the user types `talk someone` (with an argument) in an NPC-less location, the game correctly says "You don't see 'someone' here." The issue only occurs when `talk` is typed without arguments.
-
 ## Resolved Issues
+
+### Misleading error message when using `talk` without arguments in a location with no NPCs
+**Status**: RESOLVED
+
+**Original Problem**: When a user types the `talk` command without specifying an NPC name in a location that has NO NPCs, the game displays "Talk to whom? Specify an NPC name." This was misleading because it implied the user should specify an NPC name when there are actually no NPCs in the current location to talk to.
+
+**Solution Implemented**:
+- Modified the `talk` command handler in `main.py` to check if the current location has NPCs before showing the generic prompt
+- When location has no NPCs: Shows "There are no NPCs here to talk to."
+- When location has NPCs: Shows "Talk to whom? Specify an NPC name."
+- Added test `test_talk_no_args_no_npcs_in_location()` in `tests/test_shop_commands.py`
+
+---
 
 ### Quest system mentioned in project structure but inaccessible to users
 **Status**: RESOLVED

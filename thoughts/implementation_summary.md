@@ -1,72 +1,29 @@
-# Implementation Summary: Quest Commands
+# Implementation Summary: Fix `talk` command error message
 
-## What Was Implemented
+## What was implemented
 
-Quest viewing commands that expose the existing `models/quest.py` Quest model to users:
+Fixed the misleading error message when using `talk` without arguments in a location with no NPCs.
 
-### Commands Added
-- `quests` (alias `q`) - View quest journal with all active/completed quests
-- `quest <name>` - View details of a specific quest (partial match, case-insensitive)
+### Changes:
 
-## Files Modified
+1. **`src/cli_rpg/main.py`** (lines 389-394):
+   - Modified the `talk` command handler to check if the current location has NPCs before showing the generic "Talk to whom?" message
+   - When location has no NPCs: Shows "There are no NPCs here to talk to."
+   - When location has NPCs: Shows "Talk to whom? Specify an NPC name."
 
-### 1. `src/cli_rpg/models/character.py`
-- Added `quests: List["Quest"] = field(default_factory=list)` attribute
-- Updated `to_dict()` to serialize quests list
-- Updated `from_dict()` to deserialize quests (with backward compatibility for saves without quests)
+2. **`tests/test_shop_commands.py`**:
+   - Added `test_talk_no_args_no_npcs_in_location()` test to verify the new behavior
+   - Added spec comment to the existing `test_talk_no_args()` test
 
-### 2. `src/cli_rpg/game_state.py`
-- Added `"q": "quests"` to shorthand aliases dict
-- Added `"quests"` and `"quest"` to `known_commands` set
+## Test results
 
-### 3. `src/cli_rpg/main.py`
-- Added `quests` command handler in `handle_exploration_command()`:
-  - Shows empty message if no quests
-  - Lists active quests with progress (e.g., "Kill Goblins [2/5]")
-  - Shows completed quests in separate section
-- Added `quest <name>` command handler:
-  - Finds quest by partial name match (case-insensitive)
-  - Displays full details: name, status, description, objective type, target, progress
-- Updated `get_command_reference()` with quest commands help text
+All 23 shop command tests pass:
+- 4 talk command tests (including the new one)
+- 8 buy command tests
+- 5 sell command tests
+- 2 shop command tests
+- 4 parse command tests
 
-### 4. `tests/test_quest_commands.py` (new file)
-- 13 tests covering:
-  - `parse_command` recognition of quests/quest commands
-  - Shorthand expansion (`q` → `quests`)
-  - Empty quest journal display
-  - Active quest listing with progress
-  - Completed quest display
-  - Quest detail view with all fields
-  - Partial name matching
-  - Error handling for unknown quests
-  - Combat blocking (quests/quest commands blocked during combat via existing handler)
+## Technical details
 
-## Test Results
-
-All 766 tests pass (13 new + 753 existing):
-```
-======================== 766 passed, 1 skipped in 6.76s ========================
-```
-
-## Design Decisions
-
-1. **Partial name matching**: Quest names can be found with partial matches (e.g., "kill" finds "Kill Goblins")
-2. **Case-insensitive**: Both user input and quest names compared in lowercase
-3. **Combat blocking**: Quest commands correctly return error during combat (handled by existing catch-all in `handle_combat_command`)
-4. **Backward compatibility**: Old save files without quests field work correctly (defaults to empty list)
-
-## E2E Validation Checklist
-
-- [ ] Start new game, type `quests` → should show "No active quests"
-- [ ] Start new game, type `q` → should expand to `quests` and show "No active quests"
-- [ ] Start new game, type `quest something` → should show "No quest found"
-- [ ] Type `help` → should show quests/quest commands in help text
-- [ ] Enter combat, type `quests` → should show "Can't do that during combat"
-
-## Scope Notes
-
-This is Phase 1 - viewing only. Future work includes:
-- Quest acquisition from NPCs (talk command integration)
-- Quest progress tracking from combat (kill objectives)
-- Quest progress from exploration (explore objectives)
-- Quest rewards on completion
+The fix adds a location lookup before the existing NPC name check to determine which error message to show. This provides better UX by telling users when there are simply no NPCs to talk to, rather than asking them to specify an NPC name when none exist.

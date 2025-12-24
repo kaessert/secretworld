@@ -388,6 +388,9 @@ def handle_exploration_command(game_state: GameState, command: str, args: list[s
 
     elif command == "talk":
         if not args:
+            location = game_state.world.get(game_state.current_location)
+            if location is None or not location.npcs:
+                return (True, "\nThere are no NPCs here to talk to.")
             return (True, "\nTalk to whom? Specify an NPC name.")
         npc_name = " ".join(args)
         location = game_state.world.get(game_state.current_location)

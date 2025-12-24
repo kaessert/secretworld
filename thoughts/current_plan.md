@@ -1,57 +1,49 @@
-# Implementation Plan: Quest Commands
+# Fix: Misleading error message when using `talk` without arguments in NPC-less location
 
 ## Spec
 
-Expose the existing `models/quest.py` Quest model to users via command interface:
-- `quests` (alias `q`) - View all active/completed quests with progress
-- `quest <name>` - View details of a specific quest
+When user types `talk` without arguments:
+- **If location has NPCs**: Show "Talk to whom? Specify an NPC name."
+- **If location has no NPCs**: Show "There are no NPCs here to talk to."
 
-**Scope**: Phase 1 only exposes viewing quests. Quest acquisition (via NPCs) and progress tracking (from combat/exploration) are future work.
+## Test (add to `tests/test_shop_commands.py`)
 
-## Tests First (`tests/test_quest_commands.py`)
+```python
+def test_talk_no_args_no_npcs_in_location(self):
+    """Talk command shows 'no NPCs here' when location has no NPCs."""
+    # Create game with location that has no NPCs
+    character = Character(name="Test", character_class="Warrior", strength=10, intelligence=10, agility=10)
+    location = Location(name="Empty Cave", description="A dark cave.", connections={})
+    game = GameState(current_character=character, current_location="Empty Cave", world={"Empty Cave": location})
 
-### parse_command Tests
-- `test_parse_quests_command` - "quests" recognized
-- `test_parse_quests_shorthand` - "q" expands to "quests"
-- `test_parse_quest_command` - "quest" recognized with args
-
-### handle_exploration_command Tests
-- `test_quests_shows_empty_when_no_quests` - "No active quests" message
-- `test_quests_shows_active_quests` - Lists quests with progress (e.g., "Kill Goblins [2/5]")
-- `test_quests_shows_completed_quests` - Shows completed quests separately
-- `test_quest_detail_shows_quest_info` - Full quest details (name, description, type, progress)
-- `test_quest_detail_not_found` - Error for unknown quest name
-- `test_quest_blocked_during_combat` - Returns combat restriction message
+    cont, msg = handle_exploration_command(game, "talk", [])
+    assert cont is True
+    assert "no npc" in msg.lower() or "no one" in msg.lower()
+```
 
 ## Implementation
 
-### 1. Add quests list to Character (`models/character.py`)
-- Add `quests: List[Quest] = field(default_factory=list)` attribute
-- Update `to_dict()` to serialize quests
-- Update `from_dict()` to deserialize quests
+**File**: `src/cli_rpg/main.py`, line ~389-391
 
-### 2. Add quest commands to parse_command (`game_state.py`)
-- Add "quests", "quest" to `known_commands` set (line 56)
-- Add "q": "quests" to aliases dict (line 48)
+**Change the `talk` command handler from**:
+```python
+elif command == "talk":
+    if not args:
+        return (True, "\nTalk to whom? Specify an NPC name.")
+```
 
-### 3. Add quest command handlers (`main.py`)
-- Add `quests` handler in `handle_exploration_command()`:
-  - List active quests with progress bars/counts
-  - Separate section for completed quests
-- Add `quest <name>` handler:
-  - Find quest by name (case-insensitive partial match)
-  - Display full details: name, description, objective type, target, progress
+**To**:
+```python
+elif command == "talk":
+    if not args:
+        location = game_state.world.get(game_state.current_location)
+        if location is None or not location.npcs:
+            return (True, "\nThere are no NPCs here to talk to.")
+        return (True, "\nTalk to whom? Specify an NPC name.")
+```
 
-### 4. Block quest commands during combat (`main.py`)
-- `handle_combat_command()` returns error for quest commands
+## Verification
 
-### 5. Update help text (`main.py`)
-- Add to `get_command_reference()`:
-  - `quests (q)      - View your quest journal`
-  - `quest <name>   - View details of a specific quest`
-
-## File Changes Summary
-1. `src/cli_rpg/models/character.py` - Add quests list field + serialization
-2. `src/cli_rpg/game_state.py` - Add quests/quest to parse_command
-3. `src/cli_rpg/main.py` - Add handlers + help text
-4. `tests/test_quest_commands.py` - New test file
+```bash
+pytest tests/test_shop_commands.py -v -k "talk"
+```
