@@ -96,15 +96,11 @@ class GameState:
         if starting_location not in world:
             raise ValueError(f"starting_location '{starting_location}' not found in world")
         
-        # Validate world connections (only for existing destinations)
-        for location_name, location in world.items():
-            for direction, target in location.connections.items():
-                # Allow missing destinations if AI service is available
-                if target not in world and ai_service is None:
-                    raise ValueError(
-                        f"Connection from '{location_name}' via '{direction}' "
-                        f"points to non-existent location '{target}'"
-                    )
+        # Note: Dangling connections (pointing to non-existent locations) are allowed.
+        # These support the "infinite world" principle where all locations have
+        # forward paths for exploration. When traveled to:
+        # - With AI service: the destination is generated dynamically
+        # - Without AI service: the move returns an error message
         
         # Set attributes
         self.current_character = character

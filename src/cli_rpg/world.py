@@ -51,8 +51,10 @@ def create_default_world() -> tuple[dict[str, Location], str]:
     town_square.add_connection("east", "Cave")
     
     forest.add_connection("south", "Town Square")
-    
+    forest.add_connection("north", "Deep Woods")  # Dangling exit for expansion
+
     cave.add_connection("west", "Town Square")
+    cave.add_connection("east", "Crystal Cavern")  # Dangling exit for expansion
     
     # Return world dictionary and starting location
     world = {

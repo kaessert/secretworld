@@ -126,8 +126,10 @@ src/cli_rpg/
 ├── game_state.py        # Game state management
 ├── combat.py            # Combat system
 ├── character_creation.py # Character creation flow
-├── world.py             # World generation
-├── ai_service.py        # AI integration (optional)
+├── world.py             # Default world generation
+├── ai_world.py          # AI-powered world generation
+├── ai_service.py        # AI service integration
+├── ai_config.py         # AI configuration management
 ├── autosave.py          # Automatic game saving
 ├── models/              # Data models
 │   ├── character.py

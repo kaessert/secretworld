@@ -150,10 +150,25 @@ def create_ai_world(
             continue
     
     logger.info(f"Generated world with {len(world)} locations")
-    
+
+    # Ensure all locations have at least one dangling exit for future expansion
+    import random
+    for loc_name, location in world.items():
+        # Find non-dangling connections (those pointing to existing locations)
+        back_connections = [d for d, target in location.connections.items() if target in world]
+
+        # If location only has back-connections, add a dangling exit
+        if len(location.connections) <= len(back_connections):
+            available_dirs = [d for d in Location.VALID_DIRECTIONS
+                            if d not in location.connections]
+            if available_dirs:
+                dangling_dir = random.choice(available_dirs)
+                placeholder_name = f"Unexplored {dangling_dir.title()}"
+                location.add_connection(dangling_dir, placeholder_name)
+
     # Get the actual starting location name (first generated location)
     actual_starting_location = starting_location.name
-    
+
     return (world, actual_starting_location)
 
 

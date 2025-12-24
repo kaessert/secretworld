@@ -1,21 +1,3 @@
-# Implementation Plan: Initial World Generation Dead-End Prevention
-
-## Spec
-
-Initial world generation (both `create_default_world()` and `create_ai_world()`) must create worlds with sufficient exits and dangling connections to ensure the "infinite world" principle is maintained from the start. A player should never be stuck in a dead-end state immediately after world creation.
-
-**Requirements:**
-1. The default world's leaf locations (Forest, Cave) must have at least one dangling connection for future expansion
-2. AI-generated initial worlds must ensure every generated location has at least one non-back-connection (dangling exit)
-3. The starting location must always have multiple exit directions
-
----
-
-## Tests
-
-**File:** `tests/test_initial_world_dead_end_prevention.py`
-
-```python
 """Tests for initial world generation dead-end prevention.
 
 Spec: Initial world generation must create sufficient exits and dangling connections
@@ -157,55 +139,3 @@ class TestCreateWorldDeadEndPrevention:
         # Starting location should have paths to explore
         assert len(starting_loc.connections) >= 2, \
             "Starting location must provide multiple exploration paths"
-```
-
----
-
-## Implementation Steps
-
-### Step 1: Update create_default_world() in world.py
-**File:** `src/cli_rpg/world.py`
-
-Add dangling connections to leaf locations (Forest and Cave):
-
-```python
-# After line 53 (forest.add_connection("south", "Town Square")):
-forest.add_connection("north", "Deep Woods")  # Dangling exit for expansion
-
-# After line 55 (cave.add_connection("west", "Town Square")):
-cave.add_connection("east", "Crystal Cavern")  # Dangling exit for expansion
-```
-
-### Step 2: Update create_ai_world() in ai_world.py
-**File:** `src/cli_rpg/ai_world.py`
-
-After the main generation loop (line 151), add logic to ensure all locations have forward exits:
-
-```python
-# After line 151 (logger.info(f"Generated world with {len(world)} locations")):
-
-# Ensure all locations have at least one dangling exit for future expansion
-import random
-for loc_name, location in world.items():
-    # Find non-dangling connections (those pointing to existing locations)
-    back_connections = [d for d, target in location.connections.items() if target in world]
-
-    # If location only has back-connections, add a dangling exit
-    if len(location.connections) <= len(back_connections):
-        available_dirs = [d for d in Location.VALID_DIRECTIONS
-                        if d not in location.connections]
-        if available_dirs:
-            dangling_dir = random.choice(available_dirs)
-            placeholder_name = f"Unexplored {dangling_dir.title()}"
-            location.add_connection(dangling_dir, placeholder_name)
-```
-
-### Step 3: Run tests
-```bash
-pytest tests/test_initial_world_dead_end_prevention.py -v
-```
-
-### Step 4: Verify existing tests still pass
-```bash
-pytest tests/test_world.py tests/test_ai_world_generation.py tests/test_e2e_world_expansion.py -v
-```

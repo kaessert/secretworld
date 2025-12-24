@@ -202,18 +202,21 @@ class TestGameStateInit:
         with pytest.raises(ValueError, match="starting_location.*not found in world"):
             GameState(character, world, "NonExistent")
     
-    def test_game_state_creation_validates_world_connections(self):
-        """Test that invalid location connections raise ValueError.
-        
-        Spec: Must raise ValueError if connection points to non-existent location
+    def test_game_state_creation_allows_dangling_connections(self):
+        """Test that dangling connections are allowed for infinite world principle.
+
+        Spec: Dangling connections (pointing to non-existent locations) are allowed
+        to support the "infinite world" principle where all locations have forward
+        paths for future expansion.
         """
         character = Character("Hero", strength=10, dexterity=10, intelligence=10)
         world = {
             "Start": Location("Start", "A location", {"north": "NonExistent"})
         }
-        
-        with pytest.raises(ValueError, match="Connection.*points to non-existent location"):
-            GameState(character, world, "Start")
+
+        # Should NOT raise - dangling connections are allowed
+        game_state = GameState(character, world, "Start")
+        assert game_state.current_location == "Start"
 
 
 class TestGameStateGetCurrentLocation:
