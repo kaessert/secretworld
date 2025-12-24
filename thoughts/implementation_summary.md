@@ -1,29 +1,39 @@
-# Implementation Summary: Fix `talk` command error message
+# Implementation Summary: Invalid Direction Error Message (Issue #1)
 
-## What was implemented
+## What Was Implemented
 
-Fixed the misleading error message when using `talk` without arguments in a location with no NPCs.
+**Feature**: Distinguish between invalid directions and blocked exits in `GameState.move()`.
 
-### Changes:
+### Changes Made:
 
-1. **`src/cli_rpg/main.py`** (lines 389-394):
-   - Modified the `talk` command handler to check if the current location has NPCs before showing the generic "Talk to whom?" message
-   - When location has no NPCs: Shows "There are no NPCs here to talk to."
-   - When location has NPCs: Shows "Talk to whom? Specify an NPC name."
+1. **`src/cli_rpg/game_state.py`** (line ~178-183)
+   - Added validation to check if direction is in the set of valid game directions (`north`, `south`, `east`, `west`)
+   - Invalid directions (e.g., `up`, `northwest`, `left`, `xyz`) now return: `"Invalid direction. Use: north, south, east, or west."`
+   - Valid directions with no exit still return: `"You can't go that way."`
 
-2. **`tests/test_shop_commands.py`**:
-   - Added `test_talk_no_args_no_npcs_in_location()` test to verify the new behavior
-   - Added spec comment to the existing `test_talk_no_args()` test
+2. **`tests/test_game_state.py`**
+   - Added new test `test_move_unsupported_direction_shows_invalid_message` that verifies:
+     - Unsupported directions like `up`, `northwest`, `left`, `forward`, `xyz` show "Invalid direction" message
+     - Valid directions with no exit still show "You can't go that way" message
 
-## Test results
+3. **`tests/test_e2e_world_expansion.py`**
+   - Updated `test_multi_step_expansion_chain` to use cardinal directions only:
+     - Changed `"down": "Dungeon"` to `"south": "Dungeon"` in connections
+     - Updated expected location from `"Underground Cavern"` to `"Sunny Meadow"` (per mock behavior)
+     - Updated `verify_bidirectional_connection` call to use `"south"` instead of `"down"`
 
-All 23 shop command tests pass:
-- 4 talk command tests (including the new one)
-- 8 buy command tests
-- 5 sell command tests
-- 2 shop command tests
-- 4 parse command tests
+## Test Results
 
-## Technical details
+- **768 passed, 1 skipped** - All tests pass
+- No regressions introduced
 
-The fix adds a location lookup before the existing NPC name check to determine which error message to show. This provides better UX by telling users when there are simply no NPCs to talk to, rather than asking them to specify an NPC name when none exist.
+## Design Decision
+
+While `Location.VALID_DIRECTIONS` includes `up` and `down` for model flexibility (allowing 3D environments in the data model), the game's movement system only supports cardinal directions (`north`, `south`, `east`, `west`). This keeps gameplay intuitive for a CLI text adventure.
+
+## E2E Validation
+
+The following scenarios should work correctly:
+- Entering `go up` or `go northwest` shows "Invalid direction. Use: north, south, east, or west."
+- Entering `go south` when there's no southern exit shows "You can't go that way."
+- Normal navigation with `north`/`south`/`east`/`west` works as before

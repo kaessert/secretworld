@@ -1,49 +1,68 @@
-# Fix: Misleading error message when using `talk` without arguments in NPC-less location
+# Fix Invalid Direction Error Message (Issue #1)
 
 ## Spec
-
-When user types `talk` without arguments:
-- **If location has NPCs**: Show "Talk to whom? Specify an NPC name."
-- **If location has no NPCs**: Show "There are no NPCs here to talk to."
-
-## Test (add to `tests/test_shop_commands.py`)
-
-```python
-def test_talk_no_args_no_npcs_in_location(self):
-    """Talk command shows 'no NPCs here' when location has no NPCs."""
-    # Create game with location that has no NPCs
-    character = Character(name="Test", character_class="Warrior", strength=10, intelligence=10, agility=10)
-    location = Location(name="Empty Cave", description="A dark cave.", connections={})
-    game = GameState(current_character=character, current_location="Empty Cave", world={"Empty Cave": location})
-
-    cont, msg = handle_exploration_command(game, "talk", [])
-    assert cont is True
-    assert "no npc" in msg.lower() or "no one" in msg.lower()
-```
+Distinguish between two error cases in `GameState.move()`:
+1. **Invalid direction**: User enters non-supported direction (e.g., `up`, `northwest`) → "Invalid direction. Use: north, south, east, or west."
+2. **No exit**: User enters valid direction with no connection (e.g., `south` when no southern exit) → "You can't go that way."
 
 ## Implementation
 
-**File**: `src/cli_rpg/main.py`, line ~389-391
+### 1. Add test for invalid direction message
+**File**: `tests/test_game_state.py`
 
-**Change the `talk` command handler from**:
+Add new test after `test_move_nonexistent_direction_failure`:
 ```python
-elif command == "talk":
-    if not args:
-        return (True, "\nTalk to whom? Specify an NPC name.")
+def test_move_unsupported_direction_shows_invalid_message(self):
+    """Test that unsupported directions show a different error than blocked exits.
+
+    Spec: 'up', 'northwest', etc. should say "Invalid direction" not "You can't go that way."
+    """
+    character = Character("Hero", strength=10, dexterity=10, intelligence=10)
+    world = {
+        "Start": Location("Start", "Start location", {"north": "End"}),
+        "End": Location("End", "End location")
+    }
+
+    game_state = GameState(character, world, "Start")
+
+    # Test unsupported directions
+    for invalid_dir in ["up", "northwest", "left", "forward", "xyz"]:
+        success, message = game_state.move(invalid_dir)
+        assert success is False
+        assert "Invalid direction" in message, f"Expected 'Invalid direction' for '{invalid_dir}', got: {message}"
+
+    # Verify blocked exit still shows original message
+    success, message = game_state.move("south")  # valid direction, no exit
+    assert success is False
+    assert "can't go that way" in message.lower()
 ```
 
-**To**:
+### 2. Update `GameState.move()` method
+**File**: `src/cli_rpg/game_state.py`, line ~178-182
+
+Add validation check before `has_connection`:
 ```python
-elif command == "talk":
-    if not args:
-        location = game_state.world.get(game_state.current_location)
-        if location is None or not location.npcs:
-            return (True, "\nThere are no NPCs here to talk to.")
-        return (True, "\nTalk to whom? Specify an NPC name.")
+def move(self, direction: str) -> tuple[bool, str]:
+    ...
+    current = self.get_current_location()
+
+    # Check if direction is valid (north, south, east, west)
+    valid_game_directions = {"north", "south", "east", "west"}
+    if direction not in valid_game_directions:
+        return (False, "Invalid direction. Use: north, south, east, or west.")
+
+    # Check if direction exists (valid direction but no exit)
+    if not current.has_connection(direction):
+        return (False, "You can't go that way.")
+    ...
 ```
 
-## Verification
-
+### 3. Run tests
 ```bash
-pytest tests/test_shop_commands.py -v -k "talk"
+pytest tests/test_game_state.py -v -k "move"
+pytest  # Full suite to ensure no regressions
 ```
+
+## Notes
+- `Location.VALID_DIRECTIONS` includes `up` and `down` for model flexibility, but the game's movement system only supports cardinal directions (north, south, east, west)
+- The new validation goes before `has_connection()` to catch invalid directions first

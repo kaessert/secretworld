@@ -1,25 +1,5 @@
 ## Active Issues
 
-### Same error message for invalid directions and blocked exits
-**Status**: ACTIVE
-
-**Problem**: When a user enters an invalid direction like `go up` or `go northwest`, the error message is "You can't go that way." - which is the same message shown when trying to move in a valid direction that has no exit (e.g., `go west` from Town Square where there is no western exit).
-
-**Steps to reproduce**:
-1. Start a new game
-2. At Town Square (Exits: east, north), try these commands:
-   - `go west` → "You can't go that way." (correct - no exit in that direction)
-   - `go up` → "You can't go that way." (confusing - 'up' isn't even a valid direction)
-   - `go northwest` → "You can't go that way." (confusing - 'northwest' isn't a valid direction)
-
-**Expected behavior**: Invalid directions should show a different error message like "Invalid direction. Use: north, south, east, or west." to distinguish from the "no exit in that direction" case.
-
-**Actual behavior**: Both cases show "You can't go that way." which is confusing because the user can't tell if:
-- The direction is valid but there's no exit (they could try a different location)
-- The direction itself isn't supported by the game
-
----
-
 ### Map should not be circular, the array should automatically extend
 **Status**: ACTIVE
 
@@ -77,6 +57,22 @@ there should be a method of checking if the world border is completely closed, t
 all exits are visited and no way of getting to a tile whih triggers regeneration, THIS SHOULD BE AVOIDED in any case
 
 ## Resolved Issues
+
+### Same error message for invalid directions and blocked exits
+**Status**: RESOLVED
+
+**Original Problem**: When a user entered an invalid direction like `go up` or `go northwest`, the error message was "You can't go that way." - the same message shown when trying to move in a valid direction that has no exit (e.g., `go west` from Town Square where there is no western exit). Users couldn't tell if the direction was invalid or if there was simply no exit.
+
+**Solution Implemented**:
+- Added validation in `GameState.move()` to check if direction is in the set of valid game directions (`north`, `south`, `east`, `west`)
+- Invalid directions (e.g., `up`, `northwest`, `left`, `xyz`) now return: "Invalid direction. Use: north, south, east, or west."
+- Valid directions with no exit still return: "You can't go that way."
+- Added test `test_move_unsupported_direction_shows_invalid_message` to verify behavior
+- Updated E2E tests to use cardinal directions only
+
+**Design Note**: While `Location.VALID_DIRECTIONS` includes `up` and `down` for model flexibility (allowing 3D environments in the data model), the game's movement system only supports cardinal directions for intuitive CLI gameplay.
+
+---
 
 ### Misleading error message when using `talk` without arguments in a location with no NPCs
 **Status**: RESOLVED

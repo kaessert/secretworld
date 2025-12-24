@@ -380,7 +380,7 @@ class TestGameStateMove:
     
     def test_move_nonexistent_direction_failure(self):
         """Test moving in direction with no connection fails.
-        
+
         Spec: Should return (False, error) for direction with no connection
         """
         character = Character("Hero", strength=10, dexterity=10, intelligence=10)
@@ -388,12 +388,36 @@ class TestGameStateMove:
             "Start": Location("Start", "Start location", {"north": "End"}),
             "End": Location("End", "End location")
         }
-        
+
         game_state = GameState(character, world, "Start")
         success, message = game_state.move("south")
-        
+
         assert success is False
-    
+
+    def test_move_unsupported_direction_shows_invalid_message(self):
+        """Test that unsupported directions show a different error than blocked exits.
+
+        Spec: 'up', 'northwest', etc. should say "Invalid direction" not "You can't go that way."
+        """
+        character = Character("Hero", strength=10, dexterity=10, intelligence=10)
+        world = {
+            "Start": Location("Start", "Start location", {"north": "End"}),
+            "End": Location("End", "End location")
+        }
+
+        game_state = GameState(character, world, "Start")
+
+        # Test unsupported directions
+        for invalid_dir in ["up", "northwest", "left", "forward", "xyz"]:
+            success, message = game_state.move(invalid_dir)
+            assert success is False
+            assert "Invalid direction" in message, f"Expected 'Invalid direction' for '{invalid_dir}', got: {message}"
+
+        # Verify blocked exit still shows original message
+        success, message = game_state.move("south")  # valid direction, no exit
+        assert success is False
+        assert "can't go that way" in message.lower()
+
     def test_move_chain_navigation(self):
         """Test multiple moves in sequence work correctly.
         

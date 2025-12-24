@@ -176,8 +176,13 @@ class GameState:
             - message describes the result
         """
         current = self.get_current_location()
-        
-        # Check if direction exists
+
+        # Check if direction is valid (north, south, east, west)
+        valid_game_directions = {"north", "south", "east", "west"}
+        if direction not in valid_game_directions:
+            return (False, "Invalid direction. Use: north, south, east, or west.")
+
+        # Check if direction exists (valid direction but no exit)
         if not current.has_connection(direction):
             return (False, "You can't go that way.")
         

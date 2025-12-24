@@ -286,7 +286,7 @@ def test_multi_step_expansion_chain(basic_character, mock_ai_service_success):
     town.connections = {
         "north": "Forest",
         "east": "Cave",
-        "down": "Dungeon"
+        "south": "Dungeon"
     }
     world = {"Town Square": town}
     
@@ -313,23 +313,23 @@ def test_multi_step_expansion_chain(basic_character, mock_ai_service_success):
     assert len(game_state.world) == 3
     
     # Add dangling connection from Ancient Cave for third expansion
-    game_state.world["Ancient Cave"].connections["down"] = "Dungeon"
-    
-    success3, _ = game_state.move("down")
+    game_state.world["Ancient Cave"].connections["south"] = "Dungeon"
+
+    success3, _ = game_state.move("south")
     assert success3 is True, "Third expansion should succeed"
-    assert game_state.current_location == "Underground Cavern"
-    
+    assert game_state.current_location == "Sunny Meadow"
+
     # Spec: All four locations exist in world
     assert len(game_state.world) == 4
     assert "Town Square" in game_state.world
     assert "Dark Forest" in game_state.world
     assert "Ancient Cave" in game_state.world
-    assert "Underground Cavern" in game_state.world
-    
+    assert "Sunny Meadow" in game_state.world
+
     # Spec: All connections are bidirectional
     verify_bidirectional_connection(game_state.world, "Town Square", "north", "Dark Forest")
     verify_bidirectional_connection(game_state.world, "Dark Forest", "east", "Ancient Cave")
-    verify_bidirectional_connection(game_state.world, "Ancient Cave", "down", "Underground Cavern")
+    verify_bidirectional_connection(game_state.world, "Ancient Cave", "south", "Sunny Meadow")
     
     # Spec: AI service called three times (once per expansion)
     assert mock_ai_service_success.generate_location.call_count == 3
