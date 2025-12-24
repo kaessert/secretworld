@@ -389,9 +389,9 @@ class TestQuitCommandDuringCombat:
         game_state.current_combat = CombatEncounter(character, enemy)
         game_state.current_combat.is_active = True
 
-        # Test: Call handle_combat_command with quit, mock input to return 'n' (no save)
+        # Test: Call handle_combat_command with quit, mock input to return 'y' (yes quit)
         from cli_rpg.main import handle_combat_command
-        with patch('builtins.input', return_value='n'):
+        with patch('builtins.input', return_value='y'):
             continue_game, message = handle_combat_command(game_state, "quit", [])
 
         # Assert: Function returns False (signal to exit game loop)
@@ -419,8 +419,8 @@ class TestQuitCommandDuringCombat:
         output = captured_output.getvalue()
         assert "combat" in output.lower() or "warning" in output.lower()
 
-    def test_quit_command_with_save_saves_game(self):
-        """Spec: When choosing to save before quitting, game should save."""
+    def test_quit_during_combat_does_not_offer_save(self):
+        """Spec: Quit during combat should NOT offer to save (save disabled in combat)."""
         # Setup
         character = Character(name="Hero", strength=10, dexterity=10, intelligence=10)
         enemy = Enemy(name="Wolf", health=30, max_health=30, attack_power=5, defense=2, xp_reward=20)
@@ -429,15 +429,40 @@ class TestQuitCommandDuringCombat:
         game_state.current_combat = CombatEncounter(character, enemy)
         game_state.current_combat.is_active = True
 
-        # Test: Mock input to return 'y' (yes save), mock save_game_state
+        # Test: Mock input to return 'y' (yes quit), ensure save_game_state is NOT called
         from cli_rpg.main import handle_combat_command
+        import io
+        captured_output = io.StringIO()
         with patch('builtins.input', return_value='y'), \
-             patch('cli_rpg.main.save_game_state', return_value='/fake/path.json') as mock_save:
+             patch('cli_rpg.main.save_game_state', return_value='/fake/path.json') as mock_save, \
+             patch('sys.stdout', captured_output):
             continue_game, message = handle_combat_command(game_state, "quit", [])
 
-        # Assert: save_game_state was called and function returns False
-        mock_save.assert_called_once_with(game_state)
+        # Assert: save_game_state was NOT called, and warning about saving disabled is shown
+        mock_save.assert_not_called()
         assert continue_game is False
+        output = captured_output.getvalue()
+        assert "saving is disabled" in output.lower() or "disabled" in output.lower()
+        assert "combat progress will be lost" in output.lower() or "progress will be lost" in output.lower()
+
+    def test_quit_during_combat_cancel_returns_to_combat(self):
+        """Spec: Choosing 'n' when asked to quit during combat should return to combat."""
+        # Setup
+        character = Character(name="Hero", strength=10, dexterity=10, intelligence=10)
+        enemy = Enemy(name="Wolf", health=30, max_health=30, attack_power=5, defense=2, xp_reward=20)
+        world = {"Forest": Location(name="Forest", description="A dark forest", connections={})}
+        game_state = GameState(character, world, starting_location="Forest")
+        game_state.current_combat = CombatEncounter(character, enemy)
+        game_state.current_combat.is_active = True
+
+        # Test: Mock input to return 'n' (no, don't quit)
+        from cli_rpg.main import handle_combat_command
+        with patch('builtins.input', return_value='n'):
+            continue_game, message = handle_combat_command(game_state, "quit", [])
+
+        # Assert: Function returns True (continue game), combat still active
+        assert continue_game is True
+        assert game_state.current_combat is not None
 
 
 class TestUseItemDuringCombat:

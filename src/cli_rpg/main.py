@@ -298,17 +298,13 @@ def handle_combat_command(game_state: GameState, command: str, args: list[str]) 
 
     elif command == "quit":
         print("\n" + "=" * 50)
-        print("⚠️  Warning: You are in combat! Progress may be lost.")
-        response = input("Save before quitting? (y/n): ").strip().lower()
+        print("⚠️  Warning: You are in combat! Saving is disabled during combat.")
+        print("If you quit now, your combat progress will be lost.")
+        response = input("Quit without saving? (y/n): ").strip().lower()
         if response == 'y':
-            try:
-                filepath = save_game_state(game_state)
-                print(f"\n✓ Game saved successfully!")
-                print(f"  Save location: {filepath}")
-            except IOError as e:
-                print(f"\n✗ Failed to save game: {e}")
-        print("\nReturning to main menu...")
-        return (False, "")
+            print("\nReturning to main menu...")
+            return (False, "")
+        return (True, "")  # Cancel quit, continue combat
 
     else:
         return (True, "\n✗ Can't do that during combat! Use: attack, defend, cast, flee, use, status, help, or quit")

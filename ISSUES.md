@@ -1,34 +1,13 @@
 ## Active Issues
 
-### Inconsistent save behavior during combat allows exploiting quit to escape fights
+### Map should always show the user in the center and could show two fields around the user
 **Status**: ACTIVE
 
-**Problem**: The game has inconsistent save behavior during combat:
-1. Using the `save` command during combat correctly blocks with: `✗ Can't do that during combat!`
-2. BUT using `quit` during combat and answering 'y' to "Save before quitting?" **successfully saves the game**
-3. When this save is loaded, the combat encounter is lost - the enemy disappears
+=== MAP ===
+    -2 -1  0
+ 1   S  F  E
+ 0      C  @
 
-**Impact**: Players can exploit this to escape losing fights:
-1. Get into a tough fight and start losing
-2. Type `quit`, answer `y` to save
-3. Reload the save - the enemy is gone, player is at full health at that location
-
-**Steps to Reproduce**:
-1. Create a new character
-2. Travel until a combat encounter starts (e.g., "A wild Bear appears!")
-3. While in combat, type `save` → correctly blocked with "Can't do that during combat!"
-4. Type `quit` → prompted "Save before quitting? (y/n)"
-5. Type `y` → game saves successfully
-6. Reload the save from main menu
-7. Player is now at the Forest location with no combat - the Bear is gone
-
-**Expected Behavior**: Either:
-- The quit prompt during combat should NOT offer to save (since saving during combat is not allowed), OR
-- If saving during combat IS allowed via quit, the combat state should be preserved
-
-**Actual Behavior**: Inconsistent - `save` is blocked but `quit + y` allows saving, and the save loses combat state
-
----
 
 ### Support Anthropic API Key
 **Status**: ACTIVE
@@ -171,10 +150,31 @@ This is misleading because:
 
 **Solution Implemented**:
 - Added `quit` command handler to `handle_combat_command()` in `main.py`
-- Shows a warning about being in combat and prompts user to save before quitting
-- If user confirms with 'y', saves the game before exiting to main menu
+- Shows a warning that saving is disabled during combat and combat progress will be lost
+- User can confirm with 'y' to quit without saving, or 'n' to cancel and return to combat
 - Updated `handle_combat_command()` return type to match `handle_exploration_command()` signature
 - Added tests for quit command during combat behavior
+
+**Note**: This behavior was later refined to fix the save exploit (see "Inconsistent save behavior during combat" below).
+
+---
+
+### Inconsistent save behavior during combat allows exploiting quit to escape fights
+**Status**: RESOLVED
+
+**Original Problem**: The game had inconsistent save behavior during combat:
+1. Using the `save` command during combat correctly blocked with: `✗ Can't do that during combat!`
+2. BUT using `quit` during combat and answering 'y' to "Save before quitting?" successfully saved the game
+3. When this save was loaded, the combat encounter was lost - the enemy disappeared
+
+This allowed players to exploit the system to escape losing fights by quitting, saving, and reloading.
+
+**Solution Implemented**:
+- Changed quit prompt during combat from "Save before quitting?" to "Quit without saving?"
+- Removed the save functionality during combat quit (matching `save` command behavior)
+- Added explicit warning that saving is disabled during combat and combat progress will be lost
+- Answering 'n' now cancels the quit and returns to combat
+- Updated tests to verify the new behavior
 
 ---
 

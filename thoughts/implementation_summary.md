@@ -1,70 +1,41 @@
-# Implementation Summary: Fix AI Generation Failure Handling
+# Implementation Summary: Fix Inconsistent Save Behavior During Combat
 
 ## What Was Implemented
 
-### 1. Added `is_ai_strict_mode()` function to `src/cli_rpg/config.py`
-- New function that reads `CLI_RPG_REQUIRE_AI` environment variable
-- Returns `True` (strict mode) by default, or when env var is "true"
-- Returns `False` (fallback mode) only when env var is explicitly "false"
-- Case-insensitive handling of the environment variable value
+Fixed the save exploit during combat where `quit + y` allowed saving and losing combat state, enabling players to escape losing fights.
 
-### 2. Modified `create_world()` in `src/cli_rpg/world.py`
-- Added `strict: bool = True` parameter
-- When `strict=True` (default): AI generation failures raise exceptions instead of silently falling back
-- When `strict=False`: Original fallback behavior preserved for backward compatibility
-- Logging updated to indicate strict mode when active
+### Changes Made
 
-### 3. Updated `start_game()` in `src/cli_rpg/main.py`
-- Added `strict: bool = True` parameter
-- Wrapped `create_world()` call in try/except
-- On AI failure in strict mode, displays error and offers user 3 options:
-  1. Retry AI generation
-  2. Use default world (fallback)
-  3. Return to main menu
-- Interactive menu loop for option selection with validation
+**1. Modified `src/cli_rpg/main.py` (lines 299-307)**
+- Changed quit prompt during combat from "Save before quitting?" to "Quit without saving?"
+- Removed the save functionality during combat quit (matching `save` command behavior)
+- Added explicit warning that saving is disabled during combat
+- Answering 'n' now cancels the quit and returns to combat
 
-### 4. Updated `main()` in `src/cli_rpg/main.py`
-- Imports `is_ai_strict_mode` from config
-- Reads strict mode setting at startup
-- Passes `strict_mode` to all `start_game()` calls
-- Shows informative message about current mode (strict vs fallback)
-
-## Files Modified
-
-1. `src/cli_rpg/config.py` - Added `is_ai_strict_mode()` function
-2. `src/cli_rpg/world.py` - Added `strict` parameter to `create_world()`
-3. `src/cli_rpg/main.py` - Updated `start_game()` and `main()` for error handling
-4. `tests/test_config.py` - New file with 6 tests for `is_ai_strict_mode()`
-5. `tests/test_world.py` - Added 3 tests for strict mode behavior, replaced old fallback test
-6. `tests/test_e2e_ai_integration.py` - Updated test to include `strict=True` parameter
+**2. Updated tests in `tests/test_main_combat_integration.py`**
+- Updated `test_quit_command_during_combat_exits_game` to use 'y' as the quit confirmation
+- Replaced old `test_quit_command_with_save_saves_game` with:
+  - `test_quit_during_combat_does_not_offer_save` - verifies save is NOT called
+  - `test_quit_during_combat_cancel_returns_to_combat` - verifies 'n' cancels quit
 
 ## Test Results
 
-- **Total tests:** 731 passed, 1 skipped
-- **New tests added:**
-  - 6 tests in `tests/test_config.py` for `is_ai_strict_mode()`
-  - 3 tests in `tests/test_world.py` for strict mode behavior
+All 732 tests pass (1 skipped).
 
-## E2E Validation Recommendations
+## Behavior Change
 
-1. **Test strict mode (default):**
-   - Set an invalid OPENAI_API_KEY and create a new character
-   - Verify error message is displayed with 3 options
-   - Test each option: Retry, Use default, Return to menu
+| Action | Before | After |
+|--------|--------|-------|
+| `save` during combat | Blocked with error | Blocked with error |
+| `quit` during combat | Offers save option (exploit!) | No save option, warns about lost progress |
+| `quit + y` during combat | Saves and quits | Quits without saving |
+| `quit + n` during combat | Quits without saving | Cancels quit, returns to combat |
 
-2. **Test fallback mode:**
-   - Set `CLI_RPG_REQUIRE_AI=false` and invalid OPENAI_API_KEY
-   - Create a new character
-   - Verify game silently falls back to default world without prompting
+## E2E Validation
 
-3. **Test successful AI generation:**
-   - Set valid OPENAI_API_KEY
-   - Create a new character and select a theme
-   - Verify AI-generated world is created
-
-## Design Decisions
-
-- **Strict mode is default:** This ensures users are immediately aware when AI generation fails
-- **Interactive error handling:** Instead of just exiting, users get options to retry, fallback, or return to menu
-- **Backward compatibility:** `strict=False` preserves the original silent fallback behavior
-- **Environment variable control:** `CLI_RPG_REQUIRE_AI=false` allows users to opt into the old behavior
+To manually test:
+1. Start a new game and enter combat
+2. Type `quit` during combat
+3. Verify the message says "Saving is disabled during combat" and "combat progress will be lost"
+4. Verify typing 'n' returns to combat
+5. Verify typing 'y' exits without saving

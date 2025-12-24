@@ -63,7 +63,7 @@ Combat encounters occur randomly as you explore. When in combat:
 - `use <item>` - Use a consumable item (e.g., health potion) - counts as your turn
 - `status` - View combat status (HP of both combatants)
 - `help` - Display the full command reference
-- `quit` - Exit to main menu (with option to save first)
+- `quit` - Exit to main menu (no save during combat - combat progress will be lost)
 
 **Combat Flow:**
 1. You attack or defend
