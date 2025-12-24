@@ -1,15 +1,5 @@
 ## Active Issues
 
-### BLOCKER GAME ALWAYS STARTS WITH DEFAULT MAP[]
-**Status**: ACTIVE
-
-**Problem**: AI generation seems completely broken at the moment, there should be no way the dame runs without generating 
-
-### CRITICAL SHOULD FAIL WHEN AI GENERATION FAIL
-**Status**: ACTIVE
-
-The game should fail hard when generating content with AI fails
-
 ### Inconsistent save behavior during combat allows exploiting quit to escape fights
 **Status**: ACTIVE
 
@@ -265,3 +255,24 @@ This is misleading because:
 - 20 WorldGrid unit tests
 - 8 Location coordinate tests
 - 10 Integration tests for movement roundtrips and save/load
+
+---
+
+### CRITICAL: AI generation failures silently falling back to default world
+**Status**: RESOLVED
+
+**Original Problem**: When AI generation failed (invalid API key, network issues, etc.), the game silently fell back to the default world without informing the user. This made debugging difficult and users were unaware that they weren't getting AI-generated content.
+
+**Solution Implemented**:
+- Added `is_ai_strict_mode()` function in `config.py` that reads `CLI_RPG_REQUIRE_AI` environment variable
+- Strict mode is enabled by default (when env var is unset or "true")
+- In strict mode, AI generation failures prompt the user with three options:
+  1. Retry AI generation
+  2. Use default world (explicit fallback)
+  3. Return to main menu
+- Added `strict` parameter to `create_world()` and `start_game()` functions
+- Set `CLI_RPG_REQUIRE_AI=false` to restore silent fallback behavior for backward compatibility
+
+**Test Coverage**: 9 new tests added:
+- 6 tests in `tests/test_config.py` for `is_ai_strict_mode()`
+- 3 tests in `tests/test_world.py` for strict mode behavior

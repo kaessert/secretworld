@@ -1,51 +1,70 @@
-# Implementation Summary: Add "use item" support during combat
+# Implementation Summary: Fix AI Generation Failure Handling
 
-## What was implemented
+## What Was Implemented
 
-Added the ability for players to use consumable items (like health potions) during combat encounters.
+### 1. Added `is_ai_strict_mode()` function to `src/cli_rpg/config.py`
+- New function that reads `CLI_RPG_REQUIRE_AI` environment variable
+- Returns `True` (strict mode) by default, or when env var is "true"
+- Returns `False` (fallback mode) only when env var is explicitly "false"
+- Case-insensitive handling of the environment variable value
 
-### Changes made:
+### 2. Modified `create_world()` in `src/cli_rpg/world.py`
+- Added `strict: bool = True` parameter
+- When `strict=True` (default): AI generation failures raise exceptions instead of silently falling back
+- When `strict=False`: Original fallback behavior preserved for backward compatibility
+- Logging updated to indicate strict mode when active
 
-1. **`src/cli_rpg/main.py`**:
-   - Added `use` command handler in `handle_combat_command()` (lines 271-293)
-   - Command logic:
-     - Validates that an item name is provided
-     - Looks up item in player's inventory
-     - Delegates to `Character.use_item()` for item consumption
-     - On success, triggers enemy turn (item usage counts as a turn)
-     - Handles player death if enemy kills them after using item
-   - Updated help text to list `use <item>` in Combat Commands section (line 44)
-   - Updated error message for unknown combat commands to include `use` (line 314)
+### 3. Updated `start_game()` in `src/cli_rpg/main.py`
+- Added `strict: bool = True` parameter
+- Wrapped `create_world()` call in try/except
+- On AI failure in strict mode, displays error and offers user 3 options:
+  1. Retry AI generation
+  2. Use default world (fallback)
+  3. Return to main menu
+- Interactive menu loop for option selection with validation
 
-2. **`tests/test_main_combat_integration.py`**:
-   - Added new test class `TestUseItemDuringCombat` with 6 tests:
-     - `test_use_health_potion_during_combat_heals_player` - Verifies healing works
-     - `test_use_item_during_combat_triggers_enemy_turn` - Verifies enemy attacks after item use
-     - `test_use_item_not_found_during_combat` - Error when item doesn't exist
-     - `test_use_no_args_during_combat` - Error when no item specified
-     - `test_use_non_consumable_during_combat` - Can't use weapons/armor
-     - `test_use_potion_at_full_health_during_combat` - Reject when at full health
+### 4. Updated `main()` in `src/cli_rpg/main.py`
+- Imports `is_ai_strict_mode` from config
+- Reads strict mode setting at startup
+- Passes `strict_mode` to all `start_game()` calls
+- Shows informative message about current mode (strict vs fallback)
+
+## Files Modified
+
+1. `src/cli_rpg/config.py` - Added `is_ai_strict_mode()` function
+2. `src/cli_rpg/world.py` - Added `strict` parameter to `create_world()`
+3. `src/cli_rpg/main.py` - Updated `start_game()` and `main()` for error handling
+4. `tests/test_config.py` - New file with 6 tests for `is_ai_strict_mode()`
+5. `tests/test_world.py` - Added 3 tests for strict mode behavior, replaced old fallback test
+6. `tests/test_e2e_ai_integration.py` - Updated test to include `strict=True` parameter
 
 ## Test Results
 
-- All 6 new tests pass
-- Full test suite: 723 passed, 1 skipped
-- No regressions
+- **Total tests:** 731 passed, 1 skipped
+- **New tests added:**
+  - 6 tests in `tests/test_config.py` for `is_ai_strict_mode()`
+  - 3 tests in `tests/test_world.py` for strict mode behavior
 
-## E2E Validation
+## E2E Validation Recommendations
 
-To manually test this feature:
-1. Start a game and enter combat (move to a location with enemies)
-2. Take some damage from the enemy
-3. Have a health potion in inventory (or buy one from a shop)
-4. During combat, type: `use health potion`
-5. Verify: Player heals, potion is consumed, enemy attacks
+1. **Test strict mode (default):**
+   - Set an invalid OPENAI_API_KEY and create a new character
+   - Verify error message is displayed with 3 options
+   - Test each option: Retry, Use default, Return to menu
 
-## Technical Notes
+2. **Test fallback mode:**
+   - Set `CLI_RPG_REQUIRE_AI=false` and invalid OPENAI_API_KEY
+   - Create a new character
+   - Verify game silently falls back to default world without prompting
 
-- The implementation reuses the existing `Character.use_item()` method which already handles:
-  - Consumable validation (only consumables can be used)
-  - Full health check (can't use healing items at full health)
-  - Item removal from inventory on success
-- Using an item counts as the player's turn, triggering enemy retaliation
-- Failed item usage (wrong item type, full health, etc.) does NOT trigger enemy turn
+3. **Test successful AI generation:**
+   - Set valid OPENAI_API_KEY
+   - Create a new character and select a theme
+   - Verify AI-generated world is created
+
+## Design Decisions
+
+- **Strict mode is default:** This ensures users are immediately aware when AI generation fails
+- **Interactive error handling:** Instead of just exiting, users get options to retry, fallback, or return to menu
+- **Backward compatibility:** `strict=False` preserves the original silent fallback behavior
+- **Environment variable control:** `CLI_RPG_REQUIRE_AI=false` allows users to opt into the old behavior

@@ -202,9 +202,11 @@ def test_world_creation_with_ai_service(mock_ai_service):
             sys.stdout = old_stdout
         
         # Verify create_world called with AI service
+        # Note: strict=True is the default when not specified
         mock_create_world.assert_called_once_with(
             ai_service=mock_ai_service,
-            theme="fantasy"
+            theme="fantasy",
+            strict=True
         )
         
         # Verify GameState initialized with AI service

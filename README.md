@@ -134,6 +134,8 @@ Enable dynamic world generation with AI:
    ```
 3. Select a theme when creating a new character (fantasy, sci-fi, cyberpunk, etc.)
 
+**Strict Mode (Default)**: If AI generation fails, you'll be prompted with options to retry, use the default world, or return to the main menu. To enable silent fallback (no prompts), set `CLI_RPG_REQUIRE_AI=false` in your `.env` file.
+
 See [docs/AI_FEATURES.md](docs/AI_FEATURES.md) for detailed AI configuration.
 
 ## Development

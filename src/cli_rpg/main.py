@@ -6,7 +6,7 @@ from cli_rpg.models.item import Item
 from cli_rpg.persistence import save_character, load_character, list_saves, save_game_state, load_game_state, detect_save_type
 from cli_rpg.game_state import GameState, parse_command
 from cli_rpg.world import create_world
-from cli_rpg.config import load_ai_config
+from cli_rpg.config import load_ai_config, is_ai_strict_mode
 from cli_rpg.ai_service import AIService
 from cli_rpg.autosave import autosave
 from cli_rpg.map_renderer import render_map
@@ -561,17 +561,51 @@ def run_game_loop(game_state: GameState) -> None:
 def start_game(
     character: Character,
     ai_service: Optional[AIService] = None,
-    theme: str = "fantasy"
+    theme: str = "fantasy",
+    strict: bool = True
 ) -> None:
     """Start the gameplay loop with the given character.
-    
+
     Args:
         character: The player's character to start the game with
         ai_service: Optional AIService for AI-powered world generation
         theme: World theme for generation (default: "fantasy")
+        strict: If True (default), AI generation failures raise exceptions.
+                If False, falls back to default world on AI error.
     """
     # Create game state with AI-powered or default world
-    world, starting_location = create_world(ai_service=ai_service, theme=theme)
+    try:
+        world, starting_location = create_world(
+            ai_service=ai_service, theme=theme, strict=strict
+        )
+    except Exception as e:
+        # AI generation failed in strict mode - offer options to user
+        print(f"\n{'=' * 50}")
+        print(f"AI world generation failed: {e}")
+        print("=" * 50)
+        print("\nOptions:")
+        print("1. Retry AI generation")
+        print("2. Use default world")
+        print("3. Return to main menu")
+
+        while True:
+            choice = input("\nEnter your choice (1-3): ").strip()
+            if choice == "1":
+                # Retry with same parameters
+                return start_game(
+                    character, ai_service=ai_service, theme=theme, strict=strict
+                )
+            elif choice == "2":
+                # Use default world (non-strict mode)
+                world, starting_location = create_world(
+                    ai_service=ai_service, theme=theme, strict=False
+                )
+                break
+            elif choice == "3":
+                # Return to main menu
+                return
+            else:
+                print("Invalid choice. Please enter 1, 2, or 3.")
     
     # Validate world is not empty
     if not world:
@@ -635,11 +669,16 @@ def main() -> int:
     # Load AI configuration at startup
     ai_config = load_ai_config()
     ai_service = None
+    strict_mode = is_ai_strict_mode()
+
     if ai_config:
         try:
             ai_service = AIService(ai_config)
             print("\n✓ AI world generation enabled!")
-            print("  Set OPENAI_API_KEY to use AI features.")
+            if strict_mode:
+                print("  Strict mode: AI failures will prompt for action.")
+            else:
+                print("  Fallback mode: Will use default world if AI fails.")
         except Exception as e:
             print(f"\n⚠ AI initialization failed: {e}")
             print("  Falling back to default world generation.")
@@ -663,9 +702,11 @@ def main() -> int:
                     print(f"\n✓ Selected theme: {theme}")
                 
                 print(f"Your character is ready for adventure!")
-                
+
                 # Start the game with AI service and theme
-                start_game(character, ai_service=ai_service, theme=theme)
+                start_game(
+                    character, ai_service=ai_service, theme=theme, strict=strict_mode
+                )
                 
         elif choice == "2":
             # Load character or game state
@@ -694,7 +735,9 @@ def main() -> int:
                 # For backward compatibility, if loading an old character-only save,
                 # start a new game with that character
                 print("\n✓ Starting new adventure with loaded character...")
-                start_game(character, ai_service=ai_service, theme="fantasy")
+                start_game(
+                    character, ai_service=ai_service, theme="fantasy", strict=strict_mode
+                )
                 
         elif choice == "3":
             print("\nThank you for playing CLI RPG!")

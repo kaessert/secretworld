@@ -104,30 +104,42 @@ def create_default_world() -> tuple[dict[str, Location], str]:
 
 def create_world(
     ai_service: Optional["AIService"] = None,
-    theme: str = "fantasy"
+    theme: str = "fantasy",
+    strict: bool = True
 ) -> tuple[dict[str, Location], str]:
     """Create a game world, using AI if available.
 
     Args:
         ai_service: Optional AIService for AI-generated world
         theme: World theme (default: "fantasy")
+        strict: If True (default), AI generation failures raise exceptions.
+                If False, falls back to default world on AI error.
 
     Returns:
         Tuple of (world, starting_location) where:
         - world: Dictionary mapping location names to Location instances
         - starting_location: Name of the starting location in the world
+
+    Raises:
+        Exception: If strict=True and AI generation fails
     """
     if ai_service is not None and AI_AVAILABLE:
-        # Use AI to create world with fallback to default on error
-        try:
-            logger.info("Attempting to create AI-generated world")
+        if strict:
+            # Strict mode: let exceptions propagate
+            logger.info("Attempting to create AI-generated world (strict mode)")
             world, starting_location = create_ai_world(ai_service, theme=theme)
             return (world, starting_location)
-        except Exception as e:
-            logger.warning(f"AI world generation failed: {e}")
-            logger.info("Falling back to default world")
-            world, starting_location = create_default_world()
-            return (world, starting_location)
+        else:
+            # Non-strict mode: fallback to default on error
+            try:
+                logger.info("Attempting to create AI-generated world")
+                world, starting_location = create_ai_world(ai_service, theme=theme)
+                return (world, starting_location)
+            except Exception as e:
+                logger.warning(f"AI world generation failed: {e}")
+                logger.info("Falling back to default world")
+                world, starting_location = create_default_world()
+                return (world, starting_location)
     else:
         # Use default world
         world, starting_location = create_default_world()

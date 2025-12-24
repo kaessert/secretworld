@@ -61,6 +61,18 @@ Customize other settings in `.env`:
 - `AI_MAX_TOKENS`: Response length (default: 500)
 - `AI_MAX_RETRIES`: Retry attempts (default: 3)
 - `AI_ENABLE_CACHING`: Enable caching (default: true)
+- `CLI_RPG_REQUIRE_AI`: Strict mode for AI generation (default: true)
+
+### Strict Mode (CLI_RPG_REQUIRE_AI)
+
+By default, strict mode is enabled. When AI generation fails:
+- **Strict mode (default)**: User is prompted with three options:
+  1. Retry AI generation
+  2. Use default world (explicit fallback)
+  3. Return to main menu
+- **Non-strict mode** (`CLI_RPG_REQUIRE_AI=false`): Silently falls back to the default world without prompting
+
+This ensures users are always aware when AI generation fails, rather than unknowingly playing with the default world.
 
 ## Usage
 
@@ -160,12 +172,14 @@ loaded_game.ai_service = ai_service
 ### Error Handling
 
 The system handles various error scenarios:
-- **No API Key**: Falls back to default world
-- **Invalid API Key**: Shows error, uses default world
+- **No API Key**: In strict mode, prompts user with options; in non-strict mode, falls back to default world
+- **Invalid API Key**: In strict mode, prompts user with options; in non-strict mode, shows error and uses default world
 - **Network Issues**: Retries with exponential backoff
 - **Rate Limiting**: Respects OpenAI limits
 - **Malformed Responses**: Validates and retries
 - **Timeout**: Handles gracefully
+
+See [Strict Mode](#strict-mode-cli_rpg_require_ai) above for details on how failures are presented to users.
 
 ## Cost Considerations
 

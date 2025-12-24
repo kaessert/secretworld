@@ -231,17 +231,47 @@ class TestCreateWorld:
         mock_create_ai_world.assert_called_once()
     
     @patch('cli_rpg.world.create_ai_world')
-    def test_create_world_falls_back_on_ai_error(self, mock_create_ai_world):
-        """Test that create_world() falls back to default on AI error.
-        
-        Spec (Fix): create_world() falls back to default world tuple on AI error
+    def test_create_world_raises_on_ai_error_in_strict_mode(self, mock_create_ai_world):
+        """Test that create_world() raises exception on AI error in strict mode.
+
+        Spec: When AI service is configured and provided, AI generation failures
+        must raise an exception (no silent fallback) when strict=True (default)
         """
         # Mock AI world generation to fail
         mock_create_ai_world.side_effect = Exception("AI generation failed")
-        
+
         mock_ai_service = Mock()
-        world, starting_location = create_world(ai_service=mock_ai_service, theme="fantasy")
-        
+        with pytest.raises(Exception, match="AI generation failed"):
+            create_world(ai_service=mock_ai_service, theme="fantasy", strict=True)
+
+    @patch('cli_rpg.world.create_ai_world')
+    def test_create_world_raises_by_default_on_ai_error(self, mock_create_ai_world):
+        """Test that create_world() raises exception on AI error by default.
+
+        Spec: strict=True is the default, so AI failures raise exceptions by default
+        """
+        # Mock AI world generation to fail
+        mock_create_ai_world.side_effect = Exception("AI generation failed")
+
+        mock_ai_service = Mock()
+        # Default behavior (no strict parameter) should be strict mode
+        with pytest.raises(Exception, match="AI generation failed"):
+            create_world(ai_service=mock_ai_service, theme="fantasy")
+
+    @patch('cli_rpg.world.create_ai_world')
+    def test_create_world_falls_back_on_ai_error_in_non_strict_mode(self, mock_create_ai_world):
+        """Test that create_world() falls back to default on AI error when strict=False.
+
+        Spec: When strict=False, keep existing fallback behavior for backward compatibility
+        """
+        # Mock AI world generation to fail
+        mock_create_ai_world.side_effect = Exception("AI generation failed")
+
+        mock_ai_service = Mock()
+        world, starting_location = create_world(
+            ai_service=mock_ai_service, theme="fantasy", strict=False
+        )
+
         # Should return default world tuple
         assert starting_location == "Town Square"
         assert "Town Square" in world
