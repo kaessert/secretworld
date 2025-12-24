@@ -1,8 +1,21 @@
 """GameState class for managing game state and gameplay."""
 
-from typing import ClassVar
+import logging
+from typing import ClassVar, Optional
 from cli_rpg.models.character import Character
 from cli_rpg.models.location import Location
+
+# Import AI components (with optional support)
+try:
+    from cli_rpg.ai_service import AIService, AIServiceError
+    from cli_rpg.ai_world import expand_world
+    AI_AVAILABLE = True
+except ImportError:
+    AI_AVAILABLE = False
+    AIService = None
+    AIServiceError = Exception
+
+logger = logging.getLogger(__name__)
 
 
 def parse_command(command_str: str) -> tuple[str, list[str]]:
@@ -49,7 +62,9 @@ class GameState:
         self,
         character: Character,
         world: dict[str, Location],
-        starting_location: str = "Town Square"
+        starting_location: str = "Town Square",
+        ai_service: Optional["AIService"] = None,
+        theme: str = "fantasy"
     ):
         """Initialize game state.
         
@@ -57,6 +72,8 @@ class GameState:
             character: The player's character
             world: Dictionary mapping location names to Location objects
             starting_location: Name of starting location (default: "Town Square")
+            ai_service: Optional AIService for dynamic world generation
+            theme: World theme for AI generation (default: "fantasy")
             
         Raises:
             TypeError: If character is not a Character instance
@@ -75,10 +92,11 @@ class GameState:
         if starting_location not in world:
             raise ValueError(f"starting_location '{starting_location}' not found in world")
         
-        # Validate world connections
+        # Validate world connections (only for existing destinations)
         for location_name, location in world.items():
             for direction, target in location.connections.items():
-                if target not in world:
+                # Allow missing destinations if AI service is available
+                if target not in world and ai_service is None:
                     raise ValueError(
                         f"Connection from '{location_name}' via '{direction}' "
                         f"points to non-existent location '{target}'"
@@ -88,6 +106,8 @@ class GameState:
         self.current_character = character
         self.world = world
         self.current_location = starting_location
+        self.ai_service = ai_service
+        self.theme = theme
     
     def get_current_location(self) -> Location:
         """Get the current Location object.
@@ -126,6 +146,28 @@ class GameState:
         # Get destination
         destination_name = current.get_connection(direction)
         
+        # Check if destination exists in world
+        if destination_name not in self.world:
+            # Try to generate it with AI if available
+            if self.ai_service is not None and AI_AVAILABLE:
+                try:
+                    logger.info(f"Generating missing destination: {destination_name}")
+                    expand_world(
+                        world=self.world,
+                        ai_service=self.ai_service,
+                        from_location=self.current_location,
+                        direction=direction,
+                        theme=self.theme
+                    )
+                    # Re-read destination name after expansion (may have changed)
+                    current = self.get_current_location()
+                    destination_name = current.get_connection(direction)
+                except (AIServiceError, Exception) as e:
+                    logger.error(f"Failed to generate location: {e}")
+                    return (False, f"Failed to generate destination: {str(e)}")
+            else:
+                return (False, f"Destination '{destination_name}' not found in world.")
+        
         # Update location
         self.current_location = destination_name
         
@@ -135,7 +177,7 @@ class GameState:
         """Serialize game state to dictionary.
         
         Returns:
-            Dictionary containing character, current_location, and world data
+            Dictionary containing character, current_location, world data, and theme
         """
         return {
             "character": self.current_character.to_dict(),
@@ -143,15 +185,17 @@ class GameState:
             "world": {
                 name: location.to_dict()
                 for name, location in self.world.items()
-            }
+            },
+            "theme": self.theme
         }
     
     @classmethod
-    def from_dict(cls, data: dict) -> "GameState":
+    def from_dict(cls, data: dict, ai_service: Optional["AIService"] = None) -> "GameState":
         """Deserialize game state from dictionary.
         
         Args:
             data: Dictionary containing game state data
+            ai_service: Optional AIService to enable dynamic world generation
             
         Returns:
             GameState instance
@@ -171,5 +215,8 @@ class GameState:
         # Get current location
         current_location = data["current_location"]
         
+        # Get theme (default to "fantasy" for backward compatibility)
+        theme = data.get("theme", "fantasy")
+        
         # Create and return game state
-        return cls(character, world, current_location)
+        return cls(character, world, current_location, ai_service=ai_service, theme=theme)

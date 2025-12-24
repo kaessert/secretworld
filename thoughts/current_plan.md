@@ -1,361 +1,352 @@
-# Implementation Plan: GameState System with Basic Gameplay Loop
+# Implementation Plan: AI-Powered Location Generation
 
 ## 1. SPECIFICATION
 
-### 1.1 GameState Class Specification (src/cli_rpg/game_state.py)
+### 1.1 Feature Spec Document
+**File:** `docs/ai_location_generation_spec.md`
 
-**Attributes:**
-- `current_character: Character` - The player's character
-- `current_location: str` - Name of the current location
-- `world: dict[str, Location]` - Dictionary mapping location names to Location objects
+Create specification covering:
+- AI service interface requirements
+- Location generation input/output format
+- Configuration management (API keys, models, prompts)
+- Error handling and fallback strategies
+- Context-aware generation requirements
+- Integration points with existing World and GameState systems
 
-**Methods:**
-- `__init__(character: Character, world: dict[str, Location], starting_location: str = "Town Square")` - Initialize game state
-- `get_current_location() -> Location` - Return the current Location object
-- `move(direction: str) -> tuple[bool, str]` - Move to connected location, return (success: bool, message: str)
-- `look() -> str` - Return formatted description of current location
-- `to_dict() -> dict` - Serialize game state for saving
-- `from_dict(data: dict) -> GameState` - Deserialize game state from dict
+### 1.2 Core Requirements
+- Generate locations with: name (2-50 chars), description (1-500 chars), suggested connections (valid directions)
+- Support configurable LLM provider (OpenAI as primary)
+- Accept context parameters: world theme, existing location names, current location info
+- Return structured data compatible with Location model
+- Handle API failures gracefully with fallback mechanisms
+- Support caching to reduce API calls
+- Environment-based configuration (API keys via env vars)
+- Rate limiting awareness
 
-**Validation:**
-- Character must be valid Character instance
-- World must be non-empty dict
-- Starting location must exist in world
-- All locations in connections must exist in world (validated during initialization)
+## 2. TEST DEVELOPMENT
 
-### 1.2 World Module Specification (src/cli_rpg/world.py)
+### 2.1 AI Service Unit Tests
+**File:** `tests/test_ai_service.py`
 
-**Function:**
-- `create_default_world() -> dict[str, Location]` - Create and return default world with 3 locations
+Tests to implement (using mocked API calls):
+1. `test_ai_service_initialization_with_api_key()` - Verify AIService accepts API key
+2. `test_ai_service_initialization_with_env_var()` - Verify reads from environment
+3. `test_ai_service_missing_api_key_raises_error()` - Verify raises error without key
+4. `test_generate_location_returns_valid_structure()` - Mock API, verify output has name, description, connections
+5. `test_generate_location_validates_constraints()` - Verify name/description length limits
+6. `test_generate_location_accepts_context_parameters()` - Test theme, existing locations passed
+7. `test_generate_location_with_api_error_raises_exception()` - Mock API failure
+8. `test_generate_location_with_timeout_raises_exception()` - Mock timeout
+9. `test_generate_location_connection_directions_valid()` - Verify only valid directions returned
+10. `test_generate_location_caching_enabled()` - Test cache hit/miss scenarios
+11. `test_generate_location_prompt_includes_context()` - Verify prompt construction
+12. `test_ai_service_configurable_model()` - Test different model selection
+13. `test_ai_service_configurable_temperature()` - Test temperature parameter
+14. `test_generate_location_retry_on_transient_error()` - Test retry logic
+15. `test_generate_location_max_retries_exceeded()` - Test retry limit
 
-**Default World Structure:**
-- **Town Square**: Central hub
-  - Description: "A bustling town square with a fountain in the center. People go about their daily business."
-  - Connections: north -> Forest, east -> Cave
-  
-- **Forest**: Northern location
-  - Description: "A dense forest with tall trees blocking most of the sunlight. Strange sounds echo in the distance."
-  - Connections: south -> Town Square
-  
-- **Cave**: Eastern location
-  - Description: "A dark cave with damp walls. You can hear water dripping somewhere deeper inside."
-  - Connections: west -> Town Square
+### 2.2 AI World Generation Integration Tests
+**File:** `tests/test_ai_world_generation.py`
 
-### 1.3 Command Parser Specification
+Tests to implement:
+1. `test_create_ai_world_generates_location()` - Test single location generation
+2. `test_create_ai_world_with_starting_location()` - Test world creation with start point
+3. `test_create_ai_world_generates_connected_locations()` - Test connected location generation
+4. `test_create_ai_world_expands_from_seed()` - Test expansion from initial location
+5. `test_create_ai_world_respects_theme()` - Test theme consistency
+6. `test_create_ai_world_with_ai_failure_fallback()` - Test fallback to default world
+7. `test_create_ai_world_validates_generated_locations()` - Test Location model validation
+8. `test_create_ai_world_handles_duplicate_names()` - Test duplicate prevention
+9. `test_expand_world_from_location()` - Test on-demand location generation
+10. `test_expand_world_creates_bidirectional_connections()` - Test connection consistency
 
-**Command Format:**
-- `look` - Display current location details
-- `go <direction>` - Move in specified direction (north, south, east, west, up, down)
-- `save` - Save game state
-- `quit` - Exit to main menu
+### 2.3 Configuration Tests
+**File:** `tests/test_ai_config.py`
 
-**Parser Function (in game_state.py):**
-- `parse_command(command_str: str) -> tuple[str, list[str]]` - Return (command, args)
-- Returns ("unknown", []) for invalid commands
-- Normalizes to lowercase, strips whitespace
-- Splits on spaces
+Tests to implement:
+1. `test_ai_config_from_environment()` - Test reading config from env vars
+2. `test_ai_config_from_dict()` - Test config from dictionary
+3. `test_ai_config_defaults()` - Test default values
+4. `test_ai_config_validation()` - Test invalid config raises errors
+5. `test_ai_config_custom_prompts()` - Test custom prompt templates
 
-### 1.4 Gameplay Loop Specification (in main.py)
+### 2.4 GameState Integration Tests
+**File:** `tests/test_game_state_ai_integration.py`
 
-**Flow:**
-1. After character creation/load, call `start_game(character: Character)`
-2. Initialize game state with default world
-3. Display welcome message and current location
-4. Enter command loop:
-   - Display prompt
-   - Get user input
-   - Parse command
-   - Execute command
-   - Handle results (display messages, errors)
-   - Continue until quit or error
-
-**Commands Implementation:**
-- `look`: Call game_state.look(), display result
-- `go <direction>`: Call game_state.move(direction), display result message
-- `save`: Call enhanced save function (save game state), display confirmation
-- `quit`: Confirm save, exit to main menu
-- Invalid command: Display error message with available commands
-
-### 1.5 Enhanced Persistence Specification
-
-**New Functions (persistence.py):**
-- `save_game_state(game_state: GameState, save_dir: str = "saves") -> str`
-  - Saves complete game state (character + location + world)
-  - Returns filepath
-  
-- `load_game_state(filepath: str) -> GameState`
-  - Loads complete game state
-  - Returns GameState instance
-  - Validates world consistency
-
-**Save Format (JSON):**
-```json
-{
-  "character": {Character.to_dict()},
-  "current_location": "Town Square",
-  "world": {
-    "Town Square": {Location.to_dict()},
-    "Forest": {Location.to_dict()},
-    "Cave": {Location.to_dict()}
-  }
-}
-```
-
-## 2. TEST DEVELOPMENT (TDD - Tests Before Implementation)
-
-### 2.1 Create tests/test_world.py
-
-**Tests for create_default_world():**
-- `test_default_world_has_three_locations` - Verify 3 locations returned
-- `test_default_world_location_names` - Verify correct location names (Town Square, Forest, Cave)
-- `test_default_world_all_valid_locations` - Verify all are Location instances
-- `test_default_world_town_square_connections` - Verify Town Square has north->Forest, east->Cave
-- `test_default_world_forest_connections` - Verify Forest has south->Town Square
-- `test_default_world_cave_connections` - Verify Cave has west->Town Square
-- `test_default_world_locations_have_descriptions` - Verify non-empty descriptions
-- `test_default_world_immutable_returns` - Verify multiple calls return independent copies
-
-### 2.2 Create tests/test_game_state.py
-
-**Tests for GameState.__init__():**
-- `test_game_state_creation_valid` - Create with valid character, world, location
-- `test_game_state_creation_defaults_to_town_square` - Verify default starting location
-- `test_game_state_creation_custom_starting_location` - Custom starting location works
-- `test_game_state_creation_invalid_character` - Raise TypeError for non-Character
-- `test_game_state_creation_empty_world` - Raise ValueError for empty world dict
-- `test_game_state_creation_invalid_starting_location` - Raise ValueError if starting location not in world
-- `test_game_state_creation_validates_world_connections` - Raise ValueError if location connection points to non-existent location
-
-**Tests for GameState.get_current_location():**
-- `test_get_current_location_returns_location` - Returns Location instance
-- `test_get_current_location_returns_correct_location` - Returns current location object
-
-**Tests for GameState.look():**
-- `test_look_returns_string` - Returns string
-- `test_look_contains_location_info` - Contains name, description, exits
-- `test_look_format_matches_location_str` - Format matches Location.__str__()
-
-**Tests for GameState.move():**
-- `test_move_valid_direction_success` - Returns (True, success_message)
-- `test_move_valid_direction_updates_location` - current_location changes
-- `test_move_invalid_direction_failure` - Returns (False, error_message)
-- `test_move_invalid_direction_no_change` - current_location unchanged
-- `test_move_nonexistent_direction_failure` - Returns (False, error) for direction with no connection
-- `test_move_chain_navigation` - Multiple moves work correctly
-
-**Tests for GameState serialization:**
-- `test_game_state_to_dict` - Verify dict structure
-- `test_game_state_to_dict_contains_all_data` - Contains character, location, world
-- `test_game_state_from_dict` - Deserialize successfully
-- `test_game_state_from_dict_validates_data` - Raises errors for invalid data
-- `test_game_state_roundtrip_serialization` - to_dict -> from_dict preserves state
-
-**Tests for parse_command():**
-- `test_parse_command_look` - Returns ("look", [])
-- `test_parse_command_go_with_direction` - Returns ("go", ["north"])
-- `test_parse_command_save` - Returns ("save", [])
-- `test_parse_command_quit` - Returns ("quit", [])
-- `test_parse_command_unknown` - Returns ("unknown", [])
-- `test_parse_command_case_insensitive` - "LOOK" -> ("look", [])
-- `test_parse_command_strips_whitespace` - "  look  " -> ("look", [])
-- `test_parse_command_go_missing_direction` - "go" -> ("go", [])
-
-### 2.3 Create tests/test_persistence_game_state.py
-
-**Tests for save_game_state():**
-- `test_save_game_state_creates_file` - File created
-- `test_save_game_state_returns_filepath` - Returns string path
-- `test_save_game_state_creates_directory` - Creates save_dir if missing
-- `test_save_game_state_valid_json` - Contains valid JSON
-- `test_save_game_state_contains_complete_data` - Contains character, location, world
-- `test_save_game_state_custom_directory` - Respects save_dir parameter
-
-**Tests for load_game_state():**
-- `test_load_game_state_success` - Loads valid file
-- `test_load_game_state_returns_game_state` - Returns GameState instance
-- `test_load_game_state_restores_character` - Character matches original
-- `test_load_game_state_restores_location` - Location matches original
-- `test_load_game_state_restores_world` - World matches original
-- `test_load_game_state_file_not_found` - Raises FileNotFoundError
-- `test_load_game_state_invalid_json` - Raises ValueError
-- `test_load_game_state_missing_fields` - Raises ValueError
-- `test_load_game_state_roundtrip` - save -> load preserves complete state
-
-### 2.4 Create tests/test_gameplay_integration.py
-
-**Integration tests for gameplay loop:**
-- `test_gameplay_initialization` - Game state created from character
-- `test_gameplay_look_command` - Look displays location
-- `test_gameplay_move_command_success` - Move to valid direction works
-- `test_gameplay_move_command_failure` - Move to invalid direction shows error
-- `test_gameplay_navigation_sequence` - Multiple moves in sequence
-- `test_gameplay_save_during_game` - Save preserves current location
-- `test_gameplay_load_continues_from_saved_location` - Load restores position
-- `test_gameplay_full_session` - Complete session: create, move, save, load, continue
+Tests to implement:
+1. `test_game_state_with_ai_world()` - Test GameState works with AI-generated world
+2. `test_game_state_move_triggers_expansion()` - Test moving to non-existent location generates it
+3. `test_game_state_ai_generation_failure_handling()` - Test graceful handling of generation failure
+4. `test_game_state_ai_world_persistence()` - Test save/load with AI-generated world
 
 ## 3. IMPLEMENTATION
 
-### 3.1 Implement src/cli_rpg/world.py
+### 3.1 Configuration Module
+**File:** `src/cli_rpg/ai_config.py`
 
-**Step 1:** Create world.py file
-**Step 2:** Import Location from models
-**Step 3:** Implement create_default_world():
-- Create Town Square location with description
-- Create Forest location with description
-- Create Cave location with description
-- Add connections: Town Square north->Forest, east->Cave
-- Add connections: Forest south->Town Square
-- Add connections: Cave west->Town Square
-- Return dict with location name keys
+Implementation order:
+1. Create `AIConfig` dataclass with fields:
+   - `api_key: str`
+   - `model: str = "gpt-3.5-turbo"`
+   - `temperature: float = 0.7`
+   - `max_tokens: int = 500`
+   - `max_retries: int = 3`
+   - `retry_delay: float = 1.0`
+   - `enable_caching: bool = True`
+   - `cache_ttl: int = 3600`
+   - `location_generation_prompt: str` (template)
 
-**Step 4:** Run tests: `pytest tests/test_world.py -v`
-**Step 5:** Fix any failures
+2. Implement `from_env()` class method to read from environment variables:
+   - `OPENAI_API_KEY`
+   - `AI_MODEL`
+   - `AI_TEMPERATURE`
+   - etc.
 
-### 3.2 Implement src/cli_rpg/game_state.py
+3. Implement validation in `__post_init__()`:
+   - Validate API key not empty
+   - Validate temperature in [0.0, 2.0]
+   - Validate max_tokens > 0
+   - Validate max_retries >= 0
 
-**Step 1:** Create game_state.py file
-**Step 2:** Import Character, Location
-**Step 3:** Implement parse_command() function:
-- Strip and lowercase input
-- Split on whitespace
-- Match against known commands
-- Return (command, args) tuple
+4. Implement `to_dict()` and `from_dict()` methods
 
-**Step 4:** Implement GameState class:
-- Define __init__ with validation
-  - Validate character is Character instance
-  - Validate world is non-empty dict
-  - Validate starting_location exists in world
-  - Validate all connection targets exist in world
-  - Set attributes
-- Implement get_current_location()
-  - Return world[current_location]
-- Implement look()
-  - Get current location
-  - Return str(location)
-- Implement move(direction)
-  - Get current location
-  - Check if direction exists in connections
-  - If yes: update current_location, return (True, "You head {direction} to {location_name}.")
-  - If no: return (False, "You can't go that way.")
-- Implement to_dict()
-  - Return dict with character, current_location, world
-  - Use character.to_dict() and location.to_dict()
-- Implement from_dict() classmethod
-  - Deserialize character
-  - Deserialize world locations
-  - Create and return GameState instance
+### 3.2 AI Service Core
+**File:** `src/cli_rpg/ai_service.py`
 
-**Step 5:** Run tests: `pytest tests/test_game_state.py -v`
-**Step 6:** Fix any failures
+Implementation order:
+1. Create `AIService` class with constructor accepting `AIConfig`
 
-### 3.3 Enhance src/cli_rpg/persistence.py
+2. Implement `_build_location_prompt()` method:
+   - Accept parameters: `theme: str`, `context_locations: list[str]`, `source_location: Optional[str]`, `direction: Optional[str]`
+   - Build prompt using template from config
+   - Include context: theme, existing locations, direction context
+   - Return formatted prompt string
 
-**Step 1:** Import GameState and world
-**Step 2:** Implement save_game_state(game_state, save_dir):
-- Create save directory
-- Generate filename from character name
-- Serialize game_state.to_dict()
-- Write JSON to file
-- Return filepath
-- Handle IOError
+3. Implement `_call_llm()` method:
+   - Use OpenAI API (or abstraction layer)
+   - Pass prompt, model, temperature, max_tokens
+   - Implement retry logic with exponential backoff
+   - Handle API errors (timeout, rate limit, invalid key, etc.)
+   - Return raw response text
 
-**Step 3:** Implement load_game_state(filepath):
-- Validate file exists
-- Load and parse JSON
-- Validate required fields
-- Deserialize using GameState.from_dict()
-- Return GameState instance
-- Handle errors (FileNotFoundError, ValueError)
+4. Implement `_parse_location_response()` method:
+   - Parse LLM response (expect JSON format)
+   - Extract name, description, connections
+   - Validate against Location model constraints
+   - Handle parsing errors
+   - Return dict with validated data
 
-**Step 4:** Run tests: `pytest tests/test_persistence_game_state.py -v`
-**Step 5:** Fix any failures
+5. Implement `generate_location()` method:
+   - Accept context parameters
+   - Build prompt using `_build_location_prompt()`
+   - Call LLM using `_call_llm()`
+   - Parse response using `_parse_location_response()`
+   - Return Location-compatible dict
 
-### 3.4 Implement gameplay loop in src/cli_rpg/main.py
+6. Implement optional caching layer:
+   - Create `_LocationCache` inner class
+   - Cache key: hash of prompt
+   - Cache value: generated location dict + timestamp
+   - Implement `_get_cached()` and `_set_cached()` methods
+   - Check cache in `generate_location()` before API call
 
-**Step 1:** Import GameState, world, save_game_state, load_game_state, parse_command
+7. Add error handling wrapper:
+   - Catch specific exceptions (API errors, parsing errors)
+   - Raise custom exceptions: `AIServiceError`, `AIGenerationError`, `AIConfigError`
 
-**Step 2:** Implement start_game(character: Character) -> None:
-- Create default world
-- Create GameState(character, world)
-- Display welcome message
-- Display current location (look)
-- Enter command loop:
-  - Prompt for command
-  - Parse command
-  - Execute command (look/go/save/quit)
-  - Display results
-  - Continue until quit
+### 3.3 World Generation Integration
+**File:** `src/cli_rpg/ai_world.py`
 
-**Step 3:** Implement command handlers within start_game():
-- handle_look(game_state) - Call look(), print result
-- handle_go(game_state, args) - Validate args, call move(), print result
-- handle_save(game_state) - Call save_game_state(), print confirmation
-- handle_quit() - Confirm, return to main menu
+Implementation order:
+1. Create `create_ai_world()` function:
+   - Accept parameters: `ai_service: AIService`, `theme: str = "fantasy"`, `starting_location_name: str = "Town Square"`, `initial_size: int = 3`
+   - Generate starting location using AI service
+   - Generate connected locations based on starting location's suggested connections
+   - Build world dict compatible with existing World type
+   - Validate all connections are bidirectional
+   - Return `dict[str, Location]`
 
-**Step 4:** Update main() function flow:
-- After character creation (choice 1): Call start_game(character)
-- After character load (choice 2): Create GameState from character, call start_game with loaded state
+2. Create `expand_world()` function:
+   - Accept: `world: dict[str, Location]`, `ai_service: AIService`, `from_location: str`, `direction: str`, `theme: str`
+   - Generate new location in specified direction from source
+   - Add to world dict
+   - Update connections (bidirectional)
+   - Return updated world dict
 
-**Step 5:** Update show_main_menu() to remove redundant save prompt (saving now happens in-game)
+3. Create `create_world_with_fallback()` function:
+   - Try to create AI world
+   - On failure, fall back to `create_default_world()`
+   - Log warning about fallback
+   - Return world dict
 
-**Step 6:** Run tests: `pytest tests/test_gameplay_integration.py -v`
-**Step 7:** Fix any failures
+4. Add validation helper `_validate_world_consistency()`:
+   - Check all connections point to existing locations
+   - Check bidirectional connections are correct
+   - Raise `ValueError` if inconsistent
 
-### 3.5 Update main menu integration
+### 3.4 Update World Module
+**File:** `src/cli_rpg/world.py`
 
-**Step 1:** Modify main() to integrate gameplay:
-- After character creation, call start_game()
-- After loading, restore game state and call start_game()
+Changes:
+1. Keep existing `create_default_world()` function (for fallback)
 
-**Step 2:** Modify save/load to use game state format:
-- Update load to create GameState
-- Remove standalone save prompt after creation (now in-game)
+2. Add `create_world()` function:
+   - Accept optional `ai_service: Optional[AIService] = None`
+   - Accept optional `theme: str = "fantasy"`
+   - If ai_service provided, call `create_ai_world()`
+   - Else, call `create_default_world()`
+   - Return world dict
 
-**Step 3:** Run all tests: `pytest -v`
-**Step 4:** Fix integration issues
+### 3.5 GameState Dynamic Expansion
+**File:** `src/cli_rpg/game_state.py`
+
+Changes:
+1. Add optional `ai_service` attribute to `GameState.__init__()`:
+   - `ai_service: Optional[AIService] = None`
+   - Store as instance attribute
+
+2. Add optional `theme` attribute:
+   - `theme: str = "fantasy"`
+
+3. Modify `move()` method:
+   - After checking connection exists
+   - Before moving, check if destination exists in world
+   - If destination missing and ai_service available:
+     - Call `expand_world()` to generate location
+     - Update `self.world`
+   - If destination missing and no ai_service:
+     - Return error (connection broken)
+
+4. Update `to_dict()` method:
+   - Add `theme` to serialization
+   - Do NOT serialize ai_service (config-based, not state)
+
+5. Update `from_dict()` method:
+   - Accept optional `ai_service` parameter
+   - Read theme from dict
+   - Pass ai_service to GameState constructor
+
+### 3.6 Configuration File Support
+**File:** `src/cli_rpg/config.py`
+
+Implementation:
+1. Create `load_config()` function:
+   - Read from `.env` file if exists
+   - Use environment variables
+   - Return `AIConfig` instance or None if no API key
+
+2. Create example config file:
+   - **File:** `.env.example`
+   - Document all configuration options
+
+### 3.7 Main Integration
+**File:** `src/cli_rpg/main.py`
+
+Changes:
+1. Import new modules: `ai_service`, `ai_world`, `config`
+
+2. Modify game initialization:
+   - Try to load AI config from environment
+   - If config available, create `AIService` instance
+   - Pass ai_service to world creation
+   - Pass ai_service to GameState
+
+3. Add error handling:
+   - Catch AI-related exceptions
+   - Show user-friendly messages
+   - Fall back gracefully
+
+### 3.8 Dependencies Update
+**File:** `pyproject.toml`
+
+Add dependencies:
+```toml
+dependencies = [
+    "openai>=1.0.0",
+    "python-dotenv>=1.0.0",
+]
+```
+
+Add to dev dependencies:
+```toml
+dev = [
+    "pytest>=7.4.0",
+    "pytest-mock>=3.12.0",
+    "responses>=0.24.0",  # for HTTP mocking
+    "black>=23.0.0",
+    "mypy>=1.5.0",
+    "ruff>=0.0.291",
+]
+```
 
 ## 4. VERIFICATION
 
-### 4.1 Run complete test suite
+### 4.1 Run Test Suite
 ```bash
-pytest -v
+pytest tests/test_ai_service.py -v
+pytest tests/test_ai_world_generation.py -v
+pytest tests/test_ai_config.py -v
+pytest tests/test_game_state_ai_integration.py -v
+pytest tests/ -v  # Full suite
 ```
 
-### 4.2 Run specific test files in order
-```bash
-pytest tests/test_world.py -v
-pytest tests/test_game_state.py -v
-pytest tests/test_persistence_game_state.py -v
-pytest tests/test_gameplay_integration.py -v
-```
+### 4.2 Manual Integration Test
+1. Set `OPENAI_API_KEY` environment variable
+2. Run game: `cli-rpg`
+3. Create character
+4. Verify starting location is AI-generated
+5. Move to different locations
+6. Verify new locations generated on-demand
+7. Save and reload game
+8. Verify AI-generated world persists
 
-### 4.3 Manual testing flow
-1. Run `python -m cli_rpg.main`
-2. Create new character
-3. Test commands:
-   - `look` - Verify location display
-   - `go north` - Move to Forest
-   - `look` - Verify in Forest
-   - `go south` - Return to Town Square
-   - `go east` - Move to Cave
-   - `go nowhere` - Verify error message
-   - `save` - Save game
-   - `quit` - Return to menu
-4. Load saved character
-5. Verify location preserved
-6. Test navigation continues correctly
+### 4.3 Error Scenario Testing
+1. Test without API key - should fall back to default world
+2. Test with invalid API key - should show error and fall back
+3. Test with rate limiting - should retry appropriately
+4. Test with network timeout - should handle gracefully
 
-### 4.4 Edge case verification
-- Create character, move, save, load, continue - full cycle
-- Invalid commands display helpful error messages
-- Moving to non-existent direction shows available exits
-- World connections are bidirectional where appropriate
-- Save/load preserves exact game state including location
+## 5. IMPLEMENTATION ORDER SUMMARY
 
-### 4.5 Test coverage check
-```bash
-pytest --cov=src/cli_rpg --cov-report=term-missing
-```
-- Ensure >90% coverage for new modules
-- Identify untested code paths
+1. **Phase 1: Configuration & Testing Infrastructure**
+   - Write spec document
+   - Create `ai_config.py` with tests
+   - Set up test mocking infrastructure
+
+2. **Phase 2: Core AI Service**
+   - Implement `AIService` class in `ai_service.py`
+   - Write and pass all unit tests in `test_ai_service.py`
+   - Test with mocked OpenAI API responses
+
+3. **Phase 3: World Generation**
+   - Implement `ai_world.py` functions
+   - Write and pass integration tests in `test_ai_world_generation.py`
+   - Ensure Location model compatibility
+
+4. **Phase 4: GameState Integration**
+   - Modify `game_state.py` for dynamic expansion
+   - Write and pass integration tests
+   - Ensure serialization works with AI worlds
+
+5. **Phase 5: Main Integration**
+   - Update `world.py` with new creation function
+   - Modify `main.py` for AI service initialization
+   - Add configuration file support
+   - Update dependencies
+
+6. **Phase 6: Full Verification**
+   - Run complete test suite
+   - Manual end-to-end testing
+   - Error scenario testing
+   - Performance testing (cache effectiveness)
+
+## NOTES
+
+- All tests use mocked API calls (no real API calls during testing)
+- API keys stored only in environment variables (never in code)
+- Fallback to default world ensures game is always playable
+- Generated locations must pass Location model validation
+- Caching reduces API costs and improves performance
+- Retry logic handles transient API failures
+- Theme parameter ensures world consistency
+- Bidirectional connection validation prevents broken navigation

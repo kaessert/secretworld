@@ -1,6 +1,16 @@
 """World module for creating and managing game locations."""
 
+from typing import Optional
 from cli_rpg.models.location import Location
+
+# Import AI components (optional)
+try:
+    from cli_rpg.ai_service import AIService
+    from cli_rpg.ai_world import create_world_with_fallback
+    AI_AVAILABLE = True
+except ImportError:
+    AI_AVAILABLE = False
+    AIService = None
 
 
 def create_default_world() -> dict[str, Location]:
@@ -44,3 +54,24 @@ def create_default_world() -> dict[str, Location]:
         "Forest": forest,
         "Cave": cave
     }
+
+
+def create_world(
+    ai_service: Optional["AIService"] = None,
+    theme: str = "fantasy"
+) -> dict[str, Location]:
+    """Create a game world, using AI if available.
+    
+    Args:
+        ai_service: Optional AIService for AI-generated world
+        theme: World theme (default: "fantasy")
+    
+    Returns:
+        Dictionary mapping location names to Location instances
+    """
+    if ai_service is not None and AI_AVAILABLE:
+        # Use AI to create world with fallback
+        return create_world_with_fallback(ai_service=ai_service, theme=theme)
+    else:
+        # Use default world
+        return create_default_world()

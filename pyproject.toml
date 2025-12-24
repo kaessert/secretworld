@@ -12,7 +12,9 @@ license = { text = "MIT" }
 authors = [
     { name = "CLI RPG Team" }
 ]
-dependencies = []
+dependencies = [
+    "openai>=1.0.0",
+]
 
 [project.scripts]
 cli-rpg = "cli_rpg.main:main"
