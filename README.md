@@ -17,6 +17,7 @@ python -m cli_rpg.main
 - **Character Creation**: Create custom characters with customizable attributes (strength, dexterity, intelligence)
 - **AI-Generated Worlds**: Dynamically generated locations using OpenAI's GPT models (optional)
 - **Turn-Based Combat**: Engage enemies with attack, defend, and flee commands
+- **Inventory & Equipment**: Collect loot from defeated enemies, equip weapons and armor, use consumables
 - **Persistent Saves**: Save and load complete game progress including world state, location, and theme
 - **Exploration**: Navigate through interconnected locations
 - **Experience System**: Level up by defeating enemies
@@ -54,9 +55,19 @@ Combat encounters occur randomly as you explore. When in combat:
 2. Enemy attacks (unless you fled successfully)
 3. Combat continues until victory, defeat, or successful flee
 
-**Victory**: Gain XP and potentially level up
+**Victory**: Gain XP, potentially level up, and may receive loot drops
 **Defeat**: Game over (can restore health for testing)
-**Flee**: Escape without gaining XP
+**Flee**: Escape without gaining XP or loot
+
+### Inventory & Equipment
+
+Defeated enemies have a chance to drop loot. Items include:
+- **Weapons**: Increase attack damage when equipped
+- **Armor**: Reduce incoming damage when equipped
+- **Consumables**: Health potions that restore HP when used
+- **Misc Items**: Flavor items like gold coins and monster parts
+
+Your inventory has a capacity of 20 items. Equipped weapons and armor apply their bonuses automatically during combat.
 
 ### Save System
 
@@ -134,7 +145,9 @@ src/cli_rpg/
 ├── models/              # Data models
 │   ├── character.py
 │   ├── location.py
-│   └── enemy.py
+│   ├── enemy.py
+│   ├── item.py
+│   └── inventory.py
 └── persistence.py       # Save/load system (character and full game state)
 ```
 

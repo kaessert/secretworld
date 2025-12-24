@@ -1,6 +1,9 @@
 """Character model for CLI RPG."""
 from dataclasses import dataclass, field
-from typing import ClassVar, List
+from typing import ClassVar, List, Optional, Tuple, TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from cli_rpg.models.item import Item
 
 
 @dataclass
@@ -37,7 +40,8 @@ class Character:
     xp: int = 0
     xp_to_next_level: int = field(init=False)
     constitution: int = field(init=False)
-    
+    inventory: "Inventory" = field(init=False)
+
     def __post_init__(self):
         """Validate attributes and calculate derived stats."""
         # Validate name
@@ -67,6 +71,10 @@ class Character:
         self.health = self.max_health
         self.xp_to_next_level = self.level * 100
         self.constitution = self.strength  # Constitution based on strength
+
+        # Initialize inventory
+        from cli_rpg.models.inventory import Inventory
+        self.inventory = Inventory()
     
     def take_damage(self, amount: int) -> None:
         """Reduce health by damage amount, minimum 0.
@@ -86,12 +94,70 @@ class Character:
     
     def is_alive(self) -> bool:
         """Check if character is alive.
-        
+
         Returns:
             True if health > 0, False otherwise
         """
         return self.health > 0
-    
+
+    def get_attack_power(self) -> int:
+        """Get total attack power including equipped weapon bonus.
+
+        Returns:
+            Strength plus weapon damage bonus
+        """
+        return self.strength + self.inventory.get_damage_bonus()
+
+    def get_defense(self) -> int:
+        """Get total defense including equipped armor bonus.
+
+        Returns:
+            Constitution plus armor defense bonus
+        """
+        return self.constitution + self.inventory.get_defense_bonus()
+
+    def equip_item(self, item: "Item") -> bool:
+        """Equip an item from inventory.
+
+        Args:
+            item: Item to equip (must be weapon or armor in inventory)
+
+        Returns:
+            True if equipped successfully, False otherwise
+        """
+        return self.inventory.equip(item)
+
+    def use_item(self, item: "Item") -> Tuple[bool, str]:
+        """Use an item from inventory.
+
+        Args:
+            item: Item to use (consumables only)
+
+        Returns:
+            Tuple of (success, message)
+        """
+        from cli_rpg.models.item import ItemType
+
+        # Check if item is in inventory
+        if item not in self.inventory.items:
+            return (False, f"You don't have {item.name} in your inventory.")
+
+        # Only consumables can be used
+        if item.item_type != ItemType.CONSUMABLE:
+            return (False, f"You can't use {item.name} - it's not a consumable item.")
+
+        # Apply effect
+        if item.heal_amount > 0:
+            old_health = self.health
+            self.heal(item.heal_amount)
+            healed = self.health - old_health
+            self.inventory.remove_item(item)
+            return (True, f"You used {item.name} and healed {healed} health!")
+
+        # Generic consumable without heal effect
+        self.inventory.remove_item(item)
+        return (True, f"You used {item.name}.")
+
     def gain_xp(self, amount: int) -> List[str]:
         """
         Add XP and handle level-ups.
@@ -145,7 +211,7 @@ class Character:
     
     def to_dict(self) -> dict:
         """Serialize character to dictionary.
-        
+
         Returns:
             Dictionary containing all character attributes
         """
@@ -157,19 +223,22 @@ class Character:
             "level": self.level,
             "health": self.health,
             "max_health": self.max_health,
-            "xp": self.xp
+            "xp": self.xp,
+            "inventory": self.inventory.to_dict()
         }
     
     @classmethod
     def from_dict(cls, data: dict) -> "Character":
         """Deserialize character from dictionary.
-        
+
         Args:
             data: Dictionary containing character attributes
-            
+
         Returns:
             Character instance
         """
+        from cli_rpg.models.inventory import Inventory
+
         # Create character with base stats
         character = cls(
             name=data["name"],
@@ -184,6 +253,9 @@ class Character:
         # Restore XP
         if "xp" in data:
             character.xp = data["xp"]
+        # Restore inventory (with backward compatibility)
+        if "inventory" in data:
+            character.inventory = Inventory.from_dict(data["inventory"])
         return character
     
     def __str__(self) -> str:

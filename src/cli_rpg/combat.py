@@ -1,9 +1,10 @@
 """Combat encounter system for CLI RPG."""
 
 import random
-from typing import Tuple
+from typing import Optional, Tuple
 from cli_rpg.models.character import Character
 from cli_rpg.models.enemy import Enemy
+from cli_rpg.models.item import Item, ItemType
 
 
 class CombatEncounter:
@@ -36,14 +37,14 @@ class CombatEncounter:
     def player_attack(self) -> Tuple[bool, str]:
         """
         Player attacks enemy.
-        
+
         Returns:
             Tuple of (victory, message)
             - victory: True if enemy defeated, False otherwise
             - message: Description of the attack
         """
-        # Calculate damage: player strength - enemy defense, minimum 1
-        damage = max(1, self.player.strength - self.enemy.defense)
+        # Calculate damage: player attack power (strength + weapon bonus) - enemy defense, minimum 1
+        damage = max(1, self.player.get_attack_power() - self.enemy.defense)
         self.enemy.take_damage(damage)
         
         message = f"You attack {self.enemy.name} for {damage} damage!"
@@ -114,12 +115,12 @@ class CombatEncounter:
     def enemy_turn(self) -> str:
         """
         Enemy attacks player.
-        
+
         Returns:
             Message describing the enemy's action
         """
-        # Calculate damage: enemy attack - player constitution, minimum 1
-        base_damage = max(1, self.enemy.calculate_damage() - self.player.constitution)
+        # Calculate damage: enemy attack - player defense (constitution + armor bonus), minimum 1
+        base_damage = max(1, self.enemy.calculate_damage() - self.player.get_defense())
         
         # Apply defense reduction if player is defending
         if self.defending:
@@ -137,20 +138,29 @@ class CombatEncounter:
     
     def end_combat(self, victory: bool) -> str:
         """
-        Resolve combat and award XP on victory.
-        
+        Resolve combat and award XP and loot on victory.
+
         Args:
             victory: True if player won, False if player lost
-            
+
         Returns:
             Message describing combat resolution
         """
         self.is_active = False
-        
+
         if victory:
             messages = [f"Victory! You defeated {self.enemy.name}!"]
             xp_messages = self.player.gain_xp(self.enemy.xp_reward)
             messages.extend(xp_messages)
+
+            # Generate and award loot
+            loot = generate_loot(self.enemy, self.player.level)
+            if loot is not None:
+                if self.player.inventory.add_item(loot):
+                    messages.append(f"You found: {loot.name}!")
+                else:
+                    messages.append(f"You found {loot.name} but your inventory is full!")
+
             return "\n".join(messages)
         else:
             return f"You have been defeated by {self.enemy.name}..."
@@ -166,6 +176,94 @@ class CombatEncounter:
             f"=== COMBAT ===\n"
             f"Player: {self.player.name} - {self.player.health}/{self.player.max_health} HP\n"
             f"Enemy: {self.enemy.name} - {self.enemy.health}/{self.enemy.max_health} HP"
+        )
+
+
+def generate_loot(enemy: Enemy, level: int) -> Optional[Item]:
+    """Generate loot item dropped by defeated enemy.
+
+    Args:
+        enemy: The defeated enemy
+        level: Player level for scaling loot stats
+
+    Returns:
+        Item if loot dropped, None otherwise (50% drop rate)
+    """
+    # 50% chance to drop loot
+    if random.random() > 0.5:
+        return None
+
+    # Choose random item type
+    item_types = [
+        (ItemType.WEAPON, 0.30),
+        (ItemType.ARMOR, 0.30),
+        (ItemType.CONSUMABLE, 0.30),
+        (ItemType.MISC, 0.10),
+    ]
+
+    roll = random.random()
+    cumulative = 0
+    item_type = ItemType.MISC
+    for itype, prob in item_types:
+        cumulative += prob
+        if roll <= cumulative:
+            item_type = itype
+            break
+
+    # Generate item based on type
+    if item_type == ItemType.WEAPON:
+        prefixes = ["Rusty", "Iron", "Steel", "Sharp", "Worn", "Old"]
+        names = ["Sword", "Dagger", "Axe", "Mace", "Spear"]
+        prefix = random.choice(prefixes)
+        name = random.choice(names)
+        damage_bonus = max(1, level + random.randint(1, 3))
+        return Item(
+            name=f"{prefix} {name}",
+            description=f"A {prefix.lower()} {name.lower()} from {enemy.name}",
+            item_type=ItemType.WEAPON,
+            damage_bonus=damage_bonus
+        )
+
+    elif item_type == ItemType.ARMOR:
+        prefixes = ["Worn", "Sturdy", "Leather", "Chain", "Old"]
+        names = ["Armor", "Shield", "Helmet", "Gauntlets", "Boots"]
+        prefix = random.choice(prefixes)
+        name = random.choice(names)
+        defense_bonus = max(1, level + random.randint(0, 2))
+        return Item(
+            name=f"{prefix} {name}",
+            description=f"A {prefix.lower()} {name.lower()} from {enemy.name}",
+            item_type=ItemType.ARMOR,
+            defense_bonus=defense_bonus
+        )
+
+    elif item_type == ItemType.CONSUMABLE:
+        heal_amount = 15 + (level * 5) + random.randint(0, 10)
+        potions = [
+            ("Health Potion", "Restores health when consumed"),
+            ("Healing Elixir", "A bubbling red liquid"),
+            ("Life Draught", "Smells of herbs and magic"),
+        ]
+        name, desc = random.choice(potions)
+        return Item(
+            name=name,
+            description=desc,
+            item_type=ItemType.CONSUMABLE,
+            heal_amount=heal_amount
+        )
+
+    else:  # MISC
+        misc_items = [
+            ("Gold Coin", "A shiny gold coin"),
+            ("Strange Key", "An old key of unknown origin"),
+            ("Monster Fang", "A trophy from battle"),
+            ("Gem Stone", "A small polished gem"),
+        ]
+        name, desc = random.choice(misc_items)
+        return Item(
+            name=name,
+            description=desc,
+            item_type=ItemType.MISC
         )
 
 

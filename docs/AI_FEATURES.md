@@ -227,7 +227,7 @@ pytest tests/test_e2e_world_expansion.py -v
 - Multiple LLM providers (Anthropic, local models)
 - Persistent cache (database/file)
 - NPC generation
-- Item generation
+- AI-powered item generation (basic loot system already implemented)
 - Quest generation
 - Advanced world consistency validation
 
