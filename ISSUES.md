@@ -1,34 +1,52 @@
 ## Active Issues
 
-### Cannot quit or exit the game during combat
+### Users requested a map
+
+There should be a map command displaying a map
+
+---
+
+### Shop buy command requires exact item name - misleading error message
 **Status**: ACTIVE
 
-**Problem**: During combat, the player cannot use the `quit` command to exit the game. All commands except `attack`, `defend`, `cast`, `flee`, and `status` are blocked with the message: "✗ Can't do that during combat! Use: attack, defend, cast, flee, or status"
+**Problem**: When using the `buy <item>` command in a shop, users must type the EXACT full item name. Partial name matching does not work, and the error message is misleading.
 
 **Steps to Reproduce**:
-1. Start a new game and create a character
-2. Move around until you encounter an enemy (e.g., go to Forest or Cave)
-3. During combat, type `quit`
-4. Observe: The command is blocked
+1. Create a new character and start the game
+2. Use `talk merchant` to open a shop
+3. Use `shop` to see the inventory (shows: "Health Potion", "Iron Sword", "Leather Armor")
+4. Try `buy sword`
 
-**Expected Behavior**: The player should be able to quit the game at any time, even during combat (perhaps with a warning that unsaved progress will be lost).
+**Expected Behavior**: Either:
+- The command should recognize "sword" and buy "Iron Sword", OR
+- The error message should say something like: "Did you mean 'Iron Sword'? Please type the full item name."
 
-**Actual Behavior**: The `quit` command is blocked during combat. The only ways to exit are:
-- Win the combat (attack/cast until enemy is defeated)
-- Successfully flee (which can fail, especially with low dexterity)
-- Die in combat
-- Force-quit the application (Ctrl+C or close terminal)
+**Actual Behavior**: The game shows: `The shop doesn't have 'sword'.`
 
-**User Impact**: If a player needs to leave urgently during combat, they must either:
-- Hope flee succeeds (may take multiple attempts with low dexterity)
-- Force-quit and potentially lose progress since their last save
-- Continue fighting (may not be feasible if they need to leave)
+This is misleading because:
+- The shop DOES have a sword (Iron Sword)
+- Users naturally try abbreviated names (sword, potion, armor)
+- The same confusing behavior occurs with: `buy iron`, `buy potion`, `buy health`, `buy armor`, `buy leather`
 
-This is particularly problematic for players with low dexterity who may fail multiple flee attempts in succession.
+**Note**: The game DOES support case-insensitive matching (`buy iron sword` works correctly), but not partial name matching.
 
 ---
 
 ## Resolved Issues
+
+### Cannot quit or exit the game during combat
+**Status**: RESOLVED
+
+**Original Problem**: During combat, the player cannot use the `quit` command to exit the game. All commands except `attack`, `defend`, `cast`, `flee`, and `status` are blocked with the message: "✗ Can't do that during combat! Use: attack, defend, cast, flee, or status"
+
+**Solution Implemented**:
+- Added `quit` command handler to `handle_combat_command()` in `main.py`
+- Shows a warning about being in combat and prompts user to save before quitting
+- If user confirms with 'y', saves the game before exiting to main menu
+- Updated `handle_combat_command()` return type to match `handle_exploration_command()` signature
+- Added tests for quit command during combat behavior
+
+---
 
 ### Unknown command error message is incomplete
 **Status**: RESOLVED

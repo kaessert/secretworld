@@ -153,8 +153,8 @@ class TestSaveCommandAvailability:
         
         # Test
         from cli_rpg.main import handle_combat_command
-        result = handle_combat_command(game_state, "save", [])
-        
+        _, result = handle_combat_command(game_state, "save", [])
+
         # Assert: Error message about combat
         assert "combat" in result.lower()
         assert "can't" in result.lower() or "cannot" in result.lower()

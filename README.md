@@ -59,6 +59,7 @@ Combat encounters occur randomly as you explore. When in combat:
 - `flee` - Attempt to escape (chance based on dexterity)
 - `cast` - Cast a magic attack (damage based on intelligence)
 - `status` - View combat status (HP of both combatants)
+- `quit` - Exit to main menu (with option to save first)
 
 **Combat Flow:**
 1. You attack or defend

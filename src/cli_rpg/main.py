@@ -114,19 +114,19 @@ def select_and_load_character() -> tuple[Optional[Character], Optional[GameState
         return (None, None)
 
 
-def handle_combat_command(game_state: GameState, command: str, args: list[str]) -> str:
+def handle_combat_command(game_state: GameState, command: str, args: list[str]) -> tuple[bool, str]:
     """Handle commands during combat.
-    
+
     Args:
         game_state: Current game state
         command: Parsed command
         args: Command arguments
-        
+
     Returns:
-        Message string to display
+        Tuple of (continue_game, message)
     """
     if not game_state.is_in_combat():
-        return "\n✗ Not in combat."
+        return (True, "\n✗ Not in combat.")
     
     combat = game_state.current_combat
     
@@ -148,32 +148,32 @@ def handle_combat_command(game_state: GameState, command: str, args: list[str]) 
             # Enemy still alive, enemy attacks
             enemy_message = combat.enemy_turn()
             output += f"\n{enemy_message}"
-            
+
             # Check if player died
             if not game_state.current_character.is_alive():
                 death_message = combat.end_combat(victory=False)
                 output += f"\n{death_message}"
                 output += "\n\n=== GAME OVER ==="
                 game_state.current_combat = None
-        
-        return output
+
+        return (True, output)
     
     elif command == "defend":
         _, message = combat.player_defend()
         output = f"\n{message}"
-        
+
         # Enemy attacks
         enemy_message = combat.enemy_turn()
         output += f"\n{enemy_message}"
-        
+
         # Check if player died
         if not game_state.current_character.is_alive():
             death_message = combat.end_combat(victory=False)
             output += f"\n{death_message}"
             output += "\n\n=== GAME OVER ==="
             game_state.current_combat = None
-        
-        return output
+
+        return (True, output)
     
     elif command == "flee":
         success, message = combat.player_flee()
@@ -200,7 +200,7 @@ def handle_combat_command(game_state: GameState, command: str, args: list[str]) 
                 output += "\n\n=== GAME OVER ==="
                 game_state.current_combat = None
 
-        return output
+        return (True, output)
 
     elif command == "cast":
         victory, message = combat.player_cast()
@@ -228,13 +228,27 @@ def handle_combat_command(game_state: GameState, command: str, args: list[str]) 
                 output += "\n\n=== GAME OVER ==="
                 game_state.current_combat = None
 
-        return output
+        return (True, output)
 
     elif command == "status":
-        return "\n" + combat.get_status()
-    
+        return (True, "\n" + combat.get_status())
+
+    elif command == "quit":
+        print("\n" + "=" * 50)
+        print("⚠️  Warning: You are in combat! Progress may be lost.")
+        response = input("Save before quitting? (y/n): ").strip().lower()
+        if response == 'y':
+            try:
+                filepath = save_game_state(game_state)
+                print(f"\n✓ Game saved successfully!")
+                print(f"  Save location: {filepath}")
+            except IOError as e:
+                print(f"\n✗ Failed to save game: {e}")
+        print("\nReturning to main menu...")
+        return (False, "")
+
     else:
-        return "\n✗ Can't do that during combat! Use: attack, defend, cast, flee, or status"
+        return (True, "\n✗ Can't do that during combat! Use: attack, defend, cast, flee, status, or quit")
 
 
 def handle_exploration_command(game_state: GameState, command: str, args: list[str]) -> tuple[bool, str]:
@@ -457,16 +471,19 @@ def run_game_loop(game_state: GameState) -> None:
         
         # Route command based on combat state
         if game_state.is_in_combat():
-            message = handle_combat_command(game_state, command, args)
+            continue_game, message = handle_combat_command(game_state, command, args)
             print(message)
-            
+
+            if not continue_game:
+                break
+
             # Show combat status after each action if still in combat
             if game_state.is_in_combat() and game_state.current_combat is not None:
                 print("\n" + game_state.current_combat.get_status())
         else:
             continue_game, message = handle_exploration_command(game_state, command, args)
             print(message)
-            
+
             if not continue_game:
                 break
 

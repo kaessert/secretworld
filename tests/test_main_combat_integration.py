@@ -33,8 +33,8 @@ class TestCombatCommandRouting:
         from cli_rpg.main import handle_combat_command
         
         initial_enemy_health = enemy.health
-        result = handle_combat_command(game_state, "attack", [])
-        
+        _, result = handle_combat_command(game_state, "attack", [])
+
         # Assert: Enemy health decreased and message returned
         assert enemy.health < initial_enemy_health
         assert "attack" in result.lower() or "damage" in result.lower()
@@ -51,8 +51,8 @@ class TestCombatCommandRouting:
         
         # Test
         from cli_rpg.main import handle_combat_command
-        result = handle_combat_command(game_state, "defend", [])
-        
+        _, result = handle_combat_command(game_state, "defend", [])
+
         # Assert: Defensive message returned
         assert "defensive" in result.lower() or "defend" in result.lower() or "brace" in result.lower()
     
@@ -72,11 +72,11 @@ class TestCombatCommandRouting:
         for _ in range(30):  # With high dex, should succeed eventually
             game_state.current_combat = CombatEncounter(character, enemy)
             game_state.current_combat.is_active = True
-            result = handle_combat_command(game_state, "flee", [])
+            _, result = handle_combat_command(game_state, "flee", [])
             if "successfully" in result.lower() and game_state.current_combat is None:
                 flee_succeeded = True
                 break
-        
+
         # Assert: Flee eventually succeeds with high dexterity
         assert flee_succeeded
 
@@ -99,8 +99,8 @@ class TestExplorationCommandBlocking:
         
         # Test
         from cli_rpg.main import handle_combat_command
-        result = handle_combat_command(game_state, "go", ["north"])
-        
+        _, result = handle_combat_command(game_state, "go", ["north"])
+
         # Assert: Error message about combat
         assert "combat" in result.lower() and ("can't" in result.lower() or "cannot" in result.lower())
     
@@ -116,8 +116,8 @@ class TestExplorationCommandBlocking:
         
         # Test
         from cli_rpg.main import handle_combat_command
-        result = handle_combat_command(game_state, "look", [])
-        
+        _, result = handle_combat_command(game_state, "look", [])
+
         # Assert: Error message about combat
         assert "combat" in result.lower()
     
@@ -133,8 +133,8 @@ class TestExplorationCommandBlocking:
         
         # Test
         from cli_rpg.main import handle_combat_command
-        result = handle_combat_command(game_state, "save", [])
-        
+        _, result = handle_combat_command(game_state, "save", [])
+
         # Assert: Error message about combat
         assert "combat" in result.lower()
 
@@ -151,36 +151,36 @@ class TestCombatCommandBlockingDuringExploration:
         
         # Test
         from cli_rpg.main import handle_combat_command
-        result = handle_combat_command(game_state, "attack", [])
-        
+        _, result = handle_combat_command(game_state, "attack", [])
+
         # Assert: Error message about not being in combat
         assert "not in combat" in result.lower()
-    
+
     def test_defend_command_blocked_outside_combat(self):
         """Spec: When not in combat, defend command should show error."""
         # Setup
         character = Character(name="Hero", strength=10, dexterity=10, intelligence=10)
         world = {"Town": Location(name="Town", description="A town", connections={})}
         game_state = GameState(character, world, starting_location="Town")
-        
+
         # Test
         from cli_rpg.main import handle_combat_command
-        result = handle_combat_command(game_state, "defend", [])
-        
+        _, result = handle_combat_command(game_state, "defend", [])
+
         # Assert: Error message about not being in combat
         assert "not in combat" in result.lower()
-    
+
     def test_flee_command_blocked_outside_combat(self):
         """Spec: When not in combat, flee command should show error."""
         # Setup
         character = Character(name="Hero", strength=10, dexterity=10, intelligence=10)
         world = {"Town": Location(name="Town", description="A town", connections={})}
         game_state = GameState(character, world, starting_location="Town")
-        
+
         # Test
         from cli_rpg.main import handle_combat_command
-        result = handle_combat_command(game_state, "flee", [])
-        
+        _, result = handle_combat_command(game_state, "flee", [])
+
         # Assert: Error message about not being in combat
         assert "not in combat" in result.lower()
 
@@ -215,8 +215,8 @@ class TestStatusCommand:
         
         # Test
         from cli_rpg.main import handle_combat_command
-        result = handle_combat_command(game_state, "status", [])
-        
+        _, result = handle_combat_command(game_state, "status", [])
+
         # Assert: Combat status displayed (both player and enemy health)
         assert "Hero" in result or "Player" in result
         assert "Wolf" in result or "Enemy" in result
@@ -239,8 +239,8 @@ class TestPlayerAttackSequence:
         from cli_rpg.main import handle_combat_command
         initial_player_health = character.health
         initial_enemy_health = enemy.health
-        result = handle_combat_command(game_state, "attack", [])
-        
+        handle_combat_command(game_state, "attack", [])
+
         # Assert: Enemy damaged and enemy counterattacked
         assert enemy.health < initial_enemy_health, "Enemy should take damage"
         assert character.health < initial_player_health, "Enemy should counterattack"
@@ -272,9 +272,9 @@ class TestPlayerDefendSequence:
         game_state.current_combat.is_active = True
         from cli_rpg.main import handle_combat_command
         initial_health_2 = character.health
-        result = handle_combat_command(game_state, "defend", [])
+        handle_combat_command(game_state, "defend", [])
         defended_damage = initial_health_2 - character.health
-        
+
         # Assert: Defended damage is less than normal damage
         assert defended_damage < normal_damage, f"Defended damage ({defended_damage}) should be less than normal damage ({normal_damage})"
 
@@ -296,14 +296,14 @@ class TestFleeFromCombat:
         for _ in range(30):
             game_state.current_combat = CombatEncounter(character, enemy)
             game_state.current_combat.is_active = True
-            result = handle_combat_command(game_state, "flee", [])
-            
+            _, result = handle_combat_command(game_state, "flee", [])
+
             if game_state.current_combat is None:
                 # Flee succeeded
                 assert character.xp == initial_xp, "Should not gain XP from fleeing"
                 assert "successfully" in result.lower() or "flee" in result.lower()
                 break
-    
+
     def test_failed_flee_continues_combat_and_player_takes_damage(self):
         """Spec: Failed flee triggers enemy turn and combat continues."""
         # Setup: Low dexterity for reliable failure
@@ -311,15 +311,15 @@ class TestFleeFromCombat:
         enemy = Enemy(name="Wolf", health=30, max_health=30, attack_power=5, defense=2, xp_reward=20)
         world = {"Forest": Location(name="Forest", description="A dark forest", connections={})}
         game_state = GameState(character, world, starting_location="Forest")
-        
+
         # Test
         from cli_rpg.main import handle_combat_command
         for _ in range(10):
             game_state.current_combat = CombatEncounter(character, enemy)
             game_state.current_combat.is_active = True
             initial_health = character.health
-            result = handle_combat_command(game_state, "flee", [])
-            
+            handle_combat_command(game_state, "flee", [])
+
             if game_state.current_combat is not None:
                 # Flee failed
                 assert game_state.is_in_combat(), "Combat should still be active"
@@ -343,8 +343,8 @@ class TestVictoryEndsCombat:
         
         # Test
         from cli_rpg.main import handle_combat_command
-        result = handle_combat_command(game_state, "attack", [])
-        
+        _, result = handle_combat_command(game_state, "attack", [])
+
         # Assert: Enemy defeated, XP gained, combat cleared
         assert not enemy.is_alive(), "Enemy should be defeated"
         assert character.xp > initial_xp, "Should gain XP"
@@ -368,17 +368,81 @@ class TestPlayerDeath:
         
         # Test: Attack, which will trigger enemy counterattack
         from cli_rpg.main import handle_combat_command
-        result = handle_combat_command(game_state, "attack", [])
-        
+        _, result = handle_combat_command(game_state, "attack", [])
+
         # Assert: Player died, combat ended
         assert not character.is_alive(), "Player should be dead"
         assert game_state.current_combat is None, "Combat should be cleared"
         assert "game over" in result.lower() or "defeated" in result.lower()
 
 
+class TestQuitCommandDuringCombat:
+    """Test quit command during combat."""
+
+    def test_quit_command_during_combat_exits_game(self):
+        """Spec: When in combat, quit command should allow exiting the game."""
+        # Setup
+        character = Character(name="Hero", strength=10, dexterity=10, intelligence=10)
+        enemy = Enemy(name="Wolf", health=30, max_health=30, attack_power=5, defense=2, xp_reward=20)
+        world = {"Forest": Location(name="Forest", description="A dark forest", connections={})}
+        game_state = GameState(character, world, starting_location="Forest")
+        game_state.current_combat = CombatEncounter(character, enemy)
+        game_state.current_combat.is_active = True
+
+        # Test: Call handle_combat_command with quit, mock input to return 'n' (no save)
+        from cli_rpg.main import handle_combat_command
+        with patch('builtins.input', return_value='n'):
+            continue_game, message = handle_combat_command(game_state, "quit", [])
+
+        # Assert: Function returns False (signal to exit game loop)
+        assert continue_game is False
+
+    def test_quit_command_during_combat_shows_warning(self):
+        """Spec: When in combat, quit command should show warning about unsaved progress."""
+        # Setup
+        character = Character(name="Hero", strength=10, dexterity=10, intelligence=10)
+        enemy = Enemy(name="Wolf", health=30, max_health=30, attack_power=5, defense=2, xp_reward=20)
+        world = {"Forest": Location(name="Forest", description="A dark forest", connections={})}
+        game_state = GameState(character, world, starting_location="Forest")
+        game_state.current_combat = CombatEncounter(character, enemy)
+        game_state.current_combat.is_active = True
+
+        # Test: Capture printed output
+        from cli_rpg.main import handle_combat_command
+        import io
+        import sys
+        captured_output = io.StringIO()
+        with patch('builtins.input', return_value='n'), patch('sys.stdout', captured_output):
+            continue_game, message = handle_combat_command(game_state, "quit", [])
+
+        # Assert: Warning message was printed
+        output = captured_output.getvalue()
+        assert "combat" in output.lower() or "warning" in output.lower()
+
+    def test_quit_command_with_save_saves_game(self):
+        """Spec: When choosing to save before quitting, game should save."""
+        # Setup
+        character = Character(name="Hero", strength=10, dexterity=10, intelligence=10)
+        enemy = Enemy(name="Wolf", health=30, max_health=30, attack_power=5, defense=2, xp_reward=20)
+        world = {"Forest": Location(name="Forest", description="A dark forest", connections={})}
+        game_state = GameState(character, world, starting_location="Forest")
+        game_state.current_combat = CombatEncounter(character, enemy)
+        game_state.current_combat.is_active = True
+
+        # Test: Mock input to return 'y' (yes save), mock save_game_state
+        from cli_rpg.main import handle_combat_command
+        with patch('builtins.input', return_value='y'), \
+             patch('cli_rpg.main.save_game_state', return_value='/fake/path.json') as mock_save:
+            continue_game, message = handle_combat_command(game_state, "quit", [])
+
+        # Assert: save_game_state was called and function returns False
+        mock_save.assert_called_once_with(game_state)
+        assert continue_game is False
+
+
 class TestCombatStatePersistence:
     """Test combat encounter object persists through turns."""
-    
+
     def test_combat_instance_persists_across_turns(self):
         """Spec: Combat encounter object remains active through multiple turns."""
         # Setup
