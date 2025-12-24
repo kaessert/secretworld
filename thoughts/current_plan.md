@@ -1,94 +1,157 @@
-# Plan: Shop Buy Command Partial Name Matching
+# Implementation Plan: Shorthand Commands
 
 ## Spec
-When user types `buy sword` but shop has "Iron Sword":
-1. Match partial names (case-insensitive) - "sword" matches "Iron Sword"
-2. If multiple matches, show all matching items as suggestions
-3. If no matches, show "Did you mean...?" with similar items
 
-## Implementation
+Add single-letter aliases for common commands:
+- `g` → `go`
+- `l` → `look`
+- `a` → `attack`
+- `c` → `cast`
+- `d` → `defend`
+- `f` → `flee`
+- `s` → `status`
+- `i` → `inventory`
+- `m` → `map`
+- `h` → `help`
+- `t` → `talk`
+- `u` → `use`
+- `e` → `equip`
 
-### 1. Add `find_items_by_partial_name()` to `Shop` class in `src/cli_rpg/models/shop.py`
+Aliases should:
+1. Be expanded to full command in `parse_command()` before validation
+2. Preserve all arguments (e.g., `g north` → `go north`)
+3. Be case-insensitive
+4. Be documented in help output
+
+## Tests
+
+Create `tests/test_shorthand_commands.py`:
 
 ```python
-def find_items_by_partial_name(self, partial_name: str) -> List[ShopItem]:
-    """Find shop items where name contains partial_name (case-insensitive)."""
-    partial_lower = partial_name.lower()
-    return [si for si in self.inventory if partial_lower in si.item.name.lower()]
+from cli_rpg.game_state import parse_command
+
+class TestShorthandCommands:
+    def test_g_expands_to_go(self):
+        cmd, args = parse_command("g north")
+        assert cmd == "go"
+        assert args == ["north"]
+
+    def test_l_expands_to_look(self):
+        cmd, args = parse_command("l")
+        assert cmd == "look"
+        assert args == []
+
+    def test_a_expands_to_attack(self):
+        cmd, args = parse_command("a")
+        assert cmd == "attack"
+        assert args == []
+
+    def test_c_expands_to_cast(self):
+        cmd, args = parse_command("c")
+        assert cmd == "cast"
+        assert args == []
+
+    def test_d_expands_to_defend(self):
+        cmd, args = parse_command("d")
+        assert cmd == "defend"
+        assert args == []
+
+    def test_f_expands_to_flee(self):
+        cmd, args = parse_command("f")
+        assert cmd == "flee"
+        assert args == []
+
+    def test_s_expands_to_status(self):
+        cmd, args = parse_command("s")
+        assert cmd == "status"
+        assert args == []
+
+    def test_i_expands_to_inventory(self):
+        cmd, args = parse_command("i")
+        assert cmd == "inventory"
+        assert args == []
+
+    def test_m_expands_to_map(self):
+        cmd, args = parse_command("m")
+        assert cmd == "map"
+        assert args == []
+
+    def test_h_expands_to_help(self):
+        cmd, args = parse_command("h")
+        assert cmd == "help"
+        assert args == []
+
+    def test_t_expands_to_talk(self):
+        cmd, args = parse_command("t merchant")
+        assert cmd == "talk"
+        assert args == ["merchant"]
+
+    def test_u_expands_to_use(self):
+        cmd, args = parse_command("u potion")
+        assert cmd == "use"
+        assert args == ["potion"]
+
+    def test_e_expands_to_equip(self):
+        cmd, args = parse_command("e sword")
+        assert cmd == "equip"
+        assert args == ["sword"]
+
+    def test_shorthand_case_insensitive(self):
+        cmd, args = parse_command("G NORTH")
+        assert cmd == "go"
+        assert args == ["north"]
 ```
 
-### 2. Update buy command in `src/cli_rpg/main.py` (lines 416-418)
+## Implementation Steps
 
-**Current:**
+### 1. Update `parse_command()` in `src/cli_rpg/game_state.py`
+
+Add alias expansion after line 44 (after extracting command), before line 48 (known_commands validation):
+
 ```python
-shop_item = game_state.current_shop.find_item_by_name(item_name)
-if shop_item is None:
-    return (True, f"\nThe shop doesn't have '{item_name}'.")
+# Expand shorthand aliases
+aliases = {
+    "g": "go", "l": "look", "a": "attack", "c": "cast",
+    "d": "defend", "f": "flee", "s": "status", "i": "inventory",
+    "m": "map", "h": "help", "t": "talk", "u": "use", "e": "equip"
+}
+command = aliases.get(command, command)
 ```
 
-**New:**
+### 2. Update `get_command_reference()` in `src/cli_rpg/main.py`
+
+Add shorthand hints to command descriptions (lines 21-46):
+
 ```python
-shop_item = game_state.current_shop.find_item_by_name(item_name)
-if shop_item is None:
-    # Try partial match
-    matches = game_state.current_shop.find_items_by_partial_name(item_name)
-    if len(matches) == 1:
-        shop_item = matches[0]  # Unique partial match - use it
-    elif len(matches) > 1:
-        names = ", ".join(f"'{m.item.name}'" for m in matches)
-        return (True, f"\nMultiple items match '{item_name}': {names}. Please be more specific.")
-    else:
-        # No matches - list available items
-        available = ", ".join(f"'{si.item.name}'" for si in game_state.current_shop.inventory)
-        return (True, f"\nThe shop doesn't have '{item_name}'. Available: {available}")
+"Exploration Commands:",
+"  look (l)           - Look around at your surroundings",
+"  go (g) <direction> - Move in a direction (north, south, east, west)",
+"  status (s)         - View your character status",
+"  inventory (i)      - View your inventory and equipped items",
+"  equip (e) <item>   - Equip a weapon or armor from inventory",
+"  unequip <slot>     - Unequip weapon or armor (slot: weapon/armor)",
+"  use (u) <item>     - Use a consumable item",
+"  talk (t) <npc>     - Talk to an NPC",
+"  shop               - View shop inventory (when at a shop)",
+"  buy <item>         - Buy an item from the shop",
+"  sell <item>        - Sell an item to the shop",
+"  map (m)            - Display a map of explored areas",
+"  help (h)           - Display this command reference",
+"  save               - Save your game (not available during combat)",
+"  quit               - Return to main menu",
+"",
+"Combat Commands:",
+"  attack (a)        - Attack the enemy",
+"  defend (d)        - Take a defensive stance",
+"  cast (c)          - Cast a magic attack (intelligence-based)",
+"  flee (f)          - Attempt to flee from combat",
+"  use (u) <item>    - Use a consumable item",
+"  status (s)        - View combat status",
 ```
 
-## Tests (add to `tests/test_shop_commands.py`)
+### 3. Run tests
 
-### 3. Test partial match success
-```python
-def test_buy_partial_name_match(self, game_with_shop):
-    """Buy command matches partial item name."""
-    handle_exploration_command(game_with_shop, "talk", ["merchant"])
-    cont, msg = handle_exploration_command(game_with_shop, "buy", ["sword"])
-    assert "bought" in msg.lower()
-    assert "Iron Sword" in msg
-```
-
-### 4. Test multiple matches shows options
-```python
-def test_buy_partial_name_multiple_matches(self, game_with_shop):
-    """Buy command shows options when multiple items match."""
-    # Add another item with "potion" in name
-    from cli_rpg.models.item import Item, ItemType
-    from cli_rpg.models.shop import ShopItem
-    mana_potion = Item(name="Mana Potion", description="Restores mana", item_type=ItemType.CONSUMABLE)
-    game_with_shop.current_shop.inventory.append(ShopItem(item=mana_potion, buy_price=75))
-
-    handle_exploration_command(game_with_shop, "talk", ["merchant"])
-    cont, msg = handle_exploration_command(game_with_shop, "buy", ["potion"])
-    assert "multiple" in msg.lower()
-    assert "Health Potion" in msg
-    assert "Mana Potion" in msg
-```
-
-### 5. Test no match shows available items
-```python
-def test_buy_no_match_shows_available(self, game_with_shop):
-    """Buy command shows available items when no match found."""
-    handle_exploration_command(game_with_shop, "talk", ["merchant"])
-    cont, msg = handle_exploration_command(game_with_shop, "buy", ["wand"])
-    assert "doesn't have" in msg.lower()
-    assert "available" in msg.lower()
-    assert "Iron Sword" in msg
-```
-
-### 6. Add unit test for `find_items_by_partial_name()` in `tests/test_shop.py`
-```python
-def test_find_items_by_partial_name(self):
-    """find_items_by_partial_name returns matching items."""
-    # Setup shop with multiple items
-    # Test partial match returns correct items
-    # Test case-insensitive matching
-    # Test no matches returns empty list
+```bash
+pytest tests/test_shorthand_commands.py -v
+pytest tests/test_game_state.py::TestParseCommand -v
 ```

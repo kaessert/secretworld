@@ -21,9 +21,6 @@
 
 ---
 
-### Shorthand commands for go, look, cast, attack and similar (g, l, c, a, ...)
-**Status**: ACTIVE
-
 ### Map should not be circular, the array should automatically extend
 **Status**: ACTIVE
 
@@ -81,6 +78,20 @@ there should be a method of checking if the world border is completely closed, t
 all exits are visited and no way of getting to a tile whih triggers regeneration, THIS SHOULD BE AVOIDED in any case
 
 ## Resolved Issues
+
+### Shorthand commands for go, look, cast, attack and similar (g, l, c, a, ...)
+**Status**: RESOLVED
+
+**Original Problem**: Users requested single-letter shorthand commands for common actions to speed up gameplay.
+
+**Solution Implemented**:
+- Added single-letter aliases that expand transparently in `parse_command()` in `game_state.py`
+- Aliases: `g`→go, `l`→look, `a`→attack, `c`→cast, `d`→defend, `f`→flee, `s`→status, `i`→inventory, `m`→map, `h`→help, `t`→talk, `u`→use, `e`→equip
+- Updated `get_command_reference()` in `main.py` to show shorthand hints in parentheses
+- Arguments are preserved (e.g., `g north` → `go north`)
+- Added 14 tests in `tests/test_shorthand_commands.py`
+
+---
 
 ### Shop buy command requires exact item name - misleading error message
 **Status**: RESOLVED

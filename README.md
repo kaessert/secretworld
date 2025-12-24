@@ -37,32 +37,32 @@ python -m cli_rpg.main
 **Note:** Constitution is automatically derived from your Strength stat and is used to reduce incoming damage during combat.
 
 ### Exploration Commands
-- `look` - Examine your current location
-- `go <direction>` - Move in a direction (north, south, east, west)
-- `map` - Display an ASCII map of explored locations
-- `status` - View your character's stats and gold
-- `inventory` - View your inventory and equipped items
-- `equip <item name>` - Equip a weapon or armor from your inventory
+- `look` (l) - Examine your current location
+- `go <direction>` (g) - Move in a direction (north, south, east, west)
+- `map` (m) - Display an ASCII map of explored locations
+- `status` (s) - View your character's stats and gold
+- `inventory` (i) - View your inventory and equipped items
+- `equip <item name>` (e) - Equip a weapon or armor from your inventory
 - `unequip weapon|armor` - Unequip from the specified slot and return to inventory
-- `use <item name>` - Use a consumable item (e.g., health potion)
-- `talk <npc>` - Talk to an NPC (opens shop if they're a merchant)
+- `use <item name>` (u) - Use a consumable item (e.g., health potion)
+- `talk <npc>` (t) - Talk to an NPC (opens shop if they're a merchant)
 - `shop` - View the current merchant's inventory and prices
 - `buy <item>` - Purchase an item from the current shop
 - `sell <item>` - Sell an item from your inventory for gold
 - `save` - Save complete game state including world, location, and theme (not available during combat)
-- `help` - Display the full command reference
+- `help` (h) - Display the full command reference
 - `quit` - Exit to main menu
 
 ### Combat System
 Combat encounters occur randomly as you explore. When in combat:
 
-- `attack` - Attack the enemy (damage based on your strength vs enemy defense)
-- `defend` - Take a defensive stance, reducing incoming damage by 50%
-- `flee` - Attempt to escape (chance based on dexterity)
-- `cast` - Cast a magic attack (damage based on intelligence)
-- `use <item>` - Use a consumable item (e.g., health potion) - counts as your turn
-- `status` - View combat status (HP of both combatants)
-- `help` - Display the full command reference
+- `attack` (a) - Attack the enemy (damage based on your strength vs enemy defense)
+- `defend` (d) - Take a defensive stance, reducing incoming damage by 50%
+- `flee` (f) - Attempt to escape (chance based on dexterity)
+- `cast` (c) - Cast a magic attack (damage based on intelligence)
+- `use <item>` (u) - Use a consumable item (e.g., health potion) - counts as your turn
+- `status` (s) - View combat status (HP of both combatants)
+- `help` (h) - Display the full command reference
 - `quit` - Exit to main menu (no save during combat - combat progress will be lost)
 
 **Combat Flow:**

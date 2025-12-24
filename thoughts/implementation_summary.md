@@ -1,44 +1,59 @@
-# Implementation Summary: Shop Buy Command Partial Name Matching
+# Implementation Summary: Shorthand Commands
 
 ## What Was Implemented
 
-Added partial name matching to the shop buy command, allowing players to type `buy sword` to purchase "Iron Sword".
+Added single-letter aliases for common commands that expand in `parse_command()` before validation.
 
-### Files Modified
+### Aliases Added:
+- `g` → `go`
+- `l` → `look`
+- `a` → `attack`
+- `c` → `cast`
+- `d` → `defend`
+- `f` → `flee`
+- `s` → `status`
+- `i` → `inventory`
+- `m` → `map`
+- `h` → `help`
+- `t` → `talk`
+- `u` → `use`
+- `e` → `equip`
 
-1. **`src/cli_rpg/models/shop.py`**
-   - Added `find_items_by_partial_name(partial_name: str) -> List[ShopItem]` method to Shop class
-   - Returns all shop items where the partial name is contained in the item name (case-insensitive)
+## Files Modified
 
-2. **`src/cli_rpg/main.py`** (lines 417-428)
-   - Updated buy command to try partial matching when exact match fails
-   - Unique partial match: Uses the matched item for purchase
-   - Multiple matches: Shows all matching item names for user to be more specific
-   - No matches: Shows list of available items in the shop
+1. **src/cli_rpg/game_state.py** (lines 47-53)
+   - Added alias dictionary and expansion logic in `parse_command()`
+   - Aliases are expanded after command extraction but before known_commands validation
+   - Case-insensitive (input is already lowercased before alias expansion)
 
-### Tests Added
+2. **src/cli_rpg/main.py** (lines 21-46)
+   - Updated `get_command_reference()` to show shorthand hints in parentheses
+   - Example: `"  look (l)           - Look around at your surroundings"`
 
-1. **`tests/test_shop.py`** - Unit tests for `find_items_by_partial_name`:
-   - `test_find_items_by_partial_name_single_match` - Single match returns correct item
-   - `test_find_items_by_partial_name_multiple_matches` - Multiple matches returned
-   - `test_find_items_by_partial_name_case_insensitive` - Case insensitive matching
-   - `test_find_items_by_partial_name_no_match` - No match returns empty list
-
-2. **`tests/test_shop_commands.py`** - Integration tests for buy command:
-   - `test_buy_partial_name_match` - "sword" matches "Iron Sword" and purchases it
-   - `test_buy_partial_name_multiple_matches` - "potion" shows both "Health Potion" and "Mana Potion" options
-   - `test_buy_no_match_shows_available` - "wand" shows list of available items
+3. **tests/test_shorthand_commands.py** (new file)
+   - 14 tests covering all aliases and case-insensitivity
 
 ## Test Results
 
-- All 739 tests pass (1 skipped)
-- Shop-specific tests: 38 passed
+```
+pytest tests/test_shorthand_commands.py -v
+14 passed in 0.29s
+
+pytest (full suite)
+753 passed, 1 skipped in 6.72s
+```
+
+## Design Decisions
+
+- Aliases are expanded transparently - the rest of the codebase sees only the full command names
+- Arguments are preserved (e.g., `g north` → `go` with args `["north"]`)
+- No new known_commands needed - aliases map to existing commands
 
 ## E2E Validation
 
 To manually validate:
-1. Start game and navigate to a merchant
-2. `talk merchant` to enter shop
-3. `buy sword` should purchase "Iron Sword" (partial match)
-4. `buy potion` should show "Multiple items match..." if shop has multiple potions
-5. `buy wand` should show "doesn't have 'wand'. Available: ..." listing shop items
+1. Start game with `cli-rpg`
+2. Type `l` - should show location (same as `look`)
+3. Type `g north` - should move north (same as `go north`)
+4. Type `h` - should show help with shorthand hints in parentheses
+5. Type `i` - should show inventory (same as `inventory`)

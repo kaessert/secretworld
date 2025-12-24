@@ -43,7 +43,15 @@ def parse_command(command_str: str) -> tuple[str, list[str]]:
     
     command = parts[0]
     args = parts[1:]
-    
+
+    # Expand shorthand aliases
+    aliases = {
+        "g": "go", "l": "look", "a": "attack", "c": "cast",
+        "d": "defend", "f": "flee", "s": "status", "i": "inventory",
+        "m": "map", "h": "help", "t": "talk", "u": "use", "e": "equip"
+    }
+    command = aliases.get(command, command)
+
     # Validate known commands
     known_commands = {"look", "go", "save", "quit", "attack", "defend", "flee", "status", "cast",
                       "inventory", "equip", "unequip", "use", "talk", "buy", "sell", "shop", "map",
