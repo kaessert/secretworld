@@ -93,3 +93,56 @@ class TestShorthandCommands:
         cmd, args = parse_command("G NORTH")
         assert cmd == "go"
         assert args == ["north"]
+
+
+class TestDirectionShorthands:
+    """Test direction shorthand expansion for go command.
+
+    Spec: Expand direction shorthands when using the `go` command:
+    - n → north, s → south, e → east, w → west
+    - Works with command shorthand: g n → go north
+    - Works with full command: go s → go south
+    - Case-insensitive: G N → go north
+    """
+
+    # Spec: g n → go north
+    def test_g_n_expands_to_go_north(self):
+        cmd, args = parse_command("g n")
+        assert cmd == "go"
+        assert args == ["north"]
+
+    # Spec: g s → go south
+    def test_g_s_expands_to_go_south(self):
+        cmd, args = parse_command("g s")
+        assert cmd == "go"
+        assert args == ["south"]
+
+    # Spec: g e → go east
+    def test_g_e_expands_to_go_east(self):
+        cmd, args = parse_command("g e")
+        assert cmd == "go"
+        assert args == ["east"]
+
+    # Spec: g w → go west
+    def test_g_w_expands_to_go_west(self):
+        cmd, args = parse_command("g w")
+        assert cmd == "go"
+        assert args == ["west"]
+
+    # Spec: go n → go north (full command with shorthand direction)
+    def test_go_n_expands_to_go_north(self):
+        cmd, args = parse_command("go n")
+        assert cmd == "go"
+        assert args == ["north"]
+
+    # Spec: G N → go north (case-insensitive)
+    def test_direction_shorthand_case_insensitive(self):
+        cmd, args = parse_command("G N")
+        assert cmd == "go"
+        assert args == ["north"]
+
+    # Spec: Full direction names still work
+    def test_full_direction_still_works(self):
+        cmd, args = parse_command("g north")
+        assert cmd == "go"
+        assert args == ["north"]

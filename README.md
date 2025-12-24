@@ -39,7 +39,7 @@ python -m cli_rpg.main
 
 ### Exploration Commands
 - `look` (l) - Examine your current location
-- `go <direction>` (g) - Move in a direction (north, south, east, west)
+- `go <direction>` (g) - Move in a direction (north/n, south/s, east/e, west/w)
 - `map` (m) - Display an ASCII map of explored locations
 - `status` (s) - View your character's stats and gold
 - `inventory` (i) - View your inventory and equipped items

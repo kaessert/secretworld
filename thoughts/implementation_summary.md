@@ -1,87 +1,40 @@
-# Implementation Summary: Add Colors to CLI Output
+# Implementation Summary: Direction Shorthands for Movement
 
 ## What Was Implemented
 
-Added ANSI color support to the CLI RPG game to improve user experience with colorized output.
+Added direction shorthand expansion for the `go` command:
+- `n` expands to `north`
+- `s` expands to `south`
+- `e` expands to `east`
+- `w` expands to `west`
 
-### New Files Created
+## Files Modified
 
-1. **`src/cli_rpg/colors.py`** - Color utility module with:
-   - ANSI color constants: `RESET`, `RED`, `GREEN`, `YELLOW`, `BLUE`, `MAGENTA`, `CYAN`, `BOLD`
-   - `color_enabled()` - Cached function checking `CLI_RPG_NO_COLOR` environment variable
-   - `colorize(text, color)` - Wraps text in color codes if enabled
-   - `bold_colorize(text, color)` - Adds bold formatting
-   - Semantic helpers: `enemy()`, `location()`, `npc()`, `item()`, `gold()`, `damage()`, `heal()`, `stat_header()`
+1. **`src/cli_rpg/game_state.py`** - Added direction alias expansion in `parse_command()` function (lines 57-60):
+   ```python
+   # Expand direction shorthands for go command
+   if command == "go" and args:
+       direction_aliases = {"n": "north", "s": "south", "e": "east", "w": "west"}
+       args[0] = direction_aliases.get(args[0], args[0])
+   ```
 
-2. **`tests/test_colors.py`** - Comprehensive tests (19 tests) covering:
-   - Color enable/disable via environment variable
-   - Colorize function with and without colors enabled
-   - All semantic helper functions
-   - Color constant values
-   - Bold formatting
-
-### Files Modified
-
-1. **`tests/conftest.py`** - Added `disable_colors` fixture (autouse) that:
-   - Sets `CLI_RPG_NO_COLOR=true` during tests
-   - Clears the `color_enabled` cache before/after tests
-   - Ensures all existing tests pass with plain text output
-
-2. **`src/cli_rpg/combat.py`** - Added color formatting to:
-   - `start()` - Enemy name in red
-   - `player_attack()` - Enemy name red, damage values red, victory in green
-   - `player_cast()` - Enemy name red, magic damage red, victory in green
-   - `enemy_turn()` - Enemy name red, damage in red
-   - `end_combat()` - Victory in green, defeat in red, gold in yellow, loot items in green
-   - `get_status()` - COMBAT header in magenta, enemy name in red
-
-3. **`src/cli_rpg/models/location.py`** - Added color formatting to:
-   - `__str__()` - Location name in cyan, NPC names in yellow
-
-4. **`src/cli_rpg/game_state.py`** - Added color formatting to:
-   - `move()` - Destination location name in cyan
-
-5. **`src/cli_rpg/map_renderer.py`** - Added color formatting to:
-   - Player marker (@) in bold cyan on the map
-   - Legend entry for player marker in bold cyan
-
-6. **`src/cli_rpg/models/character.py`** - Added color formatting to:
-   - `__str__()` - Status (Alive/Dead), health (conditional on %), gold, stat headers all colored
-
-7. **`src/cli_rpg/models/inventory.py`** - Added color formatting to:
-   - `__str__()` - Inventory header, weapon/armor slots, item names all colored
-
-## Color Scheme
-
-- **Red**: Enemies, damage values, defeat messages
-- **Green**: Items, healing, victories, loot
-- **Yellow**: NPCs, gold amounts
-- **Cyan**: Location names
-- **Magenta**: Stat headers (Health, Gold, Strength, etc.)
-- **Bold Cyan**: Player marker on map
+2. **`tests/test_shorthand_commands.py`** - Added `TestDirectionShorthands` test class with 7 tests verifying:
+   - `g n` → `go north`
+   - `g s` → `go south`
+   - `g e` → `go east`
+   - `g w` → `go west`
+   - `go n` → `go north` (full command with shorthand direction)
+   - `G N` → `go north` (case-insensitive)
+   - `g north` → `go north` (full direction still works)
 
 ## Test Results
 
-```
-======================== 797 passed, 1 skipped in 7.01s ========================
-```
+- All 21 shorthand tests pass
+- Full test suite: 804 passed, 1 skipped (no regressions)
 
-All 797 tests pass. The `disable_colors` fixture ensures existing tests continue to work by outputting plain text.
+## Design Decisions
 
-## How to Disable Colors
-
-Set the environment variable `CLI_RPG_NO_COLOR=true` or `CLI_RPG_NO_COLOR=1` before running the game:
-
-```bash
-CLI_RPG_NO_COLOR=true cli-rpg
-```
-
-## E2E Validation Notes
-
-When testing manually:
-1. Run the game normally and verify colored output in terminal
-2. Run with `CLI_RPG_NO_COLOR=true` to verify plain text output
-3. Check combat messages show red enemy names and damage
-4. Check location descriptions show cyan location names and yellow NPCs
-5. Check character status shows colored health (green > 50%, yellow > 25%, red <= 25%)
-6. Check map shows bold cyan @ for player position
+- Direction expansion happens after command alias expansion, so both `g n` and `go n` work correctly
+- Expansion is case-insensitive because the input is lowercased early in `parse_command()`
+- Only the first argument is expanded (the direction), leaving any additional arguments unchanged
+- Non-matching directions (like "north") pass through unchanged via `.get()`'s default behavior

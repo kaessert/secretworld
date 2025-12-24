@@ -1,9 +1,9 @@
 ## Active Issues
 
-### Shorthands for movements
+### BUG User finds no NPCs
 **Status**: ACTIVE
 
-g s for go south and so on
+We're getting reports that users can't find ANY npcs in game
 
 ### Support Anthropic API Key
 **Status**: ACTIVE
@@ -18,6 +18,20 @@ there should be a method of checking if the world border is completely closed, t
 all exits are visited and no way of getting to a tile whih triggers regeneration, THIS SHOULD BE AVOIDED in any case
 
 ## Resolved Issues
+
+### Direction shorthands for movement
+**Status**: RESOLVED
+
+**Original Problem**: Users requested direction shorthand support so they could type `g s` instead of `go south` for faster navigation.
+
+**Solution Implemented**:
+- Added direction alias expansion in `parse_command()` in `game_state.py`
+- Supported shorthands: `n`→north, `s`→south, `e`→east, `w`→west
+- Works with both command aliases (`g n` → `go north`) and full commands (`go n` → `go north`)
+- Case-insensitive (input is lowercased early in parsing)
+- Added 7 tests in `tests/test_shorthand_commands.py` for `TestDirectionShorthands` class
+
+---
 
 ### Colors in output
 **Status**: RESOLVED

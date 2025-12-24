@@ -54,6 +54,11 @@ def parse_command(command_str: str) -> tuple[str, list[str]]:
     }
     command = aliases.get(command, command)
 
+    # Expand direction shorthands for go command
+    if command == "go" and args:
+        direction_aliases = {"n": "north", "s": "south", "e": "east", "w": "west"}
+        args[0] = direction_aliases.get(args[0], args[0])
+
     # Validate known commands
     known_commands = {"look", "go", "save", "quit", "attack", "defend", "flee", "status", "cast",
                       "inventory", "equip", "unequip", "use", "talk", "buy", "sell", "shop", "map",
