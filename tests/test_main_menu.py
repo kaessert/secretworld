@@ -23,15 +23,15 @@ class TestShowMainMenu:
 class TestMainFunction:
     """Test main function integration."""
     
-    @patch('builtins.input', side_effect=["1", "Hero", "1", "10", "12", "8", "yes", "3"])
+    @patch('builtins.input', side_effect=["1", "Hero", "1", "10", "12", "8", "yes", "n", "3"])
     def test_main_create_character_then_exit(self, mock_input):
         """Test: Main menu character creation integration (spec requirement)"""
         result = main()
         assert result == 0
     
     @patch('builtins.input', side_effect=["2", "3"])
-    def test_main_load_character_not_implemented(self, mock_input):
-        """Test: Load character shows not implemented message"""
+    def test_main_load_character_no_saves(self, mock_input):
+        """Test: Load character shows message when no saves exist"""
         result = main()
         assert result == 0
     
