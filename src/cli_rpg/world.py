@@ -3,6 +3,9 @@
 import logging
 from typing import Optional
 from cli_rpg.models.location import Location
+from cli_rpg.models.item import Item, ItemType
+from cli_rpg.models.shop import Shop, ShopItem
+from cli_rpg.models.npc import NPC
 
 logger = logging.getLogger(__name__)
 
@@ -49,13 +52,50 @@ def create_default_world() -> tuple[dict[str, Location], str]:
     # Add connections
     town_square.add_connection("north", "Forest")
     town_square.add_connection("east", "Cave")
-    
+
     forest.add_connection("south", "Town Square")
     forest.add_connection("north", "Deep Woods")  # Dangling exit for expansion
 
     cave.add_connection("west", "Town Square")
     cave.add_connection("east", "Crystal Cavern")  # Dangling exit for expansion
-    
+
+    # Create default merchant shop
+    potion = Item(
+        name="Health Potion",
+        description="Restores 25 HP",
+        item_type=ItemType.CONSUMABLE,
+        heal_amount=25
+    )
+    sword = Item(
+        name="Iron Sword",
+        description="A sturdy blade",
+        item_type=ItemType.WEAPON,
+        damage_bonus=5
+    )
+    armor = Item(
+        name="Leather Armor",
+        description="Light protection",
+        item_type=ItemType.ARMOR,
+        defense_bonus=3
+    )
+
+    shop_items = [
+        ShopItem(item=potion, buy_price=50),
+        ShopItem(item=sword, buy_price=100),
+        ShopItem(item=armor, buy_price=80)
+    ]
+    shop = Shop(name="General Store", inventory=shop_items)
+    merchant = NPC(
+        name="Merchant",
+        description="A friendly shopkeeper with various wares",
+        dialogue="Welcome, traveler! Take a look at my goods.",
+        is_merchant=True,
+        shop=shop
+    )
+
+    # Add merchant to Town Square
+    town_square.npcs.append(merchant)
+
     # Return world dictionary and starting location
     world = {
         "Town Square": town_square,

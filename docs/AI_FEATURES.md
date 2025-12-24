@@ -226,8 +226,8 @@ pytest tests/test_e2e_world_expansion.py -v
 ### Future Enhancements
 - Multiple LLM providers (Anthropic, local models)
 - Persistent cache (database/file)
-- NPC generation
-- AI-powered item generation (basic loot system already implemented)
+- AI-powered NPC generation (basic NPC/merchant system already implemented)
+- AI-powered item generation (basic loot and shop systems already implemented)
 - Quest generation
 - Advanced world consistency validation
 

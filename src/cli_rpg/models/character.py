@@ -41,6 +41,7 @@ class Character:
     xp_to_next_level: int = field(init=False)
     constitution: int = field(init=False)
     inventory: "Inventory" = field(init=False)
+    gold: int = 0
 
     def __post_init__(self):
         """Validate attributes and calculate derived stats."""
@@ -75,6 +76,38 @@ class Character:
         # Initialize inventory
         from cli_rpg.models.inventory import Inventory
         self.inventory = Inventory()
+
+    def add_gold(self, amount: int) -> None:
+        """Add gold to character.
+
+        Args:
+            amount: Amount of gold to add (must be non-negative)
+
+        Raises:
+            ValueError: If amount is negative
+        """
+        if amount < 0:
+            raise ValueError("Amount must be non-negative")
+        self.gold += amount
+
+    def remove_gold(self, amount: int) -> bool:
+        """Remove gold from character.
+
+        Args:
+            amount: Amount of gold to remove (must be non-negative)
+
+        Returns:
+            True if successful, False if insufficient gold
+
+        Raises:
+            ValueError: If amount is negative
+        """
+        if amount < 0:
+            raise ValueError("Amount must be non-negative")
+        if self.gold < amount:
+            return False
+        self.gold -= amount
+        return True
     
     def take_damage(self, amount: int) -> None:
         """Reduce health by damage amount, minimum 0.
@@ -224,7 +257,8 @@ class Character:
             "health": self.health,
             "max_health": self.max_health,
             "xp": self.xp,
-            "inventory": self.inventory.to_dict()
+            "inventory": self.inventory.to_dict(),
+            "gold": self.gold
         }
     
     @classmethod
@@ -256,6 +290,8 @@ class Character:
         # Restore inventory (with backward compatibility)
         if "inventory" in data:
             character.inventory = Inventory.from_dict(data["inventory"])
+        # Restore gold (with backward compatibility, defaults to 0)
+        character.gold = data.get("gold", 0)
         return character
     
     def __str__(self) -> str:
@@ -267,6 +303,6 @@ class Character:
         status = "Alive" if self.is_alive() else "Dead"
         return (
             f"{self.name} (Level {self.level}) - {status}\n"
-            f"Health: {self.health}/{self.max_health}\n"
+            f"Health: {self.health}/{self.max_health} | Gold: {self.gold}\n"
             f"Strength: {self.strength} | Dexterity: {self.dexterity} | Intelligence: {self.intelligence}"
         )

@@ -1,7 +1,10 @@
 """Location model for the game world."""
 
 from dataclasses import dataclass, field
-from typing import ClassVar, Optional
+from typing import ClassVar, List, Optional, TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from cli_rpg.models.npc import NPC
 
 
 @dataclass
@@ -27,6 +30,7 @@ class Location:
     name: str
     description: str
     connections: dict[str, str] = field(default_factory=dict)
+    npcs: List["NPC"] = field(default_factory=list)
     
     def __post_init__(self) -> None:
         """Validate location attributes after initialization."""
@@ -128,12 +132,27 @@ class Location:
     
     def get_available_directions(self) -> list[str]:
         """Get a sorted list of all available exit directions.
-        
+
         Returns:
             A sorted list of direction names with connections
         """
         return sorted(list(self.connections.keys()))
-    
+
+    def find_npc_by_name(self, name: str) -> Optional["NPC"]:
+        """Find an NPC by name (case-insensitive).
+
+        Args:
+            name: NPC name to search for
+
+        Returns:
+            NPC if found, None otherwise
+        """
+        name_lower = name.lower()
+        for npc in self.npcs:
+            if npc.name.lower() == name_lower:
+                return npc
+        return None
+
     def to_dict(self) -> dict:
         """Serialize the location to a dictionary.
         
@@ -143,7 +162,8 @@ class Location:
         return {
             "name": self.name,
             "description": self.description,
-            "connections": self.connections.copy()
+            "connections": self.connections.copy(),
+            "npcs": [npc.to_dict() for npc in self.npcs]
         }
     
     @classmethod
@@ -160,10 +180,13 @@ class Location:
             KeyError: If required fields are missing
             ValueError: If validation fails
         """
+        from cli_rpg.models.npc import NPC
+        npcs = [NPC.from_dict(npc_data) for npc_data in data.get("npcs", [])]
         return cls(
             name=data["name"],
             description=data["description"],
-            connections=data.get("connections", {})
+            connections=data.get("connections", {}),
+            npcs=npcs
         )
     
     def __str__(self) -> str:
@@ -173,11 +196,15 @@ class Location:
             A formatted string with name, description, and exits
         """
         result = f"{self.name}\n{self.description}\n"
-        
+
+        if self.npcs:
+            npc_names = [npc.name for npc in self.npcs]
+            result += f"NPCs: {', '.join(npc_names)}\n"
+
         if self.connections:
             directions = self.get_available_directions()
             result += f"Exits: {', '.join(directions)}"
         else:
             result += "Exits: None"
-        
+
         return result

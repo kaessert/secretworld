@@ -153,6 +153,11 @@ class CombatEncounter:
             xp_messages = self.player.gain_xp(self.enemy.xp_reward)
             messages.extend(xp_messages)
 
+            # Award gold based on enemy level
+            gold_reward = random.randint(5, 15) * self.enemy.level
+            self.player.add_gold(gold_reward)
+            messages.append(f"You earned {gold_reward} gold!")
+
             # Generate and award loot
             loot = generate_loot(self.enemy, self.player.level)
             if loot is not None:
@@ -312,5 +317,6 @@ def spawn_enemy(location_name: str, level: int) -> Enemy:
         max_health=base_health,
         attack_power=base_attack,
         defense=base_defense,
-        xp_reward=base_xp
+        xp_reward=base_xp,
+        level=level
     )

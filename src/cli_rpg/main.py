@@ -2,6 +2,7 @@
 from typing import Optional
 from cli_rpg.character_creation import create_character, get_theme_selection
 from cli_rpg.models.character import Character
+from cli_rpg.models.item import Item
 from cli_rpg.persistence import save_character, load_character, list_saves, save_game_state, load_game_state, detect_save_type
 from cli_rpg.game_state import GameState, parse_command
 from cli_rpg.world import create_world
@@ -310,6 +311,72 @@ def handle_exploration_command(game_state: GameState, command: str, args: list[s
         success, message = game_state.current_character.use_item(item)
         return (True, f"\n{message}")
 
+    elif command == "talk":
+        if not args:
+            return (True, "\nTalk to whom? Specify an NPC name.")
+        npc_name = " ".join(args)
+        location = game_state.world.get(game_state.current_location)
+        npc = location.find_npc_by_name(npc_name) if location else None
+        if npc is None:
+            return (True, f"\nYou don't see '{npc_name}' here.")
+        output = f"\n{npc.name}: \"{npc.dialogue}\""
+        if npc.is_merchant and npc.shop:
+            game_state.current_shop = npc.shop
+            output += "\n\nType 'shop' to see items, 'buy <item>' to purchase, 'sell <item>' to sell."
+        return (True, output)
+
+    elif command == "shop":
+        if game_state.current_shop is None:
+            return (True, "\nYou're not at a shop. Talk to a merchant first.")
+        shop = game_state.current_shop
+        lines = [f"\n=== {shop.name} ===", f"Your gold: {game_state.current_character.gold}", ""]
+        for si in shop.inventory:
+            lines.append(f"  {si.item.name} - {si.buy_price} gold")
+        return (True, "\n".join(lines))
+
+    elif command == "buy":
+        if game_state.current_shop is None:
+            return (True, "\nYou're not at a shop. Talk to a merchant first.")
+        if not args:
+            return (True, "\nBuy what? Specify an item name.")
+        item_name = " ".join(args)
+        shop_item = game_state.current_shop.find_item_by_name(item_name)
+        if shop_item is None:
+            return (True, f"\nThe shop doesn't have '{item_name}'.")
+        if game_state.current_character.gold < shop_item.buy_price:
+            return (True, f"\nYou can't afford {shop_item.item.name} ({shop_item.buy_price} gold). You have {game_state.current_character.gold} gold.")
+        if game_state.current_character.inventory.is_full():
+            return (True, "\nYour inventory is full!")
+        # Create a copy of the item for the player
+        new_item = Item(
+            name=shop_item.item.name,
+            description=shop_item.item.description,
+            item_type=shop_item.item.item_type,
+            damage_bonus=shop_item.item.damage_bonus,
+            defense_bonus=shop_item.item.defense_bonus,
+            heal_amount=shop_item.item.heal_amount
+        )
+        game_state.current_character.remove_gold(shop_item.buy_price)
+        game_state.current_character.inventory.add_item(new_item)
+        autosave(game_state)
+        return (True, f"\nYou bought {new_item.name} for {shop_item.buy_price} gold.")
+
+    elif command == "sell":
+        if game_state.current_shop is None:
+            return (True, "\nYou're not at a shop. Talk to a merchant first.")
+        if not args:
+            return (True, "\nSell what? Specify an item name.")
+        item_name = " ".join(args)
+        item = game_state.current_character.inventory.find_item_by_name(item_name)
+        if item is None:
+            return (True, f"\nYou don't have '{item_name}' in your inventory.")
+        # Base sell price calculation
+        sell_price = 10 + (item.damage_bonus + item.defense_bonus + item.heal_amount) * 2
+        game_state.current_character.inventory.remove_item(item)
+        game_state.current_character.add_gold(sell_price)
+        autosave(game_state)
+        return (True, f"\nYou sold {item.name} for {sell_price} gold.")
+
     elif command == "save":
         try:
             filepath = save_game_state(game_state)
@@ -434,6 +501,10 @@ def start_game(
     print("  equip <item>   - Equip a weapon or armor from inventory")
     print("  unequip <slot> - Unequip weapon or armor (slot: weapon/armor)")
     print("  use <item>     - Use a consumable item")
+    print("  talk <npc>     - Talk to an NPC")
+    print("  shop           - View shop inventory (when at a shop)")
+    print("  buy <item>     - Buy an item from the shop")
+    print("  sell <item>    - Sell an item to the shop")
     print("  save           - Save your game (not available during combat)")
     print("  quit           - Return to main menu")
     print("\nCombat Commands:")
@@ -443,7 +514,7 @@ def start_game(
     print("  flee          - Attempt to flee from combat")
     print("  status        - View combat status")
     print("=" * 50)
-    
+
     # Show starting location
     print("\n" + game_state.look())
     
@@ -535,6 +606,10 @@ def main() -> int:
                 print("  equip <item>   - Equip a weapon or armor from inventory")
                 print("  unequip <slot> - Unequip weapon or armor (slot: weapon/armor)")
                 print("  use <item>     - Use a consumable item")
+                print("  talk <npc>     - Talk to an NPC")
+                print("  shop           - View shop inventory (when at a shop)")
+                print("  buy <item>     - Buy an item from the shop")
+                print("  sell <item>    - Sell an item to the shop")
                 print("  save           - Save your game (not available during combat)")
                 print("  quit           - Return to main menu")
                 print("\nCombat Commands:")

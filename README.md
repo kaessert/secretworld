@@ -18,6 +18,8 @@ python -m cli_rpg.main
 - **AI-Generated Worlds**: Dynamically generated locations using OpenAI's GPT models (optional)
 - **Turn-Based Combat**: Engage enemies with attack, defend, and flee commands
 - **Inventory & Equipment**: Collect loot from defeated enemies, equip weapons and armor, use consumables
+- **NPC Shops**: Interact with merchants, buy equipment, and sell items for gold
+- **Gold Economy**: Earn gold from combat victories, spend it at shops
 - **Persistent Saves**: Save and load complete game progress including world state, location, and theme
 - **Exploration**: Navigate through interconnected locations
 - **Experience System**: Level up by defeating enemies
@@ -37,11 +39,15 @@ python -m cli_rpg.main
 ### Exploration Commands
 - `look` - Examine your current location
 - `go <direction>` - Move in a direction (north, south, east, west, up, down)
-- `status` - View your character's stats
+- `status` - View your character's stats and gold
 - `inventory` - View your inventory and equipped items
 - `equip <item name>` - Equip a weapon or armor from your inventory
 - `unequip weapon|armor` - Unequip from the specified slot and return to inventory
 - `use <item name>` - Use a consumable item (e.g., health potion)
+- `talk <npc>` - Talk to an NPC (opens shop if they're a merchant)
+- `shop` - View the current merchant's inventory and prices
+- `buy <item>` - Purchase an item from the current shop
+- `sell <item>` - Sell an item from your inventory for gold
 - `save` - Save complete game state including world, location, and theme (not available during combat)
 - `quit` - Exit to main menu
 
@@ -59,9 +65,9 @@ Combat encounters occur randomly as you explore. When in combat:
 2. Enemy attacks (unless you fled successfully)
 3. Combat continues until victory, defeat, or successful flee
 
-**Victory**: Gain XP, potentially level up, and may receive loot drops
+**Victory**: Gain XP and gold, potentially level up, and may receive loot drops
 **Defeat**: Game over (can restore health for testing)
-**Flee**: Escape without gaining XP or loot
+**Flee**: Escape without gaining XP, gold, or loot
 
 ### Inventory & Equipment
 
@@ -72,6 +78,18 @@ Defeated enemies have a chance to drop loot. Items include:
 - **Misc Items**: Flavor items like gold coins and monster parts
 
 Your inventory has a capacity of 20 items. Use `inventory` to view your items, `equip <item>` to equip weapons/armor, `unequip weapon|armor` to remove equipment, and `use <item>` for consumables. Equipped items apply their bonuses automatically during combat.
+
+### NPC Shops
+
+Merchants can be found throughout the world. Interact with them to buy and sell items:
+
+1. Use `look` to see NPCs in your location
+2. Use `talk <npc>` to interact with a merchant and open their shop
+3. Use `shop` to view available items and prices
+4. Use `buy <item>` to purchase items (requires sufficient gold)
+5. Use `sell <item>` to sell items from your inventory for gold
+
+**Earning Gold**: Defeat enemies in combat to earn gold (5-15 × enemy level per victory).
 
 ### Save System
 
@@ -151,7 +169,9 @@ src/cli_rpg/
 │   ├── location.py
 │   ├── enemy.py
 │   ├── item.py
-│   └── inventory.py
+│   ├── inventory.py
+│   ├── npc.py
+│   └── shop.py
 └── persistence.py       # Save/load system (character and full game state)
 ```
 

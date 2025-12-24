@@ -7,13 +7,14 @@ from typing import Dict
 @dataclass
 class Enemy:
     """Represents an enemy/NPC in combat."""
-    
+
     name: str
     health: int
     max_health: int
     attack_power: int
     defense: int
     xp_reward: int
+    level: int = 1
     
     def __post_init__(self):
         """Validate enemy attributes."""
@@ -70,7 +71,8 @@ class Enemy:
             "max_health": self.max_health,
             "attack_power": self.attack_power,
             "defense": self.defense,
-            "xp_reward": self.xp_reward
+            "xp_reward": self.xp_reward,
+            "level": self.level
         }
     
     @staticmethod
@@ -90,5 +92,6 @@ class Enemy:
             max_health=data["max_health"],
             attack_power=data["attack_power"],
             defense=data["defense"],
-            xp_reward=data["xp_reward"]
+            xp_reward=data["xp_reward"],
+            level=data.get("level", 1)
         )

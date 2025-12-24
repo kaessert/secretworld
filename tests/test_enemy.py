@@ -209,7 +209,8 @@ class TestEnemySerialization:
             "max_health": 30,
             "attack_power": 5,
             "defense": 2,
-            "xp_reward": 25
+            "xp_reward": 25,
+            "level": 1
         }
     
     def test_from_dict_deserializes_enemy(self):

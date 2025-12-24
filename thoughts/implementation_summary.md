@@ -1,56 +1,91 @@
-# Implementation Summary: Inventory Commands in Main Game Loop
+# Implementation Summary: NPC Shop System
+
+## Status: COMPLETE
+
+The NPC shop system has been fully implemented and all tests pass.
 
 ## What Was Implemented
 
-Added four new user-facing inventory commands to the exploration phase of the game:
+### 1. Gold System (Character Enhancement)
+**File:** `src/cli_rpg/models/character.py`
+- `gold: int = 0` attribute added to Character
+- `add_gold(amount)` method - adds gold to character
+- `remove_gold(amount)` method - removes gold, returns False if insufficient
+- Gold included in `to_dict()` serialization
+- Gold restored in `from_dict()` deserialization (defaults to 0 for backward compatibility)
+- Gold displayed in character `__str__()` status output
 
-| Command | Syntax | Behavior |
-|---------|--------|----------|
-| `inventory` | `inventory` | Displays formatted inventory using `Inventory.__str__()` |
-| `equip` | `equip <item name>` | Finds item by name (case-insensitive), equips it, shows success/failure |
-| `unequip` | `unequip weapon\|armor` | Unequips from specified slot, returns item to inventory |
-| `use` | `use <item name>` | Uses consumable item via `Character.use_item()` |
+### 2. Combat Gold Rewards
+**File:** `src/cli_rpg/combat.py`
+- `end_combat()` method awards gold on victory: `5-15 * enemy.level` gold
 
-## Files Modified
+### 3. NPC Model
+**File:** `src/cli_rpg/models/npc.py`
+- `name` - NPC identifier (2-30 chars, validated)
+- `description` - What player sees (1-200 chars, validated)
+- `dialogue` - What NPC says when talked to
+- `is_merchant` - Whether NPC runs a shop
+- `shop` - Optional Shop reference for merchants
+- `to_dict()` / `from_dict()` serialization
 
-### 1. `src/cli_rpg/game_state.py` (line 47-48)
-- Added `inventory`, `equip`, `unequip`, `use` to `known_commands` set in `parse_command()`
+### 4. Shop Model
+**File:** `src/cli_rpg/models/shop.py`
+- **ShopItem** class:
+  - `item` - The Item being sold
+  - `buy_price` - Cost to buy from shop
+  - `sell_price` - Property returning 50% of buy price (integer division)
+  - Serialization support
+- **Shop** class:
+  - `name` - Shop name
+  - `inventory` - List of ShopItems
+  - `find_item_by_name()` - Case-insensitive item search
+  - Serialization support
 
-### 2. `src/cli_rpg/main.py`
-- **Lines 270-311**: Added command handlers in `handle_exploration_command()`:
-  - `inventory`: Returns inventory string representation
-  - `equip`: Validates args, finds item by name, calls `inventory.equip()`
-  - `unequip`: Validates slot (weapon/armor), checks if equipped, calls `inventory.unequip()`
-  - `use`: Validates args, finds item, calls `character.use_item()`
-- **Lines 338, 341**: Updated "unknown command" error messages to include new commands
-- **Lines 429-438**: Updated exploration help text in `start_game()` with new commands
-- **Lines 530-539**: Updated exploration help text in load game section with new commands
+### 5. Location Enhancement
+**File:** `src/cli_rpg/models/location.py`
+- `npcs: List[NPC]` field added
+- `find_npc_by_name()` method - case-insensitive NPC search
+- NPCs displayed in location `__str__()` output
+- NPCs serialized/deserialized with location
 
-### 3. `tests/test_main_inventory_commands.py` (NEW)
-- 15 tests covering all inventory commands and their error cases
-- Tests verify spec requirements with comments indicating what each test validates
+### 6. GameState Enhancement
+**File:** `src/cli_rpg/game_state.py`
+- `current_shop: Optional[Shop]` attribute for active shop interaction
+- `parse_command()` includes: `talk`, `buy`, `sell`, `shop` commands
+
+### 7. Command Handlers
+**File:** `src/cli_rpg/main.py`
+- `talk <npc>` - Shows NPC dialogue, sets current_shop if merchant
+- `shop` - Lists shop inventory with prices and player gold
+- `buy <item>` - Purchases item if sufficient gold and inventory space
+- `sell <item>` - Sells inventory item for gold (base 10 + stat bonuses * 2)
+- Help text updated with all shop commands
+
+### 8. Default World Merchant
+**File:** `src/cli_rpg/world.py`
+- Merchant NPC created in `create_default_world()`
+- Shop with: Health Potion (50g), Iron Sword (100g), Leather Armor (80g)
+- Merchant added to Town Square
 
 ## Test Results
 
-```
-tests/test_main_inventory_commands.py - 15 passed
-Full test suite - 564 passed, 1 skipped
-```
+All tests pass:
+- `test_gold.py` - 8 tests (gold system)
+- `test_npc.py` - 9 tests (NPC model)
+- `test_shop.py` - 11 tests (Shop/ShopItem models)
+- `test_shop_commands.py` - 18 tests (command handlers)
+
+**Total: 46 NPC shop tests passing**
+**Full suite: 610 tests passing, 1 skipped**
 
 ## E2E Validation
 
-To manually verify:
-1. Create or load a character
-2. Type `inventory` - should show empty inventory or items if loaded
-3. Find items in the game world or add via debug
-4. Type `equip <item name>` - should equip weapon/armor
-5. Type `unequip weapon` or `unequip armor` - should return to inventory
-6. Type `use <consumable name>` - should apply effect and consume item
-
-## Design Decisions
-
-- Item names are matched case-insensitively via `inventory.find_item_by_name()`
-- Multi-word item names supported by joining args with spaces (e.g., `equip iron sword`)
-- Error messages are user-friendly and suggest valid options
-- All commands return `(True, message)` to continue the game loop
-- Uses existing `Inventory` and `Character` methods - no new business logic needed
+To validate the feature manually:
+1. Start the game: `python3 -m cli_rpg.main`
+2. Create a new character
+3. Use `look` to see "NPCs: Merchant" in Town Square
+4. Use `talk merchant` to interact with the merchant
+5. Use `shop` to see available items
+6. Use `buy health potion` to purchase an item
+7. Defeat an enemy to earn gold
+8. Use `sell <item>` to sell items from inventory
