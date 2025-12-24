@@ -58,7 +58,7 @@ class CombatEncounter:
     def player_defend(self) -> Tuple[bool, str]:
         """
         Player takes defensive stance.
-        
+
         Returns:
             Tuple of (victory, message)
             - victory: Always False (combat continues)
@@ -67,7 +67,32 @@ class CombatEncounter:
         self.defending = True
         message = "You brace yourself for the enemy's attack, taking a defensive stance!"
         return False, message
-    
+
+    def player_cast(self) -> Tuple[bool, str]:
+        """
+        Player casts a magic attack.
+
+        Magic damage is based on intelligence and ignores enemy defense.
+        Formula: intelligence * 1.5 (minimum 1)
+
+        Returns:
+            Tuple of (victory, message)
+            - victory: True if enemy defeated, False otherwise
+            - message: Description of the spell cast
+        """
+        # Calculate magic damage: intelligence * 1.5, ignores defense
+        damage = max(1, int(self.player.intelligence * 1.5))
+        self.enemy.take_damage(damage)
+
+        message = f"You cast a spell at {self.enemy.name} for {damage} magic damage!"
+
+        if not self.enemy.is_alive():
+            message += f"\n{self.enemy.name} has been defeated! Victory!"
+            return True, message
+
+        message += f"\n{self.enemy.name} has {self.enemy.health}/{self.enemy.max_health} HP remaining."
+        return False, message
+
     def player_flee(self) -> Tuple[bool, str]:
         """
         Attempt to flee from combat.

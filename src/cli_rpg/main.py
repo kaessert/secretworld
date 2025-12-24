@@ -171,7 +171,7 @@ def handle_combat_command(game_state: GameState, command: str, args: list[str]) 
     elif command == "flee":
         success, message = combat.player_flee()
         output = f"\n{message}"
-        
+
         if success:
             # Fled successfully
             game_state.current_combat = None
@@ -180,21 +180,44 @@ def handle_combat_command(game_state: GameState, command: str, args: list[str]) 
             # Flee failed, enemy attacks
             enemy_message = combat.enemy_turn()
             output += f"\n{enemy_message}"
-            
+
             # Check if player died
             if not game_state.current_character.is_alive():
                 death_message = combat.end_combat(victory=False)
                 output += f"\n{death_message}"
                 output += "\n\n=== GAME OVER ==="
                 game_state.current_combat = None
-        
+
         return output
-    
+
+    elif command == "cast":
+        victory, message = combat.player_cast()
+        output = f"\n{message}"
+
+        if victory:
+            # Enemy defeated
+            end_message = combat.end_combat(victory=True)
+            output += f"\n{end_message}"
+            game_state.current_combat = None
+        else:
+            # Enemy still alive, enemy attacks
+            enemy_message = combat.enemy_turn()
+            output += f"\n{enemy_message}"
+
+            # Check if player died
+            if not game_state.current_character.is_alive():
+                death_message = combat.end_combat(victory=False)
+                output += f"\n{death_message}"
+                output += "\n\n=== GAME OVER ==="
+                game_state.current_combat = None
+
+        return output
+
     elif command == "status":
         return "\n" + combat.get_status()
     
     else:
-        return "\n✗ Can't do that during combat! Use: attack, defend, flee, or status"
+        return "\n✗ Can't do that during combat! Use: attack, defend, cast, flee, or status"
 
 
 def handle_exploration_command(game_state: GameState, command: str, args: list[str]) -> tuple[bool, str]:
@@ -353,6 +376,7 @@ def start_game(
     print("\nCombat Commands:")
     print("  attack        - Attack the enemy")
     print("  defend        - Take a defensive stance")
+    print("  cast          - Cast a magic attack (intelligence-based)")
     print("  flee          - Attempt to flee from combat")
     print("  status        - View combat status")
     print("=" * 50)
@@ -449,10 +473,11 @@ def main() -> int:
                 print("\nCombat Commands:")
                 print("  attack        - Attack the enemy")
                 print("  defend        - Take a defensive stance")
+                print("  cast          - Cast a magic attack (intelligence-based)")
                 print("  flee          - Attempt to flee from combat")
                 print("  status        - View combat status")
                 print("=" * 50)
-                
+
                 # Show current location
                 print("\n" + game_state.look())
                 

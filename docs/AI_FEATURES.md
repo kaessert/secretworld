@@ -78,7 +78,7 @@ Just play the game normally! When you move to a new direction, the game will:
 - AI service can continue generating new locations in the saved world
 - The game maintains theme consistency across save/load cycles
 
-**Note**: Combat commands (attack, defend, flee) are only available during combat encounters. The save command is not available during combat to maintain game integrity.
+**Note**: Combat commands (attack, defend, flee, cast) are only available during combat encounters. The save command is not available during combat to maintain game integrity.
 
 ### As a Developer
 

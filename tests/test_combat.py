@@ -143,6 +143,93 @@ class TestPlayerDefend:
         assert "defend" in message.lower() or "defensive" in message.lower()
 
 
+class TestPlayerCast:
+    """Test player_cast() method."""
+
+    def test_player_cast_damages_enemy_based_on_intelligence(self):
+        """Spec: player_cast() should damage enemy based on player's intelligence."""
+        player = Character(name="Hero", strength=10, dexterity=10, intelligence=15, level=1)
+        enemy = Enemy(
+            name="Goblin",
+            health=50,
+            max_health=50,
+            attack_power=5,
+            defense=10,  # High defense
+            xp_reward=25
+        )
+        combat = CombatEncounter(player=player, enemy=enemy)
+        combat.start()
+
+        initial_health = enemy.health
+        victory, message = combat.player_cast()
+
+        # Magic damage ignores defense, scales with intelligence
+        # Formula: intelligence * 1.5 (minimum 1)
+        expected_damage = max(1, int(player.intelligence * 1.5))
+        assert enemy.health == initial_health - expected_damage
+        assert "cast" in message.lower() or "magic" in message.lower()
+
+    def test_player_cast_handles_enemy_defeat(self):
+        """Spec: player_cast() should return victory=True when enemy is defeated."""
+        player = Character(name="Hero", strength=10, dexterity=10, intelligence=20, level=1)
+        enemy = Enemy(
+            name="Goblin",
+            health=5,
+            max_health=30,
+            attack_power=5,
+            defense=2,
+            xp_reward=25
+        )
+        combat = CombatEncounter(player=player, enemy=enemy)
+        combat.start()
+
+        victory, message = combat.player_cast()
+
+        assert victory is True
+        assert enemy.is_alive() is False
+
+    def test_player_cast_continues_combat_when_enemy_survives(self):
+        """Spec: player_cast() should return victory=False when enemy survives."""
+        player = Character(name="Hero", strength=10, dexterity=10, intelligence=5, level=1)
+        enemy = Enemy(
+            name="Goblin",
+            health=100,
+            max_health=100,
+            attack_power=5,
+            defense=2,
+            xp_reward=25
+        )
+        combat = CombatEncounter(player=player, enemy=enemy)
+        combat.start()
+
+        victory, message = combat.player_cast()
+
+        assert victory is False
+        assert enemy.is_alive() is True
+
+    def test_player_cast_ignores_enemy_defense(self):
+        """Spec: Magic attack should bypass enemy defense."""
+        player = Character(name="Hero", strength=5, dexterity=10, intelligence=10, level=1)
+        enemy = Enemy(
+            name="Armored Golem",
+            health=50,
+            max_health=50,
+            attack_power=5,
+            defense=100,  # Very high defense
+            xp_reward=25
+        )
+        combat = CombatEncounter(player=player, enemy=enemy)
+        combat.start()
+
+        initial_health = enemy.health
+        victory, message = combat.player_cast()
+
+        # Cast should deal damage regardless of defense
+        expected_damage = max(1, int(player.intelligence * 1.5))
+        assert enemy.health == initial_health - expected_damage
+        assert expected_damage > 1  # Meaningful damage despite high defense
+
+
 class TestPlayerFlee:
     """Test player_flee() method."""
     

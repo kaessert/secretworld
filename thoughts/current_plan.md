@@ -1,226 +1,229 @@
-# Implementation Plan: Fix Dead-End Issue in AI-Generated Locations
+# Implementation Plan: Intelligence Stat Functionality (Magic Attack)
 
 ## Problem Statement
-The `expand_world()` function in `ai_world.py` (lines 217-224) creates locations with only the back-connection to the source location. When AI suggests additional connections, they're only added if the target already exists, leaving players stuck in dead-end locations (e.g., "Chrome Canyon" with only north exit).
+Intelligence stat exists but has no gameplay effect. Players allocate Intelligence (1-20) during character creation, but unlike Strength (attack/HP) and Dexterity (flee chance), Intelligence provides no actual benefit.
 
-## Spec Update
-
-**File:** `docs/ai_location_generation_spec.md`
-
-Add to Section 3.3 `expand_world()` documentation:
-- "Newly generated locations MUST include at least one dangling connection (beyond the back-connection) to enable future exploration"
-- "If AI doesn't suggest additional connections, add a random unused direction as a dangling connection"
+## Approach
+Add a `cast` combat command that deals magic damage scaled by Intelligence, following the established pattern of Strength → physical attack and Dexterity → flee chance.
 
 ---
 
-## Implementation Steps
+## Step 1: Update Spec
 
-### Step 1: Add Tests for Dangling Connection Guarantee
+**File:** `README.md` (line 32)
 
-**File:** `tests/test_ai_world_generation.py`
-
-Add tests:
-
-```python
-def test_expand_world_creates_dangling_connection(mock_ai_service, basic_world):
-    """Test expand_world ensures new locations have at least one dangling exit.
-
-    Spec: New locations must have at least one exit besides the back-connection.
-    """
-    # AI returns location with only back-connection
-    mock_ai_service.generate_location.return_value = {
-        "name": "Dead End Canyon",
-        "description": "A remote canyon.",
-        "connections": {"south": "Town Square"}  # Only back-connection
-    }
-
-    updated_world = expand_world(
-        world=basic_world,
-        ai_service=mock_ai_service,
-        from_location="Town Square",
-        direction="north",
-        theme="fantasy"
-    )
-
-    # New location must have >= 2 exits (back + dangling)
-    new_loc = updated_world["Dead End Canyon"]
-    assert len(new_loc.connections) >= 2
-    assert new_loc.has_connection("south")  # Back-connection exists
-
-    # At least one non-south connection exists
-    other_connections = [d for d in new_loc.connections if d != "south"]
-    assert len(other_connections) >= 1
-
-
-def test_expand_world_preserves_ai_suggested_dangling_connections(mock_ai_service, basic_world):
-    """Test expand_world preserves AI-suggested dangling connections.
-
-    Spec: AI-suggested exits to non-existent locations should be kept as dangling.
-    """
-    mock_ai_service.generate_location.return_value = {
-        "name": "Crossroads",
-        "description": "A busy crossroads.",
-        "connections": {
-            "south": "Town Square",  # Back-connection
-            "east": "Mountain Path",  # Dangling
-            "west": "Dark Forest"     # Dangling
-        }
-    }
-
-    updated_world = expand_world(
-        world=basic_world,
-        ai_service=mock_ai_service,
-        from_location="Town Square",
-        direction="north",
-        theme="fantasy"
-    )
-
-    new_loc = updated_world["Crossroads"]
-    assert new_loc.has_connection("south")
-    assert new_loc.has_connection("east")
-    assert new_loc.has_connection("west")
-    assert new_loc.get_connection("east") == "Mountain Path"
-    assert new_loc.get_connection("west") == "Dark Forest"
-
-
-def test_expand_world_adds_dangling_when_ai_suggests_none(mock_ai_service, basic_world):
-    """Test expand_world adds dangling connection when AI suggests none.
-
-    Spec: If AI returns empty connections, a dangling exit must be added.
-    """
-    mock_ai_service.generate_location.return_value = {
-        "name": "Isolated Cave",
-        "description": "An isolated cave.",
-        "connections": {}  # No connections at all
-    }
-
-    updated_world = expand_world(
-        world=basic_world,
-        ai_service=mock_ai_service,
-        from_location="Town Square",
-        direction="north",
-        theme="fantasy"
-    )
-
-    new_loc = updated_world["Isolated Cave"]
-    # Must have back-connection + at least one dangling
-    assert len(new_loc.connections) >= 2
-    assert new_loc.has_connection("south")  # Back to Town Square
-
-
-def test_expand_world_dangling_excludes_back_direction(mock_ai_service, basic_world):
-    """Test added dangling connection is not in back direction.
-
-    Spec: Auto-added dangling exit must be in a different direction than back.
-    """
-    mock_ai_service.generate_location.return_value = {
-        "name": "Remote Place",
-        "description": "A remote place.",
-        "connections": {"south": "Town Square"}  # Only back
-    }
-
-    updated_world = expand_world(
-        world=basic_world,
-        ai_service=mock_ai_service,
-        from_location="Town Square",
-        direction="north",
-        theme="fantasy"
-    )
-
-    new_loc = updated_world["Remote Place"]
-    # Get non-back connections
-    other_dirs = [d for d in new_loc.connections if d != "south"]
-    assert len(other_dirs) >= 1
-    # Dangling should not be "south" (the back direction)
-    for d in other_dirs:
-        assert d != "south"
+Change:
+```markdown
+   - **Intelligence**: (Future feature)
+```
+To:
+```markdown
+   - **Intelligence**: Increases magic attack damage
 ```
 
-### Step 2: Modify expand_world() Function
-
-**File:** `src/cli_rpg/ai_world.py`
-
-**Replace lines 217-224:**
-
-```python
-    # Add suggested dangling connections (keep them even if targets don't exist)
-    for new_dir, target_name in location_data["connections"].items():
-        if new_dir != opposite:  # Skip the back-connection we already added
-            new_location.add_connection(new_dir, target_name)
-            # Also add bidirectional connection if target exists
-            if target_name in world:
-                rev_dir = get_opposite_direction(new_dir)
-                if not world[target_name].has_connection(rev_dir):
-                    world[target_name].add_connection(rev_dir, new_location.name)
-
-    # Ensure at least one dangling connection for future expansion
-    non_back_connections = [d for d in new_location.connections if d != opposite]
-    if not non_back_connections:
-        import random
-        available_dirs = [d for d in Location.VALID_DIRECTIONS
-                         if d not in new_location.connections]
-        if available_dirs:
-            dangling_dir = random.choice(available_dirs)
-            placeholder_name = f"Unexplored {dangling_dir.title()}"
-            new_location.add_connection(dangling_dir, placeholder_name)
+Add to Combat Commands section (after line 46):
+```markdown
+- `cast` - Cast a magic attack (damage based on intelligence)
 ```
 
-### Step 3: Add E2E Test
+---
 
-**File:** `tests/test_e2e_world_expansion.py`
+## Step 2: Add Tests for Magic Attack
 
-Add test:
+**File:** `tests/test_combat.py`
+
+Add new test class after `TestPlayerDefend`:
 
 ```python
-def test_expanded_location_never_dead_end(basic_character, mock_ai_service_success):
-    """Test: Expanded locations never become dead-ends.
+class TestPlayerCast:
+    """Test player_cast() method."""
 
-    Spec: Newly expanded locations always have at least one exit besides
-    the back-connection, preventing dead-end scenarios like Chrome Canyon.
-    """
-    # Override mock to return only back-connection
-    def generate_dead_end(theme, context_locations, source_location, direction):
-        opposites = {"north": "south", "south": "north", "east": "west",
-                     "west": "east", "up": "down", "down": "up"}
-        return {
-            "name": "Chrome Canyon",
-            "description": "A canyon with chrome walls.",
-            "connections": {opposites[direction]: source_location}  # Only back
-        }
+    def test_player_cast_damages_enemy_based_on_intelligence(self):
+        """Spec: player_cast() should damage enemy based on player's intelligence."""
+        player = Character(name="Hero", strength=10, dexterity=10, intelligence=15, level=1)
+        enemy = Enemy(
+            name="Goblin",
+            health=50,
+            max_health=50,
+            attack_power=5,
+            defense=10,  # High defense
+            xp_reward=25
+        )
+        combat = CombatEncounter(player=player, enemy=enemy)
+        combat.start()
 
-    mock_ai_service_success.generate_location.side_effect = generate_dead_end
+        initial_health = enemy.health
+        victory, message = combat.player_cast()
 
-    town = Location(name="Town Square", description="A town square.")
-    town.connections = {"south": "Chrome Canyon"}
-    world = {"Town Square": town}
+        # Magic damage ignores defense, scales with intelligence
+        # Formula: intelligence * 1.5 (minimum 1)
+        expected_damage = max(1, int(player.intelligence * 1.5))
+        assert enemy.health == initial_health - expected_damage
+        assert "cast" in message.lower() or "magic" in message.lower()
 
-    game_state = GameState(
-        character=basic_character,
-        world=world,
-        starting_location="Town Square",
-        ai_service=mock_ai_service_success,
-        theme="cyberpunk"
-    )
+    def test_player_cast_handles_enemy_defeat(self):
+        """Spec: player_cast() should return victory=True when enemy is defeated."""
+        player = Character(name="Hero", strength=10, dexterity=10, intelligence=20, level=1)
+        enemy = Enemy(
+            name="Goblin",
+            health=5,
+            max_health=30,
+            attack_power=5,
+            defense=2,
+            xp_reward=25
+        )
+        combat = CombatEncounter(player=player, enemy=enemy)
+        combat.start()
 
-    # Trigger expansion
-    success, _ = game_state.move("south")
-    assert success is True
+        victory, message = combat.player_cast()
 
-    # Verify Chrome Canyon has more than just the back exit
-    chrome_canyon = game_state.world["Chrome Canyon"]
-    assert len(chrome_canyon.connections) >= 2, \
-        "Expanded location should have at least 2 exits (back + dangling)"
+        assert victory is True
+        assert enemy.is_alive() is False
 
-    # Verify at least one non-back exit exists
-    non_back = [d for d in chrome_canyon.connections if d != "north"]
-    assert len(non_back) >= 1, \
-        "Expanded location must have at least one forward exit for exploration"
+    def test_player_cast_continues_combat_when_enemy_survives(self):
+        """Spec: player_cast() should return victory=False when enemy survives."""
+        player = Character(name="Hero", strength=10, dexterity=10, intelligence=5, level=1)
+        enemy = Enemy(
+            name="Goblin",
+            health=100,
+            max_health=100,
+            attack_power=5,
+            defense=2,
+            xp_reward=25
+        )
+        combat = CombatEncounter(player=player, enemy=enemy)
+        combat.start()
+
+        victory, message = combat.player_cast()
+
+        assert victory is False
+        assert enemy.is_alive() is True
+
+    def test_player_cast_ignores_enemy_defense(self):
+        """Spec: Magic attack should bypass enemy defense."""
+        player = Character(name="Hero", strength=5, dexterity=10, intelligence=10, level=1)
+        enemy = Enemy(
+            name="Armored Golem",
+            health=50,
+            max_health=50,
+            attack_power=5,
+            defense=100,  # Very high defense
+            xp_reward=25
+        )
+        combat = CombatEncounter(player=player, enemy=enemy)
+        combat.start()
+
+        initial_health = enemy.health
+        victory, message = combat.player_cast()
+
+        # Cast should deal damage regardless of defense
+        expected_damage = max(1, int(player.intelligence * 1.5))
+        assert enemy.health == initial_health - expected_damage
+        assert expected_damage > 1  # Meaningful damage despite high defense
+```
+
+---
+
+## Step 3: Implement player_cast() Method
+
+**File:** `src/cli_rpg/combat.py`
+
+Add method after `player_defend()` (after line 69):
+
+```python
+    def player_cast(self) -> Tuple[bool, str]:
+        """
+        Player casts a magic attack.
+
+        Magic damage is based on intelligence and ignores enemy defense.
+        Formula: intelligence * 1.5 (minimum 1)
+
+        Returns:
+            Tuple of (victory, message)
+            - victory: True if enemy defeated, False otherwise
+            - message: Description of the spell cast
+        """
+        # Calculate magic damage: intelligence * 1.5, ignores defense
+        damage = max(1, int(self.player.intelligence * 1.5))
+        self.enemy.take_damage(damage)
+
+        message = f"You cast a spell at {self.enemy.name} for {damage} magic damage!"
+
+        if not self.enemy.is_alive():
+            message += f"\n{self.enemy.name} has been defeated! Victory!"
+            return True, message
+
+        message += f"\n{self.enemy.name} has {self.enemy.health}/{self.enemy.max_health} HP remaining."
+        return False, message
+```
+
+---
+
+## Step 4: Add Cast Command Handler
+
+**File:** `src/cli_rpg/main.py`
+
+Add cast handling in `handle_combat_command()` after the flee block (after line 191):
+
+```python
+    elif command == "cast":
+        victory, message = combat.player_cast()
+        output = f"\n{message}"
+
+        if victory:
+            # Enemy defeated
+            end_message = combat.end_combat(victory=True)
+            output += f"\n{end_message}"
+            game_state.current_combat = None
+        else:
+            # Enemy still alive, enemy attacks
+            enemy_message = combat.enemy_turn()
+            output += f"\n{enemy_message}"
+
+            # Check if player died
+            if not game_state.current_character.is_alive():
+                death_message = combat.end_combat(victory=False)
+                output += f"\n{death_message}"
+                output += "\n\n=== GAME OVER ==="
+                game_state.current_combat = None
+
+        return output
+```
+
+Update the else clause error message (line 197):
+```python
+    else:
+        return "\n✗ Can't do that during combat! Use: attack, defend, cast, flee, or status"
+```
+
+Update command help display in `start_game()` (after line 355):
+```python
+    print("  cast          - Cast a magic attack (intelligence-based)")
+```
+
+---
+
+## Step 5: Add Cast to Known Commands
+
+**File:** `src/cli_rpg/game_state.py`
+
+Add "cast" to known_commands set in `parse_command()`:
+
+```python
+known_commands = {"look", "go", "save", "quit", "attack", "defend", "flee", "status", "cast"}
 ```
 
 ---
 
 ## Verification
 
-1. Run new unit tests: `pytest tests/test_ai_world_generation.py::test_expand_world_creates_dangling_connection tests/test_ai_world_generation.py::test_expand_world_preserves_ai_suggested_dangling_connections tests/test_ai_world_generation.py::test_expand_world_adds_dangling_when_ai_suggests_none tests/test_ai_world_generation.py::test_expand_world_dangling_excludes_back_direction -v`
-2. Run E2E test: `pytest tests/test_e2e_world_expansion.py::test_expanded_location_never_dead_end -v`
-3. Run full test suite: `pytest`
+```bash
+# Run new magic attack tests
+pytest tests/test_combat.py::TestPlayerCast -v
+
+# Run full combat test suite to ensure no regressions
+pytest tests/test_combat.py -v
+
+# Run full test suite
+pytest
+```

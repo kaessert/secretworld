@@ -1,53 +1,135 @@
-The world is not automatically expanding or character can get stuck with nowhere to move 
-Neon Nexus
-A bustling metropolis filled with holographic billboards, neon lights, and towering skyscrapers. The streets are crowded with augmented citizens and flying vehicles zoom overhead.
-Exits: north, south
+Game generates a world when starting which only has three locations and the player is getting stuck:
 
-> go north
+$> cli-rpg
 
-You head north to Quantum Quarters.
+==================================================
+Welcome to CLI RPG!
+==================================================
 
-Quantum Quarters
-A sprawling complex of interconnected skyscrapers, each housing a different faction vying for control in the digital underground. Neon lights flicker in the shadows of towering data servers, creating a mesmerizing cybernetic maze.
-Exits: south
+✓ AI world generation enabled!
+  Set OPENAI_API_KEY to use AI features.
 
-> go south
+==================================================
+MAIN MENU
+==================================================
+1. Create New Character
+2. Load Character
+3. Exit
+==================================================
+Enter your choice: 2
 
-You head south to Neon Nexus.
+⚠ No saved characters found.
+  Create a new character first!
 
-Neon Nexus
-A bustling metropolis filled with holographic billboards, neon lights, and towering skyscrapers. The streets are crowded with augmented citizens and flying vehicles zoom overhead.
-Exits: north, south
+==================================================
+MAIN MENU
+==================================================
+1. Create New Character
+2. Load Character
+3. Exit
+==================================================
+Enter your choice: 1
 
-> status
+==================================================
+CHARACTER CREATION
+==================================================
 
-adolf (Level 1) - Alive
-Health: 150/150
-Strength: 10 | Dexterity: 8 | Intelligence: 10
+Enter character name (2-30 characters, or 'cancel' to exit):
+> asdfjkl
 
-> attack
+Choose stat allocation method:
+1. Manual - Choose your own stats
+2. Random - Randomly generate balanced stats
+Type 'cancel' to exit
+> 2
 
-✗ Not in combat.
+Randomly generated stats:
+Strength: 11
+Dexterity: 10
+Intelligence: 14
 
-> flee
+==================================================
+CHARACTER SUMMARY
+==================================================
+asdfjkl (Level 1) - Alive
+Health: 155/155
+Strength: 11 | Dexterity: 10 | Intelligence: 14
+==================================================
 
-✗ Not in combat.
+Confirm character creation? (yes/no):
+> yes
 
-> look
+✓ asdfjkl has been created successfully!
 
-Neon Nexus
-A bustling metropolis filled with holographic billboards, neon lights, and towering skyscrapers. The streets are crowded with augmented citizens and flying vehicles zoom overhead.
-Exits: north, south
+==================================================
+THEME SELECTION
+==================================================
+Select world theme (or press Enter for default 'fantasy'):
+1. Fantasy (default)
+2. Sci-Fi
+3. Cyberpunk
+4. Horror
+5. Steampunk
+6. Custom
+==================================================
+> 4
 
-> go soth
+✓ Selected theme: horror
+Your character is ready for adventure!
 
-You can't go that way.
+==================================================
+Welcome to the adventure, asdfjkl!
+Exploring a horror world powered by AI...
+==================================================
 
-> go south
+Exploration Commands:
+  look          - Look around at your surroundings
+  go <direction> - Move in a direction (north, south, east, west)
+  status        - View your character status
+  save          - Save your game (not available during combat)
+  quit          - Return to main menu
 
-You head south to Chrome Canyon.
-A wild Creature appears! Combat has begun!
+Combat Commands:
+  attack        - Attack the enemy
+  defend        - Take a defensive stance
+  flee          - Attempt to flee from combat
+  status        - View combat status
+==================================================
 
-Chrome Canyon
-A sprawling canyon filled with towering chrome skyscrapers reflecting neon lights, creating a dazzling display of colors. The streets are lined with high-end shops and underground clubs, attracting the wealthy and powerful.
-Exits: north
+Cursed Crypt
+An ancient underground crypt filled with eerie whispers and chilling drafts. The walls are lined with decaying corpses, their eyes following your every move.
+Exits: east, up
+
+> go up
+
+You head up to Haunted Tower.
+
+Haunted Tower
+A looming tower shrouded in mist, its windows glowing with an eerie light. Shadows dance along the walls, and whispers echo through the halls.
+Exits: down
+
+> go down
+
+You head down to Cursed Crypt.
+
+Cursed Crypt
+An ancient underground crypt filled with eerie whispers and chilling drafts. The walls are lined with decaying corpses, their eyes following your every move.
+Exits: east, up
+
+> go east
+
+You head east to Darkwood Manor.
+
+Darkwood Manor
+An eerie Victorian mansion surrounded by twisted trees and overgrown foliage. Shadows seem to move within its walls, and whispers echo through the halls.
+Exits: west
+
+> go west
+
+You head west to Cursed Crypt.
+
+Cursed Crypt
+An ancient underground crypt filled with eerie whispers and chilling drafts. The walls are lined with decaying corpses, their eyes following your every move.
+Exits: east, up
+
+>

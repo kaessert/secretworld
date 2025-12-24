@@ -29,7 +29,7 @@ python -m cli_rpg.main
 3. Set your three core attributes (1-20 each):
    - **Strength**: Increases attack damage and max HP
    - **Dexterity**: Improves flee chance
-   - **Intelligence**: (Future feature)
+   - **Intelligence**: Increases magic attack damage
 
 **Note:** Constitution is automatically derived from your Strength stat and is used to reduce incoming damage during combat.
 
@@ -46,6 +46,7 @@ Combat encounters occur randomly as you explore. When in combat:
 - `attack` - Attack the enemy (damage based on your strength vs enemy defense)
 - `defend` - Take a defensive stance, reducing incoming damage by 50%
 - `flee` - Attempt to escape (chance based on dexterity)
+- `cast` - Cast a magic attack (damage based on intelligence)
 - `status` - View combat status (HP of both combatants)
 
 **Combat Flow:**
