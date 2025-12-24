@@ -45,20 +45,23 @@ def test_main_function_callable():
     Verifies: CLI entry point callable requirement from spec.
     """
     from cli_rpg.main import main
+    from unittest.mock import patch
     
-    # Capture stdout to avoid cluttering test output
-    old_stdout = sys.stdout
-    sys.stdout = StringIO()
-    
-    try:
-        result = main()
-        output = sys.stdout.getvalue()
-    finally:
-        sys.stdout = old_stdout
-    
-    # Should execute without raising exceptions
-    assert output is not None
-    assert "Welcome to CLI RPG!" in output
+    # Mock input to exit immediately
+    with patch('builtins.input', return_value="3"):
+        # Capture stdout to avoid cluttering test output
+        old_stdout = sys.stdout
+        sys.stdout = StringIO()
+        
+        try:
+            result = main()
+            output = sys.stdout.getvalue()
+        finally:
+            sys.stdout = old_stdout
+        
+        # Should execute without raising exceptions
+        assert output is not None
+        assert "Welcome to CLI RPG!" in output
 
 
 def test_main_returns_zero():
@@ -67,15 +70,18 @@ def test_main_returns_zero():
     Verifies: CLI entry point success exit requirement from spec.
     """
     from cli_rpg.main import main
+    from unittest.mock import patch
     
-    # Capture stdout to avoid cluttering test output
-    old_stdout = sys.stdout
-    sys.stdout = StringIO()
-    
-    try:
-        result = main()
-    finally:
-        sys.stdout = old_stdout
-    
-    # Should return 0 for success (or None which is also acceptable)
-    assert result == 0 or result is None
+    # Mock input to exit immediately
+    with patch('builtins.input', return_value="3"):
+        # Capture stdout to avoid cluttering test output
+        old_stdout = sys.stdout
+        sys.stdout = StringIO()
+        
+        try:
+            result = main()
+        finally:
+            sys.stdout = old_stdout
+        
+        # Should return 0 for success (or None which is also acceptable)
+        assert result == 0 or result is None
