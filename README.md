@@ -60,6 +60,7 @@ Combat encounters occur randomly as you explore. When in combat:
 - `defend` - Take a defensive stance, reducing incoming damage by 50%
 - `flee` - Attempt to escape (chance based on dexterity)
 - `cast` - Cast a magic attack (damage based on intelligence)
+- `use <item>` - Use a consumable item (e.g., health potion) - counts as your turn
 - `status` - View combat status (HP of both combatants)
 - `help` - Display the full command reference
 - `quit` - Exit to main menu (with option to save first)

@@ -440,6 +440,166 @@ class TestQuitCommandDuringCombat:
         assert continue_game is False
 
 
+class TestUseItemDuringCombat:
+    """Test using consumable items during combat."""
+
+    def test_use_health_potion_during_combat_heals_player(self):
+        """Spec: Using a health potion during combat heals the player."""
+        from cli_rpg.models.item import Item, ItemType
+        from cli_rpg.main import handle_combat_command
+
+        # Setup: Create character with a health potion, reduce health
+        character = Character(name="Hero", strength=10, dexterity=10, intelligence=10)
+        character.health = 50  # Take some damage
+        potion = Item(
+            name="Health Potion",
+            description="Restores 30 health",
+            item_type=ItemType.CONSUMABLE,
+            heal_amount=30
+        )
+        character.inventory.add_item(potion)
+
+        enemy = Enemy(name="Wolf", health=50, max_health=50, attack_power=5, defense=2, xp_reward=20)
+        world = {"Forest": Location(name="Forest", description="A dark forest", connections={})}
+        game_state = GameState(character, world, starting_location="Forest")
+        game_state.current_combat = CombatEncounter(character, enemy)
+        game_state.current_combat.is_active = True
+
+        initial_health = character.health
+
+        # Test
+        continue_game, result = handle_combat_command(game_state, "use", ["Health", "Potion"])
+
+        # Assert: Health increased, potion consumed
+        assert character.health > initial_health, "Health should increase"
+        assert "healed" in result.lower() or "health" in result.lower()
+        assert character.inventory.find_item_by_name("Health Potion") is None, "Potion should be consumed"
+
+    def test_use_item_during_combat_triggers_enemy_turn(self):
+        """Spec: After using an item during combat, the enemy attacks."""
+        from cli_rpg.models.item import Item, ItemType
+        from cli_rpg.main import handle_combat_command
+
+        # Setup
+        character = Character(name="Hero", strength=10, dexterity=10, intelligence=10)
+        character.health = 50  # Take some damage
+        potion = Item(
+            name="Health Potion",
+            description="Restores 30 health",
+            item_type=ItemType.CONSUMABLE,
+            heal_amount=30
+        )
+        character.inventory.add_item(potion)
+
+        enemy = Enemy(name="Wolf", health=50, max_health=50, attack_power=10, defense=2, xp_reward=20)
+        world = {"Forest": Location(name="Forest", description="A dark forest", connections={})}
+        game_state = GameState(character, world, starting_location="Forest")
+        game_state.current_combat = CombatEncounter(character, enemy)
+        game_state.current_combat.is_active = True
+
+        # After healing 30, expect 80. Then enemy with 10 attack should deal some damage
+        # We need to track if enemy turn happened
+        _, result = handle_combat_command(game_state, "use", ["Health", "Potion"])
+
+        # Assert: Enemy attack message in result
+        assert "wolf" in result.lower() or "attack" in result.lower() or "damage" in result.lower()
+
+    def test_use_item_not_found_during_combat(self):
+        """Spec: Using a non-existent item shows an error."""
+        from cli_rpg.main import handle_combat_command
+
+        # Setup
+        character = Character(name="Hero", strength=10, dexterity=10, intelligence=10)
+        enemy = Enemy(name="Wolf", health=50, max_health=50, attack_power=5, defense=2, xp_reward=20)
+        world = {"Forest": Location(name="Forest", description="A dark forest", connections={})}
+        game_state = GameState(character, world, starting_location="Forest")
+        game_state.current_combat = CombatEncounter(character, enemy)
+        game_state.current_combat.is_active = True
+
+        # Test
+        continue_game, result = handle_combat_command(game_state, "use", ["Nonexistent", "Item"])
+
+        # Assert: Error message about not having the item
+        assert "don't have" in result.lower() or "not found" in result.lower()
+
+    def test_use_no_args_during_combat(self):
+        """Spec: Using 'use' without specifying an item shows an error."""
+        from cli_rpg.main import handle_combat_command
+
+        # Setup
+        character = Character(name="Hero", strength=10, dexterity=10, intelligence=10)
+        enemy = Enemy(name="Wolf", health=50, max_health=50, attack_power=5, defense=2, xp_reward=20)
+        world = {"Forest": Location(name="Forest", description="A dark forest", connections={})}
+        game_state = GameState(character, world, starting_location="Forest")
+        game_state.current_combat = CombatEncounter(character, enemy)
+        game_state.current_combat.is_active = True
+
+        # Test
+        continue_game, result = handle_combat_command(game_state, "use", [])
+
+        # Assert: Error message about specifying an item
+        assert "use what" in result.lower() or "specify" in result.lower()
+
+    def test_use_non_consumable_during_combat(self):
+        """Spec: Using a non-consumable item (weapon/armor) shows an error."""
+        from cli_rpg.models.item import Item, ItemType
+        from cli_rpg.main import handle_combat_command
+
+        # Setup: Create character with a weapon
+        character = Character(name="Hero", strength=10, dexterity=10, intelligence=10)
+        sword = Item(
+            name="Iron Sword",
+            description="A sturdy iron sword",
+            item_type=ItemType.WEAPON,
+            damage_bonus=5
+        )
+        character.inventory.add_item(sword)
+
+        enemy = Enemy(name="Wolf", health=50, max_health=50, attack_power=5, defense=2, xp_reward=20)
+        world = {"Forest": Location(name="Forest", description="A dark forest", connections={})}
+        game_state = GameState(character, world, starting_location="Forest")
+        game_state.current_combat = CombatEncounter(character, enemy)
+        game_state.current_combat.is_active = True
+
+        # Test
+        continue_game, result = handle_combat_command(game_state, "use", ["Iron", "Sword"])
+
+        # Assert: Error message about not being a consumable
+        assert "consumable" in result.lower() or "can't use" in result.lower()
+
+    def test_use_potion_at_full_health_during_combat(self):
+        """Spec: Using a health potion when at full health shows an error."""
+        from cli_rpg.models.item import Item, ItemType
+        from cli_rpg.main import handle_combat_command
+
+        # Setup: Character at full health with a potion
+        character = Character(name="Hero", strength=10, dexterity=10, intelligence=10)
+        potion = Item(
+            name="Health Potion",
+            description="Restores 30 health",
+            item_type=ItemType.CONSUMABLE,
+            heal_amount=30
+        )
+        character.inventory.add_item(potion)
+
+        enemy = Enemy(name="Wolf", health=50, max_health=50, attack_power=5, defense=2, xp_reward=20)
+        world = {"Forest": Location(name="Forest", description="A dark forest", connections={})}
+        game_state = GameState(character, world, starting_location="Forest")
+        game_state.current_combat = CombatEncounter(character, enemy)
+        game_state.current_combat.is_active = True
+
+        # Verify at full health
+        assert character.health == character.max_health
+
+        # Test
+        continue_game, result = handle_combat_command(game_state, "use", ["Health", "Potion"])
+
+        # Assert: Error message about full health
+        assert "full health" in result.lower()
+        # Potion should NOT be consumed
+        assert character.inventory.find_item_by_name("Health Potion") is not None
+
+
 class TestCombatStatePersistence:
     """Test combat encounter object persists through turns."""
 

@@ -1,39 +1,52 @@
 ## Active Issues
 
-### Cannot use health potions during combat when they are needed most
+### BLOCKER GAME ALWAYS STARTS WITH DEFAULT MAP[]
 **Status**: ACTIVE
 
-**Problem**: Players cannot use the `use <item>` command during combat, which means health potions cannot be used when they're most needed - during combat when HP is low. The game displays: `"Can't do that during combat! Use: attack, defend, cast, flee, status, help, or quit"`
-
-**Steps to Reproduce**:
-1. Create a character and obtain a health potion (via shop or enemy drop)
-2. Enter combat by exploring (random encounters)
-3. Take damage from the enemy
-4. Try `use Health Potion`
-
-**Expected Behavior**: Either:
-- Allow using consumable items during combat (standard RPG mechanic), OR
-- Clearly document in README.md that consumables can only be used outside of combat
-
-**Actual Behavior**: The game blocks the command with a generic "can't do that during combat" message. This is confusing because:
-1. The README describes health potions as "restore HP when used" without mentioning the combat restriction
-2. The `use <item>` command is listed under "Exploration Commands" but this distinction isn't obvious to users
-3. Health potions are most valuable during combat, so users naturally expect to use them there
-4. There is no clear documentation warning users about this limitation
-
-**User Impact**: Players may save health potions for "when they really need them" (i.e., during difficult combat), only to discover they cannot use them when they need them most. This can lead to unexpected game overs.
-
----
+**Problem**: AI generation seems completely broken at the moment, there should be no way the dame runs without generating 
 
 ### CRITICAL SHOULD FAIL WHEN AI GENERATION FAIL
+**Status**: ACTIVE
 
 The game should fail hard when generating content with AI fails
 
+### Inconsistent save behavior during combat allows exploiting quit to escape fights
+**Status**: ACTIVE
+
+**Problem**: The game has inconsistent save behavior during combat:
+1. Using the `save` command during combat correctly blocks with: `✗ Can't do that during combat!`
+2. BUT using `quit` during combat and answering 'y' to "Save before quitting?" **successfully saves the game**
+3. When this save is loaded, the combat encounter is lost - the enemy disappears
+
+**Impact**: Players can exploit this to escape losing fights:
+1. Get into a tough fight and start losing
+2. Type `quit`, answer `y` to save
+3. Reload the save - the enemy is gone, player is at full health at that location
+
+**Steps to Reproduce**:
+1. Create a new character
+2. Travel until a combat encounter starts (e.g., "A wild Bear appears!")
+3. While in combat, type `save` → correctly blocked with "Can't do that during combat!"
+4. Type `quit` → prompted "Save before quitting? (y/n)"
+5. Type `y` → game saves successfully
+6. Reload the save from main menu
+7. Player is now at the Forest location with no combat - the Bear is gone
+
+**Expected Behavior**: Either:
+- The quit prompt during combat should NOT offer to save (since saving during combat is not allowed), OR
+- If saving during combat IS allowed via quit, the combat state should be preserved
+
+**Actual Behavior**: Inconsistent - `save` is blocked but `quit + y` allows saving, and the save loses combat state
+
+---
+
 ### Support Anthropic API Key
+**Status**: ACTIVE
 
 Also support Anthropic next to OpenAI
 
 ###  High prio: Generate whole areas
+**Status**: ACTIVE
 
 instead of generating just the next exit, we should always generate whole areas which should cover different topics
 there should be a method of checking if the world border is completely closed, there might be still a situation where
@@ -66,6 +79,21 @@ This is misleading because:
 ---
 
 ## Resolved Issues
+
+### Cannot use health potions during combat when they are needed most
+**Status**: RESOLVED
+
+**Original Problem**: Players could not use the `use <item>` command during combat, which meant health potions could not be used when they were most needed - during combat when HP is low. The game displayed: `"Can't do that during combat! Use: attack, defend, cast, flee, status, help, or quit"`
+
+**Solution Implemented**:
+- Added `use` command handler in `handle_combat_command()` in `main.py`
+- Command validates item exists, delegates to `Character.use_item()` for consumption
+- Using an item counts as the player's turn, triggering enemy retaliation
+- Failed item usage (wrong item type, full health, etc.) does NOT trigger enemy turn
+- Updated help text to list `use <item>` in Combat Commands section
+- Added 6 new tests in `tests/test_main_combat_integration.py` covering various use cases
+
+---
 
 ### Help command is not self-documenting - 'help' not listed in its own output
 **Status**: RESOLVED

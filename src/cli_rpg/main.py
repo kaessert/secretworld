@@ -41,6 +41,7 @@ def get_command_reference() -> str:
         "  defend        - Take a defensive stance",
         "  cast          - Cast a magic attack (intelligence-based)",
         "  flee          - Attempt to flee from combat",
+        "  use <item>    - Use a consumable item",
         "  status        - View combat status",
     ]
     return "\n".join(lines)
@@ -268,6 +269,30 @@ def handle_combat_command(game_state: GameState, command: str, args: list[str]) 
     elif command == "status":
         return (True, "\n" + combat.get_status())
 
+    elif command == "use":
+        if not args:
+            return (True, "\nUse what? Specify an item name.")
+        item_name = " ".join(args)
+        item = game_state.current_character.inventory.find_item_by_name(item_name)
+        if item is None:
+            return (True, f"\nYou don't have '{item_name}' in your inventory.")
+        success, message = game_state.current_character.use_item(item)
+        output = f"\n{message}"
+
+        if success:
+            # Using item counts as a turn, enemy attacks
+            enemy_message = combat.enemy_turn()
+            output += f"\n{enemy_message}"
+
+            # Check if player died
+            if not game_state.current_character.is_alive():
+                death_message = combat.end_combat(victory=False)
+                output += f"\n{death_message}"
+                output += "\n\n=== GAME OVER ==="
+                game_state.current_combat = None
+
+        return (True, output)
+
     elif command == "help":
         return (True, "\n" + get_command_reference())
 
@@ -286,7 +311,7 @@ def handle_combat_command(game_state: GameState, command: str, args: list[str]) 
         return (False, "")
 
     else:
-        return (True, "\n✗ Can't do that during combat! Use: attack, defend, cast, flee, status, help, or quit")
+        return (True, "\n✗ Can't do that during combat! Use: attack, defend, cast, flee, use, status, help, or quit")
 
 
 def handle_exploration_command(game_state: GameState, command: str, args: list[str]) -> tuple[bool, str]:
