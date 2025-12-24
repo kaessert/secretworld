@@ -8,7 +8,8 @@ from cli_rpg.character_creation import (
     generate_random_stats,
     display_character_summary,
     confirm_creation,
-    create_character
+    create_character,
+    get_theme_selection
 )
 from cli_rpg.models.character import Character
 
@@ -274,3 +275,85 @@ class TestCreateCharacter:
         assert character is not None
         # Random stats should be in range
         assert 8 <= character.strength <= 15
+
+
+class TestGetThemeSelection:
+    """Test theme selection functionality for AI world generation."""
+    
+    @patch('builtins.input', return_value="1")
+    def test_theme_selection_fantasy_by_number(self, mock_input):
+        """Test: Accept '1' for fantasy theme (spec requirement)"""
+        theme = get_theme_selection()
+        assert theme == "fantasy"
+    
+    @patch('builtins.input', return_value="2")
+    def test_theme_selection_scifi_by_number(self, mock_input):
+        """Test: Accept '2' for sci-fi theme (spec requirement)"""
+        theme = get_theme_selection()
+        assert theme == "sci-fi"
+    
+    @patch('builtins.input', return_value="3")
+    def test_theme_selection_cyberpunk_by_number(self, mock_input):
+        """Test: Accept '3' for cyberpunk theme (spec requirement)"""
+        theme = get_theme_selection()
+        assert theme == "cyberpunk"
+    
+    @patch('builtins.input', return_value="4")
+    def test_theme_selection_horror_by_number(self, mock_input):
+        """Test: Accept '4' for horror theme (spec requirement)"""
+        theme = get_theme_selection()
+        assert theme == "horror"
+    
+    @patch('builtins.input', return_value="5")
+    def test_theme_selection_steampunk_by_number(self, mock_input):
+        """Test: Accept '5' for steampunk theme (spec requirement)"""
+        theme = get_theme_selection()
+        assert theme == "steampunk"
+    
+    @patch('builtins.input', return_value="fantasy")
+    def test_theme_selection_fantasy_by_word(self, mock_input):
+        """Test: Accept 'fantasy' for fantasy theme (spec requirement)"""
+        theme = get_theme_selection()
+        assert theme == "fantasy"
+    
+    @patch('builtins.input', return_value="sci-fi")
+    def test_theme_selection_scifi_by_word(self, mock_input):
+        """Test: Accept 'sci-fi' for sci-fi theme (spec requirement)"""
+        theme = get_theme_selection()
+        assert theme == "sci-fi"
+    
+    @patch('builtins.input', return_value="scifi")
+    def test_theme_selection_scifi_alternate_spelling(self, mock_input):
+        """Test: Accept 'scifi' for sci-fi theme (spec requirement)"""
+        theme = get_theme_selection()
+        assert theme == "sci-fi"
+    
+    @patch('builtins.input', return_value="")
+    def test_theme_selection_default_on_empty(self, mock_input):
+        """Test: Default to 'fantasy' when empty input (spec requirement)"""
+        theme = get_theme_selection()
+        assert theme == "fantasy"
+    
+    @patch('builtins.input', return_value="invalid")
+    def test_theme_selection_default_on_invalid(self, mock_input):
+        """Test: Default to 'fantasy' on invalid input (spec requirement)"""
+        theme = get_theme_selection()
+        assert theme == "fantasy"
+    
+    @patch('builtins.input', side_effect=["6", "post-apocalyptic"])
+    def test_theme_selection_custom(self, mock_input):
+        """Test: Accept custom theme input (spec requirement)"""
+        theme = get_theme_selection()
+        assert theme == "post-apocalyptic"
+    
+    @patch('builtins.input', side_effect=["custom", "noir"])
+    def test_theme_selection_custom_by_word(self, mock_input):
+        """Test: Accept 'custom' keyword for custom theme (spec requirement)"""
+        theme = get_theme_selection()
+        assert theme == "noir"
+    
+    @patch('builtins.input', side_effect=["6", ""])
+    def test_theme_selection_custom_empty_defaults_to_fantasy(self, mock_input):
+        """Test: Default to 'fantasy' when custom theme is empty (spec requirement)"""
+        theme = get_theme_selection()
+        assert theme == "fantasy"

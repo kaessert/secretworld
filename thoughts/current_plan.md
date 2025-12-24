@@ -1,352 +1,450 @@
-# Implementation Plan: AI-Powered Location Generation
+# Implementation Plan: AI-Powered World Generation Integration
 
 ## 1. SPECIFICATION
 
-### 1.1 Feature Spec Document
-**File:** `docs/ai_location_generation_spec.md`
+### 1.1 Feature Requirements
+- Import `load_ai_config`, `AIService`, and `create_world` into `main.py`
+- Load AI config at game start (during `main()` initialization)
+- Pass AI service to `create_world()` when creating worlds
+- Pass AI service and theme to `GameState` constructor
+- Add optional theme selection during character creation or game start
+- Maintain backward compatibility with existing functionality
+- All existing tests must continue to pass
+- Default to "fantasy" theme when AI is not available or theme not selected
 
-Create specification covering:
-- AI service interface requirements
-- Location generation input/output format
-- Configuration management (API keys, models, prompts)
-- Error handling and fallback strategies
-- Context-aware generation requirements
-- Integration points with existing World and GameState systems
+### 1.2 Integration Points
+**File: `src/cli_rpg/main.py`**
+- `main()` function: Load AI config at startup
+- `start_game()` function: Replace `create_default_world()` with `create_world(ai_service, theme)`
+- Add theme selection flow (optional, after character creation)
+- Pass `ai_service` and `theme` to `GameState` constructor
 
-### 1.2 Core Requirements
-- Generate locations with: name (2-50 chars), description (1-500 chars), suggested connections (valid directions)
-- Support configurable LLM provider (OpenAI as primary)
-- Accept context parameters: world theme, existing location names, current location info
-- Return structured data compatible with Location model
-- Handle API failures gracefully with fallback mechanisms
-- Support caching to reduce API calls
-- Environment-based configuration (API keys via env vars)
-- Rate limiting awareness
+**File: `src/cli_rpg/character_creation.py`**
+- Add `get_theme_selection()` function for optional theme input
+- Integrate theme selection into character creation flow or as separate step
+
+### 1.3 API Contracts
+```python
+# main.py changes
+def start_game(character: Character, ai_service: Optional[AIService] = None, theme: str = "fantasy") -> None:
+    world = create_world(ai_service=ai_service, theme=theme)
+    game_state = GameState(character, world, ai_service=ai_service, theme=theme)
+    # ... existing gameplay loop ...
+
+def main() -> int:
+    # Load AI config at startup
+    ai_config = load_ai_config()
+    ai_service = AIService(ai_config) if ai_config else None
+    # ... existing menu loop, pass ai_service where needed ...
+```
+
+### 1.4 Success Criteria
+- AI service loaded when OPENAI_API_KEY is available
+- Theme selection available during character creation flow
+- `create_world()` uses AI when available, falls back to default world
+- `GameState` receives AI service for dynamic world expansion
+- All 251+ existing tests pass
+- New E2E test validates complete flow with mocked AI service
+
+---
 
 ## 2. TEST DEVELOPMENT
 
-### 2.1 AI Service Unit Tests
-**File:** `tests/test_ai_service.py`
+### 2.1 Create E2E Test File
+**File: `tests/test_e2e_ai_integration.py`**
 
-Tests to implement (using mocked API calls):
-1. `test_ai_service_initialization_with_api_key()` - Verify AIService accepts API key
-2. `test_ai_service_initialization_with_env_var()` - Verify reads from environment
-3. `test_ai_service_missing_api_key_raises_error()` - Verify raises error without key
-4. `test_generate_location_returns_valid_structure()` - Mock API, verify output has name, description, connections
-5. `test_generate_location_validates_constraints()` - Verify name/description length limits
-6. `test_generate_location_accepts_context_parameters()` - Test theme, existing locations passed
-7. `test_generate_location_with_api_error_raises_exception()` - Mock API failure
-8. `test_generate_location_with_timeout_raises_exception()` - Mock timeout
-9. `test_generate_location_connection_directions_valid()` - Verify only valid directions returned
-10. `test_generate_location_caching_enabled()` - Test cache hit/miss scenarios
-11. `test_generate_location_prompt_includes_context()` - Verify prompt construction
-12. `test_ai_service_configurable_model()` - Test different model selection
-13. `test_ai_service_configurable_temperature()` - Test temperature parameter
-14. `test_generate_location_retry_on_transient_error()` - Test retry logic
-15. `test_generate_location_max_retries_exceeded()` - Test retry limit
+Test cases to verify complete AI integration flow:
 
-### 2.2 AI World Generation Integration Tests
-**File:** `tests/test_ai_world_generation.py`
+1. **Test: AI config loading at startup**
+   - Mock `load_ai_config()` to return valid config
+   - Mock `AIService` initialization
+   - Verify `main()` loads config without errors
+   - Verify AI service is passed through to game components
 
-Tests to implement:
-1. `test_create_ai_world_generates_location()` - Test single location generation
-2. `test_create_ai_world_with_starting_location()` - Test world creation with start point
-3. `test_create_ai_world_generates_connected_locations()` - Test connected location generation
-4. `test_create_ai_world_expands_from_seed()` - Test expansion from initial location
-5. `test_create_ai_world_respects_theme()` - Test theme consistency
-6. `test_create_ai_world_with_ai_failure_fallback()` - Test fallback to default world
-7. `test_create_ai_world_validates_generated_locations()` - Test Location model validation
-8. `test_create_ai_world_handles_duplicate_names()` - Test duplicate prevention
-9. `test_expand_world_from_location()` - Test on-demand location generation
-10. `test_expand_world_creates_bidirectional_connections()` - Test connection consistency
+2. **Test: Theme selection during character creation**
+   - Mock input for character creation
+   - Add theme selection input
+   - Verify theme is captured and passed to `start_game()`
 
-### 2.3 Configuration Tests
-**File:** `tests/test_ai_config.py`
+3. **Test: World creation with AI service**
+   - Mock `create_world()` with AI service
+   - Verify AI service and theme are passed correctly
+   - Verify world is created with AI-generated locations
 
-Tests to implement:
-1. `test_ai_config_from_environment()` - Test reading config from env vars
-2. `test_ai_config_from_dict()` - Test config from dictionary
-3. `test_ai_config_defaults()` - Test default values
-4. `test_ai_config_validation()` - Test invalid config raises errors
-5. `test_ai_config_custom_prompts()` - Test custom prompt templates
+4. **Test: GameState initialization with AI service**
+   - Mock character creation and theme selection
+   - Verify `GameState` receives AI service and theme
+   - Verify dynamic world expansion is enabled
 
-### 2.4 GameState Integration Tests
-**File:** `tests/test_game_state_ai_integration.py`
+5. **Test: Complete E2E flow with mocked AI**
+   - Mock entire flow from startup to gameplay
+   - Mock AI service responses
+   - Verify: config load → character creation → theme selection → world creation → gameplay with AI expansion
+   - Verify user can play game with AI-generated world
 
-Tests to implement:
-1. `test_game_state_with_ai_world()` - Test GameState works with AI-generated world
-2. `test_game_state_move_triggers_expansion()` - Test moving to non-existent location generates it
-3. `test_game_state_ai_generation_failure_handling()` - Test graceful handling of generation failure
-4. `test_game_state_ai_world_persistence()` - Test save/load with AI-generated world
+6. **Test: Graceful fallback when AI unavailable**
+   - Mock `load_ai_config()` to return None
+   - Verify game uses default world
+   - Verify all features work without AI
+
+7. **Test: Theme persistence in save/load**
+   - Create character with AI and custom theme
+   - Start game with AI-generated world
+   - Save game state
+   - Load game state
+   - Verify theme is preserved
+   - Verify AI service can be re-attached after load
+
+### 2.2 Update Existing Tests
+**File: `tests/test_main.py`**
+- Update test fixtures to handle optional AI service parameter
+- Add test for `main()` loading AI config
+- Add test for `start_game()` accepting optional ai_service and theme parameters
+
+**File: `tests/test_character_creation.py`**
+- Add tests for theme selection flow if integrated into character creation
+
+---
 
 ## 3. IMPLEMENTATION
 
-### 3.1 Configuration Module
-**File:** `src/cli_rpg/ai_config.py`
+### 3.1 Add Theme Selection to Character Creation
+**File: `src/cli_rpg/character_creation.py`**
 
-Implementation order:
-1. Create `AIConfig` dataclass with fields:
-   - `api_key: str`
-   - `model: str = "gpt-3.5-turbo"`
-   - `temperature: float = 0.7`
-   - `max_tokens: int = 500`
-   - `max_retries: int = 3`
-   - `retry_delay: float = 1.0`
-   - `enable_caching: bool = True`
-   - `cache_ttl: int = 3600`
-   - `location_generation_prompt: str` (template)
-
-2. Implement `from_env()` class method to read from environment variables:
-   - `OPENAI_API_KEY`
-   - `AI_MODEL`
-   - `AI_TEMPERATURE`
-   - etc.
-
-3. Implement validation in `__post_init__()`:
-   - Validate API key not empty
-   - Validate temperature in [0.0, 2.0]
-   - Validate max_tokens > 0
-   - Validate max_retries >= 0
-
-4. Implement `to_dict()` and `from_dict()` methods
-
-### 3.2 AI Service Core
-**File:** `src/cli_rpg/ai_service.py`
-
-Implementation order:
-1. Create `AIService` class with constructor accepting `AIConfig`
-
-2. Implement `_build_location_prompt()` method:
-   - Accept parameters: `theme: str`, `context_locations: list[str]`, `source_location: Optional[str]`, `direction: Optional[str]`
-   - Build prompt using template from config
-   - Include context: theme, existing locations, direction context
-   - Return formatted prompt string
-
-3. Implement `_call_llm()` method:
-   - Use OpenAI API (or abstraction layer)
-   - Pass prompt, model, temperature, max_tokens
-   - Implement retry logic with exponential backoff
-   - Handle API errors (timeout, rate limit, invalid key, etc.)
-   - Return raw response text
-
-4. Implement `_parse_location_response()` method:
-   - Parse LLM response (expect JSON format)
-   - Extract name, description, connections
-   - Validate against Location model constraints
-   - Handle parsing errors
-   - Return dict with validated data
-
-5. Implement `generate_location()` method:
-   - Accept context parameters
-   - Build prompt using `_build_location_prompt()`
-   - Call LLM using `_call_llm()`
-   - Parse response using `_parse_location_response()`
-   - Return Location-compatible dict
-
-6. Implement optional caching layer:
-   - Create `_LocationCache` inner class
-   - Cache key: hash of prompt
-   - Cache value: generated location dict + timestamp
-   - Implement `_get_cached()` and `_set_cached()` methods
-   - Check cache in `generate_location()` before API call
-
-7. Add error handling wrapper:
-   - Catch specific exceptions (API errors, parsing errors)
-   - Raise custom exceptions: `AIServiceError`, `AIGenerationError`, `AIConfigError`
-
-### 3.3 World Generation Integration
-**File:** `src/cli_rpg/ai_world.py`
-
-Implementation order:
-1. Create `create_ai_world()` function:
-   - Accept parameters: `ai_service: AIService`, `theme: str = "fantasy"`, `starting_location_name: str = "Town Square"`, `initial_size: int = 3`
-   - Generate starting location using AI service
-   - Generate connected locations based on starting location's suggested connections
-   - Build world dict compatible with existing World type
-   - Validate all connections are bidirectional
-   - Return `dict[str, Location]`
-
-2. Create `expand_world()` function:
-   - Accept: `world: dict[str, Location]`, `ai_service: AIService`, `from_location: str`, `direction: str`, `theme: str`
-   - Generate new location in specified direction from source
-   - Add to world dict
-   - Update connections (bidirectional)
-   - Return updated world dict
-
-3. Create `create_world_with_fallback()` function:
-   - Try to create AI world
-   - On failure, fall back to `create_default_world()`
-   - Log warning about fallback
-   - Return world dict
-
-4. Add validation helper `_validate_world_consistency()`:
-   - Check all connections point to existing locations
-   - Check bidirectional connections are correct
-   - Raise `ValueError` if inconsistent
-
-### 3.4 Update World Module
-**File:** `src/cli_rpg/world.py`
-
-Changes:
-1. Keep existing `create_default_world()` function (for fallback)
-
-2. Add `create_world()` function:
-   - Accept optional `ai_service: Optional[AIService] = None`
-   - Accept optional `theme: str = "fantasy"`
-   - If ai_service provided, call `create_ai_world()`
-   - Else, call `create_default_world()`
-   - Return world dict
-
-### 3.5 GameState Dynamic Expansion
-**File:** `src/cli_rpg/game_state.py`
-
-Changes:
-1. Add optional `ai_service` attribute to `GameState.__init__()`:
-   - `ai_service: Optional[AIService] = None`
-   - Store as instance attribute
-
-2. Add optional `theme` attribute:
-   - `theme: str = "fantasy"`
-
-3. Modify `move()` method:
-   - After checking connection exists
-   - Before moving, check if destination exists in world
-   - If destination missing and ai_service available:
-     - Call `expand_world()` to generate location
-     - Update `self.world`
-   - If destination missing and no ai_service:
-     - Return error (connection broken)
-
-4. Update `to_dict()` method:
-   - Add `theme` to serialization
-   - Do NOT serialize ai_service (config-based, not state)
-
-5. Update `from_dict()` method:
-   - Accept optional `ai_service` parameter
-   - Read theme from dict
-   - Pass ai_service to GameState constructor
-
-### 3.6 Configuration File Support
-**File:** `src/cli_rpg/config.py`
-
-Implementation:
-1. Create `load_config()` function:
-   - Read from `.env` file if exists
-   - Use environment variables
-   - Return `AIConfig` instance or None if no API key
-
-2. Create example config file:
-   - **File:** `.env.example`
-   - Document all configuration options
-
-### 3.7 Main Integration
-**File:** `src/cli_rpg/main.py`
-
-Changes:
-1. Import new modules: `ai_service`, `ai_world`, `config`
-
-2. Modify game initialization:
-   - Try to load AI config from environment
-   - If config available, create `AIService` instance
-   - Pass ai_service to world creation
-   - Pass ai_service to GameState
-
-3. Add error handling:
-   - Catch AI-related exceptions
-   - Show user-friendly messages
-   - Fall back gracefully
-
-### 3.8 Dependencies Update
-**File:** `pyproject.toml`
-
-Add dependencies:
-```toml
-dependencies = [
-    "openai>=1.0.0",
-    "python-dotenv>=1.0.0",
-]
+```python
+def get_theme_selection() -> str:
+    """Prompt user for world theme selection.
+    
+    Returns:
+        Selected theme string (defaults to "fantasy")
+    """
+    print("\nSelect world theme (or press Enter for default 'fantasy'):")
+    print("1. Fantasy (default)")
+    print("2. Sci-Fi")
+    print("3. Cyberpunk")
+    print("4. Horror")
+    print("5. Steampunk")
+    print("6. Custom")
+    
+    choice = input("> ").strip().lower()
+    
+    theme_map = {
+        "1": "fantasy",
+        "2": "sci-fi",
+        "3": "cyberpunk",
+        "4": "horror",
+        "5": "steampunk",
+        "fantasy": "fantasy",
+        "sci-fi": "sci-fi",
+        "scifi": "sci-fi",
+        "cyberpunk": "cyberpunk",
+        "horror": "horror",
+        "steampunk": "steampunk"
+    }
+    
+    if choice in theme_map:
+        return theme_map[choice]
+    elif choice == "6" or choice == "custom":
+        custom = input("Enter custom theme: ").strip()
+        return custom if custom else "fantasy"
+    elif choice == "":
+        return "fantasy"
+    else:
+        print("Invalid choice, defaulting to 'fantasy'")
+        return "fantasy"
 ```
 
-Add to dev dependencies:
-```toml
-dev = [
-    "pytest>=7.4.0",
-    "pytest-mock>=3.12.0",
-    "responses>=0.24.0",  # for HTTP mocking
-    "black>=23.0.0",
-    "mypy>=1.5.0",
-    "ruff>=0.0.291",
-]
+**Integration point:** Add theme selection after character confirmation, before returning from `create_character()`.
+
+### 3.2 Integrate AI into Main Entry Point
+**File: `src/cli_rpg/main.py`**
+
+**Step 3.2.1: Add imports**
+```python
+from typing import Optional
+from cli_rpg.config import load_ai_config
+from cli_rpg.ai_service import AIService
+from cli_rpg.world import create_world
+# Keep create_default_world import for backward compatibility fallback
 ```
+
+**Step 3.2.2: Update start_game() signature and implementation**
+```python
+def start_game(
+    character: Character, 
+    ai_service: Optional[AIService] = None,
+    theme: str = "fantasy"
+) -> None:
+    """Start the gameplay loop with the given character.
+    
+    Args:
+        character: The player's character to start the game with
+        ai_service: Optional AIService for AI-powered world generation
+        theme: World theme for generation (default: "fantasy")
+    """
+    # Create game state with AI-powered or default world
+    world = create_world(ai_service=ai_service, theme=theme)
+    game_state = GameState(
+        character, 
+        world, 
+        ai_service=ai_service, 
+        theme=theme
+    )
+    
+    # Display welcome message
+    print("\n" + "=" * 50)
+    print(f"Welcome to the adventure, {character.name}!")
+    if ai_service:
+        print(f"Exploring a {theme} world powered by AI...")
+    print("=" * 50)
+    
+    # ... rest of existing implementation unchanged ...
+```
+
+**Step 3.2.3: Update main() to load AI config and pass to start_game**
+```python
+def main() -> int:
+    """Main function to start the CLI RPG game.
+    
+    Returns:
+        Exit code (0 for success)
+    """
+    print("\n" + "=" * 50)
+    print("Welcome to CLI RPG!")
+    print("=" * 50)
+    
+    # Load AI configuration at startup
+    ai_config = load_ai_config()
+    ai_service = None
+    if ai_config:
+        try:
+            ai_service = AIService(ai_config)
+            print("\n✓ AI world generation enabled!")
+            print("  Set OPENAI_API_KEY to use AI features.")
+        except Exception as e:
+            print(f"\n⚠ AI initialization failed: {e}")
+            print("  Falling back to default world generation.")
+    else:
+        print("\n⚠ AI world generation not available.")
+        print("  Set OPENAI_API_KEY to enable AI features.")
+    
+    while True:
+        choice = show_main_menu()
+        
+        if choice == "1":
+            # Create new character
+            character = create_character()
+            if character:
+                print(f"\n✓ {character.name} has been created successfully!")
+                
+                # Theme selection (if AI is available)
+                theme = "fantasy"
+                if ai_service:
+                    from cli_rpg.character_creation import get_theme_selection
+                    theme = get_theme_selection()
+                    print(f"\n✓ Selected theme: {theme}")
+                
+                print(f"Your character is ready for adventure!")
+                
+                # Start the game with AI service and theme
+                start_game(character, ai_service=ai_service, theme=theme)
+                
+        elif choice == "2":
+            # Load character
+            character = select_and_load_character()
+            if character:
+                # For backward compatibility: loaded saves may have theme info
+                # Start with AI service available for dynamic expansion
+                start_game(character, ai_service=ai_service, theme="fantasy")
+                
+        elif choice == "3":
+            print("\nThank you for playing CLI RPG!")
+            print("Goodbye!")
+            break
+        else:
+            print("\n✗ Invalid choice. Please enter 1, 2, or 3.")
+    
+    return 0
+```
+
+### 3.3 Handle Game State Loading with AI
+**File: `src/cli_rpg/main.py`**
+
+**Step 3.3.1: Update select_and_load_character() to use load_game_state**
+
+When loading a saved game, we should load the full game state (not just character) and restore with AI service:
+
+```python
+def select_and_load_game() -> Optional[tuple[Character, str]]:
+    """Display save selection menu and load chosen game state.
+    
+    Returns:
+        Tuple of (Character, theme) or None if cancelled/failed
+    """
+    saves = list_saves()
+    
+    if not saves:
+        print("\n⚠ No saved games found.")
+        print("  Create a new character first!")
+        return None
+    
+    print("\n" + "=" * 50)
+    print("LOAD GAME")
+    print("=" * 50)
+    print("\nAvailable saved games:")
+    
+    for idx, save in enumerate(saves, start=1):
+        print(f"{idx}. {save['name']} (saved: {save['timestamp']})")
+    
+    print(f"{len(saves) + 1}. Cancel")
+    print("=" * 50)
+    
+    try:
+        choice = input("Select game to load: ").strip()
+        choice_num = int(choice)
+        
+        if choice_num == len(saves) + 1:
+            print("\nLoad cancelled.")
+            return None
+        
+        if 1 <= choice_num <= len(saves):
+            selected_save = saves[choice_num - 1]
+            
+            # Try to load as game state first
+            try:
+                game_state = load_game_state(selected_save['filepath'])
+                print(f"\n✓ Game loaded successfully!")
+                print(f"\n{game_state.current_character}")
+                return (game_state.current_character, game_state.theme)
+            except:
+                # Fallback: load as character only (backward compatibility)
+                character = load_character(selected_save['filepath'])
+                print(f"\n✓ Character loaded successfully!")
+                print(f"\n{character}")
+                return (character, "fantasy")
+        else:
+            print("\n✗ Invalid selection.")
+            return None
+            
+    except ValueError:
+        print("\n✗ Invalid input. Please enter a number.")
+        return None
+    except Exception as e:
+        print(f"\n✗ Failed to load game: {e}")
+        return None
+```
+
+**Step 3.3.2: Update main() to use new load function**
+Replace `select_and_load_character()` call with new implementation.
+
+---
 
 ## 4. VERIFICATION
 
 ### 4.1 Run Test Suite
 ```bash
-pytest tests/test_ai_service.py -v
-pytest tests/test_ai_world_generation.py -v
-pytest tests/test_ai_config.py -v
-pytest tests/test_game_state_ai_integration.py -v
-pytest tests/ -v  # Full suite
+# Run all existing tests - should all pass
+pytest tests/ -v
+
+# Run specific E2E test
+pytest tests/test_e2e_ai_integration.py -v
+
+# Check test coverage
+pytest tests/ --cov=src/cli_rpg --cov-report=term-missing
 ```
 
-### 4.2 Manual Integration Test
-1. Set `OPENAI_API_KEY` environment variable
-2. Run game: `cli-rpg`
-3. Create character
-4. Verify starting location is AI-generated
-5. Move to different locations
-6. Verify new locations generated on-demand
-7. Save and reload game
-8. Verify AI-generated world persists
+### 4.2 Manual Testing Scenarios
 
-### 4.3 Error Scenario Testing
-1. Test without API key - should fall back to default world
-2. Test with invalid API key - should show error and fall back
-3. Test with rate limiting - should retry appropriately
-4. Test with network timeout - should handle gracefully
+**Scenario 1: With AI enabled**
+1. Set OPENAI_API_KEY environment variable
+2. Run `python -m cli_rpg.main`
+3. Create new character
+4. Select custom theme (e.g., "cyberpunk")
+5. Play game and move through locations
+6. Verify AI generates new locations dynamically
+7. Save game
+8. Exit and reload game
+9. Verify theme and world state persist
 
-## 5. IMPLEMENTATION ORDER SUMMARY
+**Scenario 2: Without AI (fallback)**
+1. Unset OPENAI_API_KEY
+2. Run game
+3. Verify default world is used
+4. Verify all core features work
+5. Verify can save/load without AI
 
-1. **Phase 1: Configuration & Testing Infrastructure**
-   - Write spec document
-   - Create `ai_config.py` with tests
-   - Set up test mocking infrastructure
+**Scenario 3: AI generation failure handling**
+1. Set invalid OPENAI_API_KEY
+2. Verify graceful fallback to default world
+3. Verify error messages are user-friendly
 
-2. **Phase 2: Core AI Service**
-   - Implement `AIService` class in `ai_service.py`
-   - Write and pass all unit tests in `test_ai_service.py`
-   - Test with mocked OpenAI API responses
+### 4.3 Success Validation Checklist
+- [ ] AI config loads at startup when API key available
+- [ ] Theme selection appears after character creation
+- [ ] World created with AI service when available
+- [ ] GameState receives AI service and theme
+- [ ] Dynamic world expansion works during gameplay
+- [ ] Save/load preserves theme
+- [ ] Graceful fallback when AI unavailable
+- [ ] All 251+ existing tests pass
+- [ ] New E2E test passes
+- [ ] No breaking changes to existing functionality
+- [ ] User-friendly error messages
 
-3. **Phase 3: World Generation**
-   - Implement `ai_world.py` functions
-   - Write and pass integration tests in `test_ai_world_generation.py`
-   - Ensure Location model compatibility
+---
 
-4. **Phase 4: GameState Integration**
-   - Modify `game_state.py` for dynamic expansion
-   - Write and pass integration tests
-   - Ensure serialization works with AI worlds
+## 5. IMPLEMENTATION ORDER
 
-5. **Phase 5: Main Integration**
-   - Update `world.py` with new creation function
-   - Modify `main.py` for AI service initialization
-   - Add configuration file support
-   - Update dependencies
+1. **Write E2E test file** (`tests/test_e2e_ai_integration.py`)
+   - Create all test cases with mocked AI service
+   - Tests should fail initially (TDD approach)
 
-6. **Phase 6: Full Verification**
-   - Run complete test suite
-   - Manual end-to-end testing
-   - Error scenario testing
-   - Performance testing (cache effectiveness)
+2. **Update character_creation.py**
+   - Add `get_theme_selection()` function
+   - Add unit tests for theme selection
 
-## NOTES
+3. **Update main.py imports**
+   - Add necessary imports for AI components
 
-- All tests use mocked API calls (no real API calls during testing)
-- API keys stored only in environment variables (never in code)
-- Fallback to default world ensures game is always playable
-- Generated locations must pass Location model validation
-- Caching reduces API costs and improves performance
-- Retry logic handles transient API failures
-- Theme parameter ensures world consistency
-- Bidirectional connection validation prevents broken navigation
+4. **Update start_game() function**
+   - Add ai_service and theme parameters
+   - Replace create_default_world() with create_world()
+   - Pass parameters to GameState
+
+5. **Update main() function**
+   - Load AI config at startup
+   - Initialize AIService if config available
+   - Pass ai_service to start_game()
+   - Integrate theme selection flow
+
+6. **Update select_and_load functions**
+   - Handle game state loading with theme
+   - Maintain backward compatibility
+
+7. **Run all tests**
+   - Verify existing tests pass
+   - Verify new E2E test passes
+
+8. **Manual testing**
+   - Test with and without AI
+   - Verify save/load with themes
+   - Verify error handling
+
+---
+
+## DEPENDENCIES
+
+**Existing Code (No Changes Required):**
+- `src/cli_rpg/ai_config.py` - Already implemented
+- `src/cli_rpg/ai_service.py` - Already implemented  
+- `src/cli_rpg/ai_world.py` - Already implemented
+- `src/cli_rpg/world.py` - Already has `create_world()` function
+- `src/cli_rpg/game_state.py` - Already supports ai_service and theme
+- `src/cli_rpg/config.py` - Already has `load_ai_config()`
+
+**Files to Modify:**
+- `src/cli_rpg/main.py` - Main integration point
+- `src/cli_rpg/character_creation.py` - Add theme selection
+
+**Files to Create:**
+- `tests/test_e2e_ai_integration.py` - New E2E test suite

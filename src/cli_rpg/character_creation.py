@@ -139,6 +139,52 @@ def confirm_creation() -> bool:
         print("Error: Please enter 'yes' or 'no'.")
 
 
+def get_theme_selection() -> str:
+    """Prompt user for world theme selection.
+    
+    Returns:
+        Selected theme string (defaults to "fantasy")
+    """
+    print("\n" + "=" * 50)
+    print("THEME SELECTION")
+    print("=" * 50)
+    print("Select world theme (or press Enter for default 'fantasy'):")
+    print("1. Fantasy (default)")
+    print("2. Sci-Fi")
+    print("3. Cyberpunk")
+    print("4. Horror")
+    print("5. Steampunk")
+    print("6. Custom")
+    print("=" * 50)
+    
+    choice = input("> ").strip().lower()
+    
+    theme_map = {
+        "1": "fantasy",
+        "2": "sci-fi",
+        "3": "cyberpunk",
+        "4": "horror",
+        "5": "steampunk",
+        "fantasy": "fantasy",
+        "sci-fi": "sci-fi",
+        "scifi": "sci-fi",
+        "cyberpunk": "cyberpunk",
+        "horror": "horror",
+        "steampunk": "steampunk"
+    }
+    
+    if choice in theme_map:
+        return theme_map[choice]
+    elif choice == "6" or choice == "custom":
+        custom = input("Enter custom theme: ").strip()
+        return custom if custom else "fantasy"
+    elif choice == "":
+        return "fantasy"
+    else:
+        print("Invalid choice, defaulting to 'fantasy'")
+        return "fantasy"
+
+
 def create_character() -> Optional[Character]:
     """Interactive character creation flow.
     
