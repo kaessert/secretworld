@@ -1,13 +1,10 @@
 ## Active Issues
 
-### Map should always show the user in the center and could show two fields around the user
+### Colors in output
 **Status**: ACTIVE
 
-=== MAP ===
-    -2 -1  0
- 1   S  F  E
- 0      C  @
-
+Users wish to have more rich experience by highlighting different output section with matching
+colors, for example enemies shown in red, locations in another color and so on
 
 ### Support Anthropic API Key
 **Status**: ACTIVE
@@ -22,6 +19,20 @@ there should be a method of checking if the world border is completely closed, t
 all exits are visited and no way of getting to a tile whih triggers regeneration, THIS SHOULD BE AVOIDED in any case
 
 ## Resolved Issues
+
+### Map should always show the user in the center and could show two fields around the user
+**Status**: RESOLVED
+
+**Original Problem**: The map display would calculate bounds from all explored locations, which could result in the player being positioned anywhere on the map rather than always at the center. Users requested a fixed viewport centered on the player.
+
+**Solution Implemented**:
+- Modified `render_map()` in `map_renderer.py` to use a fixed 5x5 grid viewport
+- Viewport is calculated as `player_x ± 2` and `player_y ± 2`
+- Player is always displayed at the center of the map grid
+- Locations outside the viewport are not shown in the grid
+- Added 5 new tests in `tests/test_map_renderer.py` covering centering, viewport size, clipping, and edge cases
+
+---
 
 ### Same error message for invalid directions and blocked exits
 **Status**: RESOLVED

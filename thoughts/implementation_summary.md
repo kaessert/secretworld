@@ -1,65 +1,41 @@
-# Implementation Summary: Fix Circular Map Wrapping
+# Implementation Summary: Player-Centered Map Display (5x5 Grid)
 
 ## What Was Implemented
 
-### Problem Fixed
-The world grid was allowing circular wrapping when players moved repeatedly in one direction. This happened because movement followed `Location.connections` without checking if the destination's coordinates matched the expected target coordinates.
+Modified `render_map()` in `src/cli_rpg/map_renderer.py` to display a fixed 5x5 grid centered on the player's current location, rather than calculating bounds from all explored locations.
 
-### Solution
-Changed movement from connection-based to coordinate-based logic:
-- **Before**: Follow `location.connections[direction]` to find destination
-- **After**: Calculate target coordinates, find/generate location at those coordinates
+### Key Changes to `map_renderer.py`:
 
-### Files Modified
+1. **New viewport calculation**: Instead of computing min/max coordinates from all explored locations, the viewport is now calculated as `player_x ± 2` and `player_y ± 2`.
 
-1. **`src/cli_rpg/game_state.py`**
-   - Added `_get_location_by_coordinates(coords)` helper method to find a location by its (x, y) coordinates
-   - Rewrote `move()` method to use coordinate-based logic:
-     - For locations with coordinates: calculate target coords and look up location at those coords
-     - For legacy locations (no coordinates): fall back to connection-based movement
-     - AI generation now passes `target_coords` to ensure correct placement
+2. **Location filtering**: Only locations within the 5x5 viewport are included in the displayed map. Locations outside the viewport are not shown in the grid (but the rest of the rendering logic remains unchanged).
 
-2. **`src/cli_rpg/ai_world.py`**
-   - Updated `expand_world()` to accept optional `target_coords` parameter
-   - When `target_coords` is provided, the new location is placed at those exact coordinates
-   - Maintains backward compatibility when `target_coords` is not provided
+3. **Early exit for invalid current location**: Added check for current location having valid coordinates before proceeding.
 
-### Tests Added
+### Code Changes:
+- Lines 17-36: Replaced bounds calculation with player-centered viewport logic
+- Locations are now filtered to only include those within the viewport bounds
 
-1. **`tests/test_world_grid.py`** - `TestWorldGridNoWrapping` class:
-   - `test_repeated_direction_extends_world`: Verifies that going west repeatedly from a chain of locations returns `None` for unexplored coordinates (no wrap-around)
-   - `test_coordinates_are_consistent_after_movement`: Verifies bidirectional movement returns to correct coordinates
+## New Tests Added
 
-2. **`tests/test_game_state.py`** - `TestGameStateCoordinateBasedMovement` class:
-   - `test_move_uses_coordinates_not_just_connections`: Verifies movement ignores misleading connections that would cause circular wrapping
-   - `test_move_with_coordinates_goes_to_correct_location`: Verifies proper coordinate-based navigation
-   - `test_move_falls_back_to_connection_for_legacy_locations`: Verifies backward compatibility with saves that don't have coordinates
+Created `tests/test_map_renderer.py` with 5 tests:
+
+1. **test_map_centered_on_player** - Verifies player position is at grid center regardless of absolute coordinates
+2. **test_map_shows_5x5_viewport** - Verifies exactly 5 columns and 5 rows are displayed
+3. **test_map_clips_locations_outside_viewport** - Verifies locations >2 tiles away don't appear in grid
+4. **test_map_handles_player_at_origin** - Player at (0,0) shows grid from (-2,-2) to (2,2)
+5. **test_map_handles_player_at_large_coordinates** - Player at (100,50) shows grid from (98,48) to (102,52)
 
 ## Test Results
 
-All 773 tests pass (1 skipped - unrelated).
-
-```
-tests/test_game_state.py::TestGameStateCoordinateBasedMovement::test_move_uses_coordinates_not_just_connections PASSED
-tests/test_game_state.py::TestGameStateCoordinateBasedMovement::test_move_with_coordinates_goes_to_correct_location PASSED
-tests/test_game_state.py::TestGameStateCoordinateBasedMovement::test_move_falls_back_to_connection_for_legacy_locations PASSED
-tests/test_world_grid.py::TestWorldGridNoWrapping::test_repeated_direction_extends_world PASSED
-tests/test_world_grid.py::TestWorldGridNoWrapping::test_coordinates_are_consistent_after_movement PASSED
-```
-
-## Design Decisions
-
-1. **Backward Compatibility**: Legacy saves without coordinates continue to work using connection-based movement. This ensures existing save files don't break.
-
-2. **Coordinate Priority**: When a location has coordinates, the system uses coordinate-based logic exclusively, ignoring any potentially incorrect connection values. This guarantees spatial consistency.
-
-3. **AI Generation Integration**: The `expand_world()` function now accepts explicit `target_coords` so that newly generated locations are placed at the correct position in the grid, not based on potentially stale connection information.
+- All 5 new tests pass
+- All 8 existing `test_map_command.py` tests pass
+- Full test suite: 778 passed, 1 skipped
 
 ## E2E Validation
 
-To fully validate this fix in a real game scenario:
-1. Start a new game with AI-generated world
-2. Travel west multiple times (west -> west -> west -> west)
-3. Verify that each movement goes to a new location with decreasing x-coordinates
-4. Verify that traveling east returns through the same locations in reverse order
-5. Confirm no circular wrapping occurs regardless of what connection values the AI generates
+The map command should now:
+- Always display a 5x5 grid centered on the player
+- Show the player marker (@) at the center of the grid
+- Only display nearby locations (within 2 tiles in any direction)
+- Handle players at any coordinate position (origin, positive, negative, large values)

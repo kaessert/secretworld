@@ -14,21 +14,27 @@ def render_map(world: dict[str, Location], current_location: str) -> str:
     Returns:
         ASCII string representation of the map with legend
     """
-    # Extract locations with coordinates
+    # Get current location to center the viewport
+    current_loc = world.get(current_location)
+    if current_loc is None or current_loc.coordinates is None:
+        return "No map available - current location does not have coordinates."
+
+    # Calculate 5x5 viewport centered on player (2 tiles in each direction)
+    player_x, player_y = current_loc.coordinates
+    min_x, max_x = player_x - 2, player_x + 2
+    min_y, max_y = player_y - 2, player_y + 2
+
+    # Extract locations with coordinates that are within the viewport
     locations_with_coords = []
     for name, location in world.items():
         if location.coordinates is not None:
-            locations_with_coords.append((name, location))
+            x, y = location.coordinates
+            if min_x <= x <= max_x and min_y <= y <= max_y:
+                locations_with_coords.append((name, location))
 
     # Handle case where no locations have coordinates (legacy saves)
     if not locations_with_coords:
         return "No map available - locations do not have coordinates."
-
-    # Calculate bounds
-    min_x = min(loc.coordinates[0] for _, loc in locations_with_coords)
-    max_x = max(loc.coordinates[0] for _, loc in locations_with_coords)
-    min_y = min(loc.coordinates[1] for _, loc in locations_with_coords)
-    max_y = max(loc.coordinates[1] for _, loc in locations_with_coords)
 
     # Build coordinate to location mapping
     coord_to_location: dict[tuple[int, int], tuple[str, Location]] = {}
