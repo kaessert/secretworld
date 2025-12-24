@@ -428,6 +428,9 @@ class TestSerialization:
             "target": "Dragon",
             "target_count": 1,
             "current_count": 0,
+            "gold_reward": 0,
+            "xp_reward": 0,
+            "item_rewards": [],
         }
 
     def test_from_dict(self):

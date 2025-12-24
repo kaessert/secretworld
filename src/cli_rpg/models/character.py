@@ -231,10 +231,56 @@ class Character:
                 if completed:
                     quest.status = QuestStatus.COMPLETED
                     messages.append(f"Quest Complete: {quest.name}!")
+                    # Grant quest rewards
+                    reward_messages = self.claim_quest_rewards(quest)
+                    messages.extend(reward_messages)
                 else:
                     messages.append(
                         f"Quest progress: {quest.name} [{quest.current_count}/{quest.target_count}]"
                     )
+        return messages
+
+    def claim_quest_rewards(self, quest: "Quest") -> List[str]:
+        """Claim rewards from a completed quest.
+
+        Args:
+            quest: The completed quest to claim rewards from
+
+        Returns:
+            List of reward notification messages
+
+        Raises:
+            ValueError: If quest is not in COMPLETED status
+        """
+        from cli_rpg.models.quest import QuestStatus
+        from cli_rpg.models.item import Item, ItemType
+
+        if quest.status != QuestStatus.COMPLETED:
+            raise ValueError("Quest must be completed to claim rewards")
+
+        messages = []
+
+        # Grant gold reward
+        if quest.gold_reward > 0:
+            self.add_gold(quest.gold_reward)
+            messages.append(f"Received {quest.gold_reward} gold!")
+
+        # Grant XP reward
+        if quest.xp_reward > 0:
+            xp_messages = self.gain_xp(quest.xp_reward)
+            messages.extend(xp_messages)
+
+        # Grant item rewards
+        for item_name in quest.item_rewards:
+            # Create a basic misc item with the given name
+            item = Item(
+                name=item_name,
+                description=f"A reward from the quest '{quest.name}'",
+                item_type=ItemType.MISC,
+            )
+            self.inventory.add_item(item)
+            messages.append(f"Received item: {item_name}!")
+
         return messages
 
     def gain_xp(self, amount: int) -> List[str]:

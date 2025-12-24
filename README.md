@@ -111,6 +111,11 @@ Quest-giver NPCs can be found throughout the world. Interact with them to receiv
 
 **Quest Progress**: Kill quests automatically track your progress when you defeat matching enemies in combat. You'll see progress messages after each victory and a completion notification when the quest is fulfilled.
 
+**Quest Rewards**: When you complete a quest, rewards are automatically granted:
+- **Gold**: Added directly to your gold total
+- **XP**: Grants experience points (may trigger level-ups)
+- **Items**: Quest reward items are added to your inventory
+
 **Note**: You must talk to an NPC before accepting their quests. Quest names are matched case-insensitively.
 
 ### Save System

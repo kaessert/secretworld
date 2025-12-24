@@ -1,80 +1,85 @@
-# Implementation Plan: Quest Progress Tracking from Combat
+# Quest Completion Rewards Implementation Plan
 
-## Spec
+## Feature Spec
 
-When defeating an enemy in combat, increment `current_count` on any active KILL quests where the enemy's name matches the quest's target. When a quest reaches `target_count`, mark it as COMPLETED and notify the player.
-
-**Matching rules:**
-- Compare enemy name to quest target (case-insensitive)
-- Only consider quests with `status == ACTIVE` and `objective_type == KILL`
-- Use `Quest.progress()` which increments count and returns True when complete
-
-## Tests First (`tests/test_quest_progress.py`)
-
-```python
-# Test: Defeating enemy increments matching quest progress
-# Test: Quest completion detected and status updated to COMPLETED
-# Test: Player receives notification on quest progress
-# Test: Player receives special notification on quest completion
-# Test: Non-matching enemy names don't increment progress
-# Test: Only ACTIVE quests get progress (not COMPLETED, AVAILABLE, FAILED)
-# Test: Only KILL objective type quests get progress
-# Test: Multiple quests can progress from same kill
-```
+When a quest's objectives are met (e.g., kill X enemies), the system should:
+1. Automatically mark the quest as COMPLETED (already implemented)
+2. Grant defined rewards to the player: gold, XP, and optionally items
+3. Display reward notification messages to the player
 
 ## Implementation Steps
 
-### 1. Add Character method for quest progress (`src/cli_rpg/models/character.py`)
+### 1. Extend Quest Model with Rewards
 
-Add method after `has_quest()` (~line 211):
+**File:** `src/cli_rpg/models/quest.py`
+
+Add optional reward fields to the Quest dataclass:
 ```python
-def record_kill(self, enemy_name: str) -> List[str]:
-    """Record an enemy kill for quest progress.
-
-    Args:
-        enemy_name: Name of the defeated enemy
-
-    Returns:
-        List of notification messages for quest progress/completion
-    """
-    from cli_rpg.models.quest import QuestStatus, ObjectiveType
-
-    messages = []
-    for quest in self.quests:
-        if (quest.status == QuestStatus.ACTIVE and
-            quest.objective_type == ObjectiveType.KILL and
-            quest.target.lower() == enemy_name.lower()):
-
-            completed = quest.progress()
-            if completed:
-                quest.status = QuestStatus.COMPLETED
-                messages.append(f"Quest Complete: {quest.name}!")
-            else:
-                messages.append(f"Quest progress: {quest.name} [{quest.current_count}/{quest.target_count}]")
-    return messages
+gold_reward: int = field(default=0)
+xp_reward: int = field(default=0)
+item_rewards: List[str] = field(default_factory=list)  # Item names
 ```
 
-### 2. Call record_kill after combat victory (`src/cli_rpg/main.py`)
+Update:
+- `__post_init__`: Validate rewards are non-negative
+- `to_dict()`: Include reward fields
+- `from_dict()`: Deserialize reward fields
 
-In `handle_combat_command`, after `combat.end_combat(victory=True)` (~lines 178, 251):
+### 2. Create Reward Granting Method on Character
+
+**File:** `src/cli_rpg/models/character.py`
+
+Add method `claim_quest_rewards(quest: Quest) -> List[str]`:
+- Validates quest status is COMPLETED
+- Grants gold via `add_gold()`
+- Grants XP via `gain_xp()`
+- Grants items by name lookup (requires item generation utility)
+- Returns list of reward messages
+
+### 3. Integrate Rewards into record_kill
+
+**File:** `src/cli_rpg/models/character.py`
+
+Modify `record_kill()` to call `claim_quest_rewards()` when a quest completes:
 ```python
-# Track quest progress for kill objectives
-enemy_name = combat.enemy.name
-quest_messages = game_state.current_character.record_kill(enemy_name)
-for msg in quest_messages:
-    output += f"\n{msg}"
+if completed:
+    quest.status = QuestStatus.COMPLETED
+    messages.append(f"Quest Complete: {quest.name}!")
+    reward_messages = self.claim_quest_rewards(quest)
+    messages.extend(reward_messages)
 ```
 
-Update both locations: `attack` command (~line 178) and `cast` command (~line 251).
+### 4. Update NPC Quest Generation with Rewards
 
-### 3. Write tests (`tests/test_quest_progress.py`)
+**File:** `src/cli_rpg/ai_world.py` (or wherever NPC quests are created)
 
-New test file with fixtures and comprehensive coverage of the spec.
+Ensure generated quests include reward values. For AI-generated quests, add reward fields to the generation template. For static quests, set sensible defaults based on difficulty/target_count.
 
-## File Changes Summary
+### 5. Write Tests
 
-| File | Change |
-|------|--------|
-| `src/cli_rpg/models/character.py` | Add `record_kill()` method |
-| `src/cli_rpg/main.py` | Call `record_kill()` after combat victories (~lines 178, 251) |
-| `tests/test_quest_progress.py` | New test file for quest progress tracking |
+**File:** `tests/test_quest_rewards.py`
+
+Tests to write:
+- `test_quest_with_rewards_serialization` - to_dict/from_dict with rewards
+- `test_quest_reward_validation` - negative rewards rejected
+- `test_claim_quest_rewards_grants_gold`
+- `test_claim_quest_rewards_grants_xp`
+- `test_claim_quest_rewards_grants_items`
+- `test_claim_quest_rewards_requires_completed_status`
+- `test_record_kill_grants_rewards_on_completion`
+- `test_quest_rewards_display_messages`
+
+**File:** `tests/test_quest_progress.py`
+
+Add integration test:
+- `test_record_kill_with_rewards_integration`
+
+## Test-First Order
+
+1. Write Quest model reward field tests
+2. Implement Quest model changes
+3. Write claim_quest_rewards tests
+4. Implement claim_quest_rewards method
+5. Write record_kill reward integration tests
+6. Integrate into record_kill
+7. Update quest generation to include rewards

@@ -2,7 +2,7 @@
 
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import ClassVar
+from typing import ClassVar, List
 
 
 class QuestStatus(Enum):
@@ -53,6 +53,9 @@ class Quest:
     status: QuestStatus = field(default=QuestStatus.AVAILABLE)
     target_count: int = field(default=1)
     current_count: int = field(default=0)
+    gold_reward: int = field(default=0)
+    xp_reward: int = field(default=0)
+    item_rewards: List[str] = field(default_factory=list)
 
     def __post_init__(self) -> None:
         """Validate quest attributes after initialization."""
@@ -96,6 +99,12 @@ class Quest:
         if self.current_count < 0:
             raise ValueError("current_count must be at least 0")
 
+        # Validate reward fields
+        if self.gold_reward < 0:
+            raise ValueError("gold_reward cannot be negative")
+        if self.xp_reward < 0:
+            raise ValueError("xp_reward cannot be negative")
+
     @property
     def is_complete(self) -> bool:
         """Check if the quest objective has been met.
@@ -128,6 +137,9 @@ class Quest:
             "target": self.target,
             "target_count": self.target_count,
             "current_count": self.current_count,
+            "gold_reward": self.gold_reward,
+            "xp_reward": self.xp_reward,
+            "item_rewards": self.item_rewards,
         }
 
     @classmethod
@@ -152,4 +164,7 @@ class Quest:
             target=data["target"],
             target_count=data.get("target_count", 1),
             current_count=data.get("current_count", 0),
+            gold_reward=data.get("gold_reward", 0),
+            xp_reward=data.get("xp_reward", 0),
+            item_rewards=data.get("item_rewards", []),
         )

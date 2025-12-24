@@ -1,61 +1,65 @@
-# Implementation Summary: Quest Progress Tracking from Combat
+# Implementation Summary: Quest Completion Rewards
 
 ## What Was Implemented
 
-### 1. Character.record_kill() Method (`src/cli_rpg/models/character.py`)
-
-Added a new method to track enemy kills for quest progress:
-
-```python
-def record_kill(self, enemy_name: str) -> List[str]:
-```
-
-This method:
-- Iterates through the character's quests
-- Finds active KILL quests where the enemy name matches the quest target (case-insensitive)
-- Calls `quest.progress()` to increment the count
-- If the quest completes, sets status to `QuestStatus.COMPLETED` and returns completion message
-- Otherwise returns a progress message showing current/target count
-- Returns a list of messages (empty if no matching quests)
-
-### 2. Combat Victory Integration (`src/cli_rpg/main.py`)
-
-Modified the `handle_combat_command` function to call `record_kill()` after combat victories:
-
-- **Attack command** (lines 176-190): Captures enemy name before combat ends, calls `record_kill()`, appends quest messages to output
-- **Cast command** (lines 253-267): Same integration for spell-based victories
-
-### 3. Test Coverage (`tests/test_quest_progress.py`)
-
-Created comprehensive test file with 11 tests covering:
-- Quest progress increments on matching kills
-- Progress notification messages
-- Completion detection and status update
-- Completion notification messages
-- Case-insensitive matching
-- Non-matching enemies don't affect progress
-- Only ACTIVE quests get progress
-- Only KILL objective type quests get progress
-- Multiple quests can progress from the same kill
-- Empty list returned when no matching quests
-- Works correctly when character has no quests
-
-## Test Results
-
-All 868 tests pass (including 11 new tests for quest progress).
+When a quest's objectives are met (e.g., kill X enemies), the system now:
+1. Automatically marks the quest as COMPLETED (already implemented)
+2. Grants defined rewards to the player: gold, XP, and optionally items
+3. Displays reward notification messages to the player
 
 ## Files Modified
 
-| File | Changes |
-|------|---------|
-| `src/cli_rpg/models/character.py` | Added `record_kill()` method (27 lines) |
-| `src/cli_rpg/main.py` | Added quest tracking after attack/cast victories (8 lines total) |
-| `tests/test_quest_progress.py` | New test file (178 lines) |
+### `src/cli_rpg/models/quest.py`
+- Added `List` import from typing
+- Added three new reward fields to the Quest dataclass:
+  - `gold_reward: int = field(default=0)` - Gold granted on completion
+  - `xp_reward: int = field(default=0)` - XP granted on completion
+  - `item_rewards: List[str] = field(default_factory=list)` - Item names granted on completion
+- Added validation in `__post_init__` to reject negative gold/XP rewards
+- Updated `to_dict()` to include reward fields in serialization
+- Updated `from_dict()` to deserialize reward fields with defaults for backward compatibility
 
-## E2E Validation
+### `src/cli_rpg/models/character.py`
+- Added `claim_quest_rewards(quest: Quest) -> List[str]` method:
+  - Validates quest status is COMPLETED (raises ValueError otherwise)
+  - Grants gold via `add_gold()` with notification message
+  - Grants XP via `gain_xp()` (returns XP messages including level-ups)
+  - Grants items by creating MISC items with quest description and adding to inventory
+  - Returns list of all reward messages
+- Modified `record_kill()` to call `claim_quest_rewards()` when a quest completes
 
-The feature should be validated by:
-1. Starting a game with a KILL quest (e.g., "Kill 3 Goblins")
-2. Defeating matching enemies in combat
-3. Verifying quest progress messages appear after each victory
-4. Verifying quest completion message and status update when target count is reached
+### `tests/test_quest.py`
+- Updated `test_to_dict()` to include the new reward fields in expected output
+
+### `tests/test_quest_rewards.py` (NEW)
+- 25 new tests covering:
+  - Quest reward field creation and defaults
+  - Reward validation (negative values rejected)
+  - Serialization roundtrip with rewards
+  - `claim_quest_rewards()` method behavior
+  - Integration with `record_kill()` for automatic reward granting
+
+## Test Results
+
+- All 893 tests pass (1 skipped)
+- 25 new tests specifically for quest rewards
+- No regressions in existing functionality
+
+## Design Decisions
+
+1. **Item Rewards as Strings**: Item rewards are stored as string names rather than full Item objects for simplicity and serialization. When claimed, a basic MISC-type item is created with the given name.
+
+2. **Backward Compatibility**: The `from_dict()` method uses `.get()` with defaults, so existing save files without reward fields will load correctly with zero/empty rewards.
+
+3. **Automatic Reward Granting**: Rewards are automatically granted when `record_kill()` detects quest completion, ensuring players receive rewards immediately without needing to manually claim them.
+
+4. **Reward Messages**: All reward notifications are returned as a list of strings that can be displayed to the player, including XP gain messages and potential level-up notifications.
+
+## E2E Testing Notes
+
+E2E tests should validate:
+- Creating a quest with rewards, killing the required enemies, and verifying:
+  - Gold is added to character
+  - XP is added to character
+  - Items appear in inventory
+  - Appropriate messages are displayed
