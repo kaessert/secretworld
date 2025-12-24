@@ -14,7 +14,7 @@ python -m cli_rpg.main
 
 ## Features
 
-- **Character Creation**: Create custom characters with customizable attributes (strength, dexterity, constitution, intelligence)
+- **Character Creation**: Create custom characters with customizable attributes (strength, dexterity, intelligence)
 - **AI-Generated Worlds**: Dynamically generated locations using OpenAI's GPT models (optional)
 - **Turn-Based Combat**: Engage enemies with attack, defend, and flee commands
 - **Persistent Saves**: Save and load your game progress
@@ -25,11 +25,13 @@ python -m cli_rpg.main
 
 ### Character Creation
 1. Choose a name for your character
-2. Distribute 30 stat points across four attributes:
-   - **Strength**: Increases attack damage
+2. Choose your stat allocation method (manual or random)
+3. Set your three core attributes (1-20 each):
+   - **Strength**: Increases attack damage and max HP
    - **Dexterity**: Improves flee chance
-   - **Constitution**: Reduces damage taken
    - **Intelligence**: (Future feature)
+
+**Note:** Constitution is automatically derived from your Strength stat and is used to reduce incoming damage during combat.
 
 ### Exploration Commands
 - `look` - Examine your current location
