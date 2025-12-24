@@ -175,6 +175,48 @@ class TestWorldGridValidation:
             grid.add_location(loc2, 1, 0)
 
 
+class TestWorldGridNoWrapping:
+    """Test that world grid does not wrap circularly.
+
+    Spec: Coordinate-based movement should never wrap back to previously visited
+    locations via connections that would violate coordinate consistency.
+    """
+
+    def test_repeated_direction_extends_world(self):
+        """Going west repeatedly should not return to start.
+
+        Spec: Moving in one direction repeatedly should reach unexplored coordinates,
+        not wrap back to existing locations.
+        """
+        grid = WorldGrid()
+        loc0 = Location(name="Start", description="Origin")
+        loc1 = Location(name="West1", description="First west")
+        loc2 = Location(name="West2", description="Second west")
+        grid.add_location(loc0, 0, 0)
+        grid.add_location(loc1, -1, 0)
+        grid.add_location(loc2, -2, 0)
+
+        # Going west from West2 should find no neighbor (needs generation)
+        neighbor = grid.get_neighbor(-2, 0, "west")
+        assert neighbor is None  # No wrap-around
+
+    def test_coordinates_are_consistent_after_movement(self):
+        """Moving west then east should return to same coordinates.
+
+        Spec: Bidirectional movement returns to the original position.
+        """
+        grid = WorldGrid()
+        start = Location(name="Start", description="Origin")
+        west = Location(name="West", description="West")
+        grid.add_location(start, 0, 0)
+        grid.add_location(west, -1, 0)
+
+        # West of (0,0) is (-1,0)
+        assert grid.get_neighbor(0, 0, "west").coordinates == (-1, 0)
+        # East of (-1,0) is (0,0)
+        assert grid.get_neighbor(-1, 0, "east").coordinates == (0, 0)
+
+
 class TestWorldGridBackwardCompatibility:
     """Test backward compatibility with dict[str, Location] interface."""
 

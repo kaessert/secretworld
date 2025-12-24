@@ -176,7 +176,8 @@ def expand_world(
     ai_service: AIService,
     from_location: str,
     direction: str,
-    theme: str
+    theme: str,
+    target_coords: Optional[tuple[int, int]] = None
 ) -> dict[str, Location]:
     """Expand world by generating a new location.
 
@@ -186,6 +187,10 @@ def expand_world(
         from_location: Source location name
         direction: Direction to expand in
         theme: World theme
+        target_coords: Optional target coordinates for the new location.
+                       If provided, the new location will be placed at these
+                       coordinates. Otherwise, coordinates are calculated from
+                       the source location.
 
     Returns:
         Updated world dictionary (same object, modified in place)
@@ -213,12 +218,17 @@ def expand_world(
         direction=direction
     )
 
-    # Calculate new coordinates based on source location (if it has coordinates)
+    # Determine coordinates for the new location
     source_loc = world[from_location]
-    new_coordinates = None
-    if source_loc.coordinates is not None and direction in DIRECTION_OFFSETS:
+    if target_coords is not None:
+        # Use explicitly provided target coordinates
+        new_coordinates = target_coords
+    elif source_loc.coordinates is not None and direction in DIRECTION_OFFSETS:
+        # Calculate from source location
         dx, dy = DIRECTION_OFFSETS[direction]
         new_coordinates = (source_loc.coordinates[0] + dx, source_loc.coordinates[1] + dy)
+    else:
+        new_coordinates = None
 
     # Create new location with coordinates
     new_location = Location(

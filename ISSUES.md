@@ -1,40 +1,5 @@
 ## Active Issues
 
-### Map should not be circular, the array should automatically extend
-**Status**: ACTIVE
-
-> go west
-
-You head west to Frostbite Peak.
-
-Frostbite Peak
-A desolate mountain shrouded in eternal winter, where eerie howls echo through the icy winds and frost-covered trees loom ominously.
-Exits: east, south, west
-
-> go west
-
-You head west to Spectral Caverns.
-
-Spectral Caverns
-A network of dark, twisting tunnels filled with eerie whispers and glowing apparitions. The walls seem to pulse with a malevolent energy, and the air is thick with an otherworldly chill.
-Exits: east, south, west
-
-> go west
-
-You head west to Frostbite Peak.
-
-Frostbite Peak
-A desolate mountain shrouded in eternal winter, where eerie howls echo through the icy winds and frost-covered trees loom ominously.
-Exits: east, south, west
-
-> go west
-
-You head west to Spectral Caverns.
-
-Spectral Caverns
-A network of dark, twisting tunnels filled with eerie whispers and glowing apparitions. The walls seem to pulse with a malevolent energy, and the air is thick with an otherworldly chill.
-Exits: east, south, west
-
 ### Map should always show the user in the center and could show two fields around the user
 **Status**: ACTIVE
 
@@ -361,3 +326,21 @@ This allowed players to exploit the system to escape losing fights by quitting, 
 **Test Coverage**: 9 new tests added:
 - 6 tests in `tests/test_config.py` for `is_ai_strict_mode()`
 - 3 tests in `tests/test_world.py` for strict mode behavior
+
+---
+
+### Map should not be circular, the array should automatically extend
+**Status**: RESOLVED
+
+**Original Problem**: When moving repeatedly in one direction (e.g., west → west → west), the player would wrap around and return to previously visited locations instead of extending the world. This happened because movement followed `Location.connections` which could contain circular references from AI-generated locations.
+
+**Solution Implemented**:
+- Changed movement from connection-based to coordinate-based logic in `game_state.py`
+- Added `_get_location_by_coordinates(coords)` helper method to find locations by (x, y) coordinates
+- Rewrote `move()` method to calculate target coordinates and look up location at those coords
+- For AI generation, `expand_world()` now accepts `target_coords` parameter to ensure correct placement
+- Legacy saves without coordinates continue to work using connection-based movement (backward compatibility)
+
+**Test Coverage**: 5 new tests added:
+- 2 tests in `tests/test_world_grid.py` (TestWorldGridNoWrapping class)
+- 3 tests in `tests/test_game_state.py` (TestGameStateCoordinateBasedMovement class)

@@ -448,6 +448,112 @@ class TestGameStateMove:
         assert game_state.current_location == "Room B"
 
 
+class TestGameStateCoordinateBasedMovement:
+    """Tests for coordinate-based movement to prevent circular wrapping.
+
+    Spec: Movement should check coordinates to avoid circular wrapping caused
+    by incorrect connections in Location objects.
+    """
+
+    def test_move_uses_coordinates_not_just_connections(self, tmp_path, monkeypatch):
+        """Movement should check coordinates to avoid circular wrapping.
+
+        Spec: When a location has a misleading connection that would violate
+        coordinate consistency, the move should use coordinates to find the
+        correct destination or fail if no location exists at target coords.
+        """
+        # Disable autosave for this test
+        monkeypatch.setattr("cli_rpg.game_state.autosave", lambda gs: None)
+
+        character = Character("Hero", strength=10, dexterity=10, intelligence=10)
+
+        loc_a = Location("Origin", "Location A", coordinates=(0, 0))
+        loc_b = Location("West1", "Location B", coordinates=(-1, 0))
+
+        # West1 has a west connection that would loop back to Origin (wrong!)
+        loc_a.connections = {"west": "West1"}
+        loc_b.connections = {"east": "Origin", "west": "Origin"}  # Bad: west should NOT point to Origin
+
+        world = {"Origin": loc_a, "West1": loc_b}
+        game_state = GameState(character, world, "Origin")
+
+        # Move west to West1
+        success, msg = game_state.move("west")
+        assert success
+        assert game_state.current_location == "West1"
+
+        # Move west from West1 - should NOT go to Origin (that's at 0,0, not -2,0)
+        # Without AI, this should fail with "You can't go that way."
+        success, msg = game_state.move("west")
+        # If AI not available, move fails because coordinate (-2,0) is empty
+        # The key is it should NOT follow the incorrect "west": "Origin" connection
+        assert success is False
+        assert "can't go that way" in msg.lower()
+
+    def test_move_with_coordinates_goes_to_correct_location(self, tmp_path, monkeypatch):
+        """Movement should follow coordinates even if connection name differs.
+
+        Spec: When target coordinates have a location, move to that location
+        regardless of what the connection says.
+        """
+        # Disable autosave for this test
+        monkeypatch.setattr("cli_rpg.game_state.autosave", lambda gs: None)
+
+        character = Character("Hero", strength=10, dexterity=10, intelligence=10)
+
+        loc_a = Location("Origin", "Location A", coordinates=(0, 0))
+        loc_b = Location("West1", "Location B", coordinates=(-1, 0))
+        loc_c = Location("West2", "Location C", coordinates=(-2, 0))
+
+        # Connection says "West1" but we add proper bidirectional connections
+        loc_a.connections = {"west": "West1"}
+        loc_b.connections = {"east": "Origin", "west": "West2"}
+        loc_c.connections = {"east": "West1"}
+
+        world = {"Origin": loc_a, "West1": loc_b, "West2": loc_c}
+        game_state = GameState(character, world, "Origin")
+
+        # Move to West1
+        success, _ = game_state.move("west")
+        assert success
+        assert game_state.current_location == "West1"
+
+        # Move to West2
+        success, _ = game_state.move("west")
+        assert success
+        assert game_state.current_location == "West2"
+
+        # Move back east should return to West1
+        success, _ = game_state.move("east")
+        assert success
+        assert game_state.current_location == "West1"
+
+    def test_move_falls_back_to_connection_for_legacy_locations(self, tmp_path, monkeypatch):
+        """Locations without coordinates should use connection-based movement.
+
+        Spec: Backward compatibility with legacy saves that don't have coordinates.
+        """
+        # Disable autosave for this test
+        monkeypatch.setattr("cli_rpg.game_state.autosave", lambda gs: None)
+
+        character = Character("Hero", strength=10, dexterity=10, intelligence=10)
+
+        # Locations without coordinates (legacy)
+        loc_a = Location("Origin", "Location A")
+        loc_b = Location("West1", "Location B")
+
+        loc_a.connections = {"west": "West1"}
+        loc_b.connections = {"east": "Origin"}
+
+        world = {"Origin": loc_a, "West1": loc_b}
+        game_state = GameState(character, world, "Origin")
+
+        # Should still work with connection-based movement
+        success, _ = game_state.move("west")
+        assert success
+        assert game_state.current_location == "West1"
+
+
 class TestGameStateSerialization:
     """Tests for GameState serialization."""
     

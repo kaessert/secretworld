@@ -125,11 +125,27 @@ class GameState:
     
     def get_current_location(self) -> Location:
         """Get the current Location object.
-        
+
         Returns:
             The Location object for the current location
         """
         return self.world[self.current_location]
+
+    def _get_location_by_coordinates(
+        self, coords: tuple[int, int]
+    ) -> Optional[Location]:
+        """Find a location by its coordinates.
+
+        Args:
+            coords: (x, y) coordinate tuple
+
+        Returns:
+            Location at those coordinates, or None if not found
+        """
+        for location in self.world.values():
+            if location.coordinates == coords:
+                return location
+        return None
     
     def look(self) -> str:
         """Get a formatted description of the current location.
@@ -166,15 +182,20 @@ class GameState:
     
     def move(self, direction: str) -> tuple[bool, str]:
         """Move to a connected location in the specified direction.
-        
+
+        Uses coordinate-based movement when locations have coordinates,
+        falling back to connection-based movement for legacy saves.
+
         Args:
             direction: The direction to move (e.g., "north", "south", etc.)
-            
+
         Returns:
             Tuple of (success, message) where:
             - success is True if move was successful, False otherwise
             - message describes the result
         """
+        from cli_rpg.world_grid import DIRECTION_OFFSETS
+
         current = self.get_current_location()
 
         # Check if direction is valid (north, south, east, west)
@@ -182,37 +203,73 @@ class GameState:
         if direction not in valid_game_directions:
             return (False, "Invalid direction. Use: north, south, east, or west.")
 
-        # Check if direction exists (valid direction but no exit)
-        if not current.has_connection(direction):
-            return (False, "You can't go that way.")
-        
-        # Get destination
-        destination_name = current.get_connection(direction)
-        
-        # Check if destination exists in world
-        if destination_name not in self.world:
-            # Try to generate it with AI if available
-            if self.ai_service is not None and AI_AVAILABLE:
-                try:
-                    logger.info(f"Generating missing destination: {destination_name}")
-                    expand_world(
-                        world=self.world,
-                        ai_service=self.ai_service,
-                        from_location=self.current_location,
-                        direction=direction,
-                        theme=self.theme
-                    )
-                    # Re-read destination name after expansion (may have changed)
-                    current = self.get_current_location()
-                    destination_name = current.get_connection(direction)
-                except (AIServiceError, Exception) as e:
-                    logger.error(f"Failed to generate location: {e}")
-                    return (False, f"Failed to generate destination: {str(e)}")
+        # Use coordinate-based movement if current location has coordinates
+        if current.coordinates is not None:
+            # Calculate target coordinates
+            dx, dy = DIRECTION_OFFSETS[direction]
+            target_coords = (current.coordinates[0] + dx, current.coordinates[1] + dy)
+
+            # Find location at target coordinates
+            target_location = self._get_location_by_coordinates(target_coords)
+
+            if target_location is not None:
+                # Location exists at target coordinates - move there
+                self.current_location = target_location.name
             else:
-                return (False, f"Destination '{destination_name}' not found in world.")
-        
-        # Update location
-        self.current_location = destination_name
+                # No location at target - try AI generation or fail
+                if self.ai_service is not None and AI_AVAILABLE:
+                    try:
+                        logger.info(
+                            f"Generating location at {target_coords} from {current.name}"
+                        )
+                        expand_world(
+                            world=self.world,
+                            ai_service=self.ai_service,
+                            from_location=self.current_location,
+                            direction=direction,
+                            theme=self.theme,
+                            target_coords=target_coords,
+                        )
+                        # Find the newly generated location
+                        target_location = self._get_location_by_coordinates(target_coords)
+                        if target_location:
+                            self.current_location = target_location.name
+                        else:
+                            return (False, "Failed to generate destination.")
+                    except (AIServiceError, Exception) as e:
+                        logger.error(f"Failed to generate location: {e}")
+                        return (False, f"Failed to generate destination: {str(e)}")
+                else:
+                    return (False, "You can't go that way.")
+        else:
+            # Legacy fallback: use connection-based movement
+            if not current.has_connection(direction):
+                return (False, "You can't go that way.")
+
+            destination_name = current.get_connection(direction)
+
+            if destination_name not in self.world:
+                # Try to generate it with AI if available
+                if self.ai_service is not None and AI_AVAILABLE:
+                    try:
+                        logger.info(f"Generating missing destination: {destination_name}")
+                        expand_world(
+                            world=self.world,
+                            ai_service=self.ai_service,
+                            from_location=self.current_location,
+                            direction=direction,
+                            theme=self.theme,
+                        )
+                        # Re-read destination name after expansion (may have changed)
+                        current = self.get_current_location()
+                        destination_name = current.get_connection(direction)
+                    except (AIServiceError, Exception) as e:
+                        logger.error(f"Failed to generate location: {e}")
+                        return (False, f"Failed to generate destination: {str(e)}")
+                else:
+                    return (False, f"Destination '{destination_name}' not found in world.")
+
+            self.current_location = destination_name
 
         # Autosave after successful movement
         try:
@@ -220,13 +277,13 @@ class GameState:
         except IOError:
             pass  # Silent failure - don't interrupt gameplay
 
-        message = f"You head {direction} to {destination_name}."
-        
+        message = f"You head {direction} to {self.current_location}."
+
         # Check for random encounter
-        encounter_message = self.trigger_encounter(destination_name)
+        encounter_message = self.trigger_encounter(self.current_location)
         if encounter_message:
             message += f"\n{encounter_message}"
-        
+
         return (True, message)
     
     def to_dict(self) -> dict:
