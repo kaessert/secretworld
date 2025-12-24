@@ -1,211 +1,63 @@
-# Implementation Plan: Initial World Generation Dead-End Prevention
+# Implementation Plan: Fix Failing Test `test_main_load_character_no_saves`
 
 ## Spec
 
-Initial world generation (both `create_default_world()` and `create_ai_world()`) must create worlds with sufficient exits and dangling connections to ensure the "infinite world" principle is maintained from the start. A player should never be stuck in a dead-end state immediately after world creation.
+The test `test_main_load_character_no_saves` expects that when a user selects "Load Character" (option 2) and no saves exist, the game displays a message and returns to the main menu. The user then selects "Exit" (option 3) to quit.
 
-**Requirements:**
-1. The default world's leaf locations (Forest, Cave) must have at least one dangling connection for future expansion
-2. AI-generated initial worlds must ensure every generated location has at least one non-back-connection (dangling exit)
-3. The starting location must always have multiple exit directions
+**Current Problem:** The test fails with `StopIteration` because:
+1. A save file (`autosave_abcdef.json`) exists in the `saves/` directory from previous test runs
+2. The existing `conftest.py` only redirects autosave writes to temp, not `list_saves()` reads
+3. When saves exist, `select_and_load_character()` prompts for character selection, consuming an extra input
+4. The mock provides only `["2", "3"]` which is insufficient when saves exist
+
+**Fix Options:**
+1. **Option A (Recommended):** Add test isolation by mocking `list_saves()` to return empty list
+2. **Option B:** Extend conftest.py fixture to also mock `list_saves()` to use temp directory
 
 ---
 
 ## Tests
 
-**File:** `tests/test_initial_world_dead_end_prevention.py`
+**File:** `tests/test_main_menu.py`
+
+The existing test is correct in its intent. We need to add proper test isolation:
 
 ```python
-"""Tests for initial world generation dead-end prevention.
-
-Spec: Initial world generation must create sufficient exits and dangling connections
-to ensure the "infinite world" principle. Players must never be stuck at game start.
-"""
-
-import pytest
-from unittest.mock import Mock
-
-from cli_rpg.world import create_default_world, create_world
-from cli_rpg.ai_world import create_ai_world
-from cli_rpg.models.location import Location
-
-
-class TestDefaultWorldDeadEndPrevention:
-    """Tests ensuring default world has no dead-ends."""
-
-    def test_default_world_starting_location_has_multiple_exits(self):
-        """Spec: Starting location must have multiple exit directions."""
-        world, starting_location = create_default_world()
-        starting_loc = world[starting_location]
-
-        assert len(starting_loc.connections) >= 2, \
-            "Starting location must have at least 2 exits"
-
-    def test_default_world_leaf_locations_have_dangling_exits(self):
-        """Spec: Leaf locations must have dangling connections for expansion."""
-        world, starting_location = create_default_world()
-
-        # Forest and Cave are leaf locations (only connect back to Town Square)
-        forest = world["Forest"]
-        cave = world["Cave"]
-
-        # Each leaf must have at least one non-back connection (dangling exit)
-        forest_exits = [d for d in forest.connections if d != "south"]
-        cave_exits = [d for d in cave.connections if d != "west"]
-
-        assert len(forest_exits) >= 1, \
-            "Forest must have at least one exit besides back to Town Square"
-        assert len(cave_exits) >= 1, \
-            "Cave must have at least one exit besides back to Town Square"
-
-    def test_default_world_every_location_has_forward_path(self):
-        """Spec: Every location must have at least one forward path for exploration."""
-        world, starting_location = create_default_world()
-
-        for name, location in world.items():
-            # Count total connections
-            total_connections = len(location.connections)
-            assert total_connections >= 2, \
-                f"Location '{name}' must have at least 2 connections (back + forward)"
-
-
-class TestAIWorldDeadEndPrevention:
-    """Tests ensuring AI-generated world has no dead-ends."""
-
-    @pytest.fixture
-    def mock_ai_service_minimal(self):
-        """Mock AI that returns locations with only back-connections."""
-        service = Mock()
-        call_count = [0]
-
-        def generate_location_side_effect(theme, context_locations, source_location, direction):
-            call_count[0] += 1
-            opposites = {
-                "north": "south", "south": "north",
-                "east": "west", "west": "east",
-                "up": "down", "down": "up"
-            }
-
-            if source_location is None:
-                # Starting location - only back connection to next location
-                return {
-                    "name": "Central Hub",
-                    "description": "The central hub.",
-                    "connections": {"north": "North Wing"}  # Only one exit
-                }
-            else:
-                # Generated location - only back connection
-                opposite = opposites.get(direction, "south")
-                return {
-                    "name": f"Location {call_count[0]}",
-                    "description": "A generated location.",
-                    "connections": {opposite: source_location}  # Only back
-                }
-
-        service.generate_location.side_effect = generate_location_side_effect
-        return service
-
-    def test_ai_world_starting_location_has_multiple_exits(self, mock_ai_service_minimal):
-        """Spec: AI starting location must have multiple exits."""
-        world, starting_location = create_ai_world(
-            mock_ai_service_minimal, theme="fantasy", initial_size=3
-        )
-
-        starting_loc = world[starting_location]
-        assert len(starting_loc.connections) >= 2, \
-            "AI starting location must have at least 2 exits"
-
-    def test_ai_world_generated_locations_have_forward_exits(self, mock_ai_service_minimal):
-        """Spec: Every AI-generated location must have forward exit for expansion."""
-        world, starting_location = create_ai_world(
-            mock_ai_service_minimal, theme="fantasy", initial_size=3
-        )
-
-        for name, location in world.items():
-            # Every location needs at least 2 connections (or 1 if it's connected to multiple)
-            assert len(location.connections) >= 2, \
-                f"Location '{name}' must have at least 2 exits (back + dangling)"
-
-    def test_ai_world_no_isolated_dead_ends(self, mock_ai_service_minimal):
-        """Spec: No location should be a dead-end with only one exit."""
-        world, starting_location = create_ai_world(
-            mock_ai_service_minimal, theme="fantasy", initial_size=3
-        )
-
-        for name, location in world.items():
-            exits = len(location.connections)
-            assert exits >= 2, \
-                f"Location '{name}' is a dead-end with only {exits} exit(s)"
-
-
-class TestCreateWorldDeadEndPrevention:
-    """Tests for create_world() dead-end prevention."""
-
-    def test_create_world_without_ai_has_no_dead_ends(self):
-        """Spec: Default world via create_world() has no dead-ends."""
-        world, starting_location = create_world(ai_service=None)
-
-        for name, location in world.items():
-            assert len(location.connections) >= 2, \
-                f"Location '{name}' must have at least 2 connections"
-
-    def test_create_world_starting_location_expandable(self):
-        """Spec: Starting location must be expandable in multiple directions."""
-        world, starting_location = create_world(ai_service=None)
-        starting_loc = world[starting_location]
-
-        # Starting location should have paths to explore
-        assert len(starting_loc.connections) >= 2, \
-            "Starting location must provide multiple exploration paths"
+@patch('cli_rpg.main.list_saves', return_value=[])  # Ensure no saves exist for this test
+@patch('builtins.input', side_effect=["2", "3"])
+def test_main_load_character_no_saves(self, mock_input, mock_list_saves):
+    """Test: Load character shows message when no saves exist"""
+    result = main()
+    assert result == 0
 ```
 
 ---
 
 ## Implementation Steps
 
-### Step 1: Update create_default_world() in world.py
-**File:** `src/cli_rpg/world.py`
+### Step 1: Update test to mock `list_saves()`
+**File:** `tests/test_main_menu.py`
+**Location:** Lines 32-36
 
-Add dangling connections to leaf locations (Forest and Cave):
-
+Change:
 ```python
-# After line 53 (forest.add_connection("south", "Town Square")):
-forest.add_connection("north", "Deep Woods")  # Dangling exit for expansion
-
-# After line 55 (cave.add_connection("west", "Town Square")):
-cave.add_connection("east", "Crystal Cavern")  # Dangling exit for expansion
+@patch('builtins.input', side_effect=["2", "3"])
+def test_main_load_character_no_saves(self, mock_input):
 ```
 
-### Step 2: Update create_ai_world() in ai_world.py
-**File:** `src/cli_rpg/ai_world.py`
-
-After the main generation loop (line 151), add logic to ensure all locations have forward exits:
-
+To:
 ```python
-# After line 151 (logger.info(f"Generated world with {len(world)} locations")):
-
-# Ensure all locations have at least one dangling exit for future expansion
-import random
-for loc_name, location in world.items():
-    # Find non-dangling connections (those pointing to existing locations)
-    back_connections = [d for d, target in location.connections.items() if target in world]
-
-    # If location only has back-connections, add a dangling exit
-    if len(location.connections) <= len(back_connections):
-        available_dirs = [d for d in Location.VALID_DIRECTIONS
-                        if d not in location.connections]
-        if available_dirs:
-            dangling_dir = random.choice(available_dirs)
-            placeholder_name = f"Unexplored {dangling_dir.title()}"
-            location.add_connection(dangling_dir, placeholder_name)
+@patch('cli_rpg.main.list_saves', return_value=[])
+@patch('builtins.input', side_effect=["2", "3"])
+def test_main_load_character_no_saves(self, mock_input, mock_list_saves):
 ```
 
-### Step 3: Run tests
+### Step 2: Run test to verify fix
 ```bash
-pytest tests/test_initial_world_dead_end_prevention.py -v
+pytest tests/test_main_menu.py::TestMainFunction::test_main_load_character_no_saves -v
 ```
 
-### Step 4: Verify existing tests still pass
+### Step 3: Run all tests to ensure no regressions
 ```bash
-pytest tests/test_world.py tests/test_ai_world_generation.py tests/test_e2e_world_expansion.py -v
+pytest tests/ -v
 ```

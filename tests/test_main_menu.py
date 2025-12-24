@@ -29,8 +29,9 @@ class TestMainFunction:
         result = main()
         assert result == 0
     
+    @patch('cli_rpg.main.list_saves', return_value=[])  # Ensure no saves exist for this test
     @patch('builtins.input', side_effect=["2", "3"])
-    def test_main_load_character_no_saves(self, mock_input):
+    def test_main_load_character_no_saves(self, mock_input, mock_list_saves):
         """Test: Load character shows message when no saves exist"""
         result = main()
         assert result == 0
