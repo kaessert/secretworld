@@ -1,58 +1,57 @@
-# Implementation Summary: Quit Command During Combat
+# Implementation Summary: Map Command
 
-## What was implemented
+## What Was Implemented
 
-Added the ability for players to use the `quit` command during combat in the CLI RPG game. Previously, quitting was only possible during exploration mode.
+Added a `map` command that displays an ASCII map of explored locations using the existing coordinate system.
 
-## Files modified
+### New Files Created
+- `src/cli_rpg/map_renderer.py` - Contains `render_map()` function that:
+  - Extracts locations with coordinates from the world dict
+  - Calculates bounds (min/max x,y)
+  - Renders a grid with coordinate axes
+  - Shows current location with `@` marker
+  - Shows other locations with first letter abbreviation
+  - Includes a legend mapping symbols to location names
+  - Gracefully handles legacy saves without coordinates
 
-### 1. `src/cli_rpg/main.py`
+### Modified Files
+1. **`src/cli_rpg/game_state.py`**:
+   - Added `"map"` to the `known_commands` set in `parse_command()`
 
-- **Changed `handle_combat_command()` return type** from `str` to `tuple[bool, str]` to match `handle_exploration_command()` signature
-- **Updated all return statements** in `handle_combat_command()` to return tuples `(True, message)` for continue playing, `(False, message)` for quit
-- **Added `quit` command handler** (lines 236-248):
-  - Shows warning about being in combat
-  - Prompts user to save before quitting
-  - Saves game if user confirms with 'y'
-  - Returns `(False, "")` to signal game loop exit
-- **Updated error message** to include `quit` as a valid combat command
-- **Updated `run_game_loop()`** to properly unpack the tuple return from `handle_combat_command()` and break on quit
+2. **`src/cli_rpg/main.py`**:
+   - Added import for `render_map` from `cli_rpg.map_renderer`
+   - Added `elif command == "map":` handler in `handle_exploration_command()`
+   - Updated help text in both `start_game()` and main menu load section
+   - Updated "unknown command" error messages to include `map`
 
-### 2. `tests/test_main_combat_integration.py`
+### Test File Created
+- `tests/test_map_command.py` - 8 tests covering:
+  - `test_parse_command_map` - Verifies `parse_command("map")` returns `("map", [])`
+  - `test_parse_command_map_case_insensitive` - Case insensitivity check
+  - `test_map_command_returns_ascii_output` - Map returns string with visual representation
+  - `test_map_shows_current_location_marker` - Current location marked with `@`
+  - `test_map_shows_explored_locations` - All locations appear on map
+  - `test_map_with_no_coordinates_shows_message` - Graceful handling of legacy saves
+  - `test_map_command_during_combat_blocked` - Map not available during combat
+  - `test_map_command_in_exploration_returns_map` - Integration test for exploration
 
-- Added new `TestQuitCommandDuringCombat` test class with 3 tests:
-  - `test_quit_command_during_combat_exits_game`: Verifies quit returns `False` to exit game loop
-  - `test_quit_command_during_combat_shows_warning`: Verifies combat warning is printed
-  - `test_quit_command_with_save_saves_game`: Verifies save is called when user chooses 'y'
-- Updated all existing tests to handle the new tuple return type from `handle_combat_command()`
+## Test Results
+- All 8 new tests pass
+- Full test suite: 704 passed, 1 skipped
 
-### 3. `tests/test_main_game_loop_state_handling.py`
-
-- Fixed `test_save_during_combat_blocked` to handle tuple return type
-
-## Test results
-
+## Map Display Format Example
 ```
-696 passed, 1 skipped in 6.66s
+=== MAP ===
+    -1  0  1
+ 1      F
+ 0      @  C
+-1
+
+Legend: @ = You (Town Square), F = Forest, C = Cave
 ```
 
-All tests pass including:
-- 21 combat integration tests
-- New quit command tests
-- Full test suite
-
-## Technical details
-
-The implementation follows the same pattern as `handle_exploration_command()`:
-- Returns `tuple[bool, str]` where the boolean indicates whether to continue the game
-- `True` means continue playing, `False` means exit to main menu
-- The game loop unpacks this tuple and breaks if `continue_game` is `False`
-
-## E2E validation
-
-To manually test:
-1. Start the game and enter combat (by moving to a location with enemies)
-2. Type `quit` during combat
-3. Verify warning message appears about being in combat
-4. Choose 'y' to save or 'n' to quit without saving
-5. Verify return to main menu
+## E2E Tests Should Validate
+- Running `map` command during exploration displays the map
+- Current location is marked distinctly with `@`
+- Map command is blocked during combat with appropriate message
+- Legacy saves without coordinates show "No map available" message

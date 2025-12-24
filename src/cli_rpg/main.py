@@ -9,6 +9,7 @@ from cli_rpg.world import create_world
 from cli_rpg.config import load_ai_config
 from cli_rpg.ai_service import AIService
 from cli_rpg.autosave import autosave
+from cli_rpg.map_renderer import render_map
 
 
 def prompt_save_character(character: Character) -> None:
@@ -406,6 +407,10 @@ def handle_exploration_command(game_state: GameState, command: str, args: list[s
         autosave(game_state)
         return (True, f"\nYou sold {item.name} for {sell_price} gold.")
 
+    elif command == "map":
+        map_output = render_map(game_state.world, game_state.current_location)
+        return (True, f"\n{map_output}")
+
     elif command == "save":
         try:
             filepath = save_game_state(game_state)
@@ -431,10 +436,10 @@ def handle_exploration_command(game_state: GameState, command: str, args: list[s
         return (True, "\n✗ Not in combat.")
     
     elif command == "unknown":
-        return (True, "\n✗ Unknown command. Type 'look', 'go', 'talk', 'shop', 'buy', 'sell', 'status', 'inventory', 'equip', 'unequip', 'use', 'save', or 'quit'")
-    
+        return (True, "\n✗ Unknown command. Type 'look', 'go', 'talk', 'shop', 'buy', 'sell', 'map', 'status', 'inventory', 'equip', 'unequip', 'use', 'save', or 'quit'")
+
     else:
-        return (True, "\n✗ Unknown command. Type 'look', 'go', 'talk', 'shop', 'buy', 'sell', 'status', 'inventory', 'equip', 'unequip', 'use', 'save', or 'quit'")
+        return (True, "\n✗ Unknown command. Type 'look', 'go', 'talk', 'shop', 'buy', 'sell', 'map', 'status', 'inventory', 'equip', 'unequip', 'use', 'save', or 'quit'")
 
 
 def run_game_loop(game_state: GameState) -> None:
@@ -537,6 +542,7 @@ def start_game(
     print("  shop           - View shop inventory (when at a shop)")
     print("  buy <item>     - Buy an item from the shop")
     print("  sell <item>    - Sell an item to the shop")
+    print("  map            - Display a map of explored areas")
     print("  save           - Save your game (not available during combat)")
     print("  quit           - Return to main menu")
     print("\nCombat Commands:")
@@ -642,6 +648,7 @@ def main() -> int:
                 print("  shop           - View shop inventory (when at a shop)")
                 print("  buy <item>     - Buy an item from the shop")
                 print("  sell <item>    - Sell an item to the shop")
+                print("  map            - Display a map of explored areas")
                 print("  save           - Save your game (not available during combat)")
                 print("  quit           - Return to main menu")
                 print("\nCombat Commands:")

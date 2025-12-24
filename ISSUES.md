@@ -1,11 +1,5 @@
 ## Active Issues
 
-### Users requested a map
-
-There should be a map command displaying a map
-
----
-
 ### Shop buy command requires exact item name - misleading error message
 **Status**: ACTIVE
 
@@ -32,7 +26,42 @@ This is misleading because:
 
 ---
 
+### In-game help message still mentions "up, down" as valid directions
+**Status**: ACTIVE
+
+**Problem**: When a user types `go` without specifying a direction, the error message says "Go where? Specify a direction (north, south, east, west, up, down)". However, "up" and "down" are not valid directions in the 2D grid system.
+
+**Steps to Reproduce**:
+1. Create a new character and start the game
+2. Type `go` (without a direction)
+
+**Expected Behavior**: The error message should only list valid directions: "Go where? Specify a direction (north, south, east, west)"
+
+**Actual Behavior**: The game shows: "Go where? Specify a direction (north, south, east, west, up, down)"
+
+When the user then tries `go up` or `go down`, they get "You can't go that way." which is misleading - it suggests there's no exit in that direction rather than that it's an invalid direction entirely.
+
+**Note**: The README.md documentation was previously corrected for this issue (see resolved issue "Documentation inconsistency: up and down directions"), but the in-game error message was not updated.
+
+---
+
 ## Resolved Issues
+
+### Users requested a map
+**Status**: RESOLVED
+
+**Original Problem**: There should be a map command displaying a map.
+
+**Solution Implemented**:
+- Created `map_renderer.py` with `render_map()` function
+- Added `map` command to exploration commands
+- Map displays ASCII grid with coordinate axes
+- Current location marked with `@`, other locations with first letter abbreviation
+- Includes legend mapping symbols to location names
+- Gracefully handles legacy saves without coordinates (shows "No map available" message)
+- Map command blocked during combat
+
+---
 
 ### Cannot quit or exit the game during combat
 **Status**: RESOLVED

@@ -1,79 +1,53 @@
-# Fix: Allow quit command during combat
-
-## Summary
-Add `quit` command support to `handle_combat_command()` in `main.py` so players can exit the game during combat with an unsaved progress warning.
+# Implementation Plan: Map Command
 
 ## Spec
-- During combat, `quit` command should prompt user about unsaved progress
-- User can choose to save before quitting or quit without saving
-- After handling, return `False` (via a signal) to exit the game loop
-- Update combat command error message to include `quit` as valid option
+Add a `map` command that displays an ASCII map of explored locations using the existing coordinate system. The map should:
+- Show explored locations using their coordinates from `world.items()`
+- Mark the player's current location distinctly
+- Use simple ASCII characters for rendering
+- Handle locations without coordinates gracefully (legacy saves)
 
-## Implementation
+## Tests (in `tests/test_map_command.py`)
 
-### 1. Add test first
-**File:** `tests/test_main_combat_integration.py`
+1. **test_parse_command_map**: Verify `parse_command("map")` returns `("map", [])`
+2. **test_map_command_returns_ascii_output**: Map command returns string with visual representation
+3. **test_map_shows_current_location_marker**: Current location marked with `@` or `[X]`
+4. **test_map_shows_explored_locations**: All locations in world appear on map
+5. **test_map_command_during_combat_blocked**: Map not available during combat
+6. **test_map_with_no_coordinates_shows_message**: Graceful handling of legacy saves
 
-Add test in `TestCombatCommandRouting` class:
-```python
-def test_quit_command_during_combat_exits_game(self):
-    """Spec: When in combat, quit command should allow exiting the game."""
+## Implementation Steps
+
+1. **Add "map" to known commands** in `game_state.py`:
+   - Add `"map"` to the `known_commands` set in `parse_command()` (line 48)
+
+2. **Create map rendering function** in new file `src/cli_rpg/map_renderer.py`:
+   ```python
+   def render_map(world: dict[str, Location], current_location: str) -> str
+   ```
+   - Extract all locations with coordinates
+   - Calculate bounds (min/max x,y)
+   - Render grid with location markers and current position indicator
+   - Return ASCII string
+
+3. **Add map command handler** in `main.py`:
+   - Add `elif command == "map":` case in `handle_exploration_command()` (after line ~408)
+   - Call `render_map(game_state.world, game_state.current_location)`
+   - Return the rendered map string
+
+4. **Update help text** in `main.py`:
+   - Add `"  map            - Display a map of explored areas"` to command lists (~lines 529 and 634)
+   - Add `'map'` to unknown command error message (~lines 434 and 437)
+
+## Map Display Format
 ```
-- Mock `input()` to return 'n' (no save)
-- Call `handle_combat_command(game_state, "quit", [])`
-- Assert return value signals game should exit (need to check return type)
-
-### 2. Modify handle_combat_command to support quit
-**File:** `src/cli_rpg/main.py`, function `handle_combat_command()` (line ~117)
-
-**Change needed:** The function currently returns only a string. To support `quit`, it needs to return a tuple `(continue_game: bool, message: str)` like `handle_exploration_command()`.
-
-**Steps:**
-1. Change return type to `tuple[bool, str]` (line 126)
-2. Update all existing returns from `return message` to `return (True, message)`
-3. Add `quit` command handler before the `else` clause (around line 236):
-```python
-elif command == "quit":
-    print("\n" + "=" * 50)
-    print("⚠️  Warning: You are in combat! Progress may be lost.")
-    response = input("Save before quitting? (y/n): ").strip().lower()
-    if response == 'y':
-        try:
-            filepath = save_game_state(game_state)
-            print(f"\n✓ Game saved successfully!")
-            print(f"  Save location: {filepath}")
-        except IOError as e:
-            print(f"\n✗ Failed to save game: {e}")
-    print("\nReturning to main menu...")
-    return (False, "")
+=== MAP ===
+   -1  0  1
+ 1     F
+ 0     @  C
+-1
+Legend: @ = You (Town Square), F = Forest, C = Cave
 ```
-
-4. Update error message (line 237) to include `quit`:
-```python
-return (True, "\n✗ Can't do that during combat! Use: attack, defend, cast, flee, status, or quit")
-```
-
-### 3. Update run_game_loop to handle new return type
-**File:** `src/cli_rpg/main.py`, function `run_game_loop()` (line ~460)
-
-Change:
-```python
-if game_state.is_in_combat():
-    message = handle_combat_command(game_state, command, args)
-    print(message)
-```
-
-To:
-```python
-if game_state.is_in_combat():
-    continue_game, message = handle_combat_command(game_state, command, args)
-    print(message)
-    if not continue_game:
-        break
-```
-
-### 4. Run tests
-```bash
-pytest tests/test_main_combat_integration.py -v
-pytest -x  # Full suite
-```
+- Use first letter of location name as marker
+- `@` or `[*]` indicates current position
+- Show coordinate axes
