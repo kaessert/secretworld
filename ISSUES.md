@@ -1,30 +1,41 @@
 ## Active Issues
 
-### Documentation inconsistency: "up" and "down" directions
-**Status**: OPEN
+### Confusing error message when trying to sell equipped items
+**Status**: ACTIVE
 
-**Problem**: The README.md documentation lists "up, down" as valid movement directions:
-> `go <direction>` - Move in a direction (north, south, east, west, up, down)
-
-However:
-1. The in-game help only mentions "north, south, east, west" (no up/down)
-2. When a player tries `go up` or `go down`, they get "You can't go that way." with no indication these directions even exist in the game
+**Problem**: When a player tries to sell an item that is currently equipped, the error message "You don't have 'item name' in your inventory" is confusing and unhelpful.
 
 **Steps to Reproduce**:
-1. Start a new game
-2. Create a character
-3. Type `go up` or `go down`
-4. Observe: "You can't go that way." - same as any invalid direction
+1. Start a new game and create a character
+2. Fight enemies until you receive a weapon drop (e.g., "Old Dagger")
+3. Use `equip Old Dagger` to equip the weapon
+4. Use `inventory` to verify the item appears in the equipped slot
+5. Use `talk Merchant` to open the shop
+6. Use `sell Old Dagger` to attempt to sell the equipped item
 
-**Expected Behavior**: Either:
-- (A) Remove "up, down" from README if they're not supported, or
-- (B) Add "up, down" to the in-game help, and ideally have locations that support vertical movement
+**Expected Behavior**: The game should provide a clear message like "You can't sell Old Dagger because it's currently equipped. Unequip it first with 'unequip weapon'."
 
-**Actual Behavior**: README promises up/down directions but they don't appear to be functional or documented in-game.
+**Actual Behavior**: The game displays "You don't have 'old dagger' in your inventory." which is confusing because:
+- The item IS visible in the inventory display (in the equipped section)
+- The message doesn't explain WHY the sell failed
+- The user doesn't get guidance on how to properly sell the item (unequip first)
+
+**Impact**: Poor user experience - players may think they lost their item or that the game is bugged, when in reality they just need to unequip the item first.
 
 ---
 
 ## Resolved Issues
+
+### Documentation inconsistency: "up" and "down" directions
+**Status**: RESOLVED
+
+**Original Problem**: The README.md documentation listed "up, down" as valid movement directions, but the grid system uses 2D coordinates only (north, south, east, west).
+
+**Solution Implemented**:
+- Removed "up, down" from the README.md `go <direction>` documentation
+- README now matches the in-game help which only mentions cardinal directions
+
+---
 
 ### Broken navigation link from Forest to Deep Woods
 **Status**: RESOLVED

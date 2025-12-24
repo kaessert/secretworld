@@ -1,31 +1,22 @@
-# Fix Broken Navigation Link from Forest to Deep Woods
+# Fix "up/down" Documentation Inconsistency
 
-## Spec
+**Task**: Remove "up, down" from README.md since the grid system uses 2D coordinates only.
 
-Remove dangling exits from the default world that point to non-existent locations. Without AI service, these exits cause error messages ("Destination 'X' not found in world") that look like bugs.
+## Change
 
-**Fix approach**: Remove lines 64-66 in `world.py` that add dangling connections to "Deep Woods" and "Crystal Cavern". These exits serve no purpose without AI and create a poor user experience.
+**File**: `README.md`, line 41
 
-## Tests First
+**Current**:
+```
+- `go <direction>` - Move in a direction (north, south, east, west, up, down)
+```
 
-Add test to `tests/test_world.py`:
-1. **test_default_world_all_exits_have_valid_destinations**: Verify every exit in every location points to a location that exists in the world
+**Updated**:
+```
+- `go <direction>` - Move in a direction (north, south, east, west)
+```
 
-## Implementation
+## Verification
 
-1. **Update `tests/test_world.py`**: Add test that iterates through all locations and their connections, asserting each destination exists in the world dict
-
-2. **Update `src/cli_rpg/world.py`**: Remove lines 64-66:
-   ```python
-   # Add dangling exits for world expansion
-   forest.add_connection("north", "Deep Woods")
-   cave.add_connection("east", "Crystal Cavern")
-   ```
-
-3. **Update `ISSUES.md`**: Mark the issue as RESOLVED with description of the fix
-
-## File Locations
-
-- Test: `tests/test_world.py` (add new test to `TestCreateDefaultWorld` class)
-- Fix: `src/cli_rpg/world.py` (remove lines 64-66)
-- Doc: `ISSUES.md` (mark issue resolved)
+- Confirm the in-game help matches (north, south, east, west only)
+- Mark issue as RESOLVED in ISSUES.md
