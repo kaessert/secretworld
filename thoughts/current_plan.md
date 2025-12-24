@@ -1,121 +1,91 @@
-# Fix "Closed Border MISUNDERSTOOD" Issue
+# Fix: Invalid "down" connection in AI-generated locations
 
-## Problem Summary
-The current implementation validates that the world border is "closed" (all exits point to existing locations via `validate_border_closure()`). However, the game design requires the **opposite**: the border should always remain **open** at least at one point so the world can expand infinitely. Players should never be trapped in a fully enclosed area with no exits pointing to unexplored coordinates.
+## Problem
+The AI world generator creates locations with `down` (and `up`) as exit directions, but the game's grid-based movement system only supports cardinal directions (north, south, east, west). The `DIRECTION_OFFSETS` in `world_grid.py` only has entries for the 4 cardinal directions, so `up`/`down` connections cannot be placed on the grid.
 
-## Current Behavior (Incorrect)
-- `validate_border_closure()` returns `True` when there are **no** unreachable exits (closed border)
-- `find_unreachable_exits()` is named from the perspective of "bad" exits that need fixing
-- Area generation in `ai_world.py` already has code trying to ensure dangling exits, but no validation
-
-## Desired Behavior (Correct)
-- The world should **always** have at least one exit pointing to an unexplored coordinate (open border)
-- This ensures players can always trigger new world generation
-- The `validate_border_closure()` method is misnamed - should be something like `validate_expansion_possible()`
-
-## Implementation Steps
-
-### 1. Rename and Invert `WorldGrid` Validation Methods
-
-**File: `src/cli_rpg/world_grid.py`**
-
-- Rename `validate_border_closure()` to `has_expansion_exits()`
-- Invert the logic: return `True` if there ARE unreachable exits (this is now good)
-- Rename `find_unreachable_exits()` to `find_frontier_exits()` for clarity (these are the exits that enable expansion)
-- Add new method `ensure_expansion_possible()` that:
-  1. Checks if there's at least one frontier exit
-  2. If not, adds a dangling exit to a random frontier location
-  3. Returns whether the world was modified
-
-### 2. Update Tests
-
-**File: `tests/test_world_grid.py`**
-
-- Rename `TestWorldGridBorderValidation` to `TestWorldGridExpansionValidation`
-- Update `test_validate_border_closure_true_when_closed` -> `test_has_expansion_exits_false_when_closed`
-- Update `test_validate_border_closure_false_when_orphan` -> `test_has_expansion_exits_true_when_frontier_exists`
-- Add new test `test_ensure_expansion_possible_adds_exit_when_closed`
-- Add new test `test_ensure_expansion_possible_noop_when_already_open`
-
-**File: `tests/test_area_generation.py`**
-
-- Update `test_expand_area_border_closed` to `test_expand_area_preserves_expansion_exits`
-- Verify that after area generation, there's still at least one frontier exit
-
-### 3. Call `ensure_expansion_possible()` After Area Generation
-
-**File: `src/cli_rpg/ai_world.py`**
-
-- At the end of `expand_area()`, create a temporary `WorldGrid` from the world dict
-- Call `ensure_expansion_possible()` to guarantee at least one frontier exit
-- This ensures every area generation leaves the world expandable
-
-### 4. Update ISSUES.md
-
-- Move "Closed Border MISUNDERSTOOD" to Resolved Issues
-- Document the solution
-
-## Code Changes
-
-### `world_grid.py` Changes
-
-```python
-def find_frontier_exits(self) -> List[Tuple[str, str, Tuple[int, int]]]:
-    """Find exits pointing to unexplored coordinates (frontier exits).
-
-    These exits enable world expansion - when a player travels through them,
-    new areas can be generated. At least one frontier exit should always exist
-    to ensure the world can grow infinitely.
-
-    Returns:
-        List of tuples (location_name, direction, target_coords) for each
-        exit pointing to unexplored coordinates.
-    """
-    # Same implementation as current find_unreachable_exits()
-
-def has_expansion_exits(self) -> bool:
-    """Check if the world has at least one exit to unexplored territory.
-
-    Returns True if there's at least one frontier exit that can trigger
-    area generation. This is the desired state - the world should always
-    be expandable.
-
-    Returns:
-        True if at least one frontier exit exists, False if world is closed.
-    """
-    return len(self.find_frontier_exits()) > 0
-
-def ensure_expansion_possible(self) -> bool:
-    """Ensure the world has at least one frontier exit.
-
-    If no frontier exits exist, adds a dangling exit to a random edge
-    location in a random available direction.
-
-    Returns:
-        True if the world was modified, False if already had frontier exits.
-    """
-    if self.has_expansion_exits():
-        return False
-
-    # Find edge locations (locations with fewer than 4 neighbors)
-    # Add a dangling exit to one of them
-    import random
-    for location in self._by_name.values():
-        if location.coordinates is None:
-            continue
-        available_dirs = [d for d in DIRECTION_OFFSETS.keys()
-                         if d not in location.connections]
-        if available_dirs:
-            direction = random.choice(available_dirs)
-            location.add_connection(direction, f"Unexplored {direction.title()}")
-            return True
-    return False
-
-# Keep old method names as aliases for backward compatibility
-find_unreachable_exits = find_frontier_exits
-validate_border_closure = lambda self: not self.has_expansion_exits()
+Example from ISSUES.md:
+```
+Neon Nexus
+Exits: down, north, south
 ```
 
-## Test Verification
+## Root Cause Analysis
 
-Run: `pytest tests/test_world_grid.py tests/test_area_generation.py -v`
+1. **`Location.VALID_DIRECTIONS`** includes 6 directions: `{"north", "south", "east", "west", "up", "down"}`
+2. **`ai_service._parse_location_response()`** validates against `Location.VALID_DIRECTIONS`, so it accepts `up`/`down`
+3. **`DIRECTION_OFFSETS`** in `world_grid.py` only has 4 cardinal directions
+4. **`ai_world.py`** has some filtering (e.g., `if direction in DIRECTION_OFFSETS`) but not consistently applied
+
+The fix should be applied at the parsing/validation layer in `ai_service.py` to reject non-cardinal directions before they ever enter the system.
+
+## Implementation Plan
+
+### 1. Add constant for grid-valid directions in `ai_service.py`
+
+```python
+# Valid directions for grid-based movement (subset of Location.VALID_DIRECTIONS)
+GRID_DIRECTIONS: set[str] = {"north", "south", "east", "west"}
+```
+
+### 2. Modify `_parse_location_response()` to filter invalid directions
+
+In `ai_service.py`, update the connection validation to:
+1. Filter out non-cardinal directions instead of raising an error (graceful handling)
+2. Log a warning when filtering occurs
+
+```python
+# Filter connections to only include cardinal directions
+filtered_connections = {}
+for direction, target in connections.items():
+    if direction in GRID_DIRECTIONS:
+        filtered_connections[direction] = target
+    else:
+        # Log but don't fail - AI sometimes generates up/down
+        logger.warning(
+            f"Filtered non-grid direction '{direction}' from location '{name}'"
+        )
+
+# Return filtered connections
+return {
+    "name": name,
+    "description": description,
+    "connections": filtered_connections
+}
+```
+
+### 3. Update `_validate_area_location()` similarly
+
+The area generation validation at line 620 already correctly uses `valid_directions = {"north", "south", "east", "west"}` but raises an error. Change to filter instead of raise:
+
+```python
+# Filter connections to only cardinal directions (no up/down)
+valid_directions = {"north", "south", "east", "west"}
+filtered_connections = {}
+for direction, target in connections.items():
+    if direction in valid_directions:
+        filtered_connections[direction] = target
+    # Non-cardinal directions are silently dropped
+```
+
+## Tests
+
+### File: `tests/test_ai_service.py`
+
+Add tests:
+
+1. **`test_generate_location_filters_non_cardinal_directions()`**
+   - Mock AI response with `{"north": "A", "down": "B", "east": "C"}`
+   - Verify returned connections only contains `{"north": "A", "east": "C"}`
+
+2. **`test_generate_location_filters_up_direction()`**
+   - Mock AI response with `{"up": "Sky Tower", "south": "Ground Floor"}`
+   - Verify returned connections only contains `{"south": "Ground Floor"}`
+
+3. **`test_generate_area_filters_non_cardinal_directions()`**
+   - Mock area response with locations containing `down` exits
+   - Verify all returned locations have only cardinal directions
+
+## Files to Modify
+
+1. `src/cli_rpg/ai_service.py` - Add filtering in `_parse_location_response()` and `_validate_area_location()`
+2. `tests/test_ai_service.py` - Add 3 new tests

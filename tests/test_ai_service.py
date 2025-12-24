@@ -181,31 +181,38 @@ def test_generate_location_with_timeout_raises_exception(mock_openai_class, basi
         service.generate_location(theme="fantasy")
 
 
-# Test: Connection directions are valid
+# Test: Connection directions are filtered to cardinal only
 @patch('cli_rpg.ai_service.OpenAI')
-def test_generate_location_connection_directions_valid(mock_openai_class, basic_config):
-    """Test generate_location validates that connection directions are valid."""
+def test_generate_location_connection_directions_filtered(mock_openai_class, basic_config):
+    """Test generate_location filters out non-cardinal directions like 'northeast'.
+
+    Only north, south, east, west are valid for grid-based movement.
+    Invalid directions like 'northeast' are silently filtered.
+    """
     mock_client = Mock()
     mock_openai_class.return_value = mock_client
-    
+
     # Response with invalid direction
     invalid_response = {
         "name": "Test Location",
         "description": "A test location",
         "connections": {
-            "northeast": "Invalid Direction Location"  # Invalid
+            "northeast": "Invalid Direction Location",  # Invalid - will be filtered
+            "south": "Valid Location"  # Valid - will be kept
         }
     }
-    
+
     mock_response = Mock()
     mock_response.choices = [Mock()]
     mock_response.choices[0].message.content = json.dumps(invalid_response)
     mock_client.chat.completions.create.return_value = mock_response
-    
+
     service = AIService(basic_config)
-    
-    with pytest.raises(AIGenerationError, match="direction"):
-        service.generate_location(theme="fantasy")
+    result = service.generate_location(theme="fantasy")
+
+    # Verify 'northeast' was filtered out, but valid 'south' remains
+    assert "northeast" not in result["connections"]
+    assert result["connections"] == {"south": "Valid Location"}
 
 
 # Test: Caching enabled
@@ -467,3 +474,142 @@ def test_generate_location_with_anthropic(mock_anthropic_class):
     assert call_kwargs["max_tokens"] == 500
     assert len(call_kwargs["messages"]) == 1
     assert call_kwargs["messages"][0]["role"] == "user"
+
+
+# Test: Filter non-cardinal directions (down) - spec: grid-based movement only supports cardinal directions
+@patch('cli_rpg.ai_service.OpenAI')
+def test_generate_location_filters_non_cardinal_directions(mock_openai_class, basic_config):
+    """Test generate_location filters out non-cardinal directions like 'down'.
+
+    The grid-based movement system only supports north, south, east, west.
+    AI may generate 'up' or 'down' connections which should be filtered out.
+    """
+    mock_client = Mock()
+    mock_openai_class.return_value = mock_client
+
+    # Response with both valid and invalid directions
+    response_with_down = {
+        "name": "Neon Nexus",
+        "description": "A hub of pulsing energy and data streams.",
+        "connections": {
+            "north": "Crystal Spire",
+            "down": "Underground Lab",  # Invalid - should be filtered
+            "east": "Data Center"
+        }
+    }
+
+    mock_response = Mock()
+    mock_response.choices = [Mock()]
+    mock_response.choices[0].message.content = json.dumps(response_with_down)
+    mock_client.chat.completions.create.return_value = mock_response
+
+    service = AIService(basic_config)
+    result = service.generate_location(theme="cyberpunk")
+
+    # Verify 'down' was filtered out
+    assert "down" not in result["connections"]
+    assert result["connections"] == {"north": "Crystal Spire", "east": "Data Center"}
+
+
+# Test: Filter 'up' direction - spec: grid-based movement only supports cardinal directions
+@patch('cli_rpg.ai_service.OpenAI')
+def test_generate_location_filters_up_direction(mock_openai_class, basic_config):
+    """Test generate_location filters out 'up' direction.
+
+    The grid-based movement system only supports north, south, east, west.
+    AI may generate 'up' connections which should be filtered out.
+    """
+    mock_client = Mock()
+    mock_openai_class.return_value = mock_client
+
+    # Response with 'up' direction
+    response_with_up = {
+        "name": "Sky Tower Base",
+        "description": "The base of a towering structure reaching into the clouds.",
+        "connections": {
+            "up": "Sky Tower Observation Deck",  # Invalid - should be filtered
+            "south": "Ground Floor Lobby"
+        }
+    }
+
+    mock_response = Mock()
+    mock_response.choices = [Mock()]
+    mock_response.choices[0].message.content = json.dumps(response_with_up)
+    mock_client.chat.completions.create.return_value = mock_response
+
+    service = AIService(basic_config)
+    result = service.generate_location(theme="sci-fi")
+
+    # Verify 'up' was filtered out
+    assert "up" not in result["connections"]
+    assert result["connections"] == {"south": "Ground Floor Lobby"}
+
+
+# Test: Area generation filters non-cardinal directions - spec: grid-based movement
+@patch('cli_rpg.ai_service.OpenAI')
+def test_generate_area_filters_non_cardinal_directions(mock_openai_class, basic_config):
+    """Test generate_area filters out non-cardinal directions from all locations.
+
+    The grid-based movement system only supports north, south, east, west.
+    AI-generated areas may include 'up'/'down' connections which should be filtered.
+    """
+    mock_client = Mock()
+    mock_openai_class.return_value = mock_client
+
+    # Area response with non-cardinal directions in multiple locations
+    area_response = [
+        {
+            "name": "Dungeon Entrance",
+            "description": "A dark entrance leading into the depths below.",
+            "relative_coords": [0, 0],
+            "connections": {
+                "south": "EXISTING_WORLD",
+                "north": "First Chamber",
+                "down": "Deep Pit"  # Invalid - should be filtered
+            }
+        },
+        {
+            "name": "First Chamber",
+            "description": "A dusty chamber with ancient markings.",
+            "relative_coords": [0, 1],
+            "connections": {
+                "south": "Dungeon Entrance",
+                "up": "Ceiling Passage",  # Invalid - should be filtered
+                "east": "Treasure Room"
+            }
+        },
+        {
+            "name": "Treasure Room",
+            "description": "A room filled with glittering treasures.",
+            "relative_coords": [1, 1],
+            "connections": {
+                "west": "First Chamber"
+            }
+        }
+    ]
+
+    mock_response = Mock()
+    mock_response.choices = [Mock()]
+    mock_response.choices[0].message.content = json.dumps(area_response)
+    mock_client.chat.completions.create.return_value = mock_response
+
+    service = AIService(basic_config)
+    result = service.generate_area(
+        theme="fantasy",
+        sub_theme_hint="dungeon",
+        entry_direction="north",
+        context_locations=["Village"],
+        size=3
+    )
+
+    # Verify all non-cardinal directions were filtered from all locations
+    for location in result:
+        for direction in location["connections"].keys():
+            assert direction in {"north", "south", "east", "west"}, \
+                f"Found non-cardinal direction '{direction}' in location '{location['name']}'"
+
+    # Verify specific filtering
+    assert "down" not in result[0]["connections"]
+    assert "up" not in result[1]["connections"]
+    assert result[0]["connections"] == {"south": "EXISTING_WORLD", "north": "First Chamber"}
+    assert result[1]["connections"] == {"south": "Dungeon Entrance", "east": "Treasure Room"}

@@ -299,7 +299,7 @@ Respond with valid JSON in this exact format:
 
 - Name: 2-50 characters (enforced by Location model)
 - Description: 1-500 characters (enforced by Location model)
-- Connections: Only valid directions (north, south, east, west, up, down)
+- Connections: Only grid-compatible directions (north, south, east, west) - non-cardinal directions (up, down) are filtered out
 - No self-connections
 - Connection targets may be dangling (target doesn't exist yet) to support incremental exploration
 - Intentional dangling connections use "Unexplored {Direction}" format

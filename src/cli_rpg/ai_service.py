@@ -17,8 +17,15 @@ except ImportError:
     anthropic_module = None
     ANTHROPIC_AVAILABLE = False
 
+import logging
+
 from cli_rpg.ai_config import AIConfig
 from cli_rpg.models.location import Location
+
+# Valid directions for grid-based movement (subset of Location.VALID_DIRECTIONS)
+GRID_DIRECTIONS: set[str] = {"north", "south", "east", "west"}
+
+logger = logging.getLogger(__name__)
 
 
 class AIServiceError(Exception):
@@ -344,19 +351,23 @@ class AIService:
         connections = data["connections"]
         if not isinstance(connections, dict):
             raise AIGenerationError("Connections must be a dictionary")
-        
-        for direction in connections.keys():
-            if direction not in Location.VALID_DIRECTIONS:
-                raise AIGenerationError(
-                    f"Invalid direction '{direction}'. Must be one of: "
-                    f"{', '.join(sorted(Location.VALID_DIRECTIONS))}"
+
+        # Filter connections to only include cardinal directions (grid-based movement)
+        filtered_connections = {}
+        for direction, target in connections.items():
+            if direction in GRID_DIRECTIONS:
+                filtered_connections[direction] = target
+            else:
+                # Log but don't fail - AI sometimes generates up/down
+                logger.warning(
+                    f"Filtered non-grid direction '{direction}' from location '{name}'"
                 )
-        
-        # Return validated data
+
+        # Return validated data with filtered connections
         return {
             "name": name,
             "description": description,
-            "connections": connections
+            "connections": filtered_connections
         }
     
     def _get_cached(self, prompt: str) -> Optional[dict]:
@@ -617,19 +628,22 @@ Note: Use "EXISTING_WORLD" as placeholder for the connection back to the source 
         if not isinstance(connections, dict):
             raise AIGenerationError(f"Location {index} connections must be a dictionary")
 
-        valid_directions = {"north", "south", "east", "west"}
-        for direction in connections.keys():
-            if direction not in valid_directions:
-                raise AIGenerationError(
-                    f"Location {index} invalid direction '{direction}'. "
-                    f"Must be one of: {', '.join(sorted(valid_directions))}"
+        # Filter connections to only include cardinal directions (grid-based movement)
+        filtered_connections = {}
+        for direction, target in connections.items():
+            if direction in GRID_DIRECTIONS:
+                filtered_connections[direction] = target
+            else:
+                # Log but don't fail - AI sometimes generates up/down
+                logger.warning(
+                    f"Filtered non-grid direction '{direction}' from area location '{name}'"
                 )
 
         return {
             "name": name,
             "description": description,
             "relative_coords": coords,
-            "connections": connections
+            "connections": filtered_connections
         }
 
     def _get_cached_list(self, prompt: str) -> Optional[list]:

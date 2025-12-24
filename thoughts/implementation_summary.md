@@ -1,57 +1,50 @@
-# Implementation Summary: Fix "Closed Border MISUNDERSTOOD" Issue
+# Implementation Summary: Filter Non-Cardinal Directions in AI-Generated Locations
 
 ## What Was Implemented
 
-### Problem
-The original implementation validated that the world border is "closed" (all exits point to existing locations). However, the game design requires the **opposite**: the border should always remain **open** at least at one point so the world can expand infinitely. Players should never be trapped in a fully enclosed area with no exits pointing to unexplored coordinates.
+Fixed the bug where AI-generated locations could have invalid "up" or "down" connection directions that are incompatible with the grid-based movement system. The system now gracefully filters out non-cardinal directions instead of potentially allowing them or raising errors.
 
-### Solution
-Renamed and refactored methods to clarify semantics and ensure worlds always have expansion possibilities:
+### Changes Made
 
-## Files Modified
+#### 1. `src/cli_rpg/ai_service.py`
+- Added `GRID_DIRECTIONS` constant: `{"north", "south", "east", "west"}`
+- Added `logger` for warning messages when filtering occurs
+- Modified `_parse_location_response()`:
+  - Changed from validating against `Location.VALID_DIRECTIONS` (which includes up/down)
+  - Now filters connections to only include `GRID_DIRECTIONS`
+  - Logs a warning when non-cardinal directions are filtered
+- Modified `_validate_area_location()`:
+  - Changed from raising `AIGenerationError` for non-cardinal directions
+  - Now filters connections to only include `GRID_DIRECTIONS`
+  - Logs a warning when non-cardinal directions are filtered
 
-### 1. `src/cli_rpg/world_grid.py`
-- **Renamed `find_unreachable_exits()` to `find_frontier_exits()`**: Now correctly framed as finding expansion opportunities (exits pointing to unexplored coordinates)
-- **Added `has_expansion_exits()` method**: Returns `True` if at least one frontier exit exists (the desired state for infinite expansion)
-- **Updated `validate_border_closure()` docstring**: Clarified that a closed border is NOT desired; made it return the opposite of `has_expansion_exits()` for backward compatibility
-- **Added `ensure_expansion_possible()` method**: Guarantees at least one frontier exit exists by adding a dangling exit to an edge location if needed
-- **Maintained backward compatibility**: `find_unreachable_exits()` is now an alias for `find_frontier_exits()`
-
-### 2. `src/cli_rpg/ai_world.py`
-- **Updated `expand_area()` function**: Now calls `ensure_expansion_possible()` at the end of area generation to guarantee the world can always expand further
-
-### 3. `tests/test_world_grid.py`
-- **Renamed `TestWorldGridBorderValidation` to `TestWorldGridExpansionValidation`**
-- Updated all test names and docstrings to reflect the new semantics:
-  - `test_find_frontier_exits_empty_world`
-  - `test_find_frontier_exits_detects_expansion_opportunities`
-  - `test_find_frontier_exits_ignores_connected_locations`
-  - `test_has_expansion_exits_false_when_closed`
-  - `test_has_expansion_exits_true_when_frontier_exists`
-  - `test_ensure_expansion_possible_adds_exit_when_closed`
-  - `test_ensure_expansion_possible_noop_when_already_open`
-- Added backward compatibility tests for alias methods
-
-### 4. `tests/test_area_generation.py`
-- **Renamed `test_expand_area_border_closed` to `test_expand_area_preserves_expansion_exits`**
-- Changed assertion to verify world has expansion exits after area generation (the desired state)
+#### 2. `tests/test_ai_service.py`
+- Added 3 new tests:
+  - `test_generate_location_filters_non_cardinal_directions` - verifies "down" is filtered
+  - `test_generate_location_filters_up_direction` - verifies "up" is filtered
+  - `test_generate_area_filters_non_cardinal_directions` - verifies area generation filters up/down
+- Updated existing test:
+  - Renamed `test_generate_location_connection_directions_valid` to `test_generate_location_connection_directions_filtered`
+  - Changed from expecting an exception to verifying filtering behavior
 
 ## Test Results
-- All 834 tests pass
-- No regressions in existing functionality
-- Full backward compatibility maintained
 
-## Key Design Decisions
+All 837 tests pass (1 skipped):
+- 21 tests in `test_ai_service.py` - all passing
+- Full test suite: 837 passed, 1 skipped
 
-1. **Semantic Clarity**: "Frontier exits" is a clearer name than "unreachable exits" since these exits are good (they enable expansion)
+## Design Decisions
 
-2. **Backward Compatibility**: Old method names (`find_unreachable_exits`, `validate_border_closure`) are maintained as aliases
+1. **Filter instead of reject**: Chose to silently filter out non-cardinal directions rather than raising an error. This provides graceful degradation since AI responses are inherently unpredictable.
 
-3. **Automatic Enforcement**: `ensure_expansion_possible()` is called after `expand_area()` to guarantee expansion is always possible
+2. **Warning logging**: Added warning log messages when filtering occurs to help with debugging and monitoring AI behavior.
 
-4. **Randomized Selection**: When adding a frontier exit, a random edge location and direction are chosen to provide variety
+3. **Single source of truth**: Used the new `GRID_DIRECTIONS` constant in both `_parse_location_response()` and `_validate_area_location()` for consistency.
 
-## E2E Tests Should Validate
-- After any area expansion, player should always be able to find at least one exit leading to unexplored territory
-- Navigating to the edge of explored areas should always present at least one "dangling" exit for further exploration
-- The world should never become fully enclosed with no way to trigger new area generation
+## E2E Validation
+
+The fix should be validated by:
+1. Starting a new game with AI world generation enabled
+2. Exploring to trigger AI location generation
+3. Verifying that all generated locations only have cardinal directions (north, south, east, west)
+4. Checking logs for any "Filtered non-grid direction" warnings

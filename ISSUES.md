@@ -1,14 +1,28 @@
 ## Active Issues
 
-### Invalid connection (down) created
-**Status**: ACTIVE
-
-Neon Nexus
-A bustling metropolis of neon lights, towering skyscrapers, and crowded streets filled with augmented individuals and shady characters.
-NPCs: Merchant
-Exits: down, north, south
+*No active issues*
 
 ## Resolved Issues
+
+### Invalid connection (down) created
+**Status**: RESOLVED
+
+**Original Problem**: AI-generated locations could have invalid "up" or "down" connection directions that are incompatible with the grid-based movement system. Example: "Neon Nexus" was generated with "Exits: down, north, south".
+
+**Solution Implemented**:
+- Added `GRID_DIRECTIONS` constant in `ai_service.py`: `{"north", "south", "east", "west"}`
+- Modified `_parse_location_response()` to filter connections to only include grid-compatible directions
+- Modified `_validate_area_location()` to filter connections to only include grid-compatible directions
+- Added warning logging when non-cardinal directions are filtered out
+- Graceful degradation: locations are still created with valid cardinal directions rather than being rejected
+
+**Test Coverage**: 4 new/updated tests in `test_ai_service.py`:
+- `test_generate_location_filters_non_cardinal_directions`
+- `test_generate_location_filters_up_direction`
+- `test_generate_area_filters_non_cardinal_directions`
+- `test_generate_location_connection_directions_filtered`
+
+---
 
 ### Closed Border MISUNDERSTOOD (High Priority)
 **Status**: RESOLVED
