@@ -4,6 +4,9 @@ import logging
 from typing import Optional
 from cli_rpg.ai_service import AIService, AIServiceError
 from cli_rpg.models.location import Location
+from cli_rpg.models.npc import NPC
+from cli_rpg.models.shop import Shop, ShopItem
+from cli_rpg.models.item import Item, ItemType
 from cli_rpg.world_grid import WorldGrid, DIRECTION_OFFSETS
 
 
@@ -82,6 +85,40 @@ def create_ai_world(
         connections={}  # WorldGrid will add connections
     )
     grid.add_location(starting_location, 0, 0)
+
+    # Add default merchant NPC to starting location for shop access
+    potion = Item(
+        name="Health Potion",
+        description="Restores 25 HP",
+        item_type=ItemType.CONSUMABLE,
+        heal_amount=25
+    )
+    sword = Item(
+        name="Iron Sword",
+        description="A sturdy blade",
+        item_type=ItemType.WEAPON,
+        damage_bonus=5
+    )
+    armor = Item(
+        name="Leather Armor",
+        description="Light protection",
+        item_type=ItemType.ARMOR,
+        defense_bonus=3
+    )
+    shop_items = [
+        ShopItem(item=potion, buy_price=50),
+        ShopItem(item=sword, buy_price=100),
+        ShopItem(item=armor, buy_price=80)
+    ]
+    shop = Shop(name="General Store", inventory=shop_items)
+    merchant = NPC(
+        name="Merchant",
+        description="A friendly shopkeeper with various wares",
+        dialogue="Welcome, traveler! Take a look at my goods.",
+        is_merchant=True,
+        shop=shop
+    )
+    starting_location.npcs.append(merchant)
 
     # Queue connections to explore
     for direction, target_name in starting_data["connections"].items():

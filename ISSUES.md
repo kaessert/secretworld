@@ -1,10 +1,5 @@
 ## Active Issues
 
-### BUG User finds no NPCs
-**Status**: ACTIVE
-
-We're getting reports that users can't find ANY npcs in game
-
 ### Support Anthropic API Key
 **Status**: ACTIVE
 
@@ -18,6 +13,19 @@ there should be a method of checking if the world border is completely closed, t
 all exits are visited and no way of getting to a tile whih triggers regeneration, THIS SHOULD BE AVOIDED in any case
 
 ## Resolved Issues
+
+### BUG User finds no NPCs in AI-generated worlds
+**Status**: RESOLVED
+
+**Original Problem**: Users reported that they couldn't find any NPCs in AI-generated worlds. The starting location had no merchant, preventing access to shops.
+
+**Solution Implemented**:
+- Added a default merchant NPC to the starting location in AI-generated worlds (`ai_world.py`)
+- Merchant has a "General Store" shop with Health Potion (50g), Iron Sword (100g), and Leather Armor (80g)
+- Consistent with default world's merchant inventory
+- Added test `test_create_ai_world_starting_location_has_merchant_npc()` to verify the fix
+
+---
 
 ### Direction shorthands for movement
 **Status**: RESOLVED

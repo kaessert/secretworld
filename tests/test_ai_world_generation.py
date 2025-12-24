@@ -528,6 +528,27 @@ def test_create_ai_world_assigns_coordinates(mock_ai_service):
     assert world["Town Square"].coordinates == (0, 0)
 
 
+# Test: Starting location has merchant NPC for shop access
+def test_create_ai_world_starting_location_has_merchant_npc(mock_ai_service):
+    """Test starting location has a merchant NPC for shop access.
+
+    Spec (Fix): AI-generated starting location must have at least one merchant NPC.
+    """
+    mock_ai_service.generate_location.return_value = {
+        "name": "Town Square",
+        "description": "A bustling town square.",
+        "connections": {}
+    }
+
+    world, starting_location = create_ai_world(mock_ai_service, theme="fantasy")
+
+    start_loc = world[starting_location]
+    assert len(start_loc.npcs) >= 1
+    merchants = [npc for npc in start_loc.npcs if npc.is_merchant]
+    assert len(merchants) >= 1
+    assert merchants[0].shop is not None
+
+
 # Test: Expand world assigns coordinates to new location
 def test_expand_world_assigns_coordinates(mock_ai_service):
     """Test expand_world assigns correct coordinates to new locations.
