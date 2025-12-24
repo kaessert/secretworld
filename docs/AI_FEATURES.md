@@ -187,17 +187,32 @@ The system handles various error scenarios:
 
 ## Testing
 
-All AI features are fully tested with 55 dedicated tests:
+All AI features are fully tested with comprehensive test coverage:
+
+### Unit and Integration Tests (55 tests)
 - Configuration validation (13 tests)
 - AI service functionality (16 tests)
 - World generation (15 tests)
 - GameState integration (11 tests)
 
+### End-to-End Tests (11 tests)
+The E2E test suite validates dynamic world expansion in realistic player scenarios:
+- Basic single expansion with dangling connection detection
+- Multi-step expansion chains
+- Mixed navigation through existing and generated locations
+- Failure handling and graceful degradation
+- Theme consistency and world integrity
+
 Tests use mocked API calls - no real API calls during testing.
 
-Run tests:
+Run all AI tests:
 ```bash
-pytest tests/test_ai_*.py -v
+pytest tests/test_ai_*.py tests/test_e2e_world_expansion.py -v
+```
+
+Run only E2E tests:
+```bash
+pytest tests/test_e2e_world_expansion.py -v
 ```
 
 ## Limitations

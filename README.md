@@ -92,8 +92,22 @@ See [docs/AI_FEATURES.md](docs/AI_FEATURES.md) for detailed AI configuration.
 ## Development
 
 ### Running Tests
+
+Run all tests:
 ```bash
 pytest
+```
+
+Run specific test suites:
+```bash
+# AI-related unit and integration tests
+pytest tests/test_ai_*.py -v
+
+# Dynamic world expansion E2E tests
+pytest tests/test_e2e_world_expansion.py -v
+
+# All tests with coverage
+pytest --cov=src/cli_rpg
 ```
 
 ### Project Structure

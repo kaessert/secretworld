@@ -278,7 +278,36 @@ Respond with valid JSON in this exact format:
 - Test serialization/deserialization
 - Test fallback mechanisms
 
-### 9.3 Manual Tests
+### 9.3 End-to-End Tests
+
+The E2E test suite (`tests/test_e2e_world_expansion.py`) validates dynamic world expansion in realistic gameplay scenarios:
+
+**Test Scenarios:**
+- Single location expansion from dangling connection
+- Multi-step expansion chains (3+ consecutive expansions)
+- Expansion after navigating through existing world
+- Expansion when destination already exists (no duplication)
+- Failure handling when AI generation fails
+- Behavior without AI service (graceful fallback)
+- Theme consistency across expansions
+- Connection updates after expansion
+- Multiple paths to same expansion point
+- Game state preservation during expansion
+- World integrity after multiple expansions
+
+**Test Infrastructure:**
+- Fixtures for different world configurations
+- Mock AI service with predictable outputs
+- Helper functions for bidirectional connection verification
+- World integrity validation utilities
+
+**Coverage:**
+- All specification elements validated
+- Success and failure paths tested
+- State preservation confirmed
+- Connection integrity verified
+
+### 9.4 Manual Tests
 
 - Real API integration (with test key)
 - Performance testing
