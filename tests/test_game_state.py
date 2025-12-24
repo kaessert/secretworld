@@ -84,6 +84,42 @@ class TestParseCommand:
         cmd, args = parse_command("go")
         assert cmd == "go"
         assert args == []
+    
+    def test_parse_command_attack(self):
+        """Test parsing 'attack' command.
+        
+        Spec: 'attack' should return ("attack", [])
+        """
+        cmd, args = parse_command("attack")
+        assert cmd == "attack"
+        assert args == []
+    
+    def test_parse_command_defend(self):
+        """Test parsing 'defend' command.
+        
+        Spec: 'defend' should return ("defend", [])
+        """
+        cmd, args = parse_command("defend")
+        assert cmd == "defend"
+        assert args == []
+    
+    def test_parse_command_flee(self):
+        """Test parsing 'flee' command.
+        
+        Spec: 'flee' should return ("flee", [])
+        """
+        cmd, args = parse_command("flee")
+        assert cmd == "flee"
+        assert args == []
+    
+    def test_parse_command_status(self):
+        """Test parsing 'status' command.
+        
+        Spec: 'status' should return ("status", [])
+        """
+        cmd, args = parse_command("status")
+        assert cmd == "status"
+        assert args == []
 
 
 class TestGameStateInit:

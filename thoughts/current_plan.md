@@ -1,341 +1,356 @@
-# Implementation Plan: AI-Powered World Generation Integration
+# Implementation Plan: Combat Commands Integration into Main Game Loop
 
 ## 1. SPECIFICATION
 
-### 1.1 Feature Requirements
-- Import `load_ai_config`, `AIService`, and `create_world` into `main.py`
-- Load AI config at game start (during `main()` initialization)
-- Pass AI service to `create_world()` when creating worlds
-- Pass AI service and theme to `GameState` constructor
-- Add optional theme selection during character creation or game start
-- Maintain backward compatibility with existing functionality
-- All existing tests must continue to pass
-- Default to "fantasy" theme when AI is not available or theme not selected
+### Combat State Detection Requirements
+- Game loop must check `game_state.is_in_combat()` on every iteration
+- Combat state transitions: exploration → combat (via encounter) → exploration (via victory/flee/death)
+- Commands must be routed to appropriate handlers based on combat state
 
-### 1.2 Integration Points
-**File: `src/cli_rpg/main.py`**
-- `main()` function: Load AI config at startup
-- `start_game()` function: Replace `create_default_world()` with `create_world(ai_service, theme)`
-- Add theme selection flow (optional, after character creation)
-- Pass `ai_service` and `theme` to `GameState` constructor
+### Combat Command Routing Specification
+**When `is_in_combat() == True`:**
+- `attack` → call `game_state.current_combat.player_attack()`
+- `defend` → call `game_state.current_combat.player_defend()`
+- `flee` → call `game_state.current_combat.player_flee()`
+- `status` → call `game_state.current_combat.get_status()`
+- `look`, `go`, `save`, `quit` → display error: "Can't do that during combat!"
 
-**File: `src/cli_rpg/character_creation.py`**
-- Add `get_theme_selection()` function for optional theme input
-- Integrate theme selection into character creation flow or as separate step
+**When `is_in_combat() == False`:**
+- `look` → call `game_state.look()`
+- `go <direction>` → call `game_state.move(direction)`
+- `status` → display character status via `str(game_state.current_character)`
+- `save` → save game state
+- `quit` → exit game
+- `attack`, `defend`, `flee` → display error: "Not in combat."
 
-### 1.3 API Contracts
-```python
-# main.py changes
-def start_game(character: Character, ai_service: Optional[AIService] = None, theme: str = "fantasy") -> None:
-    world = create_world(ai_service=ai_service, theme=theme)
-    game_state = GameState(character, world, ai_service=ai_service, theme=theme)
-    # ... existing gameplay loop ...
+### Combat Flow Specification
+1. **Player Turn**: Execute player command (attack/defend/flee)
+2. **Enemy Turn**: If combat still active and player didn't flee, enemy attacks
+3. **Victory Check**: If enemy defeated, call `end_combat(victory=True)`
+4. **Flee Check**: If flee successful, call `end_combat(victory=False)` with no XP
+5. **Death Check**: If player health ≤ 0, end combat and handle game over
+6. **Combat End**: Clear `game_state.current_combat` (set to None)
 
-def main() -> int:
-    # Load AI config at startup
-    ai_config = load_ai_config()
-    ai_service = AIService(ai_config) if ai_config else None
-    # ... existing menu loop, pass ai_service where needed ...
-```
-
-### 1.4 Success Criteria
-- AI service loaded when OPENAI_API_KEY is available
-- Theme selection available during character creation flow
-- `create_world()` uses AI when available, falls back to default world
-- `GameState` receives AI service for dynamic world expansion
-- All 251+ existing tests pass
-- New E2E test validates complete flow with mocked AI service
+### Display Specification
+- Show available commands based on combat state
+- Display combat status after each action during combat
+- Display clear messages for state transitions
 
 ---
 
-## 2. TEST DEVELOPMENT
+## 2. TEST IMPLEMENTATION
 
-### 2.1 Create E2E Test File
-**File: `tests/test_e2e_ai_integration.py`**
+### 2.1 Create Test File: `tests/test_main_combat_integration.py`
 
-Test cases to verify complete AI integration flow:
+**Test: Combat command routing during combat**
+- Spec: When in combat, attack/defend/flee commands should execute combat actions
+- Setup: Create game state, trigger encounter, simulate combat commands
+- Assert: Commands call correct CombatEncounter methods and return proper messages
 
-1. **Test: AI config loading at startup**
-   - Mock `load_ai_config()` to return valid config
-   - Mock `AIService` initialization
-   - Verify `main()` loads config without errors
-   - Verify AI service is passed through to game components
+**Test: Exploration command blocking during combat**
+- Spec: When in combat, look/go/save commands should show error message
+- Setup: Create game state, trigger encounter
+- Assert: Commands return error messages and don't execute exploration actions
 
-2. **Test: Theme selection during character creation**
-   - Mock input for character creation
-   - Add theme selection input
-   - Verify theme is captured and passed to `start_game()`
+**Test: Combat command blocking during exploration**
+- Spec: When not in combat, attack/defend/flee commands should show error
+- Setup: Create game state with no combat
+- Assert: Commands return error messages
 
-3. **Test: World creation with AI service**
-   - Mock `create_world()` with AI service
-   - Verify AI service and theme are passed correctly
-   - Verify world is created with AI-generated locations
+**Test: Status command in exploration mode**
+- Spec: Status command during exploration shows character stats
+- Setup: Create game state, no combat
+- Assert: Status output contains character name, level, health, stats
 
-4. **Test: GameState initialization with AI service**
-   - Mock character creation and theme selection
-   - Verify `GameState` receives AI service and theme
-   - Verify dynamic world expansion is enabled
+**Test: Status command in combat mode**
+- Spec: Status command during combat shows combat status
+- Setup: Create game state, trigger encounter
+- Assert: Status output contains both player and enemy health
 
-5. **Test: Complete E2E flow with mocked AI**
-   - Mock entire flow from startup to gameplay
-   - Mock AI service responses
-   - Verify: config load → character creation → theme selection → world creation → gameplay with AI expansion
-   - Verify user can play game with AI-generated world
+**Test: Player attack sequence**
+- Spec: Attack command damages enemy, triggers enemy turn if combat continues
+- Setup: Create game state with combat
+- Assert: Enemy health decreases, enemy attacks back if alive
 
-6. **Test: Graceful fallback when AI unavailable**
-   - Mock `load_ai_config()` to return None
-   - Verify game uses default world
-   - Verify all features work without AI
+**Test: Player defend sequence**
+- Spec: Defend command sets defensive stance, enemy attack does reduced damage
+- Setup: Create game state with combat
+- Assert: Defending flag set, next enemy attack does less damage
 
-7. **Test: Theme persistence in save/load**
-   - Create character with AI and custom theme
-   - Start game with AI-generated world
-   - Save game state
-   - Load game state
-   - Verify theme is preserved
-   - Verify AI service can be re-attached after load
+**Test: Successful flee from combat**
+- Spec: Flee command exits combat without XP when successful
+- Setup: Create game state with high dexterity character in combat
+- Assert: Combat ends, current_combat is None, no XP gained
 
-### 2.2 Update Existing Tests
-**File: `tests/test_main.py`**
-- Update test fixtures to handle optional AI service parameter
-- Add test for `main()` loading AI config
-- Add test for `start_game()` accepting optional ai_service and theme parameters
+**Test: Failed flee from combat**
+- Spec: Failed flee triggers enemy turn and combat continues
+- Setup: Create game state with low dexterity character in combat
+- Assert: Combat still active, player takes damage
 
-**File: `tests/test_character_creation.py`**
-- Add tests for theme selection flow if integrated into character creation
+**Test: Victory ends combat and awards XP**
+- Spec: Defeating enemy ends combat, awards XP, may trigger level up
+- Setup: Create game state with high-damage character vs weak enemy
+- Assert: Enemy defeated, XP gained, combat cleared
+
+**Test: Player death ends combat**
+- Spec: When player health reaches 0, combat ends
+- Setup: Create game state, reduce player health to critical
+- Assert: Combat ends when health ≤ 0
+
+**Test: Combat state persists through turns**
+- Spec: Combat encounter object remains active through multiple turns
+- Setup: Create game state with combat
+- Assert: Same combat instance used across turns until resolution
+
+### 2.2 Create Test File: `tests/test_main_game_loop_state_handling.py`
+
+**Test: Game loop checks combat state each iteration**
+- Spec: Main loop must call is_in_combat() to determine command routing
+- Setup: Mock game loop iteration
+- Assert: is_in_combat() called before command routing
+
+**Test: Transition from exploration to combat**
+- Spec: Random encounter triggers combat state
+- Setup: Create game state, move to new location triggering encounter
+- Assert: is_in_combat() returns True after encounter
+
+**Test: Transition from combat to exploration**
+- Spec: Ending combat (victory/flee) returns to exploration state
+- Setup: Create game state in combat, resolve combat
+- Assert: is_in_combat() returns False after resolution
+
+**Test: Save during exploration allowed**
+- Spec: Save command works when not in combat
+- Setup: Create game state, execute save
+- Assert: Save executes successfully
+
+**Test: Save during combat blocked**
+- Spec: Save command blocked when in combat
+- Setup: Create game state in combat, attempt save
+- Assert: Error message displayed, save not executed
 
 ---
 
 ## 3. IMPLEMENTATION
 
-### 3.1 Add Theme Selection to Character Creation
-**File: `src/cli_rpg/character_creation.py`**
+### 3.1 Modify `src/cli_rpg/main.py` - `start_game()` function
 
+**Step 1: Add combat command handler function (before main loop)**
 ```python
-def get_theme_selection() -> str:
-    """Prompt user for world theme selection.
-    
-    Returns:
-        Selected theme string (defaults to "fantasy")
-    """
-    print("\nSelect world theme (or press Enter for default 'fantasy'):")
-    print("1. Fantasy (default)")
-    print("2. Sci-Fi")
-    print("3. Cyberpunk")
-    print("4. Horror")
-    print("5. Steampunk")
-    print("6. Custom")
-    
-    choice = input("> ").strip().lower()
-    
-    theme_map = {
-        "1": "fantasy",
-        "2": "sci-fi",
-        "3": "cyberpunk",
-        "4": "horror",
-        "5": "steampunk",
-        "fantasy": "fantasy",
-        "sci-fi": "sci-fi",
-        "scifi": "sci-fi",
-        "cyberpunk": "cyberpunk",
-        "horror": "horror",
-        "steampunk": "steampunk"
-    }
-    
-    if choice in theme_map:
-        return theme_map[choice]
-    elif choice == "6" or choice == "custom":
-        custom = input("Enter custom theme: ").strip()
-        return custom if custom else "fantasy"
-    elif choice == "":
-        return "fantasy"
-    else:
-        print("Invalid choice, defaulting to 'fantasy'")
-        return "fantasy"
-```
-
-**Integration point:** Add theme selection after character confirmation, before returning from `create_character()`.
-
-### 3.2 Integrate AI into Main Entry Point
-**File: `src/cli_rpg/main.py`**
-
-**Step 3.2.1: Add imports**
-```python
-from typing import Optional
-from cli_rpg.config import load_ai_config
-from cli_rpg.ai_service import AIService
-from cli_rpg.world import create_world
-# Keep create_default_world import for backward compatibility fallback
-```
-
-**Step 3.2.2: Update start_game() signature and implementation**
-```python
-def start_game(
-    character: Character, 
-    ai_service: Optional[AIService] = None,
-    theme: str = "fantasy"
-) -> None:
-    """Start the gameplay loop with the given character.
+def handle_combat_command(game_state: GameState, command: str, args: list[str]) -> str:
+    """Handle commands during combat.
     
     Args:
-        character: The player's character to start the game with
-        ai_service: Optional AIService for AI-powered world generation
-        theme: World theme for generation (default: "fantasy")
-    """
-    # Create game state with AI-powered or default world
-    world = create_world(ai_service=ai_service, theme=theme)
-    game_state = GameState(
-        character, 
-        world, 
-        ai_service=ai_service, 
-        theme=theme
-    )
-    
-    # Display welcome message
-    print("\n" + "=" * 50)
-    print(f"Welcome to the adventure, {character.name}!")
-    if ai_service:
-        print(f"Exploring a {theme} world powered by AI...")
-    print("=" * 50)
-    
-    # ... rest of existing implementation unchanged ...
-```
-
-**Step 3.2.3: Update main() to load AI config and pass to start_game**
-```python
-def main() -> int:
-    """Main function to start the CLI RPG game.
-    
+        game_state: Current game state
+        command: Parsed command
+        args: Command arguments
+        
     Returns:
-        Exit code (0 for success)
+        Message string to display
     """
-    print("\n" + "=" * 50)
-    print("Welcome to CLI RPG!")
-    print("=" * 50)
+    if not game_state.is_in_combat():
+        return "\n✗ Not in combat."
     
-    # Load AI configuration at startup
-    ai_config = load_ai_config()
-    ai_service = None
-    if ai_config:
-        try:
-            ai_service = AIService(ai_config)
-            print("\n✓ AI world generation enabled!")
-            print("  Set OPENAI_API_KEY to use AI features.")
-        except Exception as e:
-            print(f"\n⚠ AI initialization failed: {e}")
-            print("  Falling back to default world generation.")
+    combat = game_state.current_combat
+    
+    if command == "attack":
+        victory, message = combat.player_attack()
+        output = f"\n{message}"
+        
+        if victory:
+            # Enemy defeated
+            end_message = combat.end_combat(victory=True)
+            output += f"\n{end_message}"
+            game_state.current_combat = None
+        else:
+            # Enemy still alive, enemy attacks
+            enemy_message = combat.enemy_turn()
+            output += f"\n{enemy_message}"
+            
+            # Check if player died
+            if not game_state.current_character.is_alive():
+                death_message = combat.end_combat(victory=False)
+                output += f"\n{death_message}"
+                output += "\n\n=== GAME OVER ==="
+                game_state.current_combat = None
+        
+        return output
+    
+    elif command == "defend":
+        _, message = combat.player_defend()
+        output = f"\n{message}"
+        
+        # Enemy attacks
+        enemy_message = combat.enemy_turn()
+        output += f"\n{enemy_message}"
+        
+        # Check if player died
+        if not game_state.current_character.is_alive():
+            death_message = combat.end_combat(victory=False)
+            output += f"\n{death_message}"
+            output += "\n\n=== GAME OVER ==="
+            game_state.current_combat = None
+        
+        return output
+    
+    elif command == "flee":
+        success, message = combat.player_flee()
+        output = f"\n{message}"
+        
+        if success:
+            # Fled successfully
+            game_state.current_combat = None
+            combat.is_active = False
+        else:
+            # Flee failed, enemy attacks
+            enemy_message = combat.enemy_turn()
+            output += f"\n{enemy_message}"
+            
+            # Check if player died
+            if not game_state.current_character.is_alive():
+                death_message = combat.end_combat(victory=False)
+                output += f"\n{death_message}"
+                output += "\n\n=== GAME OVER ==="
+                game_state.current_combat = None
+        
+        return output
+    
+    elif command == "status":
+        return "\n" + combat.get_status()
+    
     else:
-        print("\n⚠ AI world generation not available.")
-        print("  Set OPENAI_API_KEY to enable AI features.")
-    
-    while True:
-        choice = show_main_menu()
-        
-        if choice == "1":
-            # Create new character
-            character = create_character()
-            if character:
-                print(f"\n✓ {character.name} has been created successfully!")
-                
-                # Theme selection (if AI is available)
-                theme = "fantasy"
-                if ai_service:
-                    from cli_rpg.character_creation import get_theme_selection
-                    theme = get_theme_selection()
-                    print(f"\n✓ Selected theme: {theme}")
-                
-                print(f"Your character is ready for adventure!")
-                
-                # Start the game with AI service and theme
-                start_game(character, ai_service=ai_service, theme=theme)
-                
-        elif choice == "2":
-            # Load character
-            character = select_and_load_character()
-            if character:
-                # For backward compatibility: loaded saves may have theme info
-                # Start with AI service available for dynamic expansion
-                start_game(character, ai_service=ai_service, theme="fantasy")
-                
-        elif choice == "3":
-            print("\nThank you for playing CLI RPG!")
-            print("Goodbye!")
-            break
-        else:
-            print("\n✗ Invalid choice. Please enter 1, 2, or 3.")
-    
-    return 0
+        return "\n✗ Can't do that during combat! Use: attack, defend, flee, or status"
 ```
 
-### 3.3 Handle Game State Loading with AI
-**File: `src/cli_rpg/main.py`**
+**Step 2: Add exploration command handler function (before main loop)**
+```python
+def handle_exploration_command(game_state: GameState, command: str, args: list[str]) -> tuple[bool, str]:
+    """Handle commands during exploration.
+    
+    Args:
+        game_state: Current game state
+        command: Parsed command
+        args: Command arguments
+        
+    Returns:
+        Tuple of (continue_game, message)
+    """
+    if command == "look":
+        return (True, "\n" + game_state.look())
+    
+    elif command == "go":
+        if not args:
+            return (True, "\nGo where? Specify a direction (north, south, east, west, up, down)")
+        
+        direction = args[0]
+        success, message = game_state.move(direction)
+        output = f"\n{message}"
+        
+        if success:
+            # Show new location
+            output += "\n\n" + game_state.look()
+        
+        return (True, output)
+    
+    elif command == "status":
+        return (True, "\n" + str(game_state.current_character))
+    
+    elif command == "save":
+        try:
+            filepath = save_game_state(game_state)
+            return (True, f"\n✓ Game saved successfully!\n  Save location: {filepath}")
+        except IOError as e:
+            return (True, f"\n✗ Failed to save game: {e}")
+    
+    elif command == "quit":
+        print("\n" + "=" * 50)
+        response = input("Save before quitting? (y/n): ").strip().lower()
+        if response == 'y':
+            try:
+                filepath = save_game_state(game_state)
+                print(f"\n✓ Game saved successfully!")
+                print(f"  Save location: {filepath}")
+            except IOError as e:
+                print(f"\n✗ Failed to save game: {e}")
+        
+        print("\nReturning to main menu...")
+        return (False, "")
+    
+    elif command in ["attack", "defend", "flee"]:
+        return (True, "\n✗ Not in combat.")
+    
+    elif command == "unknown":
+        return (True, "\n✗ Unknown command. Type 'look', 'go <direction>', 'status', 'save', or 'quit'")
+    
+    else:
+        return (True, "\n✗ Unknown command. Type 'look', 'go <direction>', 'status', 'save', or 'quit'")
+```
 
-**Step 3.3.1: Update select_and_load_character() to use load_game_state**
+**Step 3: Replace main game loop in `start_game()`**
 
-When loading a saved game, we should load the full game state (not just character) and restore with AI service:
+Replace the existing game loop (lines ~75-120) with:
 
 ```python
-def select_and_load_game() -> Optional[tuple[Character, str]]:
-    """Display save selection menu and load chosen game state.
-    
-    Returns:
-        Tuple of (Character, theme) or None if cancelled/failed
-    """
-    saves = list_saves()
-    
-    if not saves:
-        print("\n⚠ No saved games found.")
-        print("  Create a new character first!")
-        return None
-    
-    print("\n" + "=" * 50)
-    print("LOAD GAME")
-    print("=" * 50)
-    print("\nAvailable saved games:")
-    
-    for idx, save in enumerate(saves, start=1):
-        print(f"{idx}. {save['name']} (saved: {save['timestamp']})")
-    
-    print(f"{len(saves) + 1}. Cancel")
-    print("=" * 50)
-    
-    try:
-        choice = input("Select game to load: ").strip()
-        choice_num = int(choice)
+    # Main gameplay loop
+    while True:
+        # Check if player is alive (game over condition)
+        if not game_state.current_character.is_alive():
+            print("\n" + "=" * 50)
+            print("GAME OVER - You have fallen in battle.")
+            print("=" * 50)
+            response = input("\nReturn to main menu? (y/n): ").strip().lower()
+            if response == 'y':
+                break
+            else:
+                # Allow continue even after death (for testing/fun)
+                game_state.current_character.health = game_state.current_character.max_health
+                print("\n✓ Health restored. Returning to town square...")
+                game_state.current_location = "Town Square"
+                game_state.current_combat = None
         
-        if choice_num == len(saves) + 1:
-            print("\nLoad cancelled.")
-            return None
+        print()
+        command_input = input("> ").strip()
         
-        if 1 <= choice_num <= len(saves):
-            selected_save = saves[choice_num - 1]
+        if not command_input:
+            continue
+        
+        # Parse command
+        command, args = parse_command(command_input)
+        
+        # Route command based on combat state
+        if game_state.is_in_combat():
+            message = handle_combat_command(game_state, command, args)
+            print(message)
             
-            # Try to load as game state first
-            try:
-                game_state = load_game_state(selected_save['filepath'])
-                print(f"\n✓ Game loaded successfully!")
-                print(f"\n{game_state.current_character}")
-                return (game_state.current_character, game_state.theme)
-            except:
-                # Fallback: load as character only (backward compatibility)
-                character = load_character(selected_save['filepath'])
-                print(f"\n✓ Character loaded successfully!")
-                print(f"\n{character}")
-                return (character, "fantasy")
+            # Show combat status after each action if still in combat
+            if game_state.is_in_combat():
+                print("\n" + game_state.current_combat.get_status())
         else:
-            print("\n✗ Invalid selection.")
-            return None
+            continue_game, message = handle_exploration_command(game_state, command, args)
+            print(message)
             
-    except ValueError:
-        print("\n✗ Invalid input. Please enter a number.")
-        return None
-    except Exception as e:
-        print(f"\n✗ Failed to load game: {e}")
-        return None
+            if not continue_game:
+                break
 ```
 
-**Step 3.3.2: Update main() to use new load function**
-Replace `select_and_load_character()` call with new implementation.
+### 3.2 Update Command Display in `start_game()` intro
+
+Replace lines ~60-70 with:
+
+```python
+    print("\nExploration Commands:")
+    print("  look          - Look around at your surroundings")
+    print("  go <direction> - Move in a direction (north, south, east, west)")
+    print("  status        - View your character status")
+    print("  save          - Save your game (not available during combat)")
+    print("  quit          - Return to main menu")
+    print("\nCombat Commands:")
+    print("  attack        - Attack the enemy")
+    print("  defend        - Take a defensive stance")
+    print("  flee          - Attempt to flee from combat")
+    print("  status        - View combat status")
+    print("=" * 50)
+```
 
 ---
 
@@ -343,108 +358,98 @@ Replace `select_and_load_character()` call with new implementation.
 
 ### 4.1 Run Test Suite
 ```bash
-# Run all existing tests - should all pass
-pytest tests/ -v
-
-# Run specific E2E test
-pytest tests/test_e2e_ai_integration.py -v
-
-# Check test coverage
-pytest tests/ --cov=src/cli_rpg --cov-report=term-missing
+pytest tests/test_main_combat_integration.py -v
+pytest tests/test_main_game_loop_state_handling.py -v
+pytest tests/test_game_state_combat.py -v
+pytest tests/test_combat.py -v
 ```
 
-### 4.2 Manual Testing Scenarios
+### 4.2 Run Full Test Suite
+```bash
+pytest tests/ -v
+```
+Verify all 273+ tests pass.
 
-**Scenario 1: With AI enabled**
-1. Set OPENAI_API_KEY environment variable
-2. Run `python -m cli_rpg.main`
-3. Create new character
-4. Select custom theme (e.g., "cyberpunk")
-5. Play game and move through locations
-6. Verify AI generates new locations dynamically
-7. Save game
-8. Exit and reload game
-9. Verify theme and world state persist
+### 4.3 Manual Integration Testing
 
-**Scenario 2: Without AI (fallback)**
-1. Unset OPENAI_API_KEY
-2. Run game
-3. Verify default world is used
-4. Verify all core features work
-5. Verify can save/load without AI
+**Test Case 1: Combat Flow**
+1. Start game with new character
+2. Move to Forest (type: `go north`)
+3. Trigger encounter (may need multiple moves)
+4. Use `attack` command
+5. Verify enemy health decreases and enemy attacks back
+6. Continue until victory
+7. Verify XP awarded
 
-**Scenario 3: AI generation failure handling**
-1. Set invalid OPENAI_API_KEY
-2. Verify graceful fallback to default world
-3. Verify error messages are user-friendly
+**Test Case 2: Defend Mechanic**
+1. Start game, trigger encounter
+2. Use `defend` command
+3. Verify enemy does reduced damage
+4. Continue combat
 
-### 4.3 Success Validation Checklist
-- [ ] AI config loads at startup when API key available
-- [ ] Theme selection appears after character creation
-- [ ] World created with AI service when available
-- [ ] GameState receives AI service and theme
-- [ ] Dynamic world expansion works during gameplay
-- [ ] Save/load preserves theme
-- [ ] Graceful fallback when AI unavailable
-- [ ] All 251+ existing tests pass
-- [ ] New E2E test passes
-- [ ] No breaking changes to existing functionality
-- [ ] User-friendly error messages
+**Test Case 3: Flee Mechanic**
+1. Start game, trigger encounter
+2. Use `flee` command
+3. Verify combat exits (may need multiple tries)
+4. Verify no XP awarded on successful flee
 
----
+**Test Case 4: Command Blocking**
+1. Start game, trigger encounter
+2. Try `go north` during combat
+3. Verify error message
+4. Try `save` during combat
+5. Verify error message
 
-## 5. IMPLEMENTATION ORDER
+**Test Case 5: Status Command**
+1. Start game, use `status` (exploration)
+2. Verify character stats displayed
+3. Trigger encounter, use `status` (combat)
+4. Verify combat status displayed
 
-1. **Write E2E test file** (`tests/test_e2e_ai_integration.py`)
-   - Create all test cases with mocked AI service
-   - Tests should fail initially (TDD approach)
-
-2. **Update character_creation.py**
-   - Add `get_theme_selection()` function
-   - Add unit tests for theme selection
-
-3. **Update main.py imports**
-   - Add necessary imports for AI components
-
-4. **Update start_game() function**
-   - Add ai_service and theme parameters
-   - Replace create_default_world() with create_world()
-   - Pass parameters to GameState
-
-5. **Update main() function**
-   - Load AI config at startup
-   - Initialize AIService if config available
-   - Pass ai_service to start_game()
-   - Integrate theme selection flow
-
-6. **Update select_and_load functions**
-   - Handle game state loading with theme
-   - Maintain backward compatibility
-
-7. **Run all tests**
-   - Verify existing tests pass
-   - Verify new E2E test passes
-
-8. **Manual testing**
-   - Test with and without AI
-   - Verify save/load with themes
-   - Verify error handling
+**Test Case 6: Game Over**
+1. Start game, trigger encounter with strong enemy
+2. Let enemy reduce health to 0
+3. Verify game over message
+4. Verify offered return to menu
 
 ---
 
-## DEPENDENCIES
+## 5. FILE CHANGES SUMMARY
 
-**Existing Code (No Changes Required):**
-- `src/cli_rpg/ai_config.py` - Already implemented
-- `src/cli_rpg/ai_service.py` - Already implemented  
-- `src/cli_rpg/ai_world.py` - Already implemented
-- `src/cli_rpg/world.py` - Already has `create_world()` function
-- `src/cli_rpg/game_state.py` - Already supports ai_service and theme
-- `src/cli_rpg/config.py` - Already has `load_ai_config()`
+### New Files
+- `tests/test_main_combat_integration.py` (12 test functions)
+- `tests/test_main_game_loop_state_handling.py` (6 test functions)
 
-**Files to Modify:**
-- `src/cli_rpg/main.py` - Main integration point
-- `src/cli_rpg/character_creation.py` - Add theme selection
+### Modified Files
+- `src/cli_rpg/main.py`:
+  - Add `handle_combat_command()` function (~80 lines)
+  - Add `handle_exploration_command()` function (~55 lines)
+  - Replace main game loop in `start_game()` (~40 lines)
+  - Update command display text (~10 lines)
+  - Total changes: ~185 lines
 
-**Files to Create:**
-- `tests/test_e2e_ai_integration.py` - New E2E test suite
+### Unchanged Files (used by integration)
+- `src/cli_rpg/game_state.py` (already has `is_in_combat()`, `trigger_encounter()`)
+- `src/cli_rpg/combat.py` (all methods already implemented)
+- `src/cli_rpg/models/character.py` (already complete)
+- `src/cli_rpg/models/enemy.py` (already complete)
+
+---
+
+## 6. BACKWARD COMPATIBILITY
+
+### Preserved Functionality
+- All exploration commands work identically when not in combat
+- Save/load system unchanged
+- Character creation unchanged
+- World generation unchanged
+- AI integration unchanged
+
+### New Functionality
+- Combat command routing
+- Combat state management
+- Game over handling
+- Status command works in both modes
+
+### Breaking Changes
+- None (pure addition of combat handling to existing exploration system)

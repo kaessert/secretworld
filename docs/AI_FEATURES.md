@@ -63,6 +63,8 @@ Just play the game normally! When you move to a new direction, the game will:
 2. If not, generate it using AI (if configured)
 3. Or use the default world structure
 
+**Note**: Combat commands (attack, defend, flee) are only available during combat encounters. The save command is not available during combat to maintain game integrity.
+
 ### As a Developer
 
 ```python

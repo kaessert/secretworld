@@ -1,6 +1,6 @@
 """Character model for CLI RPG."""
 from dataclasses import dataclass, field
-from typing import ClassVar
+from typing import ClassVar, List
 
 
 @dataclass
@@ -15,6 +15,9 @@ class Character:
         level: Character level (default 1)
         health: Current health points
         max_health: Maximum health points (calculated from strength)
+        xp: Current experience points
+        xp_to_next_level: XP needed for next level
+        constitution: Constitution stat for damage reduction (derived from strength)
     """
     
     MIN_STAT: ClassVar[int] = 1
@@ -31,6 +34,9 @@ class Character:
     level: int = 1
     health: int = field(init=False)
     max_health: int = field(init=False)
+    xp: int = 0
+    xp_to_next_level: int = field(init=False)
+    constitution: int = field(init=False)
     
     def __post_init__(self):
         """Validate attributes and calculate derived stats."""
@@ -56,9 +62,11 @@ class Character:
             if stat_name != "level" and stat_value > self.MAX_STAT:
                 raise ValueError(f"{stat_name} must be at most {self.MAX_STAT}")
         
-        # Calculate max_health and health
+        # Calculate derived stats
         self.max_health = self.BASE_HEALTH + self.strength * self.HEALTH_PER_STRENGTH
         self.health = self.max_health
+        self.xp_to_next_level = self.level * 100
+        self.constitution = self.strength  # Constitution based on strength
     
     def take_damage(self, amount: int) -> None:
         """Reduce health by damage amount, minimum 0.
@@ -84,6 +92,57 @@ class Character:
         """
         return self.health > 0
     
+    def gain_xp(self, amount: int) -> List[str]:
+        """
+        Add XP and handle level-ups.
+        
+        Args:
+            amount: Amount of XP to gain
+            
+        Returns:
+            List of messages describing XP gain and any level-ups
+        """
+        messages = [f"Gained {amount} XP!"]
+        self.xp += amount
+        
+        # Check for level-ups
+        while self.xp >= self.xp_to_next_level:
+            self.xp -= self.xp_to_next_level
+            level_up_message = self.level_up()
+            messages.append(level_up_message)
+        
+        return messages
+    
+    def level_up(self) -> str:
+        """
+        Increase level and boost stats.
+        
+        Returns:
+            Message describing level up
+        """
+        self.level += 1
+        
+        # Increase stats
+        self.strength += 1
+        self.dexterity += 1
+        self.intelligence += 1
+        
+        # Recalculate derived stats
+        old_max_health = self.max_health
+        self.max_health = self.BASE_HEALTH + self.strength * self.HEALTH_PER_STRENGTH
+        self.constitution = self.strength
+        
+        # Restore health to new maximum
+        self.health = self.max_health
+        
+        # Update XP threshold
+        self.xp_to_next_level = self.level * 100
+        
+        health_increase = self.max_health - old_max_health
+        return (f"Level Up! You are now level {self.level}!\n"
+                f"Stats increased: STR +1, DEX +1, INT +1\n"
+                f"Max HP increased by {health_increase}! Health fully restored!")
+    
     def to_dict(self) -> dict:
         """Serialize character to dictionary.
         
@@ -97,7 +156,8 @@ class Character:
             "intelligence": self.intelligence,
             "level": self.level,
             "health": self.health,
-            "max_health": self.max_health
+            "max_health": self.max_health,
+            "xp": self.xp
         }
     
     @classmethod
@@ -121,6 +181,9 @@ class Character:
         # Override health if different from calculated max
         if "health" in data:
             character.health = data["health"]
+        # Restore XP
+        if "xp" in data:
+            character.xp = data["xp"]
         return character
     
     def __str__(self) -> str:

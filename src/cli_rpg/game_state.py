@@ -1,9 +1,11 @@
 """GameState class for managing game state and gameplay."""
 
 import logging
+import random
 from typing import ClassVar, Optional
 from cli_rpg.models.character import Character
 from cli_rpg.models.location import Location
+from cli_rpg.combat import CombatEncounter, spawn_enemy
 
 # Import AI components (with optional support)
 try:
@@ -41,7 +43,7 @@ def parse_command(command_str: str) -> tuple[str, list[str]]:
     args = parts[1:]
     
     # Validate known commands
-    known_commands = {"look", "go", "save", "quit"}
+    known_commands = {"look", "go", "save", "quit", "attack", "defend", "flee", "status"}
     
     if command not in known_commands:
         return ("unknown", [])
@@ -56,6 +58,7 @@ class GameState:
         current_character: The player's character
         current_location: Name of the current location
         world: Dictionary mapping location names to Location objects
+        current_combat: Active combat encounter or None
     """
     
     def __init__(
@@ -108,6 +111,7 @@ class GameState:
         self.current_location = starting_location
         self.ai_service = ai_service
         self.theme = theme
+        self.current_combat: Optional[CombatEncounter] = None
     
     def get_current_location(self) -> Location:
         """Get the current Location object.
@@ -125,6 +129,30 @@ class GameState:
         """
         location = self.get_current_location()
         return str(location)
+    
+    def is_in_combat(self) -> bool:
+        """Check if combat is currently active.
+        
+        Returns:
+            True if in combat, False otherwise
+        """
+        return self.current_combat is not None and self.current_combat.is_active
+    
+    def trigger_encounter(self, location_name: str) -> Optional[str]:
+        """Potentially spawn an enemy based on location.
+        
+        Args:
+            location_name: Name of the location for encounter
+            
+        Returns:
+            Message about encounter if triggered, None otherwise
+        """
+        # 30% chance of encounter
+        if random.random() < 0.3:
+            enemy = spawn_enemy(location_name, self.current_character.level)
+            self.current_combat = CombatEncounter(self.current_character, enemy)
+            return self.current_combat.start()
+        return None
     
     def move(self, direction: str) -> tuple[bool, str]:
         """Move to a connected location in the specified direction.
@@ -171,7 +199,14 @@ class GameState:
         # Update location
         self.current_location = destination_name
         
-        return (True, f"You head {direction} to {destination_name}.")
+        message = f"You head {direction} to {destination_name}."
+        
+        # Check for random encounter
+        encounter_message = self.trigger_encounter(destination_name)
+        if encounter_message:
+            message += f"\n{encounter_message}"
+        
+        return (True, message)
     
     def to_dict(self) -> dict:
         """Serialize game state to dictionary.

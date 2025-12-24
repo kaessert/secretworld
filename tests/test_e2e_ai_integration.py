@@ -188,6 +188,8 @@ def test_world_creation_with_ai_service(mock_ai_service):
         # Mock GameState
         mock_game_state_instance = Mock()
         mock_game_state_instance.look.return_value = "You are here"
+        mock_game_state_instance.is_in_combat.return_value = False  # Not in combat for this test
+        mock_game_state_instance.current_character.is_alive.return_value = True
         MockGameState.return_value = mock_game_state_instance
         
         # Capture output
@@ -237,6 +239,8 @@ def test_game_state_initialization_with_ai(mock_ai_service):
         # Mock GameState
         mock_game_state_instance = Mock()
         mock_game_state_instance.look.return_value = "You are here"
+        mock_game_state_instance.is_in_combat.return_value = False  # Not in combat for this test
+        mock_game_state_instance.current_character.is_alive.return_value = True
         MockGameState.return_value = mock_game_state_instance
         
         # Capture output
@@ -378,6 +382,8 @@ def test_default_theme_when_ai_unavailable():
         # Mock GameState
         mock_game_state_instance = Mock()
         mock_game_state_instance.look.return_value = "You are here"
+        mock_game_state_instance.is_in_combat.return_value = False  # Not in combat for this test
+        mock_game_state_instance.current_character.is_alive.return_value = True
         MockGameState.return_value = mock_game_state_instance
         
         # Capture output

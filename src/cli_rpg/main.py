@@ -84,6 +84,153 @@ def select_and_load_character() -> Optional[Character]:
         return None
 
 
+def handle_combat_command(game_state: GameState, command: str, args: list[str]) -> str:
+    """Handle commands during combat.
+    
+    Args:
+        game_state: Current game state
+        command: Parsed command
+        args: Command arguments
+        
+    Returns:
+        Message string to display
+    """
+    if not game_state.is_in_combat():
+        return "\n✗ Not in combat."
+    
+    combat = game_state.current_combat
+    
+    if command == "attack":
+        victory, message = combat.player_attack()
+        output = f"\n{message}"
+        
+        if victory:
+            # Enemy defeated
+            end_message = combat.end_combat(victory=True)
+            output += f"\n{end_message}"
+            game_state.current_combat = None
+        else:
+            # Enemy still alive, enemy attacks
+            enemy_message = combat.enemy_turn()
+            output += f"\n{enemy_message}"
+            
+            # Check if player died
+            if not game_state.current_character.is_alive():
+                death_message = combat.end_combat(victory=False)
+                output += f"\n{death_message}"
+                output += "\n\n=== GAME OVER ==="
+                game_state.current_combat = None
+        
+        return output
+    
+    elif command == "defend":
+        _, message = combat.player_defend()
+        output = f"\n{message}"
+        
+        # Enemy attacks
+        enemy_message = combat.enemy_turn()
+        output += f"\n{enemy_message}"
+        
+        # Check if player died
+        if not game_state.current_character.is_alive():
+            death_message = combat.end_combat(victory=False)
+            output += f"\n{death_message}"
+            output += "\n\n=== GAME OVER ==="
+            game_state.current_combat = None
+        
+        return output
+    
+    elif command == "flee":
+        success, message = combat.player_flee()
+        output = f"\n{message}"
+        
+        if success:
+            # Fled successfully
+            game_state.current_combat = None
+            combat.is_active = False
+        else:
+            # Flee failed, enemy attacks
+            enemy_message = combat.enemy_turn()
+            output += f"\n{enemy_message}"
+            
+            # Check if player died
+            if not game_state.current_character.is_alive():
+                death_message = combat.end_combat(victory=False)
+                output += f"\n{death_message}"
+                output += "\n\n=== GAME OVER ==="
+                game_state.current_combat = None
+        
+        return output
+    
+    elif command == "status":
+        return "\n" + combat.get_status()
+    
+    else:
+        return "\n✗ Can't do that during combat! Use: attack, defend, flee, or status"
+
+
+def handle_exploration_command(game_state: GameState, command: str, args: list[str]) -> tuple[bool, str]:
+    """Handle commands during exploration.
+    
+    Args:
+        game_state: Current game state
+        command: Parsed command
+        args: Command arguments
+        
+    Returns:
+        Tuple of (continue_game, message)
+    """
+    if command == "look":
+        return (True, "\n" + game_state.look())
+    
+    elif command == "go":
+        if not args:
+            return (True, "\nGo where? Specify a direction (north, south, east, west, up, down)")
+        
+        direction = args[0]
+        success, message = game_state.move(direction)
+        output = f"\n{message}"
+        
+        if success:
+            # Show new location
+            output += "\n\n" + game_state.look()
+        
+        return (True, output)
+    
+    elif command == "status":
+        return (True, "\n" + str(game_state.current_character))
+    
+    elif command == "save":
+        try:
+            filepath = save_game_state(game_state)
+            return (True, f"\n✓ Game saved successfully!\n  Save location: {filepath}")
+        except IOError as e:
+            return (True, f"\n✗ Failed to save game: {e}")
+    
+    elif command == "quit":
+        print("\n" + "=" * 50)
+        response = input("Save before quitting? (y/n): ").strip().lower()
+        if response == 'y':
+            try:
+                filepath = save_game_state(game_state)
+                print(f"\n✓ Game saved successfully!")
+                print(f"  Save location: {filepath}")
+            except IOError as e:
+                print(f"\n✗ Failed to save game: {e}")
+        
+        print("\nReturning to main menu...")
+        return (False, "")
+    
+    elif command in ["attack", "defend", "flee"]:
+        return (True, "\n✗ Not in combat.")
+    
+    elif command == "unknown":
+        return (True, "\n✗ Unknown command. Type 'look', 'go <direction>', 'status', 'save', or 'quit'")
+    
+    else:
+        return (True, "\n✗ Unknown command. Type 'look', 'go <direction>', 'status', 'save', or 'quit'")
+
+
 def start_game(
     character: Character,
     ai_service: Optional[AIService] = None,
@@ -111,11 +258,17 @@ def start_game(
     if ai_service:
         print(f"Exploring a {theme} world powered by AI...")
     print("=" * 50)
-    print("\nCommands:")
+    print("\nExploration Commands:")
     print("  look          - Look around at your surroundings")
     print("  go <direction> - Move in a direction (north, south, east, west)")
-    print("  save          - Save your game")
+    print("  status        - View your character status")
+    print("  save          - Save your game (not available during combat)")
     print("  quit          - Return to main menu")
+    print("\nCombat Commands:")
+    print("  attack        - Attack the enemy")
+    print("  defend        - Take a defensive stance")
+    print("  flee          - Attempt to flee from combat")
+    print("  status        - View combat status")
     print("=" * 50)
     
     # Show starting location
@@ -123,6 +276,21 @@ def start_game(
     
     # Main gameplay loop
     while True:
+        # Check if player is alive (game over condition)
+        if not game_state.current_character.is_alive():
+            print("\n" + "=" * 50)
+            print("GAME OVER - You have fallen in battle.")
+            print("=" * 50)
+            response = input("\nReturn to main menu? (y/n): ").strip().lower()
+            if response == 'y':
+                break
+            else:
+                # Allow continue even after death (for testing/fun)
+                game_state.current_character.health = game_state.current_character.max_health
+                print("\n✓ Health restored. Returning to town square...")
+                game_state.current_location = "Town Square"
+                game_state.current_combat = None
+        
         print()
         command_input = input("> ").strip()
         
@@ -132,50 +300,20 @@ def start_game(
         # Parse command
         command, args = parse_command(command_input)
         
-        # Handle commands
-        if command == "look":
-            print("\n" + game_state.look())
+        # Route command based on combat state
+        if game_state.is_in_combat():
+            message = handle_combat_command(game_state, command, args)
+            print(message)
             
-        elif command == "go":
-            if not args:
-                print("\nGo where? Specify a direction (north, south, east, west, up, down)")
-                continue
-            
-            direction = args[0]
-            success, message = game_state.move(direction)
-            print(f"\n{message}")
-            
-            if success:
-                # Show new location
-                print("\n" + game_state.look())
-                
-        elif command == "save":
-            try:
-                filepath = save_game_state(game_state)
-                print(f"\n✓ Game saved successfully!")
-                print(f"  Save location: {filepath}")
-            except IOError as e:
-                print(f"\n✗ Failed to save game: {e}")
-                
-        elif command == "quit":
-            print("\n" + "=" * 50)
-            response = input("Save before quitting? (y/n): ").strip().lower()
-            if response == 'y':
-                try:
-                    filepath = save_game_state(game_state)
-                    print(f"\n✓ Game saved successfully!")
-                    print(f"  Save location: {filepath}")
-                except IOError as e:
-                    print(f"\n✗ Failed to save game: {e}")
-            
-            print("\nReturning to main menu...")
-            break
-            
-        elif command == "unknown":
-            print("\n✗ Unknown command. Type 'look', 'go <direction>', 'save', or 'quit'")
-            
+            # Show combat status after each action if still in combat
+            if game_state.is_in_combat() and game_state.current_combat is not None:
+                print("\n" + game_state.current_combat.get_status())
         else:
-            print("\n✗ Unknown command. Type 'look', 'go <direction>', 'save', or 'quit'")
+            continue_game, message = handle_exploration_command(game_state, command, args)
+            print(message)
+            
+            if not continue_game:
+                break
 
 
 def show_main_menu() -> str:
