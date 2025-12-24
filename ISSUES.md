@@ -1,32 +1,46 @@
 ## Active Issues
 
-### Unknown command error message is incomplete
-**Status**: OPEN
+### Cannot quit or exit the game during combat
+**Status**: ACTIVE
 
-**Problem Description**: When a user enters an unknown command during exploration, the error message doesn't list all available commands. Specifically, it's missing `talk`, `shop`, `buy`, and `sell`.
+**Problem**: During combat, the player cannot use the `quit` command to exit the game. All commands except `attack`, `defend`, `cast`, `flee`, and `status` are blocked with the message: "✗ Can't do that during combat! Use: attack, defend, cast, flee, or status"
 
 **Steps to Reproduce**:
-1. Start the game and create a new character
-2. Enter an unknown command like `help` or `?`
-3. Observe the error message
+1. Start a new game and create a character
+2. Move around until you encounter an enemy (e.g., go to Forest or Cave)
+3. During combat, type `quit`
+4. Observe: The command is blocked
 
-**Expected Behavior**: Error message should list all available commands:
-```
-✗ Unknown command. Type 'look', 'go', 'status', 'inventory', 'equip', 'unequip', 'use', 'talk', 'shop', 'buy', 'sell', 'save', or 'quit'
-```
+**Expected Behavior**: The player should be able to quit the game at any time, even during combat (perhaps with a warning that unsaved progress will be lost).
 
-**Actual Behavior**: Error message is missing `talk`, `shop`, `buy`, `sell`:
-```
-✗ Unknown command. Type 'look', 'go', 'status', 'inventory', 'equip', 'unequip', 'use', 'save', or 'quit'
-```
+**Actual Behavior**: The `quit` command is blocked during combat. The only ways to exit are:
+- Win the combat (attack/cast until enemy is defeated)
+- Successfully flee (which can fail, especially with low dexterity)
+- Die in combat
+- Force-quit the application (Ctrl+C or close terminal)
 
-**Impact**: Users may not realize these commands exist, especially since there's no `help` command. This could lead to confusion when trying to interact with NPCs/shops.
+**User Impact**: If a player needs to leave urgently during combat, they must either:
+- Hope flee succeeds (may take multiple attempts with low dexterity)
+- Force-quit and potentially lose progress since their last save
+- Continue fighting (may not be feasible if they need to leave)
 
----
+This is particularly problematic for players with low dexterity who may fail multiple flee attempts in succession.
 
 ---
 
 ## Resolved Issues
+
+### Unknown command error message is incomplete
+**Status**: RESOLVED
+
+**Original Problem**: When a user enters an unknown command during exploration, the error message doesn't list all available commands. Specifically, it's missing `talk`, `shop`, `buy`, and `sell`.
+
+**Solution Implemented**:
+- Updated the unknown command error message in `main.py` to include all available commands
+- Now displays: `'look', 'go', 'talk', 'shop', 'buy', 'sell', 'status', 'inventory', 'equip', 'unequip', 'use', 'save', or 'quit'`
+- Both instances of the error message (lines 420 and 423) were updated
+
+---
 
 ### Health potions can be wasted when at full health
 **Status**: RESOLVED

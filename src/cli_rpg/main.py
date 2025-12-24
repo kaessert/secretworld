@@ -417,10 +417,10 @@ def handle_exploration_command(game_state: GameState, command: str, args: list[s
         return (True, "\n✗ Not in combat.")
     
     elif command == "unknown":
-        return (True, "\n✗ Unknown command. Type 'look', 'go', 'status', 'inventory', 'equip', 'unequip', 'use', 'save', or 'quit'")
+        return (True, "\n✗ Unknown command. Type 'look', 'go', 'talk', 'shop', 'buy', 'sell', 'status', 'inventory', 'equip', 'unequip', 'use', 'save', or 'quit'")
     
     else:
-        return (True, "\n✗ Unknown command. Type 'look', 'go', 'status', 'inventory', 'equip', 'unequip', 'use', 'save', or 'quit'")
+        return (True, "\n✗ Unknown command. Type 'look', 'go', 'talk', 'shop', 'buy', 'sell', 'status', 'inventory', 'equip', 'unequip', 'use', 'save', or 'quit'")
 
 
 def run_game_loop(game_state: GameState) -> None:

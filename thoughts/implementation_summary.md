@@ -1,41 +1,34 @@
-# Implementation Summary: Fix Health Potion Waste at Full Health
+# Implementation Summary: Unknown Command Error Message
 
 ## What Was Implemented
 
-Prevented health potions from being consumed when the player is already at full health.
+Updated the unknown command error message to include missing commands: `talk`, `shop`, `buy`, `sell`.
 
 ### Files Modified
 
-1. **`src/cli_rpg/models/character.py`** (line ~185)
-   - Added a check in the `use_item()` method to verify the player is not at full health before consuming a healing item
-   - Returns `(False, "You're already at full health!")` when attempting to use a healing potion at full health
-   - The potion remains in the inventory when rejected
+**`src/cli_rpg/main.py`** (lines 420 and 423)
 
-2. **`tests/test_character_inventory.py`** (lines 241-263)
-   - Added `test_use_health_potion_at_full_health` test in the `TestUseConsumable` class
-   - Verifies that:
-     - `use_item()` returns `False` when at full health
-     - The potion is NOT consumed (remains in inventory)
-     - The message contains "full health" or "already"
+Updated two instances of the unknown command error message:
+
+**Before:**
+```python
+"\n✗ Unknown command. Type 'look', 'go', 'status', 'inventory', 'equip', 'unequip', 'use', 'save', or 'quit'"
+```
+
+**After:**
+```python
+"\n✗ Unknown command. Type 'look', 'go', 'talk', 'shop', 'buy', 'sell', 'status', 'inventory', 'equip', 'unequip', 'use', 'save', or 'quit'"
+```
 
 ## Test Results
 
-All 22 tests in `test_character_inventory.py` pass, including:
-- Original 4 consumable tests continue to work
-- New `test_use_health_potion_at_full_health` test passes
-
-## Design Decision
-
-The check `self.health >= self.max_health` is placed BEFORE the heal logic in `use_item()`. This ensures:
-1. No healing calculation is performed unnecessarily
-2. The item is never removed from inventory when rejected
-3. Clear feedback is provided to the player
+All 5 tests in `tests/test_main.py` passed:
+- test_package_importable
+- test_package_has_version
+- test_main_function_exists
+- test_main_function_callable
+- test_main_returns_zero
 
 ## E2E Validation
 
-To verify in-game:
-1. Start game with a character at full health
-2. Add a health potion to inventory
-3. Try to use the health potion
-4. Verify message says "You're already at full health!"
-5. Verify the potion is still in inventory
+To validate manually, run the game and enter an unknown command - it should display the updated help message listing all available commands including talk, shop, buy, and sell.
