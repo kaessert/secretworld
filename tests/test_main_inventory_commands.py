@@ -1,23 +1,3 @@
-# Plan: Add Inventory Commands to Main Game Loop
-
-## Summary
-Add user-facing commands (`inventory`, `equip`, `unequip`, `use`) to `handle_exploration_command()` in `main.py` so players can view and interact with their inventory during exploration.
-
-## Spec
-| Command | Syntax | Behavior |
-|---------|--------|----------|
-| `inventory` | `inventory` | Display formatted inventory (uses `Inventory.__str__()`) |
-| `equip` | `equip <item name>` | Find item by name, equip it, show success/failure message |
-| `unequip` | `unequip weapon\|armor` | Unequip from slot, return to inventory |
-| `use` | `use <item name>` | Use consumable item (calls `Character.use_item()`) |
-
-Error messages: "Item not found", "Nothing equipped in that slot", "Inventory full", etc.
-
-## Tests First
-
-**File:** `tests/test_main_inventory_commands.py`
-
-```python
 """Tests for inventory commands in main game loop."""
 import pytest
 from cli_rpg.main import handle_exploration_command
@@ -42,7 +22,10 @@ def game_state_with_items():
 
 
 class TestInventoryCommand:
+    """Tests for 'inventory' command - Spec: Display formatted inventory."""
+
     def test_inventory_shows_items(self, game_state_with_items):
+        """Spec: 'inventory' displays all items using Inventory.__str__()."""
         cont, msg = handle_exploration_command(game_state_with_items, "inventory", [])
         assert cont is True
         assert "Iron Sword" in msg
@@ -50,6 +33,7 @@ class TestInventoryCommand:
         assert "Health Potion" in msg
 
     def test_inventory_empty(self):
+        """Spec: Empty inventory displays 'No items' message."""
         char = Character(name="Hero", strength=10, dexterity=10, intelligence=10)
         world = {"Town": Location(name="Town", description="A quiet town")}
         gs = GameState(char, world, starting_location="Town")
@@ -59,25 +43,33 @@ class TestInventoryCommand:
 
 
 class TestEquipCommand:
+    """Tests for 'equip' command - Spec: Find item by name, equip it."""
+
     def test_equip_weapon_success(self, game_state_with_items):
+        """Spec: 'equip <item name>' finds and equips the item."""
         cont, msg = handle_exploration_command(game_state_with_items, "equip", ["iron", "sword"])
         assert cont is True
         assert "equipped" in msg.lower() or "Iron Sword" in msg
         assert game_state_with_items.current_character.inventory.equipped_weapon is not None
 
     def test_equip_item_not_found(self, game_state_with_items):
+        """Spec: Error message 'Item not found' when item doesn't exist."""
         cont, msg = handle_exploration_command(game_state_with_items, "equip", ["nonexistent"])
         assert cont is True
         assert "not found" in msg.lower() or "don't have" in msg.lower()
 
     def test_equip_no_args(self, game_state_with_items):
+        """Spec: Error when no item name specified."""
         cont, msg = handle_exploration_command(game_state_with_items, "equip", [])
         assert cont is True
         assert "what" in msg.lower() or "specify" in msg.lower()
 
 
 class TestUnequipCommand:
+    """Tests for 'unequip' command - Spec: Unequip from slot, return to inventory."""
+
     def test_unequip_weapon_success(self, game_state_with_items):
+        """Spec: 'unequip weapon' removes weapon and returns to inventory."""
         gs = game_state_with_items
         sword = gs.current_character.inventory.find_item_by_name("Iron Sword")
         gs.current_character.inventory.equip(sword)
@@ -86,18 +78,23 @@ class TestUnequipCommand:
         assert gs.current_character.inventory.equipped_weapon is None
 
     def test_unequip_empty_slot(self, game_state_with_items):
+        """Spec: Error 'Nothing equipped in that slot' when slot is empty."""
         cont, msg = handle_exploration_command(game_state_with_items, "unequip", ["weapon"])
         assert cont is True
         assert "nothing" in msg.lower() or "not equipped" in msg.lower() or "don't have" in msg.lower()
 
     def test_unequip_no_args(self, game_state_with_items):
+        """Spec: Error when no slot specified."""
         cont, msg = handle_exploration_command(game_state_with_items, "unequip", [])
         assert cont is True
         assert "weapon" in msg.lower() or "armor" in msg.lower()
 
 
 class TestUseCommand:
+    """Tests for 'use' command - Spec: Use consumable item."""
+
     def test_use_consumable_success(self, game_state_with_items):
+        """Spec: 'use <item name>' uses consumable and shows effect."""
         gs = game_state_with_items
         gs.current_character.take_damage(50)  # Damage to test healing
         old_health = gs.current_character.health
@@ -107,125 +104,40 @@ class TestUseCommand:
         assert "healed" in msg.lower() or "used" in msg.lower()
 
     def test_use_item_not_found(self, game_state_with_items):
+        """Spec: Error message when item doesn't exist."""
         cont, msg = handle_exploration_command(game_state_with_items, "use", ["nonexistent"])
         assert cont is True
         assert "not found" in msg.lower() or "don't have" in msg.lower()
 
     def test_use_no_args(self, game_state_with_items):
+        """Spec: Error when no item name specified."""
         cont, msg = handle_exploration_command(game_state_with_items, "use", [])
         assert cont is True
         assert "what" in msg.lower() or "specify" in msg.lower()
 
 
 class TestParseCommandInventory:
+    """Tests for parse_command with new inventory commands."""
+
     def test_parse_inventory_command(self):
+        """Spec: 'inventory' is a recognized command."""
         cmd, args = parse_command("inventory")
         assert cmd == "inventory"
 
     def test_parse_equip_command(self):
+        """Spec: 'equip' parses with item name as args."""
         cmd, args = parse_command("equip iron sword")
         assert cmd == "equip"
         assert args == ["iron", "sword"]
 
     def test_parse_unequip_command(self):
+        """Spec: 'unequip' parses with slot as arg."""
         cmd, args = parse_command("unequip weapon")
         assert cmd == "unequip"
         assert args == ["weapon"]
 
     def test_parse_use_command(self):
+        """Spec: 'use' parses with item name as args."""
         cmd, args = parse_command("use health potion")
         assert cmd == "use"
         assert args == ["health", "potion"]
-```
-
-## Implementation Steps
-
-### 1. Update `parse_command()` in `game_state.py` (line 47)
-
-Add new commands to `known_commands`:
-
-```python
-known_commands = {"look", "go", "save", "quit", "attack", "defend", "flee", "status", "cast",
-                  "inventory", "equip", "unequip", "use"}
-```
-
-### 2. Add command handlers in `handle_exploration_command()` in `main.py` (after line 268)
-
-Add these cases after the existing `status` command:
-
-```python
-elif command == "inventory":
-    return (True, "\n" + str(game_state.current_character.inventory))
-
-elif command == "equip":
-    if not args:
-        return (True, "\nEquip what? Specify an item name.")
-    item_name = " ".join(args)
-    item = game_state.current_character.inventory.find_item_by_name(item_name)
-    if item is None:
-        return (True, f"\nYou don't have '{item_name}' in your inventory.")
-    success = game_state.current_character.inventory.equip(item)
-    if success:
-        return (True, f"\nYou equipped {item.name}.")
-    else:
-        return (True, f"\nYou can't equip {item.name}.")
-
-elif command == "unequip":
-    if not args:
-        return (True, "\nUnequip what? Specify 'weapon' or 'armor'.")
-    slot = args[0].lower()
-    if slot not in ("weapon", "armor"):
-        return (True, "\nYou can only unequip 'weapon' or 'armor'.")
-    inv = game_state.current_character.inventory
-    if slot == "weapon" and inv.equipped_weapon is None:
-        return (True, "\nYou don't have a weapon equipped.")
-    if slot == "armor" and inv.equipped_armor is None:
-        return (True, "\nYou don't have armor equipped.")
-    success = inv.unequip(slot)
-    if success:
-        return (True, f"\nYou unequipped your {slot}.")
-    else:
-        return (True, "\nCan't unequip - inventory is full.")
-
-elif command == "use":
-    if not args:
-        return (True, "\nUse what? Specify an item name.")
-    item_name = " ".join(args)
-    item = game_state.current_character.inventory.find_item_by_name(item_name)
-    if item is None:
-        return (True, f"\nYou don't have '{item_name}' in your inventory.")
-    success, message = game_state.current_character.use_item(item)
-    return (True, f"\n{message}")
-```
-
-### 3. Update help text in `start_game()` (lines 386-391) and load section (lines 483-488)
-
-Replace exploration commands help with:
-
-```python
-print("\nExploration Commands:")
-print("  look           - Look around at your surroundings")
-print("  go <direction> - Move in a direction (north, south, east, west)")
-print("  status         - View your character status")
-print("  inventory      - View your inventory and equipped items")
-print("  equip <item>   - Equip a weapon or armor from inventory")
-print("  unequip <slot> - Unequip weapon or armor (slot: weapon/armor)")
-print("  use <item>     - Use a consumable item")
-print("  save           - Save your game (not available during combat)")
-print("  quit           - Return to main menu")
-```
-
-### 4. Update error messages in `handle_exploration_command()` (lines 295, 298)
-
-Update unknown command message to include inventory commands:
-
-```python
-return (True, "\nUnknown command. Type 'look', 'go', 'status', 'inventory', 'equip', 'unequip', 'use', 'save', or 'quit'")
-```
-
-## Verification
-
-```bash
-pytest tests/test_main_inventory_commands.py -v
-pytest tests/ -v  # Full suite to verify no regressions
-```

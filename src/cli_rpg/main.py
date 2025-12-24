@@ -266,7 +266,50 @@ def handle_exploration_command(game_state: GameState, command: str, args: list[s
     
     elif command == "status":
         return (True, "\n" + str(game_state.current_character))
-    
+
+    elif command == "inventory":
+        return (True, "\n" + str(game_state.current_character.inventory))
+
+    elif command == "equip":
+        if not args:
+            return (True, "\nEquip what? Specify an item name.")
+        item_name = " ".join(args)
+        item = game_state.current_character.inventory.find_item_by_name(item_name)
+        if item is None:
+            return (True, f"\nYou don't have '{item_name}' in your inventory.")
+        success = game_state.current_character.inventory.equip(item)
+        if success:
+            return (True, f"\nYou equipped {item.name}.")
+        else:
+            return (True, f"\nYou can't equip {item.name}.")
+
+    elif command == "unequip":
+        if not args:
+            return (True, "\nUnequip what? Specify 'weapon' or 'armor'.")
+        slot = args[0].lower()
+        if slot not in ("weapon", "armor"):
+            return (True, "\nYou can only unequip 'weapon' or 'armor'.")
+        inv = game_state.current_character.inventory
+        if slot == "weapon" and inv.equipped_weapon is None:
+            return (True, "\nYou don't have a weapon equipped.")
+        if slot == "armor" and inv.equipped_armor is None:
+            return (True, "\nYou don't have armor equipped.")
+        success = inv.unequip(slot)
+        if success:
+            return (True, f"\nYou unequipped your {slot}.")
+        else:
+            return (True, "\nCan't unequip - inventory is full.")
+
+    elif command == "use":
+        if not args:
+            return (True, "\nUse what? Specify an item name.")
+        item_name = " ".join(args)
+        item = game_state.current_character.inventory.find_item_by_name(item_name)
+        if item is None:
+            return (True, f"\nYou don't have '{item_name}' in your inventory.")
+        success, message = game_state.current_character.use_item(item)
+        return (True, f"\n{message}")
+
     elif command == "save":
         try:
             filepath = save_game_state(game_state)
@@ -292,10 +335,10 @@ def handle_exploration_command(game_state: GameState, command: str, args: list[s
         return (True, "\n✗ Not in combat.")
     
     elif command == "unknown":
-        return (True, "\n✗ Unknown command. Type 'look', 'go <direction>', 'status', 'save', or 'quit'")
+        return (True, "\n✗ Unknown command. Type 'look', 'go', 'status', 'inventory', 'equip', 'unequip', 'use', 'save', or 'quit'")
     
     else:
-        return (True, "\n✗ Unknown command. Type 'look', 'go <direction>', 'status', 'save', or 'quit'")
+        return (True, "\n✗ Unknown command. Type 'look', 'go', 'status', 'inventory', 'equip', 'unequip', 'use', 'save', or 'quit'")
 
 
 def run_game_loop(game_state: GameState) -> None:
@@ -384,11 +427,15 @@ def start_game(
         print(f"Exploring a {theme} world powered by AI...")
     print("=" * 50)
     print("\nExploration Commands:")
-    print("  look          - Look around at your surroundings")
+    print("  look           - Look around at your surroundings")
     print("  go <direction> - Move in a direction (north, south, east, west)")
-    print("  status        - View your character status")
-    print("  save          - Save your game (not available during combat)")
-    print("  quit          - Return to main menu")
+    print("  status         - View your character status")
+    print("  inventory      - View your inventory and equipped items")
+    print("  equip <item>   - Equip a weapon or armor from inventory")
+    print("  unequip <slot> - Unequip weapon or armor (slot: weapon/armor)")
+    print("  use <item>     - Use a consumable item")
+    print("  save           - Save your game (not available during combat)")
+    print("  quit           - Return to main menu")
     print("\nCombat Commands:")
     print("  attack        - Attack the enemy")
     print("  defend        - Take a defensive stance")
@@ -481,11 +528,15 @@ def main() -> int:
                 print(f"Welcome back, {game_state.current_character.name}!")
                 print("=" * 50)
                 print("\nExploration Commands:")
-                print("  look          - Look around at your surroundings")
+                print("  look           - Look around at your surroundings")
                 print("  go <direction> - Move in a direction (north, south, east, west)")
-                print("  status        - View your character status")
-                print("  save          - Save your game (not available during combat)")
-                print("  quit          - Return to main menu")
+                print("  status         - View your character status")
+                print("  inventory      - View your inventory and equipped items")
+                print("  equip <item>   - Equip a weapon or armor from inventory")
+                print("  unequip <slot> - Unequip weapon or armor (slot: weapon/armor)")
+                print("  use <item>     - Use a consumable item")
+                print("  save           - Save your game (not available during combat)")
+                print("  quit           - Return to main menu")
                 print("\nCombat Commands:")
                 print("  attack        - Attack the enemy")
                 print("  defend        - Take a defensive stance")

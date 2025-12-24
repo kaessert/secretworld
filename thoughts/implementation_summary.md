@@ -1,89 +1,56 @@
-# Implementation Summary: Inventory/Items System
+# Implementation Summary: Inventory Commands in Main Game Loop
 
 ## What Was Implemented
 
-The Inventory/Items System was already mostly implemented. The missing piece was the `generate_loot` function in `combat.py`.
+Added four new user-facing inventory commands to the exploration phase of the game:
 
-### Added Function: `generate_loot(enemy: Enemy, level: int) -> Optional[Item]`
-
-**Location**: `src/cli_rpg/combat.py`
-
-**Purpose**: Generates random loot dropped by defeated enemies
-
-**Features**:
-- 50% drop rate for loot
-- Four item types with weighted probabilities:
-  - WEAPON (30%): Random prefix + weapon name, damage bonus scales with level
-  - ARMOR (30%): Random prefix + armor name, defense bonus scales with level
-  - CONSUMABLE (30%): Health potions, heal amount scales with level
-  - MISC (10%): Flavor items like gold coins, keys, monster fangs
-- Stats scale with player level (higher levels get better loot)
-- Enemy name is included in item descriptions
-
-### Pre-existing Implementation (Already Complete)
-
-The following components were already fully implemented and tested:
-
-1. **Item Model** (`src/cli_rpg/models/item.py`)
-   - ItemType enum: WEAPON, ARMOR, CONSUMABLE, MISC
-   - Item dataclass with validation (name 2-30 chars, description 1-200 chars)
-   - Stat modifiers: damage_bonus, defense_bonus, heal_amount
-   - Serialization: `to_dict()` / `from_dict()`
-
-2. **Inventory Model** (`src/cli_rpg/models/inventory.py`)
-   - Capacity management (default 20 slots)
-   - Equipment slots: equipped_weapon, equipped_armor
-   - Methods: `add_item()`, `remove_item()`, `equip()`, `unequip()`, `is_full()`
-   - Stat bonus methods: `get_damage_bonus()`, `get_defense_bonus()`
-   - Serialization with equipped items
-
-3. **Character Integration** (`src/cli_rpg/models/character.py`)
-   - Character has inventory attribute
-   - `get_attack_power()`: strength + weapon bonus
-   - `get_defense()`: constitution + armor bonus
-   - `equip_item()` and `use_item()` methods
-   - Inventory persists in save/load with backward compatibility
-
-4. **Combat Integration** (`src/cli_rpg/combat.py`)
-   - Weapon bonus applied to player attacks
-   - Armor bonus applied to damage reduction
-   - Loot awarded on combat victory via `end_combat()`
-
-## Test Results
-
-All tests pass:
-- **105 inventory-related tests**: test_item.py, test_inventory.py, test_character_inventory.py, test_combat_equipment.py
-- **549 total tests** (1 skipped): Full regression test suite passes
-
-### Key Test Coverage
-
-- Item creation and validation (name, description, type, stats)
-- Inventory capacity and item management
-- Equipment mechanics (equip/unequip, stat bonuses)
-- Character integration (attack power, defense, consumables)
-- Serialization roundtrips (with backward compatibility)
-- Combat with equipment (damage calculation with bonuses)
-- Loot generation (drop rate, item types, level scaling)
+| Command | Syntax | Behavior |
+|---------|--------|----------|
+| `inventory` | `inventory` | Displays formatted inventory using `Inventory.__str__()` |
+| `equip` | `equip <item name>` | Finds item by name (case-insensitive), equips it, shows success/failure |
+| `unequip` | `unequip weapon\|armor` | Unequips from specified slot, returns item to inventory |
+| `use` | `use <item name>` | Uses consumable item via `Character.use_item()` |
 
 ## Files Modified
 
-| File | Action |
-|------|--------|
-| `src/cli_rpg/combat.py` | Added `generate_loot()` function |
+### 1. `src/cli_rpg/game_state.py` (line 47-48)
+- Added `inventory`, `equip`, `unequip`, `use` to `known_commands` set in `parse_command()`
 
-## E2E Validation Checklist
+### 2. `src/cli_rpg/main.py`
+- **Lines 270-311**: Added command handlers in `handle_exploration_command()`:
+  - `inventory`: Returns inventory string representation
+  - `equip`: Validates args, finds item by name, calls `inventory.equip()`
+  - `unequip`: Validates slot (weapon/armor), checks if equipped, calls `inventory.unequip()`
+  - `use`: Validates args, finds item, calls `character.use_item()`
+- **Lines 338, 341**: Updated "unknown command" error messages to include new commands
+- **Lines 429-438**: Updated exploration help text in `start_game()` with new commands
+- **Lines 530-539**: Updated exploration help text in load game section with new commands
 
-The following should be validated in E2E tests:
-- [ ] Start new game, defeat enemy, verify item drops work
-- [ ] Equip weapon, verify attack damage increases
-- [ ] Equip armor, verify damage taken decreases
-- [ ] Use health potion, verify health restored
-- [ ] Save and load game, verify inventory persists
-- [ ] Verify full inventory prevents adding more items
+### 3. `tests/test_main_inventory_commands.py` (NEW)
+- 15 tests covering all inventory commands and their error cases
+- Tests verify spec requirements with comments indicating what each test validates
 
-## Technical Notes
+## Test Results
 
-- The `generate_loot` function uses weighted random selection for item types
-- Item stats use `max(1, level + random.randint(0, N))` to ensure positive values
-- The 50% drop rate is implemented with `random.random() > 0.5`
-- All item names are 2-30 characters to pass validation
+```
+tests/test_main_inventory_commands.py - 15 passed
+Full test suite - 564 passed, 1 skipped
+```
+
+## E2E Validation
+
+To manually verify:
+1. Create or load a character
+2. Type `inventory` - should show empty inventory or items if loaded
+3. Find items in the game world or add via debug
+4. Type `equip <item name>` - should equip weapon/armor
+5. Type `unequip weapon` or `unequip armor` - should return to inventory
+6. Type `use <consumable name>` - should apply effect and consume item
+
+## Design Decisions
+
+- Item names are matched case-insensitively via `inventory.find_item_by_name()`
+- Multi-word item names supported by joining args with spaces (e.g., `equip iron sword`)
+- Error messages are user-friendly and suggest valid options
+- All commands return `(True, message)` to continue the game loop
+- Uses existing `Inventory` and `Character` methods - no new business logic needed

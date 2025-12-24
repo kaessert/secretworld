@@ -38,6 +38,10 @@ python -m cli_rpg.main
 - `look` - Examine your current location
 - `go <direction>` - Move in a direction (north, south, east, west, up, down)
 - `status` - View your character's stats
+- `inventory` - View your inventory and equipped items
+- `equip <item name>` - Equip a weapon or armor from your inventory
+- `unequip weapon|armor` - Unequip from the specified slot and return to inventory
+- `use <item name>` - Use a consumable item (e.g., health potion)
 - `save` - Save complete game state including world, location, and theme (not available during combat)
 - `quit` - Exit to main menu
 
@@ -67,7 +71,7 @@ Defeated enemies have a chance to drop loot. Items include:
 - **Consumables**: Health potions that restore HP when used
 - **Misc Items**: Flavor items like gold coins and monster parts
 
-Your inventory has a capacity of 20 items. Equipped weapons and armor apply their bonuses automatically during combat.
+Your inventory has a capacity of 20 items. Use `inventory` to view your items, `equip <item>` to equip weapons/armor, `unequip weapon|armor` to remove equipment, and `use <item>` for consumables. Equipped items apply their bonuses automatically during combat.
 
 ### Save System
 
