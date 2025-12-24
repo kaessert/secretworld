@@ -215,3 +215,204 @@ class TestRecordKill:
 
         assert messages == []
         assert character.quests == []
+
+
+@pytest.fixture
+def collect_quest():
+    """Create a basic collect quest."""
+    return Quest(
+        name="Herb Gathering",
+        description="Collect 3 healing herbs",
+        status=QuestStatus.ACTIVE,
+        objective_type=ObjectiveType.COLLECT,
+        target="Healing Herb",
+        target_count=3,
+        current_count=0,
+    )
+
+
+class TestRecordCollection:
+    """Tests for Character.record_collection() method.
+
+    Spec: When a player picks up an item (from combat loot or shop purchase)
+    that matches an active quest's target, the quest progress should increment.
+    When current_count >= target_count, mark quest as COMPLETED and grant rewards.
+    """
+
+    # Spec: Collecting item increments matching quest progress
+    def test_record_collection_increments_matching_quest_progress(self, character, collect_quest):
+        """Test that collecting an item increments matching quest's current_count."""
+        character.quests.append(collect_quest)
+
+        character.record_collection("Healing Herb")
+
+        assert collect_quest.current_count == 1
+
+    # Spec: Player receives notification on quest progress
+    def test_record_collection_returns_progress_message(self, character, collect_quest):
+        """Test that record_collection returns progress notification."""
+        character.quests.append(collect_quest)
+
+        messages = character.record_collection("Healing Herb")
+
+        assert len(messages) == 1
+        assert "Quest progress: Herb Gathering [1/3]" in messages[0]
+
+    # Spec: Quest completion detected and status updated to COMPLETED
+    def test_record_collection_marks_quest_completed_when_target_reached(self, character):
+        """Test that quest status is set to COMPLETED when target_count is reached."""
+        quest = Quest(
+            name="Herb Gathering",
+            description="Collect 1 herb",
+            status=QuestStatus.ACTIVE,
+            objective_type=ObjectiveType.COLLECT,
+            target="Healing Herb",
+            target_count=1,
+            current_count=0,
+        )
+        character.quests.append(quest)
+
+        character.record_collection("Healing Herb")
+
+        assert quest.status == QuestStatus.COMPLETED
+        assert quest.current_count == 1
+
+    # Spec: Player receives special notification on quest completion
+    def test_record_collection_returns_completion_message(self, character):
+        """Test that record_collection returns completion notification when quest completes."""
+        quest = Quest(
+            name="Herb Gathering",
+            description="Collect 1 herb",
+            status=QuestStatus.ACTIVE,
+            objective_type=ObjectiveType.COLLECT,
+            target="Healing Herb",
+            target_count=1,
+            current_count=0,
+        )
+        character.quests.append(quest)
+
+        messages = character.record_collection("Healing Herb")
+
+        assert len(messages) == 1
+        assert "Quest Complete: Herb Gathering!" in messages[0]
+
+    # Spec: Compare item name to quest target (case-insensitive)
+    def test_record_collection_matches_case_insensitive(self, character, collect_quest):
+        """Test that item name matching is case-insensitive."""
+        character.quests.append(collect_quest)
+
+        # Collect with different cases
+        character.record_collection("HEALING HERB")
+        assert collect_quest.current_count == 1
+
+        character.record_collection("healing herb")
+        assert collect_quest.current_count == 2
+
+        character.record_collection("HeAlInG HeRb")
+        assert collect_quest.current_count == 3
+
+    # Spec: Non-matching item names don't increment progress
+    def test_record_collection_does_not_increment_non_matching_quest(
+        self, character, collect_quest
+    ):
+        """Test that collecting non-matching items doesn't increment quest progress."""
+        character.quests.append(collect_quest)
+
+        messages = character.record_collection("Dragon Scale")
+
+        assert collect_quest.current_count == 0
+        assert len(messages) == 0
+
+    # Spec: Only ACTIVE quests get progress (not COMPLETED, AVAILABLE, FAILED)
+    def test_record_collection_only_affects_active_quests(self, character):
+        """Test that only ACTIVE quests get progress, not other statuses."""
+        statuses_to_test = [
+            QuestStatus.AVAILABLE,
+            QuestStatus.COMPLETED,
+            QuestStatus.FAILED,
+        ]
+
+        for status in statuses_to_test:
+            quest = Quest(
+                name=f"Quest {status.value}",
+                description="Collect herbs",
+                status=status,
+                objective_type=ObjectiveType.COLLECT,
+                target="Healing Herb",
+                target_count=3,
+                current_count=0,
+            )
+            character.quests.append(quest)
+
+        character.record_collection("Healing Herb")
+
+        # None of the non-active quests should have progress
+        for quest in character.quests:
+            assert quest.current_count == 0
+
+    # Spec: Only COLLECT objective type quests get progress
+    def test_record_collection_only_affects_collect_objective_quests(self, character):
+        """Test that only COLLECT objective type quests get progress."""
+        objective_types_to_test = [
+            ObjectiveType.KILL,
+            ObjectiveType.EXPLORE,
+            ObjectiveType.TALK,
+        ]
+
+        for obj_type in objective_types_to_test:
+            quest = Quest(
+                name=f"Quest {obj_type.value}",
+                description="Quest description",
+                status=QuestStatus.ACTIVE,
+                objective_type=obj_type,
+                target="Healing Herb",
+                target_count=3,
+                current_count=0,
+            )
+            character.quests.append(quest)
+
+        character.record_collection("Healing Herb")
+
+        # None of the non-COLLECT quests should have progress
+        for quest in character.quests:
+            assert quest.current_count == 0
+
+    # Spec: Multiple quests can progress from same collection
+    def test_record_collection_progresses_multiple_matching_quests(self, character):
+        """Test that multiple quests matching the same item all get progress."""
+        quest1 = Quest(
+            name="Herb Hunt",
+            description="Collect 5 herbs",
+            status=QuestStatus.ACTIVE,
+            objective_type=ObjectiveType.COLLECT,
+            target="Healing Herb",
+            target_count=5,
+            current_count=0,
+        )
+        quest2 = Quest(
+            name="Alchemist Supply",
+            description="Collect 3 herbs",
+            status=QuestStatus.ACTIVE,
+            objective_type=ObjectiveType.COLLECT,
+            target="Healing Herb",
+            target_count=3,
+            current_count=2,  # One collection away from completion
+        )
+        character.quests.extend([quest1, quest2])
+
+        messages = character.record_collection("Healing Herb")
+
+        # Both quests should progress
+        assert quest1.current_count == 1
+        assert quest2.current_count == 3
+        # Quest 2 should be completed
+        assert quest2.status == QuestStatus.COMPLETED
+        # Should have 2 messages (one progress, one completion)
+        assert len(messages) == 2
+
+    # Spec: Returns empty list when no quests match
+    def test_record_collection_returns_empty_list_when_no_matching_quests(self, character):
+        """Test that record_collection returns empty list when no quests match."""
+        messages = character.record_collection("Dragon Scale")
+
+        assert messages == []

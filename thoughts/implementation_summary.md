@@ -1,58 +1,55 @@
-# Implementation Summary: Map Alignment and Exits Display Fix
+# Implementation Summary: COLLECT Objective Type for Quests
 
-## What was implemented
+## What Was Implemented
 
-### 1. Fixed Column Alignment for Colored Markers (map_renderer.py)
+Added the `record_collection()` method to the Character class, mirroring the existing `record_kill()` pattern. This enables quest progress tracking when players collect items from:
+1. Combat loot drops
+2. Shop purchases
 
-**Problem:** ANSI color codes in the player's `@` marker (14 bytes for `\x1b[1m\x1b[36m@\x1b[0m`) broke Python's string formatting width calculation. When using `f"{marker:>{cell_width}}"`, Python counts all bytes including invisible ANSI codes, resulting in no padding being added to colored markers.
+### Files Modified
 
-**Solution:** Changed the approach to:
-1. Store uncolored markers in `coord_to_marker` (plain "@" instead of colored "@")
-2. Apply padding to the uncolored marker first: `f"{marker:>{cell_width}}"`
-3. Only then colorize the marker character while preserving the padding: `padded[:-1] + colors.bold_colorize("@", colors.CYAN)`
+1. **`src/cli_rpg/models/character.py`** (lines 243-271)
+   - Added `record_collection(item_name: str) -> List[str]` method
+   - Matches item names case-insensitively against active COLLECT quest targets
+   - Increments quest progress and returns notification messages
+   - Marks quests COMPLETED and grants rewards when target_count reached
 
-**Files modified:** `src/cli_rpg/map_renderer.py` (lines 57-90)
+2. **`src/cli_rpg/combat.py`** (lines 170-172)
+   - Integrated `record_collection()` call after adding loot to inventory in `end_combat()`
+   - Quest progress messages are appended to combat victory messages
 
-### 2. Added Exits Display on Map
+3. **`src/cli_rpg/main.py`** (lines 477-482)
+   - Integrated `record_collection()` call after shop purchase in buy command handler
+   - Quest progress messages are appended to purchase confirmation
 
-**Feature:** The map now displays available exits from the current location below the legend.
-
-**Implementation:**
-- Get available directions using `current_loc.get_available_directions()`
-- Display "Exits: east, north" (sorted alphabetically) or "Exits: None" if no connections
-
-**Files modified:** `src/cli_rpg/map_renderer.py` (lines 92-107)
-
-## Tests Added (tests/test_map_renderer.py)
-
-1. `test_colored_marker_alignment` - Verifies that colored @ marker aligns correctly with uncolored markers by checking character positions after stripping ANSI codes
-
-2. `test_exits_displayed_on_map` - Verifies "Exits:" line appears with correct directions
-
-3. `test_exits_displayed_when_no_connections` - Verifies "Exits: None" is shown for isolated locations
+4. **`tests/test_quest_progress.py`** (lines 219-418)
+   - Added `collect_quest` fixture
+   - Added `TestRecordCollection` class with 10 test cases covering:
+     - Progress increment on matching item collection
+     - Progress notification messages
+     - Quest completion and status update
+     - Completion notification messages
+     - Case-insensitive item name matching
+     - Non-matching items ignored
+     - Only ACTIVE status quests affected
+     - Only COLLECT objective type quests affected
+     - Multiple quests can match same item
+     - Empty list returned when no matching quests
 
 ## Test Results
 
-All 896 tests pass (1 skipped).
+All 906 tests pass (including 10 new tests for record_collection).
 
-## Verification
+## Design Decisions
 
-Before fix:
-```
-Header:      -2 -1  0  1  2
-Row:      0      W@  E       <- @ and E misaligned (@ at pos 9, E at pos 12)
-```
-
-After fix:
-```
-Header:      -2 -1  0  1  2
-Row:      0      W  @  E     <- Correctly aligned (W at 8, @ at 11, E at 14)
-Exits: east, north           <- New exits line
-```
+- Followed exact same pattern as `record_kill()` for consistency
+- Quest rewards are automatically claimed on completion (gold, XP, items)
+- Item name matching is case-insensitive for better UX
+- Integration points chosen to capture all item acquisition paths
 
 ## E2E Validation
 
-The map command should now display properly aligned markers with exits:
-- Player marker @ aligns with column headers
-- Other location markers (first letter of name) align correctly
-- Exits from current location are listed at the bottom
+The following scenarios should work:
+1. Player with COLLECT quest for "Health Potion" wins combat, gets Health Potion loot → quest progress updates
+2. Player with COLLECT quest for "Iron Sword" buys Iron Sword from shop → quest progress updates
+3. Player completes final item collection → quest marked COMPLETED and rewards granted

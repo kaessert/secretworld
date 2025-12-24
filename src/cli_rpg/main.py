@@ -474,8 +474,13 @@ def handle_exploration_command(game_state: GameState, command: str, args: list[s
         )
         game_state.current_character.remove_gold(shop_item.buy_price)
         game_state.current_character.inventory.add_item(new_item)
+        # Track quest progress for collect objectives
+        quest_messages = game_state.current_character.record_collection(new_item.name)
         autosave(game_state)
-        return (True, f"\nYou bought {new_item.name} for {shop_item.buy_price} gold.")
+        output = f"\nYou bought {new_item.name} for {shop_item.buy_price} gold."
+        if quest_messages:
+            output += "\n" + "\n".join(quest_messages)
+        return (True, output)
 
     elif command == "sell":
         if game_state.current_shop is None:

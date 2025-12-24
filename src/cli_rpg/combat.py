@@ -167,6 +167,9 @@ class CombatEncounter:
             if loot is not None:
                 if self.player.inventory.add_item(loot):
                     messages.append(f"You found: {colors.item(loot.name)}!")
+                    # Track quest progress for collect objectives
+                    quest_messages = self.player.record_collection(loot.name)
+                    messages.extend(quest_messages)
                 else:
                     messages.append(f"You found {colors.item(loot.name)} but your inventory is full!")
 

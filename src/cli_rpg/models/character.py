@@ -240,6 +240,36 @@ class Character:
                     )
         return messages
 
+    def record_collection(self, item_name: str) -> List[str]:
+        """Record an item collection for quest progress.
+
+        Args:
+            item_name: Name of the collected item
+
+        Returns:
+            List of notification messages for quest progress/completion
+        """
+        from cli_rpg.models.quest import QuestStatus, ObjectiveType
+
+        messages = []
+        for quest in self.quests:
+            if (
+                quest.status == QuestStatus.ACTIVE
+                and quest.objective_type == ObjectiveType.COLLECT
+                and quest.target.lower() == item_name.lower()
+            ):
+                completed = quest.progress()
+                if completed:
+                    quest.status = QuestStatus.COMPLETED
+                    messages.append(f"Quest Complete: {quest.name}!")
+                    reward_messages = self.claim_quest_rewards(quest)
+                    messages.extend(reward_messages)
+                else:
+                    messages.append(
+                        f"Quest progress: {quest.name} [{quest.current_count}/{quest.target_count}]"
+                    )
+        return messages
+
     def claim_quest_rewards(self, quest: "Quest") -> List[str]:
         """Claim rewards from a completed quest.
 
