@@ -553,6 +553,42 @@ class TestGameStateCoordinateBasedMovement:
         assert success
         assert game_state.current_location == "West1"
 
+    def test_move_direction_must_exist_in_exits(self, monkeypatch):
+        """Movement should fail if direction doesn't exist in location exits.
+
+        Spec: Even with coordinate-based movement, you can only move in directions
+        that exist as exits in the current location. The key test case is when
+        a location EXISTS at the target coordinates but there's no exit in that
+        direction - the move should still fail.
+        """
+        monkeypatch.setattr("cli_rpg.game_state.autosave", lambda gs: None)
+
+        character = Character("Hero", strength=10, dexterity=10, intelligence=10)
+
+        # Location at (0,0) with only north, south, west exits - NO EAST
+        # BUT there's a location at (1,0) - the bug allows reaching it without an exit
+        loc_a = Location(
+            "Origin", "Location A", {"north": "North", "south": "South", "west": "West"},
+            coordinates=(0, 0)
+        )
+        loc_north = Location("North", "North location", {"south": "Origin"}, coordinates=(0, 1))
+        loc_south = Location("South", "South location", {"north": "Origin"}, coordinates=(0, -1))
+        loc_west = Location("West", "West location", {"east": "Origin"}, coordinates=(-1, 0))
+        # East location exists at coords (1,0) but there's NO east exit from Origin!
+        loc_east = Location("East", "East location", {"west": "Origin"}, coordinates=(1, 0))
+
+        world = {
+            "Origin": loc_a, "North": loc_north, "South": loc_south,
+            "West": loc_west, "East": loc_east
+        }
+        game_state = GameState(character, world, "Origin")
+
+        # Moving east should fail - no east exit even though a location exists there
+        success, message = game_state.move("east")
+        assert success is False, f"Expected failure but got success with message: {message}"
+        assert "can't go that way" in message.lower()
+        assert game_state.current_location == "Origin"  # Should not have moved
+
 
 class TestGameStateSerialization:
     """Tests for GameState serialization."""

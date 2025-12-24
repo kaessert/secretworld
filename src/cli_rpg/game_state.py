@@ -211,6 +211,10 @@ class GameState:
 
         # Use coordinate-based movement if current location has coordinates
         if current.coordinates is not None:
+            # Validate that the direction exists as an exit
+            if not current.has_connection(direction):
+                return (False, "You can't go that way.")
+
             # Calculate target coordinates
             dx, dy = DIRECTION_OFFSETS[direction]
             target_coords = (current.coordinates[0] + dx, current.coordinates[1] + dy)

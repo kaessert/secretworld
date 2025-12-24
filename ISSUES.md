@@ -1,21 +1,5 @@
 ## Active Issues
 
-
-### User can access impossible locations 
-**Status**: ACTIVE
-
-There is no east exist but we can go to east:
-
-Shattered Peaks
-A treacherous mountain range with jagged cliffs and deep chasms, where ancient ruins cling to the sheer rock faces and icy winds howl through the crevices.
-Exits: north, south, west
-
-> g e
-
-You head east to Blazing Caldera.
-
-Also, user had the option to go "up" earlier and that even worked even though it is not supported (and shouldn't most probably be)
-
 ###  High prio: Generate whole areas
 **Status**: ACTIVE
 
@@ -24,6 +8,19 @@ there should be a method of checking if the world border is completely closed, t
 all exits are visited and no way of getting to a tile whih triggers regeneration, THIS SHOULD BE AVOIDED in any case
 
 ## Resolved Issues
+
+### User can access impossible locations
+**Status**: RESOLVED
+
+**Original Problem**: Users could access locations in directions that didn't exist as exits in their current location. For example, a location showing "Exits: north, south, west" would still allow `go east` if there was a location at the eastern coordinates. The "up" direction was also incorrectly accepted.
+
+**Solution Implemented**:
+- Added exit validation in `GameState.move()` before coordinate calculation
+- Movement now checks `current.has_connection(direction)` before allowing coordinate-based movement
+- This ensures players can only move in directions that are explicitly listed as exits
+- Added test `test_move_direction_must_exist_in_exits` to verify the fix
+
+---
 
 ### Support Anthropic API Key
 **Status**: RESOLVED

@@ -1,55 +1,75 @@
-# Implementation Plan: Support Anthropic API Key
+# Fix: User can access impossible locations
 
-## Spec
+## Bug Analysis
 
-Add Anthropic as an alternative AI provider alongside OpenAI. Users can set `ANTHROPIC_API_KEY` to use Claude for world generation instead of OpenAI.
+**Root Cause**: In `game_state.py:move()`, when using coordinate-based movement (line 213-249), the code validates that the direction is a valid cardinal direction (`north`/`south`/`east`/`west`) but does NOT check if that direction exists as an exit in the current location's connections.
 
-**Behavior**:
-- If both `ANTHROPIC_API_KEY` and `OPENAI_API_KEY` are set, prefer Anthropic
-- `AI_PROVIDER` environment variable can explicitly select: `anthropic` or `openai`
-- Config stores the provider type so service knows which client to use
-- Maintain all existing OpenAI functionality unchanged when no Anthropic key is present
+**Current behavior (buggy)**:
+1. User at "Shattered Peaks" with exits: north, south, west
+2. User types `go east`
+3. Code validates "east" is a valid cardinal direction ✓
+4. Code calculates target coordinates for east
+5. If no location exists at those coords, AI generates one OR "You can't go that way."
 
-## Tests (write first)
+**Expected behavior**:
+1. User at "Shattered Peaks" with exits: north, south, west
+2. User types `go east`
+3. Code checks if "east" exists in `current.connections` → NO
+4. Return (False, "You can't go that way.") immediately
 
-**`tests/test_ai_config.py`** - Add:
-1. `test_ai_config_from_env_with_anthropic_key` - detects `ANTHROPIC_API_KEY`, sets provider to "anthropic"
-2. `test_ai_config_from_env_prefers_anthropic_over_openai` - when both keys set, defaults to anthropic
-3. `test_ai_config_from_env_explicit_provider_selection` - `AI_PROVIDER=openai` overrides preference
-4. `test_ai_config_from_env_no_api_key_raises_error` - neither key set raises AIConfigError
+## Fix Location
 
-**`tests/test_ai_service.py`** - Add:
-5. `test_ai_service_initialization_with_anthropic` - creates Anthropic client when provider is "anthropic"
-6. `test_generate_location_with_anthropic` - calls Anthropic API correctly, returns valid location
+**File**: `src/cli_rpg/game_state.py`
+**Method**: `move()` (lines 189-293)
+**Line to add validation**: After line 212 (after coordinate check but before calculating target coords)
 
-## Implementation Steps
+## Implementation
 
-### 1. Modify `ai_config.py`
+### Step 1: Write failing test
 
-- Add `provider: str` field to `AIConfig` dataclass (default: "openai")
-- Update `from_env()`:
-  - Check for `ANTHROPIC_API_KEY` environment variable
-  - Check for `AI_PROVIDER` environment variable for explicit selection
-  - Logic: If `AI_PROVIDER` is set, use that. Otherwise, prefer Anthropic if key exists, else OpenAI
-  - Raise `AIConfigError` if neither key is available
-  - Set appropriate default model: `claude-3-5-sonnet-latest` for anthropic, `gpt-3.5-turbo` for openai
-- Update `to_dict()` and `from_dict()` to include provider
+Add to `tests/test_game_state.py` in `TestGameStateCoordinateBasedMovement`:
 
-### 2. Modify `ai_service.py`
+```python
+def test_move_direction_must_exist_in_exits(self, monkeypatch):
+    """Movement should fail if direction doesn't exist in location exits.
 
-- Add `import anthropic` at top (conditionally import to handle missing package)
-- Modify `__init__()`:
-  - Check `config.provider` to decide which client to instantiate
-  - Store `self.provider = config.provider`
-- Modify `_call_llm()`:
-  - If provider is "anthropic", call `self.client.messages.create()` with appropriate format
-  - If provider is "openai", keep existing logic
-  - Handle Anthropic-specific exceptions (map to existing error types)
+    Spec: Even with coordinate-based movement, you can only move in directions
+    that exist as exits in the current location.
+    """
+    monkeypatch.setattr("cli_rpg.game_state.autosave", lambda gs: None)
 
-### 3. Update `config.py`
+    character = Character("Hero", strength=10, dexterity=10, intelligence=10)
 
-- Modify `load_ai_config()` log message to include which provider is active
+    # Location at (0,0) with only north, south, west exits - NO EAST
+    loc_a = Location("Origin", "Location A", {"north": "North", "south": "South", "west": "West"}, coordinates=(0, 0))
+    loc_north = Location("North", "North location", {"south": "Origin"}, coordinates=(0, 1))
+    loc_south = Location("South", "South location", {"north": "Origin"}, coordinates=(0, -1))
+    loc_west = Location("West", "West location", {"east": "Origin"}, coordinates=(-1, 0))
 
-### 4. Add `anthropic` dependency
+    world = {"Origin": loc_a, "North": loc_north, "South": loc_south, "West": loc_west}
+    game_state = GameState(character, world, "Origin")
 
-- Add to `pyproject.toml` (verify package manager used)
+    # Moving east should fail - no east exit even though east is a valid direction
+    success, message = game_state.move("east")
+    assert success is False
+    assert "can't go that way" in message.lower()
+    assert game_state.current_location == "Origin"  # Should not have moved
+```
+
+### Step 2: Fix game_state.py
+
+In `move()` method, add exit validation for coordinate-based movement. After line 212 (`if current.coordinates is not None:`), add:
+
+```python
+# Validate that the direction exists as an exit
+if not current.has_connection(direction):
+    return (False, "You can't go that way.")
+```
+
+This goes at approximately line 213, before the coordinate calculation on line 215.
+
+## Verification
+
+1. Run the new test: `pytest tests/test_game_state.py::TestGameStateCoordinateBasedMovement::test_move_direction_must_exist_in_exits -v`
+2. Run all movement tests: `pytest tests/test_game_state.py::TestGameStateMove -v`
+3. Run full test suite: `pytest`
