@@ -1,32 +1,45 @@
 ## Active Issues
 
-### Health potions can be wasted when at full health
-**Status**: ACTIVE
+### Unknown command error message is incomplete
+**Status**: OPEN
 
-**Problem**: When a player uses a Health Potion while at full health, the potion is consumed but heals 0 HP. The game shows the message "You used Health Potion and healed 0 health!" and considers this a successful action.
+**Problem Description**: When a user enters an unknown command during exploration, the error message doesn't list all available commands. Specifically, it's missing `talk`, `shop`, `buy`, and `sell`.
 
 **Steps to Reproduce**:
-1. Create a character with full health
-2. Add a Health Potion to inventory
-3. Use the command `use Health Potion`
-4. Observe: The potion is consumed even though no healing occurred
+1. Start the game and create a new character
+2. Enter an unknown command like `help` or `?`
+3. Observe the error message
 
-**Expected Behavior**: The game should either:
-- Prevent using health potions at full HP with a message like "You're already at full health!"
-- Ask for confirmation: "You're at full health. Use potion anyway? (y/n)"
+**Expected Behavior**: Error message should list all available commands:
+```
+✗ Unknown command. Type 'look', 'go', 'status', 'inventory', 'equip', 'unequip', 'use', 'talk', 'shop', 'buy', 'sell', 'save', or 'quit'
+```
 
-**Actual Behavior**:
-- Returns `(True, 'You used Health Potion and healed 0 health!')`
-- Potion is removed from inventory
-- No warning that the action was wasteful
+**Actual Behavior**: Error message is missing `talk`, `shop`, `buy`, `sell`:
+```
+✗ Unknown command. Type 'look', 'go', 'status', 'inventory', 'equip', 'unequip', 'use', 'save', or 'quit'
+```
 
-**Impact**: Players can accidentally waste valuable consumables, leading to frustration.
+**Impact**: Users may not realize these commands exist, especially since there's no `help` command. This could lead to confusion when trying to interact with NPCs/shops.
 
 ---
 
 ---
 
 ## Resolved Issues
+
+### Health potions can be wasted when at full health
+**Status**: RESOLVED
+
+**Original Problem**: When a player uses a Health Potion while at full health, the potion is consumed but heals 0 HP. The game shows the message "You used Health Potion and healed 0 health!" and considers this a successful action.
+
+**Solution Implemented**:
+- Added a check in `Character.use_item()` to verify the player is not at full health before consuming a healing item
+- Returns `(False, "You're already at full health!")` when attempting to use a healing potion at full health
+- The potion remains in the inventory when rejected
+- Added `test_use_health_potion_at_full_health` test to verify the behavior
+
+---
 
 ### Confusing error message when trying to sell equipped items
 **Status**: RESOLVED

@@ -238,6 +238,30 @@ class TestUseConsumable:
 
         assert character.health == character.max_health
 
+    def test_use_health_potion_at_full_health(self):
+        """Test: Cannot use health potion when at full health"""
+        character = Character(
+            name="Hero",
+            strength=10,
+            dexterity=10,
+            intelligence=10
+        )
+        # Character starts at full health
+
+        potion = Item(
+            name="Health Potion",
+            description="Restores health",
+            item_type=ItemType.CONSUMABLE,
+            heal_amount=30
+        )
+        character.inventory.add_item(potion)
+
+        result, message = character.use_item(potion)
+
+        assert result is False
+        assert potion in character.inventory.items  # Potion should NOT be consumed
+        assert "full health" in message.lower() or "already" in message.lower()
+
     def test_use_item_not_in_inventory(self):
         """Test: Cannot use item not in inventory"""
         character = Character(

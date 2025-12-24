@@ -1,39 +1,41 @@
-# Implementation Summary: Fix Confusing Error Message When Selling Equipped Items
+# Implementation Summary: Fix Health Potion Waste at Full Health
 
 ## What Was Implemented
 
-Added a helpful error message when a player tries to sell an equipped item, replacing the confusing "You don't have X in your inventory" message with clear guidance on how to unequip the item first.
+Prevented health potions from being consumed when the player is already at full health.
 
 ### Files Modified
 
-1. **`src/cli_rpg/main.py`** (lines 371-386)
-   - Added check for equipped weapon/armor when item not found in inventory
-   - Returns specific message explaining the item is equipped with unequip instructions
+1. **`src/cli_rpg/models/character.py`** (line ~185)
+   - Added a check in the `use_item()` method to verify the player is not at full health before consuming a healing item
+   - Returns `(False, "You're already at full health!")` when attempting to use a healing potion at full health
+   - The potion remains in the inventory when rejected
 
-2. **`tests/test_shop_commands.py`** (lines 127-149)
-   - Added `test_sell_equipped_weapon_shows_helpful_message`
-   - Added `test_sell_equipped_armor_shows_helpful_message`
-
-### Behavior Change
-
-**Before**: `"You don't have 'battle axe' in your inventory."`
-
-**After**: `"You can't sell Battle Axe because it's currently equipped. Unequip it first with 'unequip weapon'."`
-
-(or `'unequip armor'` for armor items)
+2. **`tests/test_character_inventory.py`** (lines 241-263)
+   - Added `test_use_health_potion_at_full_health` test in the `TestUseConsumable` class
+   - Verifies that:
+     - `use_item()` returns `False` when at full health
+     - The potion is NOT consumed (remains in inventory)
+     - The message contains "full health" or "already"
 
 ## Test Results
 
-- All 5 sell command tests pass
-- Full test suite: 692 passed, 1 skipped
-- No regressions detected
+All 22 tests in `test_character_inventory.py` pass, including:
+- Original 4 consumable tests continue to work
+- New `test_use_health_potion_at_full_health` test passes
+
+## Design Decision
+
+The check `self.health >= self.max_health` is placed BEFORE the heal logic in `use_item()`. This ensures:
+1. No healing calculation is performed unnecessarily
+2. The item is never removed from inventory when rejected
+3. Clear feedback is provided to the player
 
 ## E2E Validation
 
-To manually verify:
-1. Start the game and create a character
-2. Find/buy a weapon or armor
-3. Equip the item
-4. Visit a merchant (talk command)
-5. Try to sell the equipped item
-6. Verify the helpful message appears with unequip instructions
+To verify in-game:
+1. Start game with a character at full health
+2. Add a health potion to inventory
+3. Try to use the health potion
+4. Verify message says "You're already at full health!"
+5. Verify the potion is still in inventory

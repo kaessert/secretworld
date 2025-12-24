@@ -181,6 +181,9 @@ class Character:
 
         # Apply effect
         if item.heal_amount > 0:
+            # Check if already at full health
+            if self.health >= self.max_health:
+                return (False, "You're already at full health!")
             old_health = self.health
             self.heal(item.heal_amount)
             healed = self.health - old_health
