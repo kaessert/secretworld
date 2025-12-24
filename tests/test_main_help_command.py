@@ -83,6 +83,12 @@ class TestGetCommandReference:
         assert "cast" in result.lower()
         assert "flee" in result.lower()
 
+    def test_get_command_reference_includes_help_command(self):
+        """get_command_reference() lists 'help' as an available command."""
+        result = get_command_reference()
+        assert "help" in result.lower()
+        assert "command reference" in result.lower() or "commands" in result.lower()
+
 
 # Test exploration mode
 class TestHelpCommandDuringExploration:

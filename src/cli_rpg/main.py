@@ -32,6 +32,7 @@ def get_command_reference() -> str:
         "  buy <item>     - Buy an item from the shop",
         "  sell <item>    - Sell an item to the shop",
         "  map            - Display a map of explored areas",
+        "  help           - Display this command reference",
         "  save           - Save your game (not available during combat)",
         "  quit           - Return to main menu",
         "",

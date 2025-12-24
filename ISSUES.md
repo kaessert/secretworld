@@ -1,30 +1,39 @@
 ## Active Issues
 
-### Help command is not self-documenting - 'help' not listed in its own output
+### Cannot use health potions during combat when they are needed most
 **Status**: ACTIVE
 
-**Problem**: The `help` command displays a list of all available commands, but the `help` command itself is not listed in that output. This means users have no documented way to rediscover the `help` command if they forget about it.
+**Problem**: Players cannot use the `use <item>` command during combat, which means health potions cannot be used when they're most needed - during combat when HP is low. The game displays: `"Can't do that during combat! Use: attack, defend, cast, flee, status, help, or quit"`
 
 **Steps to Reproduce**:
-1. Create a new character and start the game
-2. Type `help` to see the command reference
-3. Notice that `help` is not listed among the commands
+1. Create a character and obtain a health potion (via shop or enemy drop)
+2. Enter combat by exploring (random encounters)
+3. Take damage from the enemy
+4. Try `use Health Potion`
 
-**Expected Behavior**: The help output should include a line like:
-```
-  help           - Display this command reference
-```
+**Expected Behavior**: Either:
+- Allow using consumable items during combat (standard RPG mechanic), OR
+- Clearly document in README.md that consumables can only be used outside of combat
 
-**Actual Behavior**: The help output lists all exploration commands (look, go, status, inventory, equip, unequip, use, talk, shop, buy, sell, map, save, quit) but does NOT include `help`.
+**Actual Behavior**: The game blocks the command with a generic "can't do that during combat" message. This is confusing because:
+1. The README describes health potions as "restore HP when used" without mentioning the combat restriction
+2. The `use <item>` command is listed under "Exploration Commands" but this distinction isn't obvious to users
+3. Health potions are most valuable during combat, so users naturally expect to use them there
+4. There is no clear documentation warning users about this limitation
 
-**Impact**:
-- Users who forget the commands have no documented way to rediscover that `help` exists
-- The README.md documents `help` as a valid command, but the in-game help doesn't mention it
-- Inconsistency between documentation and actual help output
+**User Impact**: Players may save health potions for "when they really need them" (i.e., during difficult combat), only to discover they cannot use them when they need them most. This can lead to unexpected game overs.
 
 ---
 
-### High prio: Generate whole areas
+### CRITICAL SHOULD FAIL WHEN AI GENERATION FAIL
+
+The game should fail hard when generating content with AI fails
+
+### Support Anthropic API Key
+
+Also support Anthropic next to OpenAI
+
+###  High prio: Generate whole areas
 
 instead of generating just the next exit, we should always generate whole areas which should cover different topics
 there should be a method of checking if the world border is completely closed, there might be still a situation where
@@ -57,6 +66,18 @@ This is misleading because:
 ---
 
 ## Resolved Issues
+
+### Help command is not self-documenting - 'help' not listed in its own output
+**Status**: RESOLVED
+
+**Original Problem**: The `help` command displays a list of all available commands, but the `help` command itself is not listed in that output. This meant users had no documented way to rediscover the `help` command if they forgot about it.
+
+**Solution Implemented**:
+- Added `help` command to the `get_command_reference()` output in `main.py`
+- Placed after `map` and before `save` in the exploration commands section
+- Added test `test_get_command_reference_includes_help_command()` to verify the fix
+
+---
 
 ### CRITICAL: Cannot load saved games after leveling up - stat validation breaks saved games
 **Status**: RESOLVED
