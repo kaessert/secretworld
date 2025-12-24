@@ -69,10 +69,11 @@ def test_ai_config_missing_api_key_raises_error():
 
 # Test: AIConfig from_env raises error when no API key in environment
 def test_ai_config_from_env_missing_api_key(monkeypatch):
-    """Test AIConfig.from_env() raises error when OPENAI_API_KEY not set."""
+    """Test AIConfig.from_env() raises error when no API key is set."""
     monkeypatch.delenv("OPENAI_API_KEY", raising=False)
-    
-    with pytest.raises(AIConfigError, match="OPENAI_API_KEY environment variable not set"):
+    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+
+    with pytest.raises(AIConfigError, match="No API key found"):
         AIConfig.from_env()
 
 
@@ -193,10 +194,87 @@ def test_ai_config_from_dict_with_defaults():
     minimal_dict = {
         "api_key": "test-key"
     }
-    
+
     config = AIConfig.from_dict(minimal_dict)
-    
+
     assert config.api_key == "test-key"
     assert config.model == "gpt-3.5-turbo"  # Default
     assert config.temperature == 0.7  # Default
     assert config.max_tokens == 500  # Default
+
+
+# Test: AIConfig from_env with ANTHROPIC_API_KEY sets provider to "anthropic"
+def test_ai_config_from_env_with_anthropic_key(monkeypatch):
+    """Test AIConfig.from_env() detects ANTHROPIC_API_KEY and sets provider to 'anthropic'."""
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+    monkeypatch.delenv("AI_PROVIDER", raising=False)
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "anthropic-test-key")
+
+    config = AIConfig.from_env()
+
+    assert config.api_key == "anthropic-test-key"
+    assert config.provider == "anthropic"
+    assert config.model == "claude-3-5-sonnet-latest"  # Default Anthropic model
+
+
+# Test: AIConfig prefers Anthropic when both keys are set
+def test_ai_config_from_env_prefers_anthropic_over_openai(monkeypatch):
+    """Test AIConfig.from_env() prefers Anthropic when both API keys are set."""
+    monkeypatch.setenv("OPENAI_API_KEY", "openai-test-key")
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "anthropic-test-key")
+    monkeypatch.delenv("AI_PROVIDER", raising=False)
+
+    config = AIConfig.from_env()
+
+    assert config.api_key == "anthropic-test-key"
+    assert config.provider == "anthropic"
+
+
+# Test: AI_PROVIDER env var allows explicit provider selection
+def test_ai_config_from_env_explicit_provider_selection(monkeypatch):
+    """Test AI_PROVIDER=openai overrides preference when both keys are set."""
+    monkeypatch.setenv("OPENAI_API_KEY", "openai-test-key")
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "anthropic-test-key")
+    monkeypatch.setenv("AI_PROVIDER", "openai")
+
+    config = AIConfig.from_env()
+
+    assert config.api_key == "openai-test-key"
+    assert config.provider == "openai"
+    assert config.model == "gpt-3.5-turbo"
+
+
+# Test: AIConfig raises error when neither API key is set
+def test_ai_config_from_env_no_api_key_raises_error(monkeypatch):
+    """Test AIConfig.from_env() raises error when neither API key is set."""
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+
+    with pytest.raises(AIConfigError, match="No API key found"):
+        AIConfig.from_env()
+
+
+# Test: AIConfig provider field serializes correctly
+def test_ai_config_serialization_with_provider():
+    """Test AIConfig with provider serializes and deserializes correctly."""
+    original_config = AIConfig(
+        api_key="test-key",
+        provider="anthropic",
+        model="claude-3-5-sonnet-latest"
+    )
+
+    config_dict = original_config.to_dict()
+
+    assert config_dict["provider"] == "anthropic"
+
+    restored_config = AIConfig.from_dict(config_dict)
+
+    assert restored_config.provider == "anthropic"
+
+
+# Test: AIConfig defaults to openai provider
+def test_ai_config_defaults_to_openai_provider():
+    """Test AIConfig defaults to 'openai' provider when not specified."""
+    config = AIConfig(api_key="test-key")
+
+    assert config.provider == "openai"

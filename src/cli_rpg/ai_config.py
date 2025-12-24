@@ -40,10 +40,11 @@ Respond with valid JSON in this exact format (no additional text):
 @dataclass
 class AIConfig:
     """Configuration for AI services.
-    
+
     Attributes:
         api_key: API key for the LLM provider (required)
-        model: Model identifier (default: "gpt-3.5-turbo")
+        provider: AI provider - "openai" or "anthropic" (default: "openai")
+        model: Model identifier (default: "gpt-3.5-turbo" for openai, "claude-3-5-sonnet-latest" for anthropic)
         temperature: Generation randomness 0.0-2.0 (default: 0.7)
         max_tokens: Maximum response length (default: 500)
         max_retries: Retry attempts for API failures (default: 3)
@@ -52,8 +53,9 @@ class AIConfig:
         cache_ttl: Cache time-to-live in seconds (default: 3600)
         location_generation_prompt: Prompt template for location generation
     """
-    
+
     api_key: str
+    provider: str = "openai"
     model: str = "gpt-3.5-turbo"
     temperature: float = 0.7
     max_tokens: int = 500
@@ -88,9 +90,11 @@ class AIConfig:
     @classmethod
     def from_env(cls) -> "AIConfig":
         """Create AIConfig from environment variables.
-        
+
         Environment variables:
-            OPENAI_API_KEY: API key (required)
+            OPENAI_API_KEY: OpenAI API key
+            ANTHROPIC_API_KEY: Anthropic API key
+            AI_PROVIDER: Explicit provider selection ("openai" or "anthropic")
             AI_MODEL: Model identifier
             AI_TEMPERATURE: Temperature value
             AI_MAX_TOKENS: Maximum tokens
@@ -98,28 +102,62 @@ class AIConfig:
             AI_RETRY_DELAY: Retry delay in seconds
             AI_ENABLE_CACHING: Enable caching (true/false)
             AI_CACHE_TTL: Cache TTL in seconds
-        
+
+        Provider selection priority:
+        1. If AI_PROVIDER is set, use that provider (must have corresponding API key)
+        2. If both keys are set, prefer Anthropic
+        3. Use whichever key is available
+
         Returns:
             AIConfig instance
-        
+
         Raises:
-            AIConfigError: If OPENAI_API_KEY is not set
+            AIConfigError: If no API key is available
         """
-        api_key = os.getenv("OPENAI_API_KEY")
-        if not api_key:
-            raise AIConfigError("OPENAI_API_KEY environment variable not set")
-        
+        openai_key = os.getenv("OPENAI_API_KEY")
+        anthropic_key = os.getenv("ANTHROPIC_API_KEY")
+        explicit_provider = os.getenv("AI_PROVIDER", "").lower()
+
+        # Determine provider and API key
+        if explicit_provider:
+            # Explicit provider selection
+            if explicit_provider == "anthropic":
+                if not anthropic_key:
+                    raise AIConfigError("AI_PROVIDER=anthropic but ANTHROPIC_API_KEY not set")
+                provider = "anthropic"
+                api_key = anthropic_key
+            elif explicit_provider == "openai":
+                if not openai_key:
+                    raise AIConfigError("AI_PROVIDER=openai but OPENAI_API_KEY not set")
+                provider = "openai"
+                api_key = openai_key
+            else:
+                raise AIConfigError(f"Invalid AI_PROVIDER: {explicit_provider}. Must be 'openai' or 'anthropic'")
+        elif anthropic_key:
+            # Prefer Anthropic when both keys are available
+            provider = "anthropic"
+            api_key = anthropic_key
+        elif openai_key:
+            provider = "openai"
+            api_key = openai_key
+        else:
+            raise AIConfigError("No API key found. Set OPENAI_API_KEY or ANTHROPIC_API_KEY")
+
+        # Set default model based on provider
+        default_model = "claude-3-5-sonnet-latest" if provider == "anthropic" else "gpt-3.5-turbo"
+
         # Read optional environment variables with defaults
-        model = os.getenv("AI_MODEL", "gpt-3.5-turbo")
+        model = os.getenv("AI_MODEL", default_model)
         temperature = float(os.getenv("AI_TEMPERATURE", "0.7"))
         max_tokens = int(os.getenv("AI_MAX_TOKENS", "500"))
         max_retries = int(os.getenv("AI_MAX_RETRIES", "3"))
         retry_delay = float(os.getenv("AI_RETRY_DELAY", "1.0"))
         enable_caching = os.getenv("AI_ENABLE_CACHING", "true").lower() == "true"
         cache_ttl = int(os.getenv("AI_CACHE_TTL", "3600"))
-        
+
         return cls(
             api_key=api_key,
+            provider=provider,
             model=model,
             temperature=temperature,
             max_tokens=max_tokens,
@@ -131,12 +169,13 @@ class AIConfig:
     
     def to_dict(self) -> dict:
         """Serialize configuration to dictionary.
-        
+
         Returns:
             Dictionary representation of the configuration
         """
         return {
             "api_key": self.api_key,
+            "provider": self.provider,
             "model": self.model,
             "temperature": self.temperature,
             "max_tokens": self.max_tokens,
@@ -150,18 +189,19 @@ class AIConfig:
     @classmethod
     def from_dict(cls, data: dict) -> "AIConfig":
         """Create AIConfig from dictionary.
-        
+
         Args:
             data: Dictionary containing configuration data
-        
+
         Returns:
             AIConfig instance
-        
+
         Raises:
             AIConfigError: If validation fails
         """
         return cls(
             api_key=data["api_key"],
+            provider=data.get("provider", "openai"),
             model=data.get("model", "gpt-3.5-turbo"),
             temperature=data.get("temperature", 0.7),
             max_tokens=data.get("max_tokens", 500),

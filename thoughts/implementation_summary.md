@@ -1,39 +1,57 @@
-# Implementation Summary: Fix No NPCs in AI-Generated Worlds
+# Implementation Summary: Anthropic API Support
 
 ## What Was Implemented
 
-Added a default merchant NPC to the starting location in AI-generated worlds, ensuring players always have access to a shop.
+Added Anthropic as an alternative AI provider alongside OpenAI for world generation.
 
-## Files Modified
+### Files Modified
 
-### `src/cli_rpg/ai_world.py`
-- Added imports for `NPC`, `Shop`, `ShopItem`, `Item`, and `ItemType` models
-- After creating the starting location in `create_ai_world()`, added code to:
-  - Create three shop items: Health Potion (50g), Iron Sword (100g), Leather Armor (80g)
-  - Create a Shop named "General Store" with these items
-  - Create a merchant NPC with dialogue and the shop attached
-  - Append the merchant to the starting location's `npcs` list
+1. **`src/cli_rpg/ai_config.py`**
+   - Added `provider` field to `AIConfig` dataclass (default: "openai")
+   - Updated `from_env()` to detect `ANTHROPIC_API_KEY` and `AI_PROVIDER` environment variables
+   - Provider selection priority: explicit `AI_PROVIDER` > Anthropic if key present > OpenAI
+   - Default model changes based on provider: `claude-3-5-sonnet-latest` for Anthropic, `gpt-3.5-turbo` for OpenAI
+   - Updated `to_dict()` and `from_dict()` to serialize/deserialize the provider field
 
-### `tests/test_ai_world_generation.py`
-- Added new test `test_create_ai_world_starting_location_has_merchant_npc()` that verifies:
-  - Starting location has at least one NPC
-  - At least one NPC is a merchant (`is_merchant=True`)
-  - The merchant has a shop attached (`shop is not None`)
+2. **`src/cli_rpg/ai_service.py`**
+   - Added conditional import for `anthropic` package with graceful fallback
+   - Updated `__init__()` to instantiate appropriate client based on `config.provider`
+   - Refactored `_call_llm()` to dispatch to provider-specific methods
+   - Added `_call_openai()` method (extracted from original `_call_llm`)
+   - Added `_call_anthropic()` method for Anthropic API calls with proper error handling
+
+3. **`pyproject.toml`**
+   - Added `anthropic>=0.18.0` to dependencies
+
+4. **`tests/test_ai_config.py`**
+   - Added 6 new tests for Anthropic provider support
+   - Updated existing test for new error message
+
+5. **`tests/test_ai_service.py`**
+   - Added 2 new tests for Anthropic service initialization and location generation
+
+## Environment Variables
+
+| Variable | Description |
+|----------|-------------|
+| `ANTHROPIC_API_KEY` | Anthropic API key |
+| `OPENAI_API_KEY` | OpenAI API key |
+| `AI_PROVIDER` | Explicit provider selection: `anthropic` or `openai` |
+
+## Provider Selection Logic
+
+1. If `AI_PROVIDER` is set, use that provider (must have corresponding API key)
+2. If both keys are set, prefer Anthropic
+3. Use whichever key is available
+4. Raise error if neither key is set
 
 ## Test Results
 
-All 805 tests pass (1 skipped).
+All 813 tests pass (37 for ai_config/ai_service, 813 total)
 
-## Design Decisions
+## E2E Validation Suggestions
 
-- The merchant NPC is added directly to the starting location object after it's created
-- Shop inventory matches the default world's merchant (consistent player experience)
-- The fix is minimal and surgical - only affects the starting location in AI-generated worlds
-
-## E2E Validation
-
-Players should be able to:
-1. Start a new game with AI world generation
-2. Use the `talk` command to interact with the merchant
-3. Use `shop` or `buy`/`sell` commands to access the store
-4. Purchase items like Health Potion, Iron Sword, and Leather Armor
+1. Set `ANTHROPIC_API_KEY` and run the game to verify world generation works
+2. Set both keys and verify Anthropic is used by default
+3. Set `AI_PROVIDER=openai` with both keys and verify OpenAI is used
+4. Verify graceful error when requesting Anthropic without the key

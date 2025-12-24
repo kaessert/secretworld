@@ -401,3 +401,69 @@ def test_generate_location_missing_required_fields(mock_openai_class, basic_conf
     
     with pytest.raises(AIGenerationError, match="required field"):
         service.generate_location(theme="fantasy")
+
+
+# Test: AIService initialization with Anthropic provider
+@patch('cli_rpg.ai_service.Anthropic')
+def test_ai_service_initialization_with_anthropic(mock_anthropic_class):
+    """Test AIService creates Anthropic client when provider is 'anthropic'."""
+    config = AIConfig(
+        api_key="anthropic-test-key",
+        provider="anthropic",
+        model="claude-3-5-sonnet-latest",
+        retry_delay=0.1
+    )
+
+    mock_client = Mock()
+    mock_anthropic_class.return_value = mock_client
+
+    service = AIService(config)
+
+    assert service.provider == "anthropic"
+    mock_anthropic_class.assert_called_once_with(api_key="anthropic-test-key")
+
+
+# Test: Generate location with Anthropic provider
+@patch('cli_rpg.ai_service.Anthropic')
+def test_generate_location_with_anthropic(mock_anthropic_class):
+    """Test generate_location calls Anthropic API correctly and returns valid location."""
+    config = AIConfig(
+        api_key="anthropic-test-key",
+        provider="anthropic",
+        model="claude-3-5-sonnet-latest",
+        retry_delay=0.1
+    )
+
+    mock_client = Mock()
+    mock_anthropic_class.return_value = mock_client
+
+    # Simulate Anthropic API response structure
+    location_data = {
+        "name": "Mystic Forest",
+        "description": "A dark and mysterious forest filled with ancient trees.",
+        "connections": {
+            "north": "Village Square",
+            "east": "River Bank"
+        }
+    }
+
+    mock_response = Mock()
+    mock_response.content = [Mock()]
+    mock_response.content[0].text = json.dumps(location_data)
+    mock_client.messages.create.return_value = mock_response
+
+    service = AIService(config)
+    result = service.generate_location(theme="fantasy")
+
+    # Verify result
+    assert result["name"] == "Mystic Forest"
+    assert result["description"] == "A dark and mysterious forest filled with ancient trees."
+    assert result["connections"]["north"] == "Village Square"
+
+    # Verify Anthropic API was called correctly
+    mock_client.messages.create.assert_called_once()
+    call_kwargs = mock_client.messages.create.call_args[1]
+    assert call_kwargs["model"] == "claude-3-5-sonnet-latest"
+    assert call_kwargs["max_tokens"] == 500
+    assert len(call_kwargs["messages"]) == 1
+    assert call_kwargs["messages"][0]["role"] == "user"

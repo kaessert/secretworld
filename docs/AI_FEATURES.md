@@ -2,7 +2,7 @@
 
 ## Overview
 
-The CLI RPG now includes AI-powered dynamic location generation using OpenAI's GPT models. This feature allows the game world to expand dynamically as players explore, creating unique locations on-demand.
+The CLI RPG includes AI-powered dynamic location generation using OpenAI's GPT models or Anthropic's Claude models. This feature allows the game world to expand dynamically as players explore, creating unique locations on-demand.
 
 ## Features
 
@@ -39,8 +39,14 @@ The CLI RPG now includes AI-powered dynamic location generation using OpenAI's G
 
 ## Setup
 
-### 1. Get an OpenAI API Key
+### 1. Get an API Key
+
+**Option A: OpenAI**
 1. Sign up at [OpenAI](https://platform.openai.com/)
+2. Generate an API key
+
+**Option B: Anthropic**
+1. Sign up at [Anthropic Console](https://console.anthropic.com/)
 2. Generate an API key
 
 ### 2. Configure Environment
@@ -51,17 +57,29 @@ cp .env.example .env
 
 Edit `.env` and add your API key:
 ```bash
+# For OpenAI
 OPENAI_API_KEY=your-api-key-here
+
+# OR for Anthropic
+ANTHROPIC_API_KEY=your-api-key-here
 ```
 
 ### 3. Optional Configuration
 Customize other settings in `.env`:
-- `AI_MODEL`: Model to use (default: gpt-3.5-turbo)
+- `AI_PROVIDER`: Explicit provider selection (`openai` or `anthropic`)
+- `AI_MODEL`: Model to use (default: `gpt-3.5-turbo` for OpenAI, `claude-3-5-sonnet-latest` for Anthropic)
 - `AI_TEMPERATURE`: Randomness (0.0-2.0, default: 0.7)
 - `AI_MAX_TOKENS`: Response length (default: 500)
 - `AI_MAX_RETRIES`: Retry attempts (default: 3)
 - `AI_ENABLE_CACHING`: Enable caching (default: true)
 - `CLI_RPG_REQUIRE_AI`: Strict mode for AI generation (default: true)
+
+### Provider Selection Logic
+
+When both API keys are configured:
+1. If `AI_PROVIDER` is explicitly set, that provider is used
+2. Otherwise, Anthropic is preferred when both keys are present
+3. If only one key is configured, that provider is used automatically
 
 ### Strict Mode (CLI_RPG_REQUIRE_AI)
 
@@ -144,12 +162,14 @@ loaded_game.ai_service = ai_service
    - Manages configuration
    - Validates settings
    - Loads from environment
+   - Supports both OpenAI and Anthropic providers
 
 2. **AIService** (`ai_service.py`)
-   - Interfaces with OpenAI API
+   - Interfaces with OpenAI or Anthropic API
    - Handles retries and errors
    - Manages caching
    - Validates responses
+   - Auto-detects provider from configuration
 
 3. **AI World** (`ai_world.py`)
    - Creates initial AI world using grid coordinates
@@ -175,7 +195,7 @@ The system handles various error scenarios:
 - **No API Key**: In strict mode, prompts user with options; in non-strict mode, falls back to default world
 - **Invalid API Key**: In strict mode, prompts user with options; in non-strict mode, shows error and uses default world
 - **Network Issues**: Retries with exponential backoff
-- **Rate Limiting**: Respects OpenAI limits
+- **Rate Limiting**: Respects API provider limits (OpenAI/Anthropic)
 - **Malformed Responses**: Validates and retries
 - **Timeout**: Handles gracefully
 
@@ -239,13 +259,12 @@ pytest tests/test_e2e_world_expansion.py -v
 ## Limitations
 
 ### Current Limitations
-1. Single LLM provider (OpenAI)
-2. In-memory cache only
-3. No location categories/types
-4. Basic prompt templates
+1. In-memory cache only
+2. No location categories/types
+3. Basic prompt templates
 
 ### Future Enhancements
-- Multiple LLM providers (Anthropic, local models)
+- Local model support
 - Persistent cache (database/file)
 - AI-powered NPC generation (basic NPC/merchant system already implemented)
 - AI-powered item generation (basic loot and shop systems already implemented)
@@ -256,8 +275,9 @@ pytest tests/test_e2e_world_expansion.py -v
 
 ### "API key not found"
 - Ensure `.env` file exists
-- Check `OPENAI_API_KEY` is set correctly
+- Check `OPENAI_API_KEY` or `ANTHROPIC_API_KEY` is set correctly
 - Verify no extra spaces or quotes
+- If using `AI_PROVIDER`, ensure the corresponding API key is configured
 
 ### "Rate limit exceeded"
 - Wait before retrying

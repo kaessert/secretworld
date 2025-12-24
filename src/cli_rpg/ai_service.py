@@ -7,6 +7,16 @@ from typing import Optional
 from openai import OpenAI
 import openai
 
+# Conditionally import Anthropic to handle missing package
+try:
+    from anthropic import Anthropic
+    import anthropic as anthropic_module
+    ANTHROPIC_AVAILABLE = True
+except ImportError:
+    Anthropic = None
+    anthropic_module = None
+    ANTHROPIC_AVAILABLE = False
+
 from cli_rpg.ai_config import AIConfig
 from cli_rpg.models.location import Location
 
@@ -28,20 +38,36 @@ class AITimeoutError(AIServiceError):
 
 class AIService:
     """Service for generating game content using LLMs.
-    
+
     Attributes:
         config: AIConfig instance with service configuration
+        provider: The AI provider being used ("openai" or "anthropic")
     """
-    
+
     def __init__(self, config: AIConfig):
         """Initialize AI service.
-        
+
         Args:
             config: AIConfig instance with API key and settings
+
+        Raises:
+            AIServiceError: If Anthropic provider is requested but package is not installed
         """
         self.config = config
-        self.client = OpenAI(api_key=config.api_key)
-        
+        self.provider = config.provider
+
+        # Initialize the appropriate client based on provider
+        if self.provider == "anthropic":
+            if not ANTHROPIC_AVAILABLE:
+                raise AIServiceError(
+                    "Anthropic provider requested but 'anthropic' package is not installed. "
+                    "Install it with: pip install anthropic"
+                )
+            self.client = Anthropic(api_key=config.api_key)
+        else:
+            # Default to OpenAI
+            self.client = OpenAI(api_key=config.api_key)
+
         # Initialize cache if enabled
         self._cache: dict[str, tuple[dict, float]] = {}  # key -> (data, timestamp)
     
@@ -137,19 +163,37 @@ class AIService:
     
     def _call_llm(self, prompt: str) -> str:
         """Call LLM API with retry logic.
-        
+
         Args:
             prompt: The prompt to send to the LLM
-        
+
         Returns:
             Response text from the LLM
-        
+
+        Raises:
+            AIServiceError: If API call fails after retries
+            AITimeoutError: If request times out
+        """
+        if self.provider == "anthropic":
+            return self._call_anthropic(prompt)
+        else:
+            return self._call_openai(prompt)
+
+    def _call_openai(self, prompt: str) -> str:
+        """Call OpenAI API with retry logic.
+
+        Args:
+            prompt: The prompt to send to the LLM
+
+        Returns:
+            Response text from the LLM
+
         Raises:
             AIServiceError: If API call fails after retries
             AITimeoutError: If request times out
         """
         last_error = None
-        
+
         for attempt in range(self.config.max_retries + 1):
             try:
                 response = self.client.chat.completions.create(
@@ -160,16 +204,16 @@ class AIService:
                     temperature=self.config.temperature,
                     max_tokens=self.config.max_tokens
                 )
-                
+
                 return response.choices[0].message.content
-            
+
             except openai.APITimeoutError as e:
                 last_error = e
                 if attempt < self.config.max_retries:
                     time.sleep(self.config.retry_delay * (2 ** attempt))  # Exponential backoff
                     continue
                 raise AITimeoutError(f"Request timed out after {attempt + 1} attempts") from e
-            
+
             except (openai.APIConnectionError, openai.RateLimitError) as e:
                 # Transient errors - retry
                 last_error = e
@@ -177,11 +221,11 @@ class AIService:
                     time.sleep(self.config.retry_delay * (2 ** attempt))  # Exponential backoff
                     continue
                 raise AIServiceError(f"API call failed after {attempt + 1} attempts: {str(e)}") from e
-            
+
             except openai.AuthenticationError as e:
                 # Don't retry authentication errors
                 raise AIServiceError(f"Authentication failed: {str(e)}") from e
-            
+
             except Exception as e:
                 # Other errors
                 last_error = e
@@ -189,7 +233,64 @@ class AIService:
                     time.sleep(self.config.retry_delay * (2 ** attempt))
                     continue
                 raise AIServiceError(f"API call failed: {str(e)}") from e
-        
+
+        # Should not reach here, but just in case
+        raise AIServiceError(f"API call failed after retries: {str(last_error)}") from last_error
+
+    def _call_anthropic(self, prompt: str) -> str:
+        """Call Anthropic API with retry logic.
+
+        Args:
+            prompt: The prompt to send to the LLM
+
+        Returns:
+            Response text from the LLM
+
+        Raises:
+            AIServiceError: If API call fails after retries
+            AITimeoutError: If request times out
+        """
+        last_error = None
+
+        for attempt in range(self.config.max_retries + 1):
+            try:
+                response = self.client.messages.create(
+                    model=self.config.model,
+                    messages=[
+                        {"role": "user", "content": prompt}
+                    ],
+                    max_tokens=self.config.max_tokens
+                )
+
+                return response.content[0].text
+
+            except Exception as e:
+                # Handle Anthropic-specific exceptions if available
+                if anthropic_module is not None:
+                    if isinstance(e, anthropic_module.APITimeoutError):
+                        last_error = e
+                        if attempt < self.config.max_retries:
+                            time.sleep(self.config.retry_delay * (2 ** attempt))
+                            continue
+                        raise AITimeoutError(f"Request timed out after {attempt + 1} attempts") from e
+
+                    if isinstance(e, (anthropic_module.APIConnectionError, anthropic_module.RateLimitError)):
+                        last_error = e
+                        if attempt < self.config.max_retries:
+                            time.sleep(self.config.retry_delay * (2 ** attempt))
+                            continue
+                        raise AIServiceError(f"API call failed after {attempt + 1} attempts: {str(e)}") from e
+
+                    if isinstance(e, anthropic_module.AuthenticationError):
+                        raise AIServiceError(f"Authentication failed: {str(e)}") from e
+
+                # General exception handling
+                last_error = e
+                if attempt < self.config.max_retries:
+                    time.sleep(self.config.retry_delay * (2 ** attempt))
+                    continue
+                raise AIServiceError(f"API call failed: {str(e)}") from e
+
         # Should not reach here, but just in case
         raise AIServiceError(f"API call failed after retries: {str(last_error)}") from last_error
     

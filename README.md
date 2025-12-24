@@ -15,7 +15,7 @@ python -m cli_rpg.main
 ## Features
 
 - **Character Creation**: Create custom characters with customizable attributes (strength, dexterity, intelligence)
-- **AI-Generated Worlds**: Dynamically generated locations using OpenAI's GPT models (optional)
+- **AI-Generated Worlds**: Dynamically generated locations using OpenAI or Anthropic Claude models (optional)
 - **Turn-Based Combat**: Engage enemies with attack, defend, and flee commands
 - **Inventory & Equipment**: Collect loot from defeated enemies, equip weapons and armor, use consumables
 - **NPC Shops**: Interact with merchants, buy equipment, and sell items for gold
@@ -128,13 +128,24 @@ The game supports automatic and manual saving:
 
 ### AI World Generation (Optional)
 
-Enable dynamic world generation with AI:
+Enable dynamic world generation with AI using either OpenAI or Anthropic:
 
-1. Get an OpenAI API key from [platform.openai.com](https://platform.openai.com/)
+**Option 1: OpenAI**
+1. Get an API key from [platform.openai.com](https://platform.openai.com/)
 2. Create a `.env` file:
    ```bash
    OPENAI_API_KEY=your-api-key-here
    ```
+
+**Option 2: Anthropic**
+1. Get an API key from [console.anthropic.com](https://console.anthropic.com/)
+2. Create a `.env` file:
+   ```bash
+   ANTHROPIC_API_KEY=your-api-key-here
+   ```
+
+**Both keys configured?** Anthropic is used by default. Set `AI_PROVIDER=openai` to use OpenAI instead.
+
 3. Select a theme when creating a new character (fantasy, sci-fi, cyberpunk, etc.)
 
 **Strict Mode (Default)**: If AI generation fails, you'll be prompted with options to retry, use the default world, or return to the main menu. To enable silent fallback (no prompts), set `CLI_RPG_REQUIRE_AI=false` in your `.env` file.

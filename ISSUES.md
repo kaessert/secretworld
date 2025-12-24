@@ -1,9 +1,20 @@
 ## Active Issues
 
-### Support Anthropic API Key
+
+### User can access impossible locations 
 **Status**: ACTIVE
 
-Also support Anthropic next to OpenAI
+There is no east exist but we can go to east:
+
+Shattered Peaks
+A treacherous mountain range with jagged cliffs and deep chasms, where ancient ruins cling to the sheer rock faces and icy winds howl through the crevices.
+Exits: north, south, west
+
+> g e
+
+You head east to Blazing Caldera.
+
+Also, user had the option to go "up" earlier and that even worked even though it is not supported (and shouldn't most probably be)
 
 ###  High prio: Generate whole areas
 **Status**: ACTIVE
@@ -13,6 +24,27 @@ there should be a method of checking if the world border is completely closed, t
 all exits are visited and no way of getting to a tile whih triggers regeneration, THIS SHOULD BE AVOIDED in any case
 
 ## Resolved Issues
+
+### Support Anthropic API Key
+**Status**: RESOLVED
+
+**Original Problem**: The game only supported OpenAI as the AI provider for world generation.
+
+**Solution Implemented**:
+- Added Anthropic as an alternative AI provider alongside OpenAI
+- Added `provider` field to `AIConfig` dataclass (default: "openai")
+- Updated `AIService` to support both OpenAI and Anthropic API calls
+- Provider selection priority: explicit `AI_PROVIDER` > Anthropic if key present > OpenAI
+- Default model changes based on provider: `claude-3-5-sonnet-latest` for Anthropic, `gpt-3.5-turbo` for OpenAI
+- Added `anthropic>=0.18.0` to dependencies
+- Added 8 new tests for Anthropic provider support
+
+**Environment Variables**:
+- `ANTHROPIC_API_KEY`: Anthropic API key
+- `OPENAI_API_KEY`: OpenAI API key
+- `AI_PROVIDER`: Explicit provider selection (`anthropic` or `openai`)
+
+---
 
 ### BUG User finds no NPCs in AI-generated worlds
 **Status**: RESOLVED
