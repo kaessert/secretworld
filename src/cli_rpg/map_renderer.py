@@ -2,6 +2,7 @@
 
 from typing import Optional
 from cli_rpg.models.location import Location
+from cli_rpg import colors
 
 
 def render_map(world: dict[str, Location], current_location: str) -> str:
@@ -47,7 +48,7 @@ def render_map(world: dict[str, Location], current_location: str) -> str:
         if name == current_location:
             # Current location marked with @
             marker = "@"
-            legend_entries.append(f"@ = You ({name})")
+            legend_entries.append(f"{colors.bold_colorize('@', colors.CYAN)} = You ({name})")
         else:
             # Use first letter of location name as marker
             marker = name[0].upper()
@@ -57,7 +58,7 @@ def render_map(world: dict[str, Location], current_location: str) -> str:
     coord_to_marker: dict[tuple[int, int], str] = {}
     for name, location in locations_with_coords:
         if name == current_location:
-            coord_to_marker[location.coordinates] = "@"
+            coord_to_marker[location.coordinates] = colors.bold_colorize("@", colors.CYAN)
         else:
             coord_to_marker[location.coordinates] = name[0].upper()
 

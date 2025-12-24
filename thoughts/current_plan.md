@@ -1,42 +1,83 @@
-# Plan: Player-Centered Map Display (5x5 Grid)
+# Implementation Plan: Add Colors to Output
 
-## Spec
-Modify `render_map()` to display a 5x5 grid centered on the player's current location (2 tiles in each direction), rather than calculating bounds from all explored locations.
+## Specification
 
-**Current behavior:** Map shows all locations based on min/max coordinates of explored world
-**New behavior:** Map shows a fixed 5x5 area centered on player, with player always at center (offset 0,0 in viewport)
+Add color highlighting to CLI output to improve user experience:
+- **Enemies**: Red (during combat messages)
+- **Locations**: Cyan/blue (location names in look/move output)
+- **NPCs**: Yellow (NPC names in dialogue/location display)
+- **Items**: Green (item names in inventory/loot/shop)
+- **Player stats**: Magenta (status display headers)
+- **Damage/health loss**: Red
+- **Healing/gains**: Green
+- **Gold**: Yellow
+- **Map markers**: Various colors for visual distinction
 
-## Tests to Add (`tests/test_map_renderer.py` - new file)
-
-1. **test_map_centered_on_player** - Verify player position is always at grid center regardless of absolute coordinates
-2. **test_map_shows_5x5_viewport** - Verify exactly 5 columns (-2 to +2) and 5 rows (-2 to +2) are displayed
-3. **test_map_clips_locations_outside_viewport** - Verify locations >2 tiles away are not shown on map (but may appear in legend if explored)
-4. **test_map_handles_player_at_origin** - Player at (0,0) shows grid from (-2,-2) to (2,2)
-5. **test_map_handles_player_at_large_coordinates** - Player at (100,50) shows grid from (98,48) to (102,52)
+Use ANSI escape codes directly (no external dependency) with a disable flag via environment variable `CLI_RPG_NO_COLOR=true` for terminals that don't support colors.
 
 ## Implementation Steps
 
-### 1. Create test file `tests/test_map_renderer.py`
-Add the 5 tests above using existing `Location` model pattern from `test_map_command.py`.
+### 1. Create `src/cli_rpg/colors.py` - Color utility module
 
-### 2. Modify `src/cli_rpg/map_renderer.py`
-
-**Changes to `render_map()` function:**
-
-1. Get current location's coordinates (handle None case - return early message)
-2. Replace bounds calculation (lines 28-31) with fixed viewport:
-   ```python
-   player_x, player_y = current_loc.coordinates
-   min_x, max_x = player_x - 2, player_x + 2
-   min_y, max_y = player_y - 2, player_y + 2
-   ```
-3. Keep rest of rendering logic unchanged - it already iterates over the bounds correctly
-4. Legend should only show locations visible in viewport (filter `locations_with_coords` to viewport bounds)
-
-### 3. Run tests
-```bash
-pytest tests/test_map_renderer.py -v
-pytest tests/test_map_command.py -v
+```python
+# Define color constants and helper functions
+RESET, RED, GREEN, YELLOW, BLUE, MAGENTA, CYAN, BOLD = ANSI codes
+color_enabled() -> bool  # Check CLI_RPG_NO_COLOR env var
+colorize(text, color) -> str  # Wrap text in color codes if enabled
+# Semantic helpers: enemy(), location(), npc(), item(), gold(), damage(), heal()
 ```
 
-Verify all new tests pass and existing map command tests still pass.
+### 2. Update `src/cli_rpg/combat.py` - Combat messages
+
+- `CombatEncounter.start()`: Color enemy name red
+- `player_attack()`, `player_cast()`: Color enemy name red, damage values
+- `enemy_turn()`: Color enemy name red, damage red, remaining HP
+- `end_combat()`: Color victory green, defeat red, XP/gold gains
+- `get_status()`: Color headers, HP values (green for healthy, red for low)
+- `generate_loot()`: Item names colored green
+
+### 3. Update `src/cli_rpg/models/location.py` - Location display
+
+- `__str__()`: Color location name cyan, NPC names yellow, exits
+
+### 4. Update `src/cli_rpg/main.py` - Command output
+
+- `handle_combat_command()`: Ensure combat messages preserve colors
+- `handle_exploration_command()`:
+  - `talk`: Color NPC name yellow
+  - `shop`/`buy`/`sell`: Color item names green, gold yellow
+  - `equip`/`use`: Color item names green
+- `get_command_reference()`: Color section headers
+
+### 5. Update `src/cli_rpg/game_state.py` - Movement messages
+
+- `move()`: Color direction and destination location name
+
+### 6. Update `src/cli_rpg/map_renderer.py` - Map display
+
+- Color `@` (player marker) bold cyan
+- Color other location markers appropriately
+
+### 7. Update `src/cli_rpg/models/character.py` - Character display
+
+- `__str__()`: Color stat labels, HP (conditional on health %), gold
+
+### 8. Update `src/cli_rpg/models/inventory.py` - Inventory display
+
+- `__str__()`: Color item names, equipped items highlighted
+
+## Test Plan
+
+### Create `tests/test_colors.py`
+
+1. `test_color_enabled_default` - Colors enabled when CLI_RPG_NO_COLOR not set
+2. `test_color_disabled_via_env` - Colors disabled when CLI_RPG_NO_COLOR=true
+3. `test_colorize_returns_colored_when_enabled` - Verify ANSI codes present
+4. `test_colorize_returns_plain_when_disabled` - Verify no ANSI codes
+5. `test_semantic_helpers_return_correct_colors` - enemy(), location(), npc(), item()
+6. `test_reset_always_appended` - Ensure RESET code terminates colored text
+
+### Existing test considerations
+
+- Existing tests compare exact string output - they will continue to pass if run with `CLI_RPG_NO_COLOR=true`
+- Add a pytest fixture in `conftest.py` to disable colors during test runs by default

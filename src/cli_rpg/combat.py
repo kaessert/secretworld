@@ -5,6 +5,7 @@ from typing import Optional, Tuple
 from cli_rpg.models.character import Character
 from cli_rpg.models.enemy import Enemy
 from cli_rpg.models.item import Item, ItemType
+from cli_rpg import colors
 
 
 class CombatEncounter:
@@ -27,12 +28,12 @@ class CombatEncounter:
     def start(self) -> str:
         """
         Initialize combat and return intro message.
-        
+
         Returns:
             Intro message describing the encounter
         """
         self.is_active = True
-        return f"A wild {self.enemy.name} appears! Combat has begun!"
+        return f"A wild {colors.enemy(self.enemy.name)} appears! Combat has begun!"
     
     def player_attack(self) -> Tuple[bool, str]:
         """
@@ -44,16 +45,16 @@ class CombatEncounter:
             - message: Description of the attack
         """
         # Calculate damage: player attack power (strength + weapon bonus) - enemy defense, minimum 1
-        damage = max(1, self.player.get_attack_power() - self.enemy.defense)
-        self.enemy.take_damage(damage)
-        
-        message = f"You attack {self.enemy.name} for {damage} damage!"
-        
+        dmg = max(1, self.player.get_attack_power() - self.enemy.defense)
+        self.enemy.take_damage(dmg)
+
+        message = f"You attack {colors.enemy(self.enemy.name)} for {colors.damage(str(dmg))} damage!"
+
         if not self.enemy.is_alive():
-            message += f"\n{self.enemy.name} has been defeated! Victory!"
+            message += f"\n{colors.enemy(self.enemy.name)} has been defeated! {colors.heal('Victory!')}"
             return True, message
-        
-        message += f"\n{self.enemy.name} has {self.enemy.health}/{self.enemy.max_health} HP remaining."
+
+        message += f"\n{colors.enemy(self.enemy.name)} has {self.enemy.health}/{self.enemy.max_health} HP remaining."
         return False, message
     
     def player_defend(self) -> Tuple[bool, str]:
@@ -82,16 +83,16 @@ class CombatEncounter:
             - message: Description of the spell cast
         """
         # Calculate magic damage: intelligence * 1.5, ignores defense
-        damage = max(1, int(self.player.intelligence * 1.5))
-        self.enemy.take_damage(damage)
+        dmg = max(1, int(self.player.intelligence * 1.5))
+        self.enemy.take_damage(dmg)
 
-        message = f"You cast a spell at {self.enemy.name} for {damage} magic damage!"
+        message = f"You cast a spell at {colors.enemy(self.enemy.name)} for {colors.damage(str(dmg))} magic damage!"
 
         if not self.enemy.is_alive():
-            message += f"\n{self.enemy.name} has been defeated! Victory!"
+            message += f"\n{colors.enemy(self.enemy.name)} has been defeated! {colors.heal('Victory!')}"
             return True, message
 
-        message += f"\n{self.enemy.name} has {self.enemy.health}/{self.enemy.max_health} HP remaining."
+        message += f"\n{colors.enemy(self.enemy.name)} has {self.enemy.health}/{self.enemy.max_health} HP remaining."
         return False, message
 
     def player_flee(self) -> Tuple[bool, str]:
@@ -121,19 +122,22 @@ class CombatEncounter:
         """
         # Calculate damage: enemy attack - player defense (constitution + armor bonus), minimum 1
         base_damage = max(1, self.enemy.calculate_damage() - self.player.get_defense())
-        
+
         # Apply defense reduction if player is defending
         if self.defending:
-            damage = max(1, base_damage // 2)  # Half damage when defending
-            message = f"{self.enemy.name} attacks! You block some of the damage, taking {damage} damage!"
+            dmg = max(1, base_damage // 2)  # Half damage when defending
+            message = (
+                f"{colors.enemy(self.enemy.name)} attacks! You block some of the damage, "
+                f"taking {colors.damage(str(dmg))} damage!"
+            )
             self.defending = False  # Reset defensive stance
         else:
-            damage = base_damage
-            message = f"{self.enemy.name} attacks you for {damage} damage!"
-        
-        self.player.take_damage(damage)
+            dmg = base_damage
+            message = f"{colors.enemy(self.enemy.name)} attacks you for {colors.damage(str(dmg))} damage!"
+
+        self.player.take_damage(dmg)
         message += f"\nYou have {self.player.health}/{self.player.max_health} HP remaining."
-        
+
         return message
     
     def end_combat(self, victory: bool) -> str:
@@ -149,38 +153,38 @@ class CombatEncounter:
         self.is_active = False
 
         if victory:
-            messages = [f"Victory! You defeated {self.enemy.name}!"]
+            messages = [f"{colors.heal('Victory!')} You defeated {colors.enemy(self.enemy.name)}!"]
             xp_messages = self.player.gain_xp(self.enemy.xp_reward)
             messages.extend(xp_messages)
 
             # Award gold based on enemy level
             gold_reward = random.randint(5, 15) * self.enemy.level
             self.player.add_gold(gold_reward)
-            messages.append(f"You earned {gold_reward} gold!")
+            messages.append(f"You earned {colors.gold(str(gold_reward) + ' gold')}!")
 
             # Generate and award loot
             loot = generate_loot(self.enemy, self.player.level)
             if loot is not None:
                 if self.player.inventory.add_item(loot):
-                    messages.append(f"You found: {loot.name}!")
+                    messages.append(f"You found: {colors.item(loot.name)}!")
                 else:
-                    messages.append(f"You found {loot.name} but your inventory is full!")
+                    messages.append(f"You found {colors.item(loot.name)} but your inventory is full!")
 
             return "\n".join(messages)
         else:
-            return f"You have been defeated by {self.enemy.name}..."
+            return f"{colors.damage('You have been defeated')} by {colors.enemy(self.enemy.name)}..."
     
     def get_status(self) -> str:
         """
         Display current combat status.
-        
+
         Returns:
             Status string showing health of both combatants
         """
         return (
-            f"=== COMBAT ===\n"
+            f"=== {colors.stat_header('COMBAT')} ===\n"
             f"Player: {self.player.name} - {self.player.health}/{self.player.max_health} HP\n"
-            f"Enemy: {self.enemy.name} - {self.enemy.health}/{self.enemy.max_health} HP"
+            f"Enemy: {colors.enemy(self.enemy.name)} - {self.enemy.health}/{self.enemy.max_health} HP"
         )
 
 

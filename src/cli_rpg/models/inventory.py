@@ -3,6 +3,7 @@ from dataclasses import dataclass, field
 from typing import ClassVar, Dict, List, Optional
 
 from cli_rpg.models.item import Item, ItemType
+from cli_rpg import colors
 
 
 @dataclass
@@ -237,17 +238,17 @@ class Inventory:
         Returns:
             Formatted string with inventory contents
         """
-        lines = [f"Inventory ({len(self.items)}/{self.capacity}):"]
+        lines = [f"{colors.stat_header('Inventory')} ({len(self.items)}/{self.capacity}):"]
 
         if self.equipped_weapon:
-            lines.append(f"  [Weapon] {self.equipped_weapon}")
+            lines.append(f"  [{colors.stat_header('Weapon')}] {colors.item(self.equipped_weapon.name)}")
         if self.equipped_armor:
-            lines.append(f"  [Armor] {self.equipped_armor}")
+            lines.append(f"  [{colors.stat_header('Armor')}] {colors.item(self.equipped_armor.name)}")
 
         if self.items:
             lines.append("  Items:")
             for item in self.items:
-                lines.append(f"    - {item}")
+                lines.append(f"    - {colors.item(item.name)}")
         else:
             lines.append("  No items")
 

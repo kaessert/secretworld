@@ -23,6 +23,7 @@ python -m cli_rpg.main
 - **Persistent Saves**: Save and load complete game progress including world state, location, and theme
 - **Grid-Based World**: Navigate a spatially consistent world where directions are reliable (going north then south returns you to the same place)
 - **Experience System**: Level up by defeating enemies
+- **Colorized Output**: Color-coded terminal output for improved readability (enemies in red, locations in cyan, items in green, etc.)
 
 ## Gameplay
 
@@ -139,6 +140,19 @@ Enable dynamic world generation with AI:
 **Strict Mode (Default)**: If AI generation fails, you'll be prompted with options to retry, use the default world, or return to the main menu. To enable silent fallback (no prompts), set `CLI_RPG_REQUIRE_AI=false` in your `.env` file.
 
 See [docs/AI_FEATURES.md](docs/AI_FEATURES.md) for detailed AI configuration.
+
+### Disabling Colors
+
+Colors are enabled by default for terminals that support ANSI escape codes. To disable colorized output:
+
+```bash
+CLI_RPG_NO_COLOR=true cli-rpg
+```
+
+Or add to your `.env` file:
+```bash
+CLI_RPG_NO_COLOR=true
+```
 
 ## Development
 

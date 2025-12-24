@@ -1,10 +1,9 @@
 ## Active Issues
 
-### Colors in output
+### Shorthands for movements
 **Status**: ACTIVE
 
-Users wish to have more rich experience by highlighting different output section with matching
-colors, for example enemies shown in red, locations in another color and so on
+g s for go south and so on
 
 ### Support Anthropic API Key
 **Status**: ACTIVE
@@ -19,6 +18,20 @@ there should be a method of checking if the world border is completely closed, t
 all exits are visited and no way of getting to a tile whih triggers regeneration, THIS SHOULD BE AVOIDED in any case
 
 ## Resolved Issues
+
+### Colors in output
+**Status**: RESOLVED
+
+**Original Problem**: Users wish to have more rich experience by highlighting different output section with matching colors, for example enemies shown in red, locations in another color and so on.
+
+**Solution Implemented**:
+- Created `colors.py` module with ANSI color constants and semantic helper functions
+- Color scheme: Red for enemies/damage, Green for items/victories, Yellow for NPCs/gold, Cyan for locations, Magenta for stat headers
+- Applied colors throughout: combat messages, location descriptions, character status, inventory, and map display
+- Colors can be disabled via `CLI_RPG_NO_COLOR=true` environment variable
+- All existing tests continue to pass via `disable_colors` fixture in conftest.py
+
+---
 
 ### Map should always show the user in the center and could show two fields around the user
 **Status**: RESOLVED

@@ -2,6 +2,8 @@
 from dataclasses import dataclass, field
 from typing import ClassVar, List, Optional, Tuple, TYPE_CHECKING
 
+from cli_rpg import colors
+
 if TYPE_CHECKING:
     from cli_rpg.models.item import Item
     from cli_rpg.models.quest import Quest
@@ -323,13 +325,27 @@ class Character:
     
     def __str__(self) -> str:
         """String representation of character.
-        
+
         Returns:
             Formatted string with character details
         """
-        status = "Alive" if self.is_alive() else "Dead"
+        status = colors.heal("Alive") if self.is_alive() else colors.damage("Dead")
+        gold_str = colors.gold(str(self.gold))
+
+        # Color health based on percentage
+        health_pct = self.health / self.max_health if self.max_health > 0 else 0
+        if health_pct > 0.5:
+            health_str = colors.heal(f"{self.health}/{self.max_health}")
+        elif health_pct > 0.25:
+            health_str = colors.gold(f"{self.health}/{self.max_health}")
+        else:
+            health_str = colors.damage(f"{self.health}/{self.max_health}")
+
         return (
             f"{self.name} (Level {self.level}) - {status}\n"
-            f"Health: {self.health}/{self.max_health} | Gold: {self.gold}\n"
-            f"Strength: {self.strength} | Dexterity: {self.dexterity} | Intelligence: {self.intelligence}"
+            f"{colors.stat_header('Health')}: {health_str} | "
+            f"{colors.stat_header('Gold')}: {gold_str}\n"
+            f"{colors.stat_header('Strength')}: {self.strength} | "
+            f"{colors.stat_header('Dexterity')}: {self.dexterity} | "
+            f"{colors.stat_header('Intelligence')}: {self.intelligence}"
         )

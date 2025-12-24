@@ -34,6 +34,7 @@ src/cli_rpg/
 ├── ai_world.py          # AI-powered world content
 ├── ai_config.py         # AI service configuration
 ├── config.py            # General configuration
+├── colors.py            # ANSI color output utilities
 └── models/
     ├── character.py     # Player character model
     ├── enemy.py         # Enemy/monster model

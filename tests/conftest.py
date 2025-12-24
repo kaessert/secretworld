@@ -1,7 +1,39 @@
 """Pytest configuration and fixtures for CLI RPG tests."""
+import os
 import pytest
 from unittest.mock import patch
 import tempfile
+
+
+@pytest.fixture(autouse=True)
+def disable_colors():
+    """Disable colors during tests for consistent string comparisons.
+
+    This fixture sets CLI_RPG_NO_COLOR=true to disable ANSI color codes
+    in all test output, ensuring existing tests continue to pass.
+    """
+    # Clear the color_enabled cache before setting env var
+    try:
+        from cli_rpg import colors
+        colors.color_enabled.cache_clear()
+    except ImportError:
+        pass
+
+    with patch.dict(os.environ, {"CLI_RPG_NO_COLOR": "true"}):
+        # Clear cache again after setting env var
+        try:
+            from cli_rpg import colors
+            colors.color_enabled.cache_clear()
+        except ImportError:
+            pass
+        yield
+
+    # Clear cache after test to restore default behavior
+    try:
+        from cli_rpg import colors
+        colors.color_enabled.cache_clear()
+    except ImportError:
+        pass
 
 
 @pytest.fixture(autouse=True)

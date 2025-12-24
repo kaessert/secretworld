@@ -3,6 +3,8 @@
 from dataclasses import dataclass, field
 from typing import ClassVar, List, Optional, Tuple, TYPE_CHECKING
 
+from cli_rpg import colors
+
 if TYPE_CHECKING:
     from cli_rpg.models.npc import NPC
 
@@ -202,14 +204,14 @@ class Location:
     
     def __str__(self) -> str:
         """Return a human-readable string representation of the location.
-        
+
         Returns:
             A formatted string with name, description, and exits
         """
-        result = f"{self.name}\n{self.description}\n"
+        result = f"{colors.location(self.name)}\n{self.description}\n"
 
         if self.npcs:
-            npc_names = [npc.name for npc in self.npcs]
+            npc_names = [colors.npc(npc.name) for npc in self.npcs]
             result += f"NPCs: {', '.join(npc_names)}\n"
 
         if self.connections:

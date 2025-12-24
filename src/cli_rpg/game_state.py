@@ -8,6 +8,7 @@ from cli_rpg.models.location import Location
 from cli_rpg.models.shop import Shop
 from cli_rpg.combat import CombatEncounter, spawn_enemy
 from cli_rpg.autosave import autosave
+from cli_rpg import colors
 
 # Import AI components (with optional support)
 try:
@@ -277,7 +278,7 @@ class GameState:
         except IOError:
             pass  # Silent failure - don't interrupt gameplay
 
-        message = f"You head {direction} to {self.current_location}."
+        message = f"You head {direction} to {colors.location(self.current_location)}."
 
         # Check for random encounter
         encounter_message = self.trigger_encounter(self.current_location)
