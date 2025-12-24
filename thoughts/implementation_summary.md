@@ -1,70 +1,38 @@
-# Implementation Summary: Intelligence Stat Functionality (Magic Attack)
+# Implementation Summary: Update ISSUES.md to Mark Dead-End Issue as Resolved
 
 ## What Was Implemented
 
-### Feature Overview
-Added a `cast` combat command that deals magic damage scaled by Intelligence, providing gameplay value for the previously unused Intelligence stat. This follows the established pattern where Strength → physical attack and Dexterity → flee chance.
-
 ### Files Modified
+1. **`ISSUES.md`** - Updated to mark the dead-end bug as resolved
+   - Added `[RESOLVED]` status to the dead-end issue header
+   - Added commit reference `8d7f56f` showing when the fix was made
+   - Documented the original issue and resolution
+   - Preserved the "player loading feature does not work" as an active issue
 
-1. **README.md**
-   - Updated Intelligence stat description from "(Future feature)" to "Increases magic attack damage"
-   - Added `cast` command to combat commands documentation
-
-2. **tests/test_combat.py**
-   - Added `TestPlayerCast` test class with 4 comprehensive tests:
-     - `test_player_cast_damages_enemy_based_on_intelligence`: Verifies damage formula (int * 1.5)
-     - `test_player_cast_handles_enemy_defeat`: Verifies victory=True when enemy dies
-     - `test_player_cast_continues_combat_when_enemy_survives`: Verifies victory=False when enemy lives
-     - `test_player_cast_ignores_enemy_defense`: Verifies magic bypasses defense
-
-3. **src/cli_rpg/combat.py**
-   - Added `player_cast()` method to `CombatEncounter` class
-   - Formula: `damage = max(1, int(self.player.intelligence * 1.5))`
-   - Magic damage ignores enemy defense
-
-4. **src/cli_rpg/main.py**
-   - Added `cast` command handler in `handle_combat_command()`
-   - Updated combat error message to include `cast`
-   - Added cast to help display in `start_game()` (both new game and loaded game)
-
-5. **src/cli_rpg/game_state.py**
-   - Added "cast" to `known_commands` set in `parse_command()`
-
-### Technical Details
-
-**Magic Attack Formula:**
-- Damage = Intelligence × 1.5 (minimum 1)
-- Ignores enemy defense (unlike physical attack which is Strength - Defense)
-- Uses same victory/message pattern as `player_attack()`
-
-**Combat Flow for Cast:**
-1. Player casts spell → damage calculated and applied
-2. If enemy dies → victory, XP awarded, combat ends
-3. If enemy survives → enemy attacks back
-4. If player dies from counterattack → game over
+### Files Created
+1. **`tests/test_issues_documentation.py`** - New test file with 3 tests:
+   - `test_issues_file_exists()` - Verifies ISSUES.md exists at project root
+   - `test_resolved_issues_are_marked()` - Verifies resolved issues have `[RESOLVED]` marker and commit reference
+   - `test_no_active_resolved_issues()` - Ensures no critical issues are unmarked if they're actually resolved
 
 ## Test Results
 
-All tests pass:
-- **New Tests:** 4/4 passed (TestPlayerCast)
-- **Combat Tests:** 21/21 passed (no regressions)
-- **Full Suite:** 425 passed, 1 skipped
+```
+tests/test_issues_documentation.py::test_issues_file_exists PASSED
+tests/test_issues_documentation.py::test_resolved_issues_are_marked PASSED
+tests/test_issues_documentation.py::test_no_active_resolved_issues PASSED
+```
 
-```
-tests/test_combat.py::TestPlayerCast::test_player_cast_damages_enemy_based_on_intelligence PASSED
-tests/test_combat.py::TestPlayerCast::test_player_cast_handles_enemy_defeat PASSED
-tests/test_combat.py::TestPlayerCast::test_player_cast_continues_combat_when_enemy_survives PASSED
-tests/test_combat.py::TestPlayerCast::test_player_cast_ignores_enemy_defense PASSED
-```
+Full test suite: **428 passed, 1 skipped in 6.37s** - No regressions.
+
+## Design Decisions
+
+1. **Preserved the "player loading feature" issue** - The original ISSUES.md mentioned this as a separate issue, so it was kept as an active issue in the updated documentation.
+
+2. **Followed TDD approach** - Tests were created first, verified to fail, then implementation was done to make them pass.
+
+3. **Tests include spec comments** - Each test function has a docstring explaining which part of the spec it validates.
 
 ## E2E Validation
 
-The following manual tests should validate the feature:
-1. Create a character with high Intelligence (e.g., 20)
-2. Enter combat with an enemy
-3. Use the `cast` command
-4. Verify magic damage = 30 (20 × 1.5) regardless of enemy defense
-5. Verify the message includes "magic" or "cast"
-6. Verify victory message when enemy is defeated by cast
-7. Verify enemy counterattack if enemy survives
+No E2E validation required - this is a documentation-only change that doesn't affect game functionality. The unit tests adequately verify the documentation accuracy.
