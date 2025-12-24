@@ -1,5 +1,37 @@
 ## Active Issues
 
+### No help command to view command reference during gameplay
+**Status**: ACTIVE
+
+**Problem**: The detailed command reference (with descriptions) is only shown once at the start of a new adventure. There is no `help` command to view it again during gameplay.
+
+**Steps to Reproduce**:
+1. Create a new character and start the game
+2. The command reference is shown with all commands and their descriptions
+3. Play the game for a while
+4. Try to remember what the `cast` command does or what commands are available during combat
+5. Type `help` or `?` to see the command reference
+
+**Expected Behavior**: A `help` command should display the full command reference with descriptions, similar to what's shown when starting a new adventure.
+
+**Actual Behavior**: The game shows: `✗ Unknown command. Type 'look', 'go', 'talk', 'shop', 'buy', 'sell', 'map', 'status', 'inventory', 'equip', 'unequip', 'use', 'save', or 'quit'`
+
+This is problematic because:
+- Users may forget what commands are available (especially combat-only commands like `attack`, `defend`, `cast`, `flee`)
+- The error message lists command names but not what they do or their syntax
+- New players may need to restart the game just to see the help text again
+- Combat commands have different syntax (e.g., `cast` uses intelligence) that isn't obvious
+
+**Suggested Fix**: Add a `help` command that displays the full command reference shown at game start.
+
+---
+
+### High prio: Generate whole areas
+
+instead of generating just the next exit, we should always generate whole areas which should cover different topics
+there should be a method of checking if the world border is completely closed, there might be still a situation where
+all exits are visited and no way of getting to a tile whih triggers regeneration, THIS SHOULD BE AVOIDED in any case
+
 ### Shop buy command requires exact item name - misleading error message
 **Status**: ACTIVE
 
@@ -26,26 +58,18 @@ This is misleading because:
 
 ---
 
+## Resolved Issues
+
 ### In-game help message still mentions "up, down" as valid directions
-**Status**: ACTIVE
+**Status**: RESOLVED
 
-**Problem**: When a user types `go` without specifying a direction, the error message says "Go where? Specify a direction (north, south, east, west, up, down)". However, "up" and "down" are not valid directions in the 2D grid system.
+**Original Problem**: When a user types `go` without specifying a direction, the error message says "Go where? Specify a direction (north, south, east, west, up, down)". However, "up" and "down" are not valid directions in the 2D grid system.
 
-**Steps to Reproduce**:
-1. Create a new character and start the game
-2. Type `go` (without a direction)
-
-**Expected Behavior**: The error message should only list valid directions: "Go where? Specify a direction (north, south, east, west)"
-
-**Actual Behavior**: The game shows: "Go where? Specify a direction (north, south, east, west, up, down)"
-
-When the user then tries `go up` or `go down`, they get "You can't go that way." which is misleading - it suggests there's no exit in that direction rather than that it's an invalid direction entirely.
-
-**Note**: The README.md documentation was previously corrected for this issue (see resolved issue "Documentation inconsistency: up and down directions"), but the in-game error message was not updated.
+**Solution Implemented**:
+- Updated the error message in `main.py` line 271 to only list valid directions: "Go where? Specify a direction (north, south, east, west)"
+- This now matches the README.md documentation which was previously corrected
 
 ---
-
-## Resolved Issues
 
 ### Users requested a map
 **Status**: RESOLVED
