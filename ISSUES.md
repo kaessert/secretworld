@@ -1,27 +1,34 @@
 ## Active Issues
 
-### REGRESSION: Help command not working during gameplay
-**Status**: ACTIVE (REGRESSION)
+### CRITICAL: Cannot load saved games after leveling up - stat validation breaks saved games
+**Status**: ACTIVE
 
-**Problem**: The `help` command is documented in README.md and shown in error messages, but it returns "Unknown command" when typed during gameplay. The ISSUES.md previously marked this as RESOLVED, but the fix is not working in the current codebase.
+**Problem**: When players level up in combat, their stats increase beyond the initial 1-20 character creation limit. However, the save/load validation incorrectly enforces this 1-20 limit when loading saved games, causing all saves of leveled-up characters to fail to load. This effectively corrupts player progress.
 
 **Steps to Reproduce**:
-1. Create a new character and start the game
-2. During exploration (in Town Square or any location), type `help`
+1. Create a new character (stats start at 1-20)
+2. Play the game and win combat encounters to level up
+3. On level up, the game says "Stats increased: STR +1, DEX +1, INT +1" - stats can now exceed 20
+4. Save the game (manually or via autosave)
+5. Quit to main menu
+6. Try to load the saved character
 
-**Expected Behavior**: Should display the command reference showing all available exploration and combat commands.
+**Expected Behavior**: The saved game should load successfully, preserving the character's leveled-up stats (e.g., strength 21 from a character who started with 20 STR and leveled up once).
 
-**Actual Behavior**: The game shows: `✗ Unknown command. Type 'help' for a list of commands.`
+**Actual Behavior**: The game shows: `✗ Failed to load game state: Invalid game state data: strength must be at most 20`
 
-This is particularly confusing because:
-- The error message itself tells users to type 'help'
-- README.md documents `help` as a valid command: "`help` - Display the full command reference"
-- The initial welcome message shows the command reference once, but users have no way to see it again
+**Impact**: This is a critical, game-breaking bug:
+- Players who level up and quit cannot continue their game
+- All progress (levels, items, explored locations) is effectively lost
+- The bug affects BOTH autosaves and manual saves
 
-**Notes**:
-- This was previously marked as RESOLVED in ISSUES.md (see Resolved Issues section below)
-- The described fix mentioned adding a `get_command_reference()` function and handlers in `handle_exploration_command()` and `handle_combat_command()`
-- Either the fix was never implemented, was reverted, or there's a regression
+**Evidence**: The autosave_UseTest.json file contains `"strength": 21` because the character leveled up. When trying to load this character (option 1 in character load menu), the validation rejects it.
+
+**Root Cause**: The character stat validation applies character CREATION limits (1-20) to saved game loading. Leveled-up characters legitimately have stats > 20.
+
+**Suggested Fix**: Either:
+1. Remove or raise the stat caps in the load validation (stats could theoretically go very high with many level-ups), OR
+2. Apply different validation rules for character creation vs. loading (creation: 1-20, loading: 1-unlimited or 1-100)
 
 ---
 
@@ -58,6 +65,17 @@ This is misleading because:
 ---
 
 ## Resolved Issues
+
+### REGRESSION: Help command not working during gameplay
+**Status**: RESOLVED
+
+**Original Problem**: The `help` command was documented in README.md and shown in error messages, but it returned "Unknown command" when typed during gameplay. While `handle_exploration_command()` and `handle_combat_command()` had handlers for the `help` command, the `parse_command()` function did not include `"help"` in its `known_commands` set, causing it to return `("unknown", [])` before the handlers could process it.
+
+**Solution Implemented**:
+- Added `"help"` to the `known_commands` set in `parse_command()` function in `game_state.py`
+- Added `test_parse_command_help()` test to verify the fix
+
+---
 
 ### No help command to view command reference during gameplay
 **Status**: RESOLVED

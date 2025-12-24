@@ -1,52 +1,30 @@
-# Implementation Plan: Add `help` Command
+# Implementation Plan: Fix Help Command Regression
 
-## Spec
-Add a `help` command that displays the full command reference during gameplay (both exploration and combat modes), matching the text shown at game start.
+## Problem
+The `help` command returns "Unknown command" because `parse_command()` in `game_state.py` doesn't include `"help"` in its `known_commands` set.
 
-## Tests (create first)
-File: `tests/test_main_help_command.py`
-
-```python
-# Test exploration mode:
-# - test_help_command_during_exploration: 'help' returns command reference with exploration commands
-# - test_help_command_shows_combat_commands: output includes combat commands (attack, defend, cast, flee)
-# - test_help_continues_game: returns (True, message) - doesn't exit game
-
-# Test combat mode:
-# - test_help_command_during_combat: 'help' works during combat and returns command reference
-# - test_help_combat_continues_game: returns (True, message) - doesn't exit game
-```
+## Root Cause
+- `parse_command()` (line 48-49 in `game_state.py`) validates commands against a whitelist
+- `"help"` is missing from `known_commands`, so it returns `("unknown", [])`
+- `handle_exploration_command()` has the handler at line 450-451, but never receives `"help"`
 
 ## Implementation Steps
 
-### Step 1: Extract command reference to reusable function
-**File**: `src/cli_rpg/main.py`
+1. **Add `"help"` to `known_commands` in `game_state.py`** (line 48-49)
+   - Add `"help"` to the set of known commands
 
-Create `get_command_reference() -> str` function that returns the formatted command reference string (lines 533-554 content).
+2. **Verify existing tests pass**
+   - Run `pytest tests/test_main_help_command.py -v` - should all pass
+   - Run `pytest tests/test_game_state.py -v` - verify no regressions
 
-### Step 2: Add `help` handler to `handle_exploration_command()`
-**File**: `src/cli_rpg/main.py` (in `handle_exploration_command` function, around line 266)
+3. **Add integration test for parse_command**
+   - Add test in `tests/test_game_state.py` to verify `parse_command("help")` returns `("help", [])`
 
-Add:
-```python
-elif command == "help":
-    return (True, "\n" + get_command_reference())
-```
+## Files to Modify
+- `src/cli_rpg/game_state.py` - Add "help" to known_commands set (line 48-49)
+- `tests/test_game_state.py` - Add test for parse_command("help")
 
-### Step 3: Add `help` handler to `handle_combat_command()`
-**File**: `src/cli_rpg/main.py` (in `handle_combat_command` function, around line 234)
-
-Add:
-```python
-elif command == "help":
-    return (True, "\n" + get_command_reference())
-```
-
-### Step 4: Update `start_game()` and load game welcome
-Replace inline command reference prints with `print(get_command_reference())`.
-
-### Step 5: Update unknown command error messages
-Add 'help' to the list of valid commands in error messages (lines 439, 442, and combat line 252).
-
-### Step 6: Update ISSUES.md
-Mark the help command issue as RESOLVED.
+## Verification
+- Manual test: Start game, type `help`, should display command reference
+- `pytest tests/test_main_help_command.py -v` - all 8 tests pass
+- `pytest --cov=src/cli_rpg` - full test suite passes

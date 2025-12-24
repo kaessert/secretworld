@@ -114,11 +114,20 @@ class TestParseCommand:
     
     def test_parse_command_status(self):
         """Test parsing 'status' command.
-        
+
         Spec: 'status' should return ("status", [])
         """
         cmd, args = parse_command("status")
         assert cmd == "status"
+        assert args == []
+
+    def test_parse_command_help(self):
+        """Test parsing 'help' command.
+
+        Spec: 'help' should return ("help", [])
+        """
+        cmd, args = parse_command("help")
+        assert cmd == "help"
         assert args == []
 
 
