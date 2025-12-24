@@ -60,15 +60,23 @@ Combat encounters occur randomly as you explore. When in combat:
 
 ### Save System
 
-The game supports two types of save files:
+The game supports automatic and manual saving:
 
-**Full Game State Saves** (Current)
+**Autosave**
+- Game automatically saves after key events:
+  - Moving to a new location
+  - Winning combat
+  - Successfully fleeing from combat
+- Uses a single autosave slot per character (`autosave_{name}.json`)
+- Silent operation - never interrupts gameplay
+
+**Manual Saves** (Full Game State)
+- Use the `save` command during gameplay
 - Saves complete game progress including:
   - Character stats and progress
   - Entire world structure and locations
   - Current location where you left off
   - Theme setting for consistent AI generation
-- Use the `save` command during gameplay to create these saves
 - Resume exactly where you left off with full world intact
 
 **Character-Only Saves** (Legacy)
@@ -120,6 +128,7 @@ src/cli_rpg/
 ├── character_creation.py # Character creation flow
 ├── world.py             # World generation
 ├── ai_service.py        # AI integration (optional)
+├── autosave.py          # Automatic game saving
 ├── models/              # Data models
 │   ├── character.py
 │   ├── location.py

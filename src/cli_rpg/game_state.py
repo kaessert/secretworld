@@ -6,6 +6,7 @@ from typing import ClassVar, Optional
 from cli_rpg.models.character import Character
 from cli_rpg.models.location import Location
 from cli_rpg.combat import CombatEncounter, spawn_enemy
+from cli_rpg.autosave import autosave
 
 # Import AI components (with optional support)
 try:
@@ -198,7 +199,13 @@ class GameState:
         
         # Update location
         self.current_location = destination_name
-        
+
+        # Autosave after successful movement
+        try:
+            autosave(self)
+        except IOError:
+            pass  # Silent failure - don't interrupt gameplay
+
         message = f"You head {direction} to {destination_name}."
         
         # Check for random encounter

@@ -7,6 +7,7 @@ from cli_rpg.game_state import GameState, parse_command
 from cli_rpg.world import create_world
 from cli_rpg.config import load_ai_config
 from cli_rpg.ai_service import AIService
+from cli_rpg.autosave import autosave
 
 
 def prompt_save_character(character: Character) -> None:
@@ -131,12 +132,17 @@ def handle_combat_command(game_state: GameState, command: str, args: list[str]) 
     if command == "attack":
         victory, message = combat.player_attack()
         output = f"\n{message}"
-        
+
         if victory:
             # Enemy defeated
             end_message = combat.end_combat(victory=True)
             output += f"\n{end_message}"
             game_state.current_combat = None
+            # Autosave after combat victory
+            try:
+                autosave(game_state)
+            except IOError:
+                pass  # Silent failure
         else:
             # Enemy still alive, enemy attacks
             enemy_message = combat.enemy_turn()
@@ -176,6 +182,11 @@ def handle_combat_command(game_state: GameState, command: str, args: list[str]) 
             # Fled successfully
             game_state.current_combat = None
             combat.is_active = False
+            # Autosave after successful flee
+            try:
+                autosave(game_state)
+            except IOError:
+                pass  # Silent failure
         else:
             # Flee failed, enemy attacks
             enemy_message = combat.enemy_turn()
@@ -199,6 +210,11 @@ def handle_combat_command(game_state: GameState, command: str, args: list[str]) 
             end_message = combat.end_combat(victory=True)
             output += f"\n{end_message}"
             game_state.current_combat = None
+            # Autosave after combat victory
+            try:
+                autosave(game_state)
+            except IOError:
+                pass  # Silent failure
         else:
             # Enemy still alive, enemy attacks
             enemy_message = combat.enemy_turn()
