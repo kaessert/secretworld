@@ -40,6 +40,7 @@ src/cli_rpg/
     ├── inventory.py     # Inventory management
     ├── location.py      # Location with coordinates, connections, NPCs
     ├── npc.py           # Non-player character model
+    ├── quest.py         # Quest system with objectives and progress tracking
     └── shop.py          # Shop system
 ```
 

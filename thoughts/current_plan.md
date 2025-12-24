@@ -1,36 +1,47 @@
-# Implementation Plan: Create CLAUDE.md
+# Quest Model Implementation Plan
 
-## Task Summary
-Create a CLAUDE.md file to document project conventions and development workflow for AI-assisted development.
+## Spec
 
-## Difficulty: SIMPLE
-This is a documentation-only task with no code changes or testing requirements.
+Add a `Quest` dataclass model with:
+- `name`: str (2-30 chars, validated)
+- `description`: str (1-200 chars, validated)
+- `status`: `QuestStatus` enum (`AVAILABLE`, `ACTIVE`, `COMPLETED`, `FAILED`)
+- `objective_type`: `ObjectiveType` enum (`KILL`, `COLLECT`, `EXPLORE`, `TALK`)
+- `target`: str (the target name - enemy type, item name, location, or NPC)
+- `target_count`: int (how many, default 1)
+- `current_count`: int (progress, default 0)
+- Serialization: `to_dict()` / `from_dict()` methods
 
-## Implementation Steps
+## Tests First
 
-1. **Create `/Users/tkaesser/up/secretworld/CLAUDE.md`** with the following sections:
+Create `tests/test_quest.py` with tests for:
+1. Quest creation with all valid attributes
+2. Name validation (2-30 chars, reject outside range)
+3. Description validation (1-200 chars, reject outside range)
+4. All QuestStatus values work
+5. All ObjectiveType values work
+6. target_count must be >= 1
+7. current_count must be >= 0
+8. Serialization roundtrip (to_dict → from_dict)
+9. Status defaults to AVAILABLE
+10. `is_complete` property returns `current_count >= target_count`
+11. `progress()` method increments current_count and returns True when complete
 
-   - **Quick Project Overview**: CLI RPG with AI-generated worlds, combat, inventory, shops, and save/load
-   - **Testing Commands**:
-     - `source venv/bin/activate && pytest` (full test suite)
-     - `pytest tests/test_<module>.py -v` (specific tests)
-     - `pytest --cov=src/cli_rpg` (with coverage)
-   - **Key Architectural Patterns**:
-     - Grid-based world (`world_grid.py`) with spatial consistency
-     - Location model with coordinates, connections, and NPCs
-     - GameState manages character, world, combat, and shop state
-     - AI service integration is optional (graceful fallback)
-   - **Project Structure**: Reference `src/cli_rpg/` layout
-   - **Coding Standards**:
-     - Python 3.9+
-     - Line length 100 (black/ruff)
-     - Type hints encouraged
-     - Dataclasses for models
+## Implementation
 
-2. **Verify**: Confirm file exists and content is accurate
+1. **Create `src/cli_rpg/models/quest.py`**:
+   - `QuestStatus` enum with AVAILABLE, ACTIVE, COMPLETED, FAILED
+   - `ObjectiveType` enum with KILL, COLLECT, EXPLORE, TALK
+   - `Quest` dataclass with validation in `__post_init__`
+   - `to_dict()` and `from_dict()` for serialization
+   - `is_complete` property
+   - `progress()` method
 
-## Files to Create
-- `CLAUDE.md` (project root)
+2. **Update `src/cli_rpg/models/__init__.py`**:
+   - Add Quest to exports
 
-## No Tests Required
-This is a documentation task - no code functionality to test.
+## File Locations
+
+- New model: `src/cli_rpg/models/quest.py`
+- New test: `tests/test_quest.py`
+- Update: `src/cli_rpg/models/__init__.py`

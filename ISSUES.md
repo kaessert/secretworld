@@ -1,6 +1,25 @@
 ## Active Issues
 
-_No active issues at this time._
+### Broken navigation link from Forest to Deep Woods
+**Status**: OPEN
+
+**Problem**: When the player navigates to the Forest (by going north from Town Square), the location shows "Exits: north, south". However, attempting to go north displays an internal error message: "Destination 'Deep Woods' not found in world."
+
+**Steps to Reproduce**:
+1. Start a new game with any character
+2. From Town Square, type `go north` to reach Forest
+3. Type `look` to confirm the location shows "Exits: north, south"
+4. Type `go north` to attempt navigating further north
+
+**Expected Behavior**: Either:
+- Deep Woods location should exist and the player can navigate there, OR
+- The Forest should not list "north" as an available exit
+
+**Actual Behavior**: The player sees an error message "Destination 'Deep Woods' not found in world." which looks like a bug, not a user-friendly game message.
+
+**Impact**: This creates a confusing dead-end where users see an exit that doesn't work, and get an error message that appears to be a bug rather than a game limitation.
+
+---
 
 ---
 
