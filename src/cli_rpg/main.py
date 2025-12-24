@@ -12,6 +12,39 @@ from cli_rpg.autosave import autosave
 from cli_rpg.map_renderer import render_map
 
 
+def get_command_reference() -> str:
+    """Return the full command reference string.
+
+    Returns:
+        Formatted string containing all available commands.
+    """
+    lines = [
+        "Exploration Commands:",
+        "  look           - Look around at your surroundings",
+        "  go <direction> - Move in a direction (north, south, east, west)",
+        "  status         - View your character status",
+        "  inventory      - View your inventory and equipped items",
+        "  equip <item>   - Equip a weapon or armor from inventory",
+        "  unequip <slot> - Unequip weapon or armor (slot: weapon/armor)",
+        "  use <item>     - Use a consumable item",
+        "  talk <npc>     - Talk to an NPC",
+        "  shop           - View shop inventory (when at a shop)",
+        "  buy <item>     - Buy an item from the shop",
+        "  sell <item>    - Sell an item to the shop",
+        "  map            - Display a map of explored areas",
+        "  save           - Save your game (not available during combat)",
+        "  quit           - Return to main menu",
+        "",
+        "Combat Commands:",
+        "  attack        - Attack the enemy",
+        "  defend        - Take a defensive stance",
+        "  cast          - Cast a magic attack (intelligence-based)",
+        "  flee          - Attempt to flee from combat",
+        "  status        - View combat status",
+    ]
+    return "\n".join(lines)
+
+
 def prompt_save_character(character: Character) -> None:
     """Prompt user to save character and handle save operation.
     
@@ -234,6 +267,9 @@ def handle_combat_command(game_state: GameState, command: str, args: list[str]) 
     elif command == "status":
         return (True, "\n" + combat.get_status())
 
+    elif command == "help":
+        return (True, "\n" + get_command_reference())
+
     elif command == "quit":
         print("\n" + "=" * 50)
         print("⚠️  Warning: You are in combat! Progress may be lost.")
@@ -249,7 +285,7 @@ def handle_combat_command(game_state: GameState, command: str, args: list[str]) 
         return (False, "")
 
     else:
-        return (True, "\n✗ Can't do that during combat! Use: attack, defend, cast, flee, status, or quit")
+        return (True, "\n✗ Can't do that during combat! Use: attack, defend, cast, flee, status, help, or quit")
 
 
 def handle_exploration_command(game_state: GameState, command: str, args: list[str]) -> tuple[bool, str]:
@@ -411,6 +447,9 @@ def handle_exploration_command(game_state: GameState, command: str, args: list[s
         map_output = render_map(game_state.world, game_state.current_location)
         return (True, f"\n{map_output}")
 
+    elif command == "help":
+        return (True, "\n" + get_command_reference())
+
     elif command == "save":
         try:
             filepath = save_game_state(game_state)
@@ -436,10 +475,10 @@ def handle_exploration_command(game_state: GameState, command: str, args: list[s
         return (True, "\n✗ Not in combat.")
     
     elif command == "unknown":
-        return (True, "\n✗ Unknown command. Type 'look', 'go', 'talk', 'shop', 'buy', 'sell', 'map', 'status', 'inventory', 'equip', 'unequip', 'use', 'save', or 'quit'")
+        return (True, "\n✗ Unknown command. Type 'help' for a list of commands.")
 
     else:
-        return (True, "\n✗ Unknown command. Type 'look', 'go', 'talk', 'shop', 'buy', 'sell', 'map', 'status', 'inventory', 'equip', 'unequip', 'use', 'save', or 'quit'")
+        return (True, "\n✗ Unknown command. Type 'help' for a list of commands.")
 
 
 def run_game_loop(game_state: GameState) -> None:
@@ -530,27 +569,7 @@ def start_game(
     if ai_service:
         print(f"Exploring a {theme} world powered by AI...")
     print("=" * 50)
-    print("\nExploration Commands:")
-    print("  look           - Look around at your surroundings")
-    print("  go <direction> - Move in a direction (north, south, east, west)")
-    print("  status         - View your character status")
-    print("  inventory      - View your inventory and equipped items")
-    print("  equip <item>   - Equip a weapon or armor from inventory")
-    print("  unequip <slot> - Unequip weapon or armor (slot: weapon/armor)")
-    print("  use <item>     - Use a consumable item")
-    print("  talk <npc>     - Talk to an NPC")
-    print("  shop           - View shop inventory (when at a shop)")
-    print("  buy <item>     - Buy an item from the shop")
-    print("  sell <item>    - Sell an item to the shop")
-    print("  map            - Display a map of explored areas")
-    print("  save           - Save your game (not available during combat)")
-    print("  quit           - Return to main menu")
-    print("\nCombat Commands:")
-    print("  attack        - Attack the enemy")
-    print("  defend        - Take a defensive stance")
-    print("  cast          - Cast a magic attack (intelligence-based)")
-    print("  flee          - Attempt to flee from combat")
-    print("  status        - View combat status")
+    print("\n" + get_command_reference())
     print("=" * 50)
 
     # Show starting location
@@ -636,27 +655,7 @@ def main() -> int:
                 print("\n" + "=" * 50)
                 print(f"Welcome back, {game_state.current_character.name}!")
                 print("=" * 50)
-                print("\nExploration Commands:")
-                print("  look           - Look around at your surroundings")
-                print("  go <direction> - Move in a direction (north, south, east, west)")
-                print("  status         - View your character status")
-                print("  inventory      - View your inventory and equipped items")
-                print("  equip <item>   - Equip a weapon or armor from inventory")
-                print("  unequip <slot> - Unequip weapon or armor (slot: weapon/armor)")
-                print("  use <item>     - Use a consumable item")
-                print("  talk <npc>     - Talk to an NPC")
-                print("  shop           - View shop inventory (when at a shop)")
-                print("  buy <item>     - Buy an item from the shop")
-                print("  sell <item>    - Sell an item to the shop")
-                print("  map            - Display a map of explored areas")
-                print("  save           - Save your game (not available during combat)")
-                print("  quit           - Return to main menu")
-                print("\nCombat Commands:")
-                print("  attack        - Attack the enemy")
-                print("  defend        - Take a defensive stance")
-                print("  cast          - Cast a magic attack (intelligence-based)")
-                print("  flee          - Attempt to flee from combat")
-                print("  status        - View combat status")
+                print("\n" + get_command_reference())
                 print("=" * 50)
 
                 # Show current location

@@ -1,28 +1,27 @@
 ## Active Issues
 
-### No help command to view command reference during gameplay
-**Status**: ACTIVE
+### REGRESSION: Help command not working during gameplay
+**Status**: ACTIVE (REGRESSION)
 
-**Problem**: The detailed command reference (with descriptions) is only shown once at the start of a new adventure. There is no `help` command to view it again during gameplay.
+**Problem**: The `help` command is documented in README.md and shown in error messages, but it returns "Unknown command" when typed during gameplay. The ISSUES.md previously marked this as RESOLVED, but the fix is not working in the current codebase.
 
 **Steps to Reproduce**:
 1. Create a new character and start the game
-2. The command reference is shown with all commands and their descriptions
-3. Play the game for a while
-4. Try to remember what the `cast` command does or what commands are available during combat
-5. Type `help` or `?` to see the command reference
+2. During exploration (in Town Square or any location), type `help`
 
-**Expected Behavior**: A `help` command should display the full command reference with descriptions, similar to what's shown when starting a new adventure.
+**Expected Behavior**: Should display the command reference showing all available exploration and combat commands.
 
-**Actual Behavior**: The game shows: `✗ Unknown command. Type 'look', 'go', 'talk', 'shop', 'buy', 'sell', 'map', 'status', 'inventory', 'equip', 'unequip', 'use', 'save', or 'quit'`
+**Actual Behavior**: The game shows: `✗ Unknown command. Type 'help' for a list of commands.`
 
-This is problematic because:
-- Users may forget what commands are available (especially combat-only commands like `attack`, `defend`, `cast`, `flee`)
-- The error message lists command names but not what they do or their syntax
-- New players may need to restart the game just to see the help text again
-- Combat commands have different syntax (e.g., `cast` uses intelligence) that isn't obvious
+This is particularly confusing because:
+- The error message itself tells users to type 'help'
+- README.md documents `help` as a valid command: "`help` - Display the full command reference"
+- The initial welcome message shows the command reference once, but users have no way to see it again
 
-**Suggested Fix**: Add a `help` command that displays the full command reference shown at game start.
+**Notes**:
+- This was previously marked as RESOLVED in ISSUES.md (see Resolved Issues section below)
+- The described fix mentioned adding a `get_command_reference()` function and handlers in `handle_exploration_command()` and `handle_combat_command()`
+- Either the fix was never implemented, was reverted, or there's a regression
 
 ---
 
@@ -59,6 +58,21 @@ This is misleading because:
 ---
 
 ## Resolved Issues
+
+### No help command to view command reference during gameplay
+**Status**: RESOLVED
+
+**Original Problem**: The detailed command reference (with descriptions) was only shown once at the start of a new adventure. There was no `help` command to view it again during gameplay.
+
+**Solution Implemented**:
+- Created `get_command_reference()` function in `main.py` that returns the formatted command reference
+- Added `help` command handler to `handle_exploration_command()` for use during exploration
+- Added `help` command handler to `handle_combat_command()` for use during combat
+- Refactored welcome messages in `start_game()` and game load to use `get_command_reference()`
+- Updated unknown command error messages to suggest `help` command
+- Added 8 new tests in `test_main_help_command.py`
+
+---
 
 ### In-game help message still mentions "up, down" as valid directions
 **Status**: RESOLVED
