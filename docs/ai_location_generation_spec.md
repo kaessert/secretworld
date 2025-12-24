@@ -76,16 +76,46 @@ Core service for interacting with LLM APIs.
 `_set_cached(cache_key: str, data: dict) -> None`
 - Store location data in cache
 
-### 3.3 World Generation Functions
+### 3.3 WorldGrid
+
+Coordinate-based world storage for spatial consistency.
+
+**Class:** `WorldGrid` (`world_grid.py`)
+
+**Key Methods:**
+- `add_location(location, x, y)`: Place location at coordinates, auto-create bidirectional connections
+- `get_by_coordinates(x, y)`: Coordinate-based lookup
+- `get_by_name(name)`: Backward compatible name lookup
+- `get_neighbor(x, y, direction)`: Get adjacent location
+- `as_dict()`: Returns `dict[str, Location]` for backward compatibility
+- `to_dict()` / `from_dict()`: Serialization with coordinates
+- `from_legacy_dict()`: Handles old saves without coordinates
+
+**Direction Offsets:**
+- north: (0, +1)
+- south: (0, -1)
+- east: (+1, 0)
+- west: (-1, 0)
+
+**Design Properties:**
+- Sparse grid (not all coordinates need locations)
+- Origin at (0, 0) for starting location
+- Automatic bidirectional connection management
+- Location coordinates stored as `Tuple[int, int]`
+
+### 3.4 World Generation Functions
 
 **`create_ai_world(ai_service: AIService, theme: str = "fantasy", starting_location_name: str = "Town Square", initial_size: int = 3) -> dict[str, Location]`**
-- Generate initial world with connected locations
+- Generate initial world on a coordinate grid starting from (0,0)
+- Locations are placed using WorldGrid with spatial coordinates
 - Validate all connections are bidirectional
-- Return Location dictionary compatible with GameState
+- Return Location dictionary compatible with GameState (via `WorldGrid.as_dict()`)
 
 **`expand_world(world: dict[str, Location], ai_service: AIService, from_location: str, direction: str, theme: str) -> dict[str, Location]`**
 - Generate new location in specified direction
-- Add bidirectional connections
+- Calculate coordinates based on source location and direction offset
+- Direction offsets: north=(0,+1), south=(0,-1), east=(+1,0), west=(-1,0)
+- Add bidirectional connections based on spatial positions
 - Guarantee at least one dangling connection for future exploration (prevents dead-ends)
 - If AI returns only a back-connection, auto-add a dangling connection (format: "Unexplored {Direction}")
 - Update world dictionary in-place
@@ -328,4 +358,4 @@ The E2E test suite (`tests/test_e2e_world_expansion.py`) validates dynamic world
 - Quest generation
 - World consistency validation
 - Semantic similarity checks for location names
-- Graph-based world generation constraints
+- ~~Graph-based world generation constraints~~ ✓ Implemented via WorldGrid coordinate system

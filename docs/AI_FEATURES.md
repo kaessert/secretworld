@@ -29,6 +29,7 @@ The CLI RPG now includes AI-powered dynamic location generation using OpenAI's G
 - Connected to existing world structure
 - Bidirectional connections maintained
 - Validates against game constraints
+- **Grid-based coordinates**: AI-generated locations are placed on a spatial grid, ensuring geographic consistency (moving north then south returns to the same place)
 
 ### 5. Theme Persistence
 - Theme setting is saved with game state
@@ -139,12 +140,18 @@ loaded_game.ai_service = ai_service
    - Validates responses
 
 3. **AI World** (`ai_world.py`)
-   - Creates initial AI world
-   - Expands world dynamically
-   - Manages connections
+   - Creates initial AI world using grid coordinates
+   - Expands world dynamically with spatial consistency
+   - Manages connections via WorldGrid
    - Handles fallbacks
 
-4. **GameState Integration** (`game_state.py`)
+4. **WorldGrid** (`world_grid.py`)
+   - Coordinate-based world storage
+   - Automatic bidirectional connections
+   - Direction offsets: north=(0,+1), south=(0,-1), east=(+1,0), west=(-1,0)
+   - Backward-compatible serialization
+
+5. **GameState Integration** (`game_state.py`)
    - Detects missing locations
    - Triggers generation
    - Updates connections

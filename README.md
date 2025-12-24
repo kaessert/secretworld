@@ -21,7 +21,7 @@ python -m cli_rpg.main
 - **NPC Shops**: Interact with merchants, buy equipment, and sell items for gold
 - **Gold Economy**: Earn gold from combat victories, spend it at shops
 - **Persistent Saves**: Save and load complete game progress including world state, location, and theme
-- **Exploration**: Navigate through interconnected locations
+- **Grid-Based World**: Navigate a spatially consistent world where directions are reliable (going north then south returns you to the same place)
 - **Experience System**: Level up by defeating enemies
 
 ## Gameplay
@@ -160,6 +160,7 @@ src/cli_rpg/
 ├── combat.py            # Combat system
 ├── character_creation.py # Character creation flow
 ├── world.py             # Default world generation
+├── world_grid.py        # Grid-based world coordinate system
 ├── ai_world.py          # AI-powered world generation
 ├── ai_service.py        # AI service integration
 ├── ai_config.py         # AI configuration management

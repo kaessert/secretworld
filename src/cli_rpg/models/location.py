@@ -1,7 +1,7 @@
 """Location model for the game world."""
 
 from dataclasses import dataclass, field
-from typing import ClassVar, List, Optional, TYPE_CHECKING
+from typing import ClassVar, List, Optional, Tuple, TYPE_CHECKING
 
 if TYPE_CHECKING:
     from cli_rpg.models.npc import NPC
@@ -31,6 +31,7 @@ class Location:
     description: str
     connections: dict[str, str] = field(default_factory=dict)
     npcs: List["NPC"] = field(default_factory=list)
+    coordinates: Optional[Tuple[int, int]] = None
     
     def __post_init__(self) -> None:
         """Validate location attributes after initialization."""
@@ -155,38 +156,48 @@ class Location:
 
     def to_dict(self) -> dict:
         """Serialize the location to a dictionary.
-        
+
         Returns:
             A dictionary representation of the location
         """
-        return {
+        data = {
             "name": self.name,
             "description": self.description,
             "connections": self.connections.copy(),
             "npcs": [npc.to_dict() for npc in self.npcs]
         }
+        # Only include coordinates if present (backward compatibility)
+        if self.coordinates is not None:
+            data["coordinates"] = list(self.coordinates)
+        return data
     
     @classmethod
     def from_dict(cls, data: dict) -> "Location":
         """Create a location from a dictionary.
-        
+
         Args:
             data: Dictionary containing location data
-        
+
         Returns:
             A new Location instance
-        
+
         Raises:
             KeyError: If required fields are missing
             ValueError: If validation fails
         """
         from cli_rpg.models.npc import NPC
         npcs = [NPC.from_dict(npc_data) for npc_data in data.get("npcs", [])]
+        # Parse coordinates if present (convert list to tuple)
+        coordinates = None
+        if "coordinates" in data and data["coordinates"] is not None:
+            coords = data["coordinates"]
+            coordinates = (coords[0], coords[1])
         return cls(
             name=data["name"],
             description=data["description"],
             connections=data.get("connections", {}),
-            npcs=npcs
+            npcs=npcs,
+            coordinates=coordinates
         )
     
     def __str__(self) -> str:

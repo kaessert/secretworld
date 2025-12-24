@@ -268,3 +268,76 @@ class TestLocationSerialization:
         assert "A bustling square." in str_repr
         # Should show available directions
         assert "north" in str_repr or "Exits" in str_repr
+
+
+class TestLocationCoordinates:
+    """Tests for location coordinates (grid-based world system)."""
+
+    def test_location_with_coordinates(self):
+        """Test creating location with coordinates - spec: coordinates field added."""
+        location = Location(
+            name="Town Square",
+            description="A bustling square.",
+            coordinates=(0, 0)
+        )
+        assert location.coordinates == (0, 0)
+
+    def test_location_without_coordinates_defaults_to_none(self):
+        """Test location without coordinates defaults to None - spec: backward compat."""
+        location = Location(
+            name="Town Square",
+            description="A bustling square."
+        )
+        assert location.coordinates is None
+
+    def test_location_coordinates_in_to_dict(self):
+        """Test coordinates included in to_dict when present - spec: serialization."""
+        location = Location(
+            name="Town Square",
+            description="A bustling square.",
+            coordinates=(5, -3)
+        )
+        data = location.to_dict()
+        assert data["coordinates"] == [5, -3]
+
+    def test_location_coordinates_not_in_to_dict_when_none(self):
+        """Test coordinates excluded from to_dict when None - spec: backward compat."""
+        location = Location(
+            name="Town Square",
+            description="A bustling square."
+        )
+        data = location.to_dict()
+        assert "coordinates" not in data
+
+    def test_location_coordinates_from_dict(self):
+        """Test coordinates restored from dict - spec: deserialization."""
+        data = {
+            "name": "Town Square",
+            "description": "A bustling square.",
+            "connections": {},
+            "coordinates": [5, -3]
+        }
+        location = Location.from_dict(data)
+        assert location.coordinates == (5, -3)
+
+    def test_location_coordinates_from_dict_missing(self):
+        """Test from_dict with missing coordinates defaults to None - spec: backward compat."""
+        data = {
+            "name": "Town Square",
+            "description": "A bustling square.",
+            "connections": {}
+        }
+        location = Location.from_dict(data)
+        assert location.coordinates is None
+
+    def test_location_coordinates_roundtrip(self):
+        """Test coordinates preserved through serialization roundtrip."""
+        original = Location(
+            name="Town Square",
+            description="A bustling square.",
+            connections={"north": "Forest"},
+            coordinates=(10, 20)
+        )
+        data = original.to_dict()
+        restored = Location.from_dict(data)
+        assert restored.coordinates == (10, 20)

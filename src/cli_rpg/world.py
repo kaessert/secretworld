@@ -1,11 +1,12 @@
 """World module for creating and managing game locations."""
 
 import logging
-from typing import Optional
+from typing import Optional, Union
 from cli_rpg.models.location import Location
 from cli_rpg.models.item import Item, ItemType
 from cli_rpg.models.shop import Shop, ShopItem
 from cli_rpg.models.npc import NPC
+from cli_rpg.world_grid import WorldGrid
 
 logger = logging.getLogger(__name__)
 
@@ -22,42 +23,47 @@ except ImportError:
 
 def create_default_world() -> tuple[dict[str, Location], str]:
     """Create and return the default game world with 3 locations.
-    
+
     Returns:
         Tuple of (world, starting_location) where:
         - world: Dictionary mapping location names to Location instances
         - starting_location: "Town Square" (the default starting location)
-        
+
     The default world consists of:
-    - Town Square: Central hub with connections north to Forest and east to Cave
-    - Forest: Northern location with connection south to Town Square
-    - Cave: Eastern location with connection west to Town Square
+    - Town Square: Central hub at (0, 0) with connections north to Forest and east to Cave
+    - Forest: Northern location at (0, 1) with connection south to Town Square
+    - Cave: Eastern location at (1, 0) with connection west to Town Square
     """
-    # Create locations (without connections first to avoid validation issues)
+    # Create WorldGrid for consistent spatial representation
+    grid = WorldGrid()
+
+    # Create locations (connections are automatically created by WorldGrid)
     town_square = Location(
         name="Town Square",
         description="A bustling town square with a fountain in the center. People go about their daily business."
     )
-    
+
     forest = Location(
         name="Forest",
         description="A dense forest with tall trees blocking most of the sunlight. Strange sounds echo in the distance."
     )
-    
+
     cave = Location(
         name="Cave",
         description="A dark cave with damp walls. You can hear water dripping somewhere deeper inside."
     )
-    
-    # Add connections
-    town_square.add_connection("north", "Forest")
-    town_square.add_connection("east", "Cave")
 
-    forest.add_connection("south", "Town Square")
-    forest.add_connection("north", "Deep Woods")  # Dangling exit for expansion
+    # Place locations on grid (coordinates determine connections automatically)
+    # Town Square at origin (0, 0)
+    grid.add_location(town_square, 0, 0)
+    # Forest is north of Town Square (0, 1)
+    grid.add_location(forest, 0, 1)
+    # Cave is east of Town Square (1, 0)
+    grid.add_location(cave, 1, 0)
 
-    cave.add_connection("west", "Town Square")
-    cave.add_connection("east", "Crystal Cavern")  # Dangling exit for expansion
+    # Add dangling exits for world expansion
+    forest.add_connection("north", "Deep Woods")
+    cave.add_connection("east", "Crystal Cavern")
 
     # Create default merchant shop
     potion = Item(
@@ -96,14 +102,8 @@ def create_default_world() -> tuple[dict[str, Location], str]:
     # Add merchant to Town Square
     town_square.npcs.append(merchant)
 
-    # Return world dictionary and starting location
-    world = {
-        "Town Square": town_square,
-        "Forest": forest,
-        "Cave": cave
-    }
-    
-    return (world, "Town Square")
+    # Return world dictionary and starting location (backward compatible)
+    return (grid.as_dict(), "Town Square")
 
 
 def create_world(

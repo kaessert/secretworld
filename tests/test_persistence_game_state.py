@@ -283,3 +283,67 @@ class TestLoadGameState:
         success, _ = loaded_state.move("south")
         assert success is True
         assert loaded_state.current_location == "Start"
+
+    def test_load_game_state_preserves_coordinates(self, tmp_path):
+        """Test that save -> load preserves location coordinates.
+
+        Spec: Location coordinates should be preserved through persistence.
+        """
+        character = Character("Hero", strength=10, dexterity=10, intelligence=10)
+        # Create locations with coordinates
+        world = {
+            "Town Square": Location("Town Square", "A town square.", {"north": "Forest"}, coordinates=(0, 0)),
+            "Forest": Location("Forest", "A dark forest.", {"south": "Town Square"}, coordinates=(0, 1))
+        }
+        game_state = GameState(character, world, "Town Square")
+
+        # Save
+        filepath = save_game_state(game_state, str(tmp_path))
+
+        # Load
+        loaded_state = load_game_state(filepath)
+
+        # Verify coordinates are preserved
+        assert loaded_state.world["Town Square"].coordinates == (0, 0)
+        assert loaded_state.world["Forest"].coordinates == (0, 1)
+
+    def test_load_game_state_backward_compat_no_coordinates(self, tmp_path):
+        """Test that loading saves without coordinates works (backward compat).
+
+        Spec: Saves without coordinates should load with coordinates=None.
+        """
+        # Create a save file without coordinates (legacy format)
+        save_data = {
+            "character": {
+                "name": "Hero",
+                "strength": 10,
+                "dexterity": 10,
+                "intelligence": 10,
+                "level": 1,
+                "health": 150,
+                "max_health": 150
+            },
+            "current_location": "Start",
+            "world": {
+                "Start": {
+                    "name": "Start",
+                    "description": "Start location",
+                    "connections": {},
+                    "npcs": []
+                    # No coordinates field
+                }
+            }
+        }
+
+        filepath = tmp_path / "legacy_save.json"
+        with open(filepath, "w") as f:
+            json.dump(save_data, f)
+
+        # Load
+        loaded_state = load_game_state(str(filepath))
+
+        # Verify it loads without error
+        assert loaded_state.current_location == "Start"
+        assert "Start" in loaded_state.world
+        # Legacy location should have no coordinates
+        assert loaded_state.world["Start"].coordinates is None

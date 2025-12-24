@@ -508,3 +508,53 @@ def test_expand_world_dangling_excludes_back_direction(mock_ai_service, basic_wo
     # Dangling should not be "south" (the back direction)
     for d in other_dirs:
         assert d != "south"
+
+
+# Test: AI world assigns coordinates to locations
+def test_create_ai_world_assigns_coordinates(mock_ai_service):
+    """Test create_ai_world assigns grid coordinates to generated locations.
+
+    Spec: Generated locations should have coordinates assigned.
+    """
+    mock_ai_service.generate_location.return_value = {
+        "name": "Town Square",
+        "description": "A bustling town square.",
+        "connections": {}
+    }
+
+    world, starting_location = create_ai_world(mock_ai_service, theme="fantasy")
+
+    # Starting location should be at origin
+    assert world["Town Square"].coordinates == (0, 0)
+
+
+# Test: Expand world assigns coordinates to new location
+def test_expand_world_assigns_coordinates(mock_ai_service):
+    """Test expand_world assigns correct coordinates to new locations.
+
+    Spec: New location should be at correct offset from source.
+    """
+    # Create a world with a location that has coordinates
+    town_square = Location(
+        name="Town Square",
+        description="A bustling town square.",
+        coordinates=(0, 0)
+    )
+    world = {"Town Square": town_square}
+
+    mock_ai_service.generate_location.return_value = {
+        "name": "Dark Forest",
+        "description": "A mysterious dark forest.",
+        "connections": {"south": "Town Square"}
+    }
+
+    updated_world = expand_world(
+        world=world,
+        ai_service=mock_ai_service,
+        from_location="Town Square",
+        direction="north",
+        theme="fantasy"
+    )
+
+    # New location should be north of Town Square (0, 1)
+    assert updated_world["Dark Forest"].coordinates == (0, 1)

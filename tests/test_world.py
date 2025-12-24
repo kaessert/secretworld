@@ -111,21 +111,50 @@ class TestCreateDefaultWorld:
     
     def test_default_world_immutable_returns(self):
         """Test that multiple calls return independent copies.
-        
+
         Spec: Each call should return a new dict with new Location instances
         """
         world1, _ = create_default_world()
         world2, _ = create_default_world()
-        
+
         # Dicts should not be the same object
         assert world1 is not world2
-        
+
         # Locations should not be the same objects
         assert world1["Town Square"] is not world2["Town Square"]
-        
+
         # Modifying one shouldn't affect the other
         world1["Town Square"].add_connection("south", "Somewhere")
         assert world2["Town Square"].get_connection("south") is None
+
+    def test_default_world_locations_have_coordinates(self):
+        """Test that default world locations have grid coordinates.
+
+        Spec: Locations placed on grid have coordinates assigned.
+        """
+        world, _ = create_default_world()
+
+        # Town Square at origin (0, 0)
+        assert world["Town Square"].coordinates == (0, 0)
+        # Forest north of Town Square (0, 1)
+        assert world["Forest"].coordinates == (0, 1)
+        # Cave east of Town Square (1, 0)
+        assert world["Cave"].coordinates == (1, 0)
+
+    def test_default_world_bidirectional_consistency(self):
+        """Test that default world has bidirectional connections.
+
+        Spec: Grid-based world ensures north/south and east/west are symmetric.
+        """
+        world, _ = create_default_world()
+
+        # Town Square -> Forest and Forest -> Town Square
+        assert world["Town Square"].get_connection("north") == "Forest"
+        assert world["Forest"].get_connection("south") == "Town Square"
+
+        # Town Square -> Cave and Cave -> Town Square
+        assert world["Town Square"].get_connection("east") == "Cave"
+        assert world["Cave"].get_connection("west") == "Town Square"
 
 
 class TestCreateWorld:

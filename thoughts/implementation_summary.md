@@ -1,91 +1,97 @@
-# Implementation Summary: NPC Shop System
+# Implementation Summary: Grid-Based Map Structure
 
 ## Status: COMPLETE
 
-The NPC shop system has been fully implemented and all tests pass.
+The grid-based world system has been fully implemented and all tests pass.
 
 ## What Was Implemented
 
-### 1. Gold System (Character Enhancement)
-**File:** `src/cli_rpg/models/character.py`
-- `gold: int = 0` attribute added to Character
-- `add_gold(amount)` method - adds gold to character
-- `remove_gold(amount)` method - removes gold, returns False if insufficient
-- Gold included in `to_dict()` serialization
-- Gold restored in `from_dict()` deserialization (defaults to 0 for backward compatibility)
-- Gold displayed in character `__str__()` status output
+The world representation was refactored from a flat `dict[str, Location]` with arbitrary connections to a grid/matrix-based system with spatial coordinates, ensuring geographic consistency (going "north" then "south" returns to the same place).
 
-### 2. Combat Gold Rewards
-**File:** `src/cli_rpg/combat.py`
-- `end_combat()` method awards gold on victory: `5-15 * enemy.level` gold
+### Files Modified
 
-### 3. NPC Model
-**File:** `src/cli_rpg/models/npc.py`
-- `name` - NPC identifier (2-30 chars, validated)
-- `description` - What player sees (1-200 chars, validated)
-- `dialogue` - What NPC says when talked to
-- `is_merchant` - Whether NPC runs a shop
-- `shop` - Optional Shop reference for merchants
-- `to_dict()` / `from_dict()` serialization
+1. **`src/cli_rpg/models/location.py`**
+   - Added `coordinates: Optional[Tuple[int, int]] = None` field
+   - Updated `to_dict()` to include coordinates when present (backward compatible)
+   - Updated `from_dict()` to parse coordinates from lists to tuples
 
-### 4. Shop Model
-**File:** `src/cli_rpg/models/shop.py`
-- **ShopItem** class:
-  - `item` - The Item being sold
-  - `buy_price` - Cost to buy from shop
-  - `sell_price` - Property returning 50% of buy price (integer division)
-  - Serialization support
-- **Shop** class:
-  - `name` - Shop name
-  - `inventory` - List of ShopItems
-  - `find_item_by_name()` - Case-insensitive item search
-  - Serialization support
+2. **`src/cli_rpg/world_grid.py`** (NEW)
+   - Created `WorldGrid` class with coordinate-based storage
+   - Direction offsets: north=(0,+1), south=(0,-1), east=(+1,0), west=(-1,0)
+   - Key methods:
+     - `add_location(location, x, y)`: Places location and auto-creates bidirectional connections
+     - `get_by_coordinates(x, y)`: Coordinate-based lookup
+     - `get_by_name(name)`: Backward compatible name lookup
+     - `get_neighbor(x, y, direction)`: Get adjacent location
+     - `as_dict()`: Returns `dict[str, Location]` for backward compat
+     - `to_dict()` / `from_dict()`: Serialization with coordinates
+     - `from_legacy_dict()`: Handles old saves without coordinates
 
-### 5. Location Enhancement
-**File:** `src/cli_rpg/models/location.py`
-- `npcs: List[NPC]` field added
-- `find_npc_by_name()` method - case-insensitive NPC search
-- NPCs displayed in location `__str__()` output
-- NPCs serialized/deserialized with location
+3. **`src/cli_rpg/world.py`**
+   - `create_default_world()` now uses WorldGrid internally
+   - Town Square at (0,0), Forest at (0,1), Cave at (1,0)
+   - Returns `grid.as_dict()` for backward compatibility
 
-### 6. GameState Enhancement
-**File:** `src/cli_rpg/game_state.py`
-- `current_shop: Optional[Shop]` attribute for active shop interaction
-- `parse_command()` includes: `talk`, `buy`, `sell`, `shop` commands
+4. **`src/cli_rpg/ai_world.py`**
+   - `create_ai_world()`: Generates locations on grid starting from (0,0)
+   - `expand_world()`: Calculates coordinates based on direction offsets
+   - Ensures bidirectional connections are created based on coordinates
 
-### 7. Command Handlers
-**File:** `src/cli_rpg/main.py`
-- `talk <npc>` - Shows NPC dialogue, sets current_shop if merchant
-- `shop` - Lists shop inventory with prices and player gold
-- `buy <item>` - Purchases item if sufficient gold and inventory space
-- `sell <item>` - Sells inventory item for gold (base 10 + stat bonuses * 2)
-- Help text updated with all shop commands
+5. **`src/cli_rpg/game_state.py`** (unchanged for core logic)
+   - Works seamlessly with world dicts containing locations with coordinates
+   - Movement leverages existing connection-based logic
 
-### 8. Default World Merchant
-**File:** `src/cli_rpg/world.py`
-- Merchant NPC created in `create_default_world()`
-- Shop with: Health Potion (50g), Iron Sword (100g), Leather Armor (80g)
-- Merchant added to Town Square
+6. **`src/cli_rpg/persistence.py`** (unchanged for core logic)
+   - Location coordinates automatically serialized via `Location.to_dict()`
+   - Backward compatible with saves lacking coordinates
+
+### Test Files
+
+1. **`tests/test_world_grid.py`** (NEW) - 20 tests
+   - Coordinate-based storage
+   - Directional consistency (north=+y, south=-y, east=+x, west=-x)
+   - Bidirectional connection creation
+   - Spatial validation (occupied coordinates, duplicate names)
+   - Serialization roundtrip
+
+2. **`tests/test_location.py`** - Added 8 new tests
+   - Location with coordinates
+   - Coordinates in to_dict/from_dict
+   - Backward compatibility with None coordinates
+
+3. **`tests/test_world_grid_integration.py`** (NEW) - 10 tests
+   - Default world grid layout
+   - Movement roundtrips (N/S, E/W)
+   - Square navigation returns to origin
+   - Save/load preserves coordinates
+   - AI world generation with grid
 
 ## Test Results
 
-All tests pass:
-- `test_gold.py` - 8 tests (gold system)
-- `test_npc.py` - 9 tests (NPC model)
-- `test_shop.py` - 11 tests (Shop/ShopItem models)
-- `test_shop_commands.py` - 18 tests (command handlers)
+```
+======================== 653 passed, 1 skipped in 6.68s ========================
+```
 
-**Total: 46 NPC shop tests passing**
-**Full suite: 610 tests passing, 1 skipped**
+All tests pass including:
+- 20 WorldGrid unit tests
+- 8 Location coordinate tests
+- 10 Integration tests
+- All existing tests (backward compatibility verified)
 
-## E2E Validation
+## Key Design Decisions
 
-To validate the feature manually:
-1. Start the game: `python3 -m cli_rpg.main`
-2. Create a new character
-3. Use `look` to see "NPCs: Merchant" in Town Square
-4. Use `talk merchant` to interact with the merchant
-5. Use `shop` to see available items
-6. Use `buy health potion` to purchase an item
-7. Defeat an enemy to earn gold
-8. Use `sell <item>` to sell items from inventory
+1. **Sparse Grid**: Not all coordinates are filled, allowing natural terrain gaps
+2. **Origin at (0,0)**: Default starting location (Town Square)
+3. **Bidirectional Guarantee**: WorldGrid automatically creates reciprocal connections
+4. **Backward Compatibility**:
+   - `as_dict()` returns standard `dict[str, Location]`
+   - Saves without coordinates load correctly via `from_legacy_dict()`
+   - Coordinates omitted from serialization when None
+
+## E2E Tests Should Validate
+
+1. Starting a new game places player at Town Square (0,0)
+2. Moving north then south returns to starting location
+3. Moving east then west returns to starting location
+4. Saving and loading preserves location coordinates
+5. AI-generated worlds have grid-consistent navigation
