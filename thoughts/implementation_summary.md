@@ -1,33 +1,42 @@
-# Implementation Summary: Fix Help Command Regression
+# Implementation Summary: Fix Save/Load Validation for Leveled-Up Characters
 
-## What Was Implemented
+## Problem Solved
+Saved games were failing to load after a character leveled up because `Character.__post_init__()` enforced a 1-20 stat limit during deserialization. When `from_dict()` created a character with stats > 20 (from level-ups), validation rejected it with "strength must be at most 20".
 
-Fixed the `help` command regression by adding `"help"` to the `known_commands` set in the `parse_command()` function.
+## Changes Made
 
-### Files Modified
+### 1. Modified `Character.from_dict()` in `src/cli_rpg/models/character.py`
+- Added stat capping to pass initial validation (lines 279-283)
+- After construction, restored actual stats from save data (lines 294-297)
+- Recalculated derived stats (`max_health`, `constitution`) based on actual strength (lines 299-301)
+- Health is now capped at `max_health` when restored (line 304-305)
 
-1. **`src/cli_rpg/game_state.py`** (line 48-50)
-   - Added `"help"` to the `known_commands` set in `parse_command()`
-   - This ensures `parse_command("help")` returns `("help", [])` instead of `("unknown", [])`
+**Key insight**: The 1-20 stat limit is a **character creation** rule, not a game state rule. Leveled-up characters legitimately have stats > 20.
 
-2. **`tests/test_game_state.py`** (lines 124-131)
-   - Added `test_parse_command_help()` test to verify `parse_command("help")` returns `("help", [])`
+### 2. Added Tests in `tests/test_character_leveling.py`
+- `test_from_dict_allows_stats_above_20_from_level_ups`: Verifies loading a character with stats > 20 works
+- `test_serialization_roundtrip_preserves_high_stats`: Verifies a leveled-up character survives save/load roundtrip
+
+### 3. Updated Test in `tests/test_persistence.py`
+- Replaced `test_load_character_invalid_stat_values` (which expected stats > 20 to fail) with:
+  - `test_load_character_allows_high_stats_from_level_ups`: Verifies high stats load correctly
+  - `test_load_character_rejects_stats_below_minimum`: Verifies stats < 1 still raise ValueError
 
 ## Test Results
-
-All tests pass:
-- `tests/test_game_state.py`: 36 tests passed (including new help test)
-- `tests/test_main_help_command.py`: 8 tests passed
+- All 716 tests pass (1 skipped)
+- New tests verify the specific fix
+- Existing tests confirm no regressions
 
 ## Technical Details
-
-The root cause was that `parse_command()` validates commands against a whitelist (`known_commands`). When `"help"` was not in this set, it returned `("unknown", [])`, which caused the game to display "Unknown command" instead of the help reference.
-
-The fix was a simple one-line addition to include `"help"` in the known commands set.
+- `max_health` is recalculated from strength on load (not taken from saved value)
+- This ensures consistency with the game formula: `BASE_HEALTH + strength * HEALTH_PER_STRENGTH`
+- Saved `health` is capped at calculated `max_health` to prevent invalid states
 
 ## E2E Validation
-
 To manually verify:
-1. Start the game with `cli-rpg`
-2. Type `help` at the prompt
-3. Should display the command reference with exploration and combat commands
+1. Create a character with 20 STR
+2. Level up (gain 100 XP)
+3. Verify STR is now 21
+4. Save game
+5. Quit and reload
+6. Verify STR is still 21 and character loads successfully

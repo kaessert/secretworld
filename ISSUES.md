@@ -1,34 +1,26 @@
 ## Active Issues
 
-### CRITICAL: Cannot load saved games after leveling up - stat validation breaks saved games
+### Help command is not self-documenting - 'help' not listed in its own output
 **Status**: ACTIVE
 
-**Problem**: When players level up in combat, their stats increase beyond the initial 1-20 character creation limit. However, the save/load validation incorrectly enforces this 1-20 limit when loading saved games, causing all saves of leveled-up characters to fail to load. This effectively corrupts player progress.
+**Problem**: The `help` command displays a list of all available commands, but the `help` command itself is not listed in that output. This means users have no documented way to rediscover the `help` command if they forget about it.
 
 **Steps to Reproduce**:
-1. Create a new character (stats start at 1-20)
-2. Play the game and win combat encounters to level up
-3. On level up, the game says "Stats increased: STR +1, DEX +1, INT +1" - stats can now exceed 20
-4. Save the game (manually or via autosave)
-5. Quit to main menu
-6. Try to load the saved character
+1. Create a new character and start the game
+2. Type `help` to see the command reference
+3. Notice that `help` is not listed among the commands
 
-**Expected Behavior**: The saved game should load successfully, preserving the character's leveled-up stats (e.g., strength 21 from a character who started with 20 STR and leveled up once).
+**Expected Behavior**: The help output should include a line like:
+```
+  help           - Display this command reference
+```
 
-**Actual Behavior**: The game shows: `✗ Failed to load game state: Invalid game state data: strength must be at most 20`
+**Actual Behavior**: The help output lists all exploration commands (look, go, status, inventory, equip, unequip, use, talk, shop, buy, sell, map, save, quit) but does NOT include `help`.
 
-**Impact**: This is a critical, game-breaking bug:
-- Players who level up and quit cannot continue their game
-- All progress (levels, items, explored locations) is effectively lost
-- The bug affects BOTH autosaves and manual saves
-
-**Evidence**: The autosave_UseTest.json file contains `"strength": 21` because the character leveled up. When trying to load this character (option 1 in character load menu), the validation rejects it.
-
-**Root Cause**: The character stat validation applies character CREATION limits (1-20) to saved game loading. Leveled-up characters legitimately have stats > 20.
-
-**Suggested Fix**: Either:
-1. Remove or raise the stat caps in the load validation (stats could theoretically go very high with many level-ups), OR
-2. Apply different validation rules for character creation vs. loading (creation: 1-20, loading: 1-unlimited or 1-100)
+**Impact**:
+- Users who forget the commands have no documented way to rediscover that `help` exists
+- The README.md documents `help` as a valid command, but the in-game help doesn't mention it
+- Inconsistency between documentation and actual help output
 
 ---
 
@@ -65,6 +57,20 @@ This is misleading because:
 ---
 
 ## Resolved Issues
+
+### CRITICAL: Cannot load saved games after leveling up - stat validation breaks saved games
+**Status**: RESOLVED
+
+**Original Problem**: When players level up in combat, their stats increase beyond the initial 1-20 character creation limit. However, the save/load validation incorrectly enforced this 1-20 limit when loading saved games, causing all saves of leveled-up characters to fail to load with error: "strength must be at most 20"
+
+**Solution Implemented**:
+- Modified `Character.from_dict()` to handle stats above 20 from level-ups
+- Stats are temporarily capped to pass initial `__post_init__()` validation, then restored to actual values
+- Derived stats (`max_health`, `constitution`) are recalculated from actual strength after restoration
+- The 1-20 limit now correctly applies only to character creation, not to loading saved games
+- Added tests in `test_character_leveling.py` and updated `test_persistence.py`
+
+---
 
 ### REGRESSION: Help command not working during gameplay
 **Status**: RESOLVED

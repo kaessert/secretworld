@@ -195,25 +195,55 @@ class TestLoadCharacter:
         with pytest.raises(ValueError):
             load_character(str(incomplete_file))
     
-    def test_load_character_invalid_stat_values(self, temp_save_dir):
-        """Test: Validates character constraints."""
-        # Test spec: load_character validates loaded data against Character constraints
+    def test_load_character_allows_high_stats_from_level_ups(self, temp_save_dir):
+        """Test: Allows stats > 20 from leveled-up characters.
+
+        Spec: from_dict() should allow stats > 20 from leveled-up characters.
+        The 1-20 limit is for character creation, not saved game state.
+        """
+        filepath = Path(temp_save_dir)
+        filepath.mkdir(parents=True, exist_ok=True)
+        high_stats_file = filepath / "high_stats.json"
+
+        # Character with high stats from level-ups (valid saved state)
+        high_stats_data = {
+            "name": "Test",
+            "strength": 25,  # Started at 15, leveled up 10 times
+            "dexterity": 25,
+            "intelligence": 25,
+            "level": 11,
+            "health": 100,
+            "max_health": 225,  # 100 + 25*5
+        }
+        high_stats_file.write_text(json.dumps(high_stats_data))
+
+        character = load_character(str(high_stats_file))
+        assert character.strength == 25
+        assert character.dexterity == 25
+        assert character.intelligence == 25
+        assert character.level == 11
+
+    def test_load_character_rejects_stats_below_minimum(self, temp_save_dir):
+        """Test: Validates minimum stat constraints.
+
+        Spec: load_character still validates minimum stat constraints (< 1 is invalid).
+        """
         filepath = Path(temp_save_dir)
         filepath.mkdir(parents=True, exist_ok=True)
         invalid_file = filepath / "invalid.json"
-        
-        # Strength out of valid range
+
+        # Strength below minimum (always invalid)
         invalid_data = {
             "name": "Test",
-            "strength": 999,
+            "strength": 0,  # Below minimum of 1
             "dexterity": 10,
             "intelligence": 10,
             "level": 1,
             "health": 100,
-            "max_health": 100
+            "max_health": 100,
         }
         invalid_file.write_text(json.dumps(invalid_data))
-        
+
         with pytest.raises(ValueError):
             load_character(str(invalid_file))
     

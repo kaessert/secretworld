@@ -158,7 +158,43 @@ class TestLevelUp:
 
 class TestXPSerialization:
     """Test XP serialization."""
-    
+
+    def test_from_dict_allows_stats_above_20_from_level_ups(self):
+        """Spec: from_dict() should allow stats > 20 from leveled-up characters."""
+        # Simulate a level 2 character who started with 20 STR and leveled up
+        data = {
+            "name": "Hero",
+            "strength": 21,  # 20 + 1 from level up
+            "dexterity": 21,
+            "intelligence": 21,
+            "level": 2,
+            "health": 200,
+            "max_health": 205,
+            "xp": 50,
+        }
+        character = Character.from_dict(data)
+        assert character.strength == 21
+        assert character.dexterity == 21
+        assert character.intelligence == 21
+        assert character.level == 2
+
+    def test_serialization_roundtrip_preserves_high_stats(self):
+        """Spec: Stats > 20 should survive serialization roundtrip."""
+        original = Character(
+            name="Hero", strength=15, dexterity=15, intelligence=15, level=1
+        )
+        # Level up 10 times
+        for _ in range(10):
+            original.level_up()
+
+        assert original.strength == 25  # 15 + 10
+
+        data = original.to_dict()
+        restored = Character.from_dict(data)
+
+        assert restored.strength == 25
+        assert restored.level == 11
+
     def test_to_dict_includes_xp(self):
         """Spec: to_dict() should include XP in serialization."""
         character = Character(

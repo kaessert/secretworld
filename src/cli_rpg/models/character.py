@@ -276,17 +276,34 @@ class Character:
         """
         from cli_rpg.models.inventory import Inventory
 
-        # Create character with base stats
+        # Cap stats for initial validation (stats may be > 20 from level-ups)
+        # The 1-20 limit is for character creation, not saved game state
+        capped_strength = min(data["strength"], cls.MAX_STAT)
+        capped_dexterity = min(data["dexterity"], cls.MAX_STAT)
+        capped_intelligence = min(data["intelligence"], cls.MAX_STAT)
+
+        # Create character with capped stats to pass validation
         character = cls(
             name=data["name"],
-            strength=data["strength"],
-            dexterity=data["dexterity"],
-            intelligence=data["intelligence"],
-            level=data.get("level", 1)
+            strength=capped_strength,
+            dexterity=capped_dexterity,
+            intelligence=capped_intelligence,
+            level=data.get("level", 1),
         )
-        # Override health if different from calculated max
+
+        # Restore actual stats from save (may be > 20 from level-ups)
+        character.strength = data["strength"]
+        character.dexterity = data["dexterity"]
+        character.intelligence = data["intelligence"]
+
+        # Recalculate derived stats based on actual strength
+        character.max_health = cls.BASE_HEALTH + character.strength * cls.HEALTH_PER_STRENGTH
+        character.constitution = character.strength
+
+        # Override with saved health if provided (capped at max_health)
         if "health" in data:
-            character.health = data["health"]
+            character.health = min(data["health"], character.max_health)
+
         # Restore XP
         if "xp" in data:
             character.xp = data["xp"]
