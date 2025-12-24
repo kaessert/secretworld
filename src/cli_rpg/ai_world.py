@@ -214,14 +214,26 @@ def expand_world(
     opposite = get_opposite_direction(direction)
     new_location.add_connection(opposite, from_location)
     
-    # Add other suggested connections (if locations exist)
+    # Add suggested dangling connections (keep them even if targets don't exist)
     for new_dir, target_name in location_data["connections"].items():
-        if new_dir != opposite and target_name in world:
+        if new_dir != opposite:  # Skip the back-connection we already added
             new_location.add_connection(new_dir, target_name)
-            # Add reverse connection if appropriate
-            rev_dir = get_opposite_direction(new_dir)
-            if not world[target_name].has_connection(rev_dir):
-                world[target_name].add_connection(rev_dir, new_location.name)
+            # Also add bidirectional connection if target exists
+            if target_name in world:
+                rev_dir = get_opposite_direction(new_dir)
+                if not world[target_name].has_connection(rev_dir):
+                    world[target_name].add_connection(rev_dir, new_location.name)
+
+    # Ensure at least one dangling connection for future expansion
+    non_back_connections = [d for d in new_location.connections if d != opposite]
+    if not non_back_connections:
+        import random
+        available_dirs = [d for d in Location.VALID_DIRECTIONS
+                         if d not in new_location.connections]
+        if available_dirs:
+            dangling_dir = random.choice(available_dirs)
+            placeholder_name = f"Unexplored {dangling_dir.title()}"
+            new_location.add_connection(dangling_dir, placeholder_name)
     
     logger.info(f"Added location '{new_location.name}' to world")
     return world

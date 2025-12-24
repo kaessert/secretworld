@@ -197,17 +197,23 @@ def verify_bidirectional_connection(world, loc1_name, direction, loc2_name):
         f"{loc2_name} -> {opposite} should point to {loc1_name}"
 
 
-def verify_world_integrity(world):
+def verify_world_integrity(world, allow_dangling=True):
     """Verify all connections point to existing locations.
-    
+
     Args:
         world: World dictionary
-    
+        allow_dangling: If True, allows intentional dangling connections
+            (those starting with "Unexplored ") for future expansion
+
     Raises:
         AssertionError: If any connection points to non-existent location
+            (except allowed dangling connections)
     """
     for location_name, location in world.items():
         for direction, target in location.connections.items():
+            # Allow intentional dangling connections for future expansion
+            if allow_dangling and target.startswith("Unexplored "):
+                continue
             assert target in world, \
                 f"Connection from {location_name} via {direction} points to non-existent {target}"
 
@@ -698,8 +704,53 @@ def test_world_integrity_after_multiple_expansions(basic_character, simple_world
     
     # Verify world integrity
     verify_world_integrity(game_state.world)
-    
+
     # Verify we can navigate back
     game_state.world["Sunny Meadow"].connections["west"] = "Ancient Cave"  # Add explicit connection
     success, _ = game_state.move("west")
     assert success is True
+
+
+def test_expanded_location_never_dead_end(basic_character, mock_ai_service_success):
+    """Test: Expanded locations never become dead-ends.
+
+    Spec: Newly expanded locations always have at least one exit besides
+    the back-connection, preventing dead-end scenarios like Chrome Canyon.
+    """
+    # Override mock to return only back-connection
+    def generate_dead_end(theme, context_locations, source_location, direction):
+        opposites = {"north": "south", "south": "north", "east": "west",
+                     "west": "east", "up": "down", "down": "up"}
+        return {
+            "name": "Chrome Canyon",
+            "description": "A canyon with chrome walls.",
+            "connections": {opposites[direction]: source_location}  # Only back
+        }
+
+    mock_ai_service_success.generate_location.side_effect = generate_dead_end
+
+    town = Location(name="Town Square", description="A town square.")
+    town.connections = {"south": "Chrome Canyon"}
+    world = {"Town Square": town}
+
+    game_state = GameState(
+        character=basic_character,
+        world=world,
+        starting_location="Town Square",
+        ai_service=mock_ai_service_success,
+        theme="cyberpunk"
+    )
+
+    # Trigger expansion
+    success, _ = game_state.move("south")
+    assert success is True
+
+    # Verify Chrome Canyon has more than just the back exit
+    chrome_canyon = game_state.world["Chrome Canyon"]
+    assert len(chrome_canyon.connections) >= 2, \
+        "Expanded location should have at least 2 exits (back + dangling)"
+
+    # Verify at least one non-back exit exists
+    non_back = [d for d in chrome_canyon.connections if d != "north"]
+    assert len(non_back) >= 1, \
+        "Expanded location must have at least one forward exit for exploration"

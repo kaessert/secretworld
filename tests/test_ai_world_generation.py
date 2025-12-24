@@ -390,3 +390,121 @@ def test_expand_world_context_includes_existing_locations(mock_ai_service, basic
     call_args = mock_ai_service.generate_location.call_args
     context_locations = call_args[1]["context_locations"]
     assert "Town Square" in context_locations
+
+
+# Test: Expand world creates dangling connection
+def test_expand_world_creates_dangling_connection(mock_ai_service, basic_world):
+    """Test expand_world ensures new locations have at least one dangling exit.
+
+    Spec: New locations must have at least one exit besides the back-connection.
+    """
+    # AI returns location with only back-connection
+    mock_ai_service.generate_location.return_value = {
+        "name": "Dead End Canyon",
+        "description": "A remote canyon.",
+        "connections": {"south": "Town Square"}  # Only back-connection
+    }
+
+    updated_world = expand_world(
+        world=basic_world,
+        ai_service=mock_ai_service,
+        from_location="Town Square",
+        direction="north",
+        theme="fantasy"
+    )
+
+    # New location must have >= 2 exits (back + dangling)
+    new_loc = updated_world["Dead End Canyon"]
+    assert len(new_loc.connections) >= 2
+    assert new_loc.has_connection("south")  # Back-connection exists
+
+    # At least one non-south connection exists
+    other_connections = [d for d in new_loc.connections if d != "south"]
+    assert len(other_connections) >= 1
+
+
+# Test: Expand world preserves AI-suggested dangling connections
+def test_expand_world_preserves_ai_suggested_dangling_connections(mock_ai_service, basic_world):
+    """Test expand_world preserves AI-suggested dangling connections.
+
+    Spec: AI-suggested exits to non-existent locations should be kept as dangling.
+    """
+    mock_ai_service.generate_location.return_value = {
+        "name": "Crossroads",
+        "description": "A busy crossroads.",
+        "connections": {
+            "south": "Town Square",  # Back-connection
+            "east": "Mountain Path",  # Dangling
+            "west": "Dark Forest"     # Dangling
+        }
+    }
+
+    updated_world = expand_world(
+        world=basic_world,
+        ai_service=mock_ai_service,
+        from_location="Town Square",
+        direction="north",
+        theme="fantasy"
+    )
+
+    new_loc = updated_world["Crossroads"]
+    assert new_loc.has_connection("south")
+    assert new_loc.has_connection("east")
+    assert new_loc.has_connection("west")
+    assert new_loc.get_connection("east") == "Mountain Path"
+    assert new_loc.get_connection("west") == "Dark Forest"
+
+
+# Test: Expand world adds dangling connection when AI suggests none
+def test_expand_world_adds_dangling_when_ai_suggests_none(mock_ai_service, basic_world):
+    """Test expand_world adds dangling connection when AI suggests none.
+
+    Spec: If AI returns empty connections, a dangling exit must be added.
+    """
+    mock_ai_service.generate_location.return_value = {
+        "name": "Isolated Cave",
+        "description": "An isolated cave.",
+        "connections": {}  # No connections at all
+    }
+
+    updated_world = expand_world(
+        world=basic_world,
+        ai_service=mock_ai_service,
+        from_location="Town Square",
+        direction="north",
+        theme="fantasy"
+    )
+
+    new_loc = updated_world["Isolated Cave"]
+    # Must have back-connection + at least one dangling
+    assert len(new_loc.connections) >= 2
+    assert new_loc.has_connection("south")  # Back to Town Square
+
+
+# Test: Expand world dangling excludes back direction
+def test_expand_world_dangling_excludes_back_direction(mock_ai_service, basic_world):
+    """Test added dangling connection is not in back direction.
+
+    Spec: Auto-added dangling exit must be in a different direction than back.
+    """
+    mock_ai_service.generate_location.return_value = {
+        "name": "Remote Place",
+        "description": "A remote place.",
+        "connections": {"south": "Town Square"}  # Only back
+    }
+
+    updated_world = expand_world(
+        world=basic_world,
+        ai_service=mock_ai_service,
+        from_location="Town Square",
+        direction="north",
+        theme="fantasy"
+    )
+
+    new_loc = updated_world["Remote Place"]
+    # Get non-back connections
+    other_dirs = [d for d in new_loc.connections if d != "south"]
+    assert len(other_dirs) >= 1
+    # Dangling should not be "south" (the back direction)
+    for d in other_dirs:
+        assert d != "south"

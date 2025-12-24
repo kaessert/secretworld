@@ -86,6 +86,8 @@ Core service for interacting with LLM APIs.
 **`expand_world(world: dict[str, Location], ai_service: AIService, from_location: str, direction: str, theme: str) -> dict[str, Location]`**
 - Generate new location in specified direction
 - Add bidirectional connections
+- Guarantee at least one dangling connection for future exploration (prevents dead-ends)
+- If AI returns only a back-connection, auto-add a dangling connection (format: "Unexplored {Direction}")
 - Update world dictionary in-place
 - Return updated world
 
@@ -249,7 +251,8 @@ Respond with valid JSON in this exact format:
 - Description: 1-500 characters (enforced by Location model)
 - Connections: Only valid directions (north, south, east, west, up, down)
 - No self-connections
-- All connection targets must exist in world
+- Connection targets may be dangling (target doesn't exist yet) to support incremental exploration
+- Intentional dangling connections use "Unexplored {Direction}" format
 
 ### 8.2 World Validation
 
@@ -294,6 +297,7 @@ The E2E test suite (`tests/test_e2e_world_expansion.py`) validates dynamic world
 - Multiple paths to same expansion point
 - Game state preservation during expansion
 - World integrity after multiple expansions
+- Dead-end prevention (locations always have forward exploration options)
 
 **Test Infrastructure:**
 - Fixtures for different world configurations
