@@ -54,11 +54,11 @@ def render_map(world: dict[str, Location], current_location: str) -> str:
             marker = name[0].upper()
             legend_entries.append(f"{marker} = {name}")
 
-    # Create marker map for coordinates
+    # Create marker map for coordinates (uncolored for alignment calculations)
     coord_to_marker: dict[tuple[int, int], str] = {}
     for name, location in locations_with_coords:
         if name == current_location:
-            coord_to_marker[location.coordinates] = colors.bold_colorize("@", colors.CYAN)
+            coord_to_marker[location.coordinates] = "@"
         else:
             coord_to_marker[location.coordinates] = name[0].upper()
 
@@ -79,10 +79,22 @@ def render_map(world: dict[str, Location], current_location: str) -> str:
             coord = (x, y)
             if coord in coord_to_marker:
                 marker = coord_to_marker[coord]
-                row_parts.append(f"{marker:>{cell_width}}")
+                # Pad first, then colorize to avoid ANSI codes breaking alignment
+                padded = f"{marker:>{cell_width}}"
+                if coord == current_loc.coordinates:
+                    # Colorize only the marker character, preserving padding
+                    padded = padded[:-1] + colors.bold_colorize("@", colors.CYAN)
+                row_parts.append(padded)
             else:
                 row_parts.append(" " * cell_width)
         map_rows.append("".join(row_parts))
+
+    # Get available exits from current location
+    available_directions = current_loc.get_available_directions()
+    if available_directions:
+        exits_line = "Exits: " + ", ".join(available_directions)
+    else:
+        exits_line = "Exits: None"
 
     # Assemble the full output
     lines = [
@@ -91,6 +103,7 @@ def render_map(world: dict[str, Location], current_location: str) -> str:
         *map_rows,
         "",
         "Legend: " + ", ".join(legend_entries),
+        exits_line,
     ]
 
     return "\n".join(lines)

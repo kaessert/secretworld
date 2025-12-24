@@ -1,65 +1,58 @@
-# Implementation Summary: Quest Completion Rewards
+# Implementation Summary: Map Alignment and Exits Display Fix
 
-## What Was Implemented
+## What was implemented
 
-When a quest's objectives are met (e.g., kill X enemies), the system now:
-1. Automatically marks the quest as COMPLETED (already implemented)
-2. Grants defined rewards to the player: gold, XP, and optionally items
-3. Displays reward notification messages to the player
+### 1. Fixed Column Alignment for Colored Markers (map_renderer.py)
 
-## Files Modified
+**Problem:** ANSI color codes in the player's `@` marker (14 bytes for `\x1b[1m\x1b[36m@\x1b[0m`) broke Python's string formatting width calculation. When using `f"{marker:>{cell_width}}"`, Python counts all bytes including invisible ANSI codes, resulting in no padding being added to colored markers.
 
-### `src/cli_rpg/models/quest.py`
-- Added `List` import from typing
-- Added three new reward fields to the Quest dataclass:
-  - `gold_reward: int = field(default=0)` - Gold granted on completion
-  - `xp_reward: int = field(default=0)` - XP granted on completion
-  - `item_rewards: List[str] = field(default_factory=list)` - Item names granted on completion
-- Added validation in `__post_init__` to reject negative gold/XP rewards
-- Updated `to_dict()` to include reward fields in serialization
-- Updated `from_dict()` to deserialize reward fields with defaults for backward compatibility
+**Solution:** Changed the approach to:
+1. Store uncolored markers in `coord_to_marker` (plain "@" instead of colored "@")
+2. Apply padding to the uncolored marker first: `f"{marker:>{cell_width}}"`
+3. Only then colorize the marker character while preserving the padding: `padded[:-1] + colors.bold_colorize("@", colors.CYAN)`
 
-### `src/cli_rpg/models/character.py`
-- Added `claim_quest_rewards(quest: Quest) -> List[str]` method:
-  - Validates quest status is COMPLETED (raises ValueError otherwise)
-  - Grants gold via `add_gold()` with notification message
-  - Grants XP via `gain_xp()` (returns XP messages including level-ups)
-  - Grants items by creating MISC items with quest description and adding to inventory
-  - Returns list of all reward messages
-- Modified `record_kill()` to call `claim_quest_rewards()` when a quest completes
+**Files modified:** `src/cli_rpg/map_renderer.py` (lines 57-90)
 
-### `tests/test_quest.py`
-- Updated `test_to_dict()` to include the new reward fields in expected output
+### 2. Added Exits Display on Map
 
-### `tests/test_quest_rewards.py` (NEW)
-- 25 new tests covering:
-  - Quest reward field creation and defaults
-  - Reward validation (negative values rejected)
-  - Serialization roundtrip with rewards
-  - `claim_quest_rewards()` method behavior
-  - Integration with `record_kill()` for automatic reward granting
+**Feature:** The map now displays available exits from the current location below the legend.
+
+**Implementation:**
+- Get available directions using `current_loc.get_available_directions()`
+- Display "Exits: east, north" (sorted alphabetically) or "Exits: None" if no connections
+
+**Files modified:** `src/cli_rpg/map_renderer.py` (lines 92-107)
+
+## Tests Added (tests/test_map_renderer.py)
+
+1. `test_colored_marker_alignment` - Verifies that colored @ marker aligns correctly with uncolored markers by checking character positions after stripping ANSI codes
+
+2. `test_exits_displayed_on_map` - Verifies "Exits:" line appears with correct directions
+
+3. `test_exits_displayed_when_no_connections` - Verifies "Exits: None" is shown for isolated locations
 
 ## Test Results
 
-- All 893 tests pass (1 skipped)
-- 25 new tests specifically for quest rewards
-- No regressions in existing functionality
+All 896 tests pass (1 skipped).
 
-## Design Decisions
+## Verification
 
-1. **Item Rewards as Strings**: Item rewards are stored as string names rather than full Item objects for simplicity and serialization. When claimed, a basic MISC-type item is created with the given name.
+Before fix:
+```
+Header:      -2 -1  0  1  2
+Row:      0      W@  E       <- @ and E misaligned (@ at pos 9, E at pos 12)
+```
 
-2. **Backward Compatibility**: The `from_dict()` method uses `.get()` with defaults, so existing save files without reward fields will load correctly with zero/empty rewards.
+After fix:
+```
+Header:      -2 -1  0  1  2
+Row:      0      W  @  E     <- Correctly aligned (W at 8, @ at 11, E at 14)
+Exits: east, north           <- New exits line
+```
 
-3. **Automatic Reward Granting**: Rewards are automatically granted when `record_kill()` detects quest completion, ensuring players receive rewards immediately without needing to manually claim them.
+## E2E Validation
 
-4. **Reward Messages**: All reward notifications are returned as a list of strings that can be displayed to the player, including XP gain messages and potential level-up notifications.
-
-## E2E Testing Notes
-
-E2E tests should validate:
-- Creating a quest with rewards, killing the required enemies, and verifying:
-  - Gold is added to character
-  - XP is added to character
-  - Items appear in inventory
-  - Appropriate messages are displayed
+The map command should now display properly aligned markers with exits:
+- Player marker @ aligns with column headers
+- Other location markers (first letter of name) align correctly
+- Exits from current location are listed at the bottom

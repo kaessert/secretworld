@@ -212,3 +212,92 @@ class TestPlayerCenteredMap:
         # Verify both @ (player) and N (Nearby) are visible
         assert "@" in result, "Player marker @ should be visible"
         assert "N" in result, "Nearby location N should be visible"
+
+    def test_colored_marker_alignment(self):
+        """Verify colored @ marker aligns correctly with uncolored markers.
+
+        Spec: ANSI color codes in the player marker should not break column alignment.
+        The @ marker with color codes should occupy the same visual width as other markers.
+        """
+        # Player at (0,0) with a nearby location at (1,0) - same row
+        world = {
+            "Center": Location("Center", "Center location", {}, coordinates=(0, 0)),
+            "East": Location("East", "East location", {}, coordinates=(1, 0)),
+        }
+        result = render_map(world, "Center")
+
+        lines = result.split("\n")
+
+        # Find the row with y=0 (both markers should be on this row)
+        row_y0 = None
+        for line in lines:
+            stripped = line.strip()
+            if stripped.startswith("0 ") or stripped.startswith(" 0 "):
+                row_y0 = line
+                break
+
+        assert row_y0 is not None, "Row with y=0 should exist"
+
+        # Strip ANSI codes to get the visual representation
+        import re
+
+        ansi_escape = re.compile(r"\x1b\[[0-9;]*m")
+        clean_row = ansi_escape.sub("", row_y0)
+
+        # In the clean row, @ and E should be properly spaced
+        # With cell_width=3, markers should be right-aligned in their cells
+        # The pattern should be consistent spacing between markers
+
+        # Find positions of @ and E in the cleaned row
+        at_pos = clean_row.find("@")
+        e_pos = clean_row.find("E")
+
+        assert at_pos >= 0, "@ marker should be in the row"
+        assert e_pos >= 0, "E marker should be in the row"
+
+        # E is at x=1 (one cell to the right of @)
+        # With cell_width=3, E should be exactly 3 characters after @
+        assert e_pos - at_pos == 3, (
+            f"E should be 3 characters after @, but gap is {e_pos - at_pos}. "
+            f"Row: '{clean_row}'"
+        )
+
+    def test_exits_displayed_on_map(self):
+        """Verify available exits are shown on the map below the legend.
+
+        Spec: The map should display "Exits: north, east" etc. showing available
+        directions from the current location.
+        """
+        world = {
+            "Center": Location(
+                "Center",
+                "Center location",
+                {"north": "North", "east": "East"},
+                coordinates=(0, 0),
+            ),
+            "North": Location("North", "North location", {}, coordinates=(0, 1)),
+            "East": Location("East", "East location", {}, coordinates=(1, 0)),
+        }
+        result = render_map(world, "Center")
+
+        # Check that exits line is present
+        assert "Exits:" in result, "Map should display exits"
+        # Check that specific exits are shown
+        assert "east" in result.lower(), "Map should show 'east' exit"
+        assert "north" in result.lower(), "Map should show 'north' exit"
+
+    def test_exits_displayed_when_no_connections(self):
+        """Verify exits line shows when location has no connections.
+
+        Spec: Even with no exits, the map should display "Exits: None"
+        """
+        world = {
+            "Isolated": Location(
+                "Isolated", "An isolated location", {}, coordinates=(0, 0)
+            ),
+        }
+        result = render_map(world, "Isolated")
+
+        # Should show exits line even with no connections
+        assert "Exits:" in result, "Map should display exits line"
+        assert "none" in result.lower(), "Map should indicate no exits available"
