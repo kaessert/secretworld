@@ -124,6 +124,30 @@ class TestSellCommand:
         assert cont is True
         assert "shop" in msg.lower() or "talk" in msg.lower()
 
+    def test_sell_equipped_weapon_shows_helpful_message(self, game_with_shop):
+        """Sell command shows helpful message when trying to sell equipped weapon."""
+        # Tests spec: Selling equipped items should explain why it fails
+        item = Item(name="Battle Axe", description="Sharp", item_type=ItemType.WEAPON, damage_bonus=5)
+        game_with_shop.current_character.inventory.add_item(item)
+        game_with_shop.current_character.inventory.equip(item)
+        handle_exploration_command(game_with_shop, "talk", ["merchant"])
+        cont, msg = handle_exploration_command(game_with_shop, "sell", ["battle", "axe"])
+        assert cont is True
+        assert "equipped" in msg.lower()
+        assert "unequip weapon" in msg.lower()
+
+    def test_sell_equipped_armor_shows_helpful_message(self, game_with_shop):
+        """Sell command shows helpful message when trying to sell equipped armor."""
+        # Tests spec: Selling equipped items should explain why it fails
+        item = Item(name="Steel Plate", description="Heavy", item_type=ItemType.ARMOR, defense_bonus=5)
+        game_with_shop.current_character.inventory.add_item(item)
+        game_with_shop.current_character.inventory.equip(item)
+        handle_exploration_command(game_with_shop, "talk", ["merchant"])
+        cont, msg = handle_exploration_command(game_with_shop, "sell", ["steel", "plate"])
+        assert cont is True
+        assert "equipped" in msg.lower()
+        assert "unequip armor" in msg.lower()
+
 
 class TestShopCommand:
     """Tests for shop command - tests spec: Commands (shop)."""

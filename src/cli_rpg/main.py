@@ -369,6 +369,21 @@ def handle_exploration_command(game_state: GameState, command: str, args: list[s
         item_name = " ".join(args)
         item = game_state.current_character.inventory.find_item_by_name(item_name)
         if item is None:
+            # Check if item is equipped (not in regular inventory but still owned)
+            inv = game_state.current_character.inventory
+            item_name_lower = item_name.lower()
+            if inv.equipped_weapon and inv.equipped_weapon.name.lower() == item_name_lower:
+                return (
+                    True,
+                    f"\nYou can't sell {inv.equipped_weapon.name} because it's currently "
+                    "equipped. Unequip it first with 'unequip weapon'.",
+                )
+            if inv.equipped_armor and inv.equipped_armor.name.lower() == item_name_lower:
+                return (
+                    True,
+                    f"\nYou can't sell {inv.equipped_armor.name} because it's currently "
+                    "equipped. Unequip it first with 'unequip armor'.",
+                )
             return (True, f"\nYou don't have '{item_name}' in your inventory.")
         # Base sell price calculation
         sell_price = 10 + (item.damage_bonus + item.defense_bonus + item.heal_amount) * 2

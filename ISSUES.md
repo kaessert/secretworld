@@ -1,30 +1,44 @@
 ## Active Issues
 
-### Confusing error message when trying to sell equipped items
+### Health potions can be wasted when at full health
 **Status**: ACTIVE
 
-**Problem**: When a player tries to sell an item that is currently equipped, the error message "You don't have 'item name' in your inventory" is confusing and unhelpful.
+**Problem**: When a player uses a Health Potion while at full health, the potion is consumed but heals 0 HP. The game shows the message "You used Health Potion and healed 0 health!" and considers this a successful action.
 
 **Steps to Reproduce**:
-1. Start a new game and create a character
-2. Fight enemies until you receive a weapon drop (e.g., "Old Dagger")
-3. Use `equip Old Dagger` to equip the weapon
-4. Use `inventory` to verify the item appears in the equipped slot
-5. Use `talk Merchant` to open the shop
-6. Use `sell Old Dagger` to attempt to sell the equipped item
+1. Create a character with full health
+2. Add a Health Potion to inventory
+3. Use the command `use Health Potion`
+4. Observe: The potion is consumed even though no healing occurred
 
-**Expected Behavior**: The game should provide a clear message like "You can't sell Old Dagger because it's currently equipped. Unequip it first with 'unequip weapon'."
+**Expected Behavior**: The game should either:
+- Prevent using health potions at full HP with a message like "You're already at full health!"
+- Ask for confirmation: "You're at full health. Use potion anyway? (y/n)"
 
-**Actual Behavior**: The game displays "You don't have 'old dagger' in your inventory." which is confusing because:
-- The item IS visible in the inventory display (in the equipped section)
-- The message doesn't explain WHY the sell failed
-- The user doesn't get guidance on how to properly sell the item (unequip first)
+**Actual Behavior**:
+- Returns `(True, 'You used Health Potion and healed 0 health!')`
+- Potion is removed from inventory
+- No warning that the action was wasteful
 
-**Impact**: Poor user experience - players may think they lost their item or that the game is bugged, when in reality they just need to unequip the item first.
+**Impact**: Players can accidentally waste valuable consumables, leading to frustration.
+
+---
 
 ---
 
 ## Resolved Issues
+
+### Confusing error message when trying to sell equipped items
+**Status**: RESOLVED
+
+**Original Problem**: When a player tries to sell an item that is currently equipped, the error message "You don't have 'item name' in your inventory" is confusing and unhelpful.
+
+**Solution Implemented**:
+- Added check in `main.py` sell command handler to detect when item is equipped
+- Now displays helpful message: "You can't sell [Item] because it's currently equipped. Unequip it first with 'unequip weapon'." (or 'unequip armor' for armor items)
+- Added tests `test_sell_equipped_weapon_shows_helpful_message` and `test_sell_equipped_armor_shows_helpful_message`
+
+---
 
 ### Documentation inconsistency: "up" and "down" directions
 **Status**: RESOLVED

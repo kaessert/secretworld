@@ -1,25 +1,39 @@
-# Implementation Summary: Fix "up/down" Documentation Inconsistency
+# Implementation Summary: Fix Confusing Error Message When Selling Equipped Items
 
 ## What Was Implemented
 
-Fixed documentation inconsistency where README.md listed "up, down" as valid movement directions, but the grid system only supports 2D cardinal directions (north, south, east, west).
+Added a helpful error message when a player tries to sell an equipped item, replacing the confusing "You don't have X in your inventory" message with clear guidance on how to unequip the item first.
 
-## Files Modified
+### Files Modified
 
-1. **`README.md`** (line 41):
-   - **Before**: `- \`go <direction>\` - Move in a direction (north, south, east, west, up, down)`
-   - **After**: `- \`go <direction>\` - Move in a direction (north, south, east, west)`
+1. **`src/cli_rpg/main.py`** (lines 371-386)
+   - Added check for equipped weapon/armor when item not found in inventory
+   - Returns specific message explaining the item is equipped with unequip instructions
 
-2. **`ISSUES.md`**:
-   - Moved the "Documentation inconsistency: up and down directions" issue from Active to Resolved
-   - Updated status to RESOLVED with solution description
-   - Active Issues section now shows "_No active issues._"
+2. **`tests/test_shop_commands.py`** (lines 127-149)
+   - Added `test_sell_equipped_weapon_shows_helpful_message`
+   - Added `test_sell_equipped_armor_shows_helpful_message`
+
+### Behavior Change
+
+**Before**: `"You don't have 'battle axe' in your inventory."`
+
+**After**: `"You can't sell Battle Axe because it's currently equipped. Unequip it first with 'unequip weapon'."`
+
+(or `'unequip armor'` for armor items)
 
 ## Test Results
 
-No tests required (documentation-only change).
+- All 5 sell command tests pass
+- Full test suite: 692 passed, 1 skipped
+- No regressions detected
 
-## Verification
+## E2E Validation
 
-- README now matches the in-game help text which only shows cardinal directions
-- Documentation is consistent with the grid-based 2D coordinate system (`world_grid.py`)
+To manually verify:
+1. Start the game and create a character
+2. Find/buy a weapon or armor
+3. Equip the item
+4. Visit a merchant (talk command)
+5. Try to sell the equipped item
+6. Verify the helpful message appears with unequip instructions
