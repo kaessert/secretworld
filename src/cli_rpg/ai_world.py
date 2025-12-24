@@ -42,7 +42,7 @@ def create_ai_world(
     theme: str = "fantasy",
     starting_location_name: str = "Town Square",
     initial_size: int = 3
-) -> dict[str, Location]:
+) -> tuple[dict[str, Location], str]:
     """Create an AI-generated world.
     
     Args:
@@ -52,7 +52,9 @@ def create_ai_world(
         initial_size: Target number of locations to generate
     
     Returns:
-        Dictionary mapping location names to Location instances
+        Tuple of (world, starting_location) where:
+        - world: Dictionary mapping location names to Location instances
+        - starting_location: Actual name of the starting location (may differ from parameter)
     
     Raises:
         AIServiceError: If generation fails
@@ -148,7 +150,11 @@ def create_ai_world(
             continue
     
     logger.info(f"Generated world with {len(world)} locations")
-    return world
+    
+    # Get the actual starting location name (first generated location)
+    actual_starting_location = starting_location.name
+    
+    return (world, actual_starting_location)
 
 
 def expand_world(
@@ -224,7 +230,7 @@ def expand_world(
 def create_world_with_fallback(
     ai_service: Optional[AIService] = None,
     theme: str = "fantasy"
-) -> dict[str, Location]:
+) -> tuple[dict[str, Location], str]:
     """Create world with AI or raise exception.
 
     Note: This function is deprecated. Use create_ai_world directly
@@ -235,7 +241,7 @@ def create_world_with_fallback(
         theme: World theme
 
     Returns:
-        World dictionary
+        Tuple of (world, starting_location)
 
     Raises:
         ValueError: If ai_service is None

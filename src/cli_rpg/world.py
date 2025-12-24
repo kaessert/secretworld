@@ -17,11 +17,13 @@ except ImportError:
     create_ai_world = None
 
 
-def create_default_world() -> dict[str, Location]:
+def create_default_world() -> tuple[dict[str, Location], str]:
     """Create and return the default game world with 3 locations.
     
     Returns:
-        Dictionary mapping location names to Location instances
+        Tuple of (world, starting_location) where:
+        - world: Dictionary mapping location names to Location instances
+        - starting_location: "Town Square" (the default starting location)
         
     The default world consists of:
     - Town Square: Central hub with connections north to Forest and east to Cave
@@ -52,18 +54,20 @@ def create_default_world() -> dict[str, Location]:
     
     cave.add_connection("west", "Town Square")
     
-    # Return world dictionary
-    return {
+    # Return world dictionary and starting location
+    world = {
         "Town Square": town_square,
         "Forest": forest,
         "Cave": cave
     }
+    
+    return (world, "Town Square")
 
 
 def create_world(
     ai_service: Optional["AIService"] = None,
     theme: str = "fantasy"
-) -> dict[str, Location]:
+) -> tuple[dict[str, Location], str]:
     """Create a game world, using AI if available.
 
     Args:
@@ -71,17 +75,22 @@ def create_world(
         theme: World theme (default: "fantasy")
 
     Returns:
-        Dictionary mapping location names to Location instances
+        Tuple of (world, starting_location) where:
+        - world: Dictionary mapping location names to Location instances
+        - starting_location: Name of the starting location in the world
     """
     if ai_service is not None and AI_AVAILABLE:
         # Use AI to create world with fallback to default on error
         try:
             logger.info("Attempting to create AI-generated world")
-            return create_ai_world(ai_service, theme=theme)
+            world, starting_location = create_ai_world(ai_service, theme=theme)
+            return (world, starting_location)
         except Exception as e:
             logger.warning(f"AI world generation failed: {e}")
             logger.info("Falling back to default world")
-            return create_default_world()
+            world, starting_location = create_default_world()
+            return (world, starting_location)
     else:
         # Use default world
-        return create_default_world()
+        world, starting_location = create_default_world()
+        return (world, starting_location)

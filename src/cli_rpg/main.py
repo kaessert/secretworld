@@ -320,10 +320,20 @@ def start_game(
         theme: World theme for generation (default: "fantasy")
     """
     # Create game state with AI-powered or default world
-    world = create_world(ai_service=ai_service, theme=theme)
+    world, starting_location = create_world(ai_service=ai_service, theme=theme)
+    
+    # Validate world is not empty
+    if not world:
+        raise ValueError("create_world() returned empty world")
+    
+    # Validate starting location exists in world
+    if starting_location not in world:
+        raise ValueError(f"Starting location '{starting_location}' not found in world")
+    
     game_state = GameState(
         character, 
         world, 
+        starting_location=starting_location,
         ai_service=ai_service, 
         theme=theme
     )

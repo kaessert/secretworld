@@ -138,7 +138,7 @@ def test_theme_selection_flow_with_ai(mock_ai_config, mock_ai_service):
                 description="Starting location"
             )
         }
-        mock_create_world.return_value = mock_world
+        mock_create_world.return_value = (mock_world, "Town Square")
         
         # Capture output
         old_stdout = sys.stdout
@@ -183,7 +183,7 @@ def test_world_creation_with_ai_service(mock_ai_service):
                 description="Starting location"
             )
         }
-        mock_create_world.return_value = mock_world
+        mock_create_world.return_value = (mock_world, "Town Square")
         
         # Mock GameState
         mock_game_state_instance = Mock()
@@ -234,7 +234,7 @@ def test_game_state_initialization_with_ai(mock_ai_service):
                 description="Starting location"
             )
         }
-        mock_create_world.return_value = mock_world
+        mock_create_world.return_value = (mock_world, "Town Square")
         
         # Mock GameState
         mock_game_state_instance = Mock()
@@ -293,7 +293,7 @@ def test_complete_e2e_flow_with_mocked_ai(mock_ai_config, mock_ai_service):
                 description="A futuristic plaza"
             )
         }
-        mock_create_world.return_value = mock_world
+        mock_create_world.return_value = (mock_world, "Town Square")
         
         with patch('builtins.input', side_effect=inputs):
             # Capture output
@@ -377,7 +377,7 @@ def test_default_theme_when_ai_unavailable():
                 description="Starting location"
             )
         }
-        mock_create_world.return_value = mock_world
+        mock_create_world.return_value = (mock_world, "Town Square")
         
         # Mock GameState
         mock_game_state_instance = Mock()

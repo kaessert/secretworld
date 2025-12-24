@@ -32,6 +32,58 @@ def basic_world():
     return {"Town Square": town_square}
 
 
+# Test: Create AI world returns tuple
+def test_create_ai_world_returns_tuple(mock_ai_service):
+    """Test create_ai_world returns tuple (world, starting_location).
+    
+    Spec (Fix): create_ai_world() must return tuple (world, starting_location)
+    """
+    mock_ai_service.generate_location.return_value = {
+        "name": "Town Square",
+        "description": "A bustling town square with a fountain.",
+        "connections": {}
+    }
+    
+    result = create_ai_world(mock_ai_service, theme="fantasy")
+    assert isinstance(result, tuple)
+    assert len(result) == 2
+
+
+# Test: Create AI world tuple contains correct types
+def test_create_ai_world_tuple_types(mock_ai_service):
+    """Test create_ai_world tuple contains world dict and starting location string.
+    
+    Spec (Fix): Tuple must contain (dict[str, Location], str)
+    """
+    mock_ai_service.generate_location.return_value = {
+        "name": "Central Plaza",
+        "description": "A central plaza.",
+        "connections": {}
+    }
+    
+    world, starting_location = create_ai_world(mock_ai_service, theme="fantasy")
+    assert isinstance(world, dict)
+    assert isinstance(starting_location, str)
+    assert len(starting_location) > 0
+
+
+# Test: Create AI world starting location matches first generated location
+def test_create_ai_world_starting_location_matches_generated(mock_ai_service):
+    """Test starting location is the name of the first generated location.
+    
+    Spec (Fix): Starting location must be the name of the first generated location
+    """
+    mock_ai_service.generate_location.return_value = {
+        "name": "Cyberpunk Street",
+        "description": "A neon-lit street.",
+        "connections": {}
+    }
+    
+    world, starting_location = create_ai_world(mock_ai_service, theme="cyberpunk")
+    assert starting_location == "Cyberpunk Street"
+    assert starting_location in world
+
+
 # Test: Create AI world generates locations
 def test_create_ai_world_generates_location(mock_ai_service):
     """Test create_ai_world generates at least a starting location."""
@@ -45,12 +97,13 @@ def test_create_ai_world_generates_location(mock_ai_service):
         }
     }
     
-    world = create_ai_world(mock_ai_service, theme="fantasy")
+    world, starting_location = create_ai_world(mock_ai_service, theme="fantasy")
     
     # Verify world is created
     assert len(world) > 0
     assert "Town Square" in world
     assert isinstance(world["Town Square"], Location)
+    assert starting_location == "Town Square"
 
 
 # Test: Create AI world with starting location
@@ -64,7 +117,7 @@ def test_create_ai_world_with_starting_location(mock_ai_service):
         }
     }
     
-    world = create_ai_world(
+    world, starting_location = create_ai_world(
         mock_ai_service,
         theme="sci-fi",
         starting_location_name="Space Station Alpha"
@@ -72,6 +125,7 @@ def test_create_ai_world_with_starting_location(mock_ai_service):
     
     assert "Space Station Alpha" in world
     assert world["Space Station Alpha"].name == "Space Station Alpha"
+    assert starting_location == "Space Station Alpha"
 
 
 # Test: Create AI world generates connected locations
@@ -109,11 +163,12 @@ def test_create_ai_world_generates_connected_locations(mock_ai_service):
     
     mock_ai_service.generate_location.side_effect = mock_generate
     
-    world = create_ai_world(mock_ai_service, theme="fantasy", initial_size=3)
+    world, starting_location = create_ai_world(mock_ai_service, theme="fantasy", initial_size=3)
     
     # Verify multiple locations created
     assert len(world) >= 2
     assert "Town Square" in world
+    assert starting_location == "Town Square"
 
 
 # Test: Create AI world expands from seed
@@ -140,10 +195,11 @@ def test_create_ai_world_expands_from_seed(mock_ai_service):
     
     mock_ai_service.generate_location.side_effect = mock_generate
     
-    world = create_ai_world(mock_ai_service, theme="fantasy", initial_size=2)
+    world, starting_location = create_ai_world(mock_ai_service, theme="fantasy", initial_size=2)
     
     # Should have called generate_location multiple times
     assert mock_ai_service.generate_location.call_count >= 2
+    assert starting_location == "Central Hub"
 
 
 # Test: Create AI world respects theme
@@ -155,28 +211,29 @@ def test_create_ai_world_respects_theme(mock_ai_service):
         "connections": {}
     }
     
-    world = create_ai_world(mock_ai_service, theme="cyberpunk")
+    world, starting_location = create_ai_world(mock_ai_service, theme="cyberpunk")
     
     # Verify theme was passed
     call_args = mock_ai_service.generate_location.call_args
     assert call_args[1]["theme"] == "cyberpunk"
+    assert starting_location == "Cyberpunk Street"
 
 
 # Test: Create AI world with AI failure fallback
 def test_create_ai_world_with_ai_failure_fallback(mock_ai_service):
-    """Test create_world_with_fallback falls back to default world on AI failure."""
+    """Test create_world_with_fallback raises exception on AI failure.
+    
+    Note: create_world_with_fallback is deprecated and does not have fallback logic.
+    It raises the exception. The actual fallback is handled in create_world().
+    """
     from cli_rpg.ai_service import AIGenerationError
     
     # Mock AI service to fail
     mock_ai_service.generate_location.side_effect = AIGenerationError("Test failure")
     
-    world = create_world_with_fallback(ai_service=mock_ai_service, theme="fantasy")
-    
-    # Should fall back to default world
-    assert world is not None
-    assert len(world) > 0
-    # Default world has these locations
-    assert "Town Square" in world or len(world) >= 1
+    # Should raise the exception (no fallback in deprecated function)
+    with pytest.raises(AIGenerationError):
+        create_world_with_fallback(ai_service=mock_ai_service, theme="fantasy")
 
 
 # Test: Create AI world validates generated locations
@@ -204,11 +261,12 @@ def test_create_ai_world_handles_duplicate_names(mock_ai_service):
         "connections": {}
     }
     
-    world = create_ai_world(mock_ai_service, theme="fantasy", initial_size=2)
+    world, starting_location = create_ai_world(mock_ai_service, theme="fantasy", initial_size=2)
     
     # Should only have one location (duplicates handled)
     # Implementation may skip or overwrite duplicates
     assert "Same Place" in world
+    assert starting_location == "Same Place"
 
 
 # Test: Expand world from location
@@ -301,12 +359,14 @@ def test_expand_world_invalid_direction(mock_ai_service, basic_world):
 
 # Test: Create world with fallback when no AI service
 def test_create_world_with_fallback_no_ai_service():
-    """Test create_world_with_fallback uses default world when no AI service provided."""
-    world = create_world_with_fallback(ai_service=None, theme="fantasy")
+    """Test create_world_with_fallback raises error when no AI service provided.
     
-    # Should create default world
-    assert world is not None
-    assert len(world) > 0
+    Note: create_world_with_fallback is deprecated and requires an AI service.
+    The actual fallback logic is in create_world().
+    """
+    # Should raise ValueError when ai_service is None
+    with pytest.raises(ValueError, match="AI service is required"):
+        create_world_with_fallback(ai_service=None, theme="fantasy")
 
 
 # Test: Expand world context includes existing locations

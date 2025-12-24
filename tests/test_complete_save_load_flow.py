@@ -39,8 +39,8 @@ class TestCompleteGameFlow:
         )
         
         # 2. Start game (create world and game state)
-        world = create_world()
-        game_state = GameState(character, world, theme="fantasy")
+        world, starting_location = create_world()
+        game_state = GameState(character, world, starting_location, theme="fantasy")
         
         # 3. Play game (move to different location)
         initial_location = game_state.current_location
@@ -133,8 +133,8 @@ class TestCompleteGameFlow:
         assert loaded_char.strength == 15
         
         # 5. Verify can start new game with loaded character
-        world = create_world()
-        new_game_state = GameState(loaded_char, world)
+        world, starting_location = create_world()
+        new_game_state = GameState(loaded_char, world, starting_location)
         assert new_game_state.current_location == "Town Square"
         assert new_game_state.current_character.name == "OldHero"
     
@@ -148,8 +148,8 @@ class TestCompleteGameFlow:
         """
         # Create character and game
         character = Character(name="MultiSave", strength=10, dexterity=10, intelligence=10)
-        world = create_world()
-        game_state = GameState(character, world)
+        world, starting_location = create_world()
+        game_state = GameState(character, world, starting_location)
         
         # Save 1: At starting location
         save1_file = tmp_path / "save1.json"
@@ -213,8 +213,8 @@ class TestCompleteGameFlow:
         character.gain_xp(75)
         
         # Create and save game state
-        world = create_world()
-        game_state = GameState(character, world)
+        world, starting_location = create_world()
+        game_state = GameState(character, world, starting_location)
         save_file = tmp_path / "damaged_save.json"
         with open(save_file, 'w') as f:
             json.dump(game_state.to_dict(), f)
@@ -241,11 +241,11 @@ class TestCompleteGameFlow:
         - Horror theme is preserved
         """
         character = Character(name="ThemeTest", strength=10, dexterity=10, intelligence=10)
-        world = create_world()
+        world, starting_location = create_world()
         
         # Test each theme
         for theme in ["fantasy", "sci-fi", "horror"]:
-            game_state = GameState(character, world, theme=theme)
+            game_state = GameState(character, world, starting_location, theme=theme)
             save_file = tmp_path / f"{theme}_save.json"
             with open(save_file, 'w') as f:
                 json.dump(game_state.to_dict(), f)
@@ -290,8 +290,8 @@ class TestSaveTypeDetection:
         
         # Create game state save
         character = Character(name="GameState", strength=10, dexterity=10, intelligence=10)
-        world = create_world()
-        game_state = GameState(character, world)
+        world, starting_location = create_world()
+        game_state = GameState(character, world, starting_location)
         state_file = tmp_path / "state_save.json"
         with open(state_file, 'w') as f:
             json.dump(game_state.to_dict(), f)

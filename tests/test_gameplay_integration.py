@@ -20,9 +20,9 @@ class TestGameplayIntegration:
         Spec: Game state should be created from character with default world
         """
         character = Character("Hero", strength=10, dexterity=10, intelligence=10)
-        world = create_default_world()
+        world, starting_location = create_default_world()
         
-        game_state = GameState(character, world)
+        game_state = GameState(character, world, starting_location)
         
         assert game_state.current_character == character
         assert game_state.current_location == "Town Square"
@@ -34,8 +34,8 @@ class TestGameplayIntegration:
         Spec: Look should display current location description
         """
         character = Character("Hero", strength=10, dexterity=10, intelligence=10)
-        world = create_default_world()
-        game_state = GameState(character, world)
+        world, starting_location = create_default_world()
+        game_state = GameState(character, world, starting_location)
         
         description = game_state.look()
         
@@ -49,8 +49,8 @@ class TestGameplayIntegration:
         Spec: Move to valid direction should succeed
         """
         character = Character("Hero", strength=10, dexterity=10, intelligence=10)
-        world = create_default_world()
-        game_state = GameState(character, world)
+        world, starting_location = create_default_world()
+        game_state = GameState(character, world, starting_location)
         
         success, message = game_state.move("north")
         
@@ -64,8 +64,8 @@ class TestGameplayIntegration:
         Spec: Move to invalid direction should fail with error message
         """
         character = Character("Hero", strength=10, dexterity=10, intelligence=10)
-        world = create_default_world()
-        game_state = GameState(character, world)
+        world, starting_location = create_default_world()
+        game_state = GameState(character, world, starting_location)
         
         success, message = game_state.move("west")  # No west exit from Town Square
         
@@ -79,8 +79,8 @@ class TestGameplayIntegration:
         Spec: Multiple moves should work correctly in sequence
         """
         character = Character("Hero", strength=10, dexterity=10, intelligence=10)
-        world = create_default_world()
-        game_state = GameState(character, world)
+        world, starting_location = create_default_world()
+        game_state = GameState(character, world, starting_location)
         
         # Town Square -> Forest
         success, _ = game_state.move("north")
@@ -108,8 +108,8 @@ class TestGameplayIntegration:
         Spec: Save should preserve current game state including location
         """
         character = Character("Hero", strength=10, dexterity=10, intelligence=10)
-        world = create_default_world()
-        game_state = GameState(character, world)
+        world, starting_location = create_default_world()
+        game_state = GameState(character, world, starting_location)
         
         # Move to Forest
         game_state.move("north")
@@ -125,8 +125,8 @@ class TestGameplayIntegration:
         Spec: Load should restore exact position in world
         """
         character = Character("Hero", strength=10, dexterity=10, intelligence=10)
-        world = create_default_world()
-        game_state = GameState(character, world)
+        world, starting_location = create_default_world()
+        game_state = GameState(character, world, starting_location)
         
         # Move to Cave
         game_state.move("east")
@@ -147,8 +147,8 @@ class TestGameplayIntegration:
         """
         # Create character and initialize game
         character = Character("TestHero", strength=12, dexterity=10, intelligence=8)
-        world = create_default_world()
-        game_state = GameState(character, world)
+        world, starting_location = create_default_world()
+        game_state = GameState(character, world, starting_location)
         
         # Verify starting location
         assert game_state.current_location == "Town Square"

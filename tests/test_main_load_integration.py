@@ -31,8 +31,8 @@ def sample_character():
 @pytest.fixture
 def sample_game_state(sample_character):
     """Create a sample game state for testing."""
-    world = create_world()
-    return GameState(sample_character, world, theme="fantasy")
+    world, starting_location = create_world()
+    return GameState(sample_character, world, starting_location, theme="fantasy")
 
 
 class TestSelectAndLoadCharacterIntegration:
@@ -199,8 +199,8 @@ class TestGameStateResumption:
         Spec: Game state loading - location is preserved
         """
         # Create game state at a specific location
-        world = create_world()
-        game_state = GameState(sample_character, world, starting_location="Town Square")
+        world, starting_location = create_world()
+        game_state = GameState(sample_character, world, starting_location)
         
         # Move to a different location
         game_state.move("north")
@@ -254,8 +254,8 @@ class TestGameStateResumption:
         Spec: Theme preservation - theme is restored
         """
         # Create game state with specific theme
-        world = create_world()
-        game_state = GameState(sample_character, world, theme="sci-fi")
+        world, starting_location = create_world()
+        game_state = GameState(sample_character, world, starting_location, theme="sci-fi")
         
         # Save game state
         save_file = tmp_path / "game_save.json"
