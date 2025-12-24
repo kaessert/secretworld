@@ -209,6 +209,34 @@ class Character:
         """
         return any(q.name.lower() == quest_name.lower() for q in self.quests)
 
+    def record_kill(self, enemy_name: str) -> List[str]:
+        """Record an enemy kill for quest progress.
+
+        Args:
+            enemy_name: Name of the defeated enemy
+
+        Returns:
+            List of notification messages for quest progress/completion
+        """
+        from cli_rpg.models.quest import QuestStatus, ObjectiveType
+
+        messages = []
+        for quest in self.quests:
+            if (
+                quest.status == QuestStatus.ACTIVE
+                and quest.objective_type == ObjectiveType.KILL
+                and quest.target.lower() == enemy_name.lower()
+            ):
+                completed = quest.progress()
+                if completed:
+                    quest.status = QuestStatus.COMPLETED
+                    messages.append(f"Quest Complete: {quest.name}!")
+                else:
+                    messages.append(
+                        f"Quest progress: {quest.name} [{quest.current_count}/{quest.target_count}]"
+                    )
+        return messages
+
     def gain_xp(self, amount: int) -> List[str]:
         """
         Add XP and handle level-ups.

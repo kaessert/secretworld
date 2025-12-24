@@ -109,6 +109,8 @@ Quest-giver NPCs can be found throughout the world. Interact with them to receiv
 3. Use `accept <quest>` to accept a quest (partial matching supported)
 4. Use `quests` to view your quest journal
 
+**Quest Progress**: Kill quests automatically track your progress when you defeat matching enemies in combat. You'll see progress messages after each victory and a completion notification when the quest is fulfilled.
+
 **Note**: You must talk to an NPC before accepting their quests. Quest names are matched case-insensitively.
 
 ### Save System

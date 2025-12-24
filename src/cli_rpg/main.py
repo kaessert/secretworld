@@ -175,8 +175,13 @@ def handle_combat_command(game_state: GameState, command: str, args: list[str]) 
 
         if victory:
             # Enemy defeated
+            enemy_name = combat.enemy.name
             end_message = combat.end_combat(victory=True)
             output += f"\n{end_message}"
+            # Track quest progress for kill objectives
+            quest_messages = game_state.current_character.record_kill(enemy_name)
+            for msg in quest_messages:
+                output += f"\n{msg}"
             game_state.current_combat = None
             # Autosave after combat victory
             try:
@@ -196,7 +201,7 @@ def handle_combat_command(game_state: GameState, command: str, args: list[str]) 
                 game_state.current_combat = None
 
         return (True, output)
-    
+
     elif command == "defend":
         _, message = combat.player_defend()
         output = f"\n{message}"
@@ -247,8 +252,13 @@ def handle_combat_command(game_state: GameState, command: str, args: list[str]) 
 
         if victory:
             # Enemy defeated
+            enemy_name = combat.enemy.name
             end_message = combat.end_combat(victory=True)
             output += f"\n{end_message}"
+            # Track quest progress for kill objectives
+            quest_messages = game_state.current_character.record_kill(enemy_name)
+            for msg in quest_messages:
+                output += f"\n{msg}"
             game_state.current_combat = None
             # Autosave after combat victory
             try:

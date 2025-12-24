@@ -1,93 +1,80 @@
-# Implementation Plan: Quest Acquisition from NPCs
+# Implementation Plan: Quest Progress Tracking from Combat
 
 ## Spec
 
-Allow players to acquire quests by talking to NPCs. When talking to an NPC that offers quests:
-1. Show available quests after NPC dialogue
-2. Provide `accept <quest>` command to acquire a quest from the current NPC
-3. Quest moves from NPC's `offered_quests` to Character's `quests` with ACTIVE status
-4. Persist NPC quest state (which quests have been accepted)
+When defeating an enemy in combat, increment `current_count` on any active KILL quests where the enemy's name matches the quest's target. When a quest reaches `target_count`, mark it as COMPLETED and notify the player.
+
+**Matching rules:**
+- Compare enemy name to quest target (case-insensitive)
+- Only consider quests with `status == ACTIVE` and `objective_type == KILL`
+- Use `Quest.progress()` which increments count and returns True when complete
+
+## Tests First (`tests/test_quest_progress.py`)
+
+```python
+# Test: Defeating enemy increments matching quest progress
+# Test: Quest completion detected and status updated to COMPLETED
+# Test: Player receives notification on quest progress
+# Test: Player receives special notification on quest completion
+# Test: Non-matching enemy names don't increment progress
+# Test: Only ACTIVE quests get progress (not COMPLETED, AVAILABLE, FAILED)
+# Test: Only KILL objective type quests get progress
+# Test: Multiple quests can progress from same kill
+```
 
 ## Implementation Steps
 
-### 1. Extend NPC Model (`src/cli_rpg/models/npc.py`)
+### 1. Add Character method for quest progress (`src/cli_rpg/models/character.py`)
 
-Add quest-giver capability (parallel to merchant pattern):
+Add method after `has_quest()` (~line 211):
 ```python
-is_quest_giver: bool = False
-offered_quests: List["Quest"] = field(default_factory=list)
+def record_kill(self, enemy_name: str) -> List[str]:
+    """Record an enemy kill for quest progress.
+
+    Args:
+        enemy_name: Name of the defeated enemy
+
+    Returns:
+        List of notification messages for quest progress/completion
+    """
+    from cli_rpg.models.quest import QuestStatus, ObjectiveType
+
+    messages = []
+    for quest in self.quests:
+        if (quest.status == QuestStatus.ACTIVE and
+            quest.objective_type == ObjectiveType.KILL and
+            quest.target.lower() == enemy_name.lower()):
+
+            completed = quest.progress()
+            if completed:
+                quest.status = QuestStatus.COMPLETED
+                messages.append(f"Quest Complete: {quest.name}!")
+            else:
+                messages.append(f"Quest progress: {quest.name} [{quest.current_count}/{quest.target_count}]")
+    return messages
 ```
 
-Update `to_dict()` and `from_dict()` to serialize `offered_quests`.
+### 2. Call record_kill after combat victory (`src/cli_rpg/main.py`)
 
-### 2. Add Character Quest Helper (`src/cli_rpg/models/character.py`)
-
-Add method to check if character already has a quest:
+In `handle_combat_command`, after `combat.end_combat(victory=True)` (~lines 178, 251):
 ```python
-def has_quest(self, quest_name: str) -> bool:
-    return any(q.name.lower() == quest_name.lower() for q in self.quests)
+# Track quest progress for kill objectives
+enemy_name = combat.enemy.name
+quest_messages = game_state.current_character.record_kill(enemy_name)
+for msg in quest_messages:
+    output += f"\n{msg}"
 ```
 
-### 3. Update Talk Command (`src/cli_rpg/main.py`, ~line 400)
+Update both locations: `attack` command (~line 178) and `cast` command (~line 251).
 
-After showing dialogue and shop info, also show available quests:
-```python
-if npc.is_quest_giver and npc.offered_quests:
-    available = [q for q in npc.offered_quests
-                 if not game_state.current_character.has_quest(q.name)]
-    if available:
-        output += "\n\nAvailable Quests:"
-        for q in available:
-            output += f"\n  • {q.name}"
-        output += "\n\nType 'accept <quest>' to accept a quest."
-```
+### 3. Write tests (`tests/test_quest_progress.py`)
 
-Store current NPC in game_state for accept command context.
-
-### 4. Add GameState NPC Context (`src/cli_rpg/game_state.py`)
-
-Add field to track current NPC being talked to:
-```python
-current_npc: Optional[NPC] = None
-```
-
-### 5. Add Accept Command (`src/cli_rpg/main.py`)
-
-New command handler:
-```python
-elif command == "accept":
-    if game_state.current_npc is None:
-        return (True, "\nYou need to talk to an NPC first.")
-    if not args:
-        return (True, "\nAccept what? Specify a quest name.")
-    quest_name = " ".join(args)
-    # Find quest in NPC's offered_quests
-    # Check character doesn't already have it
-    # Clone quest, set status to ACTIVE, add to character.quests
-    # Return success message
-```
-
-### 6. Write Tests (`tests/test_npc_quests.py`)
-
-New test file covering:
-- NPC with `is_quest_giver=True` and `offered_quests`
-- NPC serialization/deserialization with quests
-- Talk command shows available quests
-- Accept command adds quest to character
-- Accept command rejects already-acquired quests
-- Accept command requires NPC context
-
-### 7. Update Existing NPC Tests (`tests/test_npc.py`)
-
-Add tests for new fields default values and validation.
+New test file with fixtures and comprehensive coverage of the spec.
 
 ## File Changes Summary
 
 | File | Change |
 |------|--------|
-| `src/cli_rpg/models/npc.py` | Add `is_quest_giver`, `offered_quests`, update serialization |
-| `src/cli_rpg/models/character.py` | Add `has_quest()` method |
-| `src/cli_rpg/game_state.py` | Add `current_npc` field |
-| `src/cli_rpg/main.py` | Update talk command, add accept command |
-| `tests/test_npc_quests.py` | New test file for NPC quest acquisition |
-| `tests/test_npc.py` | Add tests for new default fields |
+| `src/cli_rpg/models/character.py` | Add `record_kill()` method |
+| `src/cli_rpg/main.py` | Call `record_kill()` after combat victories (~lines 178, 251) |
+| `tests/test_quest_progress.py` | New test file for quest progress tracking |

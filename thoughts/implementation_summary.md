@@ -1,79 +1,61 @@
-# Implementation Summary: Quest Acquisition from NPCs
+# Implementation Summary: Quest Progress Tracking from Combat
 
 ## What Was Implemented
 
-Players can now acquire quests by talking to NPCs. The feature adds a parallel pattern to the existing merchant/shop system.
+### 1. Character.record_kill() Method (`src/cli_rpg/models/character.py`)
 
-### New Functionality
+Added a new method to track enemy kills for quest progress:
 
-1. **NPC Quest-Giver Capability** (`src/cli_rpg/models/npc.py`)
-   - Added `is_quest_giver: bool = False` field
-   - Added `offered_quests: List[Quest] = []` field
-   - Updated `to_dict()` to serialize quest data
-   - Updated `from_dict()` to deserialize quest data with backward compatibility
+```python
+def record_kill(self, enemy_name: str) -> List[str]:
+```
 
-2. **Character Quest Check** (`src/cli_rpg/models/character.py`)
-   - Added `has_quest(quest_name: str) -> bool` method
-   - Case-insensitive matching
+This method:
+- Iterates through the character's quests
+- Finds active KILL quests where the enemy name matches the quest target (case-insensitive)
+- Calls `quest.progress()` to increment the count
+- If the quest completes, sets status to `QuestStatus.COMPLETED` and returns completion message
+- Otherwise returns a progress message showing current/target count
+- Returns a list of messages (empty if no matching quests)
 
-3. **GameState NPC Context** (`src/cli_rpg/game_state.py`)
-   - Added `current_npc: Optional[NPC] = None` field
-   - Added "accept" to known commands set
+### 2. Combat Victory Integration (`src/cli_rpg/main.py`)
 
-4. **Talk Command Updates** (`src/cli_rpg/main.py`)
-   - Sets `game_state.current_npc` when talking to an NPC
-   - Shows "Available Quests:" section for quest-giver NPCs
-   - Filters out quests the player already has
-   - Shows "accept <quest>" hint
+Modified the `handle_combat_command` function to call `record_kill()` after combat victories:
 
-5. **Accept Command** (`src/cli_rpg/main.py`)
-   - New command handler for `accept <quest_name>`
-   - Requires NPC context (must talk first)
-   - Case-insensitive quest name matching
-   - Clones quest with ACTIVE status
-   - Prevents accepting duplicate quests
-   - Autosaves after accepting
+- **Attack command** (lines 176-190): Captures enemy name before combat ends, calls `record_kill()`, appends quest messages to output
+- **Cast command** (lines 253-267): Same integration for spell-based victories
+
+### 3. Test Coverage (`tests/test_quest_progress.py`)
+
+Created comprehensive test file with 11 tests covering:
+- Quest progress increments on matching kills
+- Progress notification messages
+- Completion detection and status update
+- Completion notification messages
+- Case-insensitive matching
+- Non-matching enemies don't affect progress
+- Only ACTIVE quests get progress
+- Only KILL objective type quests get progress
+- Multiple quests can progress from the same kill
+- Empty list returned when no matching quests
+- Works correctly when character has no quests
+
+## Test Results
+
+All 868 tests pass (including 11 new tests for quest progress).
 
 ## Files Modified
 
 | File | Changes |
 |------|---------|
-| `src/cli_rpg/models/npc.py` | Added `is_quest_giver`, `offered_quests`, updated serialization |
-| `src/cli_rpg/models/character.py` | Added `has_quest()` method |
-| `src/cli_rpg/game_state.py` | Added `current_npc` field, added "accept" to known commands |
-| `src/cli_rpg/main.py` | Updated talk command, added accept command, updated help text |
-| `tests/test_npc_quests.py` | New test file with 20 tests covering all functionality |
+| `src/cli_rpg/models/character.py` | Added `record_kill()` method (27 lines) |
+| `src/cli_rpg/main.py` | Added quest tracking after attack/cast victories (8 lines total) |
+| `tests/test_quest_progress.py` | New test file (178 lines) |
 
-## Test Results
+## E2E Validation
 
-- **New Tests**: 20 tests in `tests/test_npc_quests.py`
-- **Full Suite**: 857 passed, 1 skipped
-- **No regressions** in existing functionality
-
-## Test Coverage
-
-The tests cover:
-- NPC quest-giver default values
-- NPC creation with offered quests
-- NPC serialization/deserialization with quests
-- Backward compatibility for old NPC data
-- Character `has_quest()` method (case-insensitive)
-- GameState `current_npc` field
-- Talk command showing available quests
-- Talk command filtering already-acquired quests
-- Talk command setting current NPC context
-- Accept command parsing
-- Accept command requiring NPC context
-- Accept command requiring quest name
-- Accept command adding quest to character
-- Accept command rejecting duplicates
-- Accept command rejecting non-offered quests
-- Accept command case-insensitive matching
-
-## E2E Tests Should Validate
-
-1. Talk to a quest-giver NPC and see available quests
-2. Accept a quest and verify it appears in quest journal
-3. Talk to NPC again and verify accepted quest is no longer shown as available
-4. Try to accept the same quest twice and see rejection message
-5. Save game with quest-giver NPCs and load successfully
+The feature should be validated by:
+1. Starting a game with a KILL quest (e.g., "Kill 3 Goblins")
+2. Defeating matching enemies in combat
+3. Verifying quest progress messages appear after each victory
+4. Verifying quest completion message and status update when target count is reached
