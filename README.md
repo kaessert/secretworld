@@ -49,6 +49,8 @@ python -m cli_rpg.main
 - `shop` - View the current merchant's inventory and prices
 - `buy <item>` - Purchase an item from the current shop
 - `sell <item>` - Sell an item from your inventory for gold
+- `quests` (q) - View your quest journal with all active and completed quests
+- `quest <name>` - View details of a specific quest (supports partial matching)
 - `save` - Save complete game state including world, location, and theme (not available during combat)
 - `help` (h) - Display the full command reference
 - `quit` - Exit to main menu

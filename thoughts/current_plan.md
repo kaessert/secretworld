@@ -1,157 +1,57 @@
-# Implementation Plan: Shorthand Commands
+# Implementation Plan: Quest Commands
 
 ## Spec
 
-Add single-letter aliases for common commands:
-- `g` → `go`
-- `l` → `look`
-- `a` → `attack`
-- `c` → `cast`
-- `d` → `defend`
-- `f` → `flee`
-- `s` → `status`
-- `i` → `inventory`
-- `m` → `map`
-- `h` → `help`
-- `t` → `talk`
-- `u` → `use`
-- `e` → `equip`
+Expose the existing `models/quest.py` Quest model to users via command interface:
+- `quests` (alias `q`) - View all active/completed quests with progress
+- `quest <name>` - View details of a specific quest
 
-Aliases should:
-1. Be expanded to full command in `parse_command()` before validation
-2. Preserve all arguments (e.g., `g north` → `go north`)
-3. Be case-insensitive
-4. Be documented in help output
+**Scope**: Phase 1 only exposes viewing quests. Quest acquisition (via NPCs) and progress tracking (from combat/exploration) are future work.
 
-## Tests
+## Tests First (`tests/test_quest_commands.py`)
 
-Create `tests/test_shorthand_commands.py`:
+### parse_command Tests
+- `test_parse_quests_command` - "quests" recognized
+- `test_parse_quests_shorthand` - "q" expands to "quests"
+- `test_parse_quest_command` - "quest" recognized with args
 
-```python
-from cli_rpg.game_state import parse_command
+### handle_exploration_command Tests
+- `test_quests_shows_empty_when_no_quests` - "No active quests" message
+- `test_quests_shows_active_quests` - Lists quests with progress (e.g., "Kill Goblins [2/5]")
+- `test_quests_shows_completed_quests` - Shows completed quests separately
+- `test_quest_detail_shows_quest_info` - Full quest details (name, description, type, progress)
+- `test_quest_detail_not_found` - Error for unknown quest name
+- `test_quest_blocked_during_combat` - Returns combat restriction message
 
-class TestShorthandCommands:
-    def test_g_expands_to_go(self):
-        cmd, args = parse_command("g north")
-        assert cmd == "go"
-        assert args == ["north"]
+## Implementation
 
-    def test_l_expands_to_look(self):
-        cmd, args = parse_command("l")
-        assert cmd == "look"
-        assert args == []
+### 1. Add quests list to Character (`models/character.py`)
+- Add `quests: List[Quest] = field(default_factory=list)` attribute
+- Update `to_dict()` to serialize quests
+- Update `from_dict()` to deserialize quests
 
-    def test_a_expands_to_attack(self):
-        cmd, args = parse_command("a")
-        assert cmd == "attack"
-        assert args == []
+### 2. Add quest commands to parse_command (`game_state.py`)
+- Add "quests", "quest" to `known_commands` set (line 56)
+- Add "q": "quests" to aliases dict (line 48)
 
-    def test_c_expands_to_cast(self):
-        cmd, args = parse_command("c")
-        assert cmd == "cast"
-        assert args == []
+### 3. Add quest command handlers (`main.py`)
+- Add `quests` handler in `handle_exploration_command()`:
+  - List active quests with progress bars/counts
+  - Separate section for completed quests
+- Add `quest <name>` handler:
+  - Find quest by name (case-insensitive partial match)
+  - Display full details: name, description, objective type, target, progress
 
-    def test_d_expands_to_defend(self):
-        cmd, args = parse_command("d")
-        assert cmd == "defend"
-        assert args == []
+### 4. Block quest commands during combat (`main.py`)
+- `handle_combat_command()` returns error for quest commands
 
-    def test_f_expands_to_flee(self):
-        cmd, args = parse_command("f")
-        assert cmd == "flee"
-        assert args == []
+### 5. Update help text (`main.py`)
+- Add to `get_command_reference()`:
+  - `quests (q)      - View your quest journal`
+  - `quest <name>   - View details of a specific quest`
 
-    def test_s_expands_to_status(self):
-        cmd, args = parse_command("s")
-        assert cmd == "status"
-        assert args == []
-
-    def test_i_expands_to_inventory(self):
-        cmd, args = parse_command("i")
-        assert cmd == "inventory"
-        assert args == []
-
-    def test_m_expands_to_map(self):
-        cmd, args = parse_command("m")
-        assert cmd == "map"
-        assert args == []
-
-    def test_h_expands_to_help(self):
-        cmd, args = parse_command("h")
-        assert cmd == "help"
-        assert args == []
-
-    def test_t_expands_to_talk(self):
-        cmd, args = parse_command("t merchant")
-        assert cmd == "talk"
-        assert args == ["merchant"]
-
-    def test_u_expands_to_use(self):
-        cmd, args = parse_command("u potion")
-        assert cmd == "use"
-        assert args == ["potion"]
-
-    def test_e_expands_to_equip(self):
-        cmd, args = parse_command("e sword")
-        assert cmd == "equip"
-        assert args == ["sword"]
-
-    def test_shorthand_case_insensitive(self):
-        cmd, args = parse_command("G NORTH")
-        assert cmd == "go"
-        assert args == ["north"]
-```
-
-## Implementation Steps
-
-### 1. Update `parse_command()` in `src/cli_rpg/game_state.py`
-
-Add alias expansion after line 44 (after extracting command), before line 48 (known_commands validation):
-
-```python
-# Expand shorthand aliases
-aliases = {
-    "g": "go", "l": "look", "a": "attack", "c": "cast",
-    "d": "defend", "f": "flee", "s": "status", "i": "inventory",
-    "m": "map", "h": "help", "t": "talk", "u": "use", "e": "equip"
-}
-command = aliases.get(command, command)
-```
-
-### 2. Update `get_command_reference()` in `src/cli_rpg/main.py`
-
-Add shorthand hints to command descriptions (lines 21-46):
-
-```python
-"Exploration Commands:",
-"  look (l)           - Look around at your surroundings",
-"  go (g) <direction> - Move in a direction (north, south, east, west)",
-"  status (s)         - View your character status",
-"  inventory (i)      - View your inventory and equipped items",
-"  equip (e) <item>   - Equip a weapon or armor from inventory",
-"  unequip <slot>     - Unequip weapon or armor (slot: weapon/armor)",
-"  use (u) <item>     - Use a consumable item",
-"  talk (t) <npc>     - Talk to an NPC",
-"  shop               - View shop inventory (when at a shop)",
-"  buy <item>         - Buy an item from the shop",
-"  sell <item>        - Sell an item to the shop",
-"  map (m)            - Display a map of explored areas",
-"  help (h)           - Display this command reference",
-"  save               - Save your game (not available during combat)",
-"  quit               - Return to main menu",
-"",
-"Combat Commands:",
-"  attack (a)        - Attack the enemy",
-"  defend (d)        - Take a defensive stance",
-"  cast (c)          - Cast a magic attack (intelligence-based)",
-"  flee (f)          - Attempt to flee from combat",
-"  use (u) <item>    - Use a consumable item",
-"  status (s)        - View combat status",
-```
-
-### 3. Run tests
-
-```bash
-pytest tests/test_shorthand_commands.py -v
-pytest tests/test_game_state.py::TestParseCommand -v
-```
+## File Changes Summary
+1. `src/cli_rpg/models/character.py` - Add quests list field + serialization
+2. `src/cli_rpg/game_state.py` - Add quests/quest to parse_command
+3. `src/cli_rpg/main.py` - Add handlers + help text
+4. `tests/test_quest_commands.py` - New test file

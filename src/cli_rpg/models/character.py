@@ -4,6 +4,7 @@ from typing import ClassVar, List, Optional, Tuple, TYPE_CHECKING
 
 if TYPE_CHECKING:
     from cli_rpg.models.item import Item
+    from cli_rpg.models.quest import Quest
 
 
 @dataclass
@@ -42,6 +43,7 @@ class Character:
     constitution: int = field(init=False)
     inventory: "Inventory" = field(init=False)
     gold: int = 0
+    quests: List["Quest"] = field(default_factory=list)
 
     def __post_init__(self):
         """Validate attributes and calculate derived stats."""
@@ -261,7 +263,8 @@ class Character:
             "max_health": self.max_health,
             "xp": self.xp,
             "inventory": self.inventory.to_dict(),
-            "gold": self.gold
+            "gold": self.gold,
+            "quests": [quest.to_dict() for quest in self.quests]
         }
     
     @classmethod
@@ -312,6 +315,10 @@ class Character:
             character.inventory = Inventory.from_dict(data["inventory"])
         # Restore gold (with backward compatibility, defaults to 0)
         character.gold = data.get("gold", 0)
+        # Restore quests (with backward compatibility, defaults to empty list)
+        if "quests" in data:
+            from cli_rpg.models.quest import Quest
+            character.quests = [Quest.from_dict(q) for q in data["quests"]]
         return character
     
     def __str__(self) -> str:

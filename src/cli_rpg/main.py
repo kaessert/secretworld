@@ -32,6 +32,8 @@ def get_command_reference() -> str:
         "  buy <item>         - Buy an item from the shop",
         "  sell <item>        - Sell an item to the shop",
         "  map (m)            - Display a map of explored areas",
+        "  quests (q)         - View your quest journal",
+        "  quest <name>       - View details of a specific quest",
         "  help (h)           - Display this command reference",
         "  save               - Save your game (not available during combat)",
         "  quit               - Return to main menu",
@@ -478,6 +480,60 @@ def handle_exploration_command(game_state: GameState, command: str, args: list[s
     elif command == "map":
         map_output = render_map(game_state.world, game_state.current_location)
         return (True, f"\n{map_output}")
+
+    elif command == "quests":
+        quests = game_state.current_character.quests
+        if not quests:
+            return (True, "\n=== Quest Journal ===\nNo active quests.")
+
+        # Separate active and completed quests
+        from cli_rpg.models.quest import QuestStatus
+        active_quests = [q for q in quests if q.status == QuestStatus.ACTIVE]
+        completed_quests = [q for q in quests if q.status == QuestStatus.COMPLETED]
+
+        lines = ["\n=== Quest Journal ==="]
+
+        if active_quests:
+            lines.append("\nActive Quests:")
+            for quest in active_quests:
+                lines.append(f"  • {quest.name} [{quest.current_count}/{quest.target_count}]")
+
+        if completed_quests:
+            lines.append("\nCompleted Quests:")
+            for quest in completed_quests:
+                lines.append(f"  ✓ {quest.name}")
+
+        if not active_quests and not completed_quests:
+            # Handle edge case: quests exist but are in other states (AVAILABLE, FAILED)
+            lines.append("No active quests.")
+
+        return (True, "\n".join(lines))
+
+    elif command == "quest":
+        if not args:
+            return (True, "\nWhich quest? Specify a quest name (e.g., 'quest kill goblins').")
+
+        quest_name = " ".join(args).lower()
+        quests = game_state.current_character.quests
+
+        # Find quest by partial name match (case-insensitive)
+        matching_quests = [q for q in quests if quest_name in q.name.lower()]
+
+        if not matching_quests:
+            return (True, f"\nNo quest found matching '{' '.join(args)}'.")
+
+        # Show details of first matching quest
+        quest = matching_quests[0]
+        lines = [
+            f"\n=== {quest.name} ===",
+            f"Status: {quest.status.value.capitalize()}",
+            f"",
+            f"{quest.description}",
+            f"",
+            f"Objective: {quest.objective_type.value.capitalize()} {quest.target}",
+            f"Progress: {quest.current_count}/{quest.target_count}",
+        ]
+        return (True, "\n".join(lines))
 
     elif command == "help":
         return (True, "\n" + get_command_reference())

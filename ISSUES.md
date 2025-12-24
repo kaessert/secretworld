@@ -1,26 +1,5 @@
 ## Active Issues
 
-### Quest system mentioned in project structure but inaccessible to users
-**Status**: ACTIVE
-
-**Problem**: The README.md project structure section lists `models/quest.py` with the description "Quest system with objectives and progress tracking". However:
-1. There are NO quest-related commands documented in the README (no `quest`, `quests`, `journal`, or similar)
-2. The in-game `help` command does not list any quest-related commands
-3. Attempting to use `quest`, `quests`, or `journal` commands returns "Unknown command"
-
-**Steps to Reproduce**:
-1. Create a new character and start the game
-2. Type `help` - observe no quest commands are listed
-3. Try `quest`, `quests`, or `journal` commands - all return "Unknown command"
-
-**Expected Behavior**: Either:
-- Quest commands should be documented and functional, OR
-- The quest.py model should not be mentioned in user-facing documentation if it's not yet implemented
-
-**Actual Behavior**: The feature is mentioned in project docs but completely inaccessible to users, causing confusion about whether quests exist in the game.
-
----
-
 ### Map should not be circular, the array should automatically extend
 **Status**: ACTIVE
 
@@ -77,7 +56,47 @@ instead of generating just the next exit, we should always generate whole areas 
 there should be a method of checking if the world border is completely closed, there might be still a situation where
 all exits are visited and no way of getting to a tile whih triggers regeneration, THIS SHOULD BE AVOIDED in any case
 
+### Misleading error message when using `talk` without arguments in a location with no NPCs
+**Status**: ACTIVE
+
+**Problem**: When a user types the `talk` command without specifying an NPC name in a location that has NO NPCs, the game displays:
+
+```
+Talk to whom? Specify an NPC name.
+```
+
+This is misleading because it implies the user should specify an NPC name when there are actually no NPCs in the current location to talk to.
+
+**Steps to Reproduce**:
+1. Start a new game
+2. Go to a location without NPCs (e.g., `go east` from Town Square to reach Cave)
+3. Type `talk` without any arguments
+
+**Expected Behavior**: The game should say something like "There are no NPCs here to talk to." or "No one is here to talk to."
+
+**Actual Behavior**: The game says "Talk to whom? Specify an NPC name." - which implies the user needs to pick an NPC, when in fact none exist in this location.
+
+**Note**: When the user types `talk someone` (with an argument) in an NPC-less location, the game correctly says "You don't see 'someone' here." The issue only occurs when `talk` is typed without arguments.
+
 ## Resolved Issues
+
+### Quest system mentioned in project structure but inaccessible to users
+**Status**: RESOLVED
+
+**Original Problem**: The README.md project structure section listed `models/quest.py` with the description "Quest system with objectives and progress tracking". However, there were no quest-related commands documented or functional in the game.
+
+**Solution Implemented**:
+- Added `quests` (alias `q`) command to view quest journal with all active/completed quests
+- Added `quest <name>` command to view details of a specific quest (partial match, case-insensitive)
+- Added `quests: List[Quest]` attribute to Character model with save/load support
+- Updated help text to include quest commands
+- Quest commands are blocked during combat (handled by existing combat command handler)
+- Full backward compatibility with existing saves (quests field defaults to empty list)
+- 13 new tests added in `tests/test_quest_commands.py`
+
+**Note**: This is Phase 1 (viewing only). Future work includes quest acquisition from NPCs, progress tracking from combat/exploration, and quest rewards.
+
+---
 
 ### Shorthand commands for go, look, cast, attack and similar (g, l, c, a, ...)
 **Status**: RESOLVED
