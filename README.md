@@ -46,7 +46,8 @@ python -m cli_rpg.main
 - `equip <item name>` (e) - Equip a weapon or armor from your inventory
 - `unequip weapon|armor` - Unequip from the specified slot and return to inventory
 - `use <item name>` (u) - Use a consumable item (e.g., health potion)
-- `talk <npc>` (t) - Talk to an NPC (opens shop if they're a merchant)
+- `talk <npc>` (t) - Talk to an NPC (opens shop if merchant, shows quests if quest-giver)
+- `accept <quest>` - Accept a quest from the NPC you're talking to
 - `shop` - View the current merchant's inventory and prices
 - `buy <item>` - Purchase an item from the current shop
 - `sell <item>` - Sell an item from your inventory for gold
@@ -98,6 +99,17 @@ Merchants can be found throughout the world. Interact with them to buy and sell 
 5. Use `sell <item>` to sell items from your inventory for gold
 
 **Earning Gold**: Defeat enemies in combat to earn gold (5-15 × enemy level per victory).
+
+### NPC Quests
+
+Quest-giver NPCs can be found throughout the world. Interact with them to receive quests:
+
+1. Use `look` to see NPCs in your location
+2. Use `talk <npc>` to interact with a quest-giver and see available quests
+3. Use `accept <quest>` to accept a quest (partial matching supported)
+4. Use `quests` to view your quest journal
+
+**Note**: You must talk to an NPC before accepting their quests. Quest names are matched case-insensitively.
 
 ### Save System
 

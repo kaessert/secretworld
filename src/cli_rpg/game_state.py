@@ -5,6 +5,7 @@ import random
 from typing import ClassVar, Optional
 from cli_rpg.models.character import Character
 from cli_rpg.models.location import Location
+from cli_rpg.models.npc import NPC
 from cli_rpg.models.shop import Shop
 from cli_rpg.combat import CombatEncounter, spawn_enemy
 from cli_rpg.autosave import autosave
@@ -63,7 +64,7 @@ def parse_command(command_str: str) -> tuple[str, list[str]]:
     # Validate known commands
     known_commands = {"look", "go", "save", "quit", "attack", "defend", "flee", "status", "cast",
                       "inventory", "equip", "unequip", "use", "talk", "buy", "sell", "shop", "map",
-                      "help", "quests", "quest"}
+                      "help", "quests", "quest", "accept"}
     
     if command not in known_commands:
         return ("unknown", [])
@@ -129,6 +130,7 @@ class GameState:
         self.theme = theme
         self.current_combat: Optional[CombatEncounter] = None
         self.current_shop: Optional[Shop] = None  # Active shop interaction
+        self.current_npc: Optional[NPC] = None  # NPC being talked to (for accept command)
     
     def get_current_location(self) -> Location:
         """Get the current Location object.

@@ -1,91 +1,93 @@
-# Fix: Invalid "down" connection in AI-generated locations
+# Implementation Plan: Quest Acquisition from NPCs
 
-## Problem
-The AI world generator creates locations with `down` (and `up`) as exit directions, but the game's grid-based movement system only supports cardinal directions (north, south, east, west). The `DIRECTION_OFFSETS` in `world_grid.py` only has entries for the 4 cardinal directions, so `up`/`down` connections cannot be placed on the grid.
+## Spec
 
-Example from ISSUES.md:
-```
-Neon Nexus
-Exits: down, north, south
-```
+Allow players to acquire quests by talking to NPCs. When talking to an NPC that offers quests:
+1. Show available quests after NPC dialogue
+2. Provide `accept <quest>` command to acquire a quest from the current NPC
+3. Quest moves from NPC's `offered_quests` to Character's `quests` with ACTIVE status
+4. Persist NPC quest state (which quests have been accepted)
 
-## Root Cause Analysis
+## Implementation Steps
 
-1. **`Location.VALID_DIRECTIONS`** includes 6 directions: `{"north", "south", "east", "west", "up", "down"}`
-2. **`ai_service._parse_location_response()`** validates against `Location.VALID_DIRECTIONS`, so it accepts `up`/`down`
-3. **`DIRECTION_OFFSETS`** in `world_grid.py` only has 4 cardinal directions
-4. **`ai_world.py`** has some filtering (e.g., `if direction in DIRECTION_OFFSETS`) but not consistently applied
+### 1. Extend NPC Model (`src/cli_rpg/models/npc.py`)
 
-The fix should be applied at the parsing/validation layer in `ai_service.py` to reject non-cardinal directions before they ever enter the system.
-
-## Implementation Plan
-
-### 1. Add constant for grid-valid directions in `ai_service.py`
-
+Add quest-giver capability (parallel to merchant pattern):
 ```python
-# Valid directions for grid-based movement (subset of Location.VALID_DIRECTIONS)
-GRID_DIRECTIONS: set[str] = {"north", "south", "east", "west"}
+is_quest_giver: bool = False
+offered_quests: List["Quest"] = field(default_factory=list)
 ```
 
-### 2. Modify `_parse_location_response()` to filter invalid directions
+Update `to_dict()` and `from_dict()` to serialize `offered_quests`.
 
-In `ai_service.py`, update the connection validation to:
-1. Filter out non-cardinal directions instead of raising an error (graceful handling)
-2. Log a warning when filtering occurs
+### 2. Add Character Quest Helper (`src/cli_rpg/models/character.py`)
 
+Add method to check if character already has a quest:
 ```python
-# Filter connections to only include cardinal directions
-filtered_connections = {}
-for direction, target in connections.items():
-    if direction in GRID_DIRECTIONS:
-        filtered_connections[direction] = target
-    else:
-        # Log but don't fail - AI sometimes generates up/down
-        logger.warning(
-            f"Filtered non-grid direction '{direction}' from location '{name}'"
-        )
-
-# Return filtered connections
-return {
-    "name": name,
-    "description": description,
-    "connections": filtered_connections
-}
+def has_quest(self, quest_name: str) -> bool:
+    return any(q.name.lower() == quest_name.lower() for q in self.quests)
 ```
 
-### 3. Update `_validate_area_location()` similarly
+### 3. Update Talk Command (`src/cli_rpg/main.py`, ~line 400)
 
-The area generation validation at line 620 already correctly uses `valid_directions = {"north", "south", "east", "west"}` but raises an error. Change to filter instead of raise:
-
+After showing dialogue and shop info, also show available quests:
 ```python
-# Filter connections to only cardinal directions (no up/down)
-valid_directions = {"north", "south", "east", "west"}
-filtered_connections = {}
-for direction, target in connections.items():
-    if direction in valid_directions:
-        filtered_connections[direction] = target
-    # Non-cardinal directions are silently dropped
+if npc.is_quest_giver and npc.offered_quests:
+    available = [q for q in npc.offered_quests
+                 if not game_state.current_character.has_quest(q.name)]
+    if available:
+        output += "\n\nAvailable Quests:"
+        for q in available:
+            output += f"\n  • {q.name}"
+        output += "\n\nType 'accept <quest>' to accept a quest."
 ```
 
-## Tests
+Store current NPC in game_state for accept command context.
 
-### File: `tests/test_ai_service.py`
+### 4. Add GameState NPC Context (`src/cli_rpg/game_state.py`)
 
-Add tests:
+Add field to track current NPC being talked to:
+```python
+current_npc: Optional[NPC] = None
+```
 
-1. **`test_generate_location_filters_non_cardinal_directions()`**
-   - Mock AI response with `{"north": "A", "down": "B", "east": "C"}`
-   - Verify returned connections only contains `{"north": "A", "east": "C"}`
+### 5. Add Accept Command (`src/cli_rpg/main.py`)
 
-2. **`test_generate_location_filters_up_direction()`**
-   - Mock AI response with `{"up": "Sky Tower", "south": "Ground Floor"}`
-   - Verify returned connections only contains `{"south": "Ground Floor"}`
+New command handler:
+```python
+elif command == "accept":
+    if game_state.current_npc is None:
+        return (True, "\nYou need to talk to an NPC first.")
+    if not args:
+        return (True, "\nAccept what? Specify a quest name.")
+    quest_name = " ".join(args)
+    # Find quest in NPC's offered_quests
+    # Check character doesn't already have it
+    # Clone quest, set status to ACTIVE, add to character.quests
+    # Return success message
+```
 
-3. **`test_generate_area_filters_non_cardinal_directions()`**
-   - Mock area response with locations containing `down` exits
-   - Verify all returned locations have only cardinal directions
+### 6. Write Tests (`tests/test_npc_quests.py`)
 
-## Files to Modify
+New test file covering:
+- NPC with `is_quest_giver=True` and `offered_quests`
+- NPC serialization/deserialization with quests
+- Talk command shows available quests
+- Accept command adds quest to character
+- Accept command rejects already-acquired quests
+- Accept command requires NPC context
 
-1. `src/cli_rpg/ai_service.py` - Add filtering in `_parse_location_response()` and `_validate_area_location()`
-2. `tests/test_ai_service.py` - Add 3 new tests
+### 7. Update Existing NPC Tests (`tests/test_npc.py`)
+
+Add tests for new fields default values and validation.
+
+## File Changes Summary
+
+| File | Change |
+|------|--------|
+| `src/cli_rpg/models/npc.py` | Add `is_quest_giver`, `offered_quests`, update serialization |
+| `src/cli_rpg/models/character.py` | Add `has_quest()` method |
+| `src/cli_rpg/game_state.py` | Add `current_npc` field |
+| `src/cli_rpg/main.py` | Update talk command, add accept command |
+| `tests/test_npc_quests.py` | New test file for NPC quest acquisition |
+| `tests/test_npc.py` | Add tests for new default fields |

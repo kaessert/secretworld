@@ -198,6 +198,17 @@ class Character:
         self.inventory.remove_item(item)
         return (True, f"You used {item.name}.")
 
+    def has_quest(self, quest_name: str) -> bool:
+        """Check if character has a quest by name.
+
+        Args:
+            quest_name: Name of the quest to check for (case-insensitive)
+
+        Returns:
+            True if character has the quest, False otherwise
+        """
+        return any(q.name.lower() == quest_name.lower() for q in self.quests)
+
     def gain_xp(self, amount: int) -> List[str]:
         """
         Add XP and handle level-ups.

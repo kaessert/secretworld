@@ -28,6 +28,7 @@ def get_command_reference() -> str:
         "  unequip <slot>     - Unequip weapon or armor (slot: weapon/armor)",
         "  use (u) <item>     - Use a consumable item",
         "  talk (t) <npc>     - Talk to an NPC",
+        "  accept <quest>     - Accept a quest from the current NPC",
         "  shop               - View shop inventory (when at a shop)",
         "  buy <item>         - Buy an item from the shop",
         "  sell <item>        - Sell an item to the shop",
@@ -397,10 +398,27 @@ def handle_exploration_command(game_state: GameState, command: str, args: list[s
         npc = location.find_npc_by_name(npc_name) if location else None
         if npc is None:
             return (True, f"\nYou don't see '{npc_name}' here.")
+
+        # Store current NPC for accept command context
+        game_state.current_npc = npc
+
         output = f"\n{npc.name}: \"{npc.dialogue}\""
         if npc.is_merchant and npc.shop:
             game_state.current_shop = npc.shop
             output += "\n\nType 'shop' to see items, 'buy <item>' to purchase, 'sell <item>' to sell."
+
+        # Show available quests if NPC is a quest giver
+        if npc.is_quest_giver and npc.offered_quests:
+            available = [
+                q for q in npc.offered_quests
+                if not game_state.current_character.has_quest(q.name)
+            ]
+            if available:
+                output += "\n\nAvailable Quests:"
+                for q in available:
+                    output += f"\n  - {q.name}"
+                output += "\n\nType 'accept <quest>' to accept a quest."
+
         return (True, output)
 
     elif command == "shop":
@@ -479,6 +497,51 @@ def handle_exploration_command(game_state: GameState, command: str, args: list[s
         game_state.current_character.add_gold(sell_price)
         autosave(game_state)
         return (True, f"\nYou sold {item.name} for {sell_price} gold.")
+
+    elif command == "accept":
+        # Accept a quest from the current NPC
+        if game_state.current_npc is None:
+            return (True, "\nYou need to talk to an NPC first.")
+        if not args:
+            return (True, "\nAccept what? Specify a quest name.")
+
+        from cli_rpg.models.quest import Quest, QuestStatus
+
+        quest_name = " ".join(args)
+        npc = game_state.current_npc
+
+        # Check if NPC offers quests
+        if not npc.is_quest_giver or not npc.offered_quests:
+            return (True, f"\n{npc.name} doesn't offer any quests.")
+
+        # Find the quest by name (case-insensitive)
+        matching_quest = None
+        for q in npc.offered_quests:
+            if q.name.lower() == quest_name.lower():
+                matching_quest = q
+                break
+
+        if matching_quest is None:
+            return (True, f"\n{npc.name} doesn't offer a quest called '{quest_name}'.")
+
+        # Check if character already has this quest
+        if game_state.current_character.has_quest(matching_quest.name):
+            return (True, f"\nYou already have the quest '{matching_quest.name}'.")
+
+        # Clone quest and set status to ACTIVE, then add to character
+        new_quest = Quest(
+            name=matching_quest.name,
+            description=matching_quest.description,
+            objective_type=matching_quest.objective_type,
+            target=matching_quest.target,
+            target_count=matching_quest.target_count,
+            status=QuestStatus.ACTIVE,
+            current_count=0
+        )
+        game_state.current_character.quests.append(new_quest)
+        autosave(game_state)
+
+        return (True, f"\nQuest accepted: {new_quest.name}\n{new_quest.description}")
 
     elif command == "map":
         map_output = render_map(game_state.world, game_state.current_location)

@@ -1,9 +1,10 @@
 """NPC model for non-hostile characters."""
-from dataclasses import dataclass
-from typing import Optional, TYPE_CHECKING
+from dataclasses import dataclass, field
+from typing import List, Optional, TYPE_CHECKING
 
 if TYPE_CHECKING:
     from cli_rpg.models.shop import Shop
+    from cli_rpg.models.quest import Quest
 
 
 @dataclass
@@ -16,6 +17,8 @@ class NPC:
         dialogue: What NPC says when talked to
         is_merchant: Whether NPC runs a shop
         shop: Optional shop if NPC is a merchant
+        is_quest_giver: Whether NPC offers quests
+        offered_quests: List of quests this NPC offers
     """
 
     name: str
@@ -23,6 +26,8 @@ class NPC:
     dialogue: str
     is_merchant: bool = False
     shop: Optional["Shop"] = None
+    is_quest_giver: bool = False
+    offered_quests: List["Quest"] = field(default_factory=list)
 
     def __post_init__(self):
         """Validate NPC attributes."""
@@ -42,7 +47,9 @@ class NPC:
             "description": self.description,
             "dialogue": self.dialogue,
             "is_merchant": self.is_merchant,
-            "shop": self.shop.to_dict() if self.shop else None
+            "shop": self.shop.to_dict() if self.shop else None,
+            "is_quest_giver": self.is_quest_giver,
+            "offered_quests": [q.to_dict() for q in self.offered_quests]
         }
 
     @classmethod
@@ -56,11 +63,18 @@ class NPC:
             NPC instance
         """
         from cli_rpg.models.shop import Shop
+        from cli_rpg.models.quest import Quest
+
         shop = Shop.from_dict(data["shop"]) if data.get("shop") else None
+        offered_quests = [
+            Quest.from_dict(q) for q in data.get("offered_quests", [])
+        ]
         return cls(
             name=data["name"],
             description=data["description"],
             dialogue=data["dialogue"],
             is_merchant=data.get("is_merchant", False),
-            shop=shop
+            shop=shop,
+            is_quest_giver=data.get("is_quest_giver", False),
+            offered_quests=offered_quests
         )
