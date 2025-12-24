@@ -23,7 +23,7 @@ class TestShowMainMenu:
 class TestMainFunction:
     """Test main function integration."""
     
-    @patch('builtins.input', side_effect=["1", "Hero", "1", "10", "12", "8", "yes", "n", "3"])
+    @patch('builtins.input', side_effect=["1", "Hero", "1", "10", "12", "8", "yes", "quit", "n", "3"])
     def test_main_create_character_then_exit(self, mock_input):
         """Test: Main menu character creation integration (spec requirement)"""
         result = main()

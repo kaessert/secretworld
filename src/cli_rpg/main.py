@@ -2,7 +2,9 @@
 from typing import Optional
 from cli_rpg.character_creation import create_character
 from cli_rpg.models.character import Character
-from cli_rpg.persistence import save_character, load_character, list_saves
+from cli_rpg.persistence import save_character, load_character, list_saves, save_game_state, load_game_state
+from cli_rpg.game_state import GameState, parse_command
+from cli_rpg.world import create_default_world
 
 
 def prompt_save_character(character: Character) -> None:
@@ -80,6 +82,87 @@ def select_and_load_character() -> Optional[Character]:
         return None
 
 
+def start_game(character: Character) -> None:
+    """Start the gameplay loop with the given character.
+    
+    Args:
+        character: The player's character to start the game with
+    """
+    # Create game state with default world
+    world = create_default_world()
+    game_state = GameState(character, world)
+    
+    # Display welcome message
+    print("\n" + "=" * 50)
+    print(f"Welcome to the adventure, {character.name}!")
+    print("=" * 50)
+    print("\nCommands:")
+    print("  look          - Look around at your surroundings")
+    print("  go <direction> - Move in a direction (north, south, east, west)")
+    print("  save          - Save your game")
+    print("  quit          - Return to main menu")
+    print("=" * 50)
+    
+    # Show starting location
+    print("\n" + game_state.look())
+    
+    # Main gameplay loop
+    while True:
+        print()
+        command_input = input("> ").strip()
+        
+        if not command_input:
+            continue
+        
+        # Parse command
+        command, args = parse_command(command_input)
+        
+        # Handle commands
+        if command == "look":
+            print("\n" + game_state.look())
+            
+        elif command == "go":
+            if not args:
+                print("\nGo where? Specify a direction (north, south, east, west, up, down)")
+                continue
+            
+            direction = args[0]
+            success, message = game_state.move(direction)
+            print(f"\n{message}")
+            
+            if success:
+                # Show new location
+                print("\n" + game_state.look())
+                
+        elif command == "save":
+            try:
+                filepath = save_game_state(game_state)
+                print(f"\n✓ Game saved successfully!")
+                print(f"  Save location: {filepath}")
+            except IOError as e:
+                print(f"\n✗ Failed to save game: {e}")
+                
+        elif command == "quit":
+            print("\n" + "=" * 50)
+            response = input("Save before quitting? (y/n): ").strip().lower()
+            if response == 'y':
+                try:
+                    filepath = save_game_state(game_state)
+                    print(f"\n✓ Game saved successfully!")
+                    print(f"  Save location: {filepath}")
+                except IOError as e:
+                    print(f"\n✗ Failed to save game: {e}")
+            
+            print("\nReturning to main menu...")
+            break
+            
+        elif command == "unknown":
+            print("\n✗ Unknown command. Type 'look', 'go <direction>', 'save', or 'quit'")
+            
+        else:
+            print("\n✗ Unknown command. Type 'look', 'go <direction>', 'save', or 'quit'")
+
+
 def show_main_menu() -> str:
     """Display main menu and get user choice.
     
@@ -107,8 +190,6 @@ def main() -> int:
     print("Welcome to CLI RPG!")
     print("=" * 50)
     
-    current_character: Optional[Character] = None
-    
     while True:
         choice = show_main_menu()
         
@@ -116,16 +197,19 @@ def main() -> int:
             # Create new character
             character = create_character()
             if character:
-                current_character = character
                 print(f"\n✓ {character.name} has been created successfully!")
                 print(f"Your character is ready for adventure!")
-                # Prompt to save character
-                prompt_save_character(character)
+                # Start the game with the new character
+                start_game(character)
+                
         elif choice == "2":
-            # Load character
+            # Load character - note: this will load game state files now
             character = select_and_load_character()
             if character:
-                current_character = character
+                # For backward compatibility, if loading an old character-only save,
+                # start a new game with that character
+                start_game(character)
+                
         elif choice == "3":
             print("\nThank you for playing CLI RPG!")
             print("Goodbye!")

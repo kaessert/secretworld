@@ -1,10 +1,13 @@
-"""Character persistence system for CLI RPG."""
+"""Character and game state persistence system for CLI RPG."""
 import json
 import os
 from datetime import datetime
 from pathlib import Path
-from typing import Optional
+from typing import Optional, TYPE_CHECKING
 from cli_rpg.models.character import Character
+
+if TYPE_CHECKING:
+    from cli_rpg.game_state import GameState
 
 
 def _sanitize_filename(name: str) -> str:
@@ -195,3 +198,83 @@ def delete_save(filepath: str) -> bool:
         
     except FileNotFoundError:
         return False
+
+
+def save_game_state(game_state: "GameState", save_dir: str = "saves") -> str:
+    """Save complete game state to JSON file.
+    
+    Args:
+        game_state: GameState instance to save
+        save_dir: Directory to save game files (default: "saves")
+        
+    Returns:
+        Full path to saved file
+        
+    Raises:
+        IOError: If write operation fails
+    """
+    try:
+        # Create directory if it doesn't exist
+        save_path = Path(save_dir)
+        save_path.mkdir(parents=True, exist_ok=True)
+        
+        # Generate unique filename
+        filename = _generate_filename(game_state.current_character.name)
+        filepath = save_path / filename
+        
+        # Serialize game state to dictionary
+        game_data = game_state.to_dict()
+        
+        # Write JSON to file
+        with open(filepath, 'w') as f:
+            json.dump(game_data, f, indent=2)
+        
+        return str(filepath)
+        
+    except (OSError, PermissionError) as e:
+        raise IOError(f"Failed to save game state: {e}")
+
+
+def load_game_state(filepath: str) -> "GameState":
+    """Load complete game state from JSON file.
+    
+    Args:
+        filepath: Path to game state save file
+        
+    Returns:
+        GameState instance
+        
+    Raises:
+        FileNotFoundError: If file doesn't exist
+        ValueError: If JSON is invalid or game state data is corrupted
+    """
+    # Import here to avoid circular dependency
+    from cli_rpg.game_state import GameState
+    
+    # Check if file exists
+    file_path = Path(filepath)
+    if not file_path.exists():
+        raise FileNotFoundError(f"Save file not found: {filepath}")
+    
+    try:
+        # Load and parse JSON
+        with open(filepath, 'r') as f:
+            data = json.load(f)
+        
+        # Validate required keys
+        required_keys = ['character', 'current_location', 'world']
+        for key in required_keys:
+            if key not in data:
+                raise ValueError(f"Missing required field: {key}")
+        
+        # Deserialize using GameState.from_dict()
+        game_state = GameState.from_dict(data)
+        return game_state
+        
+    except json.JSONDecodeError as e:
+        raise ValueError(f"Invalid JSON in save file: {e}")
+    except (KeyError, TypeError) as e:
+        raise ValueError(f"Invalid game state data: {e}")
+    except ValueError as e:
+        # Re-raise validation errors from GameState
+        raise ValueError(f"Invalid game state data: {e}")
