@@ -1,5 +1,64 @@
 ## Active Issues
 
+### Quest system mentioned in project structure but inaccessible to users
+**Status**: ACTIVE
+
+**Problem**: The README.md project structure section lists `models/quest.py` with the description "Quest system with objectives and progress tracking". However:
+1. There are NO quest-related commands documented in the README (no `quest`, `quests`, `journal`, or similar)
+2. The in-game `help` command does not list any quest-related commands
+3. Attempting to use `quest`, `quests`, or `journal` commands returns "Unknown command"
+
+**Steps to Reproduce**:
+1. Create a new character and start the game
+2. Type `help` - observe no quest commands are listed
+3. Try `quest`, `quests`, or `journal` commands - all return "Unknown command"
+
+**Expected Behavior**: Either:
+- Quest commands should be documented and functional, OR
+- The quest.py model should not be mentioned in user-facing documentation if it's not yet implemented
+
+**Actual Behavior**: The feature is mentioned in project docs but completely inaccessible to users, causing confusion about whether quests exist in the game.
+
+---
+
+### Shorthand commands for go, look, cast, attack and similar (g, l, c, a, ...)
+**Status**: ACTIVE
+
+### Map should not be circular, the array should automatically extend
+**Status**: ACTIVE
+
+> go west
+
+You head west to Frostbite Peak.
+
+Frostbite Peak
+A desolate mountain shrouded in eternal winter, where eerie howls echo through the icy winds and frost-covered trees loom ominously.
+Exits: east, south, west
+
+> go west
+
+You head west to Spectral Caverns.
+
+Spectral Caverns
+A network of dark, twisting tunnels filled with eerie whispers and glowing apparitions. The walls seem to pulse with a malevolent energy, and the air is thick with an otherworldly chill.
+Exits: east, south, west
+
+> go west
+
+You head west to Frostbite Peak.
+
+Frostbite Peak
+A desolate mountain shrouded in eternal winter, where eerie howls echo through the icy winds and frost-covered trees loom ominously.
+Exits: east, south, west
+
+> go west
+
+You head west to Spectral Caverns.
+
+Spectral Caverns
+A network of dark, twisting tunnels filled with eerie whispers and glowing apparitions. The walls seem to pulse with a malevolent energy, and the air is thick with an otherworldly chill.
+Exits: east, south, west
+
 ### Map should always show the user in the center and could show two fields around the user
 **Status**: ACTIVE
 
@@ -21,33 +80,22 @@ instead of generating just the next exit, we should always generate whole areas 
 there should be a method of checking if the world border is completely closed, there might be still a situation where
 all exits are visited and no way of getting to a tile whih triggers regeneration, THIS SHOULD BE AVOIDED in any case
 
+## Resolved Issues
+
 ### Shop buy command requires exact item name - misleading error message
-**Status**: ACTIVE
+**Status**: RESOLVED
 
-**Problem**: When using the `buy <item>` command in a shop, users must type the EXACT full item name. Partial name matching does not work, and the error message is misleading.
+**Original Problem**: When using the `buy <item>` command in a shop, users had to type the EXACT full item name. Partial name matching did not work, and the error message was misleading (e.g., "The shop doesn't have 'sword'" when there was an "Iron Sword").
 
-**Steps to Reproduce**:
-1. Create a new character and start the game
-2. Use `talk merchant` to open a shop
-3. Use `shop` to see the inventory (shows: "Health Potion", "Iron Sword", "Leather Armor")
-4. Try `buy sword`
-
-**Expected Behavior**: Either:
-- The command should recognize "sword" and buy "Iron Sword", OR
-- The error message should say something like: "Did you mean 'Iron Sword'? Please type the full item name."
-
-**Actual Behavior**: The game shows: `The shop doesn't have 'sword'.`
-
-This is misleading because:
-- The shop DOES have a sword (Iron Sword)
-- Users naturally try abbreviated names (sword, potion, armor)
-- The same confusing behavior occurs with: `buy iron`, `buy potion`, `buy health`, `buy armor`, `buy leather`
-
-**Note**: The game DOES support case-insensitive matching (`buy iron sword` works correctly), but not partial name matching.
+**Solution Implemented**:
+- Added `find_items_by_partial_name(partial_name: str)` method to Shop class in `models/shop.py`
+- Updated buy command in `main.py` to try partial matching when exact match fails
+- Unique partial match: Uses the matched item for purchase (e.g., `buy sword` purchases "Iron Sword")
+- Multiple matches: Shows all matching item names for user to be more specific (e.g., `buy potion` lists "Health Potion" and "Mana Potion")
+- No matches: Shows list of available items in the shop
+- Added 7 new tests covering unit and integration scenarios
 
 ---
-
-## Resolved Issues
 
 ### Cannot use health potions during combat when they are needed most
 **Status**: RESOLVED

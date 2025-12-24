@@ -93,6 +93,44 @@ class TestBuyCommand:
         assert cont is True
         assert "doesn't have" in msg.lower() or "not found" in msg.lower()
 
+    def test_buy_partial_name_match(self, game_with_shop):
+        """Buy command matches partial item name."""
+        # Tests spec: Partial name matching - "sword" matches "Iron Sword"
+        handle_exploration_command(game_with_shop, "talk", ["merchant"])
+        cont, msg = handle_exploration_command(game_with_shop, "buy", ["sword"])
+        assert cont is True
+        assert "bought" in msg.lower()
+        assert "Iron Sword" in msg
+
+    def test_buy_partial_name_multiple_matches(self, game_with_shop):
+        """Buy command shows options when multiple items match."""
+        # Tests spec: Multiple matches - show all matching items as suggestions
+        mana_potion = Item(
+            name="Mana Potion",
+            description="Restores mana",
+            item_type=ItemType.CONSUMABLE
+        )
+        # Add mana potion to the shop via NPC before talking
+        merchant = game_with_shop.get_current_location().npcs[0]
+        merchant.shop.inventory.append(ShopItem(item=mana_potion, buy_price=75))
+
+        handle_exploration_command(game_with_shop, "talk", ["merchant"])
+        cont, msg = handle_exploration_command(game_with_shop, "buy", ["potion"])
+        assert cont is True
+        assert "multiple" in msg.lower()
+        assert "Health Potion" in msg
+        assert "Mana Potion" in msg
+
+    def test_buy_no_match_shows_available(self, game_with_shop):
+        """Buy command shows available items when no match found."""
+        # Tests spec: No matches - show "Did you mean...?" with similar items
+        handle_exploration_command(game_with_shop, "talk", ["merchant"])
+        cont, msg = handle_exploration_command(game_with_shop, "buy", ["wand"])
+        assert cont is True
+        assert "doesn't have" in msg.lower()
+        assert "available" in msg.lower()
+        assert "Iron Sword" in msg
+
 
 class TestSellCommand:
     """Tests for sell command - tests spec: Commands (sell)."""

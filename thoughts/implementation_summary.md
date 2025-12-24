@@ -1,41 +1,44 @@
-# Implementation Summary: Fix Inconsistent Save Behavior During Combat
+# Implementation Summary: Shop Buy Command Partial Name Matching
 
 ## What Was Implemented
 
-Fixed the save exploit during combat where `quit + y` allowed saving and losing combat state, enabling players to escape losing fights.
+Added partial name matching to the shop buy command, allowing players to type `buy sword` to purchase "Iron Sword".
 
-### Changes Made
+### Files Modified
 
-**1. Modified `src/cli_rpg/main.py` (lines 299-307)**
-- Changed quit prompt during combat from "Save before quitting?" to "Quit without saving?"
-- Removed the save functionality during combat quit (matching `save` command behavior)
-- Added explicit warning that saving is disabled during combat
-- Answering 'n' now cancels the quit and returns to combat
+1. **`src/cli_rpg/models/shop.py`**
+   - Added `find_items_by_partial_name(partial_name: str) -> List[ShopItem]` method to Shop class
+   - Returns all shop items where the partial name is contained in the item name (case-insensitive)
 
-**2. Updated tests in `tests/test_main_combat_integration.py`**
-- Updated `test_quit_command_during_combat_exits_game` to use 'y' as the quit confirmation
-- Replaced old `test_quit_command_with_save_saves_game` with:
-  - `test_quit_during_combat_does_not_offer_save` - verifies save is NOT called
-  - `test_quit_during_combat_cancel_returns_to_combat` - verifies 'n' cancels quit
+2. **`src/cli_rpg/main.py`** (lines 417-428)
+   - Updated buy command to try partial matching when exact match fails
+   - Unique partial match: Uses the matched item for purchase
+   - Multiple matches: Shows all matching item names for user to be more specific
+   - No matches: Shows list of available items in the shop
+
+### Tests Added
+
+1. **`tests/test_shop.py`** - Unit tests for `find_items_by_partial_name`:
+   - `test_find_items_by_partial_name_single_match` - Single match returns correct item
+   - `test_find_items_by_partial_name_multiple_matches` - Multiple matches returned
+   - `test_find_items_by_partial_name_case_insensitive` - Case insensitive matching
+   - `test_find_items_by_partial_name_no_match` - No match returns empty list
+
+2. **`tests/test_shop_commands.py`** - Integration tests for buy command:
+   - `test_buy_partial_name_match` - "sword" matches "Iron Sword" and purchases it
+   - `test_buy_partial_name_multiple_matches` - "potion" shows both "Health Potion" and "Mana Potion" options
+   - `test_buy_no_match_shows_available` - "wand" shows list of available items
 
 ## Test Results
 
-All 732 tests pass (1 skipped).
-
-## Behavior Change
-
-| Action | Before | After |
-|--------|--------|-------|
-| `save` during combat | Blocked with error | Blocked with error |
-| `quit` during combat | Offers save option (exploit!) | No save option, warns about lost progress |
-| `quit + y` during combat | Saves and quits | Quits without saving |
-| `quit + n` during combat | Quits without saving | Cancels quit, returns to combat |
+- All 739 tests pass (1 skipped)
+- Shop-specific tests: 38 passed
 
 ## E2E Validation
 
-To manually test:
-1. Start a new game and enter combat
-2. Type `quit` during combat
-3. Verify the message says "Saving is disabled during combat" and "combat progress will be lost"
-4. Verify typing 'n' returns to combat
-5. Verify typing 'y' exits without saving
+To manually validate:
+1. Start game and navigate to a merchant
+2. `talk merchant` to enter shop
+3. `buy sword` should purchase "Iron Sword" (partial match)
+4. `buy potion` should show "Multiple items match..." if shop has multiple potions
+5. `buy wand` should show "doesn't have 'wand'. Available: ..." listing shop items

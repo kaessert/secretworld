@@ -75,6 +75,18 @@ class Shop:
                 return shop_item
         return None
 
+    def find_items_by_partial_name(self, partial_name: str) -> List[ShopItem]:
+        """Find shop items where name contains partial_name (case-insensitive).
+
+        Args:
+            partial_name: Partial item name to search for
+
+        Returns:
+            List of matching ShopItems
+        """
+        partial_lower = partial_name.lower()
+        return [si for si in self.inventory if partial_lower in si.item.name.lower()]
+
     def to_dict(self) -> dict:
         """Serialize Shop to dictionary.
 

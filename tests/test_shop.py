@@ -108,3 +108,48 @@ class TestShop:
         assert restored.name == shop.name
         assert len(restored.inventory) == 1
         assert restored.inventory[0].item.name == "Sword"
+
+    def test_find_items_by_partial_name_single_match(self):
+        """find_items_by_partial_name returns matching items."""
+        # Tests spec: Partial name matching for shop buy command
+        potion = Item(name="Health Potion", description="Heals", item_type=ItemType.CONSUMABLE)
+        sword = Item(name="Iron Sword", description="Sharp", item_type=ItemType.WEAPON)
+        shop = Shop(name="Store", inventory=[
+            ShopItem(item=potion, buy_price=50),
+            ShopItem(item=sword, buy_price=100)
+        ])
+        matches = shop.find_items_by_partial_name("sword")
+        assert len(matches) == 1
+        assert matches[0].item.name == "Iron Sword"
+
+    def test_find_items_by_partial_name_multiple_matches(self):
+        """find_items_by_partial_name returns multiple matching items."""
+        # Tests spec: Partial name matching - multiple matches
+        health_pot = Item(name="Health Potion", description="Heals HP", item_type=ItemType.CONSUMABLE)
+        mana_pot = Item(name="Mana Potion", description="Heals MP", item_type=ItemType.CONSUMABLE)
+        shop = Shop(name="Store", inventory=[
+            ShopItem(item=health_pot, buy_price=50),
+            ShopItem(item=mana_pot, buy_price=75)
+        ])
+        matches = shop.find_items_by_partial_name("potion")
+        assert len(matches) == 2
+        names = [m.item.name for m in matches]
+        assert "Health Potion" in names
+        assert "Mana Potion" in names
+
+    def test_find_items_by_partial_name_case_insensitive(self):
+        """find_items_by_partial_name is case insensitive."""
+        # Tests spec: Case-insensitive matching
+        sword = Item(name="Iron Sword", description="Sharp", item_type=ItemType.WEAPON)
+        shop = Shop(name="Store", inventory=[ShopItem(item=sword, buy_price=100)])
+        matches = shop.find_items_by_partial_name("SWORD")
+        assert len(matches) == 1
+        assert matches[0].item.name == "Iron Sword"
+
+    def test_find_items_by_partial_name_no_match(self):
+        """find_items_by_partial_name returns empty list when no match."""
+        # Tests spec: No matches returns empty list
+        sword = Item(name="Iron Sword", description="Sharp", item_type=ItemType.WEAPON)
+        shop = Shop(name="Store", inventory=[ShopItem(item=sword, buy_price=100)])
+        matches = shop.find_items_by_partial_name("wand")
+        assert len(matches) == 0

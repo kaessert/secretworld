@@ -415,7 +415,17 @@ def handle_exploration_command(game_state: GameState, command: str, args: list[s
         item_name = " ".join(args)
         shop_item = game_state.current_shop.find_item_by_name(item_name)
         if shop_item is None:
-            return (True, f"\nThe shop doesn't have '{item_name}'.")
+            # Try partial match
+            matches = game_state.current_shop.find_items_by_partial_name(item_name)
+            if len(matches) == 1:
+                shop_item = matches[0]  # Unique partial match - use it
+            elif len(matches) > 1:
+                names = ", ".join(f"'{m.item.name}'" for m in matches)
+                return (True, f"\nMultiple items match '{item_name}': {names}. Please be more specific.")
+            else:
+                # No matches - list available items
+                available = ", ".join(f"'{si.item.name}'" for si in game_state.current_shop.inventory)
+                return (True, f"\nThe shop doesn't have '{item_name}'. Available: {available}")
         if game_state.current_character.gold < shop_item.buy_price:
             return (True, f"\nYou can't afford {shop_item.item.name} ({shop_item.buy_price} gold). You have {game_state.current_character.gold} gold.")
         if game_state.current_character.inventory.is_full():
