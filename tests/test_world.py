@@ -156,6 +156,21 @@ class TestCreateDefaultWorld:
         assert world["Town Square"].get_connection("east") == "Cave"
         assert world["Cave"].get_connection("west") == "Town Square"
 
+    def test_default_world_all_exits_have_valid_destinations(self):
+        """Test that every exit in every location points to an existing location.
+
+        Spec: Remove dangling exits that point to non-existent locations.
+        No exit should reference a destination that doesn't exist in the world.
+        """
+        world, _ = create_default_world()
+
+        for location_name, location in world.items():
+            for direction, destination in location.connections.items():
+                assert destination in world, (
+                    f"Location '{location_name}' has exit '{direction}' to "
+                    f"'{destination}' which does not exist in the world"
+                )
+
 
 class TestCreateWorld:
     """Tests for create_world() function."""

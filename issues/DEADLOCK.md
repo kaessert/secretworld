@@ -2,25 +2,27 @@
 
 ### Player getting stuck with limited locations
 
-**Status**: RESOLVED
+**Status**: RESOLVED (Updated)
 
-**Original Problem**: Player would get stuck because the world was created with only a few locations and no way to expand further. Initial world generation did not include forward exploration options (dangling connections).
+**Original Problem**: Player would get stuck because the world was created with only a few locations and no way to expand further.
 
-**Solution Implemented**:
-1. **Default world** (`world.py`): Added dangling connections to leaf locations
-   - Forest → "Deep Woods" (north)
-   - Cave → "Crystal Cavern" (east)
+**Previous Attempt** (now reverted):
+Added dangling connections to leaf locations (Forest → "Deep Woods", Cave → "Crystal Cavern"). However, this caused "Destination 'X' not found in world" error messages when players tried to navigate without AI service enabled.
 
-2. **AI-generated worlds** (`ai_world.py`): Post-generation logic ensures all locations have at least one dangling exit for future exploration
+**Current Solution**:
+1. **Default world** (`world.py`): Contains only valid, navigable connections
+   - Town Square → Forest (north), Cave (east)
+   - Forest → Town Square (south)
+   - Cave → Town Square (west)
 
-3. **Game state** (`game_state.py`): Removed validation that rejected dangling connections; they are now allowed by design
+2. **AI-generated worlds** (`ai_world.py`): Dynamic expansion adds new locations when AI service is available
+
+3. **Without AI service**: The default world is intentionally finite. Players can explore the available locations without encountering navigation errors.
 
 **How it works**:
-- With AI service: Dangling connections generate new locations dynamically when explored
-- Without AI service: Player sees a message that the path requires AI generation
+- With AI service: New locations are generated dynamically as the player explores
+- Without AI service: The default 3-location world is fully navigable without errors
 
-**Test Coverage**: 8 new tests in `tests/test_initial_world_dead_end_prevention.py` verify:
-- Starting location has multiple exits
-- Leaf locations have dangling exits
-- Every location has at least 2 connections
-- AI-generated worlds maintain the same guarantees
+**Test Coverage**: Tests in `tests/test_initial_world_dead_end_prevention.py` and `tests/test_world.py` verify:
+- All exits in every location point to existing, valid destinations
+- No dangling connections that would cause navigation errors

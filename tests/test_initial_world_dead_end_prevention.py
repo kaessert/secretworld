@@ -23,32 +23,22 @@ class TestDefaultWorldDeadEndPrevention:
         assert len(starting_loc.connections) >= 2, \
             "Starting location must have at least 2 exits"
 
-    def test_default_world_leaf_locations_have_dangling_exits(self):
-        """Spec: Leaf locations must have dangling connections for expansion."""
-        world, starting_location = create_default_world()
+    def test_default_world_all_exits_are_valid(self):
+        """Spec: All exits must point to existing locations (no dangling exits).
 
-        # Forest and Cave are leaf locations (only connect back to Town Square)
-        forest = world["Forest"]
-        cave = world["Cave"]
-
-        # Each leaf must have at least one non-back connection (dangling exit)
-        forest_exits = [d for d in forest.connections if d != "south"]
-        cave_exits = [d for d in cave.connections if d != "west"]
-
-        assert len(forest_exits) >= 1, \
-            "Forest must have at least one exit besides back to Town Square"
-        assert len(cave_exits) >= 1, \
-            "Cave must have at least one exit besides back to Town Square"
-
-    def test_default_world_every_location_has_forward_path(self):
-        """Spec: Every location must have at least one forward path for exploration."""
+        Note: This test replaces previous tests that required dangling exits.
+        Dangling exits cause "Destination 'X' not found in world" errors which
+        appear as bugs to users. The default world without AI should have a
+        complete, navigable set of locations.
+        """
         world, starting_location = create_default_world()
 
         for name, location in world.items():
-            # Count total connections
-            total_connections = len(location.connections)
-            assert total_connections >= 2, \
-                f"Location '{name}' must have at least 2 connections (back + forward)"
+            for direction, destination in location.connections.items():
+                assert destination in world, (
+                    f"Location '{name}' has invalid exit '{direction}' to "
+                    f"non-existent '{destination}'"
+                )
 
 
 class TestAIWorldDeadEndPrevention:
@@ -123,13 +113,21 @@ class TestAIWorldDeadEndPrevention:
 class TestCreateWorldDeadEndPrevention:
     """Tests for create_world() dead-end prevention."""
 
-    def test_create_world_without_ai_has_no_dead_ends(self):
-        """Spec: Default world via create_world() has no dead-ends."""
+    def test_create_world_without_ai_all_exits_are_valid(self):
+        """Spec: Default world via create_world() has no dangling exits.
+
+        Note: This test replaces the previous test that required >= 2 connections.
+        Without AI service, dangling exits cause errors. All exits must point
+        to valid locations.
+        """
         world, starting_location = create_world(ai_service=None)
 
         for name, location in world.items():
-            assert len(location.connections) >= 2, \
-                f"Location '{name}' must have at least 2 connections"
+            for direction, destination in location.connections.items():
+                assert destination in world, (
+                    f"Location '{name}' has invalid exit '{direction}' to "
+                    f"non-existent '{destination}'"
+                )
 
     def test_create_world_starting_location_expandable(self):
         """Spec: Starting location must be expandable in multiple directions."""

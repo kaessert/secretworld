@@ -1,57 +1,43 @@
-# Quest Model Implementation Summary
+# Implementation Summary: Fix Broken Navigation Links
 
 ## What Was Implemented
 
-### New Files
+Removed dangling exits from the default world that pointed to non-existent locations ("Deep Woods" and "Crystal Cavern"). These exits were causing "Destination 'X' not found in world" error messages when players tried to navigate through them.
 
-1. **`src/cli_rpg/models/quest.py`** - Quest dataclass model with:
-   - `QuestStatus` enum: AVAILABLE, ACTIVE, COMPLETED, FAILED
-   - `ObjectiveType` enum: KILL, COLLECT, EXPLORE, TALK
-   - `Quest` dataclass with:
-     - `name`: str (2-30 chars, validated, stripped)
-     - `description`: str (1-200 chars, validated, stripped)
-     - `status`: QuestStatus (defaults to AVAILABLE)
-     - `objective_type`: ObjectiveType
-     - `target`: str (target name)
-     - `target_count`: int (>= 1, default 1)
-     - `current_count`: int (>= 0, default 0)
-     - `is_complete` property: returns `current_count >= target_count`
-     - `progress()` method: increments current_count, returns True when complete
-     - `to_dict()` / `from_dict()` serialization methods
+## Files Modified
 
-2. **`tests/test_quest.py`** - Comprehensive test suite with 37 tests covering:
-   - Quest creation with valid attributes
-   - Name validation (length, empty, whitespace)
-   - Description validation (length, empty, whitespace)
-   - All QuestStatus enum values
-   - All ObjectiveType enum values
-   - Count validation (target_count >= 1, current_count >= 0)
-   - is_complete property
-   - progress() method behavior
-   - Serialization roundtrip (to_dict → from_dict)
+1. **`src/cli_rpg/world.py`**: Removed lines that added dangling connections:
+   - `forest.add_connection("north", "Deep Woods")`
+   - `cave.add_connection("east", "Crystal Cavern")`
 
-### Modified Files
+2. **`tests/test_world.py`**: Added test `test_default_world_all_exits_have_valid_destinations` that verifies every exit in every location points to an existing location in the world.
 
-- **`src/cli_rpg/models/__init__.py`** - Added exports for Quest, QuestStatus, ObjectiveType
+3. **`tests/test_initial_world_dead_end_prevention.py`**: Updated conflicting tests:
+   - Replaced `test_default_world_leaf_locations_have_dangling_exits` and `test_default_world_every_location_has_forward_path` with `test_default_world_all_exits_are_valid`
+   - Replaced `test_create_world_without_ai_has_no_dead_ends` with `test_create_world_without_ai_all_exits_are_valid`
+
+   These tests previously required dangling exits for an "infinite world" philosophy, but dangling exits cause user-facing errors without AI service.
+
+4. **`ISSUES.md`**: Marked the issue as RESOLVED with description of the fix.
 
 ## Test Results
 
-```
-tests/test_quest.py: 37 passed
-Full suite: 690 passed, 1 skipped
-```
+All 690 tests pass (1 skipped).
 
-## Design Decisions
+## Technical Details
 
-- Followed existing patterns from Location model (ClassVar constants, validation in __post_init__, to_dict/from_dict methods)
-- Used field(default=...) for mutable defaults
-- Enum values use lowercase strings for serialization consistency
-- Whitespace is stripped from name and description (consistent with Location model)
+The default world (without AI) now has these valid connections:
+- Town Square: north→Forest, east→Cave
+- Forest: south→Town Square
+- Cave: west→Town Square
+
+Forest and Cave are now "leaf" locations with only back-connections, which is correct behavior without AI expansion. The AI world expansion system (when available) can still add new locations dynamically.
 
 ## E2E Validation
 
-The Quest model should be validated with:
-- Creating quests via NPC dialogue or game events
-- Tracking progress through KILL/COLLECT/EXPLORE/TALK objectives
-- Save/load persistence of quest state
-- Quest completion and status transitions
+To validate manually:
+1. Start the game: `cli-rpg`
+2. Navigate to Forest: `go north`
+3. Confirm only "south" exit is available
+4. Navigate to Cave (from Town Square): `go east`
+5. Confirm only "west" exit is available

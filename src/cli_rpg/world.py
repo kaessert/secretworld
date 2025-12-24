@@ -61,10 +61,6 @@ def create_default_world() -> tuple[dict[str, Location], str]:
     # Cave is east of Town Square (1, 0)
     grid.add_location(cave, 1, 0)
 
-    # Add dangling exits for world expansion
-    forest.add_connection("north", "Deep Woods")
-    cave.add_connection("east", "Crystal Cavern")
-
     # Create default merchant shop
     potion = Item(
         name="Health Potion",

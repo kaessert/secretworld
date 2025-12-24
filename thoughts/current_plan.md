@@ -1,47 +1,31 @@
-# Quest Model Implementation Plan
+# Fix Broken Navigation Link from Forest to Deep Woods
 
 ## Spec
 
-Add a `Quest` dataclass model with:
-- `name`: str (2-30 chars, validated)
-- `description`: str (1-200 chars, validated)
-- `status`: `QuestStatus` enum (`AVAILABLE`, `ACTIVE`, `COMPLETED`, `FAILED`)
-- `objective_type`: `ObjectiveType` enum (`KILL`, `COLLECT`, `EXPLORE`, `TALK`)
-- `target`: str (the target name - enemy type, item name, location, or NPC)
-- `target_count`: int (how many, default 1)
-- `current_count`: int (progress, default 0)
-- Serialization: `to_dict()` / `from_dict()` methods
+Remove dangling exits from the default world that point to non-existent locations. Without AI service, these exits cause error messages ("Destination 'X' not found in world") that look like bugs.
+
+**Fix approach**: Remove lines 64-66 in `world.py` that add dangling connections to "Deep Woods" and "Crystal Cavern". These exits serve no purpose without AI and create a poor user experience.
 
 ## Tests First
 
-Create `tests/test_quest.py` with tests for:
-1. Quest creation with all valid attributes
-2. Name validation (2-30 chars, reject outside range)
-3. Description validation (1-200 chars, reject outside range)
-4. All QuestStatus values work
-5. All ObjectiveType values work
-6. target_count must be >= 1
-7. current_count must be >= 0
-8. Serialization roundtrip (to_dict → from_dict)
-9. Status defaults to AVAILABLE
-10. `is_complete` property returns `current_count >= target_count`
-11. `progress()` method increments current_count and returns True when complete
+Add test to `tests/test_world.py`:
+1. **test_default_world_all_exits_have_valid_destinations**: Verify every exit in every location points to a location that exists in the world
 
 ## Implementation
 
-1. **Create `src/cli_rpg/models/quest.py`**:
-   - `QuestStatus` enum with AVAILABLE, ACTIVE, COMPLETED, FAILED
-   - `ObjectiveType` enum with KILL, COLLECT, EXPLORE, TALK
-   - `Quest` dataclass with validation in `__post_init__`
-   - `to_dict()` and `from_dict()` for serialization
-   - `is_complete` property
-   - `progress()` method
+1. **Update `tests/test_world.py`**: Add test that iterates through all locations and their connections, asserting each destination exists in the world dict
 
-2. **Update `src/cli_rpg/models/__init__.py`**:
-   - Add Quest to exports
+2. **Update `src/cli_rpg/world.py`**: Remove lines 64-66:
+   ```python
+   # Add dangling exits for world expansion
+   forest.add_connection("north", "Deep Woods")
+   cave.add_connection("east", "Crystal Cavern")
+   ```
+
+3. **Update `ISSUES.md`**: Mark the issue as RESOLVED with description of the fix
 
 ## File Locations
 
-- New model: `src/cli_rpg/models/quest.py`
-- New test: `tests/test_quest.py`
-- Update: `src/cli_rpg/models/__init__.py`
+- Test: `tests/test_world.py` (add new test to `TestCreateDefaultWorld` class)
+- Fix: `src/cli_rpg/world.py` (remove lines 64-66)
+- Doc: `ISSUES.md` (mark issue resolved)
