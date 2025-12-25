@@ -679,3 +679,63 @@ Note: Use "EXISTING_WORLD" as placeholder for the connection back to the source 
         import copy
         cache_key = hashlib.md5(prompt.encode()).hexdigest()
         self._cache[cache_key] = (copy.deepcopy(data), time.time())
+
+    def generate_npc_dialogue(
+        self,
+        npc_name: str,
+        npc_description: str,
+        npc_role: str,
+        theme: str,
+        location_name: str = ""
+    ) -> str:
+        """Generate contextual dialogue for an NPC.
+
+        Args:
+            npc_name: Name of the NPC
+            npc_description: NPC's description
+            npc_role: Role type ("merchant", "quest_giver", "villager")
+            theme: World theme (e.g., "fantasy", "sci-fi")
+            location_name: Current location name for context
+
+        Returns:
+            Generated dialogue string (10-200 chars)
+
+        Raises:
+            AIGenerationError: If generation fails or response is invalid
+            AIServiceError: If API call fails
+        """
+        prompt = self._build_npc_dialogue_prompt(
+            npc_name=npc_name,
+            npc_description=npc_description,
+            npc_role=npc_role,
+            theme=theme,
+            location_name=location_name
+        )
+
+        response_text = self._call_llm(prompt)
+
+        # Clean and validate response
+        dialogue = response_text.strip().strip('"').strip("'")
+        if len(dialogue) < 10:
+            raise AIGenerationError("Generated dialogue too short")
+        if len(dialogue) > 200:
+            dialogue = dialogue[:197] + "..."
+
+        return dialogue
+
+    def _build_npc_dialogue_prompt(
+        self,
+        npc_name: str,
+        npc_description: str,
+        npc_role: str,
+        theme: str,
+        location_name: str
+    ) -> str:
+        """Build prompt for NPC dialogue generation."""
+        return self.config.npc_dialogue_prompt.format(
+            npc_name=npc_name,
+            npc_description=npc_description,
+            npc_role=npc_role,
+            theme=theme,
+            location_name=location_name or "unknown location"
+        )

@@ -1,50 +1,68 @@
-# Implementation Summary: NPC Dialogue Variety (Greeting Text)
+# Implementation Summary: AI-Generated NPC Conversations
 
 ## What Was Implemented
 
-Added a `greetings` field to NPCs that allows varied, randomly-selected greeting text for more immersive interactions.
+### Feature Overview
+Added AI-generated dialogue for NPC conversations. When players talk to an NPC, the AI service can dynamically generate contextual dialogue that persists to the NPC's greetings list for consistency across sessions.
 
 ### Files Modified
 
-1. **`src/cli_rpg/models/npc.py`**
-   - Added `import random` at top
-   - Added `greetings: List[str]` field (default: empty list)
-   - Added `get_greeting()` method that returns random greeting or falls back to `dialogue`
-   - Updated `to_dict()` to serialize greetings
-   - Updated `from_dict()` to deserialize greetings (with backward compatibility)
+1. **`src/cli_rpg/ai_config.py`**
+   - Added `DEFAULT_NPC_DIALOGUE_PROMPT` constant - template for generating NPC dialogue
+   - Added `npc_dialogue_prompt` field to `AIConfig` dataclass
+   - Updated `to_dict()` to include the new field
+   - Updated `from_dict()` to restore the field with proper default
 
-2. **`src/cli_rpg/main.py`**
-   - Changed line 416 from `npc.dialogue` to `npc.get_greeting()`
+2. **`src/cli_rpg/ai_service.py`**
+   - Added `generate_npc_dialogue()` method - generates contextual dialogue for NPCs
+   - Added `_build_npc_dialogue_prompt()` helper - formats the prompt template
+   - Dialogue validation: 10-200 chars, strips quotes, truncates if too long
 
-3. **`src/cli_rpg/world.py`**
-   - Added sample greetings list to the default Merchant NPC
+3. **`src/cli_rpg/main.py`**
+   - Updated talk command handler (lines 416-429)
+   - Triggers AI dialogue generation when NPC has < 3 greetings
+   - Appends generated dialogue to NPC's greetings list
+   - Silent fallback on errors - graceful degradation
 
-### Tests Created
+4. **`tests/test_ai_conversations.py`** (new file)
+   - 17 tests covering all spec requirements
+   - Tests for AIService.generate_npc_dialogue()
+   - Tests for talk command integration
+   - Tests for persistence through save/load
+   - Tests for AIConfig serialization
 
-- **`tests/test_npc_greetings.py`** - 7 tests covering:
-  - Default empty greetings list
-  - Creating NPC with greetings
-  - `get_greeting()` returns from list when available
-  - `get_greeting()` falls back to dialogue when list empty
-  - Serialization includes greetings
-  - Deserialization restores greetings
-  - Missing greetings in dict defaults to empty (backward compatibility)
+### Design Decisions
+
+1. **Greetings Limit**: AI generation only triggers when NPC has fewer than 3 greetings. This prevents excessive API calls while still building variety.
+
+2. **Role Detection**: NPC role is determined automatically:
+   - `is_merchant=True` → "merchant"
+   - `is_quest_giver=True` → "quest_giver"
+   - Otherwise → "villager"
+
+3. **Silent Fallback**: Any AI generation errors are silently caught. The existing `get_greeting()` method handles fallback to `dialogue` field.
+
+4. **Persistence**: No changes needed to NPC serialization - existing `greetings` field already persists correctly.
 
 ## Test Results
 
-- All 7 new tests pass
-- Full test suite: **946 passed, 1 skipped**
-- No regressions
-
-## Design Decisions
-
-- **Backward compatible**: Old save files without `greetings` work (defaults to empty list)
-- **Random selection**: Uses `random.choice()` for variety
-- **Fallback behavior**: If greetings empty, uses existing `dialogue` field
-- **Optional enhancement**: Default Merchant NPC now has 3 varied greetings
+- All 17 new tests pass
+- All 30 related NPC/shop tests pass
+- Full test suite: 963 passed, 1 skipped
 
 ## E2E Validation
 
-- Start game, navigate to Town Square
-- Talk to Merchant multiple times
-- Verify different greetings appear
+To validate the feature end-to-end:
+1. Start the game with AI service configured (set OPENAI_API_KEY or ANTHROPIC_API_KEY)
+2. Navigate to a location with an NPC
+3. Use `talk <npc_name>` command
+4. Observe AI-generated dialogue being displayed
+5. Talk to same NPC multiple times - should see variety up to 3 greetings
+6. Save and reload game - greetings should persist
+
+## Code Quality
+
+- Type hints used throughout
+- Docstrings added for new methods
+- Follows existing patterns in the codebase
+- No linting issues (black/ruff compliant)

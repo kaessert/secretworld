@@ -19,6 +19,7 @@ python -m cli_rpg.main
 - **Turn-Based Combat**: Engage enemies with attack, defend, and flee commands
 - **Inventory & Equipment**: Collect loot from defeated enemies, equip weapons and armor, use consumables
 - **NPC Shops**: Interact with merchants, buy equipment, and sell items for gold
+- **AI-Generated Dialogue**: NPCs feature contextual AI-generated conversations that persist across sessions
 - **Gold Economy**: Earn gold from combat victories, spend it at shops
 - **Persistent Saves**: Save and load complete game progress including world state, location, and theme
 - **Grid-Based World**: Navigate a spatially consistent world where directions are reliable (going north then south returns you to the same place)

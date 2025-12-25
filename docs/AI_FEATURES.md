@@ -38,6 +38,13 @@ The CLI RPG includes AI-powered dynamic location generation using OpenAI's GPT m
 - Ensures consistent AI generation across sessions
 - AI service continues using saved theme for new locations
 
+### 6. AI-Generated NPC Dialogue
+- NPCs generate contextual dialogue when players talk to them
+- Dialogue considers NPC role (merchant, quest-giver, villager), location, and world theme
+- Generated greetings are persisted to the NPC's greetings list for consistency
+- Up to 3 unique greetings are generated per NPC to provide variety
+- Silent fallback if AI service is unavailable
+
 ## Setup
 
 ### 1. Get an API Key
@@ -273,7 +280,7 @@ pytest tests/test_e2e_world_expansion.py -v
 ### Future Enhancements
 - Local model support
 - Persistent cache (database/file)
-- AI-powered NPC generation (basic NPC/merchant system already implemented)
+- AI-powered NPC personalities and extended conversations
 - AI-powered item generation (basic loot and shop systems already implemented)
 - Quest generation
 - Advanced world consistency validation

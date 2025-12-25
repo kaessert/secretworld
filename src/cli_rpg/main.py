@@ -413,6 +413,21 @@ def handle_exploration_command(game_state: GameState, command: str, args: list[s
         # Store current NPC for accept command context
         game_state.current_npc = npc
 
+        # Generate AI dialogue if available and NPC needs more greetings
+        if game_state.ai_service and len(npc.greetings) < 3:
+            try:
+                role = "merchant" if npc.is_merchant else ("quest_giver" if npc.is_quest_giver else "villager")
+                dialogue = game_state.ai_service.generate_npc_dialogue(
+                    npc_name=npc.name,
+                    npc_description=npc.description,
+                    npc_role=role,
+                    theme=game_state.theme,
+                    location_name=game_state.current_location
+                )
+                npc.greetings.append(dialogue)
+            except Exception:
+                pass  # Silent fallback to existing greetings
+
         output = f"\n{npc.name}: \"{npc.get_greeting()}\""
         if npc.is_merchant and npc.shop:
             game_state.current_shop = npc.shop

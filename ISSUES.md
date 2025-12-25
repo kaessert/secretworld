@@ -1,7 +1,15 @@
 ## Active Issues
+
+### AI-generated content expansion
 **Status**: ACTIVE
 
-All the content should be ai generated (NPC conversations, Item catalogue, Monsters, Lore) and persistet, ever extending throughout the game
+Remaining AI-generated content to implement:
+- Item catalogue (weapons, armor, consumables)
+- Monsters/enemies
+- Lore and world history
+
+**Completed:**
+- ✅ NPC conversations (AI-generated dialogue that persists to NPC greetings)
 
 ## Resolved Issues
 

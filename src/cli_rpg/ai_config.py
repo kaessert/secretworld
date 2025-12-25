@@ -37,6 +37,22 @@ Respond with valid JSON in this exact format (no additional text):
 }}"""
 
 
+# Default prompt template for NPC dialogue generation
+DEFAULT_NPC_DIALOGUE_PROMPT = """Generate a single conversational greeting for an NPC in a {theme} RPG.
+
+NPC: {npc_name}
+Description: {npc_description}
+Role: {npc_role}
+Location: {location_name}
+
+Write 1-2 sentences that:
+- Match the {theme} setting
+- Reflect the NPC's personality and role
+- Sound natural and immersive
+
+Respond with ONLY the dialogue text, no quotes or formatting."""
+
+
 @dataclass
 class AIConfig:
     """Configuration for AI services.
@@ -64,6 +80,7 @@ class AIConfig:
     enable_caching: bool = True
     cache_ttl: int = 3600
     location_generation_prompt: str = field(default=DEFAULT_LOCATION_PROMPT)
+    npc_dialogue_prompt: str = field(default=DEFAULT_NPC_DIALOGUE_PROMPT)
     
     def __post_init__(self) -> None:
         """Validate configuration after initialization."""
@@ -183,7 +200,8 @@ class AIConfig:
             "retry_delay": self.retry_delay,
             "enable_caching": self.enable_caching,
             "cache_ttl": self.cache_ttl,
-            "location_generation_prompt": self.location_generation_prompt
+            "location_generation_prompt": self.location_generation_prompt,
+            "npc_dialogue_prompt": self.npc_dialogue_prompt
         }
     
     @classmethod
@@ -209,5 +227,6 @@ class AIConfig:
             retry_delay=data.get("retry_delay", 1.0),
             enable_caching=data.get("enable_caching", True),
             cache_ttl=data.get("cache_ttl", 3600),
-            location_generation_prompt=data.get("location_generation_prompt", DEFAULT_LOCATION_PROMPT)
+            location_generation_prompt=data.get("location_generation_prompt", DEFAULT_LOCATION_PROMPT),
+            npc_dialogue_prompt=data.get("npc_dialogue_prompt", DEFAULT_NPC_DIALOGUE_PROMPT)
         )
