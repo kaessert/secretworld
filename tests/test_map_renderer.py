@@ -625,3 +625,150 @@ class TestEmojiAlignment:
         assert " " in between, (
             f"Should have space between @ and 🌲 but got: '{between}'"
         )
+
+
+class TestBlockedLocationMarkers:
+    """Tests for showing blocked/impassable cells on the map.
+
+    Blocked cells are adjacent to explored locations but have no connection
+    (wall/barrier), and should show the █ marker.
+    """
+
+    def test_blocked_adjacent_cell_shows_marker(self):
+        """Cell adjacent to player with no connection shows █ blocked marker.
+
+        Spec: If a cell is adjacent to an explored location but no exit exists
+        in that direction, it should show █ to indicate a wall/barrier.
+        """
+        import re
+
+        # Player at (0,0) with only a north connection, so east/south/west are blocked
+        world = {
+            "Center": Location(
+                "Center",
+                "Center location",
+                {"north": "North"},  # Only north exit, east/south/west are blocked
+                coordinates=(0, 0),
+            ),
+            "North": Location("North", "North location", {}, coordinates=(0, 1)),
+        }
+        result = render_map(world, "Center")
+
+        # Strip ANSI codes
+        ansi_escape = re.compile(r"\x1b\[[0-9;]*m")
+        clean_result = ansi_escape.sub("", result)
+
+        # The blocked marker █ should appear for adjacent blocked cells
+        assert "█" in clean_result, (
+            "Blocked adjacent cells should show █ marker. "
+            f"Result:\n{clean_result}"
+        )
+
+    def test_frontier_cell_shows_empty(self):
+        """Cell with connection to it (unexplored frontier) shows blank.
+
+        Spec: Adjacent cells that have a connection pointing to them should
+        remain blank (not blocked), as they are pending exploration.
+        """
+        import re
+
+        # Player at (0,0) with north connection - (0,1) is a frontier, not blocked
+        world = {
+            "Center": Location(
+                "Center",
+                "Center location",
+                {"north": "North"},  # North has a connection
+                coordinates=(0, 0),
+            ),
+        }
+        result = render_map(world, "Center")
+
+        lines = result.split("\n")
+        ansi_escape = re.compile(r"\x1b\[[0-9;]*m")
+
+        # Find the row with y=1 (north of player)
+        # Look for row label "  1 " pattern in the line (inside box border)
+        row_y1 = None
+        for line in lines:
+            clean_line = ansi_escape.sub("", line)
+            # Match lines where y-coordinate is 1 (row label format: "│  1 ...")
+            # The y-label is right-aligned in 3 chars, so " 1 " or "  1 "
+            if "│" in clean_line:
+                content = clean_line.split("│")[1] if "│" in clean_line else ""
+                # Row label format: "  1 " (right-aligned to width 3, then space)
+                if " 1 " in content[:5]:
+                    row_y1 = clean_line
+                    break
+
+        assert row_y1 is not None, f"Row with y=1 should exist. Lines:\n{result}"
+        # The cell at (0,1) should NOT have a blocked marker since there's a connection
+        # The row y=1 should NOT contain █ because (0,1) is a frontier (has connection)
+        # Note: The actual location North is in the world, so it will show with •
+        # What we're testing is that frontier cells don't get blocked markers
+        assert "█" not in row_y1, (
+            f"Frontier cell row should not have blocked marker. Row: '{row_y1}'"
+        )
+
+    def test_non_adjacent_empty_stays_blank(self):
+        """Cells not adjacent to any explored location remain blank.
+
+        Spec: Empty cells that are not adjacent to any explored location
+        should remain as blank space, not show blocked markers.
+        """
+        import re
+
+        # Only player at (0,0)
+        world = {
+            "Center": Location(
+                "Center",
+                "Center location",
+                {},  # No connections
+                coordinates=(0, 0),
+            ),
+        }
+        result = render_map(world, "Center")
+
+        lines = result.split("\n")
+        ansi_escape = re.compile(r"\x1b\[[0-9;]*m")
+
+        # Find the row with y=3 (far from player, not adjacent)
+        row_y3 = None
+        for line in lines:
+            clean_line = ansi_escape.sub("", line)
+            # Match lines where y-coordinate is 3 (row label format: "│  3 ...")
+            # The y-label is right-aligned in 3 chars, so " 3 "
+            if "│" in clean_line:
+                content = clean_line.split("│")[1] if "│" in clean_line else ""
+                # Row label format: "  3 " (right-aligned to width 3, then space)
+                if " 3 " in content[:5]:
+                    row_y3 = clean_line
+                    break
+
+        assert row_y3 is not None, f"Row with y=3 should exist. Result:\n{result}"
+        # This row should NOT have any blocked markers since it's not adjacent
+        # to any explored location
+        assert "█" not in row_y3, (
+            f"Non-adjacent row y=3 should not have blocked markers. Row: '{row_y3}'"
+        )
+
+    def test_blocked_marker_in_legend(self):
+        """Legend includes blocked marker explanation.
+
+        Spec: The map legend should include an entry explaining the █ marker.
+        """
+        # Player at (0,0) with no connections (all adjacent cells blocked)
+        world = {
+            "Center": Location(
+                "Center",
+                "Center location",
+                {},  # No connections - all adjacent cells are blocked
+                coordinates=(0, 0),
+            ),
+        }
+        result = render_map(world, "Center")
+
+        # Check that legend contains blocked marker explanation
+        assert "█" in result, "Legend should contain blocked marker █"
+        assert "Blocked" in result or "Wall" in result, (
+            "Legend should explain blocked marker"
+        )

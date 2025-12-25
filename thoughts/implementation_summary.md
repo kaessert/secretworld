@@ -1,4 +1,95 @@
-# Implementation Summary: Fix "World not truly infinite" Bug
+# Implementation Summary: Blocked Location Markers on Map
+
+## What Was Implemented
+
+Added visual markers on the map for blocked/impassable cells - cells within the viewport that are adjacent to explored locations but have no connection (wall/barrier).
+
+### Files Modified
+
+1. **`src/cli_rpg/map_renderer.py`**:
+   - Added `BLOCKED_MARKER = "█"` constant for wall/impassable cells
+   - Added `DIRECTION_DELTAS` dictionary mapping directions to coordinate offsets
+   - Modified `render_map()` to detect and display blocked cells:
+     - For each empty cell in the viewport, checks if it's adjacent to any explored location
+     - If adjacent but no connection exists in that direction, displays the blocked marker `█`
+     - Uses proper width-aware padding via `pad_marker()` for alignment
+   - Added blocked marker to the legend: `█ = Blocked/Wall`
+
+2. **`tests/test_map_renderer.py`**:
+   - Added `TestBlockedLocationMarkers` test class with 4 tests:
+     - `test_blocked_adjacent_cell_shows_marker`: Verifies cells adjacent to player without connections show `█`
+     - `test_frontier_cell_shows_empty`: Verifies cells with connections don't show blocked markers
+     - `test_non_adjacent_empty_stays_blank`: Verifies non-adjacent cells remain blank
+     - `test_blocked_marker_in_legend`: Verifies legend includes blocked marker explanation
+
+## Test Results
+
+All tests pass:
+- 21 map_renderer tests (including 4 new tests)
+- 1658 total project tests
+
+## Visual Example
+
+Before (player at origin with north exit only):
+```
+│  0                    @                │
+│ -1                                     │
+```
+
+After:
+```
+│  0                █   @   █            │
+│ -1                    █                │
+```
+
+The player at (0,0) has only a north exit. East, west, and south cells now show `█` to indicate walls/barriers.
+
+## Design Decisions
+
+1. **Blocked vs Frontier**: A cell is only marked as blocked if it's adjacent to an explored location AND that location has no connection in that direction. If there IS a connection (even to an unexplored location), the cell remains blank as a "frontier" to explore.
+
+2. **Legend always shows**: The blocked marker is always shown in the legend, providing a consistent reference for players.
+
+3. **Width-aware padding**: Uses the existing `pad_marker()` function to ensure proper alignment with other markers.
+
+---
+
+# Previous Implementation Summary: Verify NPC Persistence in Locations
+
+## What was Implemented
+
+Added explicit test to verify NPC persistence through save/load cycles and documented the resolution.
+
+### Changes Made
+
+1. **Added test** (`tests/test_persistence_game_state.py`):
+   - New test `test_load_game_state_preserves_npcs` verifies that NPCs persist through save/load
+   - Tests preservation of all NPC fields: name, description, dialogue, is_merchant, greetings, conversation_history
+
+2. **Updated ISSUES.md**:
+   - Removed the "NPC persistence issues (PARTIALLY RESOLVED)" from Active Issues
+   - Added complete "NPC persistence issues - RESOLVED" entry in Resolved Issues section
+   - Documented the investigation findings and fix
+
+## Test Results
+
+All 18 persistence tests pass:
+```
+tests/test_persistence_game_state.py - 18 passed
+```
+
+## Technical Details
+
+The investigation confirmed that NPC persistence was already correctly implemented:
+- `Location.to_dict()` serializes NPCs via `[npc.to_dict() for npc in self.npcs]`
+- `Location.from_dict()` deserializes NPCs via `[NPC.from_dict(npc_data) for npc_data in data.get("npcs", [])]`
+- `NPC.to_dict()/from_dict()` handles all fields including `conversation_history`, `shop`, and `offered_quests`
+
+The new test provides explicit verification and serves as a regression test for this functionality.
+
+---
+
+# Previous Implementation: Fix "World not truly infinite" Bug
 
 ## Problem Summary
 

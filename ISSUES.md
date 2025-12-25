@@ -60,21 +60,6 @@ Once non-interactive mode is fully implemented, set up periodic long-running sim
 
 **Depends on**: Non-interactive mode enhancements (structured output, logging)
 
-### Blocked location markers on map
-**Status**: ACTIVE
-
-Map lacks visual feedback for inaccessible areas.
-
-**Issues**:
-
-1. **No indication of blocked/inaccessible locations**
-   - Players can't see which adjacent cells are impassable
-   - Should mark cells with no valid path (walls, barriers, unexplorable)
-
-**Fix**:
-- Add distinct marker for blocked/wall cells (e.g., `█` or `#`)
-- Consider using ASCII fallback markers (D for dungeon, T for town, etc.) with a `--ascii` flag
-
 ### Overworld map with cities and sub-locations
 **Status**: ACTIVE
 
@@ -511,6 +496,19 @@ Users requesting ASCII art for things like locations, NPCs, and monsters in comb
 - **Enemies**: Display ASCII art when combat starts (5-7 lines, max 40 chars wide). AI-generated via `generate_ascii_art()` with fallback templates by category
 
 All ASCII art is persisted with entity data and survives save/load cycles.
+
+### Blocked location markers on map
+**Status**: RESOLVED
+
+**Description**: Map lacked visual feedback for inaccessible/blocked areas adjacent to explored locations.
+
+**Fix**: Added visual markers (`█`) for blocked/impassable cells in the map display:
+- Cells adjacent to explored locations that have no connection (walls/barriers) now display `█`
+- Added `BLOCKED_MARKER = "█"` constant and `DIRECTION_DELTAS` dictionary to `map_renderer.py`
+- Legend updated to include `█ = Blocked/Wall`
+- Uses width-aware padding via `pad_marker()` for proper alignment
+
+Players can now see which adjacent cells are impassable, improving map readability and navigation.
 
 ### NPC persistence issues
 **Status**: RESOLVED

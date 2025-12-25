@@ -18,6 +18,17 @@ CATEGORY_MARKERS = {
     None: "•",  # default for uncategorized
 }
 
+# Blocked cell marker (wall/impassable adjacent cell)
+BLOCKED_MARKER = "█"
+
+# Direction deltas for checking adjacent cells
+DIRECTION_DELTAS = {
+    "north": (0, 1),
+    "south": (0, -1),
+    "east": (1, 0),
+    "west": (-1, 0),
+}
+
 
 def get_category_marker(category: Optional[str]) -> str:
     """Get the marker icon for a location category.
@@ -139,7 +150,27 @@ def render_map(world: dict[str, Location], current_location: str) -> str:
                     padded = (" " * (cell_width - 1)) + colors.bold_colorize("@", colors.CYAN)
                 row_parts.append(padded)
             else:
-                row_parts.append(" " * cell_width)
+                # Check if this empty cell is adjacent to an explored location
+                # If adjacent but no connection exists TO this cell, mark as blocked
+                is_blocked = False
+                for name, location in locations_with_coords:
+                    if location.coordinates is None:
+                        continue
+                    lx, ly = location.coordinates
+                    # Check if coord is adjacent to this location
+                    for direction, (dx, dy) in DIRECTION_DELTAS.items():
+                        if (lx + dx, ly + dy) == coord:
+                            # coord is adjacent - check if connection exists
+                            if direction not in location.connections:
+                                is_blocked = True
+                                break
+                    if is_blocked:
+                        break
+
+                if is_blocked:
+                    row_parts.append(pad_marker(BLOCKED_MARKER, cell_width))
+                else:
+                    row_parts.append(" " * cell_width)
         map_rows.append("".join(row_parts))
 
     # Get available exits from current location
@@ -177,6 +208,7 @@ def render_map(world: dict[str, Location], current_location: str) -> str:
     lines.append("")
     lines.append("Legend:")
     lines.extend(legend_entries)
+    lines.append(f"  {BLOCKED_MARKER} = Blocked/Wall")
     lines.append(exits_line)
 
     return "\n".join(lines)
