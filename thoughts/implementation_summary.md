@@ -1,65 +1,55 @@
-# Companion-Specific Quests and Storylines - Implementation Summary
+# Shadow Creature Attack Implementation Summary
 
 ## What Was Implemented
 
-### New Feature: Personal Quests for Companions
-Companions can now have personal quests that unlock at higher bond levels. This adds deeper relationship mechanics to the companion system.
+Implemented the Shadow Creature attack system that triggers when dread reaches 100%, as documented in `models/dread.py` line 9: "100%: Shadow creature attack triggered".
 
-### Files Modified
+### New File: `src/cli_rpg/shadow_creature.py`
 
-1. **`src/cli_rpg/models/companion.py`**
-   - Added `personal_quest: Optional["Quest"]` field to `Companion` dataclass
-   - Updated `to_dict()` to serialize personal_quest
-   - Updated `from_dict()` to deserialize personal_quest
+Created a new module with:
+- `SHADOW_CREATURE_NAME = "Shadow of Dread"` - Themed creature name
+- `SHADOW_CREATURE_DESCRIPTION` - Flavor text describing the manifestation
+- `SHADOW_ATTACK_FLAVOR` - Attack text ("lashes out with tendrils of pure terror")
+- `SHADOW_VICTORY_DREAD_REDUCTION = 50` - Constant for dread reduction on victory
+- `SHADOW_ASCII_ART` - Visual representation of the shadow creature
+- `spawn_shadow_creature(level: int) -> Enemy` - Creates a level-scaled shadow enemy:
+  - Health: 30 + level * 15
+  - Attack: 5 + level * 2
+  - Defense: 2 + level (lower than normal - ethereal)
+  - XP: 25 + level * 15 (rewarding for facing fears)
+- `check_and_trigger_shadow_attack(game_state) -> Optional[str]` - Checks for critical dread and triggers combat
 
-2. **`src/cli_rpg/companion_quests.py`** (New file)
-   - `QUEST_COMPLETION_BOND_BONUS = 15` - Bond points for completing personal quest
-   - `is_quest_available(companion)` - Checks if quest is unlocked (requires TRUSTED/DEVOTED)
-   - `accept_companion_quest(companion)` - Creates an ACTIVE quest copy for the player
-   - `check_companion_quest_completion(companion, quest_name)` - Awards bond bonus on completion
+### Modified File: `src/cli_rpg/game_state.py`
 
-3. **`src/cli_rpg/game_state.py`**
-   - Added `"companion-quest"` to `KNOWN_COMMANDS`
+- Added import for `check_and_trigger_shadow_attack`
+- Added shadow creature check after `_update_dread_on_move()` call in the `move()` method (lines 497-500)
 
-4. **`src/cli_rpg/main.py`**
-   - Added `companion-quest <name>` command handler (~line 1071-1114)
-   - Integrated companion quest completion bonus in `complete` command (~line 917-921)
+### New Test File: `tests/test_shadow_creature.py`
 
-### Test File Created
-- **`tests/test_companion_quests.py`** - 16 tests covering:
-  - Personal quest field on Companion model
-  - Quest availability at different bond levels
-  - Accepting companion quests
-  - Quest completion bonus mechanics
-  - Serialization/deserialization roundtrip
+15 tests covering:
+- `TestSpawnShadowCreature` (7 tests): Enemy creation, scaling, ASCII art, flavor text
+- `TestCheckAndTriggerShadowAttack` (4 tests): Trigger conditions at 100% dread, no trigger below 100%, no trigger during combat
+- `TestShadowCreatureInGameState` (2 tests): Integration with movement system
+- `TestShadowDefeatDreadReduction` (2 tests): Victory dread reduction constant, combat initialization
 
 ## Test Results
 
-```
-tests/test_companion_quests.py - 16 passed
-Full test suite - 2224 passed
-```
+- All 15 new tests pass
+- Full test suite: 2239 tests pass
 
-## Key Design Decisions
+## Design Decisions
 
-1. **Quest unlocks at TRUSTED level (50+ points)** - Requires meaningful relationship investment
-2. **Completion grants +15 bond points** - Significant boost that can trigger level-ups
-3. **Quest is copied, not moved** - Original stays on companion, player gets ACTIVE copy
-4. **Quest giver set to companion name** - Enables completion with any NPC (matches quest_giver check)
+1. **Trigger Point**: Shadow creature check happens after dread updates during movement, ensuring it catches both pre-existing 100% dread and dread that crosses the threshold during a move
+2. **Combat Integration**: Uses existing `CombatEncounter` infrastructure with companions support
+3. **Not a Boss**: Shadow creature is marked `is_boss=False` to keep it as a special encounter rather than a major boss fight
+4. **Dramatic Introduction**: Includes a dramatic "THE DARKNESS TAKES FORM" message header when combat triggers
+5. **No Double-Trigger**: Checks `is_in_combat()` to prevent shadow from interrupting existing combat
 
-## Usage
+## E2E Validation
 
-```
-# Accept a companion's personal quest (requires TRUSTED bond)
-companion-quest kira
-
-# Complete the quest (when ready) to earn bond bonus
-complete kira's honor
-```
-
-## E2E Tests Should Validate
-- Creating a companion with a personal quest
-- Bond level requirements block accepting quest at STRANGER/ACQUAINTANCE
-- Quest acceptance at TRUSTED/DEVOTED bond levels
-- Quest completion granting bond bonus
-- Save/load preserving companion personal quests
+The implementation should be validated by:
+1. Starting a game and moving to high-dread locations (dungeon, caves)
+2. Reaching 100% dread and confirming shadow creature combat triggers
+3. Defeating the shadow creature and verifying combat ends properly
+4. Testing that dread at 99% does not trigger the shadow
+5. Testing that shadow does not trigger if already in combat

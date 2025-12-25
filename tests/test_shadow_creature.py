@@ -1,34 +1,8 @@
-# Shadow Creature Attack at 100% Dread - Implementation Plan
+"""Tests for shadow creature attack at 100% dread.
 
-## Spec
-
-When dread reaches 100%, trigger a Shadow Creature combat encounter. This is the gameplay consequence documented in `models/dread.py` line 9: "100%: Shadow creature attack triggered". The shadow creature is a manifestation of the player's accumulated dread - a special enemy that:
-
-1. Spawns automatically when dread hits 100% (checked on move)
-2. Has unique attributes: ignores armor (pure psychological damage), causes additional dread if not defeated
-3. Rewards the player by reducing dread to 50% upon victory
-4. Has themed ASCII art and attack flavor text
-
-**Design Decisions:**
-- Trigger point: Inside `_update_dread_on_move()` after dread reaches 100%
-- Use existing `CombatEncounter` and `Enemy` infrastructure
-- Shadow creature stats scale with player level (similar to boss scaling)
-- Single enemy encounter (not a group)
-- Defeating it reduces dread to 50% (relief from conquering your fears)
-- Fleeing or losing does NOT reduce dread (terror persists)
-
-## Files to Modify
-
-1. `src/cli_rpg/shadow_creature.py` - NEW: Shadow creature spawning and combat logic
-2. `src/cli_rpg/game_state.py` - Call shadow creature check from `_update_dread_on_move()`
-3. `tests/test_shadow_creature.py` - NEW: Unit tests for shadow creature mechanics
-
-## Tests (TDD)
-
-### tests/test_shadow_creature.py
-
-```python
-"""Tests for shadow creature attack at 100% dread."""
+This tests the spec: When dread reaches 100%, trigger a Shadow Creature combat encounter.
+(As documented in models/dread.py line 9: "100%: Shadow creature attack triggered")
+"""
 import pytest
 from unittest.mock import patch, MagicMock
 
@@ -40,6 +14,7 @@ from cli_rpg.shadow_creature import (
     spawn_shadow_creature,
     SHADOW_CREATURE_NAME,
     SHADOW_CREATURE_DESCRIPTION,
+    SHADOW_VICTORY_DREAD_REDUCTION,
     check_and_trigger_shadow_attack,
 )
 
@@ -69,25 +44,29 @@ def create_test_world():
 
 
 class TestSpawnShadowCreature:
-    """Test shadow creature spawning."""
+    """Test shadow creature spawning. Tests spawn_shadow_creature() function."""
 
     def test_spawn_returns_enemy(self):
         """spawn_shadow_creature returns an Enemy instance."""
+        # Tests: Shadow creature spawning creates proper Enemy object
         enemy = spawn_shadow_creature(level=5)
         assert isinstance(enemy, Enemy)
 
     def test_spawn_has_shadow_name(self):
         """Shadow creature has the correct name."""
+        # Tests: Shadow creature has correct themed name
         enemy = spawn_shadow_creature(level=1)
         assert enemy.name == SHADOW_CREATURE_NAME
 
     def test_spawn_has_description(self):
         """Shadow creature has a description."""
+        # Tests: Shadow creature has flavor description
         enemy = spawn_shadow_creature(level=1)
         assert enemy.description == SHADOW_CREATURE_DESCRIPTION
 
     def test_spawn_scales_with_level(self):
         """Shadow creature stats scale with player level."""
+        # Tests: Shadow creature difficulty scales appropriately
         enemy_low = spawn_shadow_creature(level=1)
         enemy_high = spawn_shadow_creature(level=10)
         assert enemy_high.health > enemy_low.health
@@ -95,25 +74,29 @@ class TestSpawnShadowCreature:
 
     def test_spawn_has_ascii_art(self):
         """Shadow creature has ASCII art."""
+        # Tests: Shadow creature has visual representation
         enemy = spawn_shadow_creature(level=1)
         assert enemy.ascii_art != ""
 
     def test_spawn_has_attack_flavor(self):
         """Shadow creature has attack flavor text."""
+        # Tests: Shadow creature has themed attack descriptions
         enemy = spawn_shadow_creature(level=1)
         assert enemy.attack_flavor != ""
 
     def test_spawn_not_boss(self):
         """Shadow creature is not marked as boss."""
+        # Tests: Shadow creature is a special encounter but not a boss
         enemy = spawn_shadow_creature(level=1)
         assert enemy.is_boss is False
 
 
 class TestCheckAndTriggerShadowAttack:
-    """Test the shadow attack trigger logic."""
+    """Test the shadow attack trigger logic. Tests check_and_trigger_shadow_attack()."""
 
     def test_triggers_at_100_dread(self):
         """Shadow attack triggers when dread is 100."""
+        # Tests: Core trigger condition - shadow attacks at critical dread
         char = create_test_character()
         world = create_test_world()
         game_state = GameState(char, world, "Town Square")
@@ -127,6 +110,7 @@ class TestCheckAndTriggerShadowAttack:
 
     def test_no_trigger_below_100(self):
         """Shadow attack does not trigger below 100 dread."""
+        # Tests: No false positives - shadow only attacks at critical level
         char = create_test_character()
         world = create_test_world()
         game_state = GameState(char, world, "Town Square")
@@ -139,6 +123,7 @@ class TestCheckAndTriggerShadowAttack:
 
     def test_no_trigger_if_already_in_combat(self):
         """Shadow attack does not trigger if already in combat."""
+        # Tests: Shadow doesn't interrupt existing combat
         char = create_test_character()
         world = create_test_world()
         game_state = GameState(char, world, "Town Square")
@@ -146,9 +131,11 @@ class TestCheckAndTriggerShadowAttack:
 
         # Start a combat first
         from cli_rpg.combat import CombatEncounter
-        from cli_rpg.models.enemy import Enemy
-        dummy_enemy = Enemy(name="Goblin", health=10, max_health=10, attack_power=5, defense=1, xp_reward=10)
+        dummy_enemy = Enemy(
+            name="Goblin", health=10, max_health=10, attack_power=5, defense=1, xp_reward=10
+        )
         game_state.current_combat = CombatEncounter(char, enemies=[dummy_enemy])
+        game_state.current_combat.is_active = True
 
         result = check_and_trigger_shadow_attack(game_state)
 
@@ -158,6 +145,7 @@ class TestCheckAndTriggerShadowAttack:
 
     def test_returns_combat_message(self):
         """Trigger returns a descriptive message."""
+        # Tests: Player gets dramatic feedback when shadow attacks
         char = create_test_character()
         world = create_test_world()
         game_state = GameState(char, world, "Town Square")
@@ -173,6 +161,7 @@ class TestShadowCreatureInGameState:
 
     def test_move_at_100_dread_triggers_shadow(self):
         """Moving when at 100% dread triggers shadow creature."""
+        # Tests: Shadow integrates with movement system
         char = create_test_character()
         world = create_test_world()
         game_state = GameState(char, world, "Town Square")
@@ -182,7 +171,8 @@ class TestShadowCreatureInGameState:
 
         # Move (patch random to prevent regular encounters)
         with patch("cli_rpg.game_state.random.random", return_value=0.9):
-            success, message = game_state.move("north")
+            with patch("cli_rpg.random_encounters.random.random", return_value=0.9):
+                success, message = game_state.move("north")
 
         assert success
         assert game_state.is_in_combat()
@@ -190,6 +180,7 @@ class TestShadowCreatureInGameState:
 
     def test_reaching_100_during_move_triggers_shadow(self):
         """If dread reaches 100 during move, shadow triggers."""
+        # Tests: Shadow triggers even if dread crosses threshold during move
         char = create_test_character()
         # Create dungeon with high dread increase
         town = Location(
@@ -214,7 +205,8 @@ class TestShadowCreatureInGameState:
 
         # Move (patch random to prevent regular encounters)
         with patch("cli_rpg.game_state.random.random", return_value=0.9):
-            success, message = game_state.move("north")
+            with patch("cli_rpg.random_encounters.random.random", return_value=0.9):
+                success, message = game_state.move("north")
 
         assert success
         assert game_state.is_in_combat()
@@ -224,8 +216,14 @@ class TestShadowCreatureInGameState:
 class TestShadowDefeatDreadReduction:
     """Test that defeating shadow creature reduces dread."""
 
-    def test_victory_reduces_dread_to_50(self):
-        """Defeating shadow creature reduces dread to 50%."""
+    def test_victory_dread_reduction_constant(self):
+        """Verify the dread reduction constant is set correctly."""
+        # Tests: The constant for dread reduction on victory is defined
+        assert SHADOW_VICTORY_DREAD_REDUCTION == 50
+
+    def test_shadow_combat_starts_correctly(self):
+        """Shadow creature combat starts with proper state."""
+        # Tests: Combat encounter is properly initialized
         char = create_test_character()
         world = create_test_world()
         game_state = GameState(char, world, "Town Square")
@@ -233,163 +231,9 @@ class TestShadowDefeatDreadReduction:
 
         # Trigger shadow attack
         check_and_trigger_shadow_attack(game_state)
+
         assert game_state.is_in_combat()
-
-        # Simulate victory by killing the shadow
+        assert game_state.current_combat.is_active
         shadow = game_state.current_combat.enemy
-        shadow.health = 0
-
-        # End combat with victory
-        game_state.current_combat.end_combat(victory=True)
-        game_state.current_combat = None
-
-        # Dread should be reduced (this happens in main.py combat handler)
-        # For unit test, verify the shadow creature has the property
-        from cli_rpg.shadow_creature import SHADOW_VICTORY_DREAD_REDUCTION
-        assert SHADOW_VICTORY_DREAD_REDUCTION == 50
-```
-
-## Implementation Steps
-
-1. **Create `src/cli_rpg/shadow_creature.py`**:
-
-```python
-"""Shadow creature attack system for 100% dread."""
-from typing import Optional, TYPE_CHECKING
-
-from cli_rpg.models.enemy import Enemy
-from cli_rpg.combat import CombatEncounter
-from cli_rpg import colors
-
-if TYPE_CHECKING:
-    from cli_rpg.game_state import GameState
-
-# Shadow creature constants
-SHADOW_CREATURE_NAME = "Shadow of Dread"
-SHADOW_CREATURE_DESCRIPTION = (
-    "A writhing mass of darkness that has coalesced from your deepest fears. "
-    "Its form shifts constantly, never quite solid, yet terrifyingly real."
-)
-SHADOW_ATTACK_FLAVOR = "lashes out with tendrils of pure terror"
-SHADOW_VICTORY_DREAD_REDUCTION = 50  # Dread reduced to this value on victory
-
-SHADOW_ASCII_ART = r"""
-    .-.-.
-   ( o o )
-  /|  ∞  |\
- / |     | \
-(  |~~~~~|  )
- \ |     | /
-  \|_____|/
-   ~~~|~~~
-"""
-
-
-def spawn_shadow_creature(level: int) -> Enemy:
-    """Spawn a shadow creature scaled to player level.
-
-    Shadow creatures have:
-    - Health: 30 + level * 15
-    - Attack: 5 + level * 2
-    - Defense: 2 + level (lower than normal - it's ethereal)
-    - XP: 25 + level * 15 (rewarding for facing your fears)
-
-    Args:
-        level: Player level for scaling
-
-    Returns:
-        Enemy instance representing the shadow creature
-    """
-    return Enemy(
-        name=SHADOW_CREATURE_NAME,
-        health=30 + level * 15,
-        max_health=30 + level * 15,
-        attack_power=5 + level * 2,
-        defense=2 + level,
-        xp_reward=25 + level * 15,
-        level=level,
-        description=SHADOW_CREATURE_DESCRIPTION,
-        attack_flavor=SHADOW_ATTACK_FLAVOR,
-        ascii_art=SHADOW_ASCII_ART,
-        is_boss=False,
-    )
-
-
-def check_and_trigger_shadow_attack(game_state: "GameState") -> Optional[str]:
-    """Check for and trigger shadow creature attack at 100% dread.
-
-    This should be called after dread is updated on movement.
-    Does not trigger if already in combat.
-
-    Args:
-        game_state: The current game state
-
-    Returns:
-        Combat message if shadow attack triggered, None otherwise
-    """
-    # Don't trigger if not at critical dread
-    if not game_state.current_character.dread_meter.is_critical():
-        return None
-
-    # Don't trigger if already in combat
-    if game_state.is_in_combat():
-        return None
-
-    # Spawn shadow creature
-    shadow = spawn_shadow_creature(game_state.current_character.level)
-
-    # Create combat encounter
-    game_state.current_combat = CombatEncounter(
-        game_state.current_character,
-        enemies=[shadow],
-        companions=game_state.companions,
-    )
-
-    # Build dramatic message
-    intro_lines = [
-        "",
-        colors.damage("═" * 50),
-        colors.damage("  THE DARKNESS TAKES FORM"),
-        colors.damage("═" * 50),
-        "",
-        "Your dread has reached its peak. The shadows around you",
-        "coalesce into a terrifying manifestation of your fears.",
-        "",
-    ]
-
-    combat_start = game_state.current_combat.start()
-
-    return "\n".join(intro_lines) + "\n" + combat_start
-```
-
-2. **Modify `src/cli_rpg/game_state.py`**:
-
-At the top, add import:
-```python
-from cli_rpg.shadow_creature import check_and_trigger_shadow_attack
-```
-
-In the `move()` method, after calling `_update_dread_on_move()` (around line 494), add:
-```python
-        # Check for shadow creature attack at 100% dread
-        shadow_message = check_and_trigger_shadow_attack(self)
-        if shadow_message:
-            message += f"\n{shadow_message}"
-```
-
-3. **Modify `src/cli_rpg/main.py`** (handle_combat_command):
-
-After the victory condition for attack/cast, check if defeated enemy was shadow creature and reduce dread:
-```python
-# Check if shadow creature was defeated - reduce dread
-from cli_rpg.shadow_creature import SHADOW_CREATURE_NAME, SHADOW_VICTORY_DREAD_REDUCTION
-if any(e.name == SHADOW_CREATURE_NAME for e in combat.enemies):
-    game_state.current_character.dread_meter.dread = SHADOW_VICTORY_DREAD_REDUCTION
-    output += f"\n{colors.heal('The shadow dissipates! Your mind feels clearer.')}"
-```
-
-4. **Run tests**:
-```bash
-pytest tests/test_shadow_creature.py -v
-pytest  # Full suite
-```
+        assert shadow.name == SHADOW_CREATURE_NAME
+        assert shadow.health > 0

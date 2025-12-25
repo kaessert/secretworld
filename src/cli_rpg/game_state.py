@@ -22,6 +22,7 @@ from cli_rpg import colors
 from cli_rpg.whisper import WhisperService, format_whisper
 from cli_rpg.companion_banter import CompanionBanterService, format_banter
 from cli_rpg.random_encounters import check_for_random_encounter
+from cli_rpg.shadow_creature import check_and_trigger_shadow_attack
 from cli_rpg.models.world_event import WorldEvent
 from cli_rpg.world_events import (
     check_for_new_event,
@@ -492,6 +493,11 @@ class GameState:
         dread_message = self._update_dread_on_move(location)
         if dread_message:
             message += f"\n{dread_message}"
+
+        # Check for shadow creature attack at 100% dread
+        shadow_message = check_and_trigger_shadow_attack(self)
+        if shadow_message:
+            message += f"\n{shadow_message}"
 
         # Check for exploration quest progress
         explore_messages = self.current_character.record_explore(self.current_location)

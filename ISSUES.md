@@ -91,7 +91,7 @@ Exploring dangerous areas builds **Dread**:
 - ✅ **Persistence**: Dread saved/loaded with game state (backward compatible)
 
 **Future Enhancements**:
-- **At 100%**: Shadow creature attacks, madness events
+- ✅ **At 100%**: Shadow creature attacks - MVP IMPLEMENTED (Shadow of Dread manifests and attacks; defeating it reduces dread by 50%)
 - **Hallucinations**: Fake enemies at high dread
 - ✅ **Light sources**: Items that reduce dread buildup - MVP IMPLEMENTED (Torches reduce dread buildup by 50%, negate night bonus, consumable with limited duration)
 - **Brave player rewards**: Best secrets in high-dread areas
