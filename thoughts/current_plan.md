@@ -1,36 +1,29 @@
-# Fix: Misleading Error Message When Equipping Already-Equipped Item
+# Plan: Improve test coverage for `models/npc.py` from 79% to 100%
 
-## Spec
-When `equip <item>` is called on an item that's already equipped, show "{Item Name} is already equipped." instead of "You don't have '{item}' in your inventory."
+## Missing Coverage (Lines 7-8, 49-51, 62-65)
 
-## Test (add to `tests/test_main_inventory_commands.py`)
-Add new test class `TestEquipAlreadyEquipped`:
-- `test_equip_already_equipped_weapon`: Equip sword, run `equip Iron Sword` again, assert message contains "already equipped" and NOT "don't have"
-- `test_equip_already_equipped_armor`: Same pattern for armor
+### Analysis
+- **Lines 7-8**: TYPE_CHECKING imports for `Shop` and `Quest` - never executed at runtime
+- **Lines 49-51**: `get_greeting()` when `self.greetings` has items (random.choice branch)
+- **Lines 62-65**: `add_conversation()` method - adding entries and capping at 10
 
-## Implementation (`src/cli_rpg/main.py`, lines 435-449)
-Add check after `if item is None:` block (before calling `equip(item)`):
+## Implementation Steps
 
-```python
-elif command == "equip":
-    if not args:
-        return (True, "\nEquip what? Specify an item name.")
-    item_name = " ".join(args)
-    item = game_state.current_character.inventory.find_item_by_name(item_name)
-    if item is None:
-        # Check if item is already equipped (following pattern from 'use' command fix)
-        inv = game_state.current_character.inventory
-        item_name_lower = item_name.lower()
-        if inv.equipped_weapon and inv.equipped_weapon.name.lower() == item_name_lower:
-            return (True, f"\n{inv.equipped_weapon.name} is already equipped.")
-        if inv.equipped_armor and inv.equipped_armor.name.lower() == item_name_lower:
-            return (True, f"\n{inv.equipped_armor.name} is already equipped.")
-        return (True, f"\nYou don't have '{item_name}' in your inventory.")
-    # ... rest of equip logic unchanged
-```
+1. **Exclude TYPE_CHECKING from coverage** (`pyproject.toml`)
+   - Add `"if TYPE_CHECKING:"` to `exclude_lines` in `[tool.coverage.report]`
+
+2. **Add test for `get_greeting()` with greetings list** (`tests/test_npc.py`)
+   - Create NPC with `greetings=["Hello!", "Hi there!"]`
+   - Call `get_greeting()` and verify it returns one of the greetings
+
+3. **Add test for `add_conversation()` basic functionality** (`tests/test_npc.py`)
+   - Create NPC, call `add_conversation("player", "Hello")`
+   - Verify entry is added to `conversation_history`
+
+4. **Add test for `add_conversation()` capping at 10 entries** (`tests/test_npc.py`)
+   - Add 12 conversations, verify only 10 most recent entries remain
 
 ## Verification
 ```bash
-pytest tests/test_main_inventory_commands.py -v -k "equip"
-pytest tests/test_main_inventory_commands.py -v
+pytest tests/test_npc.py -v --cov=cli_rpg.models.npc --cov-report=term-missing
 ```

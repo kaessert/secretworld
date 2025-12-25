@@ -3,6 +3,7 @@
 Tests the NPC model including validation and serialization.
 """
 import pytest
+from unittest.mock import patch
 from cli_rpg.models.npc import NPC
 
 
@@ -77,3 +78,60 @@ class TestNPC:
         assert restored.shop is not None
         assert restored.shop.name == "Potion Shop"
         assert len(restored.shop.inventory) == 1
+
+    def test_get_greeting_with_greetings_list(self):
+        """get_greeting() returns a random greeting from the greetings list."""
+        # Tests spec: NPC get_greeting method with greetings list
+        greetings = ["Hello!", "Hi there!", "Welcome traveler!"]
+        npc = NPC(
+            name="Merchant",
+            description="A shopkeeper",
+            dialogue="Default dialogue",
+            greetings=greetings,
+        )
+        # Mock random.choice to verify it's called with the greetings list
+        with patch("cli_rpg.models.npc.random.choice") as mock_choice:
+            mock_choice.return_value = "Hello!"
+            result = npc.get_greeting()
+            mock_choice.assert_called_once_with(greetings)
+            assert result == "Hello!"
+
+    def test_get_greeting_without_greetings_list(self):
+        """get_greeting() returns dialogue when greetings list is empty."""
+        # Tests spec: NPC get_greeting fallback to dialogue
+        npc = NPC(
+            name="Merchant",
+            description="A shopkeeper",
+            dialogue="Default dialogue",
+        )
+        result = npc.get_greeting()
+        assert result == "Default dialogue"
+
+    def test_add_conversation_basic(self):
+        """add_conversation() adds entries to conversation_history."""
+        # Tests spec: NPC add_conversation method basic functionality
+        npc = NPC(name="Merchant", description="A shopkeeper", dialogue="Welcome!")
+        assert len(npc.conversation_history) == 0
+
+        npc.add_conversation("player", "Hello")
+        assert len(npc.conversation_history) == 1
+        assert npc.conversation_history[0] == {"role": "player", "content": "Hello"}
+
+        npc.add_conversation("npc", "Welcome to my shop!")
+        assert len(npc.conversation_history) == 2
+        assert npc.conversation_history[1] == {"role": "npc", "content": "Welcome to my shop!"}
+
+    def test_add_conversation_caps_at_10_entries(self):
+        """add_conversation() caps conversation_history at 10 entries."""
+        # Tests spec: NPC add_conversation method caps at 10 entries
+        npc = NPC(name="Merchant", description="A shopkeeper", dialogue="Welcome!")
+
+        # Add 12 conversations
+        for i in range(12):
+            npc.add_conversation("player", f"Message {i}")
+
+        # Should only have 10 entries
+        assert len(npc.conversation_history) == 10
+        # Should have the 10 most recent (messages 2-11)
+        assert npc.conversation_history[0] == {"role": "player", "content": "Message 2"}
+        assert npc.conversation_history[9] == {"role": "player", "content": "Message 11"}

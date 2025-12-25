@@ -1,28 +1,43 @@
-# Implementation Summary: Fix Equip Already-Equipped Error Message
+# Implementation Summary: NPC Model Test Coverage (79% → 100%)
 
 ## What Was Implemented
 
-Fixed the misleading error message when running `equip <item>` on an already-equipped item. Previously showed "You don't have '{item}' in your inventory.", now correctly shows "{Item Name} is already equipped."
+### 1. Coverage Configuration Update (`pyproject.toml`)
+- Added `"if TYPE_CHECKING:"` to `exclude_lines` in `[tool.coverage.report]`
+- This excludes type-checking-only imports from coverage calculations (lines 6-8 of `npc.py`)
 
-## Files Modified
+### 2. New Tests Added (`tests/test_npc.py`)
 
-1. **`src/cli_rpg/main.py`** (lines 440-448): Added check within the `equip` command handler to detect if the item being equipped is already equipped as weapon or armor, before returning the generic "not found" error.
+**test_get_greeting_with_greetings_list()**
+- Tests `NPC.get_greeting()` when the NPC has a greetings list
+- Uses `unittest.mock.patch` to mock `random.choice` and verify it's called with the greetings list
+- Covers lines 49-50 of `npc.py`
 
-2. **`tests/test_main_inventory_commands.py`**: Added `TestEquipAlreadyEquipped` test class with two tests:
-   - `test_equip_already_equipped_weapon`: Verifies weapon case
-   - `test_equip_already_equipped_armor`: Verifies armor case
+**test_get_greeting_without_greetings_list()**
+- Tests `NPC.get_greeting()` fallback when greetings list is empty
+- Verifies it returns the dialogue field
+- Covers line 51 of `npc.py`
 
-## Implementation Details
+**test_add_conversation_basic()**
+- Tests `NPC.add_conversation()` basic functionality
+- Verifies entries are properly added to `conversation_history`
+- Covers line 62 of `npc.py`
 
-The fix follows the same pattern as the existing `use` command fix for equipped items:
-- When `find_item_by_name` returns `None` (item not in general inventory)
-- Check if equipped_weapon or equipped_armor matches the item name (case-insensitive)
-- Return appropriate "already equipped" message instead of "don't have" message
+**test_add_conversation_caps_at_10_entries()**
+- Tests `NPC.add_conversation()` capping behavior
+- Adds 12 conversations and verifies only 10 most recent remain
+- Covers lines 63-65 of `npc.py`
 
 ## Test Results
 
 ```
-26 passed in 0.36s
+13 passed in 0.69s
+Coverage: 100% (36 statements, 0 missing)
 ```
 
-All inventory command tests pass, including the 2 new tests for the fix.
+## Files Modified
+- `pyproject.toml`: Added coverage exclusion for TYPE_CHECKING blocks
+- `tests/test_npc.py`: Added 4 new test methods and imported `patch` from `unittest.mock`
+
+## E2E Validation
+No E2E validation needed - this is a unit test coverage improvement with no behavioral changes to the application.
