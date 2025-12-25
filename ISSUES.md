@@ -94,7 +94,7 @@ Exploring dangerous areas builds **Dread**:
 - ✅ **At 100%**: Shadow creature attacks - MVP IMPLEMENTED (Shadow of Dread manifests and attacks; defeating it reduces dread by 50%)
 - ✅ **Hallucinations**: Fake enemies at high dread - MVP IMPLEMENTED (At 75-99% dread, 30% chance per move to encounter spectral enemies that dissipate when attacked, reducing dread by 5 with no XP/loot rewards)
 - ✅ **Light sources**: Items that reduce dread buildup - MVP IMPLEMENTED (Torches reduce dread buildup by 50%, negate night bonus, consumable with limited duration)
-- **Brave player rewards**: Best secrets in high-dread areas
+- ✅ **Brave player rewards**: Best secrets in high-dread areas - MVP IMPLEMENTED (Dread Treasures: 30% chance to discover powerful items when looking at 75%+ dread; includes Shadow Essence, Veil of Courage, Dread Blade, Darklight Torch)
 
 ---
 

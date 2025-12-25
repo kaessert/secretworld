@@ -255,6 +255,9 @@ class GameState:
         - Fog: Obscured visibility (some exits hidden, NPC names as "???")
         - Cave locations are unaffected by weather visibility effects
 
+        At 75%+ dread on 3rd+ look, player may discover "dread treasures" -
+        powerful items revealed only to those who brave the darkness.
+
         Returns:
             String description with appropriate detail layers based on look count
         """
@@ -263,7 +266,22 @@ class GameState:
         look_count = self.current_character.record_look(self.current_location)
         # Get visibility level from weather, accounting for location category
         visibility = self.weather.get_visibility_level(location.category)
-        return location.get_layered_description(look_count, visibility=visibility)
+        result = location.get_layered_description(look_count, visibility=visibility)
+
+        # Check for dread treasure (brave player rewards)
+        from cli_rpg.brave_rewards import check_for_dread_treasure, get_discovery_message
+        treasure = check_for_dread_treasure(
+            dread_level=self.current_character.dread_meter.dread,
+            look_count=look_count,
+            location_name=self.current_location
+        )
+        if treasure is not None:
+            if self.current_character.inventory.add_item(treasure):
+                result += get_discovery_message(treasure)
+            else:
+                result += f"\n{colors.warning('Your inventory is full! You cannot take the treasure.')}"
+
+        return result
     
     def is_in_combat(self) -> bool:
         """Check if combat is currently active.
