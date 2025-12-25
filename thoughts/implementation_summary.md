@@ -1,54 +1,76 @@
-# Implementation Summary: Basic Weather System
+# Implementation Summary: Combo Combat System
 
 ## What Was Implemented
 
-### New Model: `src/cli_rpg/models/weather.py`
-A Weather dataclass that tracks atmospheric conditions affecting gameplay:
+A combo combat system that tracks the player's last 3 actions and unlocks special combo moves when specific action sequences are performed. This addresses the combat tactical depth issue by rewarding strategic action sequencing.
 
-- **Weather States**: `clear`, `rain`, `storm`, `fog`
-- **Dread Modifiers**: Each weather type adds dread on movement (0, +2, +5, +3 respectively)
-- **Travel Modifier**: Storm adds +1 hour to travel time
-- **Display**: Human-readable display with emoji (e.g., "Rain ☔")
-- **Flavor Text**: Random atmospheric descriptions for movement messages
-- **Cave Override**: `get_effective_condition()` returns "clear" for caves (underground)
-- **Transitions**: 10% chance per hour to change weather
-- **Serialization**: Full `to_dict()`/`from_dict()` for save/load
+### Features
 
-### GameState Integration (`src/cli_rpg/game_state.py`)
-- Added `self.weather = Weather()` attribute in `__init__`
-- Updated `move()` to:
-  - Apply storm travel time modifier (+1 hour)
-  - Add weather flavor text to movement messages
-  - Trigger weather transitions after movement
-- Updated `_update_dread_on_move()` to include weather dread modifier (except in caves)
-- Added weather to `to_dict()` serialization
-- Added weather restoration in `from_dict()` with backward compatibility (defaults to clear)
+1. **Action History Tracking**: Combat now tracks the last 3 player actions (`attack`, `defend`, `cast`)
 
-### Status Display (`src/cli_rpg/main.py`)
-- Updated status command to show weather: "Weather: Rain ☔"
+2. **Three Combo Moves**:
+   - **Frenzy** (`Attack → Attack → Attack`): Triple attack dealing 1.5x total damage
+   - **Revenge** (`Defend → Defend → Attack`): Counter-attack dealing damage equal to damage taken while defending
+   - **Arcane Burst** (`Cast → Cast → Cast`): Empowered spell dealing 2x magic damage
+
+3. **Combo State Machine**:
+   - Actions are recorded after each player turn
+   - When a combo pattern is matched, `pending_combo` is set
+   - On the next matching action, the combo triggers and history clears
+   - Flee clears action history (breaks combo chain)
+
+4. **UI Notifications**:
+   - Combat status shows "Last actions: [Attack] → [Defend]"
+   - When combo is ready: "COMBO AVAILABLE: Frenzy!"
 
 ## Files Modified
-1. `src/cli_rpg/models/weather.py` (NEW)
-2. `src/cli_rpg/game_state.py` (modified)
-3. `src/cli_rpg/main.py` (modified)
-4. `tests/test_weather.py` (NEW - 26 tests)
-5. `tests/test_random_encounters.py` (minor fix to account for weather random calls)
+
+1. **`src/cli_rpg/combat.py`**:
+   - Added `COMBOS` dictionary defining combo patterns
+   - Added to `CombatEncounter.__init__()`:
+     - `action_history: list[str]`
+     - `damage_taken_while_defending: int`
+     - `pending_combo: Optional[str]`
+   - Added combo helper methods:
+     - `_record_action()` - Records action and checks for combos
+     - `_check_for_combo()` - Matches history against patterns
+     - `get_pending_combo()` - Returns current pending combo
+     - `_clear_action_history()` - Resets combo state
+   - Modified `player_attack()` - Handles Frenzy and Revenge combos
+   - Modified `player_defend()` - Records "defend" action
+   - Modified `player_cast()` - Handles Arcane Burst combo
+   - Modified `player_flee()` - Clears action history
+   - Modified `enemy_turn()` - Tracks damage taken while defending
+   - Modified `end_combat()` - Clears combo state
+   - Modified `get_status()` - Shows action history and pending combo
+
+2. **`tests/test_combo_combat.py`** (new file):
+   - 22 tests covering all combo functionality:
+     - Action history tracking (7 tests)
+     - Combo detection (5 tests)
+     - Frenzy combo (3 tests)
+     - Revenge combo (3 tests)
+     - Arcane Burst combo (2 tests)
+     - UI notifications (2 tests)
 
 ## Test Results
-- 26 new weather tests all pass
-- 2033 total tests pass
-- All existing functionality preserved
+
+- **22 new tests** - All passing
+- **2055 total tests** - All passing (no regressions)
 
 ## Design Decisions
-1. **Caves are always "clear"**: Underground locations don't experience weather effects
-2. **Weather transitions on movement**: 10% chance per hour (per travel action)
-3. **Storm penalty is additive**: Travel time is 1 + storm_modifier hours
-4. **Backward compatibility**: Old saves without weather default to clear weather
 
-## E2E Validation Points
-- Start new game → status shows "Weather: Clear ☀"
-- Move during rain → see flavor text and +2 dread
-- Move during storm → takes 2 hours instead of 1, +5 dread
-- Enter cave during storm → dread increase should not include weather bonus
-- Save and load → weather persists
-- Load old save → defaults to clear weather
+1. **History Length**: Limited to 3 actions (oldest dropped) to keep combos achievable
+2. **Combo Trigger**: Combos trigger on the *next* matching action after pattern is complete
+3. **Flee Breaks Chain**: Attempting to flee clears action history (prevents fleeing mid-combo)
+4. **Damage Tracking**: Revenge tracks damage taken *while defending* (half damage taken)
+5. **Frenzy Calculation**: `single_hit = base_damage // 2`, `total = single_hit * 3` (roughly 1.5x)
+
+## E2E Validation
+
+The combo system should validate:
+1. Action history appears in combat status after performing actions
+2. "COMBO AVAILABLE" message appears after completing a combo sequence
+3. Combo attacks show special messages ("FRENZY!", "REVENGE!", "ARCANE BURST!")
+4. Damage matches expected values (1.5x for Frenzy, 2x for Arcane Burst)
+5. Action history clears after combo triggers or fleeing

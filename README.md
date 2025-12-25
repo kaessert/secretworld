@@ -117,9 +117,16 @@ Status effects are cleared when combat ends.
 - `flee` (f) - Attempt to escape (chance based on dexterity)
 - `cast [target]` (c) - Cast a magic attack at an enemy (damage based on intelligence). Targeting works like `attack`.
 - `use <item>` (u) - Use a consumable item (e.g., health potion) - counts as your turn
-- `status` (s, stats) - View combat status (HP of you and all enemies)
+- `status` (s, stats) - View combat status (HP of you and all enemies, action history, pending combos)
 - `help` (h) - Display the full command reference
 - `quit` - Exit to main menu (no save during combat - combat progress will be lost)
+
+**Combo System**: Chain specific action sequences to unlock powerful combo attacks:
+- **Frenzy** (Attack → Attack → Attack): Triple hit dealing ~1.5x total damage
+- **Revenge** (Defend → Defend → Attack): Counter-attack dealing damage equal to damage taken while defending
+- **Arcane Burst** (Cast → Cast → Cast): Empowered spell dealing 2x magic damage
+
+The combat status shows your last actions (e.g., "Last actions: [Attack] → [Defend]"). When a combo pattern is complete, you'll see "COMBO AVAILABLE: Frenzy!" - perform the matching action to trigger the combo. Fleeing clears your action history.
 
 **Targeting:** When facing multiple enemies, you can target specific enemies by name (e.g., `attack goblin` or `cast orc`). Partial, case-insensitive matching is supported. If no target is specified, attacks hit the first living enemy.
 

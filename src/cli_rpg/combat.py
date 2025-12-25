@@ -14,6 +14,13 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
+# Combo definitions: maps combo name to sequence pattern
+COMBOS = {
+    "frenzy": {"sequence": ["attack", "attack", "attack"], "trigger": "attack"},
+    "revenge": {"sequence": ["defend", "defend", "attack"], "trigger": "attack"},
+    "arcane_burst": {"sequence": ["cast", "cast", "cast"], "trigger": "cast"},
+}
+
 
 def calculate_distance_from_origin(coordinates: Optional[Tuple[int, int]]) -> int:
     """Calculate Manhattan distance from origin (0,0).
@@ -226,6 +233,11 @@ class CombatEncounter:
         self.is_active = False
         self.defending = False
 
+        # Combo system state
+        self.action_history: list[str] = []
+        self.damage_taken_while_defending: int = 0
+        self.pending_combo: Optional[str] = None
+
     def _check_and_consume_stun(self) -> Optional[str]:
         """Check if player is stunned and consume the stun effect if so.
 
@@ -294,7 +306,40 @@ class CombatEncounter:
         # Not found - build error message with valid targets
         valid_names = [e.name for e in living]
         return None, f"Target '{target}' not found. Valid targets: {', '.join(valid_names)}"
-    
+
+    def _record_action(self, action: str) -> None:
+        """Record a combat action in history for combo detection.
+
+        Args:
+            action: Action type ('attack', 'defend', 'cast')
+        """
+        self.action_history.append(action)
+        if len(self.action_history) > 3:
+            self.action_history.pop(0)
+        self._check_for_combo()
+
+    def _check_for_combo(self) -> None:
+        """Check if current action history matches a combo pattern."""
+        for combo_name, combo_def in COMBOS.items():
+            if self.action_history == combo_def["sequence"]:
+                self.pending_combo = combo_name
+                return
+        self.pending_combo = None
+
+    def get_pending_combo(self) -> Optional[str]:
+        """Get the currently pending combo, if any.
+
+        Returns:
+            Combo name if pending ('frenzy', 'revenge', 'arcane_burst'), else None
+        """
+        return self.pending_combo
+
+    def _clear_action_history(self) -> None:
+        """Clear action history and pending combo state."""
+        self.action_history.clear()
+        self.pending_combo = None
+        self.damage_taken_while_defending = 0
+
     def start(self) -> str:
         """
         Initialize combat and return intro message.
@@ -347,6 +392,56 @@ class CombatEncounter:
         if enemy is None:
             return False, error or "No target found."
 
+        # Check for Frenzy combo (Attack x3 -> triple attack, 1.5x damage)
+        if self.pending_combo == "frenzy":
+            base_damage = max(1, self.player.get_attack_power() - enemy.defense)
+            # Triple hit: 3 smaller hits totaling 1.5x damage
+            single_hit = max(1, base_damage // 2)
+            total_damage = single_hit * 3
+            enemy.take_damage(total_damage)
+            message = (
+                f"{colors.damage('FRENZY!')} You strike {colors.enemy(enemy.name)} "
+                f"three times for {colors.damage(str(total_damage))} total damage!"
+            )
+            self._clear_action_history()
+
+            if not enemy.is_alive():
+                message += f"\n{colors.enemy(enemy.name)} has been defeated!"
+
+            if not self.get_living_enemies():
+                message += f" {colors.heal('Victory!')}"
+                return True, message
+
+            if enemy.is_alive():
+                message += f"\n{colors.enemy(enemy.name)} has {enemy.health}/{enemy.max_health} HP remaining."
+
+            return False, message
+
+        # Check for Revenge combo (Defend x2 + Attack -> counter-attack)
+        if self.pending_combo == "revenge":
+            revenge_damage = max(1, self.damage_taken_while_defending)
+            enemy.take_damage(revenge_damage)
+            message = (
+                f"{colors.damage('REVENGE!')} You channel your pain into a devastating "
+                f"counter for {colors.damage(str(revenge_damage))} damage!"
+            )
+            self._clear_action_history()
+
+            if not enemy.is_alive():
+                message += f"\n{colors.enemy(enemy.name)} has been defeated!"
+
+            if not self.get_living_enemies():
+                message += f" {colors.heal('Victory!')}"
+                return True, message
+
+            if enemy.is_alive():
+                message += f"\n{colors.enemy(enemy.name)} has {enemy.health}/{enemy.max_health} HP remaining."
+
+            return False, message
+
+        # Normal attack - record action for combo tracking
+        self._record_action("attack")
+
         # Calculate damage: player attack power (strength + weapon bonus) - enemy defense, minimum 1
         dmg = max(1, self.player.get_attack_power() - enemy.defense)
         enemy.take_damage(dmg)
@@ -380,6 +475,9 @@ class CombatEncounter:
         if stun_msg:
             return False, stun_msg
 
+        # Record action for combo tracking
+        self._record_action("defend")
+
         self.defending = True
         message = "You brace yourself for the enemy's attack, taking a defensive stance!"
         return False, message
@@ -409,6 +507,31 @@ class CombatEncounter:
         if enemy is None:
             return False, error or "No target found."
 
+        # Check for Arcane Burst combo (Cast x3 -> 2x magic damage)
+        if self.pending_combo == "arcane_burst":
+            dmg = max(1, int(self.player.intelligence * 1.5)) * 2
+            enemy.take_damage(dmg)
+            message = (
+                f"{colors.damage('ARCANE BURST!')} Magical energy explodes around "
+                f"{colors.enemy(enemy.name)} for {colors.damage(str(dmg))} damage!"
+            )
+            self._clear_action_history()
+
+            if not enemy.is_alive():
+                message += f"\n{colors.enemy(enemy.name)} has been defeated!"
+
+            if not self.get_living_enemies():
+                message += f" {colors.heal('Victory!')}"
+                return True, message
+
+            if enemy.is_alive():
+                message += f"\n{colors.enemy(enemy.name)} has {enemy.health}/{enemy.max_health} HP remaining."
+
+            return False, message
+
+        # Normal cast - record action for combo tracking
+        self._record_action("cast")
+
         # Calculate magic damage: intelligence * 1.5, ignores defense
         dmg = max(1, int(self.player.intelligence * 1.5))
         enemy.take_damage(dmg)
@@ -431,16 +554,19 @@ class CombatEncounter:
     def player_flee(self) -> Tuple[bool, str]:
         """
         Attempt to flee from combat.
-        
+
         Returns:
             Tuple of (success, message)
             - success: True if escape successful, False otherwise
             - message: Description of flee attempt
         """
+        # Fleeing breaks combo chain
+        self._clear_action_history()
+
         # Base 50% chance + dexterity modifier
         flee_chance = 50 + (self.player.dexterity * 2)
         roll = random.randint(1, 100)
-        
+
         if roll <= flee_chance:
             return True, "You successfully flee from combat!"
         else:
@@ -472,6 +598,8 @@ class CombatEncounter:
             # Apply defense reduction if player is defending (applies to all attacks this turn)
             if self.defending:
                 dmg = max(1, base_damage // 2)  # Half damage when defending
+                # Track damage taken while defending for Revenge combo
+                self.damage_taken_while_defending += dmg
                 msg = (
                     f"{colors.enemy(enemy.name)} attacks! You block some of the damage, "
                     f"taking {colors.damage(str(dmg))} damage!"
@@ -593,6 +721,9 @@ class CombatEncounter:
         """
         self.is_active = False
 
+        # Clear combo state at end of combat
+        self._clear_action_history()
+
         # Clear player status effects at end of combat
         self.player.clear_status_effects()
 
@@ -674,6 +805,16 @@ class CombatEncounter:
                     f"{e.name} ({e.duration} turns)" for e in enemy.status_effects
                 ]
                 lines.append(f"  Status: {colors.damage(', '.join(effect_strs))}")
+
+        # Display action history for combo tracking
+        if self.action_history:
+            actions_display = " → ".join(f"[{a.capitalize()}]" for a in self.action_history)
+            lines.append(f"Last actions: {actions_display}")
+
+        # Display pending combo notification
+        if self.pending_combo:
+            combo_name = self.pending_combo.replace("_", " ").title()
+            lines.append(f"{colors.heal('COMBO AVAILABLE')}: {combo_name}!")
 
         return "\n".join(lines)
 

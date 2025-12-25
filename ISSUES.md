@@ -177,6 +177,7 @@ You wake with a strange sense of purpose.
 
 #### 6. COMBO COMBAT SYSTEM - Fluid, Strategic Fighting
 **Impact**: Combat depth, mastery satisfaction
+**Status**: MVP IMPLEMENTED
 
 Chain attacks for devastating effects:
 
@@ -194,11 +195,18 @@ Combat Round 3:
   > [C]ast   (chains to "Arcane Counter")
 ```
 
-- **Combo chains**: Attack→Attack→Attack = "Frenzy" (3x hit, exhausted next turn)
-- **Defensive combos**: Defend→Defend→Attack = "Revenge" (damage = damage taken)
-- **Magic weaving**: Cast→Cast→Cast = "Arcane Storm" (hits all enemies)
+**MVP Implemented**:
+- ✅ **Action history tracking**: Last 3 player actions tracked and displayed in combat status
+- ✅ **Frenzy combo** (Attack→Attack→Attack): Triple hit dealing ~1.5x total damage
+- ✅ **Revenge combo** (Defend→Defend→Attack): Counter-attack dealing damage equal to damage taken while defending
+- ✅ **Arcane Burst combo** (Cast→Cast→Cast): Empowered spell dealing 2x magic damage
+- ✅ **Combo notifications**: "COMBO AVAILABLE" message when pattern is ready
+- ✅ **Flee breaks chain**: Attempting to flee clears action history
+
+**Future Enhancements**:
 - **Hybrid moves**: Defend→Cast→Attack = "Calculated Strike" (guaranteed crit)
 - **Enemy patterns**: Bosses telegraph moves, allowing counter-play
+- **More combos**: Additional combo patterns for variety
 
 ---
 
@@ -381,7 +389,7 @@ Your vision fades... but this is not the end.
 6. The Weight of Gold - Meaningful economy
 
 **Phase 3 - Depth** (Mastery and investment):
-7. Combo Combat - Satisfying combat loop
+7. ~~Combo Combat~~ ✅ MVP IMPLEMENTED - Satisfying combat loop
 8. Bond System - Emotional investment
 9. ~~Darkness Meter~~ ✅ MVP IMPLEMENTED - Psychological tension
 
