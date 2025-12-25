@@ -501,3 +501,68 @@ class TestEndCombatLootInventoryFull:
         assert "Enemy Sword" in message
         # Verify loot was NOT added to inventory
         assert loot not in player.inventory.items
+
+
+class TestCombatTypewriterDisplay:
+    """Test typewriter effect display functions for combat.
+
+    Spec: Add typewriter effect to dramatic combat moments for enhanced atmosphere.
+    """
+
+    def test_display_combat_start_uses_typewriter(self):
+        """Spec: display_combat_start should call typewriter_print with combat intro."""
+        from unittest.mock import patch
+        from cli_rpg.combat import display_combat_start
+
+        test_text = "A wild Goblin appears!"
+
+        with patch("cli_rpg.text_effects.typewriter_print") as mock_typewriter:
+            display_combat_start(test_text)
+            mock_typewriter.assert_called_once()
+            # Verify text was passed
+            call_args = mock_typewriter.call_args
+            assert test_text == call_args[0][0]
+
+    def test_display_combo_uses_typewriter(self):
+        """Spec: display_combo should use typewriter effect for combo announcements."""
+        from unittest.mock import patch
+        from cli_rpg.combat import display_combo
+
+        combo_text = "FRENZY! You strike three times!"
+
+        with patch("cli_rpg.text_effects.typewriter_print") as mock_typewriter:
+            display_combo(combo_text)
+            mock_typewriter.assert_called_once()
+            call_args = mock_typewriter.call_args
+            assert combo_text == call_args[0][0]
+
+    def test_display_combat_end_uses_typewriter(self):
+        """Spec: display_combat_end should use typewriter effect for victory/defeat."""
+        from unittest.mock import patch
+        from cli_rpg.combat import display_combat_end
+
+        result_text = "Victory! You defeated the Goblin!"
+
+        with patch("cli_rpg.text_effects.typewriter_print") as mock_typewriter:
+            display_combat_end(result_text)
+            # Should call typewriter_print at least once (may be per line)
+            assert mock_typewriter.call_count >= 1
+
+    def test_display_combat_end_multiline(self):
+        """Spec: display_combat_end should handle multiline messages."""
+        from unittest.mock import patch
+        from cli_rpg.combat import display_combat_end
+
+        result_text = "Victory!\nYou earned 25 XP!\nYou found: Iron Sword!"
+
+        with patch("cli_rpg.text_effects.typewriter_print") as mock_typewriter:
+            display_combat_end(result_text)
+            # Should call once per line
+            assert mock_typewriter.call_count == 3
+
+    def test_combat_typewriter_delay_constant(self):
+        """Spec: COMBAT_TYPEWRITER_DELAY should exist with value 0.025 (faster than dreams)."""
+        from cli_rpg.combat import COMBAT_TYPEWRITER_DELAY
+
+        # Combat delay should be 0.025 (faster than dreams' 0.04)
+        assert COMBAT_TYPEWRITER_DELAY == 0.025

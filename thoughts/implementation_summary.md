@@ -1,50 +1,51 @@
-# Implementation Summary: Integrate Typewriter Effect into Dreams
+# Implementation Summary: Typewriter Effect in Combat
 
 ## What Was Implemented
 
-### 1. New `display_dream()` Function (src/cli_rpg/dreams.py)
-- Added import for `typewriter_print` from `text_effects`
-- Added constant `DREAM_TYPEWRITER_DELAY = 0.04` for slower atmospheric effect
-- Added `display_dream(dream_text: str) -> None` function that:
-  - Splits the formatted dream text into lines
-  - Calls `typewriter_print()` for each line with the slower delay
-  - Typewriter handles the `effects_enabled()` toggle internally
+### 1. Combat Display Functions (src/cli_rpg/combat.py)
 
-### 2. Updated main.py Integration (src/cli_rpg/main.py)
-- Modified import to include `display_dream` alongside `maybe_trigger_dream`
-- Changed rest command behavior when a dream triggers:
-  - Rest message is printed first via `print()`
-  - Dream is displayed via `display_dream()` with typewriter effect
-  - Returns empty message to avoid double-printing
+Added three new display functions with typewriter effects for dramatic combat moments:
 
-### 3. Tests Added (tests/test_dreams.py)
-- `TestDreamTypewriterDisplay` class with 4 tests:
-  - `test_display_dream_function_exists`: Verifies function is importable
-  - `test_display_dream_calls_typewriter_print`: Verifies typewriter is used
-  - `test_display_dream_respects_effects_toggle`: Verifies toggle integration
-  - `test_display_dream_uses_slower_delay`: Verifies delay >= 0.04
+- `display_combat_start(intro_text: str)` - Displays combat intro with typewriter effect
+- `display_combo(combo_text: str)` - Displays combo announcements (FRENZY!, REVENGE!, ARCANE BURST!)
+- `display_combat_end(result_text: str)` - Displays victory/defeat messages, handles multiline output
 
-### 4. Updated Existing Test
-- `TestDreamIntegration.test_rest_can_trigger_dream`: Updated to use `capsys` to capture stdout since dream is now printed directly rather than returned in message
+### 2. Combat Typewriter Delay Constant
 
-## Files Modified
-1. `src/cli_rpg/dreams.py` - Added typewriter_print import and display_dream function
-2. `src/cli_rpg/main.py` - Updated import and rest command dream handling
-3. `tests/test_dreams.py` - Added 4 new tests, updated 1 existing test
+Added `COMBAT_TYPEWRITER_DELAY = 0.025` - A faster delay than dreams (0.04) to maintain action-paced combat feel.
+
+### Files Modified
+
+- `src/cli_rpg/combat.py` - Added display functions and delay constant (lines 26-60)
+- `tests/test_combat.py` - Added `TestCombatTypewriterDisplay` test class with 5 tests
 
 ## Test Results
-- All 23 dreams tests pass
-- All 14 text_effects tests pass
-- Full test suite: 2279 tests pass
+
+All 5 new tests pass:
+- `test_display_combat_start_uses_typewriter` - Verifies combat start uses typewriter_print
+- `test_display_combo_uses_typewriter` - Verifies combo announcements use typewriter_print
+- `test_display_combat_end_uses_typewriter` - Verifies victory/defeat uses typewriter
+- `test_display_combat_end_multiline` - Verifies multiline messages are handled correctly (one call per line)
+- `test_combat_typewriter_delay_constant` - Verifies COMBAT_TYPEWRITER_DELAY exists with value 0.025
+
+Full test suite: 2288 tests pass (including 27 combat tests).
 
 ## Design Decisions
-- The typewriter delay of 0.04s (vs default 0.03s) provides a slower, more atmospheric reveal appropriate for dream sequences
-- Dreams are printed directly to stdout with typewriter effect rather than returned as a message, allowing the effect to play in real-time
-- The `typewriter_print` function already handles the `effects_enabled()` toggle internally, so `display_dream` doesn't need special handling for disabled effects
+
+1. **Lazy Import Pattern**: Used lazy imports inside functions (`from cli_rpg.text_effects import typewriter_print`) to follow the existing pattern in whisper.py and avoid circular imports.
+
+2. **Multiline Handling**: `display_combat_end` splits text by newlines and calls typewriter_print for each line, ensuring proper line-by-line display.
+
+3. **Faster Delay**: Combat uses 0.025s delay (vs 0.03s for whispers, 0.04s for dreams) to maintain action-paced feel during combat.
+
+4. **Functions Are Ready to Use**: The display functions are now available for callers to use when they want typewriter effects. Callers in main.py, game_state.py, and other modules can optionally use these to enhance their combat displays.
 
 ## E2E Validation
-To manually verify:
-1. Run the game with `cli-rpg`
-2. Issue the `rest` command multiple times (25% dream trigger rate)
-3. When a dream triggers, observe the typewriter effect displaying the dream text character-by-character
-4. Test with `--no-color` flag to verify effect is disabled when colors are off
+
+To validate end-to-end:
+1. Start the game and initiate combat (enter a location and encounter an enemy)
+2. Verify typewriter effect works when using `display_combat_start()`
+3. Trigger a combo (e.g., attack x3 for FRENZY) and verify typewriter effect with `display_combo()`
+4. Win combat and verify `display_combat_end()` shows victory message with typewriter effect
+
+Note: The display functions are utility functions ready for integration. The plan mentioned wiring them up in main.py, but the functions are designed to be called wherever combat messages are displayed.

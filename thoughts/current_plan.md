@@ -1,52 +1,60 @@
-# Implementation Plan: Integrate Typewriter Effect into Dreams
+# Implementation Plan: Typewriter Effect in Combat
 
 ## Spec
-Dream sequences displayed during rest should use the typewriter effect for atmospheric text reveal. The `dreams.py` module returns formatted dream text, and display happens in `main.py`. The typewriter effect should apply to the dream text output while respecting the existing effects_enabled() toggle.
-
-## Approach
-Add a new `display_dream()` function in `dreams.py` that wraps the formatted dream text with typewriter output. The caller in `main.py` will use this function instead of just appending the dream string to messages.
-
-**Key Design Decision**: Since `maybe_trigger_dream()` returns a string that gets joined with other messages, we need a separate display function that directly prints with typewriter effect. The dream is a self-contained atmospheric moment that should be displayed separately from other rest messages.
+Add typewriter effect to dramatic combat moments for enhanced atmosphere. Integrate `text_effects.typewriter_print` into `combat.py` for:
+- Combat start (enemy appearance)
+- Combo triggers (FRENZY!, REVENGE!, ARCANE BURST!)
+- Victory/defeat messages
 
 ## Implementation Steps
 
-### 1. Add test for dream typewriter display
-**File**: `tests/test_dreams.py`
+### 1. Add tests for typewriter combat display
+**File:** `tests/test_combat.py`
 
-Add new test class `TestDreamTypewriterDisplay`:
-- Test that `display_dream()` exists and calls typewriter_print
-- Test that display respects effects_enabled toggle
-- Test that formatted dream text is passed to typewriter
+Add test class `TestCombatTypewriterDisplay`:
+- `test_display_combat_start_uses_typewriter`: Verify `display_combat_start` calls `typewriter_print` with combat intro
+- `test_display_combo_uses_typewriter`: Verify combo announcements use typewriter effect
+- `test_display_combat_end_uses_typewriter`: Verify victory/defeat uses typewriter
+- `test_combat_typewriter_delay_constant`: Verify `COMBAT_TYPEWRITER_DELAY` exists (0.025 - faster than dreams)
 
-### 2. Add display_dream function to dreams.py
-**File**: `src/cli_rpg/dreams.py`
+### 2. Add combat display functions with typewriter
+**File:** `src/cli_rpg/combat.py`
 
-- Import `typewriter_print` from `text_effects`
-- Add function `display_dream(dream_text: str) -> None` that:
-  - Calls `typewriter_print()` for each line of the formatted dream
-  - Uses a slower delay (0.04-0.05s) for more atmospheric effect
-
-### 3. Update main.py to use display_dream
-**File**: `src/cli_rpg/main.py` (around line 1250)
-
-Change from:
+Add at top after imports:
 ```python
-if dream:
-    messages.append(dream)
+# Faster delay for combat (action-paced)
+COMBAT_TYPEWRITER_DELAY = 0.025
 ```
 
-To:
+Add display functions (following whisper.py pattern):
 ```python
-if dream:
-    from cli_rpg.dreams import display_dream
-    display_dream(dream)
+def display_combat_start(intro_text: str) -> None:
+    """Display combat start with typewriter effect."""
+    from cli_rpg.text_effects import typewriter_print
+    typewriter_print(intro_text, delay=COMBAT_TYPEWRITER_DELAY)
+
+def display_combo(combo_text: str) -> None:
+    """Display combo announcement with typewriter effect."""
+    from cli_rpg.text_effects import typewriter_print
+    typewriter_print(combo_text, delay=COMBAT_TYPEWRITER_DELAY)
+
+def display_combat_end(result_text: str) -> None:
+    """Display combat end with typewriter effect."""
+    from cli_rpg.text_effects import typewriter_print
+    for line in result_text.split("\n"):
+        typewriter_print(line, delay=COMBAT_TYPEWRITER_DELAY)
 ```
 
-The dream is displayed directly with typewriter effect, not appended to messages.
+### 3. Wire up display functions in main.py combat handling
+**File:** `src/cli_rpg/main.py`
+
+Find where `combat.start()`, combo messages, and `combat.end_combat()` results are printed. Replace direct `print()` calls with the new display functions:
+- `display_combat_start(combat.start())`
+- `display_combo(...)` for combo trigger lines
+- `display_combat_end(combat.end_combat(victory))`
 
 ## Test Commands
 ```bash
-pytest tests/test_dreams.py -v
-pytest tests/test_text_effects.py -v
-pytest --cov=src/cli_rpg -v
+pytest tests/test_combat.py::TestCombatTypewriterDisplay -v
+pytest tests/test_combat.py -v
 ```

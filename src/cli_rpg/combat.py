@@ -23,6 +23,42 @@ COMBOS = {
     "arcane_burst": {"sequence": ["cast", "cast", "cast"], "trigger": "cast"},
 }
 
+# Faster delay for combat (action-paced)
+COMBAT_TYPEWRITER_DELAY = 0.025
+
+
+def display_combat_start(intro_text: str) -> None:
+    """Display combat start with typewriter effect.
+
+    Args:
+        intro_text: The combat intro text to display with typewriter effect.
+    """
+    from cli_rpg.text_effects import typewriter_print
+    typewriter_print(intro_text, delay=COMBAT_TYPEWRITER_DELAY)
+
+
+def display_combo(combo_text: str) -> None:
+    """Display combo announcement with typewriter effect.
+
+    Args:
+        combo_text: The combo announcement text to display with typewriter effect.
+    """
+    from cli_rpg.text_effects import typewriter_print
+    typewriter_print(combo_text, delay=COMBAT_TYPEWRITER_DELAY)
+
+
+def display_combat_end(result_text: str) -> None:
+    """Display combat end with typewriter effect.
+
+    Handles multiline result text by printing each line with typewriter effect.
+
+    Args:
+        result_text: The combat result text to display with typewriter effect.
+    """
+    from cli_rpg.text_effects import typewriter_print
+    for line in result_text.split("\n"):
+        typewriter_print(line, delay=COMBAT_TYPEWRITER_DELAY)
+
 
 def calculate_distance_from_origin(coordinates: Optional[Tuple[int, int]]) -> int:
     """Calculate Manhattan distance from origin (0,0).

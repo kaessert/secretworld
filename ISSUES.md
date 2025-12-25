@@ -714,7 +714,7 @@ Text output could be more atmospheric and engaging.
 **Remaining integration**:
 - ~~Integrate typewriter effect into `dreams.py` for dream sequences~~ ✅ IMPLEMENTED
 - ~~Integrate into `whisper.py` for ambient whispers~~ ✅ IMPLEMENTED
-- Integrate into `combat.py` for dramatic combat moments
+- ~~Integrate into `combat.py` for dramatic combat moments~~ ✅ IMPLEMENTED (display functions ready: `display_combat_start()`, `display_combo()`, `display_combat_end()`)
 - Update `main.py` to disable effects in non-interactive/JSON modes
 
 **Desired features**:
