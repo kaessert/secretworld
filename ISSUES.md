@@ -1,35 +1,28 @@
 ## Active Issues
 
-### AI area generation fails with JSON truncation - NEVER use fallback
-**Status**: ACTIVE (CRITICAL)
+### Silent fallback masks AI generation failures
+**Status**: ACTIVE
 
-**Problem**: AI area generation fails with error: `Failed to parse response as JSON: Unterminated string starting at: line 50 column 21 (char 1854)`. When this happens, the code silently falls back to template-based generation, which should NEVER happen.
+**Problem**: When AI area generation fails, the code silently falls back to template-based generation. Players should be informed when AI generation fails.
 
 **Root Causes**:
 
-1. **Insufficient max_tokens**: Default `max_tokens: 500` in `ai_config.py` is too low for area generation (5-7 locations with NPCs can require 1500-2000+ tokens). The LLM response gets truncated mid-JSON.
+1. **Silent fallback in game_state.py**: Lines 320-343 catch AI exceptions and fall back to `generate_fallback_location()`. This masks failures instead of surfacing them.
 
-2. **Silent fallback in game_state.py**: Lines 320-343 catch AI exceptions and fall back to `generate_fallback_location()`. This masks failures instead of surfacing them.
-
-3. **Invalid connections**: Fallback locations add dangling "Unexplored X" connections pointing to non-existent locations, creating inconsistent world state.
+2. **Invalid connections**: Fallback locations add dangling "Unexplored X" connections pointing to non-existent locations, creating inconsistent world state.
 
 **Required Fixes**:
 
-1. **Increase max_tokens**:
-   - Change default from 500 to 2000 in `ai_config.py` (line 284)
-   - Update docstring (line 270) and env var default (line 406)
-
-2. **Remove silent fallback in game_state.py**:
+1. **Remove silent fallback in game_state.py**:
    - Lines 320-343: When `expand_area` fails, do NOT call `generate_fallback_location`
    - Instead, re-raise the exception or return an error message to the player
    - The player should be informed AI generation failed
 
-3. **Add JSON repair logic in ai_service.py** (optional enhancement):
+2. **Add JSON repair logic in ai_service.py** (optional enhancement):
    - Extract JSON from markdown code blocks (AI sometimes wraps in ```json)
    - Attempt to repair truncated arrays by closing brackets
 
 **Files to modify**:
-- `src/cli_rpg/ai_config.py`: Increase max_tokens default
 - `src/cli_rpg/game_state.py`: Remove fallback, propagate errors
 - `src/cli_rpg/ai_service.py`: Add JSON extraction/repair logic (optional)
 
@@ -286,6 +279,13 @@ Quests should be dynamically generated to keep gameplay fresh.
 - Emergent storylines from completed quests
 
 ## Resolved Issues
+
+### JSON truncation during AI area generation
+**Status**: RESOLVED
+
+**Description**: AI area generation was failing with JSON truncation errors (`Failed to parse response as JSON: Unterminated string starting at...`) because the default `max_tokens` value (500) was too low for generating 5-7 locations with NPCs, which can require 1500-2000+ tokens.
+
+**Fix**: Increased `max_tokens` default from 500 to 2000 in `ai_config.py`. Updated in dataclass default, `from_env()` fallback, `from_dict()` fallback, and docstring. Users can still override via `AI_MAX_TOKENS` environment variable.
 
 ### Distance-based enemy difficulty scaling
 **Status**: RESOLVED

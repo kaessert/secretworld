@@ -51,7 +51,7 @@ def test_ai_config_defaults(monkeypatch):
     assert config.api_key == "test-key"
     assert config.model == "gpt-3.5-turbo"  # Default
     assert config.temperature == 0.7  # Default
-    assert config.max_tokens == 500  # Default
+    assert config.max_tokens == 2000  # Default
     assert config.max_retries == 3  # Default
     assert config.enable_caching is True  # Default
 
@@ -199,7 +199,7 @@ def test_ai_config_from_dict_with_defaults():
     assert config.api_key == "test-key"
     assert config.model == "gpt-3.5-turbo"  # Default
     assert config.temperature == 0.7  # Default
-    assert config.max_tokens == 500  # Default
+    assert config.max_tokens == 2000  # Default
 
 
 # Test: AIConfig from_env with ANTHROPIC_API_KEY sets provider to "anthropic"

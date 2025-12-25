@@ -267,7 +267,7 @@ class AIConfig:
         provider: AI provider - "openai", "anthropic", or "ollama" (default: "openai")
         model: Model identifier (default: "gpt-3.5-turbo" for openai, "claude-3-5-sonnet-latest" for anthropic, "llama3.2" for ollama)
         temperature: Generation randomness 0.0-2.0 (default: 0.7)
-        max_tokens: Maximum response length (default: 500)
+        max_tokens: Maximum response length (default: 2000)
         max_retries: Retry attempts for API failures (default: 3)
         retry_delay: Delay between retries in seconds (default: 1.0)
         enable_caching: Enable response caching (default: True)
@@ -281,7 +281,7 @@ class AIConfig:
     provider: str = "openai"
     model: str = "gpt-3.5-turbo"
     temperature: float = 0.7
-    max_tokens: int = 500
+    max_tokens: int = 2000
     max_retries: int = 3
     retry_delay: float = 1.0
     enable_caching: bool = True
@@ -403,7 +403,7 @@ class AIConfig:
         else:
             model = os.getenv("AI_MODEL", default_model)
         temperature = float(os.getenv("AI_TEMPERATURE", "0.7"))
-        max_tokens = int(os.getenv("AI_MAX_TOKENS", "500"))
+        max_tokens = int(os.getenv("AI_MAX_TOKENS", "2000"))
         max_retries = int(os.getenv("AI_MAX_RETRIES", "3"))
         retry_delay = float(os.getenv("AI_RETRY_DELAY", "1.0"))
         enable_caching = os.getenv("AI_ENABLE_CACHING", "true").lower() == "true"
@@ -472,7 +472,7 @@ class AIConfig:
             provider=data.get("provider", "openai"),
             model=data.get("model", "gpt-3.5-turbo"),
             temperature=data.get("temperature", 0.7),
-            max_tokens=data.get("max_tokens", 500),
+            max_tokens=data.get("max_tokens", 2000),
             max_retries=data.get("max_retries", 3),
             retry_delay=data.get("retry_delay", 1.0),
             enable_caching=data.get("enable_caching", True),
