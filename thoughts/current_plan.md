@@ -1,455 +1,104 @@
-# Dread Hallucinations System - Implementation Plan
+# Implementation Plan: `dismiss <companion>` Command
 
 ## Spec
-
-At high dread levels (75%+), spawn fake enemies ("hallucinations") that appear real but disappear when attacked. This adds psychological horror depth by making players question what's real.
+Add a `dismiss` command that removes a companion from the party. This completes the companion management lifecycle (recruit → travel with → dismiss).
 
 **Behavior:**
-- Trigger: 30% chance per movement when dread ≥ 75% (but < 100%)
-- Hallucinations appear as normal combat encounters
-- When attacked, they dissipate with dramatic message (no damage dealt)
-- No XP/loot awarded for hallucination "kills"
-- Attacking a hallucination reduces dread by 5 (catharsis)
-- Does not trigger if already in combat or at 100% dread (shadow creature priority)
+- `dismiss <name>` - Removes companion matching `<name>` from `game_state.companions`
+- Case-insensitive name matching (like `recruit`)
+- Error cases: no arg provided, companion not in party
+- Success message acknowledging the departure
 
-**Hallucination Templates:**
-- "Shadow Mimic" - shifting, indistinct form
-- "Phantom Shade" - ethereal apparition
-- "Nightmare Echo" - creature from your fears
+## Tests
 
-## Files to Modify
-
-1. `src/cli_rpg/hallucinations.py` - NEW: Hallucination spawning and trigger logic
-2. `src/cli_rpg/models/enemy.py` - Add `is_hallucination: bool = False` field
-3. `src/cli_rpg/combat.py` - Handle hallucination in `player_attack()`
-4. `src/cli_rpg/game_state.py` - Integrate hallucination check in `move()`
-5. `src/cli_rpg/main.py` - Skip XP/bestiary for hallucination-only fights
-6. `tests/test_hallucinations.py` - NEW: Unit and integration tests
-
-## Tests (TDD)
-
-### tests/test_hallucinations.py
+Add to `tests/test_companion_commands.py`:
 
 ```python
-"""Tests for hallucination system at high dread levels (75%+)."""
-import pytest
-from unittest.mock import patch
+class TestDismissCommand:
+    """Tests for the 'dismiss' command."""
 
-from cli_rpg.models.character import Character
-from cli_rpg.models.enemy import Enemy
-from cli_rpg.models.location import Location
-from cli_rpg.game_state import GameState
-from cli_rpg.hallucinations import (
-    spawn_hallucination,
-    check_for_hallucination,
-    HALLUCINATION_DREAD_THRESHOLD,
-    HALLUCINATION_CHANCE,
-    DREAD_REDUCTION_ON_DISPEL,
-)
+    def test_dismiss_no_companion_specified(self):
+        """Test dismiss command without companion name shows error."""
+        game_state = create_test_game_state()
+        game_state.companions = []
 
+        success, message = handle_exploration_command(game_state, "dismiss", [])
 
-def create_test_character():
-    """Create a test character."""
-    return Character(name="TestHero", strength=10, dexterity=10, intelligence=10)
+        assert success is True
+        assert "dismiss" in message.lower() or "specify" in message.lower()
 
+    def test_dismiss_companion_not_in_party(self):
+        """Test dismiss command with nonexistent companion shows error."""
+        game_state = create_test_game_state()
+        game_state.companions = []
 
-def create_test_world():
-    """Create a test world with dungeon."""
-    town = Location(
-        name="Town Square",
-        description="A town.",
-        connections={"north": "Dark Cave"},
-        coordinates=(0, 0),
-        category="town"
-    )
-    cave = Location(
-        name="Dark Cave",
-        description="A cave.",
-        connections={"south": "Town Square"},
-        coordinates=(0, 1),
-        category="cave"
-    )
-    return {"Town Square": town, "Dark Cave": cave}
+        success, message = handle_exploration_command(game_state, "dismiss", ["Elara"])
 
+        assert success is True
+        assert "no companion" in message.lower() or "not" in message.lower()
 
-class TestSpawnHallucination:
-    """Test hallucination spawning."""
-
-    def test_spawn_returns_enemy(self):
-        """spawn_hallucination returns an Enemy instance."""
-        enemy = spawn_hallucination(level=5)
-        assert isinstance(enemy, Enemy)
-
-    def test_spawn_is_hallucination_flag(self):
-        """Hallucination has is_hallucination=True."""
-        enemy = spawn_hallucination(level=1)
-        assert enemy.is_hallucination is True
-
-    def test_spawn_has_themed_name(self):
-        """Hallucination has one of the themed names."""
-        enemy = spawn_hallucination(level=1)
-        valid_names = ["Shadow Mimic", "Phantom Shade", "Nightmare Echo"]
-        assert enemy.name in valid_names
-
-    def test_spawn_scales_with_level(self):
-        """Hallucination stats scale with player level."""
-        enemy_low = spawn_hallucination(level=1)
-        enemy_high = spawn_hallucination(level=10)
-        assert enemy_high.health > enemy_low.health
-
-    def test_spawn_has_description(self):
-        """Hallucination has a description."""
-        enemy = spawn_hallucination(level=1)
-        assert enemy.description != ""
-
-    def test_spawn_has_ascii_art(self):
-        """Hallucination has ASCII art."""
-        enemy = spawn_hallucination(level=1)
-        assert enemy.ascii_art != ""
-
-
-class TestCheckForHallucination:
-    """Test hallucination trigger logic."""
-
-    def test_triggers_at_75_dread(self):
-        """Hallucination can trigger at exactly 75% dread."""
-        char = create_test_character()
-        world = create_test_world()
-        game_state = GameState(char, world, "Town Square")
-        char.dread_meter.dread = 75
-
-        # Force trigger (30% chance)
-        with patch("cli_rpg.hallucinations.random.random", return_value=0.1):
-            result = check_for_hallucination(game_state)
-
-        assert result is not None
-        assert game_state.is_in_combat()
-        assert game_state.current_combat.enemy.is_hallucination
-
-    def test_no_trigger_below_75(self):
-        """Hallucination does not trigger below 75% dread."""
-        char = create_test_character()
-        world = create_test_world()
-        game_state = GameState(char, world, "Town Square")
-        char.dread_meter.dread = 74
-
-        with patch("cli_rpg.hallucinations.random.random", return_value=0.1):
-            result = check_for_hallucination(game_state)
-
-        assert result is None
-        assert not game_state.is_in_combat()
-
-    def test_no_trigger_at_100_dread(self):
-        """Hallucination does not trigger at 100% (shadow creature priority)."""
-        char = create_test_character()
-        world = create_test_world()
-        game_state = GameState(char, world, "Town Square")
-        char.dread_meter.dread = 100
-
-        with patch("cli_rpg.hallucinations.random.random", return_value=0.1):
-            result = check_for_hallucination(game_state)
-
-        assert result is None
-
-    def test_no_trigger_if_already_in_combat(self):
-        """Hallucination does not trigger if already in combat."""
-        char = create_test_character()
-        world = create_test_world()
-        game_state = GameState(char, world, "Town Square")
-        char.dread_meter.dread = 80
-
-        # Start combat first
-        from cli_rpg.combat import CombatEncounter
-        dummy = Enemy(name="Goblin", health=10, max_health=10, attack_power=5, defense=1, xp_reward=10)
-        game_state.current_combat = CombatEncounter(char, enemies=[dummy])
-        game_state.current_combat.is_active = True
-
-        with patch("cli_rpg.hallucinations.random.random", return_value=0.1):
-            result = check_for_hallucination(game_state)
-
-        assert result is None
-
-    def test_respects_30_percent_chance(self):
-        """Hallucination respects 30% trigger chance."""
-        char = create_test_character()
-        world = create_test_world()
-        game_state = GameState(char, world, "Town Square")
-        char.dread_meter.dread = 80
-
-        # Roll above 30% threshold
-        with patch("cli_rpg.hallucinations.random.random", return_value=0.5):
-            result = check_for_hallucination(game_state)
-
-        assert result is None
-
-
-class TestHallucinationCombat:
-    """Test hallucination behavior in combat."""
-
-    def test_attacking_hallucination_dispels_it(self):
-        """Attacking a hallucination dispels it with special message."""
-        char = create_test_character()
-        from cli_rpg.combat import CombatEncounter
-
-        hallucination = spawn_hallucination(level=1)
-        combat = CombatEncounter(char, enemies=[hallucination])
-        combat.start()
-
-        victory, message = combat.player_attack()
-
-        # Hallucination should be removed and combat should end
-        assert victory is True  # No enemies left = victory
-        assert "dissipate" in message.lower() or "illusion" in message.lower() or "vanish" in message.lower()
-        # No damage should be dealt (hallucination just disappears)
-
-    def test_hallucination_dispel_ends_combat(self):
-        """Dispelling hallucination ends combat (no enemy turn)."""
-        char = create_test_character()
-        from cli_rpg.combat import CombatEncounter
-
-        hallucination = spawn_hallucination(level=1)
-        combat = CombatEncounter(char, enemies=[hallucination])
-        combat.start()
-
-        victory, _ = combat.player_attack()
-
-        assert victory is True
-        assert len(combat.get_living_enemies()) == 0
-
-
-class TestEnemyHallucinationFlag:
-    """Test Enemy model hallucination field."""
-
-    def test_enemy_default_not_hallucination(self):
-        """Normal enemies have is_hallucination=False by default."""
-        enemy = Enemy(name="Wolf", health=20, max_health=20, attack_power=5, defense=2, xp_reward=10)
-        assert enemy.is_hallucination is False
-
-    def test_enemy_serialization_roundtrip(self):
-        """is_hallucination survives serialization."""
-        enemy = Enemy(
-            name="Phantom", health=20, max_health=20, attack_power=5,
-            defense=2, xp_reward=10, is_hallucination=True
+    def test_dismiss_success_removes_companion(self):
+        """Test successful dismiss removes companion from party."""
+        companion = Companion(
+            name="Elara",
+            description="A wandering minstrel",
+            recruited_at="Town Square",
+            bond_points=30
         )
-        data = enemy.to_dict()
-        restored = Enemy.from_dict(data)
-        assert restored.is_hallucination is True
+        game_state = create_test_game_state(companions=[companion])
 
-    def test_backward_compat_no_hallucination_field(self):
-        """Old saves without is_hallucination load correctly."""
-        old_data = {
-            "name": "Wolf", "health": 20, "max_health": 20,
-            "attack_power": 5, "defense": 2, "xp_reward": 10
-        }
-        enemy = Enemy.from_dict(old_data)
-        assert enemy.is_hallucination is False
+        success, message = handle_exploration_command(game_state, "dismiss", ["Elara"])
+
+        assert success is True
+        assert len(game_state.companions) == 0
+        assert "left" in message.lower() or "dismiss" in message.lower()
+
+    def test_dismiss_case_insensitive(self):
+        """Test dismiss command is case-insensitive."""
+        companion = Companion(
+            name="Elara",
+            description="A wandering minstrel",
+            recruited_at="Town Square"
+        )
+        game_state = create_test_game_state(companions=[companion])
+
+        success, message = handle_exploration_command(game_state, "dismiss", ["elara"])
+
+        assert success is True
+        assert len(game_state.companions) == 0
 
 
-class TestDreadReductionOnDispel:
-    """Test that dispelling hallucination reduces dread."""
+class TestDismissInKnownCommands:
+    """Test that dismiss is in KNOWN_COMMANDS."""
 
-    def test_dread_reduction_constant(self):
-        """Verify dread reduction constant is set."""
-        assert DREAD_REDUCTION_ON_DISPEL == 5
+    def test_dismiss_in_known_commands(self):
+        """Test that 'dismiss' is a recognized command."""
+        from cli_rpg.game_state import KNOWN_COMMANDS
+        assert "dismiss" in KNOWN_COMMANDS
 ```
 
-## Implementation Steps
+## Implementation
 
-### 1. Create `src/cli_rpg/hallucinations.py`
+1. **Add "dismiss" to KNOWN_COMMANDS** in `src/cli_rpg/game_state.py` (line ~56)
 
+2. **Add command handler** in `src/cli_rpg/main.py` after the `recruit` handler (~line 1099):
 ```python
-"""Hallucination system for high dread levels (75%+).
+elif command == "dismiss":
+    if not args:
+        return (True, "\nDismiss whom? Specify a companion name.")
 
-At high dread, the player may encounter fake enemies that appear real
-but dissipate when attacked. This adds psychological horror depth.
-"""
-import random
-from typing import Optional, TYPE_CHECKING
+    companion_name = " ".join(args).lower()
+    matching = [c for c in game_state.companions if c.name.lower() == companion_name]
 
-from cli_rpg.models.enemy import Enemy
-from cli_rpg.combat import CombatEncounter
-from cli_rpg import colors
+    if not matching:
+        return (True, f"\nNo companion named '{' '.join(args)}' in your party.")
 
-if TYPE_CHECKING:
-    from cli_rpg.game_state import GameState
-
-HALLUCINATION_DREAD_THRESHOLD = 75
-HALLUCINATION_CHANCE = 0.30
-DREAD_REDUCTION_ON_DISPEL = 5
-
-HALLUCINATION_TEMPLATES = [
-    {
-        "name": "Shadow Mimic",
-        "description": "A shifting, indistinct form that flickers between shapes you almost recognize.",
-        "attack_flavor": "lunges with shadowy claws",
-    },
-    {
-        "name": "Phantom Shade",
-        "description": "An ethereal apparition with hollow, staring eyes that seem to look through you.",
-        "attack_flavor": "reaches toward you with spectral hands",
-    },
-    {
-        "name": "Nightmare Echo",
-        "description": "A creature born from your deepest fears, yet somehow hauntingly familiar.",
-        "attack_flavor": "strikes with remembered terror",
-    },
-]
-
-HALLUCINATION_ASCII_ART = r"""
-   .~.~.
-  ( ? ? )
-   \~~~/
-  /|   |\
- ~ |   | ~
-   ~~~~~
-"""
-
-
-def spawn_hallucination(level: int) -> Enemy:
-    """Spawn a hallucination enemy.
-
-    Args:
-        level: Player level for stat scaling
-
-    Returns:
-        Enemy with is_hallucination=True
-    """
-    template = random.choice(HALLUCINATION_TEMPLATES)
-
-    return Enemy(
-        name=template["name"],
-        health=20 + level * 10,
-        max_health=20 + level * 10,
-        attack_power=3 + level * 2,
-        defense=1 + level,
-        xp_reward=0,  # No XP for hallucinations
-        level=level,
-        description=template["description"],
-        attack_flavor=template["attack_flavor"],
-        ascii_art=HALLUCINATION_ASCII_ART,
-        is_hallucination=True,
-    )
-
-
-def check_for_hallucination(game_state: "GameState") -> Optional[str]:
-    """Check for and trigger hallucination at high dread.
-
-    Triggers with 30% chance when dread is 75-99%.
-    Does not trigger at 100% (shadow creature priority) or if in combat.
-
-    Args:
-        game_state: Current game state
-
-    Returns:
-        Combat start message if hallucination triggered, None otherwise
-    """
-    dread = game_state.current_character.dread_meter.dread
-
-    # Only trigger at 75-99% dread
-    if dread < HALLUCINATION_DREAD_THRESHOLD or dread >= 100:
-        return None
-
-    # Don't trigger if already in combat
-    if game_state.is_in_combat():
-        return None
-
-    # 30% chance to trigger
-    if random.random() > HALLUCINATION_CHANCE:
-        return None
-
-    # Spawn hallucination
-    hallucination = spawn_hallucination(game_state.current_character.level)
-
-    # Create combat encounter
-    game_state.current_combat = CombatEncounter(
-        game_state.current_character,
-        enemies=[hallucination],
-        companions=game_state.companions,
-    )
-
-    # Build eerie message
-    intro_lines = [
-        "",
-        colors.warning("[Your mind plays tricks on you...]"),
-        "",
-    ]
-
-    combat_start = game_state.current_combat.start()
-
-    return "\n".join(intro_lines) + combat_start
+    companion = matching[0]
+    game_state.companions.remove(companion)
+    return (True, f"\n{companion.name} has left your party.")
 ```
 
-### 2. Modify `src/cli_rpg/models/enemy.py`
-
-Add field to Enemy dataclass (after `bleed_duration`):
+3. **Add to help text** in `get_command_reference()` (~line 50):
 ```python
-is_hallucination: bool = False  # True if this is a dread-induced hallucination
+"  dismiss <name>     - Dismiss a companion from your party",
 ```
-
-Update `to_dict()`:
-```python
-"is_hallucination": self.is_hallucination,
-```
-
-Update `from_dict()`:
-```python
-is_hallucination=data.get("is_hallucination", False),
-```
-
-### 3. Modify `src/cli_rpg/combat.py`
-
-In `player_attack()`, after getting target enemy but before calculating damage (around line 460):
-```python
-# Check if target is a hallucination
-if enemy.is_hallucination:
-    self.enemies.remove(enemy)
-    self.is_active = len(self.get_living_enemies()) > 0
-    message = (
-        f"Your attack passes through {colors.enemy(enemy.name)}!\n"
-        f"The creature {colors.warning('dissipates')} like morning mist - "
-        f"it was never real."
-    )
-    if not self.get_living_enemies():
-        message += f" {colors.heal('The illusion fades.')}"
-    return (not self.get_living_enemies(), message)
-```
-
-### 4. Modify `src/cli_rpg/game_state.py`
-
-Add import at top:
-```python
-from cli_rpg.hallucinations import check_for_hallucination, DREAD_REDUCTION_ON_DISPEL
-```
-
-In `move()`, after shadow creature check (line 500) but before whisper check:
-```python
-# Check for hallucination at high dread (only if no shadow attack)
-if not shadow_message and not self.is_in_combat():
-    hallucination_message = check_for_hallucination(self)
-    if hallucination_message:
-        message += f"\n{hallucination_message}"
-```
-
-### 5. Modify `src/cli_rpg/main.py`
-
-In `handle_combat_command()`, after victory check (around line 251):
-```python
-# Check if this was a hallucination-only fight
-all_hallucinations = all(e.is_hallucination for e in combat.enemies)
-if all_hallucinations:
-    # Hallucination dispelled - reduce dread, skip XP/bestiary
-    from cli_rpg.hallucinations import DREAD_REDUCTION_ON_DISPEL
-    game_state.current_character.dread_meter.reduce_dread(DREAD_REDUCTION_ON_DISPEL)
-    output += f"\n{colors.heal('Your mind clears slightly as the illusion fades.')}"
-    game_state.current_combat = None
-    return (True, output)
-```
-
-## Order of Implementation
-
-1. Add `is_hallucination` field to Enemy model (with serialization)
-2. Create `hallucinations.py` module
-3. Add hallucination check to combat.py `player_attack()`
-4. Integrate into `game_state.py` move()
-5. Handle hallucination-only fights in main.py
-6. Write and run tests

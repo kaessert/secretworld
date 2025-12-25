@@ -48,6 +48,7 @@ def get_command_reference() -> str:
         "  events             - View active world events",
         "  companions         - View your party members and bond levels",
         "  recruit <npc>      - Recruit an NPC to join your party",
+        "  dismiss <name>     - Dismiss a companion from your party",
         "  help (h)           - Display this command reference",
         "  dump-state         - Export full game state as JSON",
         "  save               - Save your game (not available during combat)",
@@ -1096,6 +1097,20 @@ def handle_exploration_command(game_state: GameState, command: str, args: list[s
         game_state.companions.append(companion)
 
         return (True, f"\n{npc.name} has joined your party!")
+
+    elif command == "dismiss":
+        if not args:
+            return (True, "\nDismiss whom? Specify a companion name.")
+
+        companion_name = " ".join(args).lower()
+        matching = [c for c in game_state.companions if c.name.lower() == companion_name]
+
+        if not matching:
+            return (True, f"\nNo companion named '{' '.join(args)}' in your party.")
+
+        companion = matching[0]
+        game_state.companions.remove(companion)
+        return (True, f"\n{companion.name} has left your party.")
 
     elif command == "companion-quest":
         # View/accept a companion's personal quest

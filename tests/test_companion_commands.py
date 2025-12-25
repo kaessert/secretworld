@@ -210,8 +210,62 @@ class TestRecruitCommand:
         assert game_state.companions[0].name == "Elara"
 
 
+class TestDismissCommand:
+    """Tests for the 'dismiss' command."""
+
+    def test_dismiss_no_companion_specified(self):
+        """Test dismiss command without companion name shows error."""
+        game_state = create_test_game_state()
+        game_state.companions = []
+
+        success, message = handle_exploration_command(game_state, "dismiss", [])
+
+        assert success is True
+        assert "dismiss" in message.lower() or "specify" in message.lower()
+
+    def test_dismiss_companion_not_in_party(self):
+        """Test dismiss command with nonexistent companion shows error."""
+        game_state = create_test_game_state()
+        game_state.companions = []
+
+        success, message = handle_exploration_command(game_state, "dismiss", ["Elara"])
+
+        assert success is True
+        assert "no companion" in message.lower() or "not" in message.lower()
+
+    def test_dismiss_success_removes_companion(self):
+        """Test successful dismiss removes companion from party."""
+        companion = Companion(
+            name="Elara",
+            description="A wandering minstrel",
+            recruited_at="Town Square",
+            bond_points=30
+        )
+        game_state = create_test_game_state(companions=[companion])
+
+        success, message = handle_exploration_command(game_state, "dismiss", ["Elara"])
+
+        assert success is True
+        assert len(game_state.companions) == 0
+        assert "left" in message.lower() or "dismiss" in message.lower()
+
+    def test_dismiss_case_insensitive(self):
+        """Test dismiss command is case-insensitive."""
+        companion = Companion(
+            name="Elara",
+            description="A wandering minstrel",
+            recruited_at="Town Square"
+        )
+        game_state = create_test_game_state(companions=[companion])
+
+        success, message = handle_exploration_command(game_state, "dismiss", ["elara"])
+
+        assert success is True
+        assert len(game_state.companions) == 0
+
+
 class TestCompanionsInKnownCommands:
-    """Test that companions and recruit are in KNOWN_COMMANDS."""
+    """Test that companions, recruit, and dismiss are in KNOWN_COMMANDS."""
 
     def test_companions_in_known_commands(self):
         """Test that 'companions' is a recognized command."""
@@ -222,3 +276,8 @@ class TestCompanionsInKnownCommands:
         """Test that 'recruit' is a recognized command."""
         from cli_rpg.game_state import KNOWN_COMMANDS
         assert "recruit" in KNOWN_COMMANDS
+
+    def test_dismiss_in_known_commands(self):
+        """Test that 'dismiss' is a recognized command."""
+        from cli_rpg.game_state import KNOWN_COMMANDS
+        assert "dismiss" in KNOWN_COMMANDS

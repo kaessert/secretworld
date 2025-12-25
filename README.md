@@ -68,6 +68,7 @@ python -m cli_rpg.main
 - `bestiary` (b) - View all defeated enemies with kill counts and stats
 - `companions` - View your party members with bond levels
 - `recruit <npc>` - Recruit a willing NPC to join your party
+- `dismiss <name>` - Dismiss a companion from your party
 - `companion-quest <name>` - Accept a companion's personal quest (requires TRUSTED bond level)
 - `dump-state` - Export complete game state as JSON for programmatic inspection
 - `rest` (r) - Rest to recover health (restores 25% of max HP, advances time by 4 hours, reduces dread, may trigger dreams; not available during combat)

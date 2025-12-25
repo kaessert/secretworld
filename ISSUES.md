@@ -693,6 +693,7 @@ Adventuring alone limits roleplay possibilities.
 - ✅ Bond system with 4 levels (STRANGER → ACQUAINTANCE → TRUSTED → DEVOTED)
 - ✅ `companions` command to view party members
 - ✅ `recruit <npc>` command to recruit willing NPCs
+- ✅ `dismiss <name>` command to remove companions from party
 - ✅ Persistence with backward compatibility
 
 **Remaining features**:
