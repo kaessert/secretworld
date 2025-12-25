@@ -298,6 +298,9 @@ class GameState:
         if not current.has_connection(direction):
             return (False, "You can't go that way.")
 
+        # Track if AI generation was attempted but failed (to inform player)
+        ai_fallback_used = False
+
         # Use coordinate-based movement if current location has coordinates
         if current.coordinates is not None:
             # Calculate target coordinates for valid cardinal directions
@@ -335,9 +338,9 @@ class GameState:
                             self.current_location = target_location.name
                             ai_succeeded = True
                     except Exception as e:
-                        # Log error for debugging but don't expose to player
-                        logger.warning(f"AI area generation failed, using fallback: {e}")
-                        # Fall through to fallback generation below
+                        logger.warning(f"AI area generation failed: {e}")
+                        # Mark that AI was attempted but failed
+                        ai_fallback_used = True
 
                 # Use fallback generation when AI failed or is unavailable
                 if not ai_succeeded:
@@ -399,6 +402,13 @@ class GameState:
             pass  # Silent failure - don't interrupt gameplay
 
         message = f"You head {direction} to {colors.location(self.current_location)}."
+
+        # Inform player if AI generation failed and template was used
+        if ai_fallback_used:
+            fallback_notice = colors.warning(
+                "[AI world generation temporarily unavailable. Using template generation.]"
+            )
+            message += f"\n{fallback_notice}"
 
         # Check for exploration quest progress
         explore_messages = self.current_character.record_explore(self.current_location)

@@ -188,3 +188,15 @@ def stat_header(text: str) -> str:
         Magenta-colored text.
     """
     return colorize(text, MAGENTA)
+
+
+def warning(text: str) -> str:
+    """Color text as a warning (yellow).
+
+    Args:
+        text: Warning message text.
+
+    Returns:
+        Yellow-colored text.
+    """
+    return colorize(text, YELLOW)

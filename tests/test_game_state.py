@@ -668,6 +668,53 @@ class TestGameStateCoordinateBasedMovement:
         # World should NOT have a new location generated
         assert len(game_state.world) == 1
 
+    def test_move_informs_player_when_ai_fails(self, monkeypatch):
+        """Test that player is informed when AI generation fails during move.
+
+        Spec: When AI area generation fails, player should see a message
+        indicating fallback was used, not silent fallback.
+        """
+        from unittest.mock import MagicMock
+
+        # Disable autosave for this test
+        monkeypatch.setattr("cli_rpg.game_state.autosave", lambda gs: None)
+
+        character = Character("Hero", strength=10, dexterity=10, intelligence=10)
+
+        # Origin at (0,0) with west connection (to trigger generation)
+        loc_origin = Location(
+            "Origin", "Starting location",
+            connections={"west": "Unknown"},
+            coordinates=(0, 0)
+        )
+        world = {"Origin": loc_origin}
+        game_state = GameState(character, world, "Origin")
+
+        # Set up mock AI service that will fail
+        mock_ai_service = MagicMock()
+        game_state.ai_service = mock_ai_service
+
+        # Mock expand_area to raise an exception
+        def mock_expand_area(*args, **kwargs):
+            raise Exception("AI service unavailable")
+
+        # Patch the expand_area function to raise exception
+        monkeypatch.setattr("cli_rpg.game_state.expand_area", mock_expand_area)
+        # Ensure AI_AVAILABLE is True so AI path is attempted
+        monkeypatch.setattr("cli_rpg.game_state.AI_AVAILABLE", True)
+
+        # Move west - AI will fail, should use fallback and inform player
+        success, message = game_state.move("west")
+
+        # Should still succeed (fallback works)
+        assert success is True
+        # Player should be informed about AI failure
+        assert "unavailable" in message.lower() or "template" in message.lower() or "fallback" in message.lower()
+        # Should have generated a new location
+        assert len(game_state.world) == 2
+        # Should have moved to new location
+        assert game_state.current_location != "Origin"
+
 
 class TestGameStateSerialization:
     """Tests for GameState serialization."""

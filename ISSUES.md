@@ -1,31 +1,5 @@
 ## Active Issues
 
-### Silent fallback masks AI generation failures
-**Status**: ACTIVE
-
-**Problem**: When AI area generation fails, the code silently falls back to template-based generation. Players should be informed when AI generation fails.
-
-**Root Causes**:
-
-1. **Silent fallback in game_state.py**: Lines 320-343 catch AI exceptions and fall back to `generate_fallback_location()`. This masks failures instead of surfacing them.
-
-2. **Invalid connections**: Fallback locations add dangling "Unexplored X" connections pointing to non-existent locations, creating inconsistent world state.
-
-**Required Fixes**:
-
-1. **Remove silent fallback in game_state.py**:
-   - Lines 320-343: When `expand_area` fails, do NOT call `generate_fallback_location`
-   - Instead, re-raise the exception or return an error message to the player
-   - The player should be informed AI generation failed
-
-2. **Add JSON repair logic in ai_service.py** (optional enhancement):
-   - Extract JSON from markdown code blocks (AI sometimes wraps in ```json)
-   - Attempt to repair truncated arrays by closing brackets
-
-**Files to modify**:
-- `src/cli_rpg/game_state.py`: Remove fallback, propagate errors
-- `src/cli_rpg/ai_service.py`: Add JSON extraction/repair logic (optional)
-
 ### Non-interactive mode enhancements
 **Status**: ACTIVE
 
@@ -279,6 +253,13 @@ Quests should be dynamically generated to keep gameplay fresh.
 - Emergent storylines from completed quests
 
 ## Resolved Issues
+
+### Silent fallback masks AI generation failures
+**Status**: RESOLVED
+
+**Description**: When AI area generation failed, the code silently fell back to template-based generation without informing the player. Players had no way to know they weren't getting AI-generated content.
+
+**Fix**: Added user notification when AI fallback occurs. The game now displays a yellow warning message: "[AI world generation temporarily unavailable. Using template generation.]" when AI generation fails but fallback succeeds. The `colors.warning()` helper function was added to style the message. Test added: `test_move_informs_player_when_ai_fails` in `tests/test_game_state.py`.
 
 ### JSON truncation during AI area generation
 **Status**: RESOLVED

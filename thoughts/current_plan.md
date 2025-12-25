@@ -1,63 +1,68 @@
-# Fix AI Area Generation JSON Truncation - Step 1: Increase max_tokens
+# Fix: Silent fallback masks AI generation failures
 
-## Spec
-Increase `max_tokens` default from 500 to 2000 to prevent JSON truncation during AI area generation. Area generation (5-7 locations with NPCs) can require 1500-2000+ tokens.
+## Problem
+When AI area generation fails in `game_state.py` (lines 337-340), it silently falls back to template-based generation via `generate_fallback_location()`. Players should be informed when AI generation fails.
 
-## Changes
+## Implementation
 
-### 1. `src/cli_rpg/ai_config.py`
+### 1. Modify `game_state.py` (lines 337-361)
+Replace silent fallback with user notification:
 
-**Line 270 (docstring):** Change "default: 500" to "default: 2000"
+**Before (lines 337-340):**
 ```python
-# Before:
-max_tokens: Maximum response length (default: 500)
-
-# After:
-max_tokens: Maximum response length (default: 2000)
+except Exception as e:
+    # Log error for debugging but don't expose to player
+    logger.warning(f"AI area generation failed, using fallback: {e}")
+    # Fall through to fallback generation below
 ```
 
-**Line 284 (dataclass field):** Change default value
+**After:**
 ```python
-# Before:
-max_tokens: int = 500
-
-# After:
-max_tokens: int = 2000
+except Exception as e:
+    logger.warning(f"AI area generation failed: {e}")
+    # Inform player and still use fallback for gameplay continuity
+    # The message will be prepended to the move result
+    ai_failed = True
 ```
 
-**Line 406 (env var default):** Change fallback in `from_env()`
-```python
-# Before:
-max_tokens = int(os.getenv("AI_MAX_TOKENS", "500"))
+Then modify the success path to return an informative message when `ai_failed` is True.
 
-# After:
-max_tokens = int(os.getenv("AI_MAX_TOKENS", "2000"))
+**Key changes:**
+- Add `ai_failed = False` flag at the start of the else block (line 317)
+- Set `ai_failed = True` in the exception handler
+- After fallback generation succeeds, return a message indicating AI failed but fallback was used
+- Return format: `(True, "AI world generation temporarily unavailable. Using template generation.")`
+
+### 2. Test: `tests/test_game_state.py`
+Add test `test_move_informs_player_when_ai_fails`:
+```python
+def test_move_informs_player_when_ai_fails(self):
+    """Test that player is informed when AI generation fails during move.
+
+    Spec: When AI area generation fails, player should see a message
+    indicating fallback was used, not silent fallback.
+    """
+    # Setup: GameState with AI service that raises exception
+    # Mock expand_area to raise AIGenerationError
+    # Call move() in a direction requiring generation
+    # Assert: success is True, message contains fallback notification
 ```
 
-**Line 475 (from_dict default):** Change fallback value
+### 3. Optional enhancement: Add `warning()` helper to `colors.py`
 ```python
-# Before:
-max_tokens=data.get("max_tokens", 500),
-
-# After:
-max_tokens=data.get("max_tokens", 2000),
+def warning(text: str) -> str:
+    """Color text as a warning (yellow)."""
+    return colorize(text, YELLOW)
 ```
 
-### 2. `tests/test_ai_config.py`
-
-Update tests that assert `max_tokens == 500` to assert `max_tokens == 2000`:
-
-**Line 54:** `test_ai_config_defaults`
-```python
-assert config.max_tokens == 2000  # Default (was 500)
-```
-
-**Line 202:** `test_ai_config_from_dict_with_defaults`
-```python
-assert config.max_tokens == 2000  # Default (was 500)
-```
+## Files to modify
+1. `src/cli_rpg/game_state.py` - Remove silent fallback, add player notification
+2. `tests/test_game_state.py` - Add test for AI failure notification
+3. `src/cli_rpg/colors.py` - Optional: add warning() helper
 
 ## Verification
 ```bash
-pytest tests/test_ai_config.py -v
+pytest tests/test_game_state.py -v -k "ai_fails"
+pytest tests/test_game_state.py -v
+pytest --cov=src/cli_rpg
 ```
