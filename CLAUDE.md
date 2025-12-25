@@ -45,6 +45,7 @@ src/cli_rpg/
 └── models/
     ├── character.py     # Player character model
     ├── enemy.py         # Enemy/monster model
+    ├── game_time.py     # Day/night cycle and time tracking
     ├── item.py          # Item definitions
     ├── inventory.py     # Inventory management
     ├── location.py      # Location with coordinates, connections, NPCs

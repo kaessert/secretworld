@@ -5,6 +5,7 @@ import logging
 import random
 from typing import Optional
 from cli_rpg.models.character import Character
+from cli_rpg.models.game_time import GameTime
 from cli_rpg.models.location import Location
 from cli_rpg.models.npc import NPC
 from cli_rpg.models.shop import Shop
@@ -176,6 +177,7 @@ class GameState:
         self.current_shop: Optional[Shop] = None  # Active shop interaction
         self.current_npc: Optional[NPC] = None  # NPC being talked to (for accept command)
         self.whisper_service = WhisperService(ai_service=ai_service)
+        self.game_time = GameTime()  # Day/night cycle tracking
 
     @property
     def is_in_conversation(self) -> bool:
@@ -407,6 +409,9 @@ class GameState:
                 return (False, "Failed to determine destination.")
             self.current_location = destination_name
 
+        # Advance time by 1 hour for movement
+        self.game_time.advance(1)
+
         # Autosave after successful movement
         try:
             autosave(self)
@@ -436,7 +441,8 @@ class GameState:
             whisper = self.whisper_service.get_whisper(
                 location_category=location.category,
                 character=self.current_character,
-                theme=self.theme
+                theme=self.theme,
+                is_night=self.game_time.is_night()
             )
             if whisper:
                 message += f"\n\n{format_whisper(whisper)}"
@@ -450,9 +456,9 @@ class GameState:
     
     def to_dict(self) -> dict:
         """Serialize game state to dictionary.
-        
+
         Returns:
-            Dictionary containing character, current_location, world data, and theme
+            Dictionary containing character, current_location, world data, theme, and game_time
         """
         return {
             "character": self.current_character.to_dict(),
@@ -461,37 +467,46 @@ class GameState:
                 name: location.to_dict()
                 for name, location in self.world.items()
             },
-            "theme": self.theme
+            "theme": self.theme,
+            "game_time": self.game_time.to_dict()
         }
     
     @classmethod
     def from_dict(cls, data: dict, ai_service: Optional["AIService"] = None) -> "GameState":
         """Deserialize game state from dictionary.
-        
+
         Args:
             data: Dictionary containing game state data
             ai_service: Optional AIService to enable dynamic world generation
-            
+
         Returns:
             GameState instance
-            
+
         Raises:
             KeyError: If required fields are missing
         """
         # Deserialize character
         character = Character.from_dict(data["character"])
-        
+
         # Deserialize world
         world = {
             name: Location.from_dict(location_data)
             for name, location_data in data["world"].items()
         }
-        
+
         # Get current location
         current_location = data["current_location"]
-        
+
         # Get theme (default to "fantasy" for backward compatibility)
         theme = data.get("theme", "fantasy")
-        
-        # Create and return game state
-        return cls(character, world, current_location, ai_service=ai_service, theme=theme)
+
+        # Create game state
+        game_state = cls(
+            character, world, current_location, ai_service=ai_service, theme=theme
+        )
+
+        # Restore game_time if present (default to 6:00 for backward compatibility)
+        if "game_time" in data:
+            game_state.game_time = GameTime.from_dict(data["game_time"])
+
+        return game_state

@@ -14,6 +14,19 @@ if TYPE_CHECKING:
 
 WHISPER_CHANCE = 0.30  # 30% chance of whisper on location entry
 PLAYER_HISTORY_CHANCE = 0.10  # 10% of whispers are player-history-aware
+NIGHT_WHISPER_CHANCE = 0.40  # 40% chance of night whisper when it's night
+
+# Night-specific whispers (eerie atmosphere)
+NIGHT_WHISPERS = [
+    "The darkness presses in around you...",
+    "Shadows dance at the edge of your vision.",
+    "The night is alive with unseen things.",
+    "A cold wind whispers secrets in the dark.",
+    "Stars peer down like countless watchful eyes.",
+    "The moon casts long, sinister shadows.",
+    "Something prowls in the darkness nearby...",
+    "Night creatures stir in their hidden lairs.",
+]
 
 # Template whispers by location category
 CATEGORY_WHISPERS = {
@@ -90,7 +103,8 @@ class WhisperService:
         self,
         location_category: Optional[str],
         character: Optional["Character"] = None,
-        theme: str = "fantasy"
+        theme: str = "fantasy",
+        is_night: bool = False
     ) -> Optional[str]:
         """Get a whisper for the current location, if one triggers.
 
@@ -98,6 +112,7 @@ class WhisperService:
             location_category: The category of the current location
             character: Optional player character for history-aware whispers
             theme: World theme for AI generation
+            is_night: Whether it's currently night time
 
         Returns:
             Whisper text or None if no whisper triggers
@@ -120,17 +135,24 @@ class WhisperService:
                 pass  # Fall back to templates
 
         # Use template whispers
-        return self._get_template_whisper(location_category)
+        return self._get_template_whisper(location_category, is_night=is_night)
 
-    def _get_template_whisper(self, category: Optional[str]) -> str:
+    def _get_template_whisper(
+        self, category: Optional[str], is_night: bool = False
+    ) -> str:
         """Get a random template whisper for the location category.
 
         Args:
             category: Location category (town, dungeon, etc.)
+            is_night: Whether it's currently night time
 
         Returns:
-            A random whisper string from the category templates
+            A random whisper string from the category or night templates
         """
+        # At night, chance to use night-specific whispers
+        if is_night and random.random() < NIGHT_WHISPER_CHANCE:
+            return random.choice(NIGHT_WHISPERS)
+
         whispers = CATEGORY_WHISPERS.get(category or "default", CATEGORY_WHISPERS["default"])
         return random.choice(whispers)
 

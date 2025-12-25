@@ -1,205 +1,103 @@
-# Implementation Plan: Multi-Layered Examination (Environmental Storytelling MVP)
+# Day/Night Cycle Implementation Plan
+
+## Overview
+Implement a basic day/night cycle that tracks game time and changes location descriptions, NPC availability, and whispers based on time of day.
 
 ## Spec
 
-When players use the `look` command multiple times in the same location, reveal progressively more details:
+**Time System:**
+- Game time tracked in `GameState` as `game_time: int` (hour 0-23)
+- Time advances on player actions: movement (+1 hour), rest (+4 hours), combat completion (+1 hour)
+- Two periods: Day (6:00-17:59) and Night (18:00-5:59)
+- `get_time_period() -> str` returns "day" or "night"
+- `get_time_display() -> str` returns formatted time like "14:00 (Day)"
 
-**Examination Layers**:
-1. **Surface (first look)**: Standard location description (current behavior)
-2. **Details (second look)**: Additional environmental details (new field on Location)
-3. **Secrets (third look)**: Hidden secrets or lore hints (new field on Location)
+**Time Effects:**
+1. Location descriptions append time-specific flavor text at night
+2. WhisperService uses time-aware whisper templates (eerie at night)
+3. NPCs may be unavailable at night (shops close)
+4. `status` command displays current time
 
-**Core Behavior**:
-- Track look count per location on the player character
-- Each look in the same location advances to the next layer
-- Moving to a new location resets the look count for the previous location
-- Details/secrets are only shown if the location has that content (optional fields)
-- AI can generate layer content when service is available
+**Persistence:**
+- `game_time` serialized in `GameState.to_dict()` and restored in `from_dict()`
 
-**Display Format**:
-```
-Town Square
-[existing description]
-Exits: north, south
-
-Upon closer inspection, you notice:
-  - Worn grooves in the cobblestones from years of cart traffic
-  - A faded notice board with curling papers
-  - The fountain's basin has coins glinting at the bottom
-
-[On third look]
-Hidden secrets reveal themselves:
-  - Behind the notice board, someone has scratched initials: "R.K. + M.T."
-  - One cobblestone near the fountain is loose, as if frequently moved
-```
-
-## Tests (TDD)
-
-Create `tests/test_examination.py`:
-
-### 1. Look count tracking tests
-- `test_first_look_returns_surface_only`: First look shows standard description
-- `test_second_look_reveals_details`: Second look includes details layer
-- `test_third_look_reveals_secrets`: Third look includes secrets layer
-- `test_fourth_look_repeats_full_description`: Additional looks repeat full content
-- `test_moving_resets_look_count`: Moving to new location resets counter
-
-### 2. Location model tests
-- `test_location_details_field_optional`: Location works without details
-- `test_location_secrets_field_optional`: Location works without secrets
-- `test_location_serialization_with_layers`: to_dict/from_dict preserves layers
-- `test_location_str_with_layers`: __str__ method includes all layers
-
-### 3. Character look tracking tests
-- `test_character_look_counts_init_empty`: New character has no look counts
-- `test_character_record_look_increments`: record_look increments counter
-- `test_character_get_look_count_returns_zero_for_new`: Unknown location returns 0
-- `test_character_look_counts_serialization`: Save/load preserves look counts
-
-### 4. GameState integration tests
-- `test_gamestate_look_increments_counter`: look() method updates character
-- `test_gamestate_move_resets_previous_look_count`: Move clears old counter
+---
 
 ## Implementation Steps
 
-### Step 1: Add look tracking to Character model
-**File**: `src/cli_rpg/models/character.py`
-
-Add `look_counts: dict[str, int]` field to track looks per location:
-
+### 1. Create time model (`src/cli_rpg/models/game_time.py`)
 ```python
-# In Character dataclass
-look_counts: dict[str, int] = field(default_factory=dict)
+@dataclass
+class GameTime:
+    hour: int = 6  # Start at 6:00 AM
 
-def record_look(self, location_name: str) -> int:
-    """Record a look at a location and return the new count."""
-    self.look_counts[location_name] = self.look_counts.get(location_name, 0) + 1
-    return self.look_counts[location_name]
-
-def get_look_count(self, location_name: str) -> int:
-    """Get the number of times player has looked at a location."""
-    return self.look_counts.get(location_name, 0)
-
-def reset_look_count(self, location_name: str) -> None:
-    """Reset the look count for a location."""
-    self.look_counts.pop(location_name, None)
+    def advance(self, hours: int) -> None
+    def get_period(self) -> str  # "day" or "night"
+    def get_display(self) -> str  # "14:00 (Day)"
+    def is_night(self) -> bool
+    def to_dict() / from_dict()
 ```
 
-Update `to_dict()` and `from_dict()` for serialization.
+### 2. Add `GameTime` to `GameState` (`src/cli_rpg/game_state.py`)
+- Add `game_time: GameTime` attribute in `__init__`
+- Advance time on: `move()` (+1), rest command (+4), combat end (+1)
+- Serialize/deserialize in `to_dict()`/`from_dict()`
 
-### Step 2: Add layer fields to Location model
-**File**: `src/cli_rpg/models/location.py`
+### 3. Update `status` command (`src/cli_rpg/main.py`)
+- Add time display to character status output: `"Time: 14:00 (Day)"`
 
-Add optional fields for environmental details and secrets:
+### 4. Add night whispers (`src/cli_rpg/whisper.py`)
+- Add `NIGHT_WHISPERS` templates
+- `get_whisper()` takes `is_night: bool` parameter
+- At night, blend night-specific whispers into pool
 
-```python
-# In Location dataclass (after existing fields)
-details: Optional[str] = None  # Second-look environmental details
-secrets: Optional[str] = None  # Third-look hidden secrets
-```
+### 5. Add night flavor to locations (`src/cli_rpg/models/location.py`)
+- Add `night_description: Optional[str]` field
+- `get_layered_description()` appends night flavor when `is_night=True`
 
-Update `__str__()` to accept a look_level parameter (or create new method):
+### 6. NPC night availability (`src/cli_rpg/models/npc.py`, `src/cli_rpg/main.py`)
+- Add `available_at_night: bool = True` field to NPC
+- `talk` command checks availability: "The merchant has gone home for the night."
+- `shop` command blocked at night for closed shops
 
-```python
-def get_layered_description(self, look_count: int = 1) -> str:
-    """Get description with appropriate layers based on look count."""
-    result = f"{colors.location(self.name)}\n"
+---
 
-    if self.ascii_art:
-        result += self.ascii_art.strip() + "\n"
+## Test Plan (`tests/test_day_night.py`)
 
-    result += f"{self.description}\n"
+### GameTime Tests
+- `test_game_time_defaults_to_morning` - starts at 6:00
+- `test_game_time_advance_wraps_at_24` - 23 + 2 = 1
+- `test_game_time_is_night_returns_true_at_night` - 18-5 is night
+- `test_game_time_is_night_returns_false_during_day` - 6-17 is day
+- `test_game_time_get_period_day` - returns "day"
+- `test_game_time_get_period_night` - returns "night"
+- `test_game_time_serialization` - to_dict/from_dict roundtrip
 
-    if self.npcs:
-        npc_names = [colors.npc(npc.name) for npc in self.npcs]
-        result += f"NPCs: {', '.join(npc_names)}\n"
+### GameState Time Integration
+- `test_move_advances_time` - moving increments hour by 1
+- `test_rest_advances_time_by_4` - resting increments by 4
+- `test_game_time_persists_in_save` - saved/loaded correctly
+- `test_game_time_backward_compatibility` - old saves default to 6:00
 
-    if self.connections:
-        directions = self.get_available_directions()
-        result += f"Exits: {', '.join(directions)}"
-    else:
-        result += "Exits: None"
+### Whisper Night Integration
+- `test_whisper_uses_night_templates_at_night` - night-specific whispers appear
 
-    # Add details layer (look_count >= 2)
-    if look_count >= 2 and self.details:
-        result += f"\n\nUpon closer inspection, you notice:\n{self.details}"
+### NPC Night Availability
+- `test_npc_unavailable_at_night` - merchant not available at night
+- `test_talk_to_npc_at_night_blocked` - returns unavailable message
+- `test_shop_closed_at_night` - shop command returns closed message
 
-    # Add secrets layer (look_count >= 3)
-    if look_count >= 3 and self.secrets:
-        result += f"\n\nHidden secrets reveal themselves:\n{self.secrets}"
+### Status Display
+- `test_status_shows_time` - character status includes time display
 
-    return result
-```
+---
 
-Update `to_dict()` and `from_dict()` for serialization (with backward compatibility).
+## Files to Create
+- `src/cli_rpg/models/game_time.py` - new
 
-### Step 3: Update GameState.look() method
-**File**: `src/cli_rpg/game_state.py`
-
-Modify `look()` to track looks and return layered description:
-
-```python
-def look(self) -> str:
-    """Get a formatted description of the current location with progressive detail.
-
-    Returns:
-        String description with appropriate detail layers based on look count
-    """
-    location = self.get_current_location()
-    # Increment and get look count
-    look_count = self.current_character.record_look(self.current_location)
-    return location.get_layered_description(look_count)
-```
-
-### Step 4: Update GameState.move() to reset look count
-**File**: `src/cli_rpg/game_state.py`
-
-In `move()`, reset the look count for the previous location:
-
-```python
-# At start of move(), before movement logic:
-previous_location = self.current_location
-
-# After successful movement, reset previous location's look count:
-self.current_character.reset_look_count(previous_location)
-```
-
-### Step 5: Add AI generation for layers (optional)
-**File**: `src/cli_rpg/ai_world.py`
-
-Update location generation prompts to include details and secrets fields. This is optional and can be added later - the base system works without AI.
-
-### Step 6: Update world generation to include sample layers
-**File**: `src/cli_rpg/world.py`
-
-Add example details/secrets to template locations so the feature is visible without AI:
-
-```python
-# In create_default_world() or template generation
-town_square = Location(
-    name="Town Square",
-    description="A bustling town square with a fountain in the center.",
-    connections={"north": "Market", "south": "Gate"},
-    details="  - Worn grooves in the cobblestones from years of cart traffic\n  - A faded notice board with curling papers\n  - The fountain's basin has coins glinting at the bottom",
-    secrets="  - Behind the notice board, someone has scratched initials: 'R.K. + M.T.'\n  - One cobblestone near the fountain is loose, as if frequently moved"
-)
-```
-
-## Verification
-
-```bash
-# Run examination tests
-pytest tests/test_examination.py -v
-
-# Run full test suite to check for regressions
-pytest
-
-# Manual verification
-cli-rpg
-> look        # See surface description
-> look        # See surface + details
-> look        # See surface + details + secrets
-> go north    # Move to new location
-> go south    # Return to Town Square
-> look        # Should show surface only (counter reset)
-```
+## Files to Modify
+- `src/cli_rpg/game_state.py` - add game_time, advance on actions
+- `src/cli_rpg/main.py` - status display, NPC availability checks
+- `src/cli_rpg/whisper.py` - night whispers
+- `src/cli_rpg/models/npc.py` - available_at_night field
+- `tests/test_day_night.py` - new test file

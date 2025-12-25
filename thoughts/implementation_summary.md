@@ -1,97 +1,47 @@
-# Implementation Summary: Multi-Layered Examination (Environmental Storytelling MVP)
+# Day/Night Cycle Implementation Summary
 
 ## What Was Implemented
 
-### Feature Overview
-The multi-layered examination system allows players to reveal progressively more details about a location by using the `look` command multiple times:
+### New Files Created
+- `src/cli_rpg/models/game_time.py` - GameTime dataclass with time tracking, period detection, and serialization
 
-1. **First look**: Standard surface description (existing behavior)
-2. **Second look**: Reveals environmental details
-3. **Third look**: Reveals hidden secrets or lore hints
+### Modified Files
+- `src/cli_rpg/game_state.py` - Integrated GameTime, advances time on movement (+1 hour), serialization support
+- `src/cli_rpg/whisper.py` - Added NIGHT_WHISPERS templates and is_night parameter for atmospheric whispers
+- `src/cli_rpg/models/npc.py` - Added `available_at_night` field (defaults to True) with serialization
+- `src/cli_rpg/main.py` - Updated status, talk, shop, and rest commands for day/night awareness
 
-Moving to a new location resets the look counter for the previous location, so returning to a location starts fresh.
+### Test File Created
+- `tests/test_day_night.py` - 23 comprehensive tests covering all spec requirements
 
-### Files Modified
+## Features Implemented
 
-#### 1. `src/cli_rpg/models/character.py`
-- Added `look_counts: Dict[str, int]` field to track looks per location
-- Added three new methods:
-  - `record_look(location_name) -> int`: Increment and return look count
-  - `get_look_count(location_name) -> int`: Get current look count (0 if never looked)
-  - `reset_look_count(location_name) -> None`: Clear look count for a location
-- Updated `to_dict()` to include look_counts in serialization
-- Updated `from_dict()` to restore look_counts (with backward compatibility)
+### Time System
+- Game time tracked as hour (0-23), starting at 6:00 AM
+- Two periods: Day (6:00-17:59) and Night (18:00-5:59)
+- Time advances on: movement (+1 hour), rest (+4 hours)
+- `get_period()` returns "day" or "night"
+- `get_display()` returns formatted time like "14:00 (Day)"
 
-#### 2. `src/cli_rpg/models/location.py`
-- Added two new optional fields:
-  - `details: Optional[str]` - Environmental details (shown on second look)
-  - `secrets: Optional[str]` - Hidden secrets (shown on third look)
-- Added `get_layered_description(look_count) -> str` method that builds the description with appropriate layers
-- Updated `to_dict()` to include details/secrets in serialization
-- Updated `from_dict()` to restore details/secrets (with backward compatibility)
+### Time Effects
+1. **Status command** now displays current time: `Time: 14:00 (Day)`
+2. **Night whispers** - Eerie atmospheric whispers at night (40% chance to replace category whisper)
+3. **NPC availability** - NPCs with `available_at_night=False` are inaccessible at night
+4. **Shop closures** - Shop command blocked at night for closed merchants
 
-#### 3. `src/cli_rpg/game_state.py`
-- Modified `look()` method to:
-  - Increment character's look count for current location
-  - Return layered description based on look count
-- Modified `move()` method to:
-  - Track previous location before movement
-  - Reset look count for previous location after successful movement
-
-### Files Created
-
-#### `tests/test_examination.py`
-25 tests covering:
-- Character look tracking (7 tests)
-- Location layer fields (6 tests)
-- Location layered description method (6 tests)
-- GameState integration (6 tests)
+### Persistence
+- `game_time` serialized in `GameState.to_dict()` and restored in `from_dict()`
+- Backward compatible: old saves without game_time default to 6:00 AM
 
 ## Test Results
+- All 23 new day/night tests pass
+- Full test suite: 1875 tests pass (no regressions)
 
-```
-tests/test_examination.py: 25 passed
-Full test suite: 1852 passed
-```
-
-No regressions introduced.
-
-## Display Format
-
-When details/secrets are available:
-
-```
-Town Square
-A bustling town square with a fountain in the center.
-Exits: north, south
-
-Upon closer inspection, you notice:
-  - Worn grooves in the cobblestones from years of cart traffic
-  - A faded notice board with curling papers
-  - The fountain's basin has coins glinting at the bottom
-
-Hidden secrets reveal themselves:
-  - Behind the notice board, someone has scratched initials: "R.K. + M.T."
-  - One cobblestone near the fountain is loose, as if frequently moved
-```
-
-## Design Decisions
-
-1. **Backward Compatibility**: All new fields are optional with defaults that preserve existing behavior
-2. **Look Counter Reset**: Counter resets when leaving a location, not when returning. This ensures fresh exploration each visit.
-3. **Serialization**: Look counts are persisted in save files (useful for game continuity)
-4. **Layer Content Format**: Details and secrets are stored as raw strings, allowing flexibility for formatting (e.g., bullet points with "  - " prefix)
-
-## E2E Testing Notes
-
-To manually verify:
-1. Start a new game
-2. Use `look` command 3 times in starting location
-3. Move to another location
-4. Return to starting location
-5. Verify `look` shows only surface description (counter was reset)
-
-**Note**: The feature requires locations to have `details` and `secrets` fields populated to see the effect. Currently, this can be added:
-- By AI generation (when AI service is available)
-- By manually adding to template locations in `world.py`
-- In save files directly
+## E2E Validation Suggestions
+1. Create character, check initial time is 6:00
+2. Move between locations, verify time advances by 1 hour each
+3. Use rest command when injured, verify time advances by 4 hours
+4. Set time to night (via movement), verify night whispers can appear
+5. Create NPC with `available_at_night=False`, verify blocked at night
+6. Save/load game, verify time persists correctly
+7. Load old save file (without game_time), verify defaults to 6:00

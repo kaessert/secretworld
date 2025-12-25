@@ -263,6 +263,7 @@ What do you do?
 
 #### 10. TEMPORAL ECHOES - Time-Based Secrets
 **Impact**: Replayability, discovery, world depth
+**Status**: MVP IMPLEMENTED
 
 The world changes based on time:
 
@@ -282,7 +283,14 @@ A voice rises from the depths:
 [Leave - some truths are too heavy]
 ```
 
-- **Day/night cycle** changes encounters, NPC availability, and secrets
+**MVP Implemented**:
+- ✅ **Day/night cycle**: Time tracked as hour (0-23), advances on movement (+1hr) and rest (+4hrs)
+- ✅ **Night whispers**: Eerie atmospheric whispers appear at night (40% chance)
+- ✅ **NPC availability**: NPCs can be marked as unavailable at night (shops close)
+- ✅ **Status display**: Current time shown in status command (e.g., "14:00 (Day)")
+- ✅ **Persistence**: Time saved/loaded with game state (backward compatible)
+
+**Future Enhancements**:
 - **Moon phases** affect magic power and unlock hidden areas
 - **Seasonal events**: Winter festivals, harvest celebrations, summer dangers
 - **Anniversary triggers**: Return to a location one "year" later for special events
@@ -562,14 +570,16 @@ Combat is too simple - attack until enemy dies. Core status effect system has be
 - Combat stances or modes
 
 ### Dynamic world events
-**Status**: ACTIVE
+**Status**: ACTIVE (Partial)
 
 The world feels static. Need ambient events and world dynamics.
 
-**Desired features**:
+**Implemented**:
+- ✅ Day/night cycle with NPC availability (time advances on movement/rest, night whispers, NPCs can be unavailable at night)
+
+**Remaining features**:
 - Random encounters while traveling (bandits, merchants, wandering creatures)
 - Weather system affecting gameplay (storms reduce visibility, rain extinguishes fire)
-- Day/night cycle with different encounters and NPC availability
 - Seasonal events and festivals
 - World events triggered by player progress or time (invasions, plagues, celebrations)
 

@@ -22,6 +22,7 @@ python -m cli_rpg.main
 - **AI-Generated Dialogue**: NPCs feature contextual AI-generated conversations that persist across sessions
 - **Gold Economy**: Earn gold from combat victories, spend it at shops
 - **Persistent Saves**: Save and load complete game progress including world state, location, and theme
+- **Day/Night Cycle**: Time advances as you explore (movement: +1 hour, rest: +4 hours). Night brings eerie whispers and some NPCs/shops may be unavailable
 - **Grid-Based World**: Navigate a spatially consistent world where directions are reliable (going north then south returns you to the same place)
 - **Experience System**: Level up by defeating enemies
 - **Colorized Output**: Color-coded terminal output for improved readability (enemies in red, locations in cyan, items in green, etc.)
@@ -45,7 +46,7 @@ python -m cli_rpg.main
 - `go <direction>` (g) - Move in a direction (north/n, south/s, east/e, west/w)
   - Quick shortcuts: `n`, `gn` (north), `w`, `gw` (west), `gs` (south), `ge` (east)
 - `map` (m) - Display an ASCII map of explored locations with available exits
-- `status` (s, stats) - View your character's stats, gold, and XP progress
+- `status` (s, stats) - View your character's stats, gold, XP progress, and current time
 - `inventory` (i) - View your inventory and equipped items
 - `equip <item name>` (e) - Equip a weapon or armor from your inventory
 - `unequip weapon|armor` - Unequip from the specified slot and return to inventory
@@ -63,7 +64,7 @@ python -m cli_rpg.main
 - `lore` - Discover AI-generated lore snippets about your current location
 - `bestiary` (b) - View all defeated enemies with kill counts and stats
 - `dump-state` - Export complete game state as JSON for programmatic inspection
-- `rest` (r) - Rest to recover health (restores 25% of max HP, not available during combat)
+- `rest` (r) - Rest to recover health (restores 25% of max HP, advances time by 4 hours, not available during combat)
 - `save` - Save complete game state including world, location, and theme (not available during combat)
 - `help` (h) - Display the full command reference
 - `quit` - Exit to main menu

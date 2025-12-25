@@ -21,6 +21,8 @@ class NPC:
         is_quest_giver: Whether NPC offers quests
         offered_quests: List of quests this NPC offers
         conversation_history: List of conversation exchanges with player
+        ascii_art: ASCII art representation of the NPC
+        available_at_night: Whether NPC is available at night (default True)
     """
 
     name: str
@@ -33,6 +35,7 @@ class NPC:
     greetings: List[str] = field(default_factory=list)
     conversation_history: List[dict] = field(default_factory=list)
     ascii_art: str = ""  # ASCII art representation of the NPC
+    available_at_night: bool = True  # Whether NPC is available at night
 
     def __post_init__(self):
         """Validate NPC attributes."""
@@ -80,7 +83,8 @@ class NPC:
             "is_quest_giver": self.is_quest_giver,
             "offered_quests": [q.to_dict() for q in self.offered_quests],
             "greetings": self.greetings,
-            "conversation_history": self.conversation_history
+            "conversation_history": self.conversation_history,
+            "available_at_night": self.available_at_night
         }
         # Only include ascii_art if it's not empty
         if self.ascii_art:
@@ -114,5 +118,6 @@ class NPC:
             offered_quests=offered_quests,
             greetings=data.get("greetings", []),
             conversation_history=data.get("conversation_history", []),
-            ascii_art=data.get("ascii_art", "")
+            ascii_art=data.get("ascii_art", ""),
+            available_at_night=data.get("available_at_night", True)
         )

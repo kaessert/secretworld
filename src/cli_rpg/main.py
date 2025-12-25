@@ -453,7 +453,9 @@ def handle_exploration_command(game_state: GameState, command: str, args: list[s
         return (True, output)
     
     elif command == "status":
-        return (True, "\n" + str(game_state.current_character))
+        status_output = str(game_state.current_character)
+        time_display = game_state.game_time.get_display()
+        return (True, f"\n{status_output}\nTime: {time_display}")
 
     elif command == "inventory":
         return (True, "\n" + str(game_state.current_character.inventory))
@@ -521,18 +523,31 @@ def handle_exploration_command(game_state: GameState, command: str, args: list[s
             return (True, "\nThere are no NPCs here to talk to.")
 
         if not args:
-            if len(location.npcs) == 1:
-                # Auto-select the single NPC
-                npc = location.npcs[0]
+            # Get available NPCs (respecting night availability)
+            if game_state.game_time.is_night():
+                available_npcs = [n for n in location.npcs if n.available_at_night]
+            else:
+                available_npcs = location.npcs
+
+            if not available_npcs:
+                return (True, "\nAll NPCs have gone home for the night.")
+
+            if len(available_npcs) == 1:
+                # Auto-select the single available NPC
+                npc = available_npcs[0]
             else:
                 # Multiple NPCs - list them
-                npc_names = [n.name for n in location.npcs]
+                npc_names = [n.name for n in available_npcs]
                 return (True, f"\nTalk to whom? Available: {', '.join(npc_names)}")
         else:
             npc_name = " ".join(args)
             npc = location.find_npc_by_name(npc_name)
             if npc is None:
                 return (True, f"\nYou don't see '{npc_name}' here.")
+
+        # Check night availability
+        if game_state.game_time.is_night() and not npc.available_at_night:
+            return (True, f"\n{npc.name} has gone home for the night.")
 
         # Store current NPC for accept command context
         game_state.current_npc = npc
@@ -656,6 +671,9 @@ def handle_exploration_command(game_state: GameState, command: str, args: list[s
             merchant = next((npc for npc in location.npcs if npc.is_merchant and npc.shop), None)
             if merchant is None:
                 return (True, "\nThere's no merchant here.")
+            # Check if merchant is available at night
+            if game_state.game_time.is_night() and not merchant.available_at_night:
+                return (True, "\nThe shop is closed for the night.")
             game_state.current_shop = merchant.shop
         shop = game_state.current_shop
         lines = [f"\n=== {shop.name} ===", f"Your gold: {game_state.current_character.gold}", ""]
@@ -1026,6 +1044,9 @@ def handle_exploration_command(game_state: GameState, command: str, args: list[s
 
         # Apply healing
         char.heal(actual_heal)
+
+        # Advance time by 4 hours for rest
+        game_state.game_time.advance(4)
 
         return (True, f"\nYou rest and recover {actual_heal} health.")
 
