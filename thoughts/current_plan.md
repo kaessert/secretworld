@@ -1,32 +1,44 @@
-# Implementation Plan: TALK Quest Objective Tracking
+# Implementation Plan: `rest` Command
 
 ## Spec
-When a player talks to an NPC, check if they have any active quests with `ObjectiveType.TALK` where the target matches the NPC name. If so, increment the quest's `current_count` and mark as `READY_TO_TURN_IN` when complete.
 
-## 1. Write Tests (`tests/test_quest_progress.py`)
+Add a `rest` command that allows players to heal outside of combat without requiring potions. The command:
+- Available only during exploration (not during combat)
+- Heals 25% of max health (partial recovery, not full restore like inns)
+- Requires alias `r` for quick access
+- Displays message showing health restored
+- Cannot rest if already at full health
 
-Add `TestRecordTalk` class following the existing pattern for `TestRecordExplore`:
-- `test_record_talk_increments_matching_quest_progress` - talking to NPC increments matching quest
-- `test_record_talk_returns_progress_message` - returns progress notification
-- `test_record_talk_marks_quest_ready_to_turn_in_when_target_reached` - status updates correctly
-- `test_record_talk_returns_ready_to_turn_in_message` - returns notification with quest giver name
-- `test_record_talk_matches_case_insensitive` - NPC name matching is case-insensitive
-- `test_record_talk_does_not_increment_non_matching_quest` - non-matching NPCs don't increment
-- `test_record_talk_only_affects_active_quests` - only ACTIVE quests get progress
-- `test_record_talk_only_affects_talk_objective_quests` - only TALK objective type quests get progress
-- `test_record_talk_progresses_multiple_matching_quests` - multiple matching quests all progress
-- `test_record_talk_returns_empty_list_when_no_matching_quests` - returns empty list when no matches
+## Test Plan
 
-## 2. Implement `record_talk()` (`src/cli_rpg/models/character.py`)
+Create `tests/test_rest_command.py`:
 
-Add `record_talk(npc_name: str) -> List[str]` method after `record_explore()` (line ~361):
-- Pattern matches existing `record_explore()` implementation exactly
-- Check for `ObjectiveType.TALK` instead of `EXPLORE`
-- Use case-insensitive comparison: `quest.target.lower() == npc_name.lower()`
-- Return list of progress/completion messages
+1. **test_rest_heals_partial_health** - Rest heals 25% of max HP
+2. **test_rest_at_full_health_fails** - Returns error message when health is already full
+3. **test_rest_caps_at_max_health** - Healing doesn't exceed max_health
+4. **test_rest_alias_r** - The `r` shorthand works for rest
+5. **test_rest_blocked_during_combat** - Rest command unavailable in combat
+6. **test_rest_displays_heal_amount** - Message shows amount healed
 
-## 3. Call from Talk Handler (`src/cli_rpg/main.py`)
+## Implementation Steps
 
-In the `talk` command handler (around line 436, after `output = f"\n{npc.name}: ..."`):
-- Call `game_state.current_character.record_talk(npc.name)`
-- Append any returned messages to the output
+### 1. Add `rest` to known commands and aliases
+**File:** `src/cli_rpg/game_state.py`
+- Add `"r": "rest"` to aliases dict (line 55)
+- Add `"rest"` to `known_commands` set (line 66)
+
+### 2. Implement `rest` command handler
+**File:** `src/cli_rpg/main.py`
+- Add handling in `handle_exploration_command()` for `command == "rest"` (after `elif command == "lore"`, around line 817)
+- Calculate heal amount: `max(1, game_state.current_character.max_health // 4)`
+- Check if already at full health (return error)
+- Call `game_state.current_character.heal(heal_amount)`
+- Return message with amount healed
+
+### 3. Update help text
+**File:** `src/cli_rpg/main.py`
+- Add `"  rest (r)           - Rest to recover health (25% of max HP)"` to Exploration Commands in `get_command_reference()` (around line 42)
+
+### 4. Block rest during combat
+**File:** `src/cli_rpg/main.py`
+- Add `"rest"` to blocked commands check in `handle_combat_command()` (line 819, add to the list with attack/defend/flee)

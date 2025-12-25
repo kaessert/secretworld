@@ -37,6 +37,7 @@ def get_command_reference() -> str:
         "  sell <item>        - Sell an item to the shop",
         "  map (m)            - Display a map of explored areas",
         "  lore               - Discover lore about your current location",
+        "  rest (r)           - Rest to recover health (25% of max HP)",
         "  quests (q)         - View your quest journal",
         "  quest <name>       - View details of a specific quest",
         "  help (h)           - Display this command reference",
@@ -816,7 +817,24 @@ def handle_exploration_command(game_state: GameState, command: str, args: list[s
         except Exception:
             return (True, "\n=== Ancient Lore ===\nThe mysteries of this place remain hidden...")
 
-    elif command in ["attack", "defend", "flee"]:
+    elif command == "rest":
+        # Check if already at full health
+        char = game_state.current_character
+        if char.health >= char.max_health:
+            return (True, "\nYou're already at full health!")
+
+        # Calculate heal amount: 25% of max HP, minimum 1
+        heal_amount = max(1, char.max_health // 4)
+
+        # Cap healing at what's actually needed
+        actual_heal = min(heal_amount, char.max_health - char.health)
+
+        # Apply healing
+        char.heal(actual_heal)
+
+        return (True, f"\nYou rest and recover {actual_heal} health.")
+
+    elif command in ["attack", "defend", "flee", "rest"]:
         return (True, "\n✗ Not in combat.")
     
     elif command == "unknown":
