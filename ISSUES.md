@@ -212,6 +212,7 @@ Combat Round 3:
 
 #### 7. THE BOND SYSTEM - Companions Who Matter
 **Impact**: Emotional investment, tactical depth
+**Status**: MVP IMPLEMENTED
 
 Companions aren't just stat bonuses—they're people:
 
@@ -233,6 +234,17 @@ KIRA THE SCOUT
   Next unlock at "Devoted": "Last Stand"
 ```
 
+**MVP Implemented**:
+- ✅ **Companion model** with name, description, recruitment location, and bond points (0-100)
+- ✅ **BondLevel enum**: STRANGER (0-24), ACQUAINTANCE (25-49), TRUSTED (50-74), DEVOTED (75-100)
+- ✅ **Bond tracking**: `add_bond(amount)` adds points (capped at 100), returns level-up message if threshold crossed
+- ✅ **Visual bond display**: Unicode bar (█░) with color-coded levels (green=DEVOTED, yellow=TRUSTED/ACQUAINTANCE)
+- ✅ **`companions` command**: View party members with bond levels and descriptions
+- ✅ **`recruit <npc>` command**: Recruit NPCs marked as `is_recruitable=True` to your party
+- ✅ **NPC recruitability**: Added `is_recruitable` field to NPC model
+- ✅ **Persistence**: Companions saved/loaded with game state (backward compatible)
+
+**Future Enhancements**:
 - **Bond levels** through choices, gifts, and shared experiences
 - **Companion quests** that explore their past and resolve their arc
 - **Combat synergies** unlock at higher bond levels
@@ -672,17 +684,22 @@ Exploration should reward curiosity with hidden content.
 - Achievements for thorough exploration
 
 ### Companion system
-**Status**: ACTIVE
+**Status**: ACTIVE (MVP Implemented)
 
 Adventuring alone limits roleplay possibilities.
 
-**Desired features**:
-- Recruitable NPC companions with personalities
+**Implemented**:
+- ✅ Recruitable NPC companions (NPCs with `is_recruitable=True`)
+- ✅ Bond system with 4 levels (STRANGER → ACQUAINTANCE → TRUSTED → DEVOTED)
+- ✅ `companions` command to view party members
+- ✅ `recruit <npc>` command to recruit willing NPCs
+- ✅ Persistence with backward compatibility
+
+**Remaining features**:
 - Companion dialogue and banter during travel
 - Companion abilities in combat
-- Relationship building with companions
 - Companion-specific quests and storylines
-- Companions reacting to player choices
+- Companions reacting to player choices (approval/disapproval)
 
 ### Immersive text presentation
 **Status**: ACTIVE

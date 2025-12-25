@@ -10,6 +10,7 @@ from cli_rpg.models.location import Location
 from cli_rpg.models.npc import NPC
 from cli_rpg.models.shop import Shop
 from cli_rpg.models.weather import Weather
+from cli_rpg.models.companion import Companion
 from cli_rpg.combat import (
     CombatEncounter,
     ai_spawn_enemy,
@@ -48,7 +49,7 @@ KNOWN_COMMANDS: set[str] = {
     "look", "go", "save", "quit", "attack", "defend", "flee", "status", "cast",
     "inventory", "equip", "unequip", "use", "drop", "talk", "buy", "sell", "shop",
     "map", "help", "quests", "quest", "accept", "complete", "abandon", "lore", "rest",
-    "bestiary", "dump-state", "events"
+    "bestiary", "dump-state", "events", "companions", "recruit"
 }
 
 # Dread increases by location category (darker areas = more dread)
@@ -202,6 +203,7 @@ class GameState:
         self.weather = Weather()  # Weather system tracking
         self.choices: list[dict] = []  # Echo choices: tracking significant player decisions
         self.world_events: list[WorldEvent] = []  # Living world events
+        self.companions: list[Companion] = []  # Party companions with bond mechanics
 
     @property
     def is_in_conversation(self) -> bool:
@@ -636,7 +638,7 @@ class GameState:
         """Serialize game state to dictionary.
 
         Returns:
-            Dictionary containing character, current_location, world data, theme, game_time, weather, choices, and world_events
+            Dictionary containing character, current_location, world data, theme, game_time, weather, choices, world_events, and companions
         """
         return {
             "character": self.current_character.to_dict(),
@@ -650,6 +652,7 @@ class GameState:
             "weather": self.weather.to_dict(),
             "choices": self.choices,
             "world_events": [event.to_dict() for event in self.world_events],
+            "companions": [companion.to_dict() for companion in self.companions],
         }
     
     @classmethod
@@ -701,6 +704,12 @@ class GameState:
         game_state.world_events = [
             WorldEvent.from_dict(event_data)
             for event_data in data.get("world_events", [])
+        ]
+
+        # Restore companions if present (default to empty list for backward compatibility)
+        game_state.companions = [
+            Companion.from_dict(companion_data)
+            for companion_data in data.get("companions", [])
         ]
 
         return game_state

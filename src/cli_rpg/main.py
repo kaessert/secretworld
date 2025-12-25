@@ -45,6 +45,8 @@ def get_command_reference() -> str:
         "  quest <name>       - View details of a specific quest",
         "  bestiary (b)       - View defeated enemies",
         "  events             - View active world events",
+        "  companions         - View your party members and bond levels",
+        "  recruit <npc>      - Recruit an NPC to join your party",
         "  help (h)           - Display this command reference",
         "  dump-state         - Export full game state as JSON",
         "  save               - Save your game (not available during combat)",
@@ -1007,6 +1009,51 @@ def handle_exploration_command(game_state: GameState, command: str, args: list[s
     elif command == "events":
         from cli_rpg.world_events import get_active_events_display
         return (True, get_active_events_display(game_state))
+
+    elif command == "companions":
+        if not game_state.companions:
+            return (True, "\nNo companions in your party.")
+
+        lines = ["\n=== Your Companions ==="]
+        for companion in game_state.companions:
+            lines.append(f"\n{companion.name}")
+            lines.append(f"  {companion.description}")
+            lines.append(f"  {companion.get_bond_display()}")
+            lines.append(f"  Recruited at: {companion.recruited_at}")
+        return (True, "\n".join(lines))
+
+    elif command == "recruit":
+        if not args:
+            return (True, "\nRecruit whom? Specify an NPC name.")
+
+        from cli_rpg.models.companion import Companion
+
+        npc_name = " ".join(args)
+        location = game_state.get_current_location()
+
+        # Find NPC by name (case-insensitive)
+        npc = location.find_npc_by_name(npc_name)
+        if npc is None:
+            return (True, f"\nYou don't see '{npc_name}' here.")
+
+        # Check if NPC is recruitable
+        if not npc.is_recruitable:
+            return (True, f"\n{npc.name} cannot be recruited to join your party.")
+
+        # Check if already in party
+        if any(c.name.lower() == npc.name.lower() for c in game_state.companions):
+            return (True, f"\n{npc.name} is already in your party.")
+
+        # Create companion from NPC data
+        companion = Companion(
+            name=npc.name,
+            description=npc.description,
+            recruited_at=game_state.current_location,
+            bond_points=0
+        )
+        game_state.companions.append(companion)
+
+        return (True, f"\n{npc.name} has joined your party!")
 
     elif command == "help":
         return (True, "\n" + get_command_reference())

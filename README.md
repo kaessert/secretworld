@@ -66,6 +66,8 @@ python -m cli_rpg.main
 - `abandon <quest>` - Abandon an active quest from your journal
 - `lore` - Discover AI-generated lore snippets about your current location
 - `bestiary` (b) - View all defeated enemies with kill counts and stats
+- `companions` - View your party members with bond levels
+- `recruit <npc>` - Recruit a willing NPC to join your party
 - `dump-state` - Export complete game state as JSON for programmatic inspection
 - `rest` (r) - Rest to recover health (restores 25% of max HP, advances time by 4 hours, reduces dread, may trigger dreams; not available during combat)
 - `events` - View active world events and their status
@@ -423,7 +425,8 @@ src/cli_rpg/
 │   ├── npc.py
 │   ├── quest.py
 │   ├── shop.py
-│   └── status_effect.py
+│   ├── status_effect.py
+│   └── companion.py
 └── persistence.py       # Save/load system (character and full game state)
 ```
 

@@ -60,7 +60,8 @@ src/cli_rpg/
     ├── status_effect.py # Status effects (poison, buffs, debuffs)
     ├── random_encounter.py # Random encounter model for travel events
     ├── world_event.py   # World event model for timed events
-    └── weather.py       # Weather system (clear, rain, storm, fog)
+    ├── weather.py       # Weather system (clear, rain, storm, fog)
+    └── companion.py     # Companion model with bond levels
 ```
 
 ## Key Architectural Patterns

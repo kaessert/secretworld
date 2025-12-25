@@ -23,6 +23,7 @@ class NPC:
         conversation_history: List of conversation exchanges with player
         ascii_art: ASCII art representation of the NPC
         available_at_night: Whether NPC is available at night (default True)
+        is_recruitable: Whether NPC can be recruited as a companion (default False)
     """
 
     name: str
@@ -36,6 +37,7 @@ class NPC:
     conversation_history: List[dict] = field(default_factory=list)
     ascii_art: str = ""  # ASCII art representation of the NPC
     available_at_night: bool = True  # Whether NPC is available at night
+    is_recruitable: bool = False  # Whether NPC can be recruited as a companion
 
     def __post_init__(self):
         """Validate NPC attributes."""
@@ -127,7 +129,8 @@ class NPC:
             "offered_quests": [q.to_dict() for q in self.offered_quests],
             "greetings": self.greetings,
             "conversation_history": self.conversation_history,
-            "available_at_night": self.available_at_night
+            "available_at_night": self.available_at_night,
+            "is_recruitable": self.is_recruitable,
         }
         # Only include ascii_art if it's not empty
         if self.ascii_art:
@@ -162,5 +165,6 @@ class NPC:
             greetings=data.get("greetings", []),
             conversation_history=data.get("conversation_history", []),
             ascii_art=data.get("ascii_art", ""),
-            available_at_night=data.get("available_at_night", True)
+            available_at_night=data.get("available_at_night", True),
+            is_recruitable=data.get("is_recruitable", False),
         )
