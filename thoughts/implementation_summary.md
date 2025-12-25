@@ -1,68 +1,33 @@
-# Implementation Summary: AI-Generated Quests Integration
+# Implementation Summary: Add `complete` command to parser
 
-## What Was Implemented
+## What was implemented
 
-Integrated AI quest generation into the NPC talk command so that quest-giver NPCs dynamically generate quests when they have no available quests for the player.
+Added `"complete"` to the `known_commands` set in the `parse_command()` function in `src/cli_rpg/game_state.py`.
 
-### Files Modified
+## Files modified
 
-1. **`src/cli_rpg/main.py`** (lines 448-475)
-   - Added AI quest generation logic in the `talk` command handler
-   - Generates a quest when:
-     - NPC is a quest-giver (`npc.is_quest_giver`)
-     - AI service is available (`game_state.ai_service`)
-     - NPC has no unaccepted quests for the player
-   - Silent exception handling for graceful fallback
-   - Generated quest is appended to `npc.offered_quests` for persistence
+- `src/cli_rpg/game_state.py` (line 67): Added `"complete"` to the known_commands set
 
-### Files Created
+## Problem solved
 
-1. **`tests/test_main_ai_quest_integration.py`**
-   - 5 test cases covering all spec requirements:
-     - `test_talk_quest_giver_no_quests_generates_ai_quest` - AI generates quest for empty offered_quests
-     - `test_talk_quest_giver_all_quests_accepted_generates_new` - Generates when all quests accepted
-     - `test_talk_quest_giver_ai_unavailable_no_error` - Graceful handling without AI service
-     - `test_talk_quest_giver_ai_failure_silent_fallback` - Silent fallback on AI exception
-     - `test_generated_quest_appears_in_available_quests_output` - Quest appears in output
+The `complete <quest>` command handler existed in `main.py` but the parser was returning `("unknown", [])` because `"complete"` was not in the `known_commands` set. This one-line fix enables the quest turn-in functionality.
 
-## Implementation Pattern
+## Test results
 
-The implementation follows the existing pattern from NPC dialogue generation (main.py lines 416-429):
+All 27 tests in `tests/test_quest_commands.py` pass, including the 6 tests specifically for the `complete` command:
+- `test_complete_command_requires_npc`
+- `test_complete_command_requires_quest_name`
+- `test_complete_command_requires_ready_to_turn_in_status`
+- `test_complete_command_requires_matching_quest_giver`
+- `test_complete_command_grants_rewards_and_sets_completed`
+- `test_complete_command_shows_reward_messages`
 
-```python
-# Generate AI quest if NPC is quest-giver with no available quests
-if npc.is_quest_giver and game_state.ai_service:
-    available_quests = [
-        q for q in npc.offered_quests
-        if not game_state.current_character.has_quest(q.name)
-    ]
-    if not available_quests:
-        try:
-            quest_data = game_state.ai_service.generate_quest(
-                theme=game_state.theme,
-                npc_name=npc.name,
-                player_level=game_state.current_character.level,
-                location_name=game_state.current_location
-            )
-            new_quest = Quest(...)  # Create from quest_data
-            npc.offered_quests.append(new_quest)
-        except Exception:
-            pass  # Silent fallback - NPC just has no new quests
-```
-
-## Test Results
-
-```
-tests/test_main_ai_quest_integration.py: 5 passed
-tests/test_ai_quest_generation.py: 19 passed
-Full test suite: 1041 passed, 1 skipped
-```
-
-## E2E Validation
+## E2E validation
 
 To validate manually:
-1. Start game with AI service configured
-2. Navigate to a location with a quest-giver NPC who has no quests
-3. Use `talk <npc name>` command
-4. Verify "Available Quests:" section appears with a generated quest
-5. Verify quest can be accepted with `accept <quest name>`
+1. Start game, find an NPC with a quest
+2. Use `talk <npc>` to see available quests
+3. Use `accept <quest>` to accept a quest
+4. Complete the quest objectives
+5. Return to the quest giver NPC
+6. Use `complete <quest>` to turn in the quest and receive rewards
