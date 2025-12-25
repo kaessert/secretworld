@@ -2,6 +2,8 @@
 
 from typing import Optional
 
+from wcwidth import wcswidth
+
 from cli_rpg.models.location import Location
 from cli_rpg import colors
 
@@ -27,6 +29,27 @@ def get_category_marker(category: Optional[str]) -> str:
         The corresponding marker character/emoji
     """
     return CATEGORY_MARKERS.get(category, "•")
+
+
+def pad_marker(marker: str, target_width: int) -> str:
+    """Right-pad marker to target_width based on display width.
+
+    Uses wcwidth to calculate the actual display width of the marker,
+    then adds appropriate padding so the cell occupies exactly target_width
+    visual columns.
+
+    Args:
+        marker: The marker character/emoji to pad
+        target_width: The desired display width for the cell
+
+    Returns:
+        The marker with left-padding to achieve target_width display columns
+    """
+    display_width = wcswidth(marker)
+    if display_width < 0:  # non-printable or error
+        display_width = 1
+    padding = target_width - display_width
+    return (" " * max(0, padding)) + marker
 
 
 def render_map(world: dict[str, Location], current_location: str) -> str:
@@ -108,11 +131,12 @@ def render_map(world: dict[str, Location], current_location: str) -> str:
             coord = (x, y)
             if coord in coord_to_marker:
                 marker = coord_to_marker[coord]
-                # Pad first, then colorize to avoid ANSI codes breaking alignment
-                padded = f"{marker:>{cell_width}}"
+                # Use width-aware padding to handle emoji display widths correctly
+                padded = pad_marker(marker, cell_width)
                 if coord == current_loc.coordinates:
                     # Colorize only the marker character, preserving padding
-                    padded = padded[:-1] + colors.bold_colorize("@", colors.CYAN)
+                    # The @ marker is width 1, so padding is cell_width - 1 spaces
+                    padded = (" " * (cell_width - 1)) + colors.bold_colorize("@", colors.CYAN)
                 row_parts.append(padded)
             else:
                 row_parts.append(" " * cell_width)

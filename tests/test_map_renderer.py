@@ -471,3 +471,157 @@ class TestMapVisualImprovements:
         assert "🏪 = Shop" in result or "🏪  Shop" in result, (
             "Legend should show shop with 🏪 marker"
         )
+
+
+class TestEmojiAlignment:
+    """Tests for emoji marker alignment using wcwidth.
+
+    These tests verify that emoji markers (which are display-width 2) align
+    correctly with ASCII markers (display-width 1) in the map grid.
+
+    Key insight: Each cell has a fixed visual width of 4. Markers are
+    right-aligned within their cells. The visual gap between consecutive
+    markers depends on their widths:
+    - ASCII (width 1) to ASCII (width 1): gap = 4 (3 padding + 1 marker)
+    - ASCII (width 1) to Emoji (width 2): gap = 3 (2 padding + next marker)
+    - Emoji (width 2) to Emoji (width 2): gap = 4 (2 padding + 2 marker)
+    """
+
+    @staticmethod
+    def get_display_width(text: str) -> int:
+        """Get the display width of a string using wcwidth."""
+        from wcwidth import wcswidth
+
+        return wcswidth(text)
+
+    def test_emoji_cell_visual_width(self):
+        """Verify that emoji cells have correct visual width of 4.
+
+        Spec: Use wcwidth to pad each cell to cell_width (4) based on actual
+        display width. Each cell should occupy exactly 4 visual columns.
+        """
+        from cli_rpg.map_renderer import pad_marker
+
+        # All markers should produce cells with visual width 4
+        test_markers = ["@", "•", "🌲", "🏪", "🏠", "⚔", "🕳", "🌊"]
+        for marker in test_markers:
+            padded = pad_marker(marker, 4)
+            visual_width = self.get_display_width(padded)
+            assert visual_width == 4, (
+                f"pad_marker('{marker}', 4) should have visual width 4, "
+                f"got {visual_width}. Padded: '{padded}'"
+            )
+
+    def test_multiple_cells_accumulate_correctly(self):
+        """Verify multiple cells in a row have consistent total visual width.
+
+        Spec: When multiple cells are concatenated, the total visual width
+        should be n_cells * cell_width.
+        """
+        from cli_rpg.map_renderer import pad_marker
+
+        # Build a row with 4 cells of different markers
+        markers = ["@", "🌲", "🏪", "⚔"]
+        row = "".join(pad_marker(m, 4) for m in markers)
+
+        # Total visual width should be 4 cells * 4 width = 16
+        total_width = self.get_display_width(row)
+        assert total_width == 16, (
+            f"4 cells should have total visual width 16, got {total_width}. "
+            f"Row: '{row}'"
+        )
+
+    def test_emoji_markers_align_with_header(self):
+        """Verify emoji markers align with column numbers in header.
+
+        Spec: Each marker should appear in the correct column position
+        corresponding to its x-coordinate.
+        """
+        from wcwidth import wcswidth
+        import re
+
+        world = {
+            "Town": Location("Town", "A town", {}, coordinates=(0, 0), category="town"),
+            "Forest": Location("Forest", "A forest", {}, coordinates=(1, 0), category="forest"),
+            "Shop": Location("Shop", "A shop", {}, coordinates=(2, 0), category="shop"),
+        }
+        result = render_map(world, "Town")
+        lines = result.split("\n")
+
+        ansi_escape = re.compile(r"\x1b\[[0-9;]*m")
+
+        # Find header line (contains column numbers like -4 -3 ... 0 1 2 ...)
+        header = None
+        data_row = None
+        for line in lines:
+            content = line.strip("│").strip()
+            # Header has x-coordinates
+            if "-4" in content and "0" in content and "4" in content:
+                header = ansi_escape.sub("", line)
+            # Data row for y=0
+            if content.startswith("0 ") or content.startswith(" 0 "):
+                data_row = ansi_escape.sub("", line)
+
+        assert header is not None, "Header should exist"
+        assert data_row is not None, "Data row y=0 should exist"
+
+        # Find position of column "0" in header (where @ should align)
+        # Look for " 0 " or " 0" at end of cell
+        # The column number "0" should be right-aligned in its cell
+        col_0_idx = header.find(" 0 ")
+        if col_0_idx < 0:
+            col_0_idx = header.find(" 0")
+        assert col_0_idx >= 0, f"Column 0 not found in header: '{header}'"
+
+        # Position of the "0" digit itself
+        col_0_pos = wcswidth(header[: col_0_idx + 1])
+
+        # Find @ in data row (should be in same visual column range as header "0")
+        at_idx = data_row.find("@")
+        at_pos = wcswidth(data_row[:at_idx])
+
+        # The @ marker should be within cell_width of the column number
+        # (both are right-aligned in their respective cells)
+        assert abs(at_pos - col_0_pos) <= 3, (
+            f"@ at visual pos {at_pos} should align with column 0 at pos {col_0_pos}. "
+            f"Header: '{header}', Row: '{data_row}'"
+        )
+
+    def test_no_visual_overlap_between_cells(self):
+        """Verify adjacent emoji cells don't visually overlap.
+
+        Spec: Each cell should occupy exactly its allocated visual width
+        without overflowing into adjacent cells.
+        """
+        import re
+
+        world = {
+            "Town": Location("Town", "A town", {}, coordinates=(0, 0), category="town"),
+            "Forest": Location("Forest", "A forest", {}, coordinates=(1, 0), category="forest"),
+        }
+        result = render_map(world, "Town")
+        lines = result.split("\n")
+
+        ansi_escape = re.compile(r"\x1b\[[0-9;]*m")
+
+        # Find data row for y=0
+        data_row = None
+        for line in lines:
+            content = line.strip("│").strip()
+            if content.startswith("0 ") or content.startswith(" 0 "):
+                data_row = ansi_escape.sub("", line)
+                break
+
+        assert data_row is not None, "Data row y=0 should exist"
+
+        # Verify both markers are present (not garbled/overlapping)
+        assert "@" in data_row, "@ marker should be visible"
+        assert "🌲" in data_row, "🌲 marker should be visible"
+
+        # Verify there's at least one space between markers (no overlap)
+        at_idx = data_row.find("@")
+        tree_idx = data_row.find("🌲")
+        between = data_row[at_idx + 1 : tree_idx]
+        assert " " in between, (
+            f"Should have space between @ and 🌲 but got: '{between}'"
+        )

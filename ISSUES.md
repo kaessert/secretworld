@@ -60,32 +60,20 @@ Once non-interactive mode is fully implemented, set up periodic long-running sim
 
 **Depends on**: Non-interactive mode enhancements (structured output, logging)
 
-### Map alignment and blocked location markers
+### Blocked location markers on map
 **Status**: ACTIVE
 
-Map display has alignment issues and lacks visual feedback for inaccessible areas.
+Map lacks visual feedback for inaccessible areas.
 
 **Issues**:
 
-1. **Grid misalignment**
-   - Emoji markers (🏠, ⚔, 🌲, etc.) have inconsistent display widths across terminals
-   - Columns shift when mixing emoji and ASCII characters
-   - Example of broken alignment:
-   ```
-   │  2                        ⚔            │
-   │  1                    🕳   🏠            │
-   │  0                    @   •   🌲        │
-   ```
-
-2. **No indication of blocked/inaccessible locations**
+1. **No indication of blocked/inaccessible locations**
    - Players can't see which adjacent cells are impassable
    - Should mark cells with no valid path (walls, barriers, unexplorable)
 
 **Fix**:
-- Use fixed-width placeholders or padding to normalize emoji width (some terminals render emoji as 2 chars, some as 1)
-- Consider using ASCII fallback markers (D for dungeon, T for town, etc.) with a `--ascii` flag
 - Add distinct marker for blocked/wall cells (e.g., `█` or `#`)
-- Test alignment across common terminals (iTerm2, Terminal.app, Windows Terminal, etc.)
+- Consider using ASCII fallback markers (D for dungeon, T for town, etc.) with a `--ascii` flag
 
 ### More content
 **Status**: ACTIVE
@@ -221,6 +209,18 @@ Quests should be dynamically generated to keep gameplay fresh.
 - Emergent storylines from completed quests
 
 ## Resolved Issues
+
+### Map emoji alignment
+**Status**: RESOLVED
+
+**Description**: Emoji markers (🏠, ⚔, 🌲, etc.) in the map display were causing column misalignment because they have display width 2 but Python's string formatting treated them as width 1.
+
+**Fix**: Used the `wcwidth` library to calculate actual display widths and pad markers correctly. Added `pad_marker()` helper function in `map_renderer.py` that:
+- Calculates actual display width using `wcswidth()`
+- Adds appropriate left-padding to achieve target visual width (4 columns per cell)
+- Each cell now displays correctly regardless of marker type (ASCII or emoji)
+
+The `wcwidth>=0.2.0` dependency was added to `pyproject.toml`.
 
 ### Tab auto-completion
 **Status**: RESOLVED
