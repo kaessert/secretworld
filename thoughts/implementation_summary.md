@@ -1,6 +1,23 @@
 # Implementation Summary
 
-## Latest Implementation: AI Location Category Generation
+## Latest Implementation: Invalid Category Test for Area Generation
+
+Added a test to cover lines 760-763 in `ai_service.py` — the warning branch when `_validate_area_location` receives an invalid category value.
+
+### Files Modified
+
+**`tests/test_ai_location_category.py`**:
+- Added `test_area_generation_invalid_category_defaults_to_none` test (line 309)
+- Test mocks an area location with `"category": "invalid_dungeon"` and verifies it defaults to `None`
+
+### Test Results
+
+- All 21 tests in `test_ai_location_category.py` pass
+- Coverage confirms lines 760-763 are now covered (no longer in "Missing" list)
+
+---
+
+## Previous Implementation: AI Location Category Generation
 
 Added support for the AI service to return `category` field when generating locations, completing the Location Categories feature for combat's `spawn_enemy()` to leverage location-appropriate enemies during AI-generated world exploration.
 
@@ -26,7 +43,7 @@ Added support for the AI service to return `category` field when generating loca
 
 ### New Test File
 
-**`tests/test_ai_location_category.py`** - 20 tests covering:
+**`tests/test_ai_location_category.py`** - 21 tests covering:
 - AI returns category field in generate_location
 - Valid category values accepted (parametrized test for all 9 categories)
 - Invalid/missing category defaults to None
@@ -34,6 +51,7 @@ Added support for the AI service to return `category` field when generating loca
 - Category passed to Location in expand_world
 - Area generation includes category
 - Area generation missing category defaults to None
+- **Area generation invalid category defaults to None** (NEW)
 - Location prompt includes category instruction
 - Location prompt lists valid categories
 - Area prompt includes category instruction
@@ -41,7 +59,7 @@ Added support for the AI service to return `category` field when generating loca
 
 ### Test Results
 
-- All 20 new tests pass
+- All 21 tests pass
 - All 98 existing AI service/world generation tests pass
 - Full test suite: **1422 passed, 1 skipped**
 
