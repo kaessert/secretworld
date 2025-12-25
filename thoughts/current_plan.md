@@ -1,130 +1,68 @@
-# Implementation Plan: Increase main.py Test Coverage (94% -> 98%+)
+# Plan: Increase Test Coverage - Target ai_world.py (96% -> 99%+)
 
-## Objective
-Improve test coverage for `src/cli_rpg/main.py` from 94% to 98%+ by adding targeted tests for the 38 uncovered lines.
+## Current State
+- Overall coverage: 98.03% (1304 tests pass)
+- `world.py`: 92% - 4 uncovered lines (18-21) are import-time fallback, hard to unit test
+- `ai_world.py`: 96% - 8 uncovered lines representing testable runtime paths
+- Focus: ai_world.py since its uncovered lines are runtime code paths
 
-## Uncovered Lines Analysis
+## Uncovered Lines in ai_world.py
 
-| Lines | Function | Description | Test Strategy |
-|-------|----------|-------------|---------------|
-| 157-159 | `select_and_load_character()` | Generic Exception catch-all handler | Raise Exception from unexpected source after save type detection |
-| 189 | `handle_conversation_input()` | NPC role = "quest_giver" | Test with is_quest_giver=True, is_merchant=False |
-| 245 | `handle_combat_command()` | Quest progress messages after attack | Attack victory with active KILL quest |
-| 250-251 | `handle_combat_command()` | IOError during autosave after attack | Mock autosave to raise IOError |
-| 294-295 | `handle_combat_command()` | IOError during autosave after flee | Mock autosave to raise IOError on successful flee |
-| 327-328 | `handle_combat_command()` | IOError during autosave after cast | Mock autosave to raise IOError |
-| 490-491 | `handle_exploration_command()` | AI dialogue exception fallback | Mock generate_npc_dialogue to raise |
-| 498 | `handle_exploration_command()` | Talk shows quest progress | Character with TALK quest for NPC |
-| 593 | `handle_exploration_command()` | Buy with full inventory | Fill inventory before buy |
-| 610 | `handle_exploration_command()` | Buy triggers collect quest | Buy with active COLLECT quest |
-| 617 | `handle_exploration_command()` | Sell without args | Call sell command with no args |
-| 683 | `handle_exploration_command()` | Accept from non-quest-giver | NPC with is_quest_giver=False |
-| 805 | `handle_exploration_command()` | Quests in AVAILABLE/FAILED state | Character with AVAILABLE status quest |
-| 857-858 | `handle_exploration_command()` | Quit save success prints | Mock save_game_state to succeed |
-| 909 | `handle_exploration_command()` | "unknown" command literal | Pass "unknown" as command |
-| 953-961 | `run_game_loop()` | Combat status display | Full loop test with combat |
-| 964-968 | `run_game_loop()` | Conversation mode routing | Full loop test in conversation |
-| 1028 | `start_game()` | Empty world validation | Mock create_world to return empty dict |
-| 1032 | `start_game()` | Invalid starting location | Mock create_world with bad start location |
-| 1097-1100 | `main()` | AI fallback mode + init exception | Test with non-strict mode and AI init failure |
-
----
+| Lines | Description |
+|-------|-------------|
+| 146 | `continue` when suggested name already exists in grid |
+| 150-151 | `logger.warning` + `continue` for non-grid direction |
+| 292-294 | Adding bidirectional connection when target exists in world |
+| 434 | Warning when no locations placed (fallback to single location) |
+| 469 | Adding back-connection to entry when it doesn't have one |
 
 ## Implementation Steps
 
-### Step 1: Add tests to `tests/test_main_coverage.py`
+### 1. Read existing tests to understand patterns
+File: `tests/test_ai_world_generation.py`
 
-Add the following test classes/methods:
+### 2. Add tests for uncovered paths
 
+#### Test line 146 - duplicate name skipped
 ```python
-class TestGenericLoadException:
-    def test_load_handles_unexpected_exception():
-        """Lines 157-159: Generic Exception after save detection."""
-
-class TestQuestGiverConversation:
-    def test_conversation_with_quest_giver_role():
-        """Line 189: NPC role is 'quest_giver'."""
-
-class TestAttackVictoryQuestProgress:
-    def test_attack_victory_quest_messages():
-        """Line 245: Quest progress messages on attack victory."""
-
-    def test_attack_victory_autosave_io_error():
-        """Lines 250-251: IOError silently caught."""
-
-class TestFleeAutosaveIOError:
-    def test_flee_success_autosave_io_error():
-        """Lines 294-295: IOError silently caught."""
-
-class TestCastVictoryAutosave:
-    def test_cast_victory_autosave_io_error():
-        """Lines 327-328: IOError silently caught."""
-
-class TestTalkAIDialogueFallback:
-    def test_talk_ai_dialogue_exception():
-        """Lines 490-491: AI failure uses existing greetings."""
-
-class TestTalkQuestProgress:
-    def test_talk_triggers_quest_progress():
-        """Line 498: TALK quest progress on NPC conversation."""
-
-class TestBuyEdgeCases:
-    def test_buy_inventory_full():
-        """Line 593: Inventory full error."""
-
-    def test_buy_collect_quest_progress():
-        """Line 610: COLLECT quest progress."""
-
-class TestAcceptNonQuestGiver:
-    def test_accept_from_non_quest_giver():
-        """Line 683: Accept from NPC without quests."""
-
-class TestQuestsEdgeCase:
-    def test_quests_available_status():
-        """Line 805: Quests in AVAILABLE state."""
-
-class TestQuitSaveSuccess:
-    def test_quit_save_success_output():
-        """Lines 857-858: Save success message."""
-
-class TestUnknownCommandLiteral:
-    def test_unknown_command_literal():
-        """Line 909: Explicit 'unknown' command."""
-
-class TestGameLoopCombat:
-    def test_game_loop_shows_combat_status():
-        """Lines 953-961: Combat status after action."""
-
-class TestGameLoopConversation:
-    def test_game_loop_conversation_routing():
-        """Lines 964-968: Conversation mode routing."""
-
-class TestStartGameValidation:
-    def test_start_game_empty_world():
-        """Line 1028: Empty world raises ValueError."""
-
-    def test_start_game_invalid_starting_location():
-        """Line 1032: Bad starting location raises ValueError."""
-
-class TestMainAIInit:
-    def test_main_fallback_mode_message():
-        """Line 1097: Fallback mode message."""
-
-    def test_main_ai_init_exception():
-        """Lines 1098-1100: AI init exception handling."""
+def test_create_ai_world_skips_duplicate_name():
+    """Test create_ai_world skips locations when name already exists."""
+    # Mock AI to return location with name that conflicts with existing
 ```
 
-### Step 2: Run tests to verify
+#### Test lines 150-151 - non-grid direction warning
+```python
+def test_create_ai_world_warns_on_non_grid_direction(caplog):
+    """Test create_ai_world logs warning for non-grid directions like 'up'."""
+    # Mock location data to include 'up' or 'down' direction
+```
+
+#### Test lines 292-294 - bidirectional connection
+```python
+def test_expand_world_adds_bidirectional_connection_to_existing():
+    """Test expand_world adds reverse connection when target exists."""
+    # Setup world with target location, mock AI to return connection to it
+```
+
+#### Test line 434 - fallback when no locations placed
+```python
+def test_expand_area_falls_back_when_no_locations_placed():
+    """Test expand_area falls back to single expand when none placed."""
+    # Mock generate_area to return locations that can't be placed (all conflicts)
+```
+
+#### Test line 469 - back-connection addition
+```python
+def test_expand_area_adds_back_connection():
+    """Test expand_area ensures entry has back-connection."""
+    # Setup where entry location lacks opposite direction connection
+```
+
+### 3. Run tests and verify coverage
 
 ```bash
-source venv/bin/activate && pytest tests/test_main_coverage.py -v
-source venv/bin/activate && pytest --cov=src/cli_rpg/main --cov-report=term-missing
+pytest tests/test_ai_world_generation.py -v --cov=src/cli_rpg/ai_world --cov-report=term-missing
 ```
 
----
-
-## Expected Coverage Improvement
-
-- **Before**: 94% (38 missing lines)
-- **Target**: 98%+ (< 10 missing lines)
-- **Lines to cover**: 20 distinct code paths
+## Files to Modify
+- `tests/test_ai_world_generation.py` - Add 5 new tests
