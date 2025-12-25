@@ -434,6 +434,12 @@ def handle_exploration_command(game_state: GameState, command: str, args: list[s
                 pass  # Silent fallback to existing greetings
 
         output = f"\n{npc.name}: \"{npc.get_greeting()}\""
+
+        # Record talk for TALK quest progress tracking
+        talk_messages = game_state.current_character.record_talk(npc.name)
+        if talk_messages:
+            output += "\n\n" + "\n".join(talk_messages)
+
         if npc.is_merchant and npc.shop:
             game_state.current_shop = npc.shop
             output += "\n\nType 'shop' to see items, 'buy <item>' to purchase, 'sell <item>' to sell."

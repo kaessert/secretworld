@@ -118,6 +118,7 @@ Quest-giver NPCs can be found throughout the world. Interact with them to receiv
 - **Collect quests**: Progress updates when you acquire matching items (from combat loot or shop purchases)
 - **Drop quests**: Progress updates when you defeat a specific enemy AND it drops a specific item (e.g., "Collect 3 Wolf Pelts from Wolves")
 - **Explore quests**: Progress updates when you visit matching locations
+- **Talk quests**: Progress updates when you talk to matching NPCs
 
 You'll see progress messages after each relevant action.
 

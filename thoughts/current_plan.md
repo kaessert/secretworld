@@ -1,85 +1,32 @@
-# Implementation Plan: EXPLORE Objective Type Tracking
+# Implementation Plan: TALK Quest Objective Tracking
 
 ## Spec
-When a player enters a new location via `GameState.move()`, check if they have any active quests with `ObjectiveType.EXPLORE` where the target matches the location name. If so, increment the quest's `current_count` and mark as `READY_TO_TURN_IN` when complete.
+When a player talks to an NPC, check if they have any active quests with `ObjectiveType.TALK` where the target matches the NPC name. If so, increment the quest's `current_count` and mark as `READY_TO_TURN_IN` when complete.
 
-## Tests First (TDD)
+## 1. Write Tests (`tests/test_quest_progress.py`)
 
-**File**: `tests/test_quest_progress.py`
+Add `TestRecordTalk` class following the existing pattern for `TestRecordExplore`:
+- `test_record_talk_increments_matching_quest_progress` - talking to NPC increments matching quest
+- `test_record_talk_returns_progress_message` - returns progress notification
+- `test_record_talk_marks_quest_ready_to_turn_in_when_target_reached` - status updates correctly
+- `test_record_talk_returns_ready_to_turn_in_message` - returns notification with quest giver name
+- `test_record_talk_matches_case_insensitive` - NPC name matching is case-insensitive
+- `test_record_talk_does_not_increment_non_matching_quest` - non-matching NPCs don't increment
+- `test_record_talk_only_affects_active_quests` - only ACTIVE quests get progress
+- `test_record_talk_only_affects_talk_objective_quests` - only TALK objective type quests get progress
+- `test_record_talk_progresses_multiple_matching_quests` - multiple matching quests all progress
+- `test_record_talk_returns_empty_list_when_no_matching_quests` - returns empty list when no matches
 
-Add new test class `TestRecordExplore` following existing `TestRecordKill`/`TestRecordCollection` patterns:
+## 2. Implement `record_talk()` (`src/cli_rpg/models/character.py`)
 
-1. `test_record_explore_increments_matching_quest_progress` - entering location increments current_count
-2. `test_record_explore_returns_progress_message` - returns "Quest progress: X [N/M]"
-3. `test_record_explore_marks_quest_ready_to_turn_in_when_target_reached` - status changes to READY_TO_TURN_IN
-4. `test_record_explore_returns_ready_to_turn_in_message` - returns message with quest giver name
-5. `test_record_explore_matches_case_insensitive` - "Dark Forest" matches "dark forest"
-6. `test_record_explore_does_not_increment_non_matching_quest` - wrong location doesn't progress
-7. `test_record_explore_only_affects_active_quests` - AVAILABLE/COMPLETED/FAILED quests unchanged
-8. `test_record_explore_only_affects_explore_objective_quests` - KILL/COLLECT/TALK unchanged
-9. `test_record_explore_progresses_multiple_matching_quests` - multiple quests can match same location
-10. `test_record_explore_returns_empty_list_when_no_matching_quests`
+Add `record_talk(npc_name: str) -> List[str]` method after `record_explore()` (line ~361):
+- Pattern matches existing `record_explore()` implementation exactly
+- Check for `ObjectiveType.TALK` instead of `EXPLORE`
+- Use case-insensitive comparison: `quest.target.lower() == npc_name.lower()`
+- Return list of progress/completion messages
 
-## Implementation
+## 3. Call from Talk Handler (`src/cli_rpg/main.py`)
 
-### Step 1: Add `record_explore()` to Character class
-
-**File**: `src/cli_rpg/models/character.py`
-
-Add method after `record_drop()` (around line 324):
-
-```python
-def record_explore(self, location_name: str) -> List[str]:
-    """Record exploring a location for quest progress.
-
-    Args:
-        location_name: Name of the explored location
-
-    Returns:
-        List of notification messages for quest progress/completion
-    """
-    from cli_rpg.models.quest import QuestStatus, ObjectiveType
-
-    messages = []
-    for quest in self.quests:
-        if (
-            quest.status == QuestStatus.ACTIVE
-            and quest.objective_type == ObjectiveType.EXPLORE
-            and quest.target.lower() == location_name.lower()
-        ):
-            completed = quest.progress()
-            if completed:
-                quest.status = QuestStatus.READY_TO_TURN_IN
-                if quest.quest_giver:
-                    messages.append(
-                        f"Quest objectives complete: {quest.name}! "
-                        f"Return to {quest.quest_giver} to claim your reward."
-                    )
-                else:
-                    messages.append(
-                        f"Quest objectives complete: {quest.name}! "
-                        "Return to the quest giver to claim your reward."
-                    )
-            else:
-                messages.append(
-                    f"Quest progress: {quest.name} [{quest.current_count}/{quest.target_count}]"
-                )
-    return messages
-```
-
-### Step 2: Call `record_explore()` from `GameState.move()`
-
-**File**: `src/cli_rpg/game_state.py`
-
-After successful move (line ~301), before returning, add:
-
-```python
-# Check for exploration quest progress
-explore_messages = self.current_character.record_explore(self.current_location)
-for msg in explore_messages:
-    message += f"\n{msg}"
-```
-
-## Verification
-
-Run: `pytest tests/test_quest_progress.py -v -k "explore"`
+In the `talk` command handler (around line 436, after `output = f"\n{npc.name}: ..."`):
+- Call `game_state.current_character.record_talk(npc.name)`
+- Append any returned messages to the output

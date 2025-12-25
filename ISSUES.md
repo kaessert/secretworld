@@ -1,25 +1,15 @@
 ## Active Issues
 
-### TALK quest objective type is not implemented
-**Status**: ACTIVE
-
-**Description**: The quest system defines `ObjectiveType.TALK` enum value, but there is no code that tracks when a player talks to an NPC for TALK quest types.
-
-**Steps to Reproduce**:
-1. Create a quest with `objective_type=ObjectiveType.TALK` and `target='Elder'`
-2. Accept the quest
-3. Talk to the Elder NPC
-4. Check quest progress - it remains at 0/1 despite talking to the target NPC
-
-**Expected Behavior**: Quest progress should update to 1/1 when the player talks to the target NPC.
-
-**Actual Behavior**: Quest progress stays at 0/1 forever because no code handles the TALK objective type.
-
-**Impact**: If AI generates quests with TALK objectives, players will be stuck with uncompletable quests.
-
-**Root Cause**: The `Character` class has `record_kill()`, `record_collection()`, `record_drop()`, and `record_explore()` methods, but no corresponding `record_talk()` method. The talk command handler doesn't call any quest tracking for TALK objectives.
+*No active issues at this time.*
 
 ## Resolved Issues
+
+### TALK quest objective type
+**Status**: RESOLVED
+
+**Description**: The quest system now tracks when players talk to NPCs for TALK quest objectives.
+
+**Fix**: Added `record_talk(npc_name)` method to `Character` class and integrated it into the `talk` command handler in `main.py`. Quest progress updates automatically when talking to target NPCs. Case-insensitive matching is supported, consistent with other quest types.
 
 ### EXPLORE quest objective type
 **Status**: RESOLVED

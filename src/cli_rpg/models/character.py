@@ -360,6 +360,43 @@ class Character:
                     )
         return messages
 
+    def record_talk(self, npc_name: str) -> List[str]:
+        """Record talking to an NPC for quest progress.
+
+        Args:
+            npc_name: Name of the NPC spoken to
+
+        Returns:
+            List of notification messages for quest progress/completion
+        """
+        from cli_rpg.models.quest import QuestStatus, ObjectiveType
+
+        messages = []
+        for quest in self.quests:
+            if (
+                quest.status == QuestStatus.ACTIVE
+                and quest.objective_type == ObjectiveType.TALK
+                and quest.target.lower() == npc_name.lower()
+            ):
+                completed = quest.progress()
+                if completed:
+                    quest.status = QuestStatus.READY_TO_TURN_IN
+                    if quest.quest_giver:
+                        messages.append(
+                            f"Quest objectives complete: {quest.name}! "
+                            f"Return to {quest.quest_giver} to claim your reward."
+                        )
+                    else:
+                        messages.append(
+                            f"Quest objectives complete: {quest.name}! "
+                            "Return to the quest giver to claim your reward."
+                        )
+                else:
+                    messages.append(
+                        f"Quest progress: {quest.name} [{quest.current_count}/{quest.target_count}]"
+                    )
+        return messages
+
     def claim_quest_rewards(self, quest: "Quest") -> List[str]:
         """Claim rewards from a quest ready to turn in.
 

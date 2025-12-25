@@ -635,3 +635,215 @@ class TestRecordExplore:
         messages = character.record_explore("Sunny Meadow")
 
         assert messages == []
+
+
+@pytest.fixture
+def talk_quest():
+    """Create a basic talk quest."""
+    return Quest(
+        name="Seek the Sage",
+        description="Talk to the Wise Sage",
+        status=QuestStatus.ACTIVE,
+        objective_type=ObjectiveType.TALK,
+        target="Wise Sage",
+        target_count=1,
+        current_count=0,
+    )
+
+
+class TestRecordTalk:
+    """Tests for Character.record_talk() method.
+
+    Spec: When a player talks to an NPC, check if they have any active quests
+    with ObjectiveType.TALK where the target matches the NPC name. If so,
+    increment the quest's current_count and mark as READY_TO_TURN_IN when complete.
+    """
+
+    # Spec: Talking to NPC increments matching quest progress
+    def test_record_talk_increments_matching_quest_progress(self, character, talk_quest):
+        """Test that talking to an NPC increments matching quest's current_count."""
+        character.quests.append(talk_quest)
+
+        character.record_talk("Wise Sage")
+
+        assert talk_quest.current_count == 1
+
+    # Spec: Player receives notification on quest progress
+    def test_record_talk_returns_progress_message(self, character):
+        """Test that record_talk returns progress notification."""
+        quest = Quest(
+            name="Council of Elders",
+            description="Talk to 3 elders",
+            status=QuestStatus.ACTIVE,
+            objective_type=ObjectiveType.TALK,
+            target="Elder",
+            target_count=3,
+            current_count=0,
+        )
+        character.quests.append(quest)
+
+        messages = character.record_talk("Elder")
+
+        assert len(messages) == 1
+        assert "Quest progress: Council of Elders [1/3]" in messages[0]
+
+    # Spec: Quest objectives complete - status updated to READY_TO_TURN_IN
+    def test_record_talk_marks_quest_ready_to_turn_in_when_target_reached(
+        self, character, talk_quest
+    ):
+        """Test that quest status is set to READY_TO_TURN_IN when target_count is reached."""
+        character.quests.append(talk_quest)
+
+        character.record_talk("Wise Sage")
+
+        assert talk_quest.status == QuestStatus.READY_TO_TURN_IN
+        assert talk_quest.current_count == 1
+
+    # Spec: Player receives notification to return to quest giver
+    def test_record_talk_returns_ready_to_turn_in_message(self, character):
+        """Test that record_talk returns notification to return to quest giver."""
+        quest = Quest(
+            name="Seek the Sage",
+            description="Talk to the Wise Sage",
+            status=QuestStatus.ACTIVE,
+            objective_type=ObjectiveType.TALK,
+            target="Wise Sage",
+            target_count=1,
+            current_count=0,
+            quest_giver="Village Chief",
+        )
+        character.quests.append(quest)
+
+        messages = character.record_talk("Wise Sage")
+
+        assert len(messages) == 1
+        assert "Quest objectives complete: Seek the Sage!" in messages[0]
+        assert "Return to Village Chief" in messages[0]
+
+    # Spec: Compare NPC name to quest target (case-insensitive)
+    def test_record_talk_matches_case_insensitive(self, character):
+        """Test that NPC name matching is case-insensitive."""
+        quest = Quest(
+            name="Consult the Council",
+            description="Talk to the sage",
+            status=QuestStatus.ACTIVE,
+            objective_type=ObjectiveType.TALK,
+            target="Wise Sage",
+            target_count=3,
+            current_count=0,
+        )
+        character.quests.append(quest)
+
+        # Talk with different cases
+        character.record_talk("WISE SAGE")
+        assert quest.current_count == 1
+
+        character.record_talk("wise sage")
+        assert quest.current_count == 2
+
+        character.record_talk("WiSe SaGe")
+        assert quest.current_count == 3
+
+    # Spec: Non-matching NPC names don't increment progress
+    def test_record_talk_does_not_increment_non_matching_quest(self, character, talk_quest):
+        """Test that talking to non-matching NPCs doesn't increment quest progress."""
+        character.quests.append(talk_quest)
+
+        messages = character.record_talk("Town Guard")
+
+        assert talk_quest.current_count == 0
+        assert len(messages) == 0
+
+    # Spec: Only ACTIVE quests get progress (not COMPLETED, AVAILABLE, FAILED)
+    def test_record_talk_only_affects_active_quests(self, character):
+        """Test that only ACTIVE quests get progress, not other statuses."""
+        statuses_to_test = [
+            QuestStatus.AVAILABLE,
+            QuestStatus.COMPLETED,
+            QuestStatus.FAILED,
+        ]
+
+        for status in statuses_to_test:
+            quest = Quest(
+                name=f"Quest {status.value}",
+                description="Talk to sage",
+                status=status,
+                objective_type=ObjectiveType.TALK,
+                target="Wise Sage",
+                target_count=1,
+                current_count=0,
+            )
+            character.quests.append(quest)
+
+        character.record_talk("Wise Sage")
+
+        # None of the non-active quests should have progress
+        for quest in character.quests:
+            assert quest.current_count == 0
+
+    # Spec: Only TALK objective type quests get progress
+    def test_record_talk_only_affects_talk_objective_quests(self, character):
+        """Test that only TALK objective type quests get progress."""
+        objective_types_to_test = [
+            ObjectiveType.KILL,
+            ObjectiveType.COLLECT,
+            ObjectiveType.EXPLORE,
+        ]
+
+        for obj_type in objective_types_to_test:
+            quest = Quest(
+                name=f"Quest {obj_type.value}",
+                description="Quest description",
+                status=QuestStatus.ACTIVE,
+                objective_type=obj_type,
+                target="Wise Sage",
+                target_count=1,
+                current_count=0,
+            )
+            character.quests.append(quest)
+
+        character.record_talk("Wise Sage")
+
+        # None of the non-TALK quests should have progress
+        for quest in character.quests:
+            assert quest.current_count == 0
+
+    # Spec: Multiple quests can progress from same NPC conversation
+    def test_record_talk_progresses_multiple_matching_quests(self, character):
+        """Test that multiple quests matching the same NPC all get progress."""
+        quest1 = Quest(
+            name="Sage's Wisdom",
+            description="Consult the Wise Sage 3 times",
+            status=QuestStatus.ACTIVE,
+            objective_type=ObjectiveType.TALK,
+            target="Wise Sage",
+            target_count=3,
+            current_count=0,
+        )
+        quest2 = Quest(
+            name="First Contact",
+            description="Meet the Wise Sage",
+            status=QuestStatus.ACTIVE,
+            objective_type=ObjectiveType.TALK,
+            target="Wise Sage",
+            target_count=1,
+            current_count=0,
+        )
+        character.quests.extend([quest1, quest2])
+
+        messages = character.record_talk("Wise Sage")
+
+        # Both quests should progress
+        assert quest1.current_count == 1
+        assert quest2.current_count == 1
+        # Quest 2 should be ready to turn in (target_count is 1)
+        assert quest2.status == QuestStatus.READY_TO_TURN_IN
+        # Should have 2 messages (one progress, one ready to turn in)
+        assert len(messages) == 2
+
+    # Spec: Returns empty list when no quests match
+    def test_record_talk_returns_empty_list_when_no_matching_quests(self, character):
+        """Test that record_talk returns empty list when no quests match."""
+        messages = character.record_talk("Random NPC")
+
+        assert messages == []

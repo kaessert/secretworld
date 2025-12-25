@@ -1,48 +1,48 @@
-# Implementation Summary: EXPLORE Objective Type Tracking
+# Implementation Summary: TALK Quest Objective Tracking
 
 ## What Was Implemented
 
-Added support for EXPLORE quest objective type tracking that triggers when players move to a new location.
+Added quest progress tracking for `ObjectiveType.TALK` quests - when a player talks to an NPC, any active TALK quests targeting that NPC now progress automatically.
 
 ### Files Modified
 
-1. **`src/cli_rpg/models/character.py`**
-   - Added `record_explore(location_name: str) -> List[str]` method (lines 326-361)
-   - Follows the same pattern as existing `record_kill()`, `record_collection()`, and `record_drop()` methods
-   - Case-insensitive location name matching
-   - Only processes ACTIVE quests with EXPLORE objective type
-   - Returns progress messages or "ready to turn in" messages with quest giver name
+1. **`tests/test_quest_progress.py`** - Added `TestRecordTalk` class with 10 tests:
+   - `test_record_talk_increments_matching_quest_progress`
+   - `test_record_talk_returns_progress_message`
+   - `test_record_talk_marks_quest_ready_to_turn_in_when_target_reached`
+   - `test_record_talk_returns_ready_to_turn_in_message`
+   - `test_record_talk_matches_case_insensitive`
+   - `test_record_talk_does_not_increment_non_matching_quest`
+   - `test_record_talk_only_affects_active_quests`
+   - `test_record_talk_only_affects_talk_objective_quests`
+   - `test_record_talk_progresses_multiple_matching_quests`
+   - `test_record_talk_returns_empty_list_when_no_matching_quests`
 
-2. **`src/cli_rpg/game_state.py`**
-   - Added call to `record_explore()` in the `move()` method (lines 303-306)
-   - Placed after successful move but before random encounter check
-   - Appends quest progress messages to the move result message
+2. **`src/cli_rpg/models/character.py`** - Added `record_talk(npc_name: str) -> List[str]` method:
+   - Follows same pattern as existing `record_explore()`, `record_kill()`, `record_collection()` methods
+   - Uses case-insensitive matching for NPC names
+   - Increments `current_count` on matching TALK quests
+   - Sets status to `READY_TO_TURN_IN` when target reached
+   - Returns progress/completion notification messages
 
-3. **`tests/test_quest_progress.py`**
-   - Added `explore_quest` fixture
-   - Added `TestRecordExplore` class with 10 tests covering:
-     - Incrementing matching quest progress
-     - Returning progress messages
-     - Marking quest as READY_TO_TURN_IN when complete
-     - Returning turn-in messages with quest giver name
-     - Case-insensitive location matching
-     - Not incrementing non-matching quests
-     - Only affecting ACTIVE quests
-     - Only affecting EXPLORE objective type quests
-     - Progressing multiple matching quests simultaneously
-     - Returning empty list when no quests match
+3. **`src/cli_rpg/main.py`** - Integrated into talk command handler:
+   - Calls `record_talk(npc.name)` after displaying NPC greeting
+   - Appends any returned quest progress messages to output
 
 ## Test Results
 
-All tests pass:
-- 10 new tests in `TestRecordExplore` class
-- 1078 total tests pass (1 skipped)
-- No regressions
+- All 10 new `TestRecordTalk` tests pass
+- Full test suite: 1088 passed, 1 skipped
 
-## E2E Validation
+## Design Decisions
 
-The feature should be validated by:
-1. Creating a character with an EXPLORE quest targeting a specific location
-2. Moving to that location via `go <direction>` command
-3. Verifying the quest progress message appears in the move output
-4. Completing the objective and verifying READY_TO_TURN_IN status
+- Method placed after `record_explore()` in character.py for logical grouping
+- Uses same message format as other record methods for consistency
+- Quest progress messages appear immediately after NPC greeting for clear feedback
+
+## E2E Validation Suggestions
+
+1. Create a TALK quest targeting a specific NPC
+2. Talk to that NPC and verify quest progress message appears
+3. Verify quest status changes to READY_TO_TURN_IN when target_count reached
+4. Complete quest with the quest giver to confirm full flow works
