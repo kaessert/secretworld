@@ -10,6 +10,7 @@ from cli_rpg.models.status_effect import StatusEffect
 from cli_rpg.models.weather import Weather
 from cli_rpg.models.companion import Companion
 from cli_rpg import colors
+from cli_rpg.sound_effects import sound_victory
 
 if TYPE_CHECKING:
     from cli_rpg.ai_service import AIService
@@ -863,6 +864,9 @@ class CombatEncounter:
             enemy.clear_status_effects()
 
         if victory:
+            # Play victory sound
+            sound_victory()
+
             # Build victory message based on number of enemies
             if len(self.enemies) == 1:
                 messages = [f"{colors.heal('Victory!')} You defeated {colors.enemy(self.enemies[0].name)}!"]

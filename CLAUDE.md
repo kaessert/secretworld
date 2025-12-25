@@ -52,6 +52,7 @@ src/cli_rpg/
 ├── seasons.py           # Seasonal events and festivals system
 ├── shadow_creature.py   # Shadow creature attack at 100% dread
 ├── hallucinations.py    # Dread hallucinations at 75-99% dread
+├── sound_effects.py     # Terminal bell sound effects for game events
 └── models/
     ├── character.py     # Player character model
     ├── dread.py         # Dread meter for psychological horror

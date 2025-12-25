@@ -15,6 +15,7 @@ from cli_rpg.input_handler import init_readline, get_input, set_completer_contex
 from cli_rpg.dreams import maybe_trigger_dream, display_dream
 from cli_rpg.companion_reactions import process_companion_reactions
 from cli_rpg.text_effects import set_effects_enabled
+from cli_rpg.sound_effects import set_sound_enabled, sound_death, sound_quest_complete
 
 
 def get_command_reference() -> str:
@@ -302,6 +303,7 @@ def handle_combat_command(game_state: GameState, command: str, args: list[str], 
                     death_message = combat.end_combat(victory=False)
                     output += f"\n{death_message}"
                     output += "\n\n=== GAME OVER ==="
+                    sound_death()
                     game_state.current_combat = None
 
         return (True, output)
@@ -319,10 +321,11 @@ def handle_combat_command(game_state: GameState, command: str, args: list[str], 
             death_message = combat.end_combat(victory=False)
             output += f"\n{death_message}"
             output += "\n\n=== GAME OVER ==="
+            sound_death()
             game_state.current_combat = None
 
         return (True, output)
-    
+
     elif command == "flee":
         success, message = combat.player_flee()
         output = f"\n{message}"
@@ -357,6 +360,7 @@ def handle_combat_command(game_state: GameState, command: str, args: list[str], 
                 death_message = combat.end_combat(victory=False)
                 output += f"\n{death_message}"
                 output += "\n\n=== GAME OVER ==="
+                sound_death()
                 game_state.current_combat = None
 
         return (True, output)
@@ -418,6 +422,7 @@ def handle_combat_command(game_state: GameState, command: str, args: list[str], 
                     death_message = combat.end_combat(victory=False)
                     output += f"\n{death_message}"
                     output += "\n\n=== GAME OVER ==="
+                    sound_death()
                     game_state.current_combat = None
 
         return (True, output)
@@ -452,6 +457,7 @@ def handle_combat_command(game_state: GameState, command: str, args: list[str], 
                 death_message = combat.end_combat(victory=False)
                 output += f"\n{death_message}"
                 output += "\n\n=== GAME OVER ==="
+                sound_death()
                 game_state.current_combat = None
 
         return (True, output)
@@ -938,6 +944,7 @@ def handle_exploration_command(game_state: GameState, command: str, args: list[s
         reward_messages = game_state.current_character.claim_quest_rewards(matching_quest)
         matching_quest.status = QuestStatus.COMPLETED
         autosave(game_state)
+        sound_quest_complete()
 
         output_lines = [f"\nQuest completed: {matching_quest.name}!"]
         output_lines.extend(reward_messages)
@@ -1473,9 +1480,10 @@ def run_json_mode(
     )
     from cli_rpg.logging_service import GameplayLogger
 
-    # Disable ANSI colors and typewriter effects for machine-readable output
+    # Disable ANSI colors, typewriter effects, and sounds for machine-readable output
     set_colors_enabled(False)
     set_effects_enabled(False)
+    set_sound_enabled(False)
 
     # Load AI configuration
     ai_config = load_ai_config()
@@ -1673,9 +1681,10 @@ def run_non_interactive(
     from cli_rpg.models.character import Character
     from cli_rpg.logging_service import GameplayLogger
 
-    # Disable ANSI colors and typewriter effects for machine-readable output
+    # Disable ANSI colors, typewriter effects, and sounds for machine-readable output
     set_colors_enabled(False)
     set_effects_enabled(False)
+    set_sound_enabled(False)
 
     # Load AI configuration
     ai_config = load_ai_config()

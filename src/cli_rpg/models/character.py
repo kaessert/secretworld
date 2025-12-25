@@ -3,6 +3,7 @@ from dataclasses import dataclass, field
 from typing import ClassVar, Dict, List, Optional, Tuple, TYPE_CHECKING
 
 from cli_rpg import colors
+from cli_rpg.sound_effects import sound_level_up
 
 from cli_rpg.models.dread import DreadMeter
 
@@ -729,28 +730,31 @@ class Character:
     def level_up(self) -> str:
         """
         Increase level and boost stats.
-        
+
         Returns:
             Message describing level up
         """
         self.level += 1
-        
+
+        # Play level up sound
+        sound_level_up()
+
         # Increase stats
         self.strength += 1
         self.dexterity += 1
         self.intelligence += 1
-        
+
         # Recalculate derived stats
         old_max_health = self.max_health
         self.max_health = self.BASE_HEALTH + self.strength * self.HEALTH_PER_STRENGTH
         self.constitution = self.strength
-        
+
         # Restore health to new maximum
         self.health = self.max_health
-        
+
         # Update XP threshold
         self.xp_to_next_level = self.level * 100
-        
+
         health_increase = self.max_health - old_max_health
         return (f"Level Up! You are now level {self.level}!\n"
                 f"Stats increased: STR +1, DEX +1, INT +1\n"

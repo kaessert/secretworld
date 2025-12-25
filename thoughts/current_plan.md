@@ -1,56 +1,64 @@
-# Implementation Plan: Disable typewriter effects in non-interactive/JSON modes
-
-## Summary
-The `text_effects.py` module has `set_effects_enabled()` to control typewriter effects. Add calls to disable effects at startup for `--non-interactive` and `--json` modes.
+# Implementation Plan: Terminal Bell Sound Effects
 
 ## Spec
-When `--non-interactive` or `--json` CLI flags are passed, typewriter text effects must be disabled so output is printed instantly (no delays in machine-readable output).
 
-## Changes Required
+Add terminal bell (`\a`) sound effects for important game events:
+- **Combat victory** - Player wins a fight
+- **Level up** - Player gains a level
+- **Player death** - Game over
+- **Quest completion** - Quest turned in for rewards
 
-### 1. Update `main.py` - Add effect disabling
+Bell sounds will be disabled in `--non-interactive` and `--json` modes, following the same pattern as `text_effects.py`.
 
-**File:** `src/cli_rpg/main.py`
+## Files to Create/Modify
 
-**Import:** Add to imports (line 17, after `from cli_rpg.companion_reactions import ...`):
-```python
-from cli_rpg.text_effects import set_effects_enabled
-```
+| File | Action |
+|------|--------|
+| `src/cli_rpg/sound_effects.py` | Create new module |
+| `src/cli_rpg/main.py` | Disable sounds in non-interactive/JSON; add death/quest sounds |
+| `src/cli_rpg/combat.py` | Add victory sound |
+| `src/cli_rpg/models/character.py` | Add level-up sound |
+| `tests/test_sound_effects.py` | Create tests |
 
-**run_json_mode()** (after line 1473 `set_colors_enabled(False)`):
-```python
-set_effects_enabled(False)
-```
+## Implementation Steps
 
-**run_non_interactive()** (after line 1671 `set_colors_enabled(False)`):
-```python
-set_effects_enabled(False)
-```
+### 1. Create `src/cli_rpg/sound_effects.py`
 
-### 2. Add test
+New module mirroring `text_effects.py` pattern:
+- `set_sound_enabled(enabled: Optional[bool])` - global toggle
+- `sound_enabled() -> bool` - check if enabled (follows `color_enabled()` when None)
+- `bell(file)` - output `\a` if enabled
+- Semantic helpers: `sound_victory()`, `sound_level_up()`, `sound_death()`, `sound_quest_complete()`
 
-**File:** `tests/test_text_effects.py`
+### 2. Create `tests/test_sound_effects.py`
 
-Add test class:
-```python
-class TestNonInteractiveModeDisablesEffects:
-    """Test: non-interactive modes disable typewriter effects."""
+Tests for:
+- `bell()` outputs `\a` when enabled
+- `bell()` outputs nothing when disabled
+- `sound_enabled()` follows `color_enabled()` when not explicitly set
+- Explicit override works
 
-    def test_set_effects_enabled_false_disables_sleep(self):
-        """Explicitly setting effects disabled prevents any sleep calls."""
-        _reset_effects_state()
-        text_effects.set_effects_enabled(False)
+### 3. Update `src/cli_rpg/main.py`
 
-        output = io.StringIO()
-        with patch("time.sleep") as mock_sleep:
-            text_effects.typewriter_print("Test text", file=output)
+- Import `set_sound_enabled` from `sound_effects`
+- In `run_json_mode()`: add `set_sound_enabled(False)` (line ~1479)
+- In `run_non_interactive()`: add `set_sound_enabled(False)` (line ~1678)
+- In `handle_combat_command()` player death: add `sound_death()` call
+- In `handle_exploration_command()` "complete" command: add `sound_quest_complete()` call
 
-        mock_sleep.assert_not_called()
-        assert output.getvalue() == "Test text\n"
-```
+### 4. Update `src/cli_rpg/combat.py`
 
-## Verification
+- Import `sound_victory`
+- In `end_combat(victory=True)`: add `sound_victory()` call
+
+### 5. Update `src/cli_rpg/models/character.py`
+
+- Import `sound_level_up`
+- In `gain_xp()` when `level_ups > 0`: add `sound_level_up()` call
+
+## Test Commands
+
 ```bash
-pytest tests/test_text_effects.py -v
-pytest tests/test_main.py -v  # Ensure no regressions
+pytest tests/test_sound_effects.py -v
+pytest --cov=src/cli_rpg/sound_effects
 ```
