@@ -1,74 +1,54 @@
-# Living World Events - Implementation Summary
+# Implementation Summary: Basic Weather System
 
 ## What Was Implemented
 
-### Feature Overview
-Added a timed world events system (plagues, caravans, invasions) that progress with in-game time, giving players urgency and making the world feel alive.
+### New Model: `src/cli_rpg/models/weather.py`
+A Weather dataclass that tracks atmospheric conditions affecting gameplay:
 
-### Files Created
+- **Weather States**: `clear`, `rain`, `storm`, `fog`
+- **Dread Modifiers**: Each weather type adds dread on movement (0, +2, +5, +3 respectively)
+- **Travel Modifier**: Storm adds +1 hour to travel time
+- **Display**: Human-readable display with emoji (e.g., "Rain ☔")
+- **Flavor Text**: Random atmospheric descriptions for movement messages
+- **Cave Override**: `get_effective_condition()` returns "clear" for caves (underground)
+- **Transitions**: 10% chance per hour to change weather
+- **Serialization**: Full `to_dict()`/`from_dict()` for save/load
 
-1. **`src/cli_rpg/models/world_event.py`** - WorldEvent dataclass model
-   - Fields: event_id, name, description, event_type, affected_locations, start_hour, duration_hours, is_active, is_resolved, consequence_applied
-   - Methods: `get_time_remaining(current_hour)`, `is_expired(current_hour)`, `to_dict()`, `from_dict()`
-   - Handles midnight wrap-around for events spanning across days
+### GameState Integration (`src/cli_rpg/game_state.py`)
+- Added `self.weather = Weather()` attribute in `__init__`
+- Updated `move()` to:
+  - Apply storm travel time modifier (+1 hour)
+  - Add weather flavor text to movement messages
+  - Trigger weather transitions after movement
+- Updated `_update_dread_on_move()` to include weather dread modifier (except in caves)
+- Added weather to `to_dict()` serialization
+- Added weather restoration in `from_dict()` with backward compatibility (defaults to clear)
 
-2. **`src/cli_rpg/world_events.py`** - WorldEventManager module
-   - Constants: `EVENT_SPAWN_CHANCE = 0.05` (5% per move), `EVENT_TEMPLATES`
-   - Event templates for: caravan, plague, invasion
-   - Functions:
-     - `spawn_random_event(game_state)` - Creates new event from templates
-     - `check_for_new_event(game_state)` - Rolls for event spawn on move (max 3 active)
-     - `progress_events(game_state)` - Applies consequences for expired events
-     - `apply_consequence(event, game_state)` - Consequence logic per event type
-     - `resolve_event(game_state, event_id)` - Player resolves event
-     - `format_event_notification(event, current_hour)` - Decorative box format
-     - `get_location_event_warning(location_name, events)` - Warning on enter
-     - `get_active_events_display(game_state)` - Display for `events` command
-     - `get_active_event_count(game_state)` - Count of active events
+### Status Display (`src/cli_rpg/main.py`)
+- Updated status command to show weather: "Weather: Rain ☔"
 
-3. **`tests/test_world_events.py`** - 20 comprehensive tests
-   - Model creation and serialization tests
-   - Event spawn and progression tests
-   - Consequence and resolution tests
-   - Output formatting tests
-   - Persistence tests (save/load roundtrip)
-   - Location warning tests
-
-### Files Modified
-
-1. **`src/cli_rpg/game_state.py`**
-   - Added import for WorldEvent and world_events functions
-   - Added "events" to KNOWN_COMMANDS
-   - Added `world_events: list[WorldEvent] = []` attribute to GameState
-   - Integrated into `move()` method:
-     - Check for new event spawn after random encounters
-     - Show warning when entering affected locations
-     - Progress events with time advancement
-   - Updated `to_dict()` to serialize world_events
-   - Updated `from_dict()` to deserialize world_events
-
-2. **`src/cli_rpg/main.py`**
-   - Added "events" command in help documentation
-   - Added "events" command handler in `handle_exploration_command()`
+## Files Modified
+1. `src/cli_rpg/models/weather.py` (NEW)
+2. `src/cli_rpg/game_state.py` (modified)
+3. `src/cli_rpg/main.py` (modified)
+4. `tests/test_weather.py` (NEW - 26 tests)
+5. `tests/test_random_encounters.py` (minor fix to account for weather random calls)
 
 ## Test Results
-
-All 2007 tests pass, including the 20 new tests for world events.
+- 26 new weather tests all pass
+- 2033 total tests pass
+- All existing functionality preserved
 
 ## Design Decisions
+1. **Caves are always "clear"**: Underground locations don't experience weather effects
+2. **Weather transitions on movement**: 10% chance per hour (per travel action)
+3. **Storm penalty is additive**: Travel time is 1 + storm_modifier hours
+4. **Backward compatibility**: Old saves without weather default to clear weather
 
-1. **Event Type System**: Three event types (caravan, plague, invasion) with different consequences and durations
-2. **Spawn Limit**: Maximum 3 active events at a time to avoid overwhelming players
-3. **Time Tracking**: Events use game hours, handling midnight wrap-around correctly
-4. **Consequence Application**: Consequences apply when events expire without player resolution
-5. **Color Scheme**: Used existing color functions (heal for success, damage for danger, warning for alerts)
-
-## E2E Test Validation
-
-The following scenarios should be validated in E2E testing:
-1. Move around the world and eventually trigger a world event spawn
-2. Use `events` command to view active events
-3. Check that entering an affected location shows a warning
-4. Let time pass (via rest or movement) and observe event progression
-5. Save and reload game, verify events persist
-6. Let an event expire and observe the consequence message
+## E2E Validation Points
+- Start new game → status shows "Weather: Clear ☀"
+- Move during rain → see flavor text and +2 dread
+- Move during storm → takes 2 hours instead of 1, +5 dread
+- Enter cave during storm → dread increase should not include weather bonus
+- Save and load → weather persists
+- Load old save → defaults to clear weather

@@ -1,127 +1,116 @@
-# Living World Events - Implementation Plan
+# Implementation Plan: Basic Weather System
 
-## Feature Summary
-Add timed world events (plagues, caravans, invasions) that progress with in-game time, giving players urgency and making the world feel alive. Leverages existing GameTime infrastructure.
+## Overview
+Add a weather system that affects gameplay, building on the existing day/night cycle infrastructure in `GameTime`. Weather states (clear, rain, storm, fog) will affect dread buildup, travel time, and provide atmospheric descriptions.
 
-## Spec
+## Specification
 
-### WorldEvent Model
-- **Type**: `dataclass` in new file `src/cli_rpg/models/world_event.py`
-- **Fields**:
-  - `event_id`: str - unique identifier (e.g., "plague_millbrook_001")
-  - `name`: str - display name (e.g., "The Crimson Plague")
-  - `description`: str - what's happening (e.g., "A deadly plague spreads through Millbrook")
-  - `event_type`: str - category ("plague", "caravan", "invasion", "festival")
-  - `affected_locations`: list[str] - location names affected
-  - `start_hour`: int - game hour when event started
-  - `duration_hours`: int - how long event lasts before consequence
-  - `is_active`: bool - whether event is still ongoing
-  - `is_resolved`: bool - whether player addressed it
-  - `consequence_applied`: bool - whether negative outcome happened
-- **Serialization**: `to_dict()` / `from_dict()` for persistence
+### Weather States
+- **clear**: Default weather, no modifiers
+- **rain**: Atmospheric, +2 dread per move, reduces visibility slightly
+- **storm**: Dangerous, +5 dread per move, travel takes +1 hour
+- **fog**: Mysterious, +3 dread per move, 50% chance enemies get surprise attack
 
-### WorldEventManager
-- **Location**: New file `src/cli_rpg/world_events.py`
-- **State**: `active_events: list[WorldEvent]` stored in GameState
-- **Functions**:
-  - `check_for_new_event(game_state, chance=0.05) -> Optional[WorldEvent]` - 5% chance per move to spawn
-  - `progress_events(game_state) -> list[str]` - called on time advance, returns progress messages
-  - `get_active_events() -> list[WorldEvent]` - for status display
-  - `resolve_event(event_id) -> str` - mark event resolved
-  - `apply_consequence(event: WorldEvent) -> str` - when event timer expires
+### Weather Transitions
+- Weather changes randomly on each hour advance (10% chance per hour)
+- Weather persists across saves (stored in GameTime or separate Weather model)
+- Some location categories affect weather probability (caves always clear, mountains more storms)
 
-### Event Types (MVP - 3 types)
-1. **Caravan Arriving** (positive, timed)
-   - "A merchant caravan arrives in {location}. They leave in {hours} hours."
-   - Adds temporary merchant NPC with rare items
-   - Consequence: Caravan leaves, merchant despawns
+### Display Integration
+- `status` command shows weather: "Weather: Rainy ☔"
+- Move descriptions include weather flavor: "You trudge through the rain..."
+- Whispers can reference weather conditions
 
-2. **Plague Spreading** (negative, timed)
-   - "A plague spreads in {location}. Find a cure within {hours} hours!"
-   - Affected location has "plague" marker
-   - Consequence: NPCs become unavailable, shop prices double
+---
 
-3. **Monster Incursion** (negative, timed)
-   - "Monsters overrun {location}! Clear them within {hours} hours."
-   - Higher encounter rate in affected location
-   - Consequence: Location becomes dangerous (instant combat on entry)
+## Tests (TDD - write before implementation)
 
-### Integration Points
-- **Time progression**: Hook into `GameTime.advance()` to progress events
-- **Move**: Show event warnings when entering affected locations
-- **Status command**: Show active events and remaining time
-- **New command**: `events` - list all active world events
+### File: `tests/test_weather.py`
 
-### Output Format
-```
-╔════════════════════════════════════════════════════════╗
-║  WORLD EVENT: Merchant Caravan Arriving               ║
-║                                                       ║
-║  A wealthy caravan has arrived at Millbrook Village.  ║
-║  They will depart in 12 hours.                        ║
-║                                                       ║
-║  [Hint]: Visit Millbrook to trade for rare goods!     ║
-╚════════════════════════════════════════════════════════╝
-```
+1. **Weather model tests**
+   - `test_weather_defaults_to_clear` - Default weather is "clear"
+   - `test_weather_get_display_clear` - Display shows "Clear ☀"
+   - `test_weather_get_display_rain` - Display shows "Rain ☔"
+   - `test_weather_get_display_storm` - Display shows "Storm ⛈"
+   - `test_weather_get_display_fog` - Display shows "Fog 🌫"
+   - `test_weather_serialization` - to_dict/from_dict round-trips correctly
+   - `test_weather_transition_changes_state` - transition() can change weather
+   - `test_weather_stays_clear_in_caves` - Caves always report clear weather
 
-## Tests (TDD)
+2. **Weather integration tests**
+   - `test_game_state_has_weather` - GameState includes weather attribute
+   - `test_move_advances_weather` - Movement can trigger weather transitions
+   - `test_weather_affects_dread_rain` - Rain adds +2 dread on move
+   - `test_weather_affects_dread_storm` - Storm adds +5 dread on move
+   - `test_storm_adds_travel_time` - Storm weather adds +1 hour to travel
+   - `test_weather_persists_in_save` - Weather saved/loaded with game state
+   - `test_weather_backward_compatibility` - Old saves without weather default to clear
 
-### File: `tests/test_world_events.py`
+3. **Display integration tests**
+   - `test_status_shows_weather` - Status command includes weather display
+   - `test_move_message_includes_weather_flavor` - Movement messages mention weather
 
-1. **test_world_event_model_creation** - WorldEvent dataclass with required fields
-2. **test_world_event_serialization** - to_dict/from_dict roundtrip
-3. **test_event_spawns_on_move** - With seeded RNG, event can trigger on move
-4. **test_event_progresses_with_time** - Event duration decreases as GameTime advances
-5. **test_event_consequence_when_expired** - Consequence applied when timer reaches 0
-6. **test_event_resolved_before_expiry** - Resolving event prevents consequence
-7. **test_caravan_adds_merchant_npc** - Caravan event adds temporary merchant to location
-8. **test_plague_affects_location** - Plague marks location, affects NPCs
-9. **test_events_command_lists_active** - `events` command shows active events
-10. **test_status_shows_event_count** - Status command mentions active events
-11. **test_events_persist_on_save_load** - Events survive save/load cycle
-12. **test_enter_affected_location_shows_warning** - Moving to affected location shows event message
+---
 
 ## Implementation Steps
 
-1. **Create `src/cli_rpg/models/world_event.py`**
-   - Define `WorldEvent` dataclass
-   - Add `to_dict()` / `from_dict()` methods
-   - Add `get_time_remaining(current_hour: int) -> int` method
-   - Add `is_expired(current_hour: int) -> bool` method
+### Step 1: Create Weather Model
+**File**: `src/cli_rpg/models/weather.py`
 
-2. **Create `src/cli_rpg/world_events.py`**
-   - Constants: `EVENT_SPAWN_CHANCE = 0.05`, `EVENT_TEMPLATES`
-   - `spawn_random_event(game_state) -> WorldEvent` - creates event from templates
-   - `check_for_new_event(game_state) -> Optional[str]` - rolls for event spawn
-   - `progress_events(game_state) -> list[str]` - advances all events, applies consequences
-   - `format_event_notification(event) -> str` - formats event announcement box
-   - `get_location_event_warning(location, events) -> Optional[str]` - warning for affected location
+```python
+@dataclass
+class Weather:
+    condition: str = "clear"  # clear, rain, storm, fog
 
-3. **Modify `src/cli_rpg/game_state.py`**
-   - Add `world_events: list[WorldEvent] = []` attribute
-   - In `move()`: Check for new event spawn (after random encounters)
-   - In `move()`: Show warning if entering affected location
-   - Modify `to_dict()` / `from_dict()` to include world_events
+    WEATHER_STATES = ["clear", "rain", "storm", "fog"]
+    DREAD_MODIFIERS = {"clear": 0, "rain": 2, "storm": 5, "fog": 3}
+    TRAVEL_MODIFIERS = {"clear": 0, "rain": 0, "storm": 1, "fog": 0}
 
-4. **Modify `src/cli_rpg/models/game_time.py`**
-   - Add callback hook or modify `advance()` to trigger event progression
-   - Or: Call event progression from GameState when time advances
+    def get_display(self) -> str
+    def get_dread_modifier(self) -> int
+    def get_travel_modifier(self) -> int
+    def transition(self) -> Optional[str]  # Returns new weather if changed
+    def to_dict(self) -> dict
+    @classmethod def from_dict(cls, data: dict) -> "Weather"
+```
 
-5. **Add `events` command to game loop**
-   - List all active world events with time remaining
-   - Format: "1. The Crimson Plague - Millbrook (8 hours remaining)"
+### Step 2: Add Weather Flavor Text
+**File**: `src/cli_rpg/models/weather.py`
 
-6. **Modify status command**
-   - Add line: "Active Events: 2" (if any)
+Add weather descriptions for movement messages:
+```python
+WEATHER_FLAVOR = {
+    "clear": ["The sky is clear above you.", "Sunlight warms your path."],
+    "rain": ["Rain patters against your gear.", "You trudge through the mud."],
+    "storm": ["Thunder rumbles ominously.", "Lightning illuminates the path."],
+    "fog": ["Mist swirls around you.", "Shapes move in the fog..."],
+}
+```
 
-7. **Write tests in `tests/test_world_events.py`**
-   - Follow existing test patterns from `test_random_encounters.py` and `test_dread.py`
-   - Use `unittest.mock.patch` to control RNG
+### Step 3: Integrate Weather into GameState
+**File**: `src/cli_rpg/game_state.py`
 
-## Files to Create/Modify
-- **Create**: `src/cli_rpg/models/world_event.py`
-- **Create**: `src/cli_rpg/world_events.py`
-- **Create**: `tests/test_world_events.py`
-- **Modify**: `src/cli_rpg/game_state.py` (add world_events list, hooks in move())
-- **Modify**: `src/cli_rpg/main.py` (add `events` command)
-- **Modify**: Status command output (show event count)
+- Add `weather: Weather` attribute in `__init__`
+- Update `_update_dread_on_move()` to include weather modifier
+- Update `move()` to:
+  - Add weather flavor to movement message
+  - Apply storm travel time modifier
+  - Call `weather.transition()` after time advances
+- Update `to_dict()` to include weather
+- Update `from_dict()` to restore weather (with backward compat)
+
+### Step 4: Update Status Display
+**File**: `src/cli_rpg/main.py`
+
+- Update status command handler to show weather:
+  ```python
+  weather_display = game_state.weather.get_display()
+  return (True, f"\n{status_output}\nTime: {time_display}\nWeather: {weather_display}\n{dread_display}")
+  ```
+
+### Step 5: Cave Location Override
+**File**: `src/cli_rpg/game_state.py`
+
+- In `_update_dread_on_move()`, check if location category is "cave"
+- If cave, skip weather dread modifier (you're underground)
+- Add helper method `get_effective_weather(location)` that returns "clear" for caves

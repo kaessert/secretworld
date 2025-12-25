@@ -58,7 +58,8 @@ src/cli_rpg/
     ├── shop.py          # Shop system
     ├── status_effect.py # Status effects (poison, buffs, debuffs)
     ├── random_encounter.py # Random encounter model for travel events
-    └── world_event.py   # World event model for timed events
+    ├── world_event.py   # World event model for timed events
+    └── weather.py       # Weather system (clear, rain, storm, fog)
 ```
 
 ## Key Architectural Patterns

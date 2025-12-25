@@ -23,6 +23,7 @@ python -m cli_rpg.main
 - **Gold Economy**: Earn gold from combat victories, spend it at shops
 - **Persistent Saves**: Save and load complete game progress including world state, location, and theme
 - **Day/Night Cycle**: Time advances as you explore (movement: +1 hour, rest: +4 hours). Night brings eerie whispers and some NPCs/shops may be unavailable
+- **Weather System**: Dynamic weather (clear, rain, storm, fog) affects gameplay with dread modifiers and storm travel delays. Underground locations are sheltered from weather.
 - **Dread System**: Psychological horror element that tracks your fear level (0-100%). Dangerous areas build dread; high dread causes paranoid whispers and combat penalties. Reduce dread by resting, visiting towns, or talking to NPCs.
 - **Grid-Based World**: Navigate a spatially consistent world where directions are reliable (going north then south returns you to the same place)
 - **Experience System**: Level up by defeating enemies
@@ -47,7 +48,7 @@ python -m cli_rpg.main
 - `go <direction>` (g) - Move in a direction (north/n, south/s, east/e, west/w)
   - Quick shortcuts: `n`, `gn` (north), `w`, `gw` (west), `gs` (south), `ge` (east)
 - `map` (m) - Display an ASCII map of explored locations with available exits
-- `status` (s, stats) - View your character's stats, gold, XP progress, and current time
+- `status` (s, stats) - View your character's stats, gold, XP progress, current time, and weather
 - `inventory` (i) - View your inventory and equipped items
 - `equip <item name>` (e) - Equip a weapon or armor from your inventory
 - `unequip weapon|armor` - Unequip from the specified slot and return to inventory

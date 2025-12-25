@@ -621,7 +621,9 @@ The world feels static. Need ambient events and world dynamics.
 - ✅ Living world events (5% spawn chance per move: caravans, plagues, invasions with timed consequences)
 
 **Remaining features**:
-- Weather system affecting gameplay (storms reduce visibility, rain extinguishes fire)
+- ✅ Weather system affecting gameplay (clear, rain, storm, fog with dread modifiers and storm travel delays) - MVP IMPLEMENTED
+- Weather visibility effects (storms reduce visibility, fog obscures distant enemies)
+- Weather interactions (rain extinguishes fire, cold weather affects freeze effects)
 - Seasonal events and festivals
 
 ### Reputation and faction system

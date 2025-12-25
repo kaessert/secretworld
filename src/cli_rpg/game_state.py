@@ -9,6 +9,7 @@ from cli_rpg.models.game_time import GameTime
 from cli_rpg.models.location import Location
 from cli_rpg.models.npc import NPC
 from cli_rpg.models.shop import Shop
+from cli_rpg.models.weather import Weather
 from cli_rpg.combat import (
     CombatEncounter,
     ai_spawn_enemy,
@@ -198,6 +199,7 @@ class GameState:
         self.current_npc: Optional[NPC] = None  # NPC being talked to (for accept command)
         self.whisper_service = WhisperService(ai_service=ai_service)
         self.game_time = GameTime()  # Day/night cycle tracking
+        self.weather = Weather()  # Weather system tracking
         self.choices: list[dict] = []  # Echo choices: tracking significant player decisions
         self.world_events: list[WorldEvent] = []  # Living world events
 
@@ -439,8 +441,9 @@ class GameState:
                 return (False, "Failed to determine destination.")
             self.current_location = destination_name
 
-        # Advance time by 1 hour for movement
-        self.game_time.advance(1)
+        # Advance time by 1 hour for movement (+1 hour in storm)
+        travel_time = 1 + self.weather.get_travel_modifier()
+        self.game_time.advance(travel_time)
 
         # Autosave after successful movement
         try:
@@ -452,6 +455,14 @@ class GameState:
         self.current_character.reset_look_count(previous_location)
 
         message = f"You head {direction} to {colors.location(self.current_location)}."
+
+        # Add weather flavor text (if not clear weather)
+        if self.weather.condition != "clear":
+            weather_flavor = self.weather.get_flavor_text()
+            message += f"\n{weather_flavor}"
+
+        # Trigger weather transition after movement
+        self.weather.transition()
 
         # Inform player if AI generation failed and template was used
         if ai_fallback_used:
@@ -530,6 +541,14 @@ class GameState:
         if self.game_time.is_night():
             dread_increase += DREAD_NIGHT_BONUS
 
+        # Weather adds dread (but not in caves - you're underground)
+        effective_weather = self.weather.get_effective_condition(category)
+        if effective_weather != "clear":
+            weather_dread = self.weather.get_dread_modifier()
+            # Only apply if we have an effective weather condition
+            if self.weather.condition == effective_weather:
+                dread_increase += weather_dread
+
         # Low health adds dread (<30% health)
         if self.current_character.health < self.current_character.max_health * 0.3:
             dread_increase += 5
@@ -588,7 +607,7 @@ class GameState:
         """Serialize game state to dictionary.
 
         Returns:
-            Dictionary containing character, current_location, world data, theme, game_time, choices, and world_events
+            Dictionary containing character, current_location, world data, theme, game_time, weather, choices, and world_events
         """
         return {
             "character": self.current_character.to_dict(),
@@ -599,6 +618,7 @@ class GameState:
             },
             "theme": self.theme,
             "game_time": self.game_time.to_dict(),
+            "weather": self.weather.to_dict(),
             "choices": self.choices,
             "world_events": [event.to_dict() for event in self.world_events],
         }
@@ -640,6 +660,10 @@ class GameState:
         # Restore game_time if present (default to 6:00 for backward compatibility)
         if "game_time" in data:
             game_state.game_time = GameTime.from_dict(data["game_time"])
+
+        # Restore weather if present (default to clear for backward compatibility)
+        if "weather" in data:
+            game_state.weather = Weather.from_dict(data["weather"])
 
         # Restore choices if present (default to empty list for backward compatibility)
         game_state.choices = data.get("choices", [])

@@ -238,6 +238,9 @@ class TestMoveRandomEncounter:
         # Disable whisper service to avoid random interference
         game_state.whisper_service.get_whisper = lambda **kwargs: None
 
+        # Disable weather transitions to avoid random interference
+        game_state.weather.transition = lambda: None
+
         # Mock random.random in random_encounters module to trigger encounter
         # Value must be <= 0.15 to trigger, then <= 0.60 for hostile
         call_count = [0]
