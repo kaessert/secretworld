@@ -1,37 +1,65 @@
-# Implementation Plan: Add tests for `companion-quest` command validation
+# Plan: Add ASCII Art to Bestiary
 
 ## Summary
-The `companion-quest` command in `main.py` has proper input validation, but lacks integration tests. Add tests to `tests/test_companion_commands.py` to verify all validation cases.
+Extend the existing bestiary feature to store and display enemy ASCII art on first encounter.
 
 ## Spec
-The `companion-quest <name>` command should:
-1. Show usage message when no companion name provided
-2. Show error when companion not in party
-3. Show error when companion has no personal quest
-4. Show error with bond info when quest not available (bond too low)
-5. Show error when player already has the quest
-6. Accept quest and add to player's quest log on success
-
-## Tests to Add
-
-**File:** `tests/test_companion_commands.py`
-
-Add new class `TestCompanionQuestCommand` with tests:
-
-1. `test_companion_quest_no_name_specified` - Shows usage: "companion-quest <name>"
-2. `test_companion_quest_companion_not_in_party` - Shows "No companion named..."
-3. `test_companion_quest_no_personal_quest` - Shows "<name> has no personal quest"
-4. `test_companion_quest_bond_too_low` - Shows quest unavailable with bond info
-5. `test_companion_quest_already_have_quest` - Shows "You already have..."
-6. `test_companion_quest_success_adds_quest` - Adds quest to character.quests
-7. `test_companion_quest_case_insensitive` - Matches companion name case-insensitively
-
-Also add to `TestCompanionsInKnownCommands`:
-8. `test_companion_quest_in_known_commands` - Verify command is in KNOWN_COMMANDS
+- When an enemy is defeated, store its `ascii_art` along with existing enemy_data
+- The `bestiary` command should display ASCII art for each discovered enemy
+- ASCII art is captured on first encounter and reused for display
+- Backward compatible with saves that don't have ascii_art in bestiary entries
 
 ## Implementation Steps
 
-1. Add imports for Quest, QuestStatus, ObjectiveType to test file
-2. Add `TestCompanionQuestCommand` class with 7 test methods following existing patterns
-3. Add `test_companion_quest_in_known_commands` to existing test class
-4. Run tests to verify all pass
+### 1. Update `Character.record_enemy_defeat()` to store ASCII art
+**File:** `src/cli_rpg/models/character.py` (lines 639-664)
+
+Add `ascii_art` to the `enemy_data` dict stored in bestiary:
+```python
+self.bestiary[key] = {
+    "count": 1,
+    "enemy_data": {
+        "name": enemy.name,
+        "level": enemy.level,
+        "attack_power": enemy.attack_power,
+        "defense": enemy.defense,
+        "description": enemy.description,
+        "is_boss": enemy.is_boss,
+        "ascii_art": enemy.ascii_art,  # ADD THIS
+    }
+}
+```
+
+### 2. Update bestiary command to display ASCII art
+**File:** `src/cli_rpg/main.py` (lines 1040-1062)
+
+Modify the bestiary display loop to show ASCII art if available:
+```python
+for key in sorted(bestiary.keys()):
+    entry = bestiary[key]
+    data = entry["enemy_data"]
+
+    lines.append(f"{data['name']} (x{entry['count']})")
+
+    # Show ASCII art if available
+    if data.get("ascii_art"):
+        for art_line in data["ascii_art"].strip().split("\n"):
+            lines.append(f"  {art_line}")
+
+    lines.append(f"  Level {data['level']} | ATK: {data['attack_power']} | DEF: {data['defense']}")
+    # ... rest unchanged
+```
+
+### 3. Add tests for ASCII art in bestiary
+
+**File:** `tests/test_bestiary.py`
+
+Add test cases:
+1. `test_record_enemy_defeat_stores_ascii_art` - Verify ascii_art is stored on first defeat
+2. `test_bestiary_command_shows_ascii_art` - Verify command displays art
+3. `test_bestiary_backward_compat_no_ascii_art` - Old saves without ascii_art still work
+
+## Test Commands
+```bash
+pytest tests/test_bestiary.py -v
+```

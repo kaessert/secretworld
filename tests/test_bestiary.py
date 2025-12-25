@@ -37,6 +37,35 @@ class TestRecordEnemyDefeat:
         assert entry["enemy_data"]["defense"] == 3
         assert entry["enemy_data"]["description"] == "A small, green-skinned creature with beady eyes"
 
+    def test_record_enemy_defeat_stores_ascii_art(self):
+        """Spec: First kill stores enemy ascii_art in bestiary."""
+        character = Character(name="Hero", strength=10, dexterity=10, intelligence=10)
+        ascii_art = """
+   /\\
+  /  \\
+ / oo \\
+ \\    /
+  \\  /
+   \\/
+"""
+        enemy = Enemy(
+            name="Triangle Monster",
+            health=30,
+            max_health=30,
+            attack_power=10,
+            defense=5,
+            xp_reward=30,
+            level=3,
+            description="A bizarre triangular creature",
+            ascii_art=ascii_art
+        )
+
+        character.record_enemy_defeat(enemy)
+
+        assert "triangle monster" in character.bestiary
+        entry = character.bestiary["triangle monster"]
+        assert entry["enemy_data"]["ascii_art"] == ascii_art
+
     def test_record_repeated_enemy_defeat(self):
         """Spec: Repeated kills increment count."""
         character = Character(name="Hero", strength=10, dexterity=10, intelligence=10)
@@ -235,6 +264,82 @@ class TestBestiaryCommand:
         assert "ATK: 8" in message
         assert "DEF: 3" in message
         assert "Total enemies defeated: 4" in message
+
+    def test_bestiary_command_shows_ascii_art(self):
+        """Spec: Bestiary command displays ASCII art for discovered enemies."""
+        from cli_rpg.main import handle_exploration_command
+
+        character = Character(name="Hero", strength=10, dexterity=10, intelligence=10)
+        ascii_art = """  /\\_/\\
+ ( o.o )
+  > ^ <"""
+        enemy = Enemy(
+            name="Cat Monster",
+            health=20,
+            max_health=20,
+            attack_power=8,
+            defense=3,
+            xp_reward=25,
+            level=2,
+            description="A ferocious feline"
+        )
+        enemy.ascii_art = ascii_art
+
+        character.record_enemy_defeat(enemy)
+
+        world = {
+            "Test Location": Location(
+                name="Test Location",
+                description="A test place",
+                connections={}
+            )
+        }
+        game_state = GameState(character, world, starting_location="Test Location")
+
+        continue_game, message = handle_exploration_command(game_state, "bestiary", [])
+
+        assert continue_game is True
+        assert "Cat Monster" in message
+        # Check that ASCII art lines are in the output
+        assert "/\\_/\\" in message
+        assert "( o.o )" in message
+        assert "> ^ <" in message
+
+    def test_bestiary_backward_compat_no_ascii_art(self):
+        """Spec: Old saves without ascii_art in bestiary entries still work."""
+        from cli_rpg.main import handle_exploration_command
+
+        character = Character(name="Hero", strength=10, dexterity=10, intelligence=10)
+        # Manually create bestiary entry without ascii_art (simulating old save)
+        character.bestiary["old goblin"] = {
+            "count": 5,
+            "enemy_data": {
+                "name": "Old Goblin",
+                "level": 3,
+                "attack_power": 10,
+                "defense": 4,
+                "description": "An old-style goblin from an old save",
+                "is_boss": False,
+                # No ascii_art field - simulating old save format
+            }
+        }
+
+        world = {
+            "Test Location": Location(
+                name="Test Location",
+                description="A test place",
+                connections={}
+            )
+        }
+        game_state = GameState(character, world, starting_location="Test Location")
+
+        # This should not crash, even without ascii_art
+        continue_game, message = handle_exploration_command(game_state, "bestiary", [])
+
+        assert continue_game is True
+        assert "Old Goblin" in message
+        assert "x5" in message
+        assert "Level 3" in message
 
     def test_bestiary_alias(self):
         """'b' works as alias for 'bestiary'."""

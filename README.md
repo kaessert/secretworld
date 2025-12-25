@@ -65,7 +65,7 @@ python -m cli_rpg.main
 - `complete <quest>` - Turn in a completed quest to the NPC you're talking to
 - `abandon <quest>` - Abandon an active quest from your journal
 - `lore` - Discover AI-generated lore snippets about your current location
-- `bestiary` (b) - View all defeated enemies with kill counts and stats
+- `bestiary` (b) - View all defeated enemies with ASCII art, kill counts, and stats
 - `companions` - View your party members with bond levels
 - `recruit <npc>` - Recruit a willing NPC to join your party
 - `dismiss <name>` - Dismiss a companion from your party (requires confirmation; high-bond companions show warning)

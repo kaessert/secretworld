@@ -560,14 +560,13 @@ ASCII art should be unique and AI-generated for each distinct monster type, NPC,
 3. **Persistence**
    - Generated art stored with entity data
    - Art saved/loaded with game state
-   - Monster art stored in a bestiary/cache by monster name
+   - ✅ Monster art stored in bestiary by monster name - IMPLEMENTED
    - NPC art stored with NPC data in location
 
 4. **Art cache/bestiary**
-   - Global cache of monster art by monster name
-   - First encounter generates and caches art
-   - Subsequent encounters reuse cached art
-   - `bestiary` command to view discovered monster art?
+   - ✅ First encounter generates and caches art in bestiary - IMPLEMENTED
+   - ✅ Subsequent encounters reuse cached art - IMPLEMENTED
+   - ✅ `bestiary` command displays discovered monster art - IMPLEMENTED
 
 ### Meaningful choices and consequences
 **Status**: ACTIVE (Partial)

@@ -660,6 +660,7 @@ class Character:
                     "defense": enemy.defense,
                     "description": enemy.description,
                     "is_boss": enemy.is_boss,
+                    "ascii_art": enemy.ascii_art,
                 }
             }
 

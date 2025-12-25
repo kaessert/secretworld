@@ -1,34 +1,41 @@
-# Implementation Summary: companion-quest command tests
+# Implementation Summary: Add ASCII Art to Bestiary
 
 ## What Was Implemented
 
-Added 8 integration tests for the `companion-quest` command in `tests/test_companion_commands.py`:
+Extended the bestiary feature to store and display enemy ASCII art on first encounter.
 
-### New Tests in `TestCompanionQuestCommand` class:
+### Changes Made
 
-1. **`test_companion_quest_no_name_specified`** - Verifies usage message shown when no companion name is provided
-2. **`test_companion_quest_companion_not_in_party`** - Verifies error when companion not in party
-3. **`test_companion_quest_no_personal_quest`** - Verifies error when companion has no personal quest
-4. **`test_companion_quest_bond_too_low`** - Verifies error with bond info when quest not available (needs TRUSTED bond level)
-5. **`test_companion_quest_already_have_quest`** - Verifies error when player already has the quest
-6. **`test_companion_quest_success_adds_quest`** - Verifies quest is added to player's quest log with ACTIVE status
-7. **`test_companion_quest_case_insensitive`** - Verifies case-insensitive companion name matching
+**1. `src/cli_rpg/models/character.py` (line 663)**
+- Added `ascii_art` field to the `enemy_data` dict in `record_enemy_defeat()`
+- This captures the enemy's ASCII art on first defeat
 
-### Additional test in `TestCompanionsInKnownCommands` class:
+**2. `src/cli_rpg/main.py` (lines 1056-1059)**
+- Added ASCII art display to the bestiary command handler
+- Uses `data.get("ascii_art")` for backward compatibility with old saves
+- Strips and splits the art by newlines, indenting each line for clean formatting
 
-8. **`test_companion_quest_in_known_commands`** - Verifies command is in KNOWN_COMMANDS
+**3. `tests/test_bestiary.py`**
+- Added `test_record_enemy_defeat_stores_ascii_art`: Verifies ascii_art is stored on first defeat
+- Added `test_bestiary_command_shows_ascii_art`: Verifies command displays art
+- Added `test_bestiary_backward_compat_no_ascii_art`: Confirms old saves without ascii_art work
 
 ## Test Results
 
-All 30 tests in `tests/test_companion_commands.py` pass (0.58s).
+All tests pass:
+- 14 bestiary-specific tests pass
+- 2363 total tests pass (full suite)
 
-## Files Modified
+## Design Decisions
 
-- `tests/test_companion_commands.py` - Added 8 new tests (lines 410-605)
+- Used `data.get("ascii_art")` instead of `data["ascii_art"]` to maintain backward compatibility with saves that don't have the ascii_art field
+- ASCII art is stripped and split by newlines, with each line indented by 2 spaces for consistent formatting
+- Art is displayed after the enemy name header but before the stats line
 
-## Technical Notes
+## E2E Validation
 
-- Tests follow existing patterns in the file, using `create_test_game_state` helper
-- Each test has a docstring that references which spec requirement it validates
-- Tests cover all validation branches in the `companion-quest` command handler in `main.py` (lines 1148-1191)
-- Tests import `Quest`, `ObjectiveType`, and `QuestStatus` as needed within each test method
+To manually verify:
+1. Start a new game
+2. Find and defeat an enemy
+3. Run the `bestiary` command
+4. The enemy's ASCII art should appear between the name and stats
