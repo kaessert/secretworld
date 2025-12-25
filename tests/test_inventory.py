@@ -291,6 +291,20 @@ class TestInventoryUnequip:
         assert result is False
         assert inventory.equipped_weapon == sword  # Still equipped
 
+    def test_unequip_armor_when_inventory_full(self):
+        """Test: Cannot unequip armor when inventory is full"""
+        inventory = Inventory(capacity=1)
+        armor = Item(name="Chainmail", description="Protective", item_type=ItemType.ARMOR)
+        other = Item(name="Other", description="Item", item_type=ItemType.MISC)
+        inventory.add_item(armor)
+        inventory.equip(armor)
+        inventory.add_item(other)  # Fill the only slot
+
+        result = inventory.unequip("armor")
+
+        assert result is False
+        assert inventory.equipped_armor == armor  # Still equipped
+
 
 class TestInventoryStatBonuses:
     """Test equipped item stat bonuses (spec requirement)."""
