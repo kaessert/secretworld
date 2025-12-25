@@ -49,6 +49,32 @@ def get_distance_multiplier(distance: int) -> float:
     return 1.0 + distance * 0.15
 
 
+def strip_leading_name(enemy_name: str, attack_flavor: str) -> str:
+    """Strip enemy name from start of attack flavor text if present.
+
+    Handles cases like "The Frostbite Yeti unleashes..." → "unleashes..."
+
+    Args:
+        enemy_name: The name of the enemy
+        attack_flavor: The attack flavor text that may start with the enemy name
+
+    Returns:
+        The attack flavor with leading enemy name stripped
+    """
+    flavor_lower = attack_flavor.lower()
+    name_lower = enemy_name.lower()
+
+    # Check for "The Enemy Name" pattern
+    if flavor_lower.startswith(f"the {name_lower}"):
+        return attack_flavor[len(f"the {name_lower}"):].lstrip()
+
+    # Check for "Enemy Name" pattern
+    if flavor_lower.startswith(name_lower):
+        return attack_flavor[len(name_lower):].lstrip()
+
+    return attack_flavor
+
+
 # Fallback ASCII art templates for different enemy categories
 _ASCII_ART_BEAST = r"""
     /\_/\
@@ -454,8 +480,9 @@ class CombatEncounter:
                 dmg = base_damage
                 # Use attack_flavor if available for more immersive combat
                 if enemy.attack_flavor:
+                    cleaned_flavor = strip_leading_name(enemy.name, enemy.attack_flavor)
                     msg = (
-                        f"{colors.enemy(enemy.name)} {enemy.attack_flavor}! "
+                        f"{colors.enemy(enemy.name)} {cleaned_flavor}! "
                         f"You take {colors.damage(str(dmg))} damage!"
                     )
                 else:

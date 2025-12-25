@@ -554,6 +554,96 @@ class TestCombatAttackFlavor:
         # Should use default attack message
         assert "attacks you" in message
 
+    def test_enemy_turn_strips_duplicate_name_from_flavor(self, test_character):
+        """Spec: Duplicate enemy name at start of attack_flavor is stripped."""
+        enemy = Enemy(
+            name="Frostbite Yeti",
+            health=50,
+            max_health=50,
+            attack_power=8,
+            defense=3,
+            xp_reward=40,
+            level=2,
+            attack_flavor="The Frostbite Yeti unleashes a chilling roar"
+        )
+
+        combat = CombatEncounter(test_character, enemy)
+        combat.start()
+        message = combat.enemy_turn()
+
+        # Should NOT have duplicate name
+        assert "Frostbite Yeti Frostbite Yeti" not in message
+        assert "Frostbite Yeti The Frostbite Yeti" not in message
+        # Should have the action text
+        assert "unleashes a chilling roar" in message
+
+    def test_enemy_turn_strips_name_without_the(self, test_character):
+        """Spec: Enemy name without 'The' prefix is also stripped."""
+        enemy = Enemy(
+            name="Shadow Wolf",
+            health=50,
+            max_health=50,
+            attack_power=8,
+            defense=3,
+            xp_reward=40,
+            level=2,
+            attack_flavor="Shadow Wolf lunges with razor-sharp claws"
+        )
+
+        combat = CombatEncounter(test_character, enemy)
+        combat.start()
+        message = combat.enemy_turn()
+
+        assert "Shadow Wolf Shadow Wolf" not in message
+        assert "lunges with razor-sharp claws" in message
+
+    def test_enemy_turn_preserves_flavor_without_name(self, test_character):
+        """Spec: attack_flavor without enemy name is preserved unchanged."""
+        enemy = Enemy(
+            name="Goblin",
+            health=50,
+            max_health=50,
+            attack_power=8,
+            defense=3,
+            xp_reward=40,
+            level=2,
+            attack_flavor="swings a rusty dagger wildly"
+        )
+
+        combat = CombatEncounter(test_character, enemy)
+        combat.start()
+        message = combat.enemy_turn()
+
+        assert "Goblin swings a rusty dagger wildly" in message
+
+
+# =============================================================================
+# strip_leading_name Unit Tests
+# =============================================================================
+
+class TestStripLeadingName:
+    """Tests for strip_leading_name helper function."""
+
+    def test_strips_the_prefix_name(self):
+        from cli_rpg.combat import strip_leading_name
+        result = strip_leading_name("Frostbite Yeti", "The Frostbite Yeti roars")
+        assert result == "roars"
+
+    def test_strips_name_without_the(self):
+        from cli_rpg.combat import strip_leading_name
+        result = strip_leading_name("Shadow Wolf", "Shadow Wolf lunges")
+        assert result == "lunges"
+
+    def test_preserves_non_matching_flavor(self):
+        from cli_rpg.combat import strip_leading_name
+        result = strip_leading_name("Goblin", "swings a dagger")
+        assert result == "swings a dagger"
+
+    def test_case_insensitive_matching(self):
+        from cli_rpg.combat import strip_leading_name
+        result = strip_leading_name("FROST YETI", "the frost yeti attacks")
+        assert result == "attacks"
+
 
 # =============================================================================
 # GameState Integration Tests
