@@ -20,6 +20,7 @@ from cli_rpg.combat import (
 from cli_rpg.autosave import autosave
 from cli_rpg import colors
 from cli_rpg.whisper import WhisperService, format_whisper
+from cli_rpg.companion_banter import CompanionBanterService, format_banter
 from cli_rpg.random_encounters import check_for_random_encounter
 from cli_rpg.models.world_event import WorldEvent
 from cli_rpg.world_events import (
@@ -199,6 +200,7 @@ class GameState:
         self.current_shop: Optional[Shop] = None  # Active shop interaction
         self.current_npc: Optional[NPC] = None  # NPC being talked to (for accept command)
         self.whisper_service = WhisperService(ai_service=ai_service)
+        self.banter_service = CompanionBanterService()  # Companion banter during travel
         self.game_time = GameTime()  # Day/night cycle tracking
         self.weather = Weather()  # Weather system tracking
         self.choices: list[dict] = []  # Echo choices: tracking significant player decisions
@@ -504,6 +506,19 @@ class GameState:
             )
             if whisper:
                 message += f"\n\n{format_whisper(whisper)}"
+
+        # Check for companion banter (only when not in combat and companions present)
+        if not self.is_in_combat() and self.companions:
+            banter = self.banter_service.get_banter(
+                companions=self.companions,
+                location_category=location.category,
+                weather=self.weather.condition,
+                is_night=self.game_time.is_night(),
+                dread=self.current_character.dread_meter.dread
+            )
+            if banter:
+                companion_name, banter_text = banter
+                message += f"\n\n{format_banter(companion_name, banter_text)}"
 
         # Check for random encounter (replaces old trigger_encounter)
         encounter_message = check_for_random_encounter(self)

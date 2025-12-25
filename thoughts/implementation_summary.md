@@ -1,56 +1,64 @@
-# Implementation Summary: Bond System - Companions Foundation (MVP)
+# Implementation Summary: Companion Banter During Travel
 
 ## What Was Implemented
 
-### New Files Created
-- **`src/cli_rpg/models/companion.py`** - Companion dataclass with BondLevel enum
-- **`tests/test_companion.py`** - 14 tests for Companion model
-- **`tests/test_companion_commands.py`** - 12 tests for companions/recruit commands
-- **`tests/test_companion_persistence.py`** - 5 tests for serialization
+### New Module: `src/cli_rpg/companion_banter.py`
+- **CompanionBanterService** class that generates context-aware companion comments during travel
+- **25% trigger chance** per move when companions are present
+- **Banter templates** organized by context:
+  - Location category (town, dungeon, forest, wilderness, cave, ruins, default)
+  - Weather conditions (rain, storm, fog)
+  - Night time observations
+  - High dread (50%+) nervous comments
+  - Bond level (TRUSTED and DEVOTED get richer banter)
+- **format_banter()** function for consistent output formatting: `[Companion] Name: "text"`
 
 ### Modified Files
-- **`src/cli_rpg/models/npc.py`** - Added `is_recruitable: bool = False` field with serialization
-- **`src/cli_rpg/models/__init__.py`** - Exported `Companion`, `BondLevel`
-- **`src/cli_rpg/game_state.py`** - Added `companions` list, serialization, and `companions`/`recruit` to `KNOWN_COMMANDS`
-- **`src/cli_rpg/main.py`** - Added `companions` and `recruit` command handlers + help text
 
-## Features Implemented
+1. **`src/cli_rpg/colors.py`**
+   - Added `companion()` color helper function (cyan color for companion text)
 
-### Companion Model
-- `Companion` dataclass with fields: `name`, `description`, `recruited_at`, `bond_points` (0-100)
-- `BondLevel` enum: `STRANGER` (0-24), `ACQUAINTANCE` (25-49), `TRUSTED` (50-74), `DEVOTED` (75-100)
-- `get_bond_level()` - computes level from points
-- `add_bond(amount)` - adds points (capped at 100), returns level-up message if threshold crossed
-- `get_bond_display()` - visual bar with color-coded levels
-- `to_dict()` / `from_dict()` - serialization
+2. **`src/cli_rpg/game_state.py`**
+   - Added `CompanionBanterService` import and initialization
+   - Added banter check in `move()` after whisper check
+   - Banter respects combat state (no banter during combat)
 
-### NPC Extension
-- Added `is_recruitable: bool = False` to NPC model
-- Updated `to_dict()` and `from_dict()` with backward compatibility
+### New Test Files
 
-### Commands
-- **`companions`** - Shows party members with bond levels and descriptions
-- **`recruit <npc>`** - Recruits an NPC marked as `is_recruitable=True` to the party
+1. **`tests/test_companion_banter.py`** (15 tests)
+   - Service creation
+   - Trigger conditions (no companions, chance, random selection)
+   - Category-based banter (town, dungeon, forest, unknown)
+   - Conditional banter (weather, night, dread)
+   - Bond level influence (TRUSTED/DEVOTED)
+   - Formatting verification
 
-### Persistence
-- Companions saved/loaded with GameState
-- Backward compatible: old saves load with empty companions list
+2. **`tests/test_companion_banter_integration.py`** (8 tests)
+   - Banter appearing during move with companions
+   - No banter without companions
+   - No banter during combat
+   - Banter and whisper coexistence
+   - Context passing (location, weather, time, dread)
 
 ## Test Results
-- **31 new tests** all passing
-- **2160 total tests** pass (was 2129 before)
-- No regressions
 
-## E2E Validation Suggestions
-1. Create a new game, verify `companions` shows "No companions in your party."
-2. Mark an NPC as `is_recruitable=True` in world generation
-3. Use `recruit <npc_name>` and verify success message
-4. Use `companions` to verify companion appears with bond display
-5. Save/load game and verify companions persist
-6. Use `add_bond()` in code to test level-up messages
+- **All 23 new tests pass**
+- **All 2183 total tests pass** (existing 2160 + new 23)
 
 ## Design Decisions
-- Bond points use 0-100 scale (like dread meter) for consistency
-- Level-up messages include companion name for personalization
-- Visual bar uses Unicode characters (█░) matching dread meter style
-- Colors: DEVOTED=green(heal), TRUSTED=yellow(gold), ACQUAINTANCE=yellow(warning), STRANGER=plain
+
+1. **Follows whisper system pattern**: Similar structure to `whisper.py` for consistency
+2. **Priority ordering for conditional banter**: Dread > Bond level > Weather > Night > Location category
+3. **Single banter per move**: Random companion selected if multiple present
+4. **Separate from whispers**: Both can appear in the same move for layered atmosphere
+
+## E2E Validation Checklist
+
+- [ ] Start game with a companion recruited
+- [ ] Move between locations and observe ~25% banter rate
+- [ ] Verify banter reflects current location category
+- [ ] Test during storm/rain/fog for weather-specific banter
+- [ ] Test at night for night-specific banter
+- [ ] Raise dread above 50% and verify nervous banter
+- [ ] Level up companion bond to TRUSTED/DEVOTED and verify richer banter
+- [ ] Confirm no banter appears during active combat

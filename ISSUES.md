@@ -696,7 +696,7 @@ Adventuring alone limits roleplay possibilities.
 - ✅ Persistence with backward compatibility
 
 **Remaining features**:
-- Companion dialogue and banter during travel
+- ✅ Companion dialogue and banter during travel - MVP IMPLEMENTED (25% trigger chance per move, context-aware comments based on location, weather, time, dread, and bond level)
 - Companion abilities in combat
 - Companion-specific quests and storylines
 - Companions reacting to player choices (approval/disapproval)

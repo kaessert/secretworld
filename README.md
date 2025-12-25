@@ -416,6 +416,7 @@ src/cli_rpg/
 ├── npc_art.py           # Fallback ASCII art for NPCs
 ├── autosave.py          # Automatic game saving
 ├── dreams.py            # Dream sequences triggered on rest
+├── companion_banter.py  # Context-aware companion travel comments
 ├── models/              # Data models
 │   ├── character.py
 │   ├── location.py

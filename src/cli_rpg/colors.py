@@ -200,3 +200,15 @@ def warning(text: str) -> str:
         Yellow-colored text.
     """
     return colorize(text, YELLOW)
+
+
+def companion(text: str) -> str:
+    """Color text as a companion (cyan).
+
+    Args:
+        text: Companion name or banter text.
+
+    Returns:
+        Cyan-colored text.
+    """
+    return colorize(text, CYAN)
