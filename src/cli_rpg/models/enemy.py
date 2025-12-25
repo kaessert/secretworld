@@ -19,6 +19,9 @@ class Enemy:
     attack_flavor: str = ""  # e.g., "lunges with razor-sharp claws"
     ascii_art: str = ""  # ASCII art representation of the enemy
     is_boss: bool = False  # True if this is a boss enemy
+    poison_chance: float = 0.0  # Chance (0.0-1.0) to apply poison on attack
+    poison_damage: int = 0  # Damage per turn if poison is applied
+    poison_duration: int = 0  # Duration of poison in turns
     
     def __post_init__(self):
         """Validate enemy attributes."""
@@ -81,6 +84,9 @@ class Enemy:
             "attack_flavor": self.attack_flavor,
             "ascii_art": self.ascii_art,
             "is_boss": self.is_boss,
+            "poison_chance": self.poison_chance,
+            "poison_damage": self.poison_damage,
+            "poison_duration": self.poison_duration,
         }
     
     @staticmethod
@@ -106,4 +112,7 @@ class Enemy:
             attack_flavor=data.get("attack_flavor", ""),
             ascii_art=data.get("ascii_art", ""),
             is_boss=data.get("is_boss", False),
+            poison_chance=data.get("poison_chance", 0.0),
+            poison_damage=data.get("poison_damage", 0),
+            poison_duration=data.get("poison_duration", 0),
         )

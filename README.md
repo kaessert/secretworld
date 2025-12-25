@@ -81,6 +81,9 @@ Enemy stats (HP, attack, defense) and XP rewards all scale with distance, encour
 
 **Boss Fights**: Occasionally, you'll encounter powerful boss enemies with enhanced stats (2x health, attack, and defense) and 4x XP rewards. Bosses are guaranteed to drop legendary loot with enhanced stats upon defeat. Boss types vary by location category (Lich Lords in dungeons, Ancient Guardians in ruins, Cave Troll Kings in caves, etc.).
 
+**Status Effects**: Some enemies can inflict status effects during combat:
+- **Poison**: Certain creatures (spiders, snakes, serpents, vipers) have a chance to poison you on attack. Poison deals damage each turn and wears off after a set duration. Status effects are cleared when combat ends.
+
 **Combat Commands:**
 - `attack [target]` (a) - Attack an enemy (damage based on your strength vs enemy defense). Specify a target name when facing multiple enemies, or attacks the first living enemy.
 - `defend` (d) - Take a defensive stance, reducing incoming damage by 50% from all enemies
@@ -374,7 +377,8 @@ src/cli_rpg/
 │   ├── inventory.py
 │   ├── npc.py
 │   ├── quest.py
-│   └── shop.py
+│   ├── shop.py
+│   └── status_effect.py
 └── persistence.py       # Save/load system (character and full game state)
 ```
 

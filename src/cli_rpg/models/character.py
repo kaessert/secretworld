@@ -9,6 +9,7 @@ if TYPE_CHECKING:
     from cli_rpg.models.inventory import Inventory
     from cli_rpg.models.quest import Quest
     from cli_rpg.models.enemy import Enemy
+    from cli_rpg.models.status_effect import StatusEffect
 
 
 @dataclass
@@ -49,6 +50,7 @@ class Character:
     gold: int = 0
     quests: List["Quest"] = field(default_factory=list)
     bestiary: Dict[str, dict] = field(default_factory=dict)
+    status_effects: List["StatusEffect"] = field(default_factory=list)
 
     def __post_init__(self):
         """Validate attributes and calculate derived stats."""
@@ -483,6 +485,49 @@ class Character:
         self.quests.remove(matching_quest)
         return (True, f"Quest abandoned: {matching_quest.name}")
 
+    def apply_status_effect(self, effect: "StatusEffect") -> None:
+        """Apply a status effect to the character.
+
+        Args:
+            effect: StatusEffect to apply
+        """
+        self.status_effects.append(effect)
+
+    def tick_status_effects(self) -> List[str]:
+        """Process one turn of all status effects.
+
+        Applies damage from DOT effects and removes expired effects.
+
+        Returns:
+            List of messages describing what happened
+        """
+        messages = []
+        expired_effects = []
+
+        for effect in self.status_effects:
+            damage, expired = effect.tick()
+
+            if damage > 0:
+                self.take_damage(damage)
+                messages.append(f"{effect.name} deals {damage} damage!")
+
+            if expired:
+                expired_effects.append(effect)
+                messages.append(f"{effect.name} has worn off.")
+
+        # Remove expired effects
+        for effect in expired_effects:
+            self.status_effects.remove(effect)
+
+        return messages
+
+    def clear_status_effects(self) -> None:
+        """Clear all status effects from the character.
+
+        Called when combat ends.
+        """
+        self.status_effects.clear()
+
     def record_enemy_defeat(self, enemy: "Enemy") -> None:
         """Record a defeated enemy in the bestiary.
 
@@ -623,6 +668,7 @@ class Character:
             "gold": self.gold,
             "quests": [quest.to_dict() for quest in self.quests],
             "bestiary": self.bestiary,
+            "status_effects": [effect.to_dict() for effect in self.status_effects],
         }
     
     @classmethod
@@ -679,6 +725,12 @@ class Character:
             character.quests = [Quest.from_dict(q) for q in data["quests"]]
         # Restore bestiary (with backward compatibility, defaults to empty dict)
         character.bestiary = data.get("bestiary", {})
+        # Restore status effects (with backward compatibility, defaults to empty list)
+        if "status_effects" in data:
+            from cli_rpg.models.status_effect import StatusEffect
+            character.status_effects = [
+                StatusEffect.from_dict(e) for e in data["status_effects"]
+            ]
         return character
     
     def __str__(self) -> str:

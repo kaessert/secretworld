@@ -49,7 +49,8 @@ src/cli_rpg/
     ├── location.py      # Location with coordinates, connections, NPCs
     ├── npc.py           # Non-player character model
     ├── quest.py         # Quest system with objectives and progress tracking
-    └── shop.py          # Shop system
+    ├── shop.py          # Shop system
+    └── status_effect.py # Status effects (poison, buffs, debuffs)
 ```
 
 ## Key Architectural Patterns

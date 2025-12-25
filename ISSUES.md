@@ -1,5 +1,344 @@
 ## Active Issues
 
+### VISION: Transformative Features for a Mesmerizing Experience
+**Status**: ACTIVE (VISION)
+
+These features would elevate the game from "good CLI RPG" to "unforgettable experience":
+
+---
+
+#### 1. THE WHISPER SYSTEM - Ambient Narrative Layer
+**Impact**: Creates atmosphere and wonder
+
+The world *speaks* to observant players through subtle environmental cues:
+
+```
+You enter the Forgotten Chapel...
+
+    ╔═══════════════════════════════════╗
+    ║  The candles flicker as you enter ║
+    ║  ...almost as if greeting you     ║
+    ╚═══════════════════════════════════╝
+
+[Whisper]: "The stones here remember a prayer never finished..."
+```
+
+- **Ambient whispers** appear randomly based on location, time, player history
+- **Hidden lore fragments** revealed to players who `look` multiple times or `wait`
+- **Foreshadowing**: Whispers hint at dangers ahead, secrets nearby, or story beats
+- **Player-specific**: Whispers reference your past actions ("The shadows recognize a killer...")
+
+---
+
+#### 2. ECHO CHOICES - Decisions That Haunt You
+**Impact**: Emotional weight, replayability
+
+Every significant choice creates an "echo" that reverberates through the game:
+
+```
+The wounded bandit begs for mercy...
+
+  [1] Spare him     - "Perhaps redemption exists for all"
+  [2] Execute him   - "Justice must be swift"
+  [3] Recruit him   - "Every sword has its use"
+
+Your choice will echo...
+```
+
+**Echo Examples**:
+- Spare the bandit → He becomes an informant, or betrays you later, or saves you in Act 3
+- A town you helped prospers; one you ignored falls to ruin (visible on return)
+- NPCs reference your reputation: "You're the one who burned the witch... or was it saved her?"
+- **Companion memories**: "I still remember what you did in Thornwood. I've never forgotten."
+
+---
+
+#### 3. THE DARKNESS METER - Psychological Horror Element
+**Impact**: Tension, resource management, atmosphere
+
+Exploring dangerous areas builds **Dread**:
+
+```
+═══════════════════════════════════════
+  DREAD: ████████░░░░░░░░ 53%
+
+  The shadows seem to lean toward you...
+  You hear footsteps that aren't your own.
+═══════════════════════════════════════
+```
+
+- **Dread builds** in dark places, after combat, when alone, at night
+- **High dread effects**: Hallucinations (fake enemies), paranoid whispers, stat penalties
+- **At 100%**: Something terrible happens (shadow creature attack, madness event)
+- **Reduce dread**: Rest at campfires, talk to companions, visit towns, use light sources
+- **Brave players rewarded**: High-dread areas contain the best secrets
+
+---
+
+#### 4. LIVING WORLD EVENTS - The World Moves Without You
+**Impact**: Immersion, urgency, emergent stories
+
+The world has a heartbeat. Events happen whether you're there or not:
+
+```
+╔════════════════════════════════════════════╗
+║  WORLD EVENT: The Crimson Plague spreads   ║
+║                                            ║
+║  Millbrook Village is infected.            ║
+║  Estimated time until collapse: 3 days     ║
+║                                            ║
+║  [Rumor]: An herbalist in Shadowfen knows  ║
+║           of a cure...                     ║
+╚════════════════════════════════════════════╝
+```
+
+- **Spreading events**: Plagues, wars, monster migrations, seasons changing
+- **Timed quests**: Some opportunities expire ("The caravan leaves at dawn")
+- **Consequences of inaction**: Towns can fall, NPCs can die, regions can become corrupted
+- **Cascading effects**: Saved village → thriving trade → better shop inventory
+- **Rival adventurers**: NPCs who complete quests you ignore, becoming allies or enemies
+
+---
+
+#### 5. DREAM SEQUENCES - Surreal Narrative Moments
+**Impact**: Storytelling, foreshadowing, emotional depth
+
+When you rest, sometimes you dream:
+
+```
+You drift into an uneasy sleep...
+
+    ═══════════════════════════════════
+
+    You stand in a field of white flowers.
+    A child's voice asks: "Why did you
+    choose the sword over the words?"
+
+    A mountain crumbles in the distance.
+    You recognize it as a place you've
+    never been...
+
+    ═══════════════════════════════════
+
+You wake with a strange sense of purpose.
+[Gained insight: "The Mountain's Secret"]
+```
+
+- **Prophetic dreams** hint at future locations, enemies, or choices
+- **Memory dreams** replay key moments with new perspective
+- **Character dreams** reveal companion backstories
+- **Nightmare sequences** if Dread is high (interactive horror)
+- **Dream items** that manifest in reality
+
+---
+
+#### 6. COMBO COMBAT SYSTEM - Fluid, Strategic Fighting
+**Impact**: Combat depth, mastery satisfaction
+
+Chain attacks for devastating effects:
+
+```
+Combat Round 3:
+
+  Your last 2 actions: [ATTACK] → [DEFEND]
+
+  COMBO AVAILABLE: "Counter Strike"
+    → On next attack, deal 2x damage if enemy attacked you
+
+  What will you do?
+  > [A]ttack (triggers Counter Strike!)
+  > [D]efend (breaks combo)
+  > [C]ast   (chains to "Arcane Counter")
+```
+
+- **Combo chains**: Attack→Attack→Attack = "Frenzy" (3x hit, exhausted next turn)
+- **Defensive combos**: Defend→Defend→Attack = "Revenge" (damage = damage taken)
+- **Magic weaving**: Cast→Cast→Cast = "Arcane Storm" (hits all enemies)
+- **Hybrid moves**: Defend→Cast→Attack = "Calculated Strike" (guaranteed crit)
+- **Enemy patterns**: Bosses telegraph moves, allowing counter-play
+
+---
+
+#### 7. THE BOND SYSTEM - Companions Who Matter
+**Impact**: Emotional investment, tactical depth
+
+Companions aren't just stat bonuses—they're people:
+
+```
+KIRA THE SCOUT
+  ════════════════════════════════════
+  Bond Level: ████████░░ Trusted
+
+  "I've been watching you. You fight like
+   someone who's lost things. I know that
+   feeling."
+
+  [Memory]: She opened up about her sister
+  [Memory]: You chose mercy when she wanted blood
+  [Memory]: She saved you in the Shadow Caves
+  ════════════════════════════════════
+
+  Bond Ability: "Flanking Strike" (unlocked at Trust)
+  Next unlock at "Devoted": "Last Stand"
+```
+
+- **Bond levels** through choices, gifts, and shared experiences
+- **Companion quests** that explore their past and resolve their arc
+- **Combat synergies** unlock at higher bond levels
+- **Companions react** to your choices (approval/disapproval affects bond)
+- **Permadeath option**: Companions can die, with devastating consequences
+- **Betrayal possibility**: Wrong choices can turn companions against you
+
+---
+
+#### 8. ENVIRONMENTAL STORYTELLING - The World as Narrator
+**Impact**: Discovery, atmosphere, lore depth
+
+Locations tell stories through details:
+
+```
+You enter the Abandoned Manor...
+
+Upon closer inspection, you notice:
+  - Claw marks on the walls, going upward
+  - A child's toy near the cold fireplace
+  - A journal, its last entry unfinished
+  - The dining table set for guests who never arrived
+
+[Examine journal?] > yes
+
+  "Day 12 - The scratching in the walls has stopped.
+   I tell myself this is good news, but Martha
+   won't come out of the cellar. She says she
+   saw something in the mirror that wasn't he"
+
+   The entry ends mid-word. The pen is still here.
+```
+
+- **Multi-layered examination**: Look once = surface. Look again = details. Look three times = secrets
+- **Collectible lore**: Journals, letters, inscriptions that piece together larger stories
+- **Environmental puzzles**: "The painting's eyes follow the candlestick..."
+- **Tragic histories**: Every ruin was once alive. Find out what happened.
+- **Hidden messages**: Some text only appears under certain conditions (night, high INT, specific items)
+
+---
+
+#### 9. THE WEIGHT OF GOLD - Meaningful Economy
+**Impact**: Strategic decisions, world immersion
+
+Money matters because scarcity creates drama:
+
+```
+Your pouch: 47 gold
+
+The merchant eyes your equipment...
+  "That sword you carry—fine craftsmanship.
+   I'd give you 200 gold for it. Enough to
+   buy passage on the ship leaving tonight."
+
+But without the sword, how will you fight?
+
+The ship leaves in 2 hours. The dungeon
+with the cure is 3 hours away on foot.
+
+What do you do?
+```
+
+- **Meaningful prices**: Good equipment is expensive. Choices feel real.
+- **Multiple currencies**: Gold for common goods, ancient coins for artifacts, favors for services
+- **Economic consequences**: Spend lavishly → prices rise. Flood market → crash.
+- **Bribery and corruption**: Some problems can be solved with gold. At a cost.
+- **Gambling**: High-risk games of chance in taverns
+- **Investment**: Fund a merchant and get returns later
+
+---
+
+#### 10. TEMPORAL ECHOES - Time-Based Secrets
+**Impact**: Replayability, discovery, world depth
+
+The world changes based on time:
+
+```
+You return to the Old Well at midnight...
+
+Unlike during the day, the well glows faintly.
+A voice rises from the depths:
+
+  "You came at the hour. Few do.
+   Ask your question, and I shall answer.
+   But truth always has a price..."
+
+[Ask about the Forgotten King]
+[Ask about your father's fate]
+[Ask about the coming darkness]
+[Leave - some truths are too heavy]
+```
+
+- **Day/night cycle** changes encounters, NPC availability, and secrets
+- **Moon phases** affect magic power and unlock hidden areas
+- **Seasonal events**: Winter festivals, harvest celebrations, summer dangers
+- **Anniversary triggers**: Return to a location one "year" later for special events
+- **Time-locked content**: Some doors only open at specific times
+
+---
+
+#### 11. THE LEGACY SYSTEM - Death Has Meaning
+**Impact**: Tension, long-term investment, emergent stories
+
+When you die, the story continues:
+
+```
+Your vision fades... but this is not the end.
+
+╔══════════════════════════════════════════════╗
+║         LEGACY CONTINUES                     ║
+║                                              ║
+║  20 years later, a new adventurer finds      ║
+║  your journal in the ruins of Thornkeep...   ║
+║                                              ║
+║  INHERITED:                                  ║
+║    - Your map (partial)                      ║
+║    - Knowledge: "Beware the third chamber"   ║
+║    - Reputation: "Child of the Fallen Hero"  ║
+║    - Your unfinished quest                   ║
+║                                              ║
+║  The world remembers. Will you succeed       ║
+║  where your predecessor failed?              ║
+╚══════════════════════════════════════════════╝
+```
+
+- **Death is a chapter break**, not game over
+- **Inheritors** start with partial knowledge of the world
+- **Your grave** becomes a location in the world (can be found, looted, honored)
+- **Legend grows**: Die heroically → NPCs speak of you. Die shamefully → your name is cursed.
+- **Unfinished business**: Your ghost might appear to your successor
+- **Cumulative progress**: Each generation can contribute to a greater goal
+
+---
+
+#### IMPLEMENTATION PRIORITY
+
+**Phase 1 - Atmosphere** (Transform the feel):
+1. Whisper System - Adds soul to every location
+2. Environmental Storytelling - Makes exploration magical
+3. Temporal Echoes - Adds depth and mystery
+
+**Phase 2 - Consequence** (Make choices matter):
+4. Echo Choices - Every decision resonates
+5. Living World Events - Urgency and stakes
+6. The Weight of Gold - Meaningful economy
+
+**Phase 3 - Depth** (Mastery and investment):
+7. Combo Combat - Satisfying combat loop
+8. Bond System - Emotional investment
+9. Darkness Meter - Psychological tension
+
+**Phase 4 - Transcendence** (Truly unique):
+10. Dream Sequences - Surreal storytelling
+11. Legacy System - Death becomes narrative
+
+---
+
 ### Non-interactive mode enhancements
 **Status**: ACTIVE
 
@@ -154,12 +493,19 @@ Combat lacks tactical depth - players just attack repeatedly. Need a skill/abili
 - Skill synergies and combos
 
 ### Status effects and combat depth
-**Status**: ACTIVE
+**Status**: ACTIVE (Partial)
 
-Combat is too simple - attack until enemy dies.
+Combat is too simple - attack until enemy dies. Basic poison status effect has been implemented.
 
-**Desired features**:
-- Status effects: poison, burn, freeze, stun, bleed, buff/debuff
+**Implemented**:
+- ✅ Basic poison status effect (DOT damage over time)
+- ✅ Poison-capable enemies (spiders, snakes, serpents, vipers with 20% poison chance)
+- ✅ Status effect display in combat status
+- ✅ Status effects cleared on combat end
+- ✅ Full persistence/serialization support
+
+**Remaining features**:
+- Additional status effects: burn, freeze, stun, bleed, buff/debuff
 - Elemental strengths and weaknesses
 - Defensive options: block, dodge, parry
 - Enemy attack patterns and telegraphed special moves

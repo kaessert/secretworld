@@ -1,68 +1,80 @@
-# Fix: Silent fallback masks AI generation failures
+# Implementation Plan: Basic Poison Status Effect
 
-## Problem
-When AI area generation fails in `game_state.py` (lines 337-340), it silently falls back to template-based generation via `generate_fallback_location()`. Players should be informed when AI generation fails.
+## Spec
 
-## Implementation
+Add a **poison** status effect as the foundation for the status effect system:
+- Poison deals damage-over-time (DOT) at the end of each combat turn
+- Poison has a duration (turns remaining) that decrements each turn
+- Enemies can apply poison to the player (20% chance on attack)
+- Poison damage: 3-5 per tick, duration: 3 turns
+- Status effects are displayed in combat status and tick messages are shown
+- Status effects are tracked on Character model for persistence
 
-### 1. Modify `game_state.py` (lines 337-361)
-Replace silent fallback with user notification:
+## Implementation Steps
 
-**Before (lines 337-340):**
+### 1. Create StatusEffect model (`src/cli_rpg/models/status_effect.py`)
 ```python
-except Exception as e:
-    # Log error for debugging but don't expose to player
-    logger.warning(f"AI area generation failed, using fallback: {e}")
-    # Fall through to fallback generation below
+@dataclass
+class StatusEffect:
+    name: str           # "Poison", "Burn", etc.
+    effect_type: str    # "dot" (damage over time), "buff", "debuff"
+    damage_per_turn: int
+    duration: int       # Turns remaining
+
+    def tick() -> Tuple[int, bool]  # Returns (damage, expired)
+    def to_dict() / from_dict()     # Serialization
 ```
 
-**After:**
-```python
-except Exception as e:
-    logger.warning(f"AI area generation failed: {e}")
-    # Inform player and still use fallback for gameplay continuity
-    # The message will be prepended to the move result
-    ai_failed = True
-```
+### 2. Add status_effects list to Character model (`src/cli_rpg/models/character.py`)
+- Add `status_effects: List[StatusEffect] = field(default_factory=list)`
+- Add `apply_status_effect(effect: StatusEffect)` method
+- Add `tick_status_effects() -> List[str]` method (returns messages)
+- Add `clear_status_effects()` method (called on combat end)
+- Update `to_dict()` and `from_dict()` for serialization
 
-Then modify the success path to return an informative message when `ai_failed` is True.
+### 3. Add poison application to Enemy model (`src/cli_rpg/models/enemy.py`)
+- Add `poison_chance: float = 0.0` field
+- Add `poison_damage: int = 0` and `poison_duration: int = 0` fields
+- Update `to_dict()` and `from_dict()` for serialization
 
-**Key changes:**
-- Add `ai_failed = False` flag at the start of the else block (line 317)
-- Set `ai_failed = True` in the exception handler
-- After fallback generation succeeds, return a message indicating AI failed but fallback was used
-- Return format: `(True, "AI world generation temporarily unavailable. Using template generation.")`
+### 4. Update CombatEncounter (`src/cli_rpg/combat.py`)
+- In `enemy_turn()`: Check if enemy has poison_chance > 0, roll to apply poison
+- After enemy attacks, call `player.tick_status_effects()` and append messages
+- In `get_status()`: Display active status effects on player
+- In `end_combat()`: Clear player status effects
 
-### 2. Test: `tests/test_game_state.py`
-Add test `test_move_informs_player_when_ai_fails`:
-```python
-def test_move_informs_player_when_ai_fails(self):
-    """Test that player is informed when AI generation fails during move.
+### 5. Update enemy spawning (`src/cli_rpg/combat.py`)
+- Modify `spawn_enemy()` to give some enemies poison capability
+  - Spiders, snakes get 20% poison chance, 4 damage, 3 turns
 
-    Spec: When AI area generation fails, player should see a message
-    indicating fallback was used, not silent fallback.
-    """
-    # Setup: GameState with AI service that raises exception
-    # Mock expand_area to raise AIGenerationError
-    # Call move() in a direction requiring generation
-    # Assert: success is True, message contains fallback notification
-```
+## Test Plan
 
-### 3. Optional enhancement: Add `warning()` helper to `colors.py`
-```python
-def warning(text: str) -> str:
-    """Color text as a warning (yellow)."""
-    return colorize(text, YELLOW)
-```
+Create `tests/test_status_effects.py`:
 
-## Files to modify
-1. `src/cli_rpg/game_state.py` - Remove silent fallback, add player notification
-2. `tests/test_game_state.py` - Add test for AI failure notification
-3. `src/cli_rpg/colors.py` - Optional: add warning() helper
+1. **StatusEffect model tests**
+   - `test_status_effect_tick_deals_damage_and_decrements()`
+   - `test_status_effect_tick_returns_expired_when_duration_zero()`
+   - `test_status_effect_serialization()`
 
-## Verification
-```bash
-pytest tests/test_game_state.py -v -k "ai_fails"
-pytest tests/test_game_state.py -v
-pytest --cov=src/cli_rpg
-```
+2. **Character status effect tests**
+   - `test_apply_status_effect_adds_to_list()`
+   - `test_tick_status_effects_damages_character()`
+   - `test_tick_status_effects_removes_expired()`
+   - `test_clear_status_effects()`
+   - `test_status_effects_serialization_round_trip()`
+
+3. **Combat integration tests**
+   - `test_enemy_with_poison_can_apply_poison()`
+   - `test_poison_ticks_during_enemy_turn()`
+   - `test_combat_status_shows_active_effects()`
+   - `test_status_effects_cleared_on_combat_end()`
+
+## Files to Modify/Create
+
+| File | Action |
+|------|--------|
+| `src/cli_rpg/models/status_effect.py` | CREATE |
+| `src/cli_rpg/models/character.py` | MODIFY |
+| `src/cli_rpg/models/enemy.py` | MODIFY |
+| `src/cli_rpg/combat.py` | MODIFY |
+| `tests/test_status_effects.py` | CREATE |

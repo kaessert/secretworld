@@ -6,6 +6,7 @@ from typing import Optional, Tuple, Union, TYPE_CHECKING
 from cli_rpg.models.character import Character
 from cli_rpg.models.enemy import Enemy
 from cli_rpg.models.item import Item, ItemType
+from cli_rpg.models.status_effect import StatusEffect
 from cli_rpg import colors
 
 if TYPE_CHECKING:
@@ -432,8 +433,26 @@ class CombatEncounter:
             total_damage += dmg
             messages.append(msg)
 
+            # Check if enemy can apply poison
+            if enemy.poison_chance > 0 and random.random() < enemy.poison_chance:
+                # Apply poison effect
+                poison = StatusEffect(
+                    name="Poison",
+                    effect_type="dot",
+                    damage_per_turn=enemy.poison_damage,
+                    duration=enemy.poison_duration
+                )
+                self.player.apply_status_effect(poison)
+                messages.append(
+                    f"{colors.enemy(enemy.name)}'s attack {colors.damage('poisons')} you!"
+                )
+
         # Reset defensive stance after all attacks
         self.defending = False
+
+        # Tick status effects on player (DOT damage, expiration)
+        status_messages = self.player.tick_status_effects()
+        messages.extend(status_messages)
 
         # Combine messages
         result = "\n".join(messages)
@@ -454,6 +473,9 @@ class CombatEncounter:
             Message describing combat resolution
         """
         self.is_active = False
+
+        # Clear player status effects at end of combat
+        self.player.clear_status_effects()
 
         if victory:
             # Build victory message based on number of enemies
@@ -511,6 +533,13 @@ class CombatEncounter:
             f"=== {colors.stat_header('COMBAT')} ===",
             f"Player: {self.player.name} - {self.player.health}/{self.player.max_health} HP",
         ]
+
+        # Display active status effects on player
+        if self.player.status_effects:
+            effect_strs = [
+                f"{e.name} ({e.duration} turns)" for e in self.player.status_effects
+            ]
+            lines.append(f"Status: {colors.damage(', '.join(effect_strs))}")
 
         for enemy in self.enemies:
             status = "DEAD" if not enemy.is_alive() else f"{enemy.health}/{enemy.max_health} HP"
@@ -688,6 +717,17 @@ def spawn_enemy(
     # Get fallback ASCII art based on enemy name
     ascii_art = get_fallback_ascii_art(enemy_name)
 
+    # Determine poison capability based on enemy type
+    # Spiders and snakes get 20% poison chance, 4 damage, 3 turns
+    poison_chance = 0.0
+    poison_damage = 0
+    poison_duration = 0
+    enemy_name_lower = enemy_name.lower()
+    if any(term in enemy_name_lower for term in ["spider", "snake", "serpent", "viper"]):
+        poison_chance = 0.2
+        poison_damage = 4
+        poison_duration = 3
+
     return Enemy(
         name=enemy_name,
         health=scaled_health,
@@ -697,6 +737,9 @@ def spawn_enemy(
         xp_reward=scaled_xp,
         level=level,
         ascii_art=ascii_art,
+        poison_chance=poison_chance,
+        poison_damage=poison_damage,
+        poison_duration=poison_duration,
     )
 
 
