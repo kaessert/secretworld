@@ -1090,3 +1090,171 @@ Note: Use "EXISTING_WORLD" as placeholder for the connection back to the source 
             location_name=location_name or "the world",
             lore_category=lore_category
         )
+
+    def generate_quest(
+        self,
+        theme: str,
+        npc_name: str,
+        player_level: int,
+        location_name: str = ""
+    ) -> dict:
+        """Generate a quest with AI.
+
+        Args:
+            theme: World theme (e.g., "fantasy", "sci-fi")
+            npc_name: Name of the NPC giving the quest
+            player_level: Player's current level for scaling rewards
+            location_name: Name of the current location for context
+
+        Returns:
+            Dictionary with: name, description, objective_type, target,
+            target_count, gold_reward, xp_reward, quest_giver
+
+        Raises:
+            AIGenerationError: If generation fails or response is invalid
+            AIServiceError: If API call fails
+            AITimeoutError: If request times out
+        """
+        # Build prompt
+        prompt = self._build_quest_prompt(
+            theme=theme,
+            npc_name=npc_name,
+            player_level=player_level,
+            location_name=location_name
+        )
+
+        # Check cache if enabled
+        if self.config.enable_caching:
+            cached_result = self._get_cached(prompt)
+            if cached_result is not None:
+                # Ensure quest_giver is set correctly for cached results
+                cached_result["quest_giver"] = npc_name
+                return cached_result
+
+        # Call LLM
+        response_text = self._call_llm(prompt)
+
+        # Parse and validate response
+        quest_data = self._parse_quest_response(response_text, npc_name)
+
+        # Cache result if enabled
+        if self.config.enable_caching:
+            self._set_cached(prompt, quest_data)
+
+        return quest_data
+
+    def _build_quest_prompt(
+        self,
+        theme: str,
+        npc_name: str,
+        player_level: int,
+        location_name: str = ""
+    ) -> str:
+        """Build prompt for quest generation.
+
+        Args:
+            theme: World theme
+            npc_name: Name of the quest-giving NPC
+            player_level: Player's current level
+            location_name: Current location name (or empty string)
+
+        Returns:
+            Formatted prompt string
+        """
+        return self.config.quest_generation_prompt.format(
+            theme=theme,
+            npc_name=npc_name,
+            player_level=player_level,
+            location_name=location_name or "unknown location"
+        )
+
+    def _parse_quest_response(self, response_text: str, npc_name: str) -> dict:
+        """Parse and validate LLM response for quest generation.
+
+        Args:
+            response_text: Raw response text from LLM
+            npc_name: Name of the NPC giving the quest (added to result)
+
+        Returns:
+            Dictionary with validated quest data
+
+        Raises:
+            AIGenerationError: If parsing fails or validation fails
+        """
+        # Try to parse JSON
+        try:
+            data = json.loads(response_text)
+        except json.JSONDecodeError as e:
+            raise AIGenerationError(f"Failed to parse response as JSON: {str(e)}") from e
+
+        # Validate required fields
+        required_fields = ["name", "description", "objective_type", "target",
+                          "target_count", "gold_reward", "xp_reward"]
+        for field in required_fields:
+            if field not in data:
+                raise AIGenerationError(f"Response missing required field: {field}")
+
+        # Validate name length (2-30 chars)
+        name = data["name"].strip()
+        if len(name) < 2:
+            raise AIGenerationError(
+                f"Quest name too short (min 2 chars): {name}"
+            )
+        if len(name) > 30:
+            raise AIGenerationError(
+                f"Quest name too long (max 30 chars): {name}"
+            )
+
+        # Validate description length (1-200 chars)
+        description = data["description"].strip()
+        if len(description) < 1:
+            raise AIGenerationError(
+                "Quest description too short (min 1 char)"
+            )
+        if len(description) > 200:
+            raise AIGenerationError(
+                "Quest description too long (max 200 chars)"
+            )
+
+        # Validate objective_type
+        objective_type = data["objective_type"].lower().strip()
+        valid_types = ["kill", "collect", "explore", "talk", "drop"]
+        if objective_type not in valid_types:
+            raise AIGenerationError(
+                f"Invalid objective_type '{objective_type}'. Must be one of: {valid_types}"
+            )
+
+        # Validate target is non-empty
+        target = data["target"].strip() if isinstance(data["target"], str) else str(data["target"])
+        if not target:
+            raise AIGenerationError("Quest target cannot be empty")
+
+        # Validate target_count >= 1
+        if not isinstance(data["target_count"], (int, float)) or data["target_count"] < 1:
+            raise AIGenerationError(
+                "target_count must be at least 1"
+            )
+
+        # Validate gold_reward >= 0
+        if not isinstance(data["gold_reward"], (int, float)) or data["gold_reward"] < 0:
+            raise AIGenerationError(
+                "gold_reward must be non-negative"
+            )
+
+        # Validate xp_reward >= 0
+        if not isinstance(data["xp_reward"], (int, float)) or data["xp_reward"] < 0:
+            raise AIGenerationError(
+                "xp_reward must be non-negative"
+            )
+
+        # Return validated data with quest_giver
+        return {
+            "name": name,
+            "description": description,
+            "objective_type": objective_type,
+            "target": target,
+            "target_count": int(data["target_count"]),
+            "gold_reward": int(data["gold_reward"]),
+            "xp_reward": int(data["xp_reward"]),
+            "quest_giver": npc_name
+        }

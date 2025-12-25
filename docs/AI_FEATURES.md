@@ -302,11 +302,25 @@ pytest tests/test_e2e_world_expansion.py -v
   - **secret**: Hidden knowledge, mysteries
 - Graceful handling of empty location names (uses "the world" as context)
 
+### 10. AI-Generated Quests
+- `AIService.generate_quest()` creates dynamic quests appropriate to the world theme
+- Parameters: `theme`, `npc_name` (quest giver), `player_level`, `location_name` (optional)
+- Returns quest properties:
+  - **name**: Quest title (2-30 characters)
+  - **description**: Quest narrative (1-200 characters)
+  - **objective_type**: One of kill, collect, explore, talk, drop
+  - **target**: Target name (enemy type, item name, location, or NPC)
+  - **target_count**: Number to complete (≥1)
+  - **gold_reward** and **xp_reward**: Quest completion rewards
+  - **quest_giver**: Set to the NPC name for tracking
+- Validates generated quests against Quest model constraints
+- Integrated with caching for performance optimization
+- Graceful fallback when AI is unavailable
+
 ### Future Enhancements
 - Local model support
 - Persistent cache (database/file)
 - AI-powered NPC personalities and extended conversations
-- Quest generation
 - Advanced world consistency validation
 
 ## Troubleshooting

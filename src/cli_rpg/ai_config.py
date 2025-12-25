@@ -137,6 +137,42 @@ Types of lore:
 Respond with ONLY the lore text, no quotes or formatting."""
 
 
+# Default prompt template for quest generation
+DEFAULT_QUEST_GENERATION_PROMPT = """Generate a quest for a {theme} RPG.
+NPC Quest Giver: {npc_name}
+Location: {location_name}
+Player Level: {player_level}
+
+Requirements:
+1. Create a unique quest name (2-30 characters)
+2. Write a quest description (1-200 characters)
+3. Choose an appropriate objective type
+4. Set target and target_count for the objective
+5. Calculate balanced rewards for the player level
+
+Objective types:
+- kill: Defeat enemy type (target = enemy name, target_count = how many)
+- collect: Gather items (target = item name, target_count = how many)
+- explore: Visit location (target = location name, target_count = 1)
+- talk: Speak to NPC (target = NPC name, target_count = 1)
+- drop: Deliver item (target = item name, target_count = 1)
+
+Respond with valid JSON in this exact format (no additional text):
+{{
+  "name": "Quest Name",
+  "description": "A brief description of the quest objective.",
+  "objective_type": "kill|collect|explore|talk|drop",
+  "target": "target name",
+  "target_count": <number>,
+  "gold_reward": <number>,
+  "xp_reward": <number>
+}}
+
+Rewards scaling guidelines (based on player level {player_level}):
+- gold_reward: 30 + (player_level * 15) with some variance
+- xp_reward: 25 + (player_level * 12) with some variance"""
+
+
 @dataclass
 class AIConfig:
     """Configuration for AI services.
@@ -168,6 +204,7 @@ class AIConfig:
     enemy_generation_prompt: str = field(default=DEFAULT_ENEMY_GENERATION_PROMPT)
     item_generation_prompt: str = field(default=DEFAULT_ITEM_GENERATION_PROMPT)
     lore_generation_prompt: str = field(default=DEFAULT_LORE_GENERATION_PROMPT)
+    quest_generation_prompt: str = field(default=DEFAULT_QUEST_GENERATION_PROMPT)
     
     def __post_init__(self) -> None:
         """Validate configuration after initialization."""
@@ -291,7 +328,8 @@ class AIConfig:
             "npc_dialogue_prompt": self.npc_dialogue_prompt,
             "enemy_generation_prompt": self.enemy_generation_prompt,
             "item_generation_prompt": self.item_generation_prompt,
-            "lore_generation_prompt": self.lore_generation_prompt
+            "lore_generation_prompt": self.lore_generation_prompt,
+            "quest_generation_prompt": self.quest_generation_prompt
         }
     
     @classmethod
@@ -321,5 +359,6 @@ class AIConfig:
             npc_dialogue_prompt=data.get("npc_dialogue_prompt", DEFAULT_NPC_DIALOGUE_PROMPT),
             enemy_generation_prompt=data.get("enemy_generation_prompt", DEFAULT_ENEMY_GENERATION_PROMPT),
             item_generation_prompt=data.get("item_generation_prompt", DEFAULT_ITEM_GENERATION_PROMPT),
-            lore_generation_prompt=data.get("lore_generation_prompt", DEFAULT_LORE_GENERATION_PROMPT)
+            lore_generation_prompt=data.get("lore_generation_prompt", DEFAULT_LORE_GENERATION_PROMPT),
+            quest_generation_prompt=data.get("quest_generation_prompt", DEFAULT_QUEST_GENERATION_PROMPT)
         )
