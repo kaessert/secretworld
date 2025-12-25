@@ -130,6 +130,24 @@ class TestParseCommand:
         assert cmd == "help"
         assert args == []
 
+    def test_parse_command_empty_string(self):
+        """Test parsing empty string.
+
+        Spec: Empty string should return ("unknown", [])
+        """
+        cmd, args = parse_command("")
+        assert cmd == "unknown"
+        assert args == []
+
+    def test_parse_command_whitespace_only(self):
+        """Test parsing whitespace-only string.
+
+        Spec: Whitespace-only string should return ("unknown", [])
+        """
+        cmd, args = parse_command("   ")
+        assert cmd == "unknown"
+        assert args == []
+
 
 class TestGameStateInit:
     """Tests for GameState.__init__()."""
