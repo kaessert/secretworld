@@ -282,6 +282,10 @@ class TestLootGeneration:
 
     def test_generate_loot_scales_with_level(self):
         """Test: Higher level drops have better stats"""
+        import random
+        # Use fixed seed for reproducible test results
+        random.seed(42)
+
         enemy = Enemy(
             name="Goblin",
             health=30,
@@ -291,16 +295,16 @@ class TestLootGeneration:
             xp_reward=25
         )
 
-        # Get items from different levels
+        # Get items from different levels - use larger sample for statistical reliability
         level_1_items = []
         level_5_items = []
 
-        for _ in range(100):
+        for _ in range(500):
             item = generate_loot(enemy, level=1)
             if item is not None:
                 level_1_items.append(item)
 
-        for _ in range(100):
+        for _ in range(500):
             item = generate_loot(enemy, level=5)
             if item is not None:
                 level_5_items.append(item)
