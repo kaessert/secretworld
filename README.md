@@ -39,8 +39,8 @@ python -m cli_rpg.main
 2. Choose your stat allocation method (manual or random)
 3. Set your three core attributes (1-20 each):
    - **Strength**: Increases attack damage and max HP
-   - **Dexterity**: Improves flee chance
-   - **Intelligence**: Increases magic attack damage
+   - **Dexterity**: Improves flee chance, dodge chance, and physical critical hit chance
+   - **Intelligence**: Increases magic attack damage and magic critical hit chance
 
 **Note:** Constitution is automatically derived from your Strength stat and is used to reduce incoming damage during combat.
 
@@ -106,6 +106,11 @@ Combat encounters occur randomly as you explore. You may face multiple enemies a
 Enemy stats (HP, attack, defense) and XP rewards all scale with distance, encouraging strategic exploration and progression.
 
 **Boss Fights**: Occasionally, you'll encounter powerful boss enemies with enhanced stats (2x health, attack, and defense) and 4x XP rewards. Bosses are guaranteed to drop legendary loot with enhanced stats upon defeat. Boss types vary by location category (Lich Lords in dungeons, Ancient Guardians in ruins, Cave Troll Kings in caves, etc.).
+
+**Critical Hits & Dodge**: Combat includes critical hit and dodge mechanics:
+- **Player Critical Hits**: Base 5% chance + 1% per DEX (physical) or INT (magic), capped at 20%. Crits deal 1.5x damage.
+- **Player Dodge**: Base 5% chance + 0.5% per DEX, capped at 15%. Successful dodge negates all damage from an attack.
+- **Enemy Critical Hits**: Flat 5% chance for enemies, dealing 1.5x damage.
 
 **Status Effects**: Some enemies can inflict status effects during combat:
 - **Poison**: Certain creatures (spiders, snakes, serpents, vipers) have a chance to poison you on attack. Poison deals damage each turn and wears off after a set duration.

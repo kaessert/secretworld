@@ -5,6 +5,8 @@ Spec requirements tested:
 - Equipped armor affects damage reduction in combat
 - Item drops after combat victory
 """
+from unittest.mock import patch
+
 from cli_rpg.models.character import Character
 from cli_rpg.models.enemy import Enemy
 from cli_rpg.models.item import Item, ItemType
@@ -37,6 +39,8 @@ class TestWeaponAffectsCombatDamage:
 
     def test_attack_damage_with_weapon(self):
         """Test: Attack damage includes weapon bonus (spec requirement)"""
+        from unittest.mock import patch
+
         player = Character(name="Hero", strength=10, dexterity=10, intelligence=10)
         sword = Item(
             name="Iron Sword",
@@ -59,7 +63,10 @@ class TestWeaponAffectsCombatDamage:
         combat.start()
 
         initial_health = enemy.health
-        combat.player_attack()
+
+        # Mock random to prevent critical hit for predictable damage
+        with patch('cli_rpg.combat.random.random', return_value=0.50):
+            combat.player_attack()
 
         # Damage should be player attack power (10 + 8) - enemy defense (0) = 18
         expected_damage = 18
@@ -67,6 +74,8 @@ class TestWeaponAffectsCombatDamage:
 
     def test_weapon_damage_vs_enemy_defense(self):
         """Test: Weapon bonus helps overcome enemy defense"""
+        from unittest.mock import patch
+
         player = Character(name="Hero", strength=10, dexterity=10, intelligence=10)
         sword = Item(
             name="Magic Sword",
@@ -89,7 +98,10 @@ class TestWeaponAffectsCombatDamage:
         combat.start()
 
         initial_health = enemy.health
-        combat.player_attack()
+
+        # Mock random to prevent critical hit for predictable damage
+        with patch('cli_rpg.combat.random.random', return_value=0.50):
+            combat.player_attack()
 
         # Damage = (10 + 15) - 12 = 13
         expected_damage = 13
@@ -115,7 +127,10 @@ class TestArmorAffectsDamageReduction:
         combat.start()
 
         initial_health = player.health
-        combat.enemy_turn()
+
+        # Mock random to prevent dodge and crit for predictable damage
+        with patch('cli_rpg.combat.random.random', return_value=0.50):
+            combat.enemy_turn()
 
         # Damage should be enemy attack (25) - player defense (10) = 15
         expected_damage = 15
@@ -145,7 +160,10 @@ class TestArmorAffectsDamageReduction:
         combat.start()
 
         initial_health = player.health
-        combat.enemy_turn()
+
+        # Mock random to prevent dodge and crit for predictable damage
+        with patch('cli_rpg.combat.random.random', return_value=0.50):
+            combat.enemy_turn()
 
         # Damage should be enemy attack (25) - player defense (10 + 10) = 5
         expected_damage = 5
@@ -175,7 +193,10 @@ class TestArmorAffectsDamageReduction:
         combat.start()
 
         initial_health = player.health
-        combat.enemy_turn()
+
+        # Mock random to prevent dodge and crit for predictable damage
+        with patch('cli_rpg.combat.random.random', return_value=0.50):
+            combat.enemy_turn()
 
         # Damage = max(1, 10 - 60) = 1 (minimum damage)
         assert player.health == initial_health - 1
@@ -219,17 +240,19 @@ class TestCombatWithFullEquipment:
         combat = CombatEncounter(player=player, enemy=enemy)
         combat.start()
 
-        # Test player attack
-        initial_enemy_health = enemy.health
-        combat.player_attack()
-        # Damage = (10 + 5) - 5 = 10
-        assert enemy.health == initial_enemy_health - 10
+        # Mock random to prevent crit and dodge for predictable damage
+        with patch('cli_rpg.combat.random.random', return_value=0.50):
+            # Test player attack
+            initial_enemy_health = enemy.health
+            combat.player_attack()
+            # Damage = (10 + 5) - 5 = 10
+            assert enemy.health == initial_enemy_health - 10
 
-        # Test enemy attack
-        initial_player_health = player.health
-        combat.enemy_turn()
-        # Damage = 20 - (10 + 5) = 5
-        assert player.health == initial_player_health - 5
+            # Test enemy attack
+            initial_player_health = player.health
+            combat.enemy_turn()
+            # Damage = 20 - (10 + 5) = 5
+            assert player.health == initial_player_health - 5
 
 
 class TestLootGeneration:

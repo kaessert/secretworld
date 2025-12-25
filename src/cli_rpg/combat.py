@@ -98,6 +98,38 @@ def get_distance_multiplier(distance: int) -> float:
     return 1.0 + distance * 0.15
 
 
+def calculate_crit_chance(stat: int) -> float:
+    """Calculate critical hit chance based on a stat (DEX or INT).
+
+    Formula: 5% base + 1% per stat point, capped at 20%.
+
+    Args:
+        stat: The stat value (dexterity for attacks, intelligence for cast)
+
+    Returns:
+        Critical hit chance as a decimal (0.05 to 0.20)
+    """
+    return min(5 + stat, 20) / 100.0
+
+
+def calculate_dodge_chance(dexterity: int) -> float:
+    """Calculate dodge chance based on dexterity.
+
+    Formula: 5% base + 0.5% per DEX point (integer division), capped at 15%.
+
+    Args:
+        dexterity: Player dexterity stat
+
+    Returns:
+        Dodge chance as a decimal (0.05 to 0.15)
+    """
+    return min(5 + dexterity // 2, 15) / 100.0
+
+
+ENEMY_CRIT_CHANCE = 0.05  # Flat 5% crit chance for enemies
+CRIT_MULTIPLIER = 1.5
+
+
 def strip_leading_name(enemy_name: str, attack_flavor: str) -> str:
     """Strip enemy name from start of attack flavor text if present.
 
@@ -569,9 +601,21 @@ class CombatEncounter:
         if companion_bonus > 0:
             dmg = int(dmg * (1 + companion_bonus))
 
+        # Check for critical hit (DEX-based)
+        crit_chance = calculate_crit_chance(self.player.dexterity)
+        is_crit = random.random() < crit_chance
+        if is_crit:
+            dmg = int(dmg * CRIT_MULTIPLIER)
+
         enemy.take_damage(dmg)
 
-        message = f"You attack {colors.enemy(enemy.name)} for {colors.damage(str(dmg))} damage!"
+        if is_crit:
+            message = (
+                f"{colors.damage('CRITICAL HIT!')} You attack {colors.enemy(enemy.name)} "
+                f"for {colors.damage(str(dmg))} damage!"
+            )
+        else:
+            message = f"You attack {colors.enemy(enemy.name)} for {colors.damage(str(dmg))} damage!"
 
         if not enemy.is_alive():
             message += f"\n{colors.enemy(enemy.name)} has been defeated!"
@@ -665,9 +709,21 @@ class CombatEncounter:
         if companion_bonus > 0:
             dmg = int(dmg * (1 + companion_bonus))
 
+        # Check for critical hit (INT-based for cast)
+        crit_chance = calculate_crit_chance(self.player.intelligence)
+        is_crit = random.random() < crit_chance
+        if is_crit:
+            dmg = int(dmg * CRIT_MULTIPLIER)
+
         enemy.take_damage(dmg)
 
-        message = f"You cast a spell at {colors.enemy(enemy.name)} for {colors.damage(str(dmg))} magic damage!"
+        if is_crit:
+            message = (
+                f"{colors.damage('CRITICAL HIT!')} You cast a spell at {colors.enemy(enemy.name)} "
+                f"for {colors.damage(str(dmg))} magic damage!"
+            )
+        else:
+            message = f"You cast a spell at {colors.enemy(enemy.name)} for {colors.damage(str(dmg))} magic damage!"
 
         if not enemy.is_alive():
             message += f"\n{colors.enemy(enemy.name)} has been defeated!"
@@ -719,6 +775,21 @@ class CombatEncounter:
         total_damage = 0
 
         for enemy in living:
+            # Check for player dodge first (DEX-based)
+            dodge_chance = calculate_dodge_chance(self.player.dexterity)
+            if random.random() < dodge_chance:
+                # Player dodged the attack
+                msg = (
+                    f"{colors.enemy(enemy.name)} attacks, but you "
+                    f"{colors.heal('dodge')} out of the way!"
+                )
+                messages.append(msg)
+                # Skip damage calculation and status effects for this enemy
+                # Still tick enemy status effects
+                enemy_status_messages = enemy.tick_status_effects()
+                messages.extend(enemy_status_messages)
+                continue
+
             # Calculate damage: enemy attack - player defense (constitution + armor bonus), minimum 1
             # Apply freeze reduction (50%) if enemy is frozen
             attack_power = enemy.calculate_damage()
@@ -726,26 +797,50 @@ class CombatEncounter:
                 attack_power = int(attack_power * 0.5)
             base_damage = max(1, attack_power - self.player.get_defense())
 
+            # Check for enemy critical hit (flat 5% chance)
+            is_crit = random.random() < ENEMY_CRIT_CHANCE
+            if is_crit:
+                base_damage = int(base_damage * CRIT_MULTIPLIER)
+
             # Apply defense reduction if player is defending (applies to all attacks this turn)
             if self.defending:
                 dmg = max(1, base_damage // 2)  # Half damage when defending
                 # Track damage taken while defending for Revenge combo
                 self.damage_taken_while_defending += dmg
-                msg = (
-                    f"{colors.enemy(enemy.name)} attacks! You block some of the damage, "
-                    f"taking {colors.damage(str(dmg))} damage!"
-                )
+                if is_crit:
+                    msg = (
+                        f"{colors.damage('CRITICAL HIT!')} {colors.enemy(enemy.name)} attacks! "
+                        f"You block some of the damage, taking {colors.damage(str(dmg))} damage!"
+                    )
+                else:
+                    msg = (
+                        f"{colors.enemy(enemy.name)} attacks! You block some of the damage, "
+                        f"taking {colors.damage(str(dmg))} damage!"
+                    )
             else:
                 dmg = base_damage
                 # Use attack_flavor if available for more immersive combat
-                if enemy.attack_flavor:
-                    cleaned_flavor = strip_leading_name(enemy.name, enemy.attack_flavor)
-                    msg = (
-                        f"{colors.enemy(enemy.name)} {cleaned_flavor}! "
-                        f"You take {colors.damage(str(dmg))} damage!"
-                    )
+                if is_crit:
+                    if enemy.attack_flavor:
+                        cleaned_flavor = strip_leading_name(enemy.name, enemy.attack_flavor)
+                        msg = (
+                            f"{colors.damage('CRITICAL HIT!')} {colors.enemy(enemy.name)} "
+                            f"{cleaned_flavor}! You take {colors.damage(str(dmg))} damage!"
+                        )
+                    else:
+                        msg = (
+                            f"{colors.damage('CRITICAL HIT!')} {colors.enemy(enemy.name)} "
+                            f"attacks you for {colors.damage(str(dmg))} damage!"
+                        )
                 else:
-                    msg = f"{colors.enemy(enemy.name)} attacks you for {colors.damage(str(dmg))} damage!"
+                    if enemy.attack_flavor:
+                        cleaned_flavor = strip_leading_name(enemy.name, enemy.attack_flavor)
+                        msg = (
+                            f"{colors.enemy(enemy.name)} {cleaned_flavor}! "
+                            f"You take {colors.damage(str(dmg))} damage!"
+                        )
+                    else:
+                        msg = f"{colors.enemy(enemy.name)} attacks you for {colors.damage(str(dmg))} damage!"
 
             self.player.take_damage(dmg)
             total_damage += dmg

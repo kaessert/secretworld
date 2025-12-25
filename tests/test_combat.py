@@ -286,6 +286,8 @@ class TestEnemyTurn:
     
     def test_enemy_turn_damages_player(self):
         """Spec: enemy_turn() should damage player based on enemy's attack power."""
+        from unittest.mock import patch
+
         player = Character(name="Hero", strength=10, dexterity=10, intelligence=10, level=1)
         initial_health = player.health
         enemy = Enemy(
@@ -298,16 +300,20 @@ class TestEnemyTurn:
         )
         combat = CombatEncounter(player=player, enemy=enemy)
         combat.start()
-        
-        message = combat.enemy_turn()
-        
+
+        # Mock random to prevent dodge and crit
+        with patch('cli_rpg.combat.random.random', return_value=0.50):
+            message = combat.enemy_turn()
+
         # Player should have taken damage
         assert player.health < initial_health
         assert message is not None
         assert len(message) > 0
-    
+
     def test_enemy_turn_respects_defensive_stance(self):
         """Spec: enemy_turn() should apply reduced damage when player is defending."""
+        from unittest.mock import patch
+
         player = Character(name="Hero", strength=10, dexterity=10, intelligence=10, level=1)
         player.constitution = 10  # Set known constitution
         enemy = Enemy(
@@ -320,20 +326,22 @@ class TestEnemyTurn:
         )
         combat = CombatEncounter(player=player, enemy=enemy)
         combat.start()
-        
-        # First, attack normally to see normal damage
-        initial_health = player.health
-        combat.enemy_turn()
-        normal_damage = initial_health - player.health
-        
-        # Reset health
-        player.health = initial_health
-        
-        # Now defend and take damage
-        combat.defending = True
-        combat.enemy_turn()
-        defended_damage = initial_health - player.health
-        
+
+        # Mock random to prevent dodge and crit for consistent damage
+        with patch('cli_rpg.combat.random.random', return_value=0.50):
+            # First, attack normally to see normal damage
+            initial_health = player.health
+            combat.enemy_turn()
+            normal_damage = initial_health - player.health
+
+            # Reset health
+            player.health = initial_health
+
+            # Now defend and take damage
+            combat.defending = True
+            combat.enemy_turn()
+            defended_damage = initial_health - player.health
+
         # Defended damage should be less than normal damage
         assert defended_damage < normal_damage
 
@@ -501,6 +509,335 @@ class TestEndCombatLootInventoryFull:
         assert "Enemy Sword" in message
         # Verify loot was NOT added to inventory
         assert loot not in player.inventory.items
+
+
+class TestCriticalHits:
+    """Test player critical hit mechanics.
+
+    Spec: Critical hit mechanics based on player DEX:
+    - Base crit chance: 5%
+    - DEX bonus: +1% per point (capped at +15% from DEX)
+    - On crit: 1.5x damage with special message
+    - Formula: crit_chance = min(5 + player.dexterity, 20)
+    """
+
+    def test_player_crit_deals_1_5x_damage(self):
+        """Spec: Critical hit should deal 1.5x normal damage."""
+        from unittest.mock import patch
+
+        player = Character(name="Hero", strength=10, dexterity=10, intelligence=10, level=1)
+        enemy = Enemy(
+            name="Goblin",
+            health=100,
+            max_health=100,
+            attack_power=5,
+            defense=0,  # No defense to make damage predictable
+            xp_reward=25
+        )
+        combat = CombatEncounter(player=player, enemy=enemy)
+        combat.start()
+
+        # Mock random to always trigger a crit
+        with patch('cli_rpg.combat.random.random', return_value=0.01):  # Always crit
+            initial_health = enemy.health
+            victory, message = combat.player_attack()
+
+            # Base damage is strength (10) - defense (0) = 10
+            # Crit multiplies by 1.5 -> 15 damage
+            expected_damage = int(10 * 1.5)
+            assert initial_health - enemy.health == expected_damage
+
+    def test_player_crit_message_includes_critical(self):
+        """Spec: Critical hit message should include 'CRITICAL' indicator."""
+        from unittest.mock import patch
+
+        player = Character(name="Hero", strength=10, dexterity=10, intelligence=10, level=1)
+        enemy = Enemy(
+            name="Goblin",
+            health=100,
+            max_health=100,
+            attack_power=5,
+            defense=0,
+            xp_reward=25
+        )
+        combat = CombatEncounter(player=player, enemy=enemy)
+        combat.start()
+
+        # Mock random to always trigger a crit
+        with patch('cli_rpg.combat.random.random', return_value=0.01):
+            victory, message = combat.player_attack()
+            assert "CRITICAL" in message.upper()
+
+    def test_player_attack_no_crit_with_low_roll(self):
+        """Spec: Player attack should not crit when roll exceeds crit chance."""
+        from unittest.mock import patch
+
+        player = Character(name="Hero", strength=10, dexterity=5, intelligence=10, level=1)
+        # Crit chance = min(5 + 5, 20) = 10% = 0.10
+        enemy = Enemy(
+            name="Goblin",
+            health=100,
+            max_health=100,
+            attack_power=5,
+            defense=0,
+            xp_reward=25
+        )
+        combat = CombatEncounter(player=player, enemy=enemy)
+        combat.start()
+
+        # Mock random to not trigger crit (roll > 0.10)
+        with patch('cli_rpg.combat.random.random', return_value=0.50):
+            initial_health = enemy.health
+            victory, message = combat.player_attack()
+
+            # Normal damage: strength (10) - defense (0) = 10
+            assert initial_health - enemy.health == 10
+            assert "CRITICAL" not in message.upper()
+
+    def test_player_cast_can_crit(self):
+        """Spec: Magic attacks (cast) can also crit, using INT for crit chance."""
+        from unittest.mock import patch
+
+        player = Character(name="Hero", strength=10, dexterity=10, intelligence=15, level=1)
+        enemy = Enemy(
+            name="Goblin",
+            health=100,
+            max_health=100,
+            attack_power=5,
+            defense=10,  # High defense, but cast ignores it
+            xp_reward=25
+        )
+        combat = CombatEncounter(player=player, enemy=enemy)
+        combat.start()
+
+        # Mock random to always trigger a crit
+        with patch('cli_rpg.combat.random.random', return_value=0.01):
+            initial_health = enemy.health
+            victory, message = combat.player_cast()
+
+            # Magic damage = int(intelligence * 1.5) = int(15 * 1.5) = 22
+            # Crit multiplies by 1.5 -> 33 damage
+            base_magic_damage = max(1, int(player.intelligence * 1.5))
+            expected_damage = int(base_magic_damage * 1.5)
+            assert initial_health - enemy.health == expected_damage
+            assert "CRITICAL" in message.upper()
+
+
+class TestMissChance:
+    """Test enemy miss/dodge mechanics.
+
+    Spec: Miss chance (enemy attacks player) based on player DEX:
+    - Base miss chance: 5%
+    - Player DEX bonus: +0.5% per point (capped at +10% from DEX)
+    - On miss: 0 damage with dodge message
+    - Formula: dodge_chance = min(5 + player.dexterity // 2, 15)
+    """
+
+    def test_enemy_miss_deals_zero_damage(self):
+        """Spec: When enemy misses, player takes zero damage."""
+        from unittest.mock import patch
+
+        player = Character(name="Hero", strength=10, dexterity=10, intelligence=10, level=1)
+        enemy = Enemy(
+            name="Goblin",
+            health=30,
+            max_health=30,
+            attack_power=20,  # High attack to make damage obvious
+            defense=2,
+            xp_reward=25
+        )
+        combat = CombatEncounter(player=player, enemy=enemy)
+        combat.start()
+
+        initial_health = player.health
+
+        # Mock random to always trigger dodge (roll < dodge_chance)
+        # Dodge chance = min(5 + 10//2, 15) = min(10, 15) = 10% = 0.10
+        with patch('cli_rpg.combat.random.random', return_value=0.05):  # 5% < 10%, so dodge
+            message = combat.enemy_turn()
+
+        # Player should take no damage
+        assert player.health == initial_health
+        assert "dodge" in message.lower() or "miss" in message.lower()
+
+    def test_enemy_miss_message_includes_dodge_or_miss(self):
+        """Spec: Enemy miss message should indicate dodge or miss."""
+        from unittest.mock import patch
+
+        player = Character(name="Hero", strength=10, dexterity=20, intelligence=10, level=1)
+        # Dodge chance = min(5 + 20//2, 15) = min(15, 15) = 15%
+        enemy = Enemy(
+            name="Goblin",
+            health=30,
+            max_health=30,
+            attack_power=10,
+            defense=2,
+            xp_reward=25
+        )
+        combat = CombatEncounter(player=player, enemy=enemy)
+        combat.start()
+
+        with patch('cli_rpg.combat.random.random', return_value=0.05):  # Triggers dodge
+            message = combat.enemy_turn()
+
+        assert "dodge" in message.lower() or "miss" in message.lower()
+
+    def test_enemy_attack_hits_when_no_dodge(self):
+        """Spec: Enemy attack should hit and deal damage when roll exceeds dodge chance."""
+        from unittest.mock import patch
+
+        player = Character(name="Hero", strength=10, dexterity=10, intelligence=10, level=1)
+        # Dodge chance = min(5 + 10//2, 15) = 10%
+        enemy = Enemy(
+            name="Goblin",
+            health=30,
+            max_health=30,
+            attack_power=10,
+            defense=2,
+            xp_reward=25
+        )
+        combat = CombatEncounter(player=player, enemy=enemy)
+        combat.start()
+
+        initial_health = player.health
+
+        # Mock to ensure no dodge and no crit (separate rolls)
+        with patch('cli_rpg.combat.random.random', return_value=0.50):  # No dodge, no crit
+            message = combat.enemy_turn()
+
+        # Player should have taken damage
+        assert player.health < initial_health
+
+
+class TestEnemyCriticalHits:
+    """Test enemy critical hit mechanics.
+
+    Spec: Enemy crit mechanics:
+    - Flat 5% crit chance for enemies
+    - On crit: 1.5x damage with special message
+    """
+
+    def test_enemy_crit_deals_1_5x_damage(self):
+        """Spec: Enemy critical hit should deal 1.5x normal damage."""
+        from unittest.mock import patch
+
+        player = Character(name="Hero", strength=10, dexterity=10, intelligence=10, level=1)
+        player.constitution = 0  # No defense to make damage predictable
+        enemy = Enemy(
+            name="Goblin",
+            health=30,
+            max_health=30,
+            attack_power=10,
+            defense=2,
+            xp_reward=25
+        )
+        combat = CombatEncounter(player=player, enemy=enemy)
+        combat.start()
+
+        initial_health = player.health
+
+        # First call = dodge check (make it fail/not dodge by returning 0.50)
+        # Second call = crit check (make it succeed by returning 0.02)
+        with patch('cli_rpg.combat.random.random', side_effect=[0.50, 0.02]):
+            message = combat.enemy_turn()
+
+        # Base damage = attack_power (10) - player defense (0) = 10
+        # Crit multiplies by 1.5 -> 15 damage
+        expected_damage = int(10 * 1.5)
+        actual_damage = initial_health - player.health
+        assert actual_damage == expected_damage
+
+    def test_enemy_crit_message_includes_critical(self):
+        """Spec: Enemy critical hit message should include 'CRITICAL' indicator."""
+        from unittest.mock import patch
+
+        player = Character(name="Hero", strength=10, dexterity=10, intelligence=10, level=1)
+        player.constitution = 0
+        enemy = Enemy(
+            name="Goblin",
+            health=30,
+            max_health=30,
+            attack_power=10,
+            defense=2,
+            xp_reward=25
+        )
+        combat = CombatEncounter(player=player, enemy=enemy)
+        combat.start()
+
+        # First call = dodge check, second = crit check
+        with patch('cli_rpg.combat.random.random', side_effect=[0.50, 0.02]):
+            message = combat.enemy_turn()
+
+        assert "CRITICAL" in message.upper()
+
+    def test_enemy_no_crit_with_high_roll(self):
+        """Spec: Enemy attack should not crit when roll exceeds 5% crit chance."""
+        from unittest.mock import patch
+
+        player = Character(name="Hero", strength=10, dexterity=10, intelligence=10, level=1)
+        player.constitution = 0
+        enemy = Enemy(
+            name="Goblin",
+            health=30,
+            max_health=30,
+            attack_power=10,
+            defense=2,
+            xp_reward=25
+        )
+        combat = CombatEncounter(player=player, enemy=enemy)
+        combat.start()
+
+        initial_health = player.health
+
+        # Dodge check fails (0.50), crit check fails (0.50 > 0.05)
+        with patch('cli_rpg.combat.random.random', side_effect=[0.50, 0.50]):
+            message = combat.enemy_turn()
+
+        # Normal damage: attack_power (10) - player defense (0) = 10
+        assert initial_health - player.health == 10
+        assert "CRITICAL" not in message.upper()
+
+
+class TestCritDodgeHelperFunctions:
+    """Test the helper functions for crit and dodge calculations."""
+
+    def test_calculate_crit_chance_base(self):
+        """Spec: Base crit chance is 5% with 0 DEX."""
+        from cli_rpg.combat import calculate_crit_chance
+        assert calculate_crit_chance(0) == 0.05
+
+    def test_calculate_crit_chance_with_dex(self):
+        """Spec: Crit chance increases 1% per DEX point."""
+        from cli_rpg.combat import calculate_crit_chance
+        # 10 DEX = 5 + 10 = 15% crit chance
+        assert calculate_crit_chance(10) == 0.15
+
+    def test_calculate_crit_chance_cap(self):
+        """Spec: Crit chance is capped at 20%."""
+        from cli_rpg.combat import calculate_crit_chance
+        # 20 DEX should cap at 20% (not 25%)
+        assert calculate_crit_chance(20) == 0.20
+        # Even higher DEX still caps at 20%
+        assert calculate_crit_chance(50) == 0.20
+
+    def test_calculate_dodge_chance_base(self):
+        """Spec: Base dodge chance is 5% with 0 DEX."""
+        from cli_rpg.combat import calculate_dodge_chance
+        assert calculate_dodge_chance(0) == 0.05
+
+    def test_calculate_dodge_chance_with_dex(self):
+        """Spec: Dodge chance increases 0.5% per DEX point (integer division)."""
+        from cli_rpg.combat import calculate_dodge_chance
+        # 10 DEX = 5 + (10 // 2) = 5 + 5 = 10% dodge chance
+        assert calculate_dodge_chance(10) == 0.10
+
+    def test_calculate_dodge_chance_cap(self):
+        """Spec: Dodge chance is capped at 15%."""
+        from cli_rpg.combat import calculate_dodge_chance
+        # 20 DEX = 5 + 10 = 15% (cap)
+        assert calculate_dodge_chance(20) == 0.15
+        # Even higher DEX still caps at 15%
+        assert calculate_dodge_chance(50) == 0.15
 
 
 class TestCombatTypewriterDisplay:

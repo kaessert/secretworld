@@ -1,41 +1,61 @@
-# Implementation Summary: Add ASCII Art to Bestiary
+# Implementation Summary: Critical Hits and Miss Chances
 
 ## What Was Implemented
 
-Extended the bestiary feature to store and display enemy ASCII art on first encounter.
+The critical hit and miss chance mechanics were already fully implemented in the codebase. The implementation includes:
 
-### Changes Made
+### Files Modified/Verified
+1. **`src/cli_rpg/combat.py`** - Contains all the core mechanics:
+   - `calculate_crit_chance(stat: int)` - Helper function for crit chance calculation
+   - `calculate_dodge_chance(dexterity: int)` - Helper function for dodge chance calculation
+   - `ENEMY_CRIT_CHANCE = 0.05` - Flat 5% crit chance for enemies
+   - `CRIT_MULTIPLIER = 1.5` - 1.5x damage multiplier on crit
 
-**1. `src/cli_rpg/models/character.py` (line 663)**
-- Added `ascii_art` field to the `enemy_data` dict in `record_enemy_defeat()`
-- This captures the enemy's ASCII art on first defeat
+2. **`tests/test_combat.py`** - Contains comprehensive tests:
+   - `TestCriticalHits` class (4 tests)
+   - `TestMissChance` class (3 tests)
+   - `TestEnemyCriticalHits` class (3 tests)
+   - `TestCritDodgeHelperFunctions` class (6 tests)
 
-**2. `src/cli_rpg/main.py` (lines 1056-1059)**
-- Added ASCII art display to the bestiary command handler
-- Uses `data.get("ascii_art")` for backward compatibility with old saves
-- Strips and splits the art by newlines, indenting each line for clean formatting
+3. **`tests/test_combat_equipment.py`** - Fixed 4 tests that needed mocking:
+   - Added `from unittest.mock import patch` import
+   - Updated `test_damage_taken_without_armor` to mock random
+   - Updated `test_damage_taken_with_armor` to mock random
+   - Updated `test_high_armor_vs_low_attack` to mock random
+   - Updated `test_full_equipment_combat` to mock random
 
-**3. `tests/test_bestiary.py`**
-- Added `test_record_enemy_defeat_stores_ascii_art`: Verifies ascii_art is stored on first defeat
-- Added `test_bestiary_command_shows_ascii_art`: Verifies command displays art
-- Added `test_bestiary_backward_compat_no_ascii_art`: Confirms old saves without ascii_art work
+### Mechanics Implemented
+
+**Player Critical Hits (Physical)**:
+- Formula: `crit_chance = min(5 + player.dexterity, 20) / 100.0`
+- Base 5% + 1% per DEX point, capped at 20%
+- 1.5x damage multiplier on crit
+- Message includes "CRITICAL HIT!"
+
+**Player Critical Hits (Magic/Cast)**:
+- Formula: `crit_chance = min(5 + player.intelligence, 20) / 100.0`
+- Uses INT instead of DEX for magic attacks
+- Same 1.5x multiplier and messaging
+
+**Player Dodge (Enemy Miss)**:
+- Formula: `dodge_chance = min(5 + player.dexterity // 2, 15) / 100.0`
+- Base 5% + 0.5% per DEX point (integer division), capped at 15%
+- On dodge: 0 damage, message includes "dodge"
+
+**Enemy Critical Hits**:
+- Flat 5% crit chance (ENEMY_CRIT_CHANCE = 0.05)
+- 1.5x damage multiplier
+- Message includes "CRITICAL HIT!"
 
 ## Test Results
 
-All tests pass:
-- 14 bestiary-specific tests pass
-- 2363 total tests pass (full suite)
+All 2379 tests pass:
+- 43 tests in `test_combat.py` (including 16 new crit/dodge tests)
+- 12 tests in `test_combat_equipment.py` (all fixed)
+- Full test suite: 2379 passed in ~40 seconds
 
-## Design Decisions
+## Technical Notes
 
-- Used `data.get("ascii_art")` instead of `data["ascii_art"]` to maintain backward compatibility with saves that don't have the ascii_art field
-- ASCII art is stripped and split by newlines, with each line indented by 2 spaces for consistent formatting
-- Art is displayed after the enemy name header but before the stats line
-
-## E2E Validation
-
-To manually verify:
-1. Start a new game
-2. Find and defeat an enemy
-3. Run the `bestiary` command
-4. The enemy's ASCII art should appear between the name and stats
+- Tests that check specific damage values now use `patch('cli_rpg.combat.random.random', return_value=0.50)` to prevent random crit/dodge from affecting assertions
+- The implementation correctly handles the order of operations: dodge check first, then crit check (if not dodged)
+- Companion bonuses are applied before crit multiplier

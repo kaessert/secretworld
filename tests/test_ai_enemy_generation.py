@@ -530,13 +530,18 @@ class TestCombatAttackFlavor:
         combat = CombatEncounter(test_character, enemy)
         combat.start()
 
-        message = combat.enemy_turn()
+        # Mock random to prevent dodge so we can check the attack flavor
+        from unittest.mock import patch
+        with patch('cli_rpg.combat.random.random', return_value=0.50):
+            message = combat.enemy_turn()
 
         # Should use attack_flavor in message
         assert "lunges with razor-sharp claws" in message
 
     def test_enemy_turn_default_message_without_flavor(self, test_character):
         """Spec: Uses default message when no flavor."""
+        from unittest.mock import patch
+
         enemy = Enemy(
             name="Goblin",
             health=30,
@@ -549,13 +554,17 @@ class TestCombatAttackFlavor:
         combat = CombatEncounter(test_character, enemy)
         combat.start()
 
-        message = combat.enemy_turn()
+        # Mock random to prevent dodge so we can check the attack message
+        with patch('cli_rpg.combat.random.random', return_value=0.50):
+            message = combat.enemy_turn()
 
         # Should use default attack message
         assert "attacks you" in message
 
     def test_enemy_turn_strips_duplicate_name_from_flavor(self, test_character):
         """Spec: Duplicate enemy name at start of attack_flavor is stripped."""
+        from unittest.mock import patch
+
         enemy = Enemy(
             name="Frostbite Yeti",
             health=50,
@@ -569,7 +578,10 @@ class TestCombatAttackFlavor:
 
         combat = CombatEncounter(test_character, enemy)
         combat.start()
-        message = combat.enemy_turn()
+
+        # Mock random to prevent dodge so we can check the attack flavor
+        with patch('cli_rpg.combat.random.random', return_value=0.50):
+            message = combat.enemy_turn()
 
         # Should NOT have duplicate name
         assert "Frostbite Yeti Frostbite Yeti" not in message
@@ -579,6 +591,8 @@ class TestCombatAttackFlavor:
 
     def test_enemy_turn_strips_name_without_the(self, test_character):
         """Spec: Enemy name without 'The' prefix is also stripped."""
+        from unittest.mock import patch
+
         enemy = Enemy(
             name="Shadow Wolf",
             health=50,
@@ -592,13 +606,18 @@ class TestCombatAttackFlavor:
 
         combat = CombatEncounter(test_character, enemy)
         combat.start()
-        message = combat.enemy_turn()
+
+        # Mock random to prevent dodge so we can check the attack flavor
+        with patch('cli_rpg.combat.random.random', return_value=0.50):
+            message = combat.enemy_turn()
 
         assert "Shadow Wolf Shadow Wolf" not in message
         assert "lunges with razor-sharp claws" in message
 
     def test_enemy_turn_preserves_flavor_without_name(self, test_character):
         """Spec: attack_flavor without enemy name is preserved unchanged."""
+        from unittest.mock import patch
+
         enemy = Enemy(
             name="Goblin",
             health=50,
@@ -612,7 +631,10 @@ class TestCombatAttackFlavor:
 
         combat = CombatEncounter(test_character, enemy)
         combat.start()
-        message = combat.enemy_turn()
+
+        # Mock random to prevent dodge so we can check the attack flavor
+        with patch('cli_rpg.combat.random.random', return_value=0.50):
+            message = combat.enemy_turn()
 
         assert "Goblin swings a rusty dagger wildly" in message
 

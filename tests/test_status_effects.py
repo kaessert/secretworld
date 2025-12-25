@@ -518,11 +518,17 @@ class TestCombatBurn:
 
     def test_burn_applies_in_combat(self, character, burn_enemy):
         """Spec: Enemies with burn can apply burn to the player on attack."""
+        from unittest.mock import patch
+
         combat = CombatEncounter(player=character, enemy=burn_enemy)
         combat.start()
 
         initial_effects = len(character.status_effects)
-        combat.enemy_turn()
+
+        # Mock random to prevent dodge and ensure burn applies (needs to fail dodge check)
+        # Burn is guaranteed with burn_chance=1.0, but we need to ensure no dodge
+        with patch('cli_rpg.combat.random.random', return_value=0.50):
+            combat.enemy_turn()
 
         # Character should now have burn
         assert len(character.status_effects) == initial_effects + 1
@@ -665,11 +671,16 @@ class TestCombatStun:
 
     def test_stun_applies_in_combat(self, character, stun_enemy):
         """Spec: Enemies with stun can apply stun to the player on attack."""
+        from unittest.mock import patch
+
         combat = CombatEncounter(player=character, enemy=stun_enemy)
         combat.start()
 
         initial_effects = len(character.status_effects)
-        combat.enemy_turn()
+
+        # Mock random to prevent dodge and ensure stun applies
+        with patch('cli_rpg.combat.random.random', return_value=0.50):
+            combat.enemy_turn()
 
         # Character should now have stun
         assert len(character.status_effects) == initial_effects + 1
@@ -1244,11 +1255,16 @@ class TestCombatBleed:
 
     def test_bleed_applies_in_combat(self, character, bleed_enemy):
         """Spec: Enemies with bleed can apply bleed to the player on attack."""
+        from unittest.mock import patch
+
         combat = CombatEncounter(player=character, enemy=bleed_enemy)
         combat.start()
 
         initial_effects = len(character.status_effects)
-        combat.enemy_turn()
+
+        # Mock random to prevent dodge and ensure bleed applies
+        with patch('cli_rpg.combat.random.random', return_value=0.50):
+            combat.enemy_turn()
 
         # Character should now have bleed
         assert len(character.status_effects) == initial_effects + 1

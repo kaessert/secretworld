@@ -249,29 +249,33 @@ class TestPlayerDefendSequence:
     
     def test_player_defend_reduces_enemy_damage(self):
         """Spec: Defend command sets defensive stance, enemy attack does reduced damage."""
+        from unittest.mock import patch
+
         # Setup: Use an enemy with high attack to make damage difference clearer
         character = Character(name="Hero", strength=10, dexterity=10, intelligence=10)
         enemy = Enemy(name="Wolf", health=30, max_health=30, attack_power=20, defense=2, xp_reward=20)
         world = {"Forest": Location(name="Forest", description="A dark forest", connections={})}
         game_state = GameState(character, world, starting_location="Forest")
-        
-        # First, get baseline damage without defending
-        game_state.current_combat = CombatEncounter(character, enemy)
-        game_state.current_combat.is_active = True
-        initial_health_1 = character.health
-        game_state.current_combat.enemy_turn()
-        normal_damage = initial_health_1 - character.health
-        
-        # Reset health
-        character.health = character.max_health
-        
-        # Now test with defend
-        game_state.current_combat = CombatEncounter(character, enemy)
-        game_state.current_combat.is_active = True
-        from cli_rpg.main import handle_combat_command
-        initial_health_2 = character.health
-        handle_combat_command(game_state, "defend", [])
-        defended_damage = initial_health_2 - character.health
+
+        # Mock random to prevent dodge and crit for consistent damage comparison
+        with patch('cli_rpg.combat.random.random', return_value=0.50):
+            # First, get baseline damage without defending
+            game_state.current_combat = CombatEncounter(character, enemy)
+            game_state.current_combat.is_active = True
+            initial_health_1 = character.health
+            game_state.current_combat.enemy_turn()
+            normal_damage = initial_health_1 - character.health
+
+            # Reset health
+            character.health = character.max_health
+
+            # Now test with defend
+            game_state.current_combat = CombatEncounter(character, enemy)
+            game_state.current_combat.is_active = True
+            from cli_rpg.main import handle_combat_command
+            initial_health_2 = character.health
+            handle_combat_command(game_state, "defend", [])
+            defended_damage = initial_health_2 - character.health
 
         # Assert: Defended damage is less than normal damage
         assert defended_damage < normal_damage, f"Defended damage ({defended_damage}) should be less than normal damage ({normal_damage})"
@@ -304,19 +308,25 @@ class TestFleeFromCombat:
 
     def test_failed_flee_continues_combat_and_player_takes_damage(self):
         """Spec: Failed flee triggers enemy turn and combat continues."""
+        from unittest.mock import patch
+
         # Setup: Low dexterity for reliable failure
         character = Character(name="Hero", strength=10, dexterity=1, intelligence=10)
         enemy = Enemy(name="Wolf", health=30, max_health=30, attack_power=5, defense=2, xp_reward=20)
         world = {"Forest": Location(name="Forest", description="A dark forest", connections={})}
         game_state = GameState(character, world, starting_location="Forest")
 
-        # Test
+        # Test - mock enemy_turn's random to ensure no dodge (hit is guaranteed)
         from cli_rpg.main import handle_combat_command
         for _ in range(10):
             game_state.current_combat = CombatEncounter(character, enemy)
             game_state.current_combat.is_active = True
             initial_health = character.health
-            handle_combat_command(game_state, "flee", [])
+
+            # Only mock the enemy_turn random calls (dodge/crit checks)
+            # Let player_flee use normal random
+            with patch('cli_rpg.combat.random.random', return_value=0.50):
+                handle_combat_command(game_state, "flee", [])
 
             if game_state.current_combat is not None:
                 # Flee failed

@@ -411,6 +411,162 @@ Your vision fades... but this is not the end.
 
 ---
 
+### OVERWORLD & SUB-LOCATION REWORK - Hierarchical World System
+**Status**: BLOCKER
+
+**Problem**: The current flat world grid doesn't support meaningful world structure. Players wander an endless grid with random combat everywhere. There's no sense of safe havens, no cities to explore internally, no dungeons with depth.
+
+**Required Architecture**:
+
+```
+OVERWORLD (macro map)
+  │
+  ├── 🏰 Ironhold City (SAFE - no random encounters)
+  │     ├── Market District
+  │     ├── Castle Ward
+  │     ├── Slums
+  │     └── Temple Quarter
+  │
+  ├── 🌲 Whisperwood Forest (DANGEROUS)
+  │     ├── Forest Edge
+  │     ├── Deep Woods
+  │     ├── Ancient Grove
+  │     └── Hidden Clearing
+  │
+  ├── ⛏️ Abandoned Mines (DUNGEON)
+  │     ├── Mine Entrance
+  │     ├── Upper Tunnels
+  │     ├── Flooded Level
+  │     └── Boss Chamber
+  │
+  └── 🏠 Millbrook Village (SAFE)
+        ├── Village Square
+        ├── Inn
+        └── Blacksmith
+```
+
+**Core Concepts**:
+
+1. **Overworld**: Large-scale map of landmarks (cities, dungeons, forests, mountains)
+   - Travel between landmarks (possibly with travel time/random encounters)
+   - Each landmark is an entry point to a sub-location
+   - `worldmap` command shows overworld
+
+2. **Sub-locations**: Internal areas within each landmark
+   - Cities contain: districts, shops, taverns, castles
+   - Dungeons contain: floors, rooms, boss chambers
+   - Forests contain: clearings, caves, ruins
+   - Each has its own local grid/map
+   - `map` command shows current sub-location
+
+3. **Safety Zones** (NO random encounters):
+   - Towns and cities = SAFE
+   - Villages = SAFE
+   - Inns/taverns = SAFE
+   - Shops = SAFE
+   - Temple interiors = SAFE
+
+4. **Danger Zones** (random encounters enabled):
+   - Wilderness areas
+   - Dungeons
+   - Caves
+   - Ruins
+   - Roads between landmarks (overworld travel)
+
+5. **Navigation**:
+   - `enter <landmark>` - Enter a city/dungeon from overworld
+   - `exit` / `leave` - Return to overworld
+   - `n/s/e/w` - Move within current sub-location
+   - `travel <landmark>` - Fast travel on overworld (if discovered)
+
+**Location Model Changes**:
+
+```python
+class Location:
+    # Existing fields...
+
+    # New fields:
+    is_overworld: bool = False      # Is this an overworld landmark?
+    parent_location: str = None     # Parent landmark (for sub-locations)
+    sub_locations: list[str] = []   # Child locations (for landmarks)
+    is_safe_zone: bool = False      # No random encounters if True
+    entry_point: str = None         # Default sub-location when entering
+```
+
+**Backwards Compatibility**: NOT REQUIRED - can break existing saves.
+
+**Benefits**:
+- Logical world organization
+- Safe towns for shopping/questing without combat interruption
+- Dungeons feel like dungeons (contained, dangerous)
+- Cities feel like cities (explorable, safe, populated)
+- Clear distinction between travel and exploration
+- Natural quest hubs vs adventure zones
+
+**Files to modify**:
+- `src/cli_rpg/models/location.py`: Add hierarchy fields
+- `src/cli_rpg/game_state.py`: Rework movement for enter/exit/travel
+- `src/cli_rpg/world.py`: Generate hierarchical world structure
+- `src/cli_rpg/ai_world.py`: AI generates landmarks with sub-locations
+- `src/cli_rpg/map_renderer.py`: Separate overworld and local map rendering
+- `src/cli_rpg/combat.py`: Check `is_safe_zone` before spawning encounters
+
+### Map locations all use same symbol - impossible to distinguish
+**Status**: ACTIVE (IMPORTANT)
+
+**Problem**: The map command shows all locations with the same bullet point symbol (`•`), making it impossible to tell which location is which:
+
+```
+  🏠 = Neon Nexus
+  • = Quantum Wasteland
+  • = Techno Tundra
+  @ = You (Neon Outpost)
+  • = Quantum Crossing
+  • = Data Canyons
+  • = Circuit Peak
+  • = Techno Plateau
+  █ = Blocked/Wall
+```
+
+Players cannot visually match legend entries to map positions when 5+ locations all share the same `•` symbol.
+
+**Required Fix**: Each location needs a UNIQUE symbol on the map:
+
+```
+  🏠 = Neon Nexus (starting town)
+  A = Quantum Wasteland
+  B = Techno Tundra
+  @ = You (Neon Outpost)
+  C = Quantum Crossing
+  D = Data Canyons
+  E = Circuit Peak
+  F = Techno Plateau
+  █ = Blocked/Wall
+```
+
+**Implementation Options**:
+
+1. **Letters (A-Z)**: Assign letters in order of discovery or alphabetically
+   - Pro: Simple, clear, 26 locations supported
+   - Con: May run out for very large worlds
+
+2. **Numbers (1-9, then letters)**: Use 1-9, then A-Z for 35 total symbols
+   - Pro: More capacity
+   - Con: Slightly less intuitive
+
+3. **Category-based symbols**: Different symbols per location type
+   - `⛺` = wilderness, `🏰` = dungeon, `🏠` = town, `🌲` = forest, `⛰` = mountain
+   - Pro: Thematic and informative
+   - Con: Still confusing if multiple locations share a category
+
+4. **Hybrid**: Category symbol + letter suffix in legend
+   - Map shows: `A`, `B`, `C`...
+   - Legend shows: `A = 🏰 Dark Dungeon`, `B = 🌲 Whispering Woods`
+
+**Files to modify**:
+- `src/cli_rpg/map_renderer.py`: Assign unique symbols to each location
+- Store symbol assignments in location or generate dynamically
+
 ### Non-interactive mode bugs
 **Status**: ACTIVE
 
@@ -624,9 +780,9 @@ Combat is too simple - attack until enemy dies. Core status effect system has be
 
 **Remaining features**:
 - Elemental strengths and weaknesses
-- Defensive options: block, dodge, parry
+- Defensive options: block, parry
 - Enemy attack patterns and telegraphed special moves
-- Critical hits and miss chances based on stats
+- ✅ Critical hits and miss chances based on stats - MVP IMPLEMENTED (Player crits: 5% + 1% per DEX/INT capped at 20%, 1.5x damage; Player dodge: 5% + 0.5% per DEX capped at 15%; Enemy crits: flat 5%, 1.5x damage)
 - Combat stances or modes
 
 ### Dynamic world events
