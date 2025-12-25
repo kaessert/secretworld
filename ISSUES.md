@@ -703,12 +703,22 @@ Adventuring alone limits roleplay possibilities.
 - ✅ Companion-specific quests and storylines - MVP IMPLEMENTED (companions can have personal quests that unlock at TRUSTED bond level; completing a companion's quest grants +15 bond bonus)
 
 ### Immersive text presentation
-**Status**: ACTIVE
+**Status**: ACTIVE (Partial)
 
 Text output could be more atmospheric and engaging.
 
+**Implemented**:
+- ✅ Typewriter-style text reveal module (`text_effects.py`) with configurable delay, ANSI code handling, and Ctrl+C graceful fallback
+- ✅ Effects follow color settings (disabled when colors are disabled, or when `--non-interactive`/`--json` mode)
+
+**Remaining integration**:
+- Integrate typewriter effect into `dreams.py` for dream sequences
+- Integrate into `whisper.py` for ambient whispers
+- Integrate into `combat.py` for dramatic combat moments
+- Update `main.py` to disable effects in non-interactive/JSON modes
+
 **Desired features**:
-- Typewriter-style text reveal for dramatic moments
+- ~~Typewriter-style text reveal for dramatic moments~~ ✅ Module implemented
 - Color-coding for different types of information (damage, healing, dialogue, narration)
 - Sound effects via terminal bell for important events
 - Pause and pacing for dramatic tension

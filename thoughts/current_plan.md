@@ -1,104 +1,72 @@
-# Implementation Plan: `dismiss <companion>` Command
+# Implementation Plan: Typewriter-Style Text Reveal
 
 ## Spec
-Add a `dismiss` command that removes a companion from the party. This completes the companion management lifecycle (recruit → travel with → dismiss).
 
-**Behavior:**
-- `dismiss <name>` - Removes companion matching `<name>` from `game_state.companions`
-- Case-insensitive name matching (like `recruit`)
-- Error cases: no arg provided, companion not in party
-- Success message acknowledging the departure
+Add a typewriter-style text reveal effect for dramatic moments in the game. The effect prints text character-by-character with configurable delays, enhancing atmosphere for:
+- Dream sequences (via `dreams.py`)
+- Whispers (via `whisper.py`)
+- Combat announcements (boss encounters, combo triggers)
+
+**Requirements:**
+1. Create `text_effects.py` module with `typewriter_print()` function
+2. Configurable delay between characters (default ~30ms)
+3. Respects `CLI_RPG_NO_COLOR` / non-interactive mode (instant print when disabled)
+4. Supports ANSI color codes (prints codes instantly, delays only visible chars)
+5. Can be interrupted by keyboard (Ctrl+C falls back to instant print)
 
 ## Tests
 
-Add to `tests/test_companion_commands.py`:
+Create `tests/test_text_effects.py`:
 
-```python
-class TestDismissCommand:
-    """Tests for the 'dismiss' command."""
+1. `test_typewriter_outputs_all_text` - Complete text is output
+2. `test_respects_disabled_effects` - Prints instantly when effects disabled
+3. `test_handles_ansi_codes` - Color codes don't add delay
+4. `test_empty_string` - Empty input produces no crash
+5. `test_multiline` - Newlines are respected
+6. `test_custom_delay` - Custom delay parameter works
+7. `test_effects_enabled_respects_color_setting` - Follows color_enabled()
 
-    def test_dismiss_no_companion_specified(self):
-        """Test dismiss command without companion name shows error."""
-        game_state = create_test_game_state()
-        game_state.companions = []
+## Implementation Steps
 
-        success, message = handle_exploration_command(game_state, "dismiss", [])
+### Step 1: Create `src/cli_rpg/text_effects.py`
 
-        assert success is True
-        assert "dismiss" in message.lower() or "specify" in message.lower()
+New module with:
+- `DEFAULT_TYPEWRITER_DELAY = 0.03`
+- `_effects_enabled: bool` global flag
+- `set_effects_enabled(enabled: bool)` - Global toggle
+- `effects_enabled() -> bool` - Check if effects active (respects color_enabled())
+- `typewriter_print(text, delay, file)` - Main function
 
-    def test_dismiss_companion_not_in_party(self):
-        """Test dismiss command with nonexistent companion shows error."""
-        game_state = create_test_game_state()
-        game_state.companions = []
+Key logic:
+- Skip effect if `not effects_enabled()`, print instantly
+- Detect ANSI sequences (`\x1b[...m`) and print them instantly without delay
+- Delay only for visible characters
+- Handle KeyboardInterrupt to print remaining text instantly
 
-        success, message = handle_exploration_command(game_state, "dismiss", ["Elara"])
+### Step 2: Create `tests/test_text_effects.py`
 
-        assert success is True
-        assert "no companion" in message.lower() or "not" in message.lower()
+Test all scenarios from spec with mocked time.sleep and captured stdout.
 
-    def test_dismiss_success_removes_companion(self):
-        """Test successful dismiss removes companion from party."""
-        companion = Companion(
-            name="Elara",
-            description="A wandering minstrel",
-            recruited_at="Town Square",
-            bond_points=30
-        )
-        game_state = create_test_game_state(companions=[companion])
+### Step 3: Integrate into `dreams.py`
 
-        success, message = handle_exploration_command(game_state, "dismiss", ["Elara"])
+In `format_dream()`, optionally call typewriter for content. Or add `display_dream()` helper.
 
-        assert success is True
-        assert len(game_state.companions) == 0
-        assert "left" in message.lower() or "dismiss" in message.lower()
+### Step 4: Integrate into `whisper.py`
 
-    def test_dismiss_case_insensitive(self):
-        """Test dismiss command is case-insensitive."""
-        companion = Companion(
-            name="Elara",
-            description="A wandering minstrel",
-            recruited_at="Town Square"
-        )
-        game_state = create_test_game_state(companions=[companion])
+Add `display_whisper()` that uses typewriter with faster delay (0.02s).
 
-        success, message = handle_exploration_command(game_state, "dismiss", ["elara"])
+### Step 5: Integrate into `combat.py`
 
-        assert success is True
-        assert len(game_state.companions) == 0
+Boss introduction uses typewriter for dramatic effect in `CombatEncounter.start()`.
 
+### Step 6: Update `main.py`
 
-class TestDismissInKnownCommands:
-    """Test that dismiss is in KNOWN_COMMANDS."""
+Call `set_effects_enabled(False)` when `--non-interactive` or `--json` mode is active.
 
-    def test_dismiss_in_known_commands(self):
-        """Test that 'dismiss' is a recognized command."""
-        from cli_rpg.game_state import KNOWN_COMMANDS
-        assert "dismiss" in KNOWN_COMMANDS
-```
+### Step 7: Run tests
 
-## Implementation
-
-1. **Add "dismiss" to KNOWN_COMMANDS** in `src/cli_rpg/game_state.py` (line ~56)
-
-2. **Add command handler** in `src/cli_rpg/main.py` after the `recruit` handler (~line 1099):
-```python
-elif command == "dismiss":
-    if not args:
-        return (True, "\nDismiss whom? Specify a companion name.")
-
-    companion_name = " ".join(args).lower()
-    matching = [c for c in game_state.companions if c.name.lower() == companion_name]
-
-    if not matching:
-        return (True, f"\nNo companion named '{' '.join(args)}' in your party.")
-
-    companion = matching[0]
-    game_state.companions.remove(companion)
-    return (True, f"\n{companion.name} has left your party.")
-```
-
-3. **Add to help text** in `get_command_reference()` (~line 50):
-```python
-"  dismiss <name>     - Dismiss a companion from your party",
+```bash
+pytest tests/test_text_effects.py -v
+pytest tests/test_dreams.py -v
+pytest -x  # Full suite to verify no regressions
 ```
