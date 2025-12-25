@@ -1,77 +1,72 @@
-# Companion Combat Abilities - Implementation Summary
+# Companion Reactions to Player Choices - Implementation Summary
 
-## What was Implemented
+## What Was Implemented
 
-Added passive combat bonus based on companion bond level:
+### 1. Companion Model Updates (`src/cli_rpg/models/companion.py`)
 
-- **STRANGER (0-24 points)**: No bonus (0%)
-- **ACQUAINTANCE (25-49 points)**: +3% attack damage
-- **TRUSTED (50-74 points)**: +5% attack damage
-- **DEVOTED (75-100 points)**: +10% attack damage
+**New field:**
+- `personality: str = "pragmatic"` - Personality type affecting reactions (warrior, pacifist, pragmatic)
 
-Bonuses stack additively when multiple companions are present.
+**New method:**
+- `reduce_bond(amount: int)` - Reduces bond points by the specified amount, clamped to 0 minimum
 
-## Files Modified
+**Updated serialization:**
+- `to_dict()` and `from_dict()` now include the `personality` field with "pragmatic" as default for backwards compatibility
 
-### 1. `src/cli_rpg/models/companion.py`
-- Added `COMBAT_BONUSES` constant mapping bond levels to damage multipliers
-- Added `get_combat_bonus()` method to the Companion class
+### 2. New Module (`src/cli_rpg/companion_reactions.py`)
 
-### 2. `src/cli_rpg/combat.py`
-- Added `Companion` import
-- Added `companions` parameter to `CombatEncounter.__init__()` (defaults to empty list)
-- Added `_get_companion_bonus()` helper method that sums all companion bonuses
-- Modified `player_attack()` to apply companion bonus to damage calculation
-- Modified `player_cast()` to apply companion bonus to magic damage
-- Updated `get_status()` to display companion bonus when > 0%
+**Constants:**
+- `APPROVAL_BOND_CHANGE = 3` - Bond points gained on approval
+- `DISAPPROVAL_BOND_CHANGE = -3` - Bond points lost on disapproval
 
-### 3. `src/cli_rpg/game_state.py`
-- Updated `trigger_encounter()` to pass `self.companions` to CombatEncounter
+**Personality Reaction Map:**
+- `warrior`: approves kills, disapproves fleeing
+- `pacifist`: disapproves kills, approves fleeing
+- `pragmatic`: neutral to all choices
 
-### 4. `src/cli_rpg/random_encounters.py`
-- Updated hostile encounter creation to pass `game_state.companions` to CombatEncounter
+**Functions:**
+- `get_companion_reaction(companion, choice_type)` - Returns "approval", "disapproval", or "neutral"
+- `process_companion_reactions(companions, choice_type)` - Processes all companions, adjusts bond, returns flavor messages
 
-### 5. `tests/test_companion_combat.py` (new file)
-- 11 tests covering:
-  - Bond level to bonus mapping (4 tests)
-  - Attack damage with companion bonus
-  - Cast damage with companion bonus
-  - Multiple companions stacking
-  - No companions = no bonus
-  - Combat status display with bonus
-  - Combat status hides 0% bonus
-  - Empty companions list handling
+**Flavor Messages:**
+- Warrior approval: "{name} nods approvingly. \"Well fought.\""
+- Warrior disapproval: "{name} scowls. \"We should have stood and fought.\""
+- Pacifist approval: "{name} sighs with relief. \"I'm glad we avoided bloodshed.\""
+- Pacifist disapproval: "{name} looks away. \"Was that truly necessary?\""
+
+### 3. Main Game Integration (`src/cli_rpg/main.py`)
+
+Added companion reaction processing after:
+- `attack` command victory → `combat_kill` reaction
+- `cast` command victory → `combat_kill` reaction
+- `flee` command success → `combat_flee` reaction
+
+### 4. Test Suite (`tests/test_companion_reactions.py`)
+
+14 tests covering:
+- `TestCompanionPersonality` - personality field existence and defaults
+- `TestReduceBond` - bond reduction mechanics
+- `TestGetCompanionReaction` - personality-based reaction logic
+- `TestProcessCompanionReactions` - bond changes and message generation
 
 ## Test Results
 
-All 11 new tests pass:
 ```
-tests/test_companion_combat.py::TestCompanionCombatBonus::test_stranger_provides_no_bonus PASSED
-tests/test_companion_combat.py::TestCompanionCombatBonus::test_acquaintance_provides_3_percent_bonus PASSED
-tests/test_companion_combat.py::TestCompanionCombatBonus::test_trusted_provides_5_percent_bonus PASSED
-tests/test_companion_combat.py::TestCompanionCombatBonus::test_devoted_provides_10_percent_bonus PASSED
-tests/test_companion_combat.py::TestCombatWithCompanions::test_attack_damage_increased_by_companion_bonus PASSED
-tests/test_companion_combat.py::TestCombatWithCompanions::test_cast_damage_increased_by_companion_bonus PASSED
-tests/test_companion_combat.py::TestCombatWithCompanions::test_multiple_companions_stack_bonuses PASSED
-tests/test_companion_combat.py::TestCombatWithCompanions::test_no_companions_means_no_bonus PASSED
-tests/test_companion_combat.py::TestCombatWithCompanions::test_combat_status_shows_companion_bonus PASSED
-tests/test_companion_combat.py::TestCombatWithCompanions::test_combat_status_hides_bonus_when_zero PASSED
-tests/test_companion_combat.py::TestCombatWithCompanions::test_empty_companions_list_handled_correctly PASSED
+tests/test_companion_reactions.py: 14 passed
+Full test suite: 2208 passed in 40.81s
 ```
 
-Full test suite: **2194 passed** in 40.71s
+## E2E Validation Points
 
-## Technical Notes
+1. **Recruit a companion** with warrior personality and win a combat → should see approval message and +3 bond
+2. **Recruit a companion** with warrior personality and flee from combat → should see disapproval message and -3 bond
+3. **Recruit a companion** with pacifist personality → opposite reactions
+4. **Save/load** game with companion with personality → personality should persist
+5. **Multiple companions** with different personalities in combat → each reacts independently
 
-- Damage bonus is applied as a multiplier: `dmg = int(dmg * (1 + companion_bonus))`
-- The bonus applies after base damage calculation but before damage is dealt
-- Combo attacks (Frenzy, Revenge, Arcane Burst) do NOT get the companion bonus (by design - they already have enhanced effects)
-- The bonus only appears in combat status when > 0%
+## Design Decisions
 
-## E2E Validation
-
-To validate manually:
-1. Start a game and recruit a companion
-2. Increase bond points (e.g., through travel or events)
-3. Enter combat and check `status` command for "Companion Bonus: +X% attack"
-4. Verify attack/cast damage is higher than base damage
+- Default personality is "pragmatic" for backwards compatibility with existing saves
+- Reaction messages use `colors.companion()` for consistent styling
+- Bond reduction uses `reduce_bond()` to cleanly handle the floor at 0
+- Bond level-up messages from `add_bond()` are included after approval messages

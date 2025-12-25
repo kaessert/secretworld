@@ -698,8 +698,8 @@ Adventuring alone limits roleplay possibilities.
 **Remaining features**:
 - ✅ Companion dialogue and banter during travel - MVP IMPLEMENTED (25% trigger chance per move, context-aware comments based on location, weather, time, dread, and bond level)
 - ✅ Companion combat bonuses - MVP IMPLEMENTED (passive attack damage bonus based on bond level: STRANGER 0%, ACQUAINTANCE +3%, TRUSTED +5%, DEVOTED +10%; bonuses stack with multiple companions)
+- ✅ Companion reactions to player choices - MVP IMPLEMENTED (companions react to combat choices based on personality: warrior approves kills/disapproves fleeing, pacifist approves fleeing/disapproves kills, pragmatic is neutral; bond adjusts ±3 points)
 - Companion-specific quests and storylines
-- Companions reacting to player choices (approval/disapproval)
 
 ### Immersive text presentation
 **Status**: ACTIVE

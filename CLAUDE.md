@@ -44,6 +44,7 @@ src/cli_rpg/
 ├── whisper.py           # Ambient whisper system for atmosphere
 ├── dreams.py            # Dream sequences triggered on rest
 ├── companion_banter.py  # Context-aware companion travel comments
+├── companion_reactions.py # Companion reactions to player combat choices
 ├── random_encounters.py # Random travel encounters (merchants, wanderers, hostiles)
 ├── world_events.py      # Living world events (plagues, caravans, invasions)
 ├── seasons.py           # Seasonal events and festivals system

@@ -13,6 +13,7 @@ from cli_rpg.autosave import autosave
 from cli_rpg.map_renderer import render_map
 from cli_rpg.input_handler import init_readline, get_input, set_completer_context
 from cli_rpg.dreams import maybe_trigger_dream
+from cli_rpg.companion_reactions import process_companion_reactions
 
 
 def get_command_reference() -> str:
@@ -265,6 +266,10 @@ def handle_combat_command(game_state: GameState, command: str, args: list[str], 
                     description=f"Killed {enemy.name}",
                     target=enemy.name,
                 )
+            # Process companion reactions to combat kill
+            reaction_msgs = process_companion_reactions(game_state.companions, "combat_kill")
+            for msg in reaction_msgs:
+                output += f"\n{msg}"
             game_state.current_combat = None
             # Autosave after combat victory
             try:
@@ -317,6 +322,10 @@ def handle_combat_command(game_state: GameState, command: str, args: list[str], 
                     description=f"Fled from {enemy.name}",
                     target=enemy.name
                 )
+            # Process companion reactions to fleeing
+            reaction_msgs = process_companion_reactions(game_state.companions, "combat_flee")
+            for msg in reaction_msgs:
+                output += f"\n{msg}"
             game_state.current_combat = None
             combat.is_active = False
             # Autosave after successful flee
@@ -362,6 +371,10 @@ def handle_combat_command(game_state: GameState, command: str, args: list[str], 
                     description=f"Killed {enemy.name}",
                     target=enemy.name,
                 )
+            # Process companion reactions to combat kill
+            reaction_msgs = process_companion_reactions(game_state.companions, "combat_kill")
+            for msg in reaction_msgs:
+                output += f"\n{msg}"
             game_state.current_combat = None
             # Autosave after combat victory
             try:

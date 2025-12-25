@@ -141,6 +141,13 @@ The combat status shows your last actions (e.g., "Last actions: [Attack] → [De
 
 Multiple companions stack their bonuses additively. The bonus appears in combat status when greater than 0%.
 
+**Companion Reactions:** Companions react to your combat choices based on their personality:
+- **Warrior** companions approve of killing enemies (+3 bond) but disapprove of fleeing (-3 bond)
+- **Pacifist** companions disapprove of killing enemies (-3 bond) but approve of fleeing (+3 bond)
+- **Pragmatic** companions remain neutral to all combat choices (no bond change)
+
+Companion reactions appear as flavor text after combat resolution.
+
 **Combat Flow:**
 1. You attack, defend, or cast
 2. All living enemies attack (unless you fled successfully)
@@ -425,6 +432,7 @@ src/cli_rpg/
 ├── autosave.py          # Automatic game saving
 ├── dreams.py            # Dream sequences triggered on rest
 ├── companion_banter.py  # Context-aware companion travel comments
+├── companion_reactions.py # Companion reactions to player combat choices
 ├── models/              # Data models
 │   ├── character.py
 │   ├── location.py

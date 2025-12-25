@@ -63,12 +63,14 @@ class Companion:
         description: Brief description of the companion
         recruited_at: Name of location where the companion was recruited
         bond_points: Current bond points (0-100)
+        personality: Personality type affecting reactions (warrior, pacifist, pragmatic)
     """
 
     name: str
     description: str
     recruited_at: str
     bond_points: int = 0
+    personality: str = "pragmatic"
 
     def get_bond_level(self) -> BondLevel:
         """Compute the bond level from current bond points.
@@ -102,6 +104,14 @@ class Companion:
             return BOND_LEVEL_UP_MESSAGES[new_level].format(name=self.name)
 
         return None
+
+    def reduce_bond(self, amount: int) -> None:
+        """Reduce bond points, clamping to 0.
+
+        Args:
+            amount: Amount of bond points to reduce (positive integer)
+        """
+        self.bond_points = max(0, self.bond_points - amount)
 
     def get_combat_bonus(self) -> float:
         """Get combat attack bonus based on bond level.
@@ -153,6 +163,7 @@ class Companion:
             "description": self.description,
             "recruited_at": self.recruited_at,
             "bond_points": self.bond_points,
+            "personality": self.personality,
         }
 
     @classmethod
@@ -170,4 +181,5 @@ class Companion:
             description=data["description"],
             recruited_at=data["recruited_at"],
             bond_points=data.get("bond_points", 0),
+            personality=data.get("personality", "pragmatic"),
         )
