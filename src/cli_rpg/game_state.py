@@ -300,6 +300,11 @@ class GameState:
 
         message = f"You head {direction} to {colors.location(self.current_location)}."
 
+        # Check for exploration quest progress
+        explore_messages = self.current_character.record_explore(self.current_location)
+        for msg in explore_messages:
+            message += f"\n{msg}"
+
         # Check for random encounter
         encounter_message = self.trigger_encounter(self.current_location)
         if encounter_message:

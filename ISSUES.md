@@ -1,25 +1,32 @@
 ## Active Issues
 
-### EXPLORE and TALK quest objective types are not implemented
+### TALK quest objective type is not implemented
 **Status**: ACTIVE
 
-**Description**: The quest system defines `ObjectiveType.EXPLORE` and `ObjectiveType.TALK` enum values, and the AI configuration documents them (e.g., "explore: Visit location (target = location name, target_count = 1)"). However, there is no code that tracks when a player visits a location or talks to an NPC for these quest types.
+**Description**: The quest system defines `ObjectiveType.TALK` enum value, but there is no code that tracks when a player talks to an NPC for TALK quest types.
 
 **Steps to Reproduce**:
-1. Create a quest with `objective_type=ObjectiveType.EXPLORE` and `target='Forest'`
+1. Create a quest with `objective_type=ObjectiveType.TALK` and `target='Elder'`
 2. Accept the quest
-3. Move to the Forest location
-4. Check quest progress - it remains at 0/1 despite visiting the target location
+3. Talk to the Elder NPC
+4. Check quest progress - it remains at 0/1 despite talking to the target NPC
 
-**Expected Behavior**: Quest progress should update to 1/1 when the player visits the target location (for EXPLORE) or talks to the target NPC (for TALK).
+**Expected Behavior**: Quest progress should update to 1/1 when the player talks to the target NPC.
 
-**Actual Behavior**: Quest progress stays at 0/1 forever because no code handles these objective types.
+**Actual Behavior**: Quest progress stays at 0/1 forever because no code handles the TALK objective type.
 
-**Impact**: If AI generates quests with EXPLORE or TALK objectives, players will be stuck with uncompletable quests.
+**Impact**: If AI generates quests with TALK objectives, players will be stuck with uncompletable quests.
 
-**Root Cause**: The `Character` class has `record_kill()`, `record_collection()`, and `record_drop()` methods, but no corresponding `record_explore()` or `record_talk()` methods. The `GameState.move()` and talk command handler don't call any quest tracking for these objectives.
+**Root Cause**: The `Character` class has `record_kill()`, `record_collection()`, `record_drop()`, and `record_explore()` methods, but no corresponding `record_talk()` method. The talk command handler doesn't call any quest tracking for TALK objectives.
 
 ## Resolved Issues
+
+### EXPLORE quest objective type
+**Status**: RESOLVED
+
+**Description**: The EXPLORE quest objective type now tracks when players visit locations.
+
+**Fix**: Added `record_explore(location_name)` method to `Character` class and integrated it into `GameState.move()`. Quest progress updates automatically when visiting target locations. Case-insensitive matching is supported.
 
 ### Combat quit confirmation prompt doesn't consume y/n input
 **Status**: RESOLVED

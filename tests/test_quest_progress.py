@@ -421,3 +421,217 @@ class TestRecordCollection:
         messages = character.record_collection("Dragon Scale")
 
         assert messages == []
+
+
+@pytest.fixture
+def explore_quest():
+    """Create a basic explore quest."""
+    return Quest(
+        name="Explorer's Journey",
+        description="Explore 3 locations",
+        status=QuestStatus.ACTIVE,
+        objective_type=ObjectiveType.EXPLORE,
+        target="Dark Forest",
+        target_count=1,
+        current_count=0,
+    )
+
+
+class TestRecordExplore:
+    """Tests for Character.record_explore() method.
+
+    Spec: When a player enters a new location via GameState.move(), check if they have
+    any active quests with ObjectiveType.EXPLORE where the target matches the location
+    name. If so, increment the quest's current_count and mark as READY_TO_TURN_IN when complete.
+    """
+
+    # Spec: Entering location increments matching quest progress
+    def test_record_explore_increments_matching_quest_progress(self, character, explore_quest):
+        """Test that exploring a location increments matching quest's current_count."""
+        character.quests.append(explore_quest)
+
+        character.record_explore("Dark Forest")
+
+        assert explore_quest.current_count == 1
+
+    # Spec: Player receives notification on quest progress
+    def test_record_explore_returns_progress_message(self, character):
+        """Test that record_explore returns progress notification."""
+        quest = Quest(
+            name="World Explorer",
+            description="Explore 3 locations",
+            status=QuestStatus.ACTIVE,
+            objective_type=ObjectiveType.EXPLORE,
+            target="Ancient Ruins",
+            target_count=3,
+            current_count=0,
+        )
+        character.quests.append(quest)
+
+        messages = character.record_explore("Ancient Ruins")
+
+        assert len(messages) == 1
+        assert "Quest progress: World Explorer [1/3]" in messages[0]
+
+    # Spec: Quest objectives complete - status updated to READY_TO_TURN_IN
+    def test_record_explore_marks_quest_ready_to_turn_in_when_target_reached(
+        self, character, explore_quest
+    ):
+        """Test that quest status is set to READY_TO_TURN_IN when target_count is reached."""
+        character.quests.append(explore_quest)
+
+        character.record_explore("Dark Forest")
+
+        assert explore_quest.status == QuestStatus.READY_TO_TURN_IN
+        assert explore_quest.current_count == 1
+
+    # Spec: Player receives notification to return to quest giver
+    def test_record_explore_returns_ready_to_turn_in_message(self, character):
+        """Test that record_explore returns notification to return to quest giver."""
+        quest = Quest(
+            name="Scout the Frontier",
+            description="Explore the Dark Forest",
+            status=QuestStatus.ACTIVE,
+            objective_type=ObjectiveType.EXPLORE,
+            target="Dark Forest",
+            target_count=1,
+            current_count=0,
+            quest_giver="Captain Rowan",
+        )
+        character.quests.append(quest)
+
+        messages = character.record_explore("Dark Forest")
+
+        assert len(messages) == 1
+        assert "Quest objectives complete: Scout the Frontier!" in messages[0]
+        assert "Return to Captain Rowan" in messages[0]
+
+    # Spec: Compare location name to quest target (case-insensitive)
+    def test_record_explore_matches_case_insensitive(self, character):
+        """Test that location name matching is case-insensitive."""
+        quest = Quest(
+            name="Explorer",
+            description="Explore locations",
+            status=QuestStatus.ACTIVE,
+            objective_type=ObjectiveType.EXPLORE,
+            target="Dark Forest",
+            target_count=3,
+            current_count=0,
+        )
+        character.quests.append(quest)
+
+        # Explore with different cases
+        character.record_explore("DARK FOREST")
+        assert quest.current_count == 1
+
+        character.record_explore("dark forest")
+        assert quest.current_count == 2
+
+        character.record_explore("DaRk FoReSt")
+        assert quest.current_count == 3
+
+    # Spec: Non-matching location names don't increment progress
+    def test_record_explore_does_not_increment_non_matching_quest(
+        self, character, explore_quest
+    ):
+        """Test that exploring non-matching locations doesn't increment quest progress."""
+        character.quests.append(explore_quest)
+
+        messages = character.record_explore("Sunny Meadow")
+
+        assert explore_quest.current_count == 0
+        assert len(messages) == 0
+
+    # Spec: Only ACTIVE quests get progress (not COMPLETED, AVAILABLE, FAILED)
+    def test_record_explore_only_affects_active_quests(self, character):
+        """Test that only ACTIVE quests get progress, not other statuses."""
+        statuses_to_test = [
+            QuestStatus.AVAILABLE,
+            QuestStatus.COMPLETED,
+            QuestStatus.FAILED,
+        ]
+
+        for status in statuses_to_test:
+            quest = Quest(
+                name=f"Quest {status.value}",
+                description="Explore locations",
+                status=status,
+                objective_type=ObjectiveType.EXPLORE,
+                target="Dark Forest",
+                target_count=3,
+                current_count=0,
+            )
+            character.quests.append(quest)
+
+        character.record_explore("Dark Forest")
+
+        # None of the non-active quests should have progress
+        for quest in character.quests:
+            assert quest.current_count == 0
+
+    # Spec: Only EXPLORE objective type quests get progress
+    def test_record_explore_only_affects_explore_objective_quests(self, character):
+        """Test that only EXPLORE objective type quests get progress."""
+        objective_types_to_test = [
+            ObjectiveType.KILL,
+            ObjectiveType.COLLECT,
+            ObjectiveType.TALK,
+        ]
+
+        for obj_type in objective_types_to_test:
+            quest = Quest(
+                name=f"Quest {obj_type.value}",
+                description="Quest description",
+                status=QuestStatus.ACTIVE,
+                objective_type=obj_type,
+                target="Dark Forest",
+                target_count=3,
+                current_count=0,
+            )
+            character.quests.append(quest)
+
+        character.record_explore("Dark Forest")
+
+        # None of the non-EXPLORE quests should have progress
+        for quest in character.quests:
+            assert quest.current_count == 0
+
+    # Spec: Multiple quests can progress from same location exploration
+    def test_record_explore_progresses_multiple_matching_quests(self, character):
+        """Test that multiple quests matching the same location all get progress."""
+        quest1 = Quest(
+            name="Frontier Scout",
+            description="Explore the Dark Forest 3 times",
+            status=QuestStatus.ACTIVE,
+            objective_type=ObjectiveType.EXPLORE,
+            target="Dark Forest",
+            target_count=3,
+            current_count=0,
+        )
+        quest2 = Quest(
+            name="Forest Survey",
+            description="Visit the Dark Forest",
+            status=QuestStatus.ACTIVE,
+            objective_type=ObjectiveType.EXPLORE,
+            target="Dark Forest",
+            target_count=1,
+            current_count=0,
+        )
+        character.quests.extend([quest1, quest2])
+
+        messages = character.record_explore("Dark Forest")
+
+        # Both quests should progress
+        assert quest1.current_count == 1
+        assert quest2.current_count == 1
+        # Quest 2 should be ready to turn in (target_count is 1)
+        assert quest2.status == QuestStatus.READY_TO_TURN_IN
+        # Should have 2 messages (one progress, one ready to turn in)
+        assert len(messages) == 2
+
+    # Spec: Returns empty list when no quests match
+    def test_record_explore_returns_empty_list_when_no_matching_quests(self, character):
+        """Test that record_explore returns empty list when no quests match."""
+        messages = character.record_explore("Sunny Meadow")
+
+        assert messages == []

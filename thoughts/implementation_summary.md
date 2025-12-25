@@ -1,20 +1,48 @@
-# Implementation Summary: Fix test_resolved_issues_are_marked
+# Implementation Summary: EXPLORE Objective Type Tracking
 
-## What was implemented
+## What Was Implemented
 
-Fixed a false positive in `tests/test_issues_documentation.py::test_resolved_issues_are_marked`.
+Added support for EXPLORE quest objective type tracking that triggers when players move to a new location.
 
-**File modified:** `tests/test_issues_documentation.py`
+### Files Modified
 
-**Change:** Updated the condition on line 30-32 from checking for `"dead-end" or "stuck"` to checking for `"dead-end" and "navigation"`. This makes the test more specific to the actual dead-end navigation bug that was fixed in commit 8d7f56f, rather than triggering on the word "stuck" appearing in an unrelated context (the quest system issue).
+1. **`src/cli_rpg/models/character.py`**
+   - Added `record_explore(location_name: str) -> List[str]` method (lines 326-361)
+   - Follows the same pattern as existing `record_kill()`, `record_collection()`, and `record_drop()` methods
+   - Case-insensitive location name matching
+   - Only processes ACTIVE quests with EXPLORE objective type
+   - Returns progress messages or "ready to turn in" messages with quest giver name
 
-## Test results
+2. **`src/cli_rpg/game_state.py`**
+   - Added call to `record_explore()` in the `move()` method (lines 303-306)
+   - Placed after successful move but before random encounter check
+   - Appends quest progress messages to the move result message
 
-All 3 tests in `tests/test_issues_documentation.py` pass:
-- `test_issues_file_exists` - PASSED
-- `test_resolved_issues_are_marked` - PASSED
-- `test_no_active_resolved_issues` - PASSED
+3. **`tests/test_quest_progress.py`**
+   - Added `explore_quest` fixture
+   - Added `TestRecordExplore` class with 10 tests covering:
+     - Incrementing matching quest progress
+     - Returning progress messages
+     - Marking quest as READY_TO_TURN_IN when complete
+     - Returning turn-in messages with quest giver name
+     - Case-insensitive location matching
+     - Not incrementing non-matching quests
+     - Only affecting ACTIVE quests
+     - Only affecting EXPLORE objective type quests
+     - Progressing multiple matching quests simultaneously
+     - Returning empty list when no quests match
 
-## Technical details
+## Test Results
 
-The original test was too broad - it checked if either "dead-end" OR "stuck" appeared anywhere in ISSUES.md. The word "stuck" appears on line 18 in the context of uncompletable quests ("players will be stuck with uncompletable quests"), which is an unrelated active issue. By requiring both "dead-end" AND "navigation" to appear, the test now correctly targets only the specific resolved navigation bug.
+All tests pass:
+- 10 new tests in `TestRecordExplore` class
+- 1078 total tests pass (1 skipped)
+- No regressions
+
+## E2E Validation
+
+The feature should be validated by:
+1. Creating a character with an EXPLORE quest targeting a specific location
+2. Moving to that location via `go <direction>` command
+3. Verifying the quest progress message appears in the move output
+4. Completing the objective and verifying READY_TO_TURN_IN status
