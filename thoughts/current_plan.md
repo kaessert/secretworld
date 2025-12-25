@@ -1,29 +1,27 @@
-# Plan: Improve test coverage for `models/npc.py` from 79% to 100%
+# Current Status: Project Health Assessment
 
-## Missing Coverage (Lines 7-8, 49-51, 62-65)
+## Summary
 
-### Analysis
-- **Lines 7-8**: TYPE_CHECKING imports for `Shop` and `Quest` - never executed at runtime
-- **Lines 49-51**: `get_greeting()` when `self.greetings` has items (random.choice branch)
-- **Lines 62-65**: `add_conversation()` method - adding entries and capping at 10
+The CLI RPG project is in excellent health:
+- **100% test coverage** across all 24 modules (2925 statements)
+- **1385 tests passing**, 1 skipped
+- **No active issues** in ISSUES.md
+- **No TODOs/FIXMEs** in codebase
+- Clean linting (ruff errors resolved)
 
-## Implementation Steps
+## Recommendation
 
-1. **Exclude TYPE_CHECKING from coverage** (`pyproject.toml`)
-   - Add `"if TYPE_CHECKING:"` to `exclude_lines` in `[tool.coverage.report]`
+Since there are no outstanding issues or coverage gaps, the next step requires **stakeholder input** to determine the next feature priority.
 
-2. **Add test for `get_greeting()` with greetings list** (`tests/test_npc.py`)
-   - Create NPC with `greetings=["Hello!", "Hi there!"]`
-   - Call `get_greeting()` and verify it returns one of the greetings
+### Potential Feature Areas (for discussion)
 
-3. **Add test for `add_conversation()` basic functionality** (`tests/test_npc.py`)
-   - Create NPC, call `add_conversation("player", "Hello")`
-   - Verify entry is added to `conversation_history`
+1. **Multiplayer/Networking** - Add co-op or PvP elements
+2. **Crafting System** - Combine items to create new equipment
+3. **Skills/Abilities** - Special attacks with cooldowns
+4. **Achievements** - Track player milestones
+5. **Dungeon Generation** - Multi-room combat challenges
+6. **Character Classes** - Warrior, Mage, Rogue archetypes with unique abilities
 
-4. **Add test for `add_conversation()` capping at 10 entries** (`tests/test_npc.py`)
-   - Add 12 conversations, verify only 10 most recent entries remain
+## Action Required
 
-## Verification
-```bash
-pytest tests/test_npc.py -v --cov=cli_rpg.models.npc --cov-report=term-missing
-```
+No implementation can proceed without feature selection. Consult with project stakeholders to identify the next user-facing enhancement.
