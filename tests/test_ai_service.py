@@ -864,3 +864,348 @@ def test_anthropic_general_exception_retries(mock_anthropic_module, mock_anthrop
 
     # Should have retried
     assert mock_client.messages.create.call_count == config.max_retries + 1
+
+
+# ========================================================================
+# Area Response Parsing/Validation Tests (Coverage for lines 630-631, 635, 639, etc.)
+# ========================================================================
+
+
+@patch('cli_rpg.ai_service.OpenAI')
+def test_parse_area_response_invalid_json(mock_openai_class, basic_config):
+    """Test _parse_area_response raises on invalid JSON (line 630-631).
+
+    Spec: When response_text is not valid JSON, raise AIGenerationError.
+    """
+    mock_client = Mock()
+    mock_openai_class.return_value = mock_client
+
+    # Return invalid JSON
+    mock_response = Mock()
+    mock_response.choices = [Mock()]
+    mock_response.choices[0].message.content = "This is not valid JSON at all { bad"
+    mock_client.chat.completions.create.return_value = mock_response
+
+    service = AIService(basic_config)
+
+    with pytest.raises(AIGenerationError, match="parse"):
+        service.generate_area(
+            theme="fantasy",
+            sub_theme_hint="forest",
+            entry_direction="north",
+            context_locations=[],
+            size=3
+        )
+
+
+@patch('cli_rpg.ai_service.OpenAI')
+def test_parse_area_response_not_array(mock_openai_class, basic_config):
+    """Test _parse_area_response raises when response is not an array (line 635).
+
+    Spec: When response is valid JSON but not an array, raise AIGenerationError.
+    """
+    mock_client = Mock()
+    mock_openai_class.return_value = mock_client
+
+    # Return an object instead of an array
+    mock_response = Mock()
+    mock_response.choices = [Mock()]
+    mock_response.choices[0].message.content = json.dumps({
+        "name": "Location",
+        "description": "A place"
+    })
+    mock_client.chat.completions.create.return_value = mock_response
+
+    service = AIService(basic_config)
+
+    with pytest.raises(AIGenerationError, match="array"):
+        service.generate_area(
+            theme="fantasy",
+            sub_theme_hint="forest",
+            entry_direction="north",
+            context_locations=[],
+            size=3
+        )
+
+
+@patch('cli_rpg.ai_service.OpenAI')
+def test_parse_area_response_empty_array(mock_openai_class, basic_config):
+    """Test _parse_area_response raises when array is empty (line 639).
+
+    Spec: When response is an empty array, raise AIGenerationError.
+    """
+    mock_client = Mock()
+    mock_openai_class.return_value = mock_client
+
+    # Return empty array
+    mock_response = Mock()
+    mock_response.choices = [Mock()]
+    mock_response.choices[0].message.content = "[]"
+    mock_client.chat.completions.create.return_value = mock_response
+
+    service = AIService(basic_config)
+
+    with pytest.raises(AIGenerationError, match="at least one location"):
+        service.generate_area(
+            theme="fantasy",
+            sub_theme_hint="forest",
+            entry_direction="north",
+            context_locations=[],
+            size=3
+        )
+
+
+@patch('cli_rpg.ai_service.OpenAI')
+def test_validate_area_location_missing_field(mock_openai_class, basic_config):
+    """Test _validate_area_location raises on missing required field (line 666-668).
+
+    Spec: When location is missing a required field, raise AIGenerationError.
+    """
+    mock_client = Mock()
+    mock_openai_class.return_value = mock_client
+
+    # Return location missing 'connections'
+    mock_response = Mock()
+    mock_response.choices = [Mock()]
+    mock_response.choices[0].message.content = json.dumps([{
+        "name": "Test Location",
+        "description": "A test location with adequate description length",
+        "relative_coords": [0, 0]
+        # Missing 'connections'
+    }])
+    mock_client.chat.completions.create.return_value = mock_response
+
+    service = AIService(basic_config)
+
+    with pytest.raises(AIGenerationError, match="missing required field.*connections"):
+        service.generate_area(
+            theme="fantasy",
+            sub_theme_hint="forest",
+            entry_direction="north",
+            context_locations=[],
+            size=3
+        )
+
+
+@patch('cli_rpg.ai_service.OpenAI')
+def test_validate_area_location_name_too_short(mock_openai_class, basic_config):
+    """Test _validate_area_location raises on name too short (line 672-675).
+
+    Spec: When location name is too short, raise AIGenerationError.
+    """
+    mock_client = Mock()
+    mock_openai_class.return_value = mock_client
+
+    # Return location with name too short
+    mock_response = Mock()
+    mock_response.choices = [Mock()]
+    mock_response.choices[0].message.content = json.dumps([{
+        "name": "A",  # Too short (MIN_NAME_LENGTH is 2)
+        "description": "A test location with adequate description length",
+        "relative_coords": [0, 0],
+        "connections": {}
+    }])
+    mock_client.chat.completions.create.return_value = mock_response
+
+    service = AIService(basic_config)
+
+    with pytest.raises(AIGenerationError, match="name too short"):
+        service.generate_area(
+            theme="fantasy",
+            sub_theme_hint="forest",
+            entry_direction="north",
+            context_locations=[],
+            size=3
+        )
+
+
+@patch('cli_rpg.ai_service.OpenAI')
+def test_validate_area_location_name_too_long(mock_openai_class, basic_config):
+    """Test _validate_area_location raises on name too long (line 676-679).
+
+    Spec: When location name is too long, raise AIGenerationError.
+    """
+    mock_client = Mock()
+    mock_openai_class.return_value = mock_client
+
+    # Return location with name too long (>50 chars)
+    mock_response = Mock()
+    mock_response.choices = [Mock()]
+    mock_response.choices[0].message.content = json.dumps([{
+        "name": "A" * 51,  # Too long
+        "description": "A test location with adequate description length",
+        "relative_coords": [0, 0],
+        "connections": {}
+    }])
+    mock_client.chat.completions.create.return_value = mock_response
+
+    service = AIService(basic_config)
+
+    with pytest.raises(AIGenerationError, match="name too long"):
+        service.generate_area(
+            theme="fantasy",
+            sub_theme_hint="forest",
+            entry_direction="north",
+            context_locations=[],
+            size=3
+        )
+
+
+@patch('cli_rpg.ai_service.OpenAI')
+def test_validate_area_location_description_too_short(mock_openai_class, basic_config):
+    """Test _validate_area_location raises on description too short (line 683-686).
+
+    Spec: When location description is too short, raise AIGenerationError.
+    """
+    mock_client = Mock()
+    mock_openai_class.return_value = mock_client
+
+    # Return location with empty description (MIN_DESCRIPTION_LENGTH is 1)
+    mock_response = Mock()
+    mock_response.choices = [Mock()]
+    mock_response.choices[0].message.content = json.dumps([{
+        "name": "Test Location",
+        "description": "",  # Empty description - too short
+        "relative_coords": [0, 0],
+        "connections": {}
+    }])
+    mock_client.chat.completions.create.return_value = mock_response
+
+    service = AIService(basic_config)
+
+    with pytest.raises(AIGenerationError, match="description too short"):
+        service.generate_area(
+            theme="fantasy",
+            sub_theme_hint="forest",
+            entry_direction="north",
+            context_locations=[],
+            size=3
+        )
+
+
+@patch('cli_rpg.ai_service.OpenAI')
+def test_validate_area_location_description_too_long(mock_openai_class, basic_config):
+    """Test _validate_area_location raises on description too long (line 687-690).
+
+    Spec: When location description is too long, raise AIGenerationError.
+    """
+    mock_client = Mock()
+    mock_openai_class.return_value = mock_client
+
+    # Return location with description too long (>500 chars)
+    mock_response = Mock()
+    mock_response.choices = [Mock()]
+    mock_response.choices[0].message.content = json.dumps([{
+        "name": "Test Location",
+        "description": "A" * 501,  # Too long
+        "relative_coords": [0, 0],
+        "connections": {}
+    }])
+    mock_client.chat.completions.create.return_value = mock_response
+
+    service = AIService(basic_config)
+
+    with pytest.raises(AIGenerationError, match="description too long"):
+        service.generate_area(
+            theme="fantasy",
+            sub_theme_hint="forest",
+            entry_direction="north",
+            context_locations=[],
+            size=3
+        )
+
+
+@patch('cli_rpg.ai_service.OpenAI')
+def test_validate_area_location_invalid_coords(mock_openai_class, basic_config):
+    """Test _validate_area_location raises on invalid coordinates (line 694-697).
+
+    Spec: When relative_coords is not a [x, y] array, raise AIGenerationError.
+    """
+    mock_client = Mock()
+    mock_openai_class.return_value = mock_client
+
+    # Return location with invalid coords (not an array)
+    mock_response = Mock()
+    mock_response.choices = [Mock()]
+    mock_response.choices[0].message.content = json.dumps([{
+        "name": "Test Location",
+        "description": "A test location with adequate description length",
+        "relative_coords": "invalid",  # Should be [x, y]
+        "connections": {}
+    }])
+    mock_client.chat.completions.create.return_value = mock_response
+
+    service = AIService(basic_config)
+
+    with pytest.raises(AIGenerationError, match="relative_coords"):
+        service.generate_area(
+            theme="fantasy",
+            sub_theme_hint="forest",
+            entry_direction="north",
+            context_locations=[],
+            size=3
+        )
+
+
+@patch('cli_rpg.ai_service.OpenAI')
+def test_validate_area_location_coords_wrong_length(mock_openai_class, basic_config):
+    """Test _validate_area_location raises on coords with wrong length (line 694-697).
+
+    Spec: When relative_coords has wrong number of elements, raise AIGenerationError.
+    """
+    mock_client = Mock()
+    mock_openai_class.return_value = mock_client
+
+    # Return location with wrong number of coordinates
+    mock_response = Mock()
+    mock_response.choices = [Mock()]
+    mock_response.choices[0].message.content = json.dumps([{
+        "name": "Test Location",
+        "description": "A test location with adequate description length",
+        "relative_coords": [0, 0, 0],  # Should be [x, y], not [x, y, z]
+        "connections": {}
+    }])
+    mock_client.chat.completions.create.return_value = mock_response
+
+    service = AIService(basic_config)
+
+    with pytest.raises(AIGenerationError, match="relative_coords"):
+        service.generate_area(
+            theme="fantasy",
+            sub_theme_hint="forest",
+            entry_direction="north",
+            context_locations=[],
+            size=3
+        )
+
+
+@patch('cli_rpg.ai_service.OpenAI')
+def test_validate_area_location_invalid_connections(mock_openai_class, basic_config):
+    """Test _validate_area_location raises on invalid connections type (line 701-702).
+
+    Spec: When connections is not a dictionary, raise AIGenerationError.
+    """
+    mock_client = Mock()
+    mock_openai_class.return_value = mock_client
+
+    # Return location with invalid connections type
+    mock_response = Mock()
+    mock_response.choices = [Mock()]
+    mock_response.choices[0].message.content = json.dumps([{
+        "name": "Test Location",
+        "description": "A test location with adequate description length",
+        "relative_coords": [0, 0],
+        "connections": ["north", "south"]  # Should be a dict
+    }])
+    mock_client.chat.completions.create.return_value = mock_response
+
+    service = AIService(basic_config)
+
+    with pytest.raises(AIGenerationError, match="connections must be a dictionary"):
+        service.generate_area(
+            theme="fantasy",
+            sub_theme_hint="forest",
+            entry_direction="north",
+            context_locations=[],
+            size=3
+        )

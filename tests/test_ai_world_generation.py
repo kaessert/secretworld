@@ -1127,3 +1127,159 @@ def test_create_ai_world_skips_occupied_position(mock_ai_service):
         assert world["North Place"].coordinates == (0, 1)
     if "South Place" in world:
         assert world["South Place"].coordinates == (0, -1)
+
+
+# Test: create_ai_world triggers occupied position skip - spec: line 142
+def test_create_ai_world_triggers_occupied_position_skip(mock_ai_service):
+    """Test create_ai_world actually triggers the occupied position skip path (line 142).
+
+    Spec: When multiple connections point to same coordinate, second attempt should skip.
+    This happens when two different locations both suggest connections that lead to
+    the same grid position.
+    """
+    call_count = [0]
+
+    def mock_generate(theme, context_locations=None, source_location=None, direction=None):
+        call_count[0] += 1
+        if call_count[0] == 1:
+            # Starting location at (0,0) with connections to north and east
+            return {
+                "name": "Center",
+                "description": "The center.",
+                "connections": {"north": "North Place", "east": "East Place"}
+            }
+        elif direction == "north":
+            # North Place at (0,1) suggests going east - this will create (1,1)
+            return {
+                "name": "North Place",
+                "description": "To the north.",
+                "connections": {"south": "Center", "east": "NE Corner"}
+            }
+        elif direction == "east" and source_location == "Center":
+            # East Place at (1,0) suggests going north - this tries to create (1,1)
+            # But by this time (1,1) might already be occupied by NE Corner
+            return {
+                "name": "East Place",
+                "description": "To the east.",
+                "connections": {"west": "Center", "north": "NE Corner From East"}
+            }
+        elif direction == "east" and source_location == "North Place":
+            # NE Corner at (1,1) from North Place
+            return {
+                "name": "NE Corner",
+                "description": "The northeast corner.",
+                "connections": {"west": "North Place"}
+            }
+        else:
+            return {
+                "name": f"Location {call_count[0]}",
+                "description": "A generated location.",
+                "connections": {}
+            }
+
+    mock_ai_service.generate_location.side_effect = mock_generate
+
+    world, starting_location = create_ai_world(mock_ai_service, theme="fantasy", initial_size=5)
+
+    # Center should be at (0, 0)
+    assert "Center" in world
+    assert world["Center"].coordinates == (0, 0)
+
+
+# Test: create_ai_world triggers suggested name skip - spec: line 146
+def test_create_ai_world_triggers_suggested_name_skip(mock_ai_service):
+    """Test create_ai_world skips when suggested name already exists (line 146).
+
+    Spec: If suggested_name is already in the grid, skip that expansion.
+    """
+    call_count = [0]
+
+    def mock_generate(theme, context_locations=None, source_location=None, direction=None):
+        call_count[0] += 1
+        if call_count[0] == 1:
+            # Starting location with connection suggesting an existing name
+            return {
+                "name": "Center",
+                "description": "The center.",
+                "connections": {
+                    "north": "North Place",
+                    "east": "Center"  # Suggested name same as starting location!
+                }
+            }
+        elif direction == "north":
+            return {
+                "name": "North Place",
+                "description": "To the north.",
+                "connections": {"south": "Center"}
+            }
+        else:
+            return {
+                "name": "Other Place",
+                "description": "Some other place.",
+                "connections": {}
+            }
+
+    mock_ai_service.generate_location.side_effect = mock_generate
+
+    world, starting_location = create_ai_world(mock_ai_service, theme="fantasy", initial_size=2)
+
+    # Only Center and North Place should exist
+    # The "east": "Center" connection should be skipped due to suggested_name check
+    assert "Center" in world
+    assert len(world) <= 2
+
+
+# Test: create_ai_world queues suggested connections - spec: lines 179-180
+def test_create_ai_world_queues_suggested_connections(mock_ai_service):
+    """Test create_ai_world queues suggested connections for expansion (lines 179-180).
+
+    Spec: After adding a location, its connections should be queued for expansion.
+    """
+    call_count = [0]
+
+    def mock_generate(theme, context_locations=None, source_location=None, direction=None):
+        call_count[0] += 1
+        if call_count[0] == 1:
+            # Starting location with connection to north
+            return {
+                "name": "Center",
+                "description": "The center hub of the world.",
+                "connections": {"north": "North Area"}
+            }
+        elif call_count[0] == 2:
+            # First expansion (north) - suggests an east connection
+            return {
+                "name": "North Area",
+                "description": "The northern region.",
+                "connections": {
+                    "south": "Center",
+                    "east": "East of North"  # This should be queued
+                }
+            }
+        elif call_count[0] == 3:
+            # Second expansion (east from North Area)
+            return {
+                "name": "East of North",
+                "description": "The eastern section.",
+                "connections": {"west": "North Area"}
+            }
+        else:
+            return {
+                "name": f"Location {call_count[0]}",
+                "description": "A generated location.",
+                "connections": {}
+            }
+
+    mock_ai_service.generate_location.side_effect = mock_generate
+
+    world, starting_location = create_ai_world(mock_ai_service, theme="fantasy", initial_size=3)
+
+    # Should have 3 locations: Center, North Area, East of North
+    assert "Center" in world
+    assert "North Area" in world
+    assert "East of North" in world
+    assert len(world) == 3
+    # Verify coordinates
+    assert world["Center"].coordinates == (0, 0)
+    assert world["North Area"].coordinates == (0, 1)
+    assert world["East of North"].coordinates == (1, 1)

@@ -316,3 +316,42 @@ class TestCreateWorld:
         assert "Town Square" in world
         assert "Forest" in world
         assert "Cave" in world
+
+    @patch('cli_rpg.world.AI_AVAILABLE', False)
+    def test_create_world_with_ai_service_but_ai_unavailable(self):
+        """Test that create_world uses default when AI is unavailable (lines 18-21, 131).
+
+        Spec: When AI_AVAILABLE is False, should use default world even if
+        ai_service is provided.
+        """
+        mock_ai_service = Mock()
+        world, starting_location = create_world(ai_service=mock_ai_service, theme="fantasy")
+
+        # Should return default world (not AI world)
+        assert starting_location == "Town Square"
+        assert "Town Square" in world
+        assert "Forest" in world
+        assert "Cave" in world
+        # AI service should not have been called
+        mock_ai_service.generate_location.assert_not_called()
+
+    @patch('cli_rpg.world.create_ai_world')
+    def test_create_world_nonstrict_success_path(self, mock_create_ai_world):
+        """Test that create_world non-strict mode returns AI world on success (line 142).
+
+        Spec: When strict=False and AI succeeds, should return AI world.
+        This covers line 142 (return in non-strict try block).
+        """
+        # Mock AI world generation to succeed
+        mock_world = {"AI Plaza": Location("AI Plaza", "An AI-generated plaza")}
+        mock_create_ai_world.return_value = (mock_world, "AI Plaza")
+
+        mock_ai_service = Mock()
+        world, starting_location = create_world(
+            ai_service=mock_ai_service, theme="fantasy", strict=False
+        )
+
+        # Should return AI-generated world
+        assert starting_location == "AI Plaza"
+        assert "AI Plaza" in world
+        mock_create_ai_world.assert_called_once()
