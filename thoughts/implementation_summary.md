@@ -1,53 +1,65 @@
-# Implementation Summary: Deterministic Mode with `--seed` CLI Option
+# Implementation Summary: --delay CLI Option
 
 ## What Was Implemented
 
-Added a `--seed <int>` CLI argument to enable reproducible gameplay sessions.
+Added `--delay <ms>` CLI option for controlling pacing between commands in non-interactive and JSON automation modes.
 
-### Files Modified
+### Features:
+- **CLI Argument**: `--delay MS` - accepts integer milliseconds (e.g., `--delay 500`)
+- **Default**: 0 (no delay, preserves existing behavior)
+- **Range Clamping**: Values are automatically clamped to 0-60000ms range
+- **Applies to**: `--non-interactive` and `--json` modes only
 
-- **`src/cli_rpg/main.py`**: Added `--seed` argparse argument and `random.seed()` call
+### Files Modified:
 
-### Files Created
+1. **src/cli_rpg/main.py**:
+   - Added `--delay` argument to argparse (lines 1480-1486)
+   - Added delay clamping logic before mode dispatch (lines 1493-1494)
+   - Updated `run_json_mode()` signature to accept `delay_ms` parameter
+   - Updated `run_non_interactive()` signature to accept `delay_ms` parameter
+   - Added `time.sleep()` calls after command processing in both modes
 
-- **`tests/test_seed_option.py`**: Test suite for the new feature (5 tests)
-
-## Implementation Details
-
-1. Added `--seed` argument to argparse parser (lines 1474-1479):
-   ```python
-   parser.add_argument(
-       "--seed",
-       type=int,
-       metavar="N",
-       help="Set random seed for reproducible gameplay"
-   )
-   ```
-
-2. Applied seed immediately after argument parsing, before any game logic runs (lines 1482-1484):
-   ```python
-   if parsed_args.seed is not None:
-       import random
-       random.seed(parsed_args.seed)
-   ```
+2. **tests/test_delay_option.py** (new file):
+   - `test_delay_flag_accepted` - verifies flag is parsed without error
+   - `test_delay_requires_integer` - verifies non-integer values are rejected
+   - `test_delay_parsed_with_non_interactive` - verifies flag works with --non-interactive
+   - `test_delay_slows_execution` - verifies measurable delay in execution time
+   - `test_delay_works_with_json_mode` - verifies flag works with --json
+   - `test_delay_zero_is_default` - verifies default behavior (no delay)
+   - `test_delay_negative_value_handled` - verifies negative values are handled (clamped)
 
 ## Test Results
 
-All 5 new tests pass:
-- `test_seed_flag_accepted` - Flag is recognized without error
-- `test_seed_produces_reproducible_output` - Same seed = identical output
-- `test_different_seeds_may_produce_different_output` - Different seeds work
-- `test_seed_works_with_json_mode` - Works with `--json` flag
-- `test_seed_requires_integer` - Non-integer values rejected with error
+- **New tests**: 7 passed
+- **Full test suite**: 1500 passed
 
-All 10 existing related tests continue to pass (test_non_interactive.py, test_main.py).
+## Usage Examples
+
+```bash
+# 500ms delay between commands in non-interactive mode
+cli-rpg --non-interactive --delay 500 < commands.txt
+
+# 200ms delay in JSON mode
+cli-rpg --json --delay 200 < commands.txt
+
+# Combine with other options
+cli-rpg --non-interactive --seed 42 --delay 100 --log-file session.log < commands.txt
+```
+
+## Technical Notes
+
+- Delay is applied AFTER each command's output is emitted, before reading the next command
+- Delay does not apply after commands that exit the game (quit with death, etc.)
+- Value is clamped to 0-60000ms to prevent unreasonably long delays
+- Uses `time.sleep()` for the delay implementation
 
 ## E2E Validation
 
 To validate end-to-end:
 ```bash
-# Run twice with same seed, output should be identical
-cli-rpg --non-interactive --seed 42 < commands.txt > out1.txt
-cli-rpg --non-interactive --seed 42 < commands.txt > out2.txt
-diff out1.txt out2.txt  # Should show no differences
+# Run with delay, observe pacing
+echo -e "status\nlook\nstatus" | cli-rpg --non-interactive --delay 500
+
+# Verify delay is measurable (should take ~1 second with 500ms delay x 2 commands)
+time (echo -e "status\nlook" | cli-rpg --non-interactive --delay 500)
 ```

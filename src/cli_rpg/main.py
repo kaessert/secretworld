@@ -1155,7 +1155,7 @@ def show_main_menu() -> str:
     return choice
 
 
-def run_json_mode(log_file: Optional[str] = None) -> int:
+def run_json_mode(log_file: Optional[str] = None, delay_ms: int = 0) -> int:
     """Run game in JSON mode, emitting structured JSON Lines output.
 
     This mode is designed for programmatic consumption by external tools
@@ -1164,10 +1164,12 @@ def run_json_mode(log_file: Optional[str] = None) -> int:
 
     Args:
         log_file: Optional path to write session transcript (JSON Lines format)
+        delay_ms: Delay in milliseconds between commands (0 = no delay)
 
     Returns:
         Exit code (0 for success, 1 for error)
     """
+    import time
     from cli_rpg.colors import set_colors_enabled
     from cli_rpg.models.character import Character
     from cli_rpg.json_output import (
@@ -1321,6 +1323,10 @@ def run_json_mode(log_file: Optional[str] = None) -> int:
             end_reason = "death"
             break
 
+        # Apply delay between commands if specified
+        if delay_ms > 0:
+            time.sleep(delay_ms / 1000.0)
+
     # Close logger
     if logger:
         logger.log_session_end(end_reason)
@@ -1329,7 +1335,7 @@ def run_json_mode(log_file: Optional[str] = None) -> int:
     return 0
 
 
-def run_non_interactive(log_file: Optional[str] = None) -> int:
+def run_non_interactive(log_file: Optional[str] = None, delay_ms: int = 0) -> int:
     """Run game in non-interactive mode, reading commands from stdin.
 
     This mode is designed for automated testing and AI agent playtesting.
@@ -1338,10 +1344,12 @@ def run_non_interactive(log_file: Optional[str] = None) -> int:
 
     Args:
         log_file: Optional path to write session transcript (JSON Lines format)
+        delay_ms: Delay in milliseconds between commands (0 = no delay)
 
     Returns:
         Exit code (0 for success, 1 for error)
     """
+    import time
     from cli_rpg.colors import set_colors_enabled
     from cli_rpg.models.character import Character
     from cli_rpg.logging_service import GameplayLogger
@@ -1434,6 +1442,10 @@ def run_non_interactive(log_file: Optional[str] = None) -> int:
             end_reason = "death"
             break
 
+        # Apply delay between commands if specified
+        if delay_ms > 0:
+            time.sleep(delay_ms / 1000.0)
+
     # Close logger
     if logger:
         logger.log_session_end(end_reason)
@@ -1477,17 +1489,27 @@ def main(args: Optional[list] = None) -> int:
         metavar="N",
         help="Set random seed for reproducible gameplay"
     )
+    parser.add_argument(
+        "--delay",
+        type=int,
+        default=0,
+        metavar="MS",
+        help="Delay in milliseconds between commands (non-interactive/JSON modes)"
+    )
     parsed_args = parser.parse_args(args)
 
     if parsed_args.seed is not None:
         import random
         random.seed(parsed_args.seed)
 
+    # Clamp delay to valid range (0-60000ms)
+    delay_ms = max(0, min(60000, parsed_args.delay))
+
     if parsed_args.json:
-        return run_json_mode(log_file=parsed_args.log_file)
+        return run_json_mode(log_file=parsed_args.log_file, delay_ms=delay_ms)
 
     if parsed_args.non_interactive:
-        return run_non_interactive(log_file=parsed_args.log_file)
+        return run_non_interactive(log_file=parsed_args.log_file, delay_ms=delay_ms)
 
     print("\n" + "=" * 50)
     print("Welcome to CLI RPG!")

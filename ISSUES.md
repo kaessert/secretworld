@@ -19,8 +19,8 @@ The basic `--non-interactive` mode has been implemented. The following enhanceme
    - ~~Include: player stats, inventory, location, quest progress, world state~~
    - Future: Enable session replay from logged state
 
-4. **Additional automation features**
-   - Configurable delays/timeouts
+4. ~~**Additional automation features**~~ (DONE)
+   - ~~Configurable delays/timeouts~~ (DONE - `--delay` option implemented)
    - ~~Deterministic mode option (fixed RNG seed)~~ (DONE - `--seed` option implemented)
 
 ### Long-running AI simulation test suite

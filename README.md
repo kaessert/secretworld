@@ -231,6 +231,9 @@ cli-rpg --non-interactive < commands.txt
 
 # Reproducible runs with fixed seed
 cli-rpg --non-interactive --seed 42 < commands.txt
+
+# With delay between commands (500ms)
+cli-rpg --non-interactive --delay 500 < commands.txt
 ```
 
 **Features:**
@@ -240,6 +243,7 @@ cli-rpg --non-interactive --seed 42 < commands.txt
 - Uses a default character ("Agent") with balanced stats (10/10/10)
 - Runs without AI service for deterministic behavior
 - `--seed <int>` option for reproducible random outcomes (combat, loot, etc.)
+- `--delay <ms>` option for pacing between commands (0-60000ms, default 0)
 
 ### Gameplay Logging
 
@@ -251,6 +255,9 @@ cli-rpg --non-interactive --log-file session.log < commands.txt
 
 # Combined with JSON mode (log file separate from stdout)
 cli-rpg --json --log-file transcript.log < commands.txt
+
+# With delay for observable pacing (useful for demos/recordings)
+cli-rpg --json --delay 200 < commands.txt
 ```
 
 **Log format** (JSON Lines, one entry per line):

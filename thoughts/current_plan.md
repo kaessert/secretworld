@@ -1,129 +1,70 @@
-# Implementation Plan: Deterministic Mode with `--seed` CLI Option
+# Implementation Plan: Configurable Delays/Timeouts for Automation
 
-## Summary
-Add a `--seed <int>` CLI argument to set Python's random seed at startup, enabling reproducible gameplay sessions for debugging and AI playtesting.
+## Feature Spec
 
-## Spec
-- Add `--seed <int>` optional CLI argument to `main.py`
-- When provided, call `random.seed(value)` before any game logic runs
-- Works with both interactive and non-interactive modes
-- No behavioral change when `--seed` is not provided
+Add `--delay <ms>` CLI option to control pacing between commands in automated (non-interactive/JSON) runs. This is the final item under "Additional automation features" in ISSUES.md.
+
+**Behavior**:
+- `--delay 500` - Wait 500ms after each command response before processing the next command
+- Only applies to `--non-interactive` and `--json` modes
+- Default: 0 (no delay, current behavior)
+- Valid range: 0-60000ms (0 to 60 seconds)
+
+## Tests First (TDD)
+
+Create `tests/test_delay_option.py`:
+
+1. `test_delay_flag_accepted` - `--delay 100` is accepted without error
+2. `test_delay_requires_integer` - `--delay notanumber` fails with argparse error
+3. `test_delay_requires_non_interactive` - `--delay` only meaningful with `--non-interactive` or `--json` (should warn if used alone in interactive mode, but not fail)
+4. `test_delay_slows_execution` - Run with `--delay 200` on 2 commands takes ~400ms longer than without
+5. `test_delay_works_with_json_mode` - `--json --delay 100` works correctly
+6. `test_delay_zero_is_default` - No delay when not specified
 
 ## Implementation Steps
 
-### 1. Add CLI Argument
-**File:** `src/cli_rpg/main.py` (lines 1457-1473)
+### 1. Add CLI argument in `main.py`
 
-Add to argparse parser after `--log-file`:
+Location: `main()` function, after `--seed` argument (~line 1479)
+
 ```python
 parser.add_argument(
-    "--seed",
+    "--delay",
     type=int,
-    metavar="N",
-    help="Set random seed for reproducible gameplay"
+    default=0,
+    metavar="MS",
+    help="Delay in milliseconds between commands (non-interactive/JSON modes)"
 )
 ```
 
-### 2. Apply Seed Early in main()
-**File:** `src/cli_rpg/main.py` (after line 1474, before any mode dispatch)
+### 2. Add delay logic to `run_non_interactive()`
 
-Add immediately after `parsed_args = parser.parse_args(args)`:
-```python
-if parsed_args.seed is not None:
-    import random
-    random.seed(parsed_args.seed)
-```
+Location: `run_non_interactive()` (~line 1332)
 
-### 3. Create Test File
-**File:** `tests/test_seed_option.py`
+- Add `delay_ms: int = 0` parameter
+- After processing each command (after `print(message)`), add:
+  ```python
+  if delay_ms > 0:
+      import time
+      time.sleep(delay_ms / 1000.0)
+  ```
 
-```python
-"""Tests for --seed CLI option.
+### 3. Add delay logic to `run_json_mode()`
 
-Spec: Add --seed <int> flag to set random seed for reproducible gameplay.
-"""
-import subprocess
-import sys
-import pytest
+Location: `run_json_mode()` (~line 1158)
 
+- Add `delay_ms: int = 0` parameter
+- After emitting response JSON, add same delay logic
 
-class TestSeedOption:
-    """Test --seed CLI option functionality."""
+### 4. Pass delay from `main()` to mode functions
 
-    def test_seed_flag_accepted(self):
-        """--seed flag is accepted without error."""
-        result = subprocess.run(
-            [sys.executable, "-m", "cli_rpg.main", "--non-interactive", "--seed", "42"],
-            input="",
-            capture_output=True,
-            text=True,
-            timeout=5
-        )
-        assert result.returncode == 0
+Update calls to `run_non_interactive()` and `run_json_mode()` to pass `parsed_args.delay`.
 
-    def test_seed_produces_reproducible_output(self):
-        """Same seed produces identical output across runs."""
-        def run_with_seed(seed):
-            result = subprocess.run(
-                [sys.executable, "-m", "cli_rpg.main", "--non-interactive", "--seed", str(seed)],
-                input="look\n",
-                capture_output=True,
-                text=True,
-                timeout=10
-            )
-            return result.stdout
+## Files to Modify
 
-        output1 = run_with_seed(12345)
-        output2 = run_with_seed(12345)
-        assert output1 == output2, "Same seed should produce identical output"
+1. `src/cli_rpg/main.py` - Add argument and delay logic
+2. `tests/test_delay_option.py` - New test file
 
-    def test_different_seeds_may_produce_different_output(self):
-        """Different seeds can produce different output (not guaranteed but likely)."""
-        def run_with_seed(seed):
-            result = subprocess.run(
-                [sys.executable, "-m", "cli_rpg.main", "--non-interactive", "--seed", str(seed)],
-                input="look\n",
-                capture_output=True,
-                text=True,
-                timeout=10
-            )
-            return result.stdout
+## Verification
 
-        # Note: This tests that seeds are applied, not that output must differ
-        # The implementation is correct as long as same seed = same output
-        output1 = run_with_seed(11111)
-        output2 = run_with_seed(22222)
-        # Both should succeed
-        assert output1  # Non-empty
-        assert output2  # Non-empty
-
-    def test_seed_works_with_json_mode(self):
-        """--seed works alongside --json mode."""
-        result = subprocess.run(
-            [sys.executable, "-m", "cli_rpg.main", "--json", "--seed", "42"],
-            input="look\n",
-            capture_output=True,
-            text=True,
-            timeout=10
-        )
-        assert result.returncode == 0
-
-    def test_seed_requires_integer(self):
-        """--seed requires an integer argument."""
-        result = subprocess.run(
-            [sys.executable, "-m", "cli_rpg.main", "--non-interactive", "--seed", "notanumber"],
-            input="",
-            capture_output=True,
-            text=True,
-            timeout=5
-        )
-        assert result.returncode != 0
-        assert "invalid int value" in result.stderr.lower() or "error" in result.stderr.lower()
-```
-
-## Order of Implementation
-1. Add `--seed` argument to argparse in main.py
-2. Add `random.seed()` call after argument parsing
-3. Create tests/test_seed_option.py
-4. Run tests: `pytest tests/test_seed_option.py -v`
-5. Verify existing tests: `pytest tests/test_non_interactive.py tests/test_main.py -v`
+Run: `pytest tests/test_delay_option.py -v`
