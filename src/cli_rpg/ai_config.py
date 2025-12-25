@@ -242,6 +242,26 @@ Requirements:
 Respond with ONLY the ASCII art, no explanation or formatting."""
 
 
+# Default prompt template for dream generation
+DEFAULT_DREAM_GENERATION_PROMPT = """Generate a short, atmospheric dream sequence for a {theme} RPG.
+
+Context:
+- Location: {location_name}
+- Dread Level: {dread}% (psychological horror meter, 0=calm, 100=terrified)
+- Recent Player Choices: {choices_summary}
+- Dream Type: {dream_type}
+
+Requirements:
+1. Write a single, evocative dream fragment (20-300 characters)
+2. Use second person ("You dream..." or "You see...")
+3. Match the {theme} setting and atmosphere
+4. If nightmare (dread 50%+), make it unsettling but not gratuitously violent
+5. Reference player choices if relevant (fleeing = chase dreams, killing = haunted dreams)
+6. Keep it surreal and dreamlike, not literal
+
+Respond with ONLY the dream text, no quotes or formatting."""
+
+
 # Default prompt template for NPC conversation responses
 DEFAULT_NPC_CONVERSATION_PROMPT = """You are roleplaying as {npc_name} in a {theme} RPG.
 
@@ -305,7 +325,8 @@ class AIConfig:
     ascii_art_generation_prompt: str = field(default=DEFAULT_ASCII_ART_GENERATION_PROMPT)
     location_ascii_art_generation_prompt: str = field(default=DEFAULT_LOCATION_ASCII_ART_PROMPT)
     npc_ascii_art_generation_prompt: str = field(default=DEFAULT_NPC_ASCII_ART_PROMPT)
-    
+    dream_generation_prompt: str = field(default=DEFAULT_DREAM_GENERATION_PROMPT)
+
     def __post_init__(self) -> None:
         """Validate configuration after initialization."""
         # Validate API key (allow placeholder for Ollama provider)
@@ -459,6 +480,7 @@ class AIConfig:
             "ascii_art_generation_prompt": self.ascii_art_generation_prompt,
             "location_ascii_art_generation_prompt": self.location_ascii_art_generation_prompt,
             "npc_ascii_art_generation_prompt": self.npc_ascii_art_generation_prompt,
+            "dream_generation_prompt": self.dream_generation_prompt,
         }
     
     @classmethod
@@ -501,5 +523,8 @@ class AIConfig:
             ),
             npc_ascii_art_generation_prompt=data.get(
                 "npc_ascii_art_generation_prompt", DEFAULT_NPC_ASCII_ART_PROMPT
+            ),
+            dream_generation_prompt=data.get(
+                "dream_generation_prompt", DEFAULT_DREAM_GENERATION_PROMPT
             ),
         )

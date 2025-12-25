@@ -381,6 +381,19 @@ pytest tests/test_e2e_world_expansion.py -v
 - Integrated with caching for performance optimization
 - Graceful fallback when AI is unavailable
 
+### 11. AI-Generated Dreams
+- `AIService.generate_dream()` creates personalized dream sequences when players rest
+- Triggered with 25% chance when using the `rest` command
+- Parameters: `theme`, `dread_percent`, `choices` (flee/kill counts), `location_name`, `is_nightmare`
+- Context-aware generation based on:
+  - **World theme**: Dreams fit the game's theme (fantasy, sci-fi, etc.)
+  - **Dread level**: Higher dread (50%+) triggers nightmare sequences
+  - **Player choices**: Dreams reflect combat behavior (fleeing vs. killing)
+  - **Current location**: Location name adds context to dream content
+- Validates response length (20-300 characters)
+- Graceful fallback to template dreams when AI is unavailable or generation fails
+- Dreams display with decorative borders and typewriter effect
+
 ### Future Enhancements
 - Advanced world consistency validation
 - Additional local model providers

@@ -1281,7 +1281,9 @@ def handle_exploration_command(game_state: GameState, command: str, args: list[s
         dream = maybe_trigger_dream(
             dread=char.dread_meter.dread,
             choices=getattr(game_state, 'choices', None),
-            theme=getattr(game_state, 'theme', 'fantasy')
+            theme=getattr(game_state, 'theme', 'fantasy'),
+            ai_service=getattr(game_state, 'ai_service', None),
+            location_name=game_state.current_location
         )
         if dream:
             # Print rest message first, then display dream with typewriter effect

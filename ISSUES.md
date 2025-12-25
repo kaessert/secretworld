@@ -171,7 +171,7 @@ You wake with a strange sense of purpose.
 - **Memory dreams** replay key moments with new perspective
 - **Character dreams** reveal companion backstories
 - **Dream items** that manifest in reality
-- **AI-generated dreams** for dynamic content
+- ✅ **AI-generated dreams** for dynamic content - MVP IMPLEMENTED (AI generates context-aware dreams based on theme, dread level, player choices, and location; graceful fallback to template dreams on error)
 
 ---
 

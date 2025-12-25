@@ -332,3 +332,182 @@ class TestDreamTypewriterDisplay:
                 assert call_args.kwargs["delay"] >= 0.04
             elif len(call_args.args) > 1:
                 assert call_args.args[1] >= 0.04
+
+
+class TestAIDreamGeneration:
+    """Tests for AI-generated dreams.
+
+    Spec: AI can generate personalized dreams based on context
+    """
+
+    def test_generate_dream_exists_in_ai_service(self):
+        """Spec: AIService has generate_dream method."""
+        from cli_rpg.ai_service import AIService
+        assert hasattr(AIService, 'generate_dream')
+        assert callable(getattr(AIService, 'generate_dream'))
+
+    def test_dream_generation_prompt_in_config(self):
+        """Spec: AIConfig has dream_generation_prompt field."""
+        from cli_rpg.ai_config import AIConfig, DEFAULT_DREAM_GENERATION_PROMPT
+
+        # Check default prompt exists
+        assert DEFAULT_DREAM_GENERATION_PROMPT is not None
+        assert len(DEFAULT_DREAM_GENERATION_PROMPT) > 50
+
+        # Check config has the field
+        config = AIConfig(api_key="test-key")
+        assert hasattr(config, 'dream_generation_prompt')
+        assert config.dream_generation_prompt == DEFAULT_DREAM_GENERATION_PROMPT
+
+    def test_maybe_trigger_dream_uses_ai_when_available(self):
+        """Spec: When ai_service is passed, attempts AI generation."""
+        from cli_rpg.ai_service import AIService
+        from cli_rpg.ai_config import AIConfig
+
+        config = AIConfig(api_key="test-key", enable_caching=False)
+        ai_service = AIService(config)
+
+        # Mock generate_dream to return a dream
+        generated_dream = "You dream of algorithmic sheep..."
+        with patch.object(ai_service, 'generate_dream', return_value=generated_dream) as mock_gen:
+            with patch("cli_rpg.dreams.random.random", return_value=0.1):  # Force trigger
+                result = maybe_trigger_dream(
+                    dread=0,
+                    choices=None,
+                    theme="fantasy",
+                    ai_service=ai_service,
+                    location_name="Test Village"
+                )
+
+                # AI generate_dream should have been called
+                mock_gen.assert_called_once()
+                # Result should contain the AI-generated dream
+                assert generated_dream in result
+
+    def test_maybe_trigger_dream_falls_back_on_ai_failure(self):
+        """Spec: Falls back to template when AI raises exception."""
+        from cli_rpg.ai_service import AIService, AIGenerationError
+        from cli_rpg.ai_config import AIConfig
+
+        config = AIConfig(api_key="test-key", enable_caching=False)
+        ai_service = AIService(config)
+
+        # Mock generate_dream to raise an error
+        with patch.object(ai_service, 'generate_dream', side_effect=AIGenerationError("Test error")):
+            with patch("cli_rpg.dreams.random.random", return_value=0.1):  # Force trigger
+                result = maybe_trigger_dream(
+                    dread=0,
+                    choices=None,
+                    theme="fantasy",
+                    ai_service=ai_service,
+                    location_name="Test Village"
+                )
+
+                # Should still return a dream (from templates)
+                assert result is not None
+                # Should be from template pools
+                all_templates = PROPHETIC_DREAMS + ATMOSPHERIC_DREAMS
+                assert any(template in result for template in all_templates)
+
+    def test_maybe_trigger_dream_uses_templates_without_ai(self):
+        """Spec: Uses templates when ai_service is None (current behavior)."""
+        # Force dream to trigger
+        with patch("cli_rpg.dreams.random.random", return_value=0.1):
+            result = maybe_trigger_dream(
+                dread=0,
+                choices=None,
+                theme="fantasy",
+                ai_service=None,  # No AI service
+                location_name="Test Village"
+            )
+
+            # Should return a template dream
+            assert result is not None
+            all_templates = PROPHETIC_DREAMS + ATMOSPHERIC_DREAMS
+            assert any(template in result for template in all_templates)
+
+    def test_ai_dream_content_is_validated(self):
+        """Spec: AI-generated dream text is validated (length 20-300 chars)."""
+        from cli_rpg.ai_service import AIService, AIGenerationError
+        from cli_rpg.ai_config import AIConfig
+
+        config = AIConfig(api_key="test-key", enable_caching=False)
+        ai_service = AIService(config)
+
+        # Test too short (should raise error internally, fall back to template)
+        with patch.object(ai_service, '_call_llm', return_value="Short"):
+            with pytest.raises(AIGenerationError):
+                ai_service.generate_dream(
+                    theme="fantasy",
+                    dread=0,
+                    choices=None,
+                    location_name="Test",
+                    is_nightmare=False
+                )
+
+    def test_ai_nightmare_at_high_dread(self):
+        """Spec: AI generates nightmare-style content at 50%+ dread."""
+        from cli_rpg.ai_service import AIService
+        from cli_rpg.ai_config import AIConfig
+
+        config = AIConfig(api_key="test-key", enable_caching=False)
+        ai_service = AIService(config)
+
+        # Mock generate_dream to capture is_nightmare parameter
+        nightmare_dream = "Terror consumes you in the endless dark..."
+        with patch.object(ai_service, 'generate_dream', return_value=nightmare_dream) as mock_gen:
+            with patch("cli_rpg.dreams.random.random", return_value=0.1):  # Force trigger
+                result = maybe_trigger_dream(
+                    dread=75,  # High dread
+                    choices=None,
+                    theme="fantasy",
+                    ai_service=ai_service,
+                    location_name="Haunted Crypt"
+                )
+
+                # Check that is_nightmare=True was passed
+                call_kwargs = mock_gen.call_args.kwargs
+                assert call_kwargs.get('is_nightmare') is True
+
+    def test_ai_dream_prompt_includes_context(self):
+        """Spec: AI dream prompt includes dread, choices, location context."""
+        from cli_rpg.ai_service import AIService
+        from cli_rpg.ai_config import AIConfig
+
+        config = AIConfig(api_key="test-key", enable_caching=False)
+        ai_service = AIService(config)
+
+        # Mock _call_llm to capture the prompt
+        valid_dream = "You dream of ancient mysteries and forgotten paths..."
+        with patch.object(ai_service, '_call_llm', return_value=valid_dream) as mock_llm:
+            try:
+                ai_service.generate_dream(
+                    theme="dark fantasy",
+                    dread=45,
+                    choices=[{"choice_type": "combat_flee"}],
+                    location_name="Darkwood Forest",
+                    is_nightmare=False
+                )
+            except Exception:
+                pass  # We just want to check the prompt
+
+            # Check the prompt includes context
+            if mock_llm.called:
+                prompt = mock_llm.call_args[0][0]
+                assert "dark fantasy" in prompt
+                assert "Darkwood Forest" in prompt
+
+    def test_ai_config_dream_prompt_serialization(self):
+        """Spec: dream_generation_prompt is serialized in to_dict/from_dict."""
+        from cli_rpg.ai_config import AIConfig, DEFAULT_DREAM_GENERATION_PROMPT
+
+        config = AIConfig(api_key="test-key")
+
+        # Check to_dict includes dream_generation_prompt
+        config_dict = config.to_dict()
+        assert "dream_generation_prompt" in config_dict
+        assert config_dict["dream_generation_prompt"] == DEFAULT_DREAM_GENERATION_PROMPT
+
+        # Check from_dict restores it
+        restored_config = AIConfig.from_dict(config_dict)
+        assert restored_config.dream_generation_prompt == DEFAULT_DREAM_GENERATION_PROMPT

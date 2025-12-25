@@ -1853,3 +1853,92 @@ Note: Use "EXISTING_WORLD" as placeholder for the connection back to the source 
                 cleaned_lines.append(line)
 
         return "\n".join(cleaned_lines)
+
+    def generate_dream(
+        self,
+        theme: str,
+        dread: int,
+        choices: Optional[list[dict]],
+        location_name: str,
+        is_nightmare: bool
+    ) -> str:
+        """Generate a dream sequence with AI.
+
+        Args:
+            theme: World theme (e.g., "fantasy", "sci-fi")
+            dread: Current dread level (0-100)
+            choices: Player's recorded choices (from game_state.choices)
+            location_name: Name of the current location
+            is_nightmare: Whether this should be a nightmare (dread >= 50)
+
+        Returns:
+            Generated dream text string (20-300 chars)
+
+        Raises:
+            AIGenerationError: If generation fails or response is invalid
+            AIServiceError: If API call fails
+        """
+        prompt = self._build_dream_prompt(
+            theme=theme,
+            dread=dread,
+            choices=choices,
+            location_name=location_name,
+            is_nightmare=is_nightmare
+        )
+
+        response_text = self._call_llm(prompt)
+
+        # Clean and validate response
+        dream = response_text.strip().strip('"').strip("'")
+
+        if len(dream) < 20:
+            raise AIGenerationError("Generated dream too short (min 20 chars)")
+
+        if len(dream) > 300:
+            dream = dream[:297] + "..."
+
+        return dream
+
+    def _build_dream_prompt(
+        self,
+        theme: str,
+        dread: int,
+        choices: Optional[list[dict]],
+        location_name: str,
+        is_nightmare: bool
+    ) -> str:
+        """Build prompt for dream generation.
+
+        Args:
+            theme: World theme
+            dread: Current dread level (0-100)
+            choices: Player's recorded choices
+            location_name: Current location name
+            is_nightmare: Whether this should be a nightmare
+
+        Returns:
+            Formatted prompt string
+        """
+        # Summarize player choices for context
+        choices_summary = "None recorded"
+        if choices:
+            flee_count = sum(1 for c in choices if c.get("choice_type") == "combat_flee")
+            kill_count = sum(1 for c in choices if c.get("choice_type") == "combat_kill")
+            parts = []
+            if flee_count > 0:
+                parts.append(f"Fled from combat {flee_count} times")
+            if kill_count > 0:
+                parts.append(f"Defeated {kill_count} enemies")
+            if parts:
+                choices_summary = ", ".join(parts)
+
+        # Determine dream type
+        dream_type = "nightmare (unsettling, dark)" if is_nightmare else "normal dream (surreal, atmospheric)"
+
+        return self.config.dream_generation_prompt.format(
+            theme=theme,
+            location_name=location_name or "unknown location",
+            dread=dread,
+            choices_summary=choices_summary,
+            dream_type=dream_type
+        )

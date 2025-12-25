@@ -2,14 +2,21 @@
 
 Dreams add atmospheric storytelling when the player rests.
 High dread (50%+) triggers nightmares instead of normal dreams.
+AI-generated dreams are attempted first when an ai_service is available.
 """
 
+import logging
 import random
-from typing import Optional
+from typing import Optional, TYPE_CHECKING
 
 from cli_rpg import colors
 from cli_rpg.frames import frame_dream
 from cli_rpg.text_effects import typewriter_print, pause_medium
+
+if TYPE_CHECKING:  # pragma: no cover
+    from cli_rpg.ai_service import AIService  # pragma: no cover
+
+logger = logging.getLogger(__name__)
 
 DREAM_CHANCE = 0.25  # 25% chance on rest
 NIGHTMARE_DREAD_THRESHOLD = 50
@@ -56,14 +63,18 @@ NIGHTMARES = [
 def maybe_trigger_dream(
     dread: int = 0,
     choices: Optional[list[dict]] = None,
-    theme: str = "fantasy"
+    theme: str = "fantasy",
+    ai_service: Optional["AIService"] = None,
+    location_name: str = ""
 ) -> Optional[str]:
     """Potentially trigger a dream during rest.
 
     Args:
         dread: Current dread level (0-100)
         choices: Player's recorded choices (from game_state.choices)
-        theme: World theme (unused for now, for future AI dreams)
+        theme: World theme for AI generation
+        ai_service: Optional AI service for generating personalized dreams
+        location_name: Current location name for AI context
 
     Returns:
         Formatted dream text if triggered, None otherwise
@@ -72,8 +83,26 @@ def maybe_trigger_dream(
     if random.random() > DREAM_CHANCE:
         return None
 
-    # Select dream based on dread level
-    if dread >= NIGHTMARE_DREAD_THRESHOLD:
+    # Determine if this is a nightmare
+    is_nightmare = dread >= NIGHTMARE_DREAD_THRESHOLD
+
+    # Try AI generation first if available
+    if ai_service is not None:
+        try:
+            dream_text = ai_service.generate_dream(
+                theme=theme,
+                dread=dread,
+                choices=choices,
+                location_name=location_name,
+                is_nightmare=is_nightmare
+            )
+            return format_dream(dream_text)
+        except Exception as e:
+            # Fall back to templates on any error
+            logger.debug(f"AI dream generation failed, using templates: {e}")
+
+    # Fallback: Select dream based on dread level from templates
+    if is_nightmare:
         dream_text = random.choice(NIGHTMARES)
     else:
         dream_text = _select_dream(choices)
