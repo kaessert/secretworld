@@ -721,6 +721,18 @@ Text output could be more atmospheric and engaging.
 - ✅ Pause and pacing for dramatic tension - MVP IMPLEMENTED (dramatic pause functions in `text_effects.py` with short/medium/long durations; integrated into combat start/combo/end and dream sequences; respects effects toggle)
 - ✅ Stylized borders and frames for different UI elements - MVP IMPLEMENTED (`frames.py` with DOUBLE/SINGLE/SIMPLE frame styles; `frame_text()` for custom framing, `frame_announcement()` for world events, `frame_dream()` for dreams, `frame_combat_intro()` for boss/shadow combat; integrated into `dreams.py`, `world_events.py`, `shadow_creature.py`)
 
+### AI-generated quest objectives don't match spawned enemies
+**Status**: ✅ RESOLVED
+
+**Description**: When AI generates kill quests (e.g., "Kill 5 goblins"), the specified enemy types don't actually spawn in the game. Random encounters spawn different enemy types (Wild Boar, Mountain Lion, Giant Spider, Wolf, etc.) that don't count toward quest objectives.
+
+**Resolution**: Updated `DEFAULT_QUEST_GENERATION_PROMPT` in `ai_config.py` to include the valid enemy types from `combat.py`'s `enemy_templates` dictionary. The AI is now instructed to ONLY use these enemy types for kill quests:
+- Forest/wilderness: Wolf, Bear, Wild Boar, Giant Spider
+- Caves: Bat, Goblin, Troll, Cave Dweller
+- Dungeons/ruins: Skeleton, Zombie, Ghost, Dark Knight
+- Mountains: Eagle, Goat, Mountain Lion, Yeti
+- Towns/villages: Bandit, Thief, Ruffian, Outlaw
+
 ### Procedural quest generation
 **Status**: ACTIVE
 

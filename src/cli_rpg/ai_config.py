@@ -169,6 +169,13 @@ Objective types:
 - talk: Speak to NPC (target = NPC name, target_count = 1)
 - drop: Deliver item (target = item name, target_count = 1)
 
+IMPORTANT for KILL quests - use ONLY these enemy types as targets:
+- Wolf, Bear, Wild Boar, Giant Spider (for forest/wilderness)
+- Bat, Goblin, Troll, Cave Dweller (for caves)
+- Skeleton, Zombie, Ghost, Dark Knight (for dungeons/ruins)
+- Eagle, Goat, Mountain Lion, Yeti (for mountains)
+- Bandit, Thief, Ruffian, Outlaw (for towns/villages)
+
 Respond with valid JSON in this exact format (no additional text):
 {{
   "name": "Quest Name",

@@ -109,6 +109,19 @@ class TestAIConfigQuestPrompt:
         assert "{location_name}" in DEFAULT_QUEST_GENERATION_PROMPT
         assert "{player_level}" in DEFAULT_QUEST_GENERATION_PROMPT
 
+    def test_quest_prompt_includes_valid_enemy_types(self):
+        """Spec: Quest prompt should list valid enemy types for kill quests.
+
+        This ensures AI-generated kill quests reference enemy types that actually
+        spawn in random encounters (defined in combat.py enemy_templates).
+        """
+        # Verify key enemy types from each location category are listed
+        assert "Wolf" in DEFAULT_QUEST_GENERATION_PROMPT
+        assert "Goblin" in DEFAULT_QUEST_GENERATION_PROMPT
+        assert "Skeleton" in DEFAULT_QUEST_GENERATION_PROMPT
+        assert "Bandit" in DEFAULT_QUEST_GENERATION_PROMPT
+        assert "Yeti" in DEFAULT_QUEST_GENERATION_PROMPT
+
 
 # =============================================================================
 # AIService.generate_quest() Tests
