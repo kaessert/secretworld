@@ -115,7 +115,7 @@ def detect_save_type(filepath: str) -> str:
 - No breaking changes to existing functionality
 
 ### Validation
-- Test with real existing save files (e.g., sasdf_20251224_011809.json)
+- Test with fixture files (e.g., `tests/fixtures/legacy_character_save.json`)
 - Verify character attributes are correctly loaded
 - Verify new game starts with loaded character
 - No errors or warnings for legacy format
