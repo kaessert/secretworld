@@ -1471,7 +1471,17 @@ def main(args: Optional[list] = None) -> int:
         metavar="PATH",
         help="Write session transcript to file (JSON Lines format)"
     )
+    parser.add_argument(
+        "--seed",
+        type=int,
+        metavar="N",
+        help="Set random seed for reproducible gameplay"
+    )
     parsed_args = parser.parse_args(args)
+
+    if parsed_args.seed is not None:
+        import random
+        random.seed(parsed_args.seed)
 
     if parsed_args.json:
         return run_json_mode(log_file=parsed_args.log_file)

@@ -1,65 +1,53 @@
-# Implementation Summary: dump-state Command
+# Implementation Summary: Deterministic Mode with `--seed` CLI Option
 
 ## What Was Implemented
 
-Added a `dump-state` command that exports the complete game state as JSON for programmatic inspection.
+Added a `--seed <int>` CLI argument to enable reproducible gameplay sessions.
 
 ### Files Modified
 
-1. **src/cli_rpg/game_state.py** (line 33)
-   - Added `"dump-state"` to `KNOWN_COMMANDS` set
+- **`src/cli_rpg/main.py`**: Added `--seed` argparse argument and `random.seed()` call
 
-2. **src/cli_rpg/json_output.py** (lines 103-109)
-   - Added `emit_dump_state(game_state_dict: dict)` function for JSON mode output
+### Files Created
 
-3. **src/cli_rpg/main.py** (multiple locations)
-   - Added help text for dump-state command (line 46)
-   - Added command handler in `handle_exploration_command` (lines 917-920)
-   - Added special JSON mode handling in `run_json_mode` (lines 1281-1285)
+- **`tests/test_seed_option.py`**: Test suite for the new feature (5 tests)
 
-### New Test File
+## Implementation Details
 
-- **tests/test_dump_state.py** - 6 tests covering:
-  - Command recognition in KNOWN_COMMANDS
-  - Valid JSON output in non-interactive mode
-  - Character data presence (name, stats, inventory, quests)
-  - World data presence (locations, current_location)
-  - Theme presence
-  - Proper JSON mode output with `dump_state` type
+1. Added `--seed` argument to argparse parser (lines 1474-1479):
+   ```python
+   parser.add_argument(
+       "--seed",
+       type=int,
+       metavar="N",
+       help="Set random seed for reproducible gameplay"
+   )
+   ```
+
+2. Applied seed immediately after argument parsing, before any game logic runs (lines 1482-1484):
+   ```python
+   if parsed_args.seed is not None:
+       import random
+       random.seed(parsed_args.seed)
+   ```
 
 ## Test Results
 
-- All 6 new tests pass
-- Full test suite: 1488 tests pass
+All 5 new tests pass:
+- `test_seed_flag_accepted` - Flag is recognized without error
+- `test_seed_produces_reproducible_output` - Same seed = identical output
+- `test_different_seeds_may_produce_different_output` - Different seeds work
+- `test_seed_works_with_json_mode` - Works with `--json` flag
+- `test_seed_requires_integer` - Non-integer values rejected with error
 
-## Feature Behavior
-
-### Normal Mode (--non-interactive)
-```
-> dump-state
-{
-  "character": { ... },
-  "current_location": "Town Square",
-  "world": { ... },
-  "theme": "fantasy"
-}
-```
-
-### JSON Mode (--json)
-Emits a JSON Lines message with `type: "dump_state"`:
-```json
-{"type": "dump_state", "character": {...}, "current_location": "...", "world": {...}, "theme": "..."}
-```
+All 10 existing related tests continue to pass (test_non_interactive.py, test_main.py).
 
 ## E2E Validation
 
-The implementation can be validated with:
+To validate end-to-end:
 ```bash
-# Non-interactive mode
-echo "dump-state" | cli-rpg --non-interactive
-
-# JSON mode
-echo "dump-state" | cli-rpg --json
+# Run twice with same seed, output should be identical
+cli-rpg --non-interactive --seed 42 < commands.txt > out1.txt
+cli-rpg --non-interactive --seed 42 < commands.txt > out2.txt
+diff out1.txt out2.txt  # Should show no differences
 ```
-
-Both should output valid JSON containing the full game state with character stats, inventory, location, quests, and world data.

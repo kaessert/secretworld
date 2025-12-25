@@ -21,7 +21,7 @@ The basic `--non-interactive` mode has been implemented. The following enhanceme
 
 4. **Additional automation features**
    - Configurable delays/timeouts
-   - Deterministic mode option (fixed RNG seed)
+   - ~~Deterministic mode option (fixed RNG seed)~~ (DONE - `--seed` option implemented)
 
 ### Long-running AI simulation test suite
 **Status**: ACTIVE

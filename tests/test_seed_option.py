@@ -1,43 +1,3 @@
-# Implementation Plan: Deterministic Mode with `--seed` CLI Option
-
-## Summary
-Add a `--seed <int>` CLI argument to set Python's random seed at startup, enabling reproducible gameplay sessions for debugging and AI playtesting.
-
-## Spec
-- Add `--seed <int>` optional CLI argument to `main.py`
-- When provided, call `random.seed(value)` before any game logic runs
-- Works with both interactive and non-interactive modes
-- No behavioral change when `--seed` is not provided
-
-## Implementation Steps
-
-### 1. Add CLI Argument
-**File:** `src/cli_rpg/main.py` (lines 1457-1473)
-
-Add to argparse parser after `--log-file`:
-```python
-parser.add_argument(
-    "--seed",
-    type=int,
-    metavar="N",
-    help="Set random seed for reproducible gameplay"
-)
-```
-
-### 2. Apply Seed Early in main()
-**File:** `src/cli_rpg/main.py` (after line 1474, before any mode dispatch)
-
-Add immediately after `parsed_args = parser.parse_args(args)`:
-```python
-if parsed_args.seed is not None:
-    import random
-    random.seed(parsed_args.seed)
-```
-
-### 3. Create Test File
-**File:** `tests/test_seed_option.py`
-
-```python
 """Tests for --seed CLI option.
 
 Spec: Add --seed <int> flag to set random seed for reproducible gameplay.
@@ -51,7 +11,7 @@ class TestSeedOption:
     """Test --seed CLI option functionality."""
 
     def test_seed_flag_accepted(self):
-        """--seed flag is accepted without error."""
+        """Spec: --seed flag is accepted without error."""
         result = subprocess.run(
             [sys.executable, "-m", "cli_rpg.main", "--non-interactive", "--seed", "42"],
             input="",
@@ -62,7 +22,7 @@ class TestSeedOption:
         assert result.returncode == 0
 
     def test_seed_produces_reproducible_output(self):
-        """Same seed produces identical output across runs."""
+        """Spec: Same seed produces identical output across runs."""
         def run_with_seed(seed):
             result = subprocess.run(
                 [sys.executable, "-m", "cli_rpg.main", "--non-interactive", "--seed", str(seed)],
@@ -78,7 +38,7 @@ class TestSeedOption:
         assert output1 == output2, "Same seed should produce identical output"
 
     def test_different_seeds_may_produce_different_output(self):
-        """Different seeds can produce different output (not guaranteed but likely)."""
+        """Spec: Different seeds can produce different output (not guaranteed but likely)."""
         def run_with_seed(seed):
             result = subprocess.run(
                 [sys.executable, "-m", "cli_rpg.main", "--non-interactive", "--seed", str(seed)],
@@ -98,7 +58,7 @@ class TestSeedOption:
         assert output2  # Non-empty
 
     def test_seed_works_with_json_mode(self):
-        """--seed works alongside --json mode."""
+        """Spec: --seed works alongside --json mode."""
         result = subprocess.run(
             [sys.executable, "-m", "cli_rpg.main", "--json", "--seed", "42"],
             input="look\n",
@@ -109,7 +69,7 @@ class TestSeedOption:
         assert result.returncode == 0
 
     def test_seed_requires_integer(self):
-        """--seed requires an integer argument."""
+        """Spec: --seed requires an integer argument."""
         result = subprocess.run(
             [sys.executable, "-m", "cli_rpg.main", "--non-interactive", "--seed", "notanumber"],
             input="",
@@ -119,11 +79,3 @@ class TestSeedOption:
         )
         assert result.returncode != 0
         assert "invalid int value" in result.stderr.lower() or "error" in result.stderr.lower()
-```
-
-## Order of Implementation
-1. Add `--seed` argument to argparse in main.py
-2. Add `random.seed()` call after argument parsing
-3. Create tests/test_seed_option.py
-4. Run tests: `pytest tests/test_seed_option.py -v`
-5. Verify existing tests: `pytest tests/test_non_interactive.py tests/test_main.py -v`

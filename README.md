@@ -228,6 +228,9 @@ echo -e "look\nstatus\ninventory" | cli-rpg --non-interactive
 
 # From file
 cli-rpg --non-interactive < commands.txt
+
+# Reproducible runs with fixed seed
+cli-rpg --non-interactive --seed 42 < commands.txt
 ```
 
 **Features:**
@@ -236,6 +239,7 @@ cli-rpg --non-interactive < commands.txt
 - ANSI colors automatically disabled for machine-readable output
 - Uses a default character ("Agent") with balanced stats (10/10/10)
 - Runs without AI service for deterministic behavior
+- `--seed <int>` option for reproducible random outcomes (combat, loot, etc.)
 
 ### Gameplay Logging
 
