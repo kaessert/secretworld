@@ -1,102 +1,92 @@
-# Implementation Plan: Test Coverage Reporting and Improvement
+# Plan: Integration Tests for Coordinate-Based AI World Expansion
 
-## Overview
+## Summary
+Add tests for uncovered lines in `GameState.move()`:
+- **Lines 254-275**: Coordinate-based AI expansion via `expand_area()`
+- **Lines 311-312**: Autosave `IOError` silent failure
+- **Line 319**: Quest exploration message appending
 
-Current overall coverage: 89% (2831 statements, 308 missed).
-Only one module is below 80%: `main.py` at 78% (148 uncovered lines).
+## Test File
+`tests/test_game_state_ai_integration.py` (extend existing)
 
----
+## Tests to Add
 
-## Step 1: Configure pytest-cov in pyproject.toml
+### 1. `test_move_triggers_coordinate_based_ai_expansion`
+Create world with coordinates, mock `expand_area` to add location at target coords, verify move succeeds.
 
-**File:** `pyproject.toml`
+### 2. `test_move_coordinate_expansion_returns_failure_on_error`
+Mock `expand_area` to raise `AIServiceError`, verify returns `(False, "Failed to generate destination: ...")`.
 
-Add coverage configuration:
-```toml
-[tool.coverage.run]
-source = ["src/cli_rpg"]
-omit = ["*/tests/*"]
+### 3. `test_move_coordinate_expansion_fails_when_location_not_created`
+Mock `expand_area` to not place location, verify returns `(False, "Failed to generate destination.")`.
 
-[tool.coverage.report]
-fail_under = 80
-show_missing = true
-exclude_lines = [
-    "pragma: no cover",
-    "if __name__ == .__main__.:",
-]
+### 4. `test_move_autosave_ioerror_silent_failure`
+Patch `autosave` to raise `IOError`, verify move still succeeds.
 
-[tool.coverage.html]
-directory = "htmlcov"
+### 5. `test_move_appends_exploration_quest_messages`
+Create character with active exploration quest, move to location, verify quest message in output.
+
+## Implementation
+
+```python
+# New fixture for coordinate-based world
+@pytest.fixture
+def coord_world():
+    """World with coordinates for testing coordinate-based movement."""
+    town = Location(name="Town", description="A town.", coordinates=(0, 0))
+    town.connections = {"north": "Placeholder"}  # Exit but no destination
+    return {"Town": town}
+
+# Test 1: Coordinate expansion success
+@patch("cli_rpg.game_state.expand_area")
+def test_move_triggers_coordinate_based_ai_expansion(mock_expand, test_character, coord_world, mock_ai_service):
+    def add_location(world, ai_service, from_location, direction, theme, target_coords):
+        new_loc = Location(name="Northern Area", description="desc", coordinates=target_coords)
+        new_loc.connections = {"south": "Town"}
+        world["Northern Area"] = new_loc
+    mock_expand.side_effect = add_location
+
+    game = GameState(character=test_character, world=coord_world, starting_location="Town", ai_service=mock_ai_service)
+    success, msg = game.move("north")
+
+    assert success is True
+    assert game.current_location == "Northern Area"
+    mock_expand.assert_called_once()
+
+# Test 2: Expansion failure
+@patch("cli_rpg.game_state.expand_area")
+def test_move_coordinate_expansion_returns_failure_on_error(mock_expand, ...):
+    mock_expand.side_effect = AIServiceError("API failed")
+    success, msg = game.move("north")
+    assert success is False
+    assert "Failed to generate destination" in msg
+
+# Test 3: Expansion succeeds but no location created
+@patch("cli_rpg.game_state.expand_area")
+def test_move_coordinate_expansion_fails_when_location_not_created(mock_expand, ...):
+    mock_expand.return_value = None  # Does nothing
+    success, msg = game.move("north")
+    assert success is False
+    assert msg == "Failed to generate destination."
+
+# Test 4: Autosave IOError
+@patch("cli_rpg.game_state.autosave")
+def test_move_autosave_ioerror_silent_failure(mock_autosave, ...):
+    mock_autosave.side_effect = IOError("Disk full")
+    # Create world with existing destination
+    success, msg = game.move("north")
+    assert success is True  # Move succeeds despite autosave failure
+
+# Test 5: Quest exploration messages
+def test_move_appends_exploration_quest_messages(...):
+    # Add exploration quest to character
+    character.quests.append(quest_with_explore_objective)
+    success, msg = game.move("north")
+    assert "quest progress" in msg.lower() or objective tracked
 ```
 
-Add pytest-cov to dev dependencies:
-```toml
-[project.optional-dependencies]
-dev = [
-    ...
-    "pytest-cov>=4.0.0",
-]
-```
-
----
-
-## Step 2: Add Tests for Uncovered main.py Lines
-
-**File:** `tests/test_main_coverage.py`
-
-Target the critical uncovered functionality:
-
-### 2a. Character Save Prompt (lines 64-75)
-- `test_offer_save_character_saves_on_yes` - User answers 'y', character is saved
-- `test_offer_save_character_skips_on_no` - User answers 'n', character not saved
-- `test_offer_save_character_handles_io_error` - IOError caught, error message shown
-
-### 2b. Load Character Error Handling (lines 133-135, 143-158)
-- `test_load_character_handles_game_state_exception` - Exception during game_state load
-- `test_load_character_handles_invalid_input` - Non-numeric input returns None
-- `test_load_character_handles_file_not_found` - FileNotFoundError returns None
-- `test_load_character_handles_generic_exception` - Generic Exception caught
-
-### 2c. Combat Death During Various Commands (lines 274-278, 302-305, 334-340, 362-365)
-- `test_combat_defend_player_death` - Player dies after defend command
-- `test_combat_flee_failed_player_death` - Player dies after failed flee
-- `test_combat_cast_victory_with_quest_progress` - Cast kills enemy, triggers quest progress
-- `test_combat_cast_player_death` - Player dies after failed cast
-- `test_combat_use_item_player_death` - Player dies after using item
-
-### 2d. AI Conversation Error Path (lines 208-210)
-- `test_conversation_ai_error_fallback` - AI service exception triggers fallback response
-
-### 2e. Combat Quit During Combat (lines 403-414)
-Already partially tested but ensure quit confirmation path is covered.
-
-### 2f. Game Loop Death/Recovery (lines 915-926, 936)
-- `test_game_loop_death_return_to_menu` - Player dead, answers 'y' returns to menu
-- `test_game_loop_death_continue` - Player dead, answers 'n' resurrects player
-- `test_game_loop_empty_input_ignored` - Empty command input continues loop
-
-### 2g. Start Game AI Error Recovery (lines 987-1014)
-- `test_start_game_ai_error_retry` - AI fails, user retries
-- `test_start_game_ai_error_use_default` - AI fails, user chooses default world
-- `test_start_game_ai_error_return_to_menu` - AI fails, user returns to menu
-
----
-
-## Step 3: Run Coverage and Verify
-
-```bash
-pytest --cov=src/cli_rpg --cov-report=html --cov-report=term-missing
-```
-
-Verify:
-1. `main.py` reaches >= 80% coverage
-2. Overall coverage stays >= 89%
-3. HTML report generated in `htmlcov/`
-
----
-
-## Implementation Order
-
-1. Update `pyproject.toml` with coverage config
-2. Create `tests/test_main_coverage.py` with tests for uncovered lines
-3. Run tests to verify coverage improvement
+## Steps
+1. Add `coord_world` fixture with coordinates
+2. Add 5 tests with appropriate mocking
+3. Run `pytest tests/test_game_state_ai_integration.py -v`
+4. Verify coverage on lines 254-275, 311-312, 319

@@ -310,3 +310,184 @@ def test_game_state_passes_context_to_ai_service(test_character, basic_world, mo
     assert call_args[1]["source_location"] == "Town Square"
     assert call_args[1]["direction"] == "north"
     assert "Town Square" in call_args[1]["context_locations"]
+
+
+# ===== Tests for coordinate-based AI expansion (lines 254-275) =====
+
+
+@pytest.fixture
+def coord_world():
+    """Create world with coordinates for testing coordinate-based movement."""
+    town = Location(name="Town", description="A town with coordinates.", coordinates=(0, 0))
+    town.connections = {"north": "Placeholder"}  # Exit exists but no destination
+    return {"Town": town}
+
+
+@pytest.mark.usefixtures("mock_ai_service")
+def test_move_triggers_coordinate_based_ai_expansion(test_character, coord_world, mock_ai_service):
+    """Test move triggers expand_area for coordinate-based worlds (lines 254-270)."""
+    from unittest.mock import patch
+
+    def mock_expand_area(world, ai_service, from_location, direction, theme, target_coords):
+        """Mock expand_area that creates a location at target coords."""
+        new_loc = Location(
+            name="Northern Area",
+            description="A generated area to the north.",
+            coordinates=target_coords,
+        )
+        new_loc.connections = {"south": "Town"}
+        world["Northern Area"] = new_loc
+
+    with patch("cli_rpg.game_state.expand_area", side_effect=mock_expand_area) as mock_expand:
+        game = GameState(
+            character=test_character,
+            world=coord_world,
+            starting_location="Town",
+            ai_service=mock_ai_service,
+            theme="fantasy",
+        )
+
+        success, msg = game.move("north")
+
+        assert success is True
+        assert game.current_location == "Northern Area"
+        mock_expand.assert_called_once()
+        # Verify correct parameters were passed
+        call_kwargs = mock_expand.call_args[1]
+        assert call_kwargs["from_location"] == "Town"
+        assert call_kwargs["direction"] == "north"
+        assert call_kwargs["target_coords"] == (0, 1)
+
+
+def test_move_coordinate_expansion_returns_failure_on_error(test_character, coord_world, mock_ai_service):
+    """Test move returns failure when expand_area raises AIServiceError (lines 273-275)."""
+    from unittest.mock import patch
+    from cli_rpg.ai_service import AIServiceError
+
+    with patch("cli_rpg.game_state.expand_area", side_effect=AIServiceError("API failed")):
+        game = GameState(
+            character=test_character,
+            world=coord_world,
+            starting_location="Town",
+            ai_service=mock_ai_service,
+            theme="fantasy",
+        )
+
+        success, msg = game.move("north")
+
+        assert success is False
+        assert "Failed to generate destination" in msg
+        assert "API failed" in msg
+
+
+def test_move_coordinate_expansion_fails_when_location_not_created(
+    test_character, coord_world, mock_ai_service
+):
+    """Test move fails when expand_area runs but doesn't create location (lines 271-272)."""
+    from unittest.mock import patch
+
+    def mock_expand_area_no_create(world, ai_service, from_location, direction, theme, target_coords):
+        """Mock expand_area that does not create any location."""
+        pass  # Does nothing
+
+    with patch("cli_rpg.game_state.expand_area", side_effect=mock_expand_area_no_create):
+        game = GameState(
+            character=test_character,
+            world=coord_world,
+            starting_location="Town",
+            ai_service=mock_ai_service,
+            theme="fantasy",
+        )
+
+        success, msg = game.move("north")
+
+        assert success is False
+        assert msg == "Failed to generate destination."
+
+
+# ===== Test for autosave IOError silent failure (lines 311-312) =====
+
+
+def test_move_autosave_ioerror_silent_failure(test_character, mock_ai_service):
+    """Test move succeeds even when autosave raises IOError (lines 311-312)."""
+    from unittest.mock import patch
+
+    # Create world with existing destination (so move will succeed)
+    town = Location(
+        name="Town Square",
+        description="A town square.",
+        connections={"north": "Forest"},
+    )
+    forest = Location(
+        name="Forest",
+        description="A forest.",
+        connections={"south": "Town Square"},
+    )
+    world = {"Town Square": town, "Forest": forest}
+
+    with patch("cli_rpg.game_state.autosave", side_effect=IOError("Disk full")):
+        game = GameState(
+            character=test_character,
+            world=world,
+            starting_location="Town Square",
+            ai_service=mock_ai_service,
+            theme="fantasy",
+        )
+
+        success, msg = game.move("north")
+
+        # Move should succeed despite autosave failure
+        assert success is True
+        assert game.current_location == "Forest"
+
+
+# ===== Test for quest exploration messages (line 319) =====
+
+
+def test_move_appends_exploration_quest_messages(test_character, mock_ai_service):
+    """Test move appends quest progress messages when exploring (line 319)."""
+    from cli_rpg.models.quest import Quest, QuestStatus, ObjectiveType
+
+    # Create world with destination
+    town = Location(
+        name="Town Square",
+        description="A town square.",
+        connections={"north": "Ancient Ruins"},
+    )
+    ruins = Location(
+        name="Ancient Ruins",
+        description="Ancient ruins to explore.",
+        connections={"south": "Town Square"},
+    )
+    world = {"Town Square": town, "Ancient Ruins": ruins}
+
+    # Add exploration quest to character
+    explore_quest = Quest(
+        name="Find the Ruins",
+        description="Explore the ancient ruins.",
+        objective_type=ObjectiveType.EXPLORE,
+        target="Ancient Ruins",
+        status=QuestStatus.ACTIVE,
+        target_count=1,
+        current_count=0,
+        quest_giver="Elder",
+    )
+    test_character.quests.append(explore_quest)
+
+    game = GameState(
+        character=test_character,
+        world=world,
+        starting_location="Town Square",
+        ai_service=mock_ai_service,
+        theme="fantasy",
+    )
+
+    success, msg = game.move("north")
+
+    assert success is True
+    # Quest should be marked as ready to turn in
+    assert explore_quest.status == QuestStatus.READY_TO_TURN_IN
+    # Message should include quest completion notification
+    assert "Quest objectives complete" in msg
+    assert "Find the Ruins" in msg
+    assert "Elder" in msg
