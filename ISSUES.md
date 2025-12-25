@@ -541,9 +541,12 @@ Combat is too simple - attack until enemy dies. Core status effect system has be
 - ✅ Status effect display in combat status
 - ✅ Status effects cleared on combat end
 - ✅ Full persistence/serialization support
+- ✅ Buff/debuff status effects (buff_attack, buff_defense, debuff_attack, debuff_defense)
+- ✅ Buff/debuff modifies attack power and defense by percentage (stat_modifier field)
+- ✅ Multiple buffs/debuffs stack additively
+- ✅ Buff/debuff serialization with backward compatibility
 
 **Remaining features**:
-- Additional status effects: buff/debuff
 - Elemental strengths and weaknesses
 - Defensive options: block, dodge, parry
 - Enemy attack patterns and telegraphed special moves

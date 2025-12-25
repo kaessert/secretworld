@@ -142,21 +142,43 @@ class Character:
         """
         return self.health > 0
 
-    def get_attack_power(self) -> int:
-        """Get total attack power including equipped weapon bonus.
+    def _get_stat_modifier(self, buff_type: str, debuff_type: str) -> float:
+        """Calculate the total stat modifier from buffs and debuffs.
+
+        Args:
+            buff_type: Effect type for buffs (e.g., "buff_attack")
+            debuff_type: Effect type for debuffs (e.g., "debuff_attack")
 
         Returns:
-            Strength plus weapon damage bonus
+            Combined modifier (e.g., 1.25 for +25% buff, 0.75 for -25% debuff)
         """
-        return self.strength + self.inventory.get_damage_bonus()
+        modifier = 1.0
+        for effect in self.status_effects:
+            if effect.effect_type == buff_type:
+                modifier += effect.stat_modifier
+            elif effect.effect_type == debuff_type:
+                modifier -= effect.stat_modifier
+        return modifier
+
+    def get_attack_power(self) -> int:
+        """Get total attack power including equipped weapon bonus and buffs/debuffs.
+
+        Returns:
+            Strength plus weapon damage bonus, modified by attack buffs/debuffs
+        """
+        base_attack = self.strength + self.inventory.get_damage_bonus()
+        modifier = self._get_stat_modifier("buff_attack", "debuff_attack")
+        return int(base_attack * modifier)
 
     def get_defense(self) -> int:
-        """Get total defense including equipped armor bonus.
+        """Get total defense including equipped armor bonus and buffs/debuffs.
 
         Returns:
-            Constitution plus armor defense bonus
+            Constitution plus armor defense bonus, modified by defense buffs/debuffs
         """
-        return self.constitution + self.inventory.get_defense_bonus()
+        base_defense = self.constitution + self.inventory.get_defense_bonus()
+        modifier = self._get_stat_modifier("buff_defense", "debuff_defense")
+        return int(base_defense * modifier)
 
     def equip_item(self, item: "Item") -> bool:
         """Equip an item from inventory.

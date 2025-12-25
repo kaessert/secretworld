@@ -70,14 +70,43 @@ class Enemy:
         """
         return self.health > 0
     
-    def calculate_damage(self) -> int:
-        """
-        Compute attack damage.
+    def _get_stat_modifier(self, buff_type: str, debuff_type: str) -> float:
+        """Calculate the total stat modifier from buffs and debuffs.
+
+        Args:
+            buff_type: Effect type for buffs (e.g., "buff_attack")
+            debuff_type: Effect type for debuffs (e.g., "debuff_attack")
 
         Returns:
-            Attack power value
+            Combined modifier (e.g., 1.25 for +25% buff, 0.75 for -25% debuff)
         """
-        return self.attack_power
+        modifier = 1.0
+        for effect in self.status_effects:
+            if effect.effect_type == buff_type:
+                modifier += effect.stat_modifier
+            elif effect.effect_type == debuff_type:
+                modifier -= effect.stat_modifier
+        return modifier
+
+    def calculate_damage(self) -> int:
+        """
+        Compute attack damage, including buff/debuff modifiers.
+
+        Returns:
+            Attack power value modified by attack buffs/debuffs
+        """
+        modifier = self._get_stat_modifier("buff_attack", "debuff_attack")
+        return int(self.attack_power * modifier)
+
+    def get_defense(self) -> int:
+        """
+        Get defense value, including buff/debuff modifiers.
+
+        Returns:
+            Defense value modified by defense buffs/debuffs
+        """
+        modifier = self._get_stat_modifier("buff_defense", "debuff_defense")
+        return int(self.defense * modifier)
 
     def apply_status_effect(self, effect: "StatusEffect") -> None:
         """Apply a status effect to this enemy.

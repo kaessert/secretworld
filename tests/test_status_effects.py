@@ -70,7 +70,8 @@ class TestStatusEffectModel:
             "name": "Poison",
             "effect_type": "dot",
             "damage_per_turn": 4,
-            "duration": 3
+            "duration": 3,
+            "stat_modifier": 0.0
         }
 
         # Restore from dict
@@ -79,6 +80,7 @@ class TestStatusEffectModel:
         assert restored.effect_type == effect.effect_type
         assert restored.damage_per_turn == effect.damage_per_turn
         assert restored.duration == effect.duration
+        assert restored.stat_modifier == effect.stat_modifier
 
 
 # ============================================================================
@@ -1272,3 +1274,361 @@ class TestCombatBleed:
         # Health should be reduced by enemy attack + bleed tick
         assert "Bleed" in message or "bleed" in message
         assert character.health < initial_health
+
+
+# ============================================================================
+# Buff/Debuff Status Effect Tests (Spec: Stat-modifying status effects)
+# ============================================================================
+
+
+class TestBuffDebuffStatusEffect:
+    """Tests for buff/debuff status effect creation and behavior."""
+
+    def test_buff_effect_creation_with_stat_modifier(self):
+        """Spec: Buff effects have a stat_modifier field (percentage as decimal)."""
+        effect = StatusEffect(
+            name="Strength Buff",
+            effect_type="buff_attack",
+            damage_per_turn=0,
+            duration=3,
+            stat_modifier=0.25  # +25% attack
+        )
+        assert effect.name == "Strength Buff"
+        assert effect.effect_type == "buff_attack"
+        assert effect.damage_per_turn == 0
+        assert effect.duration == 3
+        assert effect.stat_modifier == 0.25
+
+    def test_debuff_effect_creation_with_stat_modifier(self):
+        """Spec: Debuff effects have a stat_modifier field for reduction."""
+        effect = StatusEffect(
+            name="Weakness",
+            effect_type="debuff_attack",
+            damage_per_turn=0,
+            duration=3,
+            stat_modifier=0.25  # -25% attack
+        )
+        assert effect.name == "Weakness"
+        assert effect.effect_type == "debuff_attack"
+        assert effect.stat_modifier == 0.25
+
+    def test_buff_debuff_tick_no_damage(self):
+        """Spec: Buffs/debuffs don't deal damage on tick."""
+        buff = StatusEffect(
+            name="Strength Buff",
+            effect_type="buff_attack",
+            damage_per_turn=0,
+            duration=3,
+            stat_modifier=0.25
+        )
+        damage, expired = buff.tick()
+        assert damage == 0  # No damage for buffs
+        assert expired is False
+        assert buff.duration == 2
+
+    def test_buff_debuff_serialization(self):
+        """Spec: to_dict/from_dict includes stat_modifier field."""
+        effect = StatusEffect(
+            name="Defense Buff",
+            effect_type="buff_defense",
+            damage_per_turn=0,
+            duration=3,
+            stat_modifier=0.25
+        )
+        data = effect.to_dict()
+
+        assert data == {
+            "name": "Defense Buff",
+            "effect_type": "buff_defense",
+            "damage_per_turn": 0,
+            "duration": 3,
+            "stat_modifier": 0.25
+        }
+
+        restored = StatusEffect.from_dict(data)
+        assert restored.stat_modifier == 0.25
+
+    def test_stat_modifier_defaults_to_zero(self):
+        """Spec: stat_modifier defaults to 0.0 for backward compatibility."""
+        effect = StatusEffect(
+            name="Poison",
+            effect_type="dot",
+            damage_per_turn=4,
+            duration=3
+        )
+        assert effect.stat_modifier == 0.0
+
+
+class TestCharacterBuffDebuff:
+    """Tests for buff/debuff effects on Character stats."""
+
+    @pytest.fixture
+    def character(self):
+        """Create a test character."""
+        return Character(name="TestHero", strength=10, dexterity=10, intelligence=10)
+
+    def test_attack_buff_increases_attack_power(self, character):
+        """Spec: Strength buff increases attack power by percentage."""
+        base_attack = character.get_attack_power()
+
+        buff = StatusEffect(
+            name="Strength Buff",
+            effect_type="buff_attack",
+            damage_per_turn=0,
+            duration=3,
+            stat_modifier=0.25  # +25%
+        )
+        character.apply_status_effect(buff)
+
+        # Attack should increase by 25%
+        expected_attack = int(base_attack * 1.25)
+        assert character.get_attack_power() == expected_attack
+
+    def test_defense_buff_increases_defense(self, character):
+        """Spec: Defense buff increases defense by percentage."""
+        base_defense = character.get_defense()
+
+        buff = StatusEffect(
+            name="Defense Buff",
+            effect_type="buff_defense",
+            damage_per_turn=0,
+            duration=3,
+            stat_modifier=0.25  # +25%
+        )
+        character.apply_status_effect(buff)
+
+        # Defense should increase by 25%
+        expected_defense = int(base_defense * 1.25)
+        assert character.get_defense() == expected_defense
+
+    def test_attack_debuff_decreases_attack_power(self, character):
+        """Spec: Weakness debuff reduces attack power by percentage."""
+        base_attack = character.get_attack_power()
+
+        debuff = StatusEffect(
+            name="Weakness",
+            effect_type="debuff_attack",
+            damage_per_turn=0,
+            duration=3,
+            stat_modifier=0.25  # -25%
+        )
+        character.apply_status_effect(debuff)
+
+        # Attack should decrease by 25%
+        expected_attack = int(base_attack * 0.75)
+        assert character.get_attack_power() == expected_attack
+
+    def test_defense_debuff_decreases_defense(self, character):
+        """Spec: Vulnerability debuff reduces defense by percentage."""
+        base_defense = character.get_defense()
+
+        debuff = StatusEffect(
+            name="Vulnerability",
+            effect_type="debuff_defense",
+            damage_per_turn=0,
+            duration=3,
+            stat_modifier=0.25  # -25%
+        )
+        character.apply_status_effect(debuff)
+
+        # Defense should decrease by 25%
+        expected_defense = int(base_defense * 0.75)
+        assert character.get_defense() == expected_defense
+
+    def test_multiple_buffs_stack_additively(self, character):
+        """Spec: Multiple effects of same type stack additively."""
+        base_attack = character.get_attack_power()
+
+        buff1 = StatusEffect(
+            name="Strength Buff",
+            effect_type="buff_attack",
+            damage_per_turn=0,
+            duration=3,
+            stat_modifier=0.25  # +25%
+        )
+        buff2 = StatusEffect(
+            name="Battle Fury",
+            effect_type="buff_attack",
+            damage_per_turn=0,
+            duration=3,
+            stat_modifier=0.25  # +25%
+        )
+        character.apply_status_effect(buff1)
+        character.apply_status_effect(buff2)
+
+        # Two +25% buffs = +50% total
+        expected_attack = int(base_attack * 1.50)
+        assert character.get_attack_power() == expected_attack
+
+    def test_buff_expires_restores_normal_stats(self, character):
+        """Spec: Stats return to normal when buff expires."""
+        base_attack = character.get_attack_power()
+
+        buff = StatusEffect(
+            name="Strength Buff",
+            effect_type="buff_attack",
+            damage_per_turn=0,
+            duration=1,  # Will expire after first tick
+            stat_modifier=0.25
+        )
+        character.apply_status_effect(buff)
+
+        # Tick the effect to expire it
+        character.tick_status_effects()
+
+        # Attack should return to base
+        assert character.get_attack_power() == base_attack
+
+
+class TestEnemyBuffDebuff:
+    """Tests for buff/debuff effects on Enemy stats."""
+
+    def test_enemy_attack_power_affected_by_debuff(self):
+        """Spec: Enemy with weakness deals less damage."""
+        enemy = Enemy(
+            name="Wolf",
+            health=50,
+            max_health=50,
+            attack_power=20,
+            defense=2,
+            xp_reward=30
+        )
+        base_damage = enemy.calculate_damage()
+
+        debuff = StatusEffect(
+            name="Weakness",
+            effect_type="debuff_attack",
+            damage_per_turn=0,
+            duration=3,
+            stat_modifier=0.25  # -25%
+        )
+        enemy.apply_status_effect(debuff)
+
+        # Damage should decrease by 25%
+        expected_damage = int(base_damage * 0.75)
+        assert enemy.calculate_damage() == expected_damage
+
+    def test_enemy_defense_affected_by_debuff(self):
+        """Spec: Enemy with vulnerability takes more damage (lower defense)."""
+        enemy = Enemy(
+            name="Wolf",
+            health=50,
+            max_health=50,
+            attack_power=10,
+            defense=20,  # High defense for testing
+            xp_reward=30
+        )
+
+        debuff = StatusEffect(
+            name="Vulnerability",
+            effect_type="debuff_defense",
+            damage_per_turn=0,
+            duration=3,
+            stat_modifier=0.25  # -25%
+        )
+        enemy.apply_status_effect(debuff)
+
+        # Defense should decrease by 25%
+        expected_defense = int(20 * 0.75)  # 15
+        assert enemy.get_defense() == expected_defense
+
+    def test_enemy_attack_power_affected_by_buff(self):
+        """Spec: Enemy with attack buff deals more damage."""
+        enemy = Enemy(
+            name="Enraged Wolf",
+            health=50,
+            max_health=50,
+            attack_power=20,
+            defense=2,
+            xp_reward=30
+        )
+        base_damage = enemy.calculate_damage()
+
+        buff = StatusEffect(
+            name="Enrage",
+            effect_type="buff_attack",
+            damage_per_turn=0,
+            duration=3,
+            stat_modifier=0.50  # +50%
+        )
+        enemy.apply_status_effect(buff)
+
+        # Damage should increase by 50%
+        expected_damage = int(base_damage * 1.50)
+        assert enemy.calculate_damage() == expected_damage
+
+
+class TestCombatBuffDebuff:
+    """Tests for buff/debuff effects in combat."""
+
+    @pytest.fixture
+    def character(self):
+        """Create a test character."""
+        return Character(name="TestHero", strength=10, dexterity=10, intelligence=10)
+
+    @pytest.fixture
+    def normal_enemy(self):
+        """Create a test enemy without special abilities."""
+        return Enemy(
+            name="Wolf",
+            health=50,
+            max_health=50,
+            attack_power=10,
+            defense=2,
+            xp_reward=30
+        )
+
+    def test_buff_displayed_in_combat_status(self, character, normal_enemy):
+        """Spec: Shows active buffs in combat status."""
+        combat = CombatEncounter(player=character, enemy=normal_enemy)
+        combat.start()
+
+        buff = StatusEffect(
+            name="Strength Buff",
+            effect_type="buff_attack",
+            damage_per_turn=0,
+            duration=3,
+            stat_modifier=0.25
+        )
+        character.apply_status_effect(buff)
+
+        status = combat.get_status()
+
+        assert "Strength Buff" in status
+
+    def test_debuff_displayed_in_combat_status(self, character, normal_enemy):
+        """Spec: Shows active debuffs in combat status."""
+        combat = CombatEncounter(player=character, enemy=normal_enemy)
+        combat.start()
+
+        debuff = StatusEffect(
+            name="Weakness",
+            effect_type="debuff_attack",
+            damage_per_turn=0,
+            duration=3,
+            stat_modifier=0.25
+        )
+        character.apply_status_effect(debuff)
+
+        status = combat.get_status()
+
+        assert "Weakness" in status
+
+    def test_buffs_cleared_on_combat_end(self, character, normal_enemy):
+        """Spec: Clean slate after combat - buffs are cleared."""
+        combat = CombatEncounter(player=character, enemy=normal_enemy)
+        combat.start()
+
+        buff = StatusEffect(
+            name="Strength Buff",
+            effect_type="buff_attack",
+            damage_per_turn=0,
+            duration=3,
+            stat_modifier=0.25
+        )
+        character.apply_status_effect(buff)
+        assert len(character.status_effects) == 1
+
+        combat.end_combat(victory=True)
+
+        assert len(character.status_effects) == 0

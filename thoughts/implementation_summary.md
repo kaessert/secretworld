@@ -1,65 +1,82 @@
-# Implementation Summary: Bleed Status Effect
+# Implementation Summary: Buff/Debuff Status Effects
 
 ## What Was Implemented
 
-Added "Bleed" damage-over-time (DOT) effect following the established poison/burn pattern:
-- **Effect type**: DOT (uses existing StatusEffect infrastructure)
-- **Bleed chance**: 20% on attack
-- **Bleed damage**: 3 per turn
-- **Bleed duration**: 4 turns
-- **Thematic enemies**: Wolf, bear, lion, cat, claw, blade, razor, fang
+Added buff and debuff status effects to the combat system that modify attack power and defense.
 
-## Files Modified
+### Features
 
-### 1. `src/cli_rpg/models/enemy.py`
-- Added three new dataclass fields:
-  - `bleed_chance: float = 0.0`
-  - `bleed_damage: int = 0`
-  - `bleed_duration: int = 0`
-- Added bleed fields to `to_dict()` serialization
-- Added bleed fields to `from_dict()` deserialization
+**Buff Effects** (enhance stats):
+- **buff_attack**: Increases attack power by percentage (e.g., +25%)
+- **buff_defense**: Increases defense by percentage (e.g., +25%)
 
-### 2. `src/cli_rpg/combat.py`
-- Added bleed application logic in `enemy_turn()` method (after freeze check, ~line 551-563)
-- Added bleed detection in `spawn_enemy()` function (~line 885-892)
-- Added bleed fields to Enemy constructor call in `spawn_enemy()` (~line 913-915)
+**Debuff Effects** (weaken targets):
+- **debuff_attack**: Reduces attack power by percentage (e.g., -25% for Weakness)
+- **debuff_defense**: Reduces defense by percentage (e.g., -25% for Vulnerability)
 
-### 3. `tests/test_status_effects.py`
-- Added `TestBleedStatusEffect` class with 3 tests:
-  - `test_bleed_effect_creation` - Verifies Bleed DOT effect with expected values
-  - `test_bleed_effect_tick_deals_damage` - Verifies 3 damage per turn
-  - `test_bleed_effect_expires_correctly` - Verifies 4 turn duration
+**Mechanics**:
+- Effects use `stat_modifier` field (percentage as decimal, e.g., 0.25 = 25%)
+- Multiple effects of the same type stack additively (two +25% buffs = +50%)
+- Duration-based (decrements each turn like existing DOT effects)
+- Buffs/debuffs are cleared at combat end
+- Fully serializable for save/load functionality
 
-- Added `TestEnemyBleed` class with 3 tests:
-  - `test_enemy_with_bleed_fields` - Verifies enemy can have bleed_chance, bleed_damage, bleed_duration
-  - `test_enemy_default_no_bleed` - Non-bleed enemies have 0 defaults
-  - `test_enemy_bleed_serialization` - Verifies to_dict/from_dict round-trip
+### Files Modified
 
-- Added `TestCombatBleed` class with 2 tests:
-  - `test_bleed_applies_in_combat` - Enemy with 100% bleed_chance applies Bleed
-  - `test_bleed_ticks_during_enemy_turn` - Bleed deals damage each turn
+1. **`src/cli_rpg/models/status_effect.py`**
+   - Added `stat_modifier: float = 0.0` field to StatusEffect dataclass
+   - Updated docstring with new effect types
+   - Updated `to_dict()` to include stat_modifier
+   - Updated `from_dict()` to restore stat_modifier (with backward compatibility)
 
-### 4. `tests/test_enemy.py`
-- Updated `test_to_dict_serializes_enemy` to include bleed fields in expected dict
+2. **`src/cli_rpg/models/character.py`**
+   - Added `_get_stat_modifier(buff_type, debuff_type)` helper method
+   - Modified `get_attack_power()` to apply buff_attack/debuff_attack modifiers
+   - Modified `get_defense()` to apply buff_defense/debuff_defense modifiers
+
+3. **`src/cli_rpg/models/enemy.py`**
+   - Added `_get_stat_modifier(buff_type, debuff_type)` helper method
+   - Modified `calculate_damage()` to apply buff_attack/debuff_attack modifiers
+   - Added `get_defense()` method to apply buff_defense/debuff_defense modifiers
+
+4. **`tests/test_status_effects.py`**
+   - Added 17 new tests for buff/debuff functionality:
+     - `TestBuffDebuffStatusEffect`: 5 tests for StatusEffect model
+     - `TestCharacterBuffDebuff`: 6 tests for Character buff/debuff
+     - `TestEnemyBuffDebuff`: 3 tests for Enemy buff/debuff
+     - `TestCombatBuffDebuff`: 3 tests for combat integration
+   - Updated existing serialization test to include stat_modifier
 
 ## Test Results
 
-All 1790 tests pass, including 8 new bleed-specific tests.
+```
+pytest tests/test_status_effects.py -v
+============================== 75 passed ==============================
+
+pytest
+============================== 1807 passed ==============================
+```
+
+All 17 new buff/debuff tests pass, and the full test suite (1807 tests) passes without regressions.
+
+## E2E Validation Suggestions
+
+To manually verify in-game:
+1. Create a game and enter combat
+2. Apply a strength buff to the player (would need a consumable or spell that applies it)
+3. Verify attack damage increases by the expected percentage
+4. Apply a weakness debuff to an enemy
+5. Verify enemy deals reduced damage
+
+Note: Currently there are no in-game sources that apply these effects. Future work could add:
+- Consumable items that grant buffs (e.g., "Strength Potion")
+- Enemy abilities that apply debuffs to the player
+- Spell effects that apply debuffs to enemies
 
 ## Design Decisions
 
-1. **Followed existing patterns**: Bleed implementation mirrors the poison/burn pattern exactly, ensuring consistency.
-2. **Thematic enemy selection**: Chose slashing/claw-based enemies (wolf, bear, lion, etc.) for bleed since they have natural claws/fangs that would cause bleeding wounds.
-3. **Balanced stats**:
-   - Lower damage (3) than burn (5) but higher than base
-   - Longer duration (4 turns) than burn (2) and poison (3)
-   - Same 20% chance as other DOT effects
+1. **Additive Stacking**: Multiple buffs/debuffs stack additively rather than multiplicatively. Two +25% buffs result in +50%, not +56.25%. This is simpler to understand and balance.
 
-## E2E Validation
+2. **Stat Modifier as Percentage**: The `stat_modifier` field represents the percentage change (0.25 = 25%). Buffs add this value, debuffs subtract it. This allows flexible modifier amounts.
 
-To validate manually:
-1. Start a game and encounter a Wolf or Bear enemy
-2. Get attacked - there's a 20% chance to apply Bleed
-3. When Bleed is applied, you should see "causes you to bleed!" message
-4. Each turn, Bleed should deal 3 damage with "Bleed" in the status messages
-5. After 4 turns, Bleed expires with "worn off" message
+3. **Backward Compatibility**: The `stat_modifier` field defaults to 0.0, and `from_dict()` uses `.get()` with a default, ensuring old save files without this field still load correctly.

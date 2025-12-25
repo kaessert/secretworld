@@ -10,15 +10,18 @@ class StatusEffect:
 
     Attributes:
         name: Display name of the effect (e.g., "Poison", "Burn")
-        effect_type: Type of effect - "dot" (damage over time), "buff", "debuff"
+        effect_type: Type of effect - "dot" (damage over time), "buff_attack",
+                     "buff_defense", "debuff_attack", "debuff_defense", "stun", "freeze"
         damage_per_turn: Damage dealt each tick for DOT effects
         duration: Number of turns remaining
+        stat_modifier: Percentage modifier for buff/debuff effects (as decimal, e.g., 0.25 = 25%)
     """
 
     name: str
-    effect_type: str  # "dot", "buff", "debuff", "stun"
+    effect_type: str  # "dot", "buff_attack", "buff_defense", "debuff_attack", "debuff_defense", "stun", "freeze"
     damage_per_turn: int
     duration: int
+    stat_modifier: float = 0.0
 
     def tick(self) -> Tuple[int, bool]:
         """Process one turn of the status effect.
@@ -46,6 +49,7 @@ class StatusEffect:
             "effect_type": self.effect_type,
             "damage_per_turn": self.damage_per_turn,
             "duration": self.duration,
+            "stat_modifier": self.stat_modifier,
         }
 
     @staticmethod
@@ -63,4 +67,5 @@ class StatusEffect:
             effect_type=data["effect_type"],
             damage_per_turn=data["damage_per_turn"],
             duration=data["duration"],
+            stat_modifier=data.get("stat_modifier", 0.0),
         )
