@@ -48,8 +48,6 @@ class Item:
             raise ValueError(f"Name must be at most {self.MAX_NAME_LENGTH} characters")
 
         # Validate description
-        if not self.description:
-            raise ValueError(f"description must be at least {self.MIN_DESC_LENGTH} character")
         if len(self.description) < self.MIN_DESC_LENGTH:
             raise ValueError(f"description must be at least {self.MIN_DESC_LENGTH} character")
         if len(self.description) > self.MAX_DESC_LENGTH:
