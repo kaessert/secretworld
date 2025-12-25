@@ -60,21 +60,6 @@ Once non-interactive mode is fully implemented, set up periodic long-running sim
 
 **Depends on**: Non-interactive mode enhancements (structured output, logging)
 
-### NPC persistence issues (PARTIALLY RESOLVED)
-**Status**: PARTIALLY RESOLVED
-
-~~NPCs only in starting location~~ - FIXED: AI-generated locations now include thematically appropriate NPCs (merchants, quest-givers, villagers).
-
-**Remaining issue**:
-
-1. **NPCs don't persist in locations** (needs verification)
-   - NPCs should be permanent fixtures of their locations
-   - Revisiting a location should show the same NPCs
-   - Exception: special quest NPCs may move or disappear after quest completion
-
-**Fix areas**:
-- `persistence.py`: Verify NPC data is saved/loaded with locations (likely already working)
-
 ### Blocked location markers on map
 **Status**: ACTIVE
 
@@ -527,3 +512,14 @@ Users requesting ASCII art for things like locations, NPCs, and monsters in comb
 
 All ASCII art is persisted with entity data and survives save/load cycles.
 
+### NPC persistence issues
+**Status**: RESOLVED
+
+**Description**: NPCs were suspected of not persisting when saving/loading game state.
+
+**Investigation**: Code review confirmed that NPC persistence was already correctly implemented:
+- `Location.to_dict()` serializes NPCs: `"npcs": [npc.to_dict() for npc in self.npcs]`
+- `Location.from_dict()` deserializes NPCs: `npcs = [NPC.from_dict(npc_data) for npc_data in data.get("npcs", [])]`
+- `NPC.to_dict()/from_dict()` handle all fields including `conversation_history`, `shop`, and `offered_quests`
+
+**Fix**: Added explicit test `test_load_game_state_preserves_npcs` in `tests/test_persistence_game_state.py` to verify NPC persistence through save/load cycles, confirming all NPC fields are preserved.

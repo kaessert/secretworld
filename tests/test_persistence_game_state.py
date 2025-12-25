@@ -346,3 +346,59 @@ class TestLoadGameState:
         assert "Start" in loaded_state.world
         # Legacy location should have no coordinates
         assert loaded_state.world["Start"].coordinates is None
+
+    def test_load_game_state_preserves_npcs(self, tmp_path):
+        """Test that save -> load preserves NPCs at locations.
+
+        Spec: NPCs should persist through save/load cycle with all their fields.
+        """
+        from cli_rpg.models.npc import NPC
+
+        character = Character("Hero", strength=10, dexterity=10, intelligence=10)
+
+        # Create an NPC with various attributes
+        merchant = NPC(
+            name="Town Merchant",
+            description="A friendly shopkeeper",
+            dialogue="Welcome to my shop!",
+            is_merchant=True,
+            greetings=["Hello there!", "Welcome back!"],
+            conversation_history=[
+                {"role": "player", "content": "What do you sell?"},
+                {"role": "npc", "content": "I have potions and weapons."}
+            ]
+        )
+
+        # Create location with the NPC
+        world = {
+            "Market": Location(
+                "Market", "A busy marketplace", {"north": "Town"},
+                coordinates=(0, 0), npcs=[merchant]
+            ),
+            "Town": Location("Town", "A quiet town", {"south": "Market"}, coordinates=(0, 1))
+        }
+        game_state = GameState(character, world, "Market")
+
+        # Save
+        filepath = save_game_state(game_state, str(tmp_path))
+
+        # Load
+        loaded_state = load_game_state(filepath)
+
+        # Verify NPCs are preserved
+        loaded_location = loaded_state.world["Market"]
+        assert len(loaded_location.npcs) == 1
+
+        loaded_npc = loaded_location.npcs[0]
+        assert loaded_npc.name == "Town Merchant"
+        assert loaded_npc.description == "A friendly shopkeeper"
+        assert loaded_npc.dialogue == "Welcome to my shop!"
+        assert loaded_npc.is_merchant is True
+        assert loaded_npc.greetings == ["Hello there!", "Welcome back!"]
+        assert len(loaded_npc.conversation_history) == 2
+        assert loaded_npc.conversation_history[0] == {
+            "role": "player", "content": "What do you sell?"
+        }
+        assert loaded_npc.conversation_history[1] == {
+            "role": "npc", "content": "I have potions and weapons."
+        }
