@@ -1,105 +1,65 @@
-# Implementation Plan: Improve test coverage for ai_service.py uncovered lines
+# Implementation Plan: Improve ai_service.py Test Coverage (94% → 98%+)
 
 ## Overview
-Add tests for 14 uncovered lines in `ai_service.py` to push coverage closer to 100%.
+Add targeted tests to cover remaining 26 uncovered lines in `ai_service.py`, pushing coverage from 94% to 98%+.
 
 ## Target Lines Analysis
 
-| Lines | Description | Testability |
-|-------|-------------|-------------|
-| 9 | TYPE_CHECKING import of ItemType | Not runtime-reachable; exclude from coverage |
-| 18-21 | Anthropic ImportError fallback | Already tested via `test_anthropic_provider_not_available_raises_error` |
-| 253-257 | OpenAI RateLimitError retry path | Needs new test |
-| 272 | Defensive raise after OpenAI retry loop | Unreachable with normal retry behavior |
-| 329 | Defensive raise after Anthropic retry loop | Unreachable with normal retry behavior |
-| 443 | _load_cache_from_file early return | Already tested via `test_load_cache_no_cache_file_configured` |
-| 475 | _save_cache_to_file early return | Already tested via `test_save_cache_no_cache_file_configured` |
+| Lines | Category | Description |
+|-------|----------|-------------|
+| 9, 18-21 | Not testable | TYPE_CHECKING import & Anthropic ImportError (static/defensive) |
+| 261 | OpenAI auth | AuthenticationError no-retry path |
+| 443, 475 | Cache | Early return when cache_file is None |
+| 912-913, 920, 940, 947, 951 | Enemy parsing | JSON decode, missing field, length validation errors |
+| 1063-1064, 1071 | Item parsing | JSON decode, missing field errors |
+| 1222-1226, 1236 | Quest parsing | Quest name validation errors |
+| 1281-1282, 1289, 1340 | Quest parsing | JSON decode, missing field, description errors |
 
 ## Tests to Add
 
-### 1. OpenAI RateLimitError Retry Test
-**File**: `tests/test_ai_service.py`
-**Test name**: `test_openai_rate_limit_error_retries_and_fails`
-**Covers**: Lines 253-257
+### File: `tests/test_ai_service.py`
 
+### 1. OpenAI AuthenticationError Test
+**Covers**: Line 261
 ```python
 @patch('cli_rpg.ai_service.OpenAI')
-def test_openai_rate_limit_error_retries_and_fails(mock_openai_class, basic_config):
-    """Test OpenAI rate limit error retries and raises AIServiceError when exhausted."""
-    mock_client = Mock()
-    mock_openai_class.return_value = mock_client
-
-    # Simulate rate limit on all attempts
-    import openai
-    mock_client.chat.completions.create.side_effect = openai.RateLimitError(
-        message="Rate limit exceeded",
-        response=Mock(),
-        body=None
-    )
-
-    service = AIService(basic_config)
-
-    with pytest.raises(AIServiceError, match="API call failed"):
-        service.generate_location(theme="fantasy")
-
-    # Should have retried (initial + max_retries attempts)
-    assert mock_client.chat.completions.create.call_count == basic_config.max_retries + 1
+def test_openai_auth_error_raises_immediately(mock_openai_class, basic_config):
+    """Test OpenAI authentication error raises immediately without retry."""
 ```
 
-### 2. OpenAI RateLimitError Retry Success Test
-**File**: `tests/test_ai_service.py`
-**Test name**: `test_openai_rate_limit_error_retries_then_succeeds`
-**Covers**: Lines 253-256 (retry path)
+### 2. Enemy Parsing Error Tests (in test_ai_enemy_generation.py)
+**Covers**: Lines 912-913, 920, 940, 947, 951
 
-```python
-@patch('cli_rpg.ai_service.OpenAI')
-def test_openai_rate_limit_error_retries_then_succeeds(mock_openai_class, basic_config, mock_openai_response):
-    """Test OpenAI rate limit error retries and succeeds on subsequent attempt."""
-    mock_client = Mock()
-    mock_openai_class.return_value = mock_client
+- `test_parse_enemy_response_invalid_json` - JSON decode error
+- `test_parse_enemy_response_missing_field` - Missing required field
+- `test_parse_enemy_response_description_too_long` - Description > 150 chars
+- `test_parse_enemy_response_attack_flavor_too_short` - Attack flavor < 10 chars
+- `test_parse_enemy_response_attack_flavor_too_long` - Attack flavor > 100 chars
 
-    import openai
-    mock_response = Mock()
-    mock_response.choices = [Mock()]
-    mock_response.choices[0].message.content = json.dumps(mock_openai_response)
+### 3. Item Parsing Error Tests (in test_ai_item_generation.py)
+**Covers**: Lines 1063-1064, 1071
 
-    # First call rate limited, second succeeds
-    mock_client.chat.completions.create.side_effect = [
-        openai.RateLimitError(message="Rate limit", response=Mock(), body=None),
-        mock_response
-    ]
+- `test_parse_item_response_invalid_json` - JSON decode error
+- `test_parse_item_response_missing_field` - Missing required field
 
-    service = AIService(basic_config)
-    result = service.generate_location(theme="fantasy")
+### 4. Quest Parsing Error Tests (in test_ai_quest_generation.py)
+**Covers**: Lines 1222-1226, 1236, 1281-1282, 1289, 1340
 
-    assert result is not None
-    assert mock_client.chat.completions.create.call_count == 2
-```
-
-## Lines Not Testable
-
-### Line 9: TYPE_CHECKING import
-This import only runs during static type checking, not at runtime. Add to coverage exclusion.
-
-### Lines 272, 329: Defensive fallback raises
-These are unreachable "should not reach here" fallback lines in the retry loop. The loop will always either:
-- Return successfully
-- Raise an exception on the final retry attempt
-
-These lines exist for defensive programming but cannot be reached through normal execution. Options:
-1. Mark as `# pragma: no cover`
-2. Remove them (the raise in the except block already handles the failure case)
-
-**Recommendation**: Add `# pragma: no cover` comment since they serve as defensive coding.
+- `test_parse_quest_response_invalid_json` - JSON decode error
+- `test_parse_quest_response_missing_field` - Missing required field
+- `test_parse_quest_response_name_too_short` - Name < 2 chars
+- `test_parse_quest_response_name_too_long` - Name > 30 chars
+- `test_parse_quest_response_description_too_long` - Description > 200 chars
 
 ## Implementation Steps
 
-1. Add `test_openai_rate_limit_error_retries_and_fails` test to `tests/test_ai_service.py`
-2. Add `test_openai_rate_limit_error_retries_then_succeeds` test to `tests/test_ai_service.py`
-3. Add `# pragma: no cover` to line 272 and 329 (defensive fallback raises)
-4. (Optional) Add `# type: ignore` comment or coverage exclusion for TYPE_CHECKING block
+1. Add `test_openai_auth_error_raises_immediately` to `tests/test_ai_service.py`
+2. Add enemy parsing error tests to `tests/test_ai_enemy_generation.py`
+3. Add item parsing error tests to `tests/test_ai_item_generation.py`
+4. Add quest parsing error tests to `tests/test_ai_quest_generation.py`
+5. Mark lines 9, 18-21 with `# pragma: no cover` (TYPE_CHECKING/ImportError)
 
 ## Verification
 ```bash
-source venv/bin/activate && pytest tests/test_ai_service.py -v --cov=cli_rpg.ai_service --cov-report=term-missing
+source venv/bin/activate && pytest tests/test_ai_*.py -v --cov=cli_rpg.ai_service --cov-report=term-missing
 ```

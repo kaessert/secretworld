@@ -1551,3 +1551,36 @@ def test_openai_rate_limit_error_retries_then_succeeds(mock_openai_class, basic_
     assert result is not None
     assert result["name"] == "Ancient Temple"
     assert mock_client.chat.completions.create.call_count == 2
+
+
+# ========================================================================
+# OpenAI AuthenticationError Tests (Coverage for line 261)
+# ========================================================================
+
+
+@patch('cli_rpg.ai_service.OpenAI')
+def test_openai_auth_error_raises_immediately(mock_openai_class, basic_config):
+    """Test OpenAI authentication error raises immediately without retry.
+
+    Spec: When OpenAI API returns authentication error (line 261), do NOT retry -
+    raise AIServiceError immediately with 'Authentication failed' message.
+    Covers line 261: raise AIServiceError(f"Authentication failed: {str(e)}") from e
+    """
+    mock_client = Mock()
+    mock_openai_class.return_value = mock_client
+
+    import openai
+    # Simulate authentication error
+    mock_client.chat.completions.create.side_effect = openai.AuthenticationError(
+        message="Invalid API key provided",
+        response=Mock(),
+        body=None
+    )
+
+    service = AIService(basic_config)
+
+    with pytest.raises(AIServiceError, match="Authentication failed"):
+        service.generate_location(theme="fantasy")
+
+    # Should NOT have retried - only 1 attempt
+    assert mock_client.chat.completions.create.call_count == 1

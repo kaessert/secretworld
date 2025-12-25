@@ -557,3 +557,69 @@ class TestGenerateItemIntegration:
 
         assert result["item_type"] == "consumable"
         assert result["heal_amount"] > 0
+
+
+# =============================================================================
+# Item Response Parsing Error Tests (Coverage for lines 1063-1064, 1071)
+# =============================================================================
+
+class TestParseItemResponseErrors:
+    """Tests for _parse_item_response error handling."""
+
+    @patch('cli_rpg.ai_service.OpenAI')
+    def test_parse_item_response_invalid_json(self, mock_openai_class, basic_config):
+        """Spec: Invalid JSON raises AIGenerationError.
+
+        Covers lines 1063-1064: json.JSONDecodeError handling in _parse_item_response.
+        """
+        mock_client = Mock()
+        mock_openai_class.return_value = mock_client
+
+        # Return invalid JSON
+        mock_response = Mock()
+        mock_response.choices = [Mock()]
+        mock_response.choices[0].message.content = "This is not valid JSON { bad syntax"
+        mock_client.chat.completions.create.return_value = mock_response
+
+        service = AIService(basic_config)
+
+        with pytest.raises(AIGenerationError, match="parse.*JSON"):
+            service.generate_item(
+                theme="fantasy",
+                location_name="Shop",
+                player_level=1
+            )
+
+    @patch('cli_rpg.ai_service.OpenAI')
+    def test_parse_item_response_missing_field(self, mock_openai_class, basic_config):
+        """Spec: Missing required field raises AIGenerationError.
+
+        Covers line 1071: raise AIGenerationError(f"Response missing required field: {field}")
+        """
+        mock_client = Mock()
+        mock_openai_class.return_value = mock_client
+
+        # Response missing 'suggested_price' field
+        incomplete_response = {
+            "name": "Test Item",
+            "description": "A test item",
+            "item_type": "weapon",
+            "damage_bonus": 5,
+            "defense_bonus": 0,
+            "heal_amount": 0
+            # Missing 'suggested_price'
+        }
+
+        mock_response = Mock()
+        mock_response.choices = [Mock()]
+        mock_response.choices[0].message.content = json.dumps(incomplete_response)
+        mock_client.chat.completions.create.return_value = mock_response
+
+        service = AIService(basic_config)
+
+        with pytest.raises(AIGenerationError, match="missing required field.*suggested_price"):
+            service.generate_item(
+                theme="fantasy",
+                location_name="Shop",
+                player_level=1
+            )

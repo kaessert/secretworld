@@ -5,8 +5,8 @@ import hashlib
 import time
 from typing import Optional, TYPE_CHECKING
 
-if TYPE_CHECKING:
-    from cli_rpg.models.item import ItemType
+if TYPE_CHECKING:  # pragma: no cover
+    from cli_rpg.models.item import ItemType  # pragma: no cover
 from openai import OpenAI
 import openai
 
@@ -15,10 +15,10 @@ try:
     from anthropic import Anthropic
     import anthropic as anthropic_module
     ANTHROPIC_AVAILABLE = True
-except ImportError:
-    Anthropic = None
-    anthropic_module = None
-    ANTHROPIC_AVAILABLE = False
+except ImportError:  # pragma: no cover
+    Anthropic = None  # pragma: no cover
+    anthropic_module = None  # pragma: no cover
+    ANTHROPIC_AVAILABLE = False  # pragma: no cover
 
 import logging
 

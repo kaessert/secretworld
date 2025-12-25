@@ -594,3 +594,103 @@ class TestGenerateQuestIntegration:
 
         assert result["objective_type"] == "explore"
         assert result["target_count"] >= 1
+
+
+# =============================================================================
+# Quest Response Parsing Error Tests (Coverage for lines 1281-1282, 1289, 1340)
+# =============================================================================
+
+class TestParseQuestResponseErrors:
+    """Tests for _parse_quest_response error handling."""
+
+    @patch('cli_rpg.ai_service.OpenAI')
+    def test_parse_quest_response_invalid_json(self, mock_openai_class, basic_config):
+        """Spec: Invalid JSON raises AIGenerationError.
+
+        Covers lines 1281-1282: json.JSONDecodeError handling in _parse_quest_response.
+        """
+        mock_client = Mock()
+        mock_openai_class.return_value = mock_client
+
+        # Return invalid JSON
+        mock_response = Mock()
+        mock_response.choices = [Mock()]
+        mock_response.choices[0].message.content = "This is not valid JSON { bad syntax"
+        mock_client.chat.completions.create.return_value = mock_response
+
+        service = AIService(basic_config)
+
+        with pytest.raises(AIGenerationError, match="parse.*JSON"):
+            service.generate_quest(
+                theme="fantasy",
+                npc_name="Test NPC",
+                player_level=1
+            )
+
+    @patch('cli_rpg.ai_service.OpenAI')
+    def test_parse_quest_response_missing_field(self, mock_openai_class, basic_config):
+        """Spec: Missing required field raises AIGenerationError.
+
+        Covers line 1289: raise AIGenerationError(f"Response missing required field: {field}")
+        """
+        mock_client = Mock()
+        mock_openai_class.return_value = mock_client
+
+        # Response missing 'xp_reward' field
+        incomplete_response = {
+            "name": "Test Quest",
+            "description": "A test quest description.",
+            "objective_type": "kill",
+            "target": "Enemy",
+            "target_count": 1,
+            "gold_reward": 50
+            # Missing 'xp_reward'
+        }
+
+        mock_response = Mock()
+        mock_response.choices = [Mock()]
+        mock_response.choices[0].message.content = json.dumps(incomplete_response)
+        mock_client.chat.completions.create.return_value = mock_response
+
+        service = AIService(basic_config)
+
+        with pytest.raises(AIGenerationError, match="missing required field.*xp_reward"):
+            service.generate_quest(
+                theme="fantasy",
+                npc_name="Test NPC",
+                player_level=1
+            )
+
+    @patch('cli_rpg.ai_service.OpenAI')
+    def test_parse_quest_response_xp_reward_negative(self, mock_openai_class, basic_config):
+        """Spec: Negative xp_reward raises AIGenerationError.
+
+        Covers lines 1339-1341: raise AIGenerationError("xp_reward must be non-negative")
+        """
+        mock_client = Mock()
+        mock_openai_class.return_value = mock_client
+
+        # xp_reward is negative
+        invalid_response = {
+            "name": "Bad Reward Quest",
+            "description": "A quest with negative xp reward.",
+            "objective_type": "kill",
+            "target": "Enemy",
+            "target_count": 1,
+            "gold_reward": 50,
+            "xp_reward": -10  # Invalid: negative
+        }
+
+        mock_response = Mock()
+        mock_response.choices = [Mock()]
+        mock_response.choices[0].message.content = json.dumps(invalid_response)
+        mock_client.chat.completions.create.return_value = mock_response
+
+        service = AIService(basic_config)
+
+        with pytest.raises(AIGenerationError, match="xp_reward"):
+            service.generate_quest(
+                theme="fantasy",
+                npc_name="Test NPC",
+                player_level=1
+            )

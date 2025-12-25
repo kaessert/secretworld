@@ -651,3 +651,171 @@ class TestGameStateEncounterIntegration:
         assert message is not None
         assert game_state.current_combat is not None
         assert isinstance(game_state.current_combat.enemy, Enemy)
+
+
+# =============================================================================
+# Enemy Response Parsing Error Tests (Coverage for lines 912-913, 920, 940, 947, 951)
+# =============================================================================
+
+class TestParseEnemyResponseErrors:
+    """Tests for _parse_enemy_response error handling."""
+
+    @patch('cli_rpg.ai_service.OpenAI')
+    def test_parse_enemy_response_invalid_json(self, mock_openai_class, basic_config):
+        """Spec: Invalid JSON raises AIGenerationError.
+
+        Covers lines 912-913: json.JSONDecodeError handling in _parse_enemy_response.
+        """
+        mock_client = Mock()
+        mock_openai_class.return_value = mock_client
+
+        # Return invalid JSON
+        mock_response = Mock()
+        mock_response.choices = [Mock()]
+        mock_response.choices[0].message.content = "This is not valid JSON { bad syntax"
+        mock_client.chat.completions.create.return_value = mock_response
+
+        service = AIService(basic_config)
+
+        with pytest.raises(AIGenerationError, match="parse.*JSON"):
+            service.generate_enemy(
+                theme="fantasy",
+                location_name="Forest",
+                player_level=1
+            )
+
+    @patch('cli_rpg.ai_service.OpenAI')
+    def test_parse_enemy_response_missing_field(self, mock_openai_class, basic_config):
+        """Spec: Missing required field raises AIGenerationError.
+
+        Covers line 920: raise AIGenerationError(f"Response missing required field: {field}")
+        """
+        mock_client = Mock()
+        mock_openai_class.return_value = mock_client
+
+        # Response missing 'xp_reward' field
+        incomplete_response = {
+            "name": "Test Enemy",
+            "description": "A test enemy with adequate description.",
+            "attack_flavor": "swipes with claws",
+            "health": 50,
+            "attack_power": 8,
+            "defense": 3
+            # Missing 'xp_reward'
+        }
+
+        mock_response = Mock()
+        mock_response.choices = [Mock()]
+        mock_response.choices[0].message.content = json.dumps(incomplete_response)
+        mock_client.chat.completions.create.return_value = mock_response
+
+        service = AIService(basic_config)
+
+        with pytest.raises(AIGenerationError, match="missing required field.*xp_reward"):
+            service.generate_enemy(
+                theme="fantasy",
+                location_name="Forest",
+                player_level=1
+            )
+
+    @patch('cli_rpg.ai_service.OpenAI')
+    def test_parse_enemy_response_description_too_long(self, mock_openai_class, basic_config):
+        """Spec: Description >150 chars raises AIGenerationError.
+
+        Covers lines 939-942: raise AIGenerationError("Enemy description too long (max 150 chars)")
+        """
+        mock_client = Mock()
+        mock_openai_class.return_value = mock_client
+
+        # Description too long (>150 chars)
+        invalid_response = {
+            "name": "Test Enemy",
+            "description": "A" * 151,  # Too long (> 150 chars)
+            "attack_flavor": "swipes with its claws",
+            "health": 50,
+            "attack_power": 8,
+            "defense": 3,
+            "xp_reward": 40
+        }
+
+        mock_response = Mock()
+        mock_response.choices = [Mock()]
+        mock_response.choices[0].message.content = json.dumps(invalid_response)
+        mock_client.chat.completions.create.return_value = mock_response
+
+        service = AIService(basic_config)
+
+        with pytest.raises(AIGenerationError, match="description too long"):
+            service.generate_enemy(
+                theme="fantasy",
+                location_name="Forest",
+                player_level=1
+            )
+
+    @patch('cli_rpg.ai_service.OpenAI')
+    def test_parse_enemy_response_attack_flavor_too_short(self, mock_openai_class, basic_config):
+        """Spec: Attack flavor <10 chars raises AIGenerationError.
+
+        Covers lines 946-948: raise AIGenerationError("Attack flavor too short (min 10 chars)")
+        """
+        mock_client = Mock()
+        mock_openai_class.return_value = mock_client
+
+        # Attack flavor too short (<10 chars)
+        invalid_response = {
+            "name": "Test Enemy",
+            "description": "A test enemy with adequate description.",
+            "attack_flavor": "bites",  # Too short (< 10 chars)
+            "health": 50,
+            "attack_power": 8,
+            "defense": 3,
+            "xp_reward": 40
+        }
+
+        mock_response = Mock()
+        mock_response.choices = [Mock()]
+        mock_response.choices[0].message.content = json.dumps(invalid_response)
+        mock_client.chat.completions.create.return_value = mock_response
+
+        service = AIService(basic_config)
+
+        with pytest.raises(AIGenerationError, match="[Aa]ttack flavor too short"):
+            service.generate_enemy(
+                theme="fantasy",
+                location_name="Forest",
+                player_level=1
+            )
+
+    @patch('cli_rpg.ai_service.OpenAI')
+    def test_parse_enemy_response_attack_flavor_too_long(self, mock_openai_class, basic_config):
+        """Spec: Attack flavor >100 chars raises AIGenerationError.
+
+        Covers lines 950-952: raise AIGenerationError("Attack flavor too long (max 100 chars)")
+        """
+        mock_client = Mock()
+        mock_openai_class.return_value = mock_client
+
+        # Attack flavor too long (>100 chars)
+        invalid_response = {
+            "name": "Test Enemy",
+            "description": "A test enemy with adequate description.",
+            "attack_flavor": "A" * 101,  # Too long (> 100 chars)
+            "health": 50,
+            "attack_power": 8,
+            "defense": 3,
+            "xp_reward": 40
+        }
+
+        mock_response = Mock()
+        mock_response.choices = [Mock()]
+        mock_response.choices[0].message.content = json.dumps(invalid_response)
+        mock_client.chat.completions.create.return_value = mock_response
+
+        service = AIService(basic_config)
+
+        with pytest.raises(AIGenerationError, match="[Aa]ttack flavor too long"):
+            service.generate_enemy(
+                theme="fantasy",
+                location_name="Forest",
+                player_level=1
+            )

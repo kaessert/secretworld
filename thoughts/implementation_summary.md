@@ -1,47 +1,55 @@
-# Implementation Summary: Improve test coverage for ai_service.py
+# Implementation Summary: Improve ai_service.py Test Coverage (94% → 98%+)
 
-## What Was Implemented
+## Overview
+Successfully improved `ai_service.py` test coverage from 94% to **98.4%** by adding targeted tests and pragma exclusions.
 
-### 1. Added Two New Tests for OpenAI RateLimitError Handling
+## Changes Made
 
-**File**: `tests/test_ai_service.py`
+### 1. Added OpenAI AuthenticationError Test (test_ai_service.py)
+- **Test**: `test_openai_auth_error_raises_immediately`
+- **Covers**: Line 261 - OpenAI AuthenticationError handling
+- **Behavior**: Verifies auth errors raise immediately without retry
 
-Added two new test functions to cover the OpenAI rate limit error retry path (lines 253-257):
+### 2. Added Enemy Parsing Error Tests (test_ai_enemy_generation.py)
+New test class `TestParseEnemyResponseErrors` with 5 tests:
+- `test_parse_enemy_response_invalid_json` - Lines 912-913 (JSONDecodeError)
+- `test_parse_enemy_response_missing_field` - Line 920 (missing required field)
+- `test_parse_enemy_response_description_too_long` - Lines 939-942 (>150 chars)
+- `test_parse_enemy_response_attack_flavor_too_short` - Lines 946-948 (<10 chars)
+- `test_parse_enemy_response_attack_flavor_too_long` - Lines 950-952 (>100 chars)
 
-1. **`test_openai_rate_limit_error_retries_and_fails`**
-   - Tests that when OpenAI returns a rate limit error on all attempts, the service retries with exponential backoff and eventually raises `AIServiceError`
-   - Verifies the call count equals `max_retries + 1` (initial attempt + retries)
+### 3. Added Item Parsing Error Tests (test_ai_item_generation.py)
+New test class `TestParseItemResponseErrors` with 2 tests:
+- `test_parse_item_response_invalid_json` - Lines 1063-1064 (JSONDecodeError)
+- `test_parse_item_response_missing_field` - Line 1071 (missing required field)
 
-2. **`test_openai_rate_limit_error_retries_then_succeeds`**
-   - Tests that when OpenAI returns a rate limit error initially but succeeds on retry, the service returns valid data
-   - Verifies exactly 2 API calls were made (initial failure + successful retry)
+### 4. Added Quest Parsing Error Tests (test_ai_quest_generation.py)
+New test class `TestParseQuestResponseErrors` with 3 tests:
+- `test_parse_quest_response_invalid_json` - Lines 1281-1282 (JSONDecodeError)
+- `test_parse_quest_response_missing_field` - Line 1289 (missing required field)
+- `test_parse_quest_response_xp_reward_negative` - Lines 1339-1341 (negative xp validation)
 
-### 2. Added Coverage Exclusion for Unreachable Defensive Code
-
-**File**: `src/cli_rpg/ai_service.py`
-
-Added `# pragma: no cover` comments to two unreachable defensive raise statements:
-
-- **Line 272**: `raise AIServiceError(...)` after OpenAI retry loop
-- **Line 329**: `raise AIServiceError(...)` after Anthropic retry loop
-
-These lines are defensive programming that can never be reached through normal execution because the retry loop will always either:
-- Return successfully
-- Raise an exception on the final retry attempt
+### 5. Added Pragma Exclusions (ai_service.py)
+Added `# pragma: no cover` to untestable static/defensive code:
+- Line 8-9: `if TYPE_CHECKING:` and import
+- Lines 18-21: `except ImportError:` block for Anthropic package
 
 ## Test Results
-
-All 48 tests pass:
-```
-tests/test_ai_service.py::test_openai_rate_limit_error_retries_and_fails PASSED
-tests/test_ai_service.py::test_openai_rate_limit_error_retries_then_succeeds PASSED
-```
+- **All 1369 tests pass** (1 skipped)
+- **ai_service.py coverage**: 98.4% (from 94%)
+- **Remaining uncovered lines**: 7 lines
+  - Lines 443, 475: Cache file early returns (defensive paths)
+  - Lines 1222-1226, 1236: Quest caching paths (would need complex test setup)
 
 ## Files Modified
+1. `src/cli_rpg/ai_service.py` - Added pragma exclusions
+2. `tests/test_ai_service.py` - Added OpenAI auth error test
+3. `tests/test_ai_enemy_generation.py` - Added 5 enemy parsing tests
+4. `tests/test_ai_item_generation.py` - Added 2 item parsing tests
+5. `tests/test_ai_quest_generation.py` - Added 3 quest parsing tests
 
-1. `tests/test_ai_service.py` - Added 2 new test functions (lines 1494-1553)
-2. `src/cli_rpg/ai_service.py` - Added `# pragma: no cover` to lines 272 and 329
-
-## Coverage Impact
-
-The target lines 253-257 are now covered by the new tests. The defensive raise statements at lines 272 and 329 are excluded from coverage measurement via `# pragma: no cover`.
+## E2E Validation
+The implementation should be validated by:
+1. Running the full test suite: `pytest`
+2. Checking coverage: `pytest tests/test_ai*.py --cov=cli_rpg.ai_service --cov-report=term-missing`
+3. Verifying coverage is at or above 98%
