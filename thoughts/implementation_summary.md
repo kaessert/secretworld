@@ -1,41 +1,47 @@
-# Implementation Summary: Remove "up"/"down" Directions from 2D World Grid
+# Implementation Summary: Multiple NPCs per Location (Enhanced UX)
 
 ## What Was Implemented
 
-Removed vertical directions ("up"/"down") from the 2D world grid system to prevent player confusion from seeing impossible movement options and stuck states where only vertical exits exist.
+### 1. Enhanced Talk Command (`src/cli_rpg/main.py`)
+- Modified the `talk` command handler to improve UX when dealing with NPCs
+- **New behavior**:
+  - `talk` with no args at a location with **1 NPC**: Auto-starts conversation with that NPC
+  - `talk` with no args at a location with **2+ NPCs**: Lists available NPCs ("Talk to whom? Available: NPC1, NPC2")
+  - `talk <name>`: Works as before, selects specific NPC
 
-### Source Code Changes
+### 2. Guard NPC Added to Default World (`src/cli_rpg/world.py`)
+- Added a Guard NPC to Town Square in the default (non-AI) world
+- Guard has multiple greetings for variety:
+  - "Stay out of trouble, adventurer."
+  - "The roads have been dangerous lately."
+  - "Keep your weapons sheathed in town."
 
-1. **`src/cli_rpg/models/location.py`**
-   - Updated `VALID_DIRECTIONS` from `{"north", "south", "east", "west", "up", "down"}` to `{"north", "south", "east", "west"}`
-   - Updated docstring to remove "up, down" reference
+### 3. Town Elder NPC Added to AI World (`src/cli_rpg/ai_world.py`)
+- Added a quest-giver NPC ("Town Elder") to the AI-generated starting location
+- Configured as `is_quest_giver=True` to enable quest offering functionality
 
-2. **`src/cli_rpg/world_grid.py`**
-   - Removed `"up": "down"` and `"down": "up"` from `OPPOSITE_DIRECTIONS` dictionary
-
-3. **`src/cli_rpg/ai_config.py`**
-   - Updated location generation prompt to only list valid directions: "north, south, east, west"
-
-### Test Updates
-
-1. **`tests/test_model_coverage_gaps.py`** - Changed test to verify empty connections result in no frontier exits (previously tested up/down connections)
-
-2. **`tests/test_world_grid.py`** - Updated test to verify locations with no connections have no frontier exits
-
-3. **`tests/test_ai_world_generation.py`** - Removed up/down assertions from `test_get_opposite_direction`
-
-4. **`tests/test_e2e_world_expansion.py`** - Removed up/down from:
-   - Location names mapping in mock fixture
-   - Opposites dictionary in helper function
-   - Dead-end generation test
-
-5. **`tests/test_initial_world_dead_end_prevention.py`** - Removed up/down from opposites dictionary in mock fixture
+## Files Modified
+1. `src/cli_rpg/main.py` - Updated talk command logic (lines 505-522)
+2. `src/cli_rpg/world.py` - Added Guard NPC (lines 106-117)
+3. `src/cli_rpg/ai_world.py` - Added Town Elder NPC (lines 124-132)
+4. `tests/test_multiple_npcs.py` - New test file (3 tests)
+5. `tests/test_shop_commands.py` - Updated existing test to match new behavior
 
 ## Test Results
+- **All 1453 tests pass**
+- New tests in `tests/test_multiple_npcs.py`:
+  - `test_talk_no_args_single_npc_auto_starts` - Verifies auto-start conversation
+  - `test_talk_no_args_multiple_npcs_lists_all` - Verifies NPC listing behavior
+  - `test_talk_with_name_selects_specific_npc` - Verifies explicit NPC selection still works
 
-- All 245 targeted tests passed
-- Full test suite: 1450 tests passed in 12.24s
+## Design Decisions
+- The Location model already supported `npcs: List[NPC]`, so no model changes were needed
+- Kept backward compatibility: existing `talk <name>` behavior unchanged
+- Auto-conversation for single NPC reduces friction for most common case
 
-## E2E Validation Notes
-
-Players using `"up"` or `"down"` as a direction will now receive an "Invalid direction" error message, consistent with any other non-cardinal direction. The AI will no longer suggest vertical connections in generated locations.
+## E2E Validation
+To manually verify:
+1. Start game with default world - Town Square should have 2 NPCs (Merchant, Guard)
+2. Type `talk` - should see "Talk to whom? Available: Merchant, Guard"
+3. Type `talk guard` - should start conversation with Guard
+4. Navigate to a location with only 1 NPC and type `talk` - should auto-start conversation

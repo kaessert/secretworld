@@ -47,11 +47,12 @@ class TestTalkCommand:
         assert "don't see" in msg.lower() or "not here" in msg.lower()
 
     def test_talk_no_args(self, game_with_shop):
-        """Talk command shows error when no NPC specified."""
-        # Tests spec: When location has NPCs, show "Talk to whom? Specify an NPC name."
+        """Talk command auto-starts conversation when only one NPC is present."""
+        # Tests spec: When location has single NPC, auto-start conversation
         cont, msg = handle_exploration_command(game_with_shop, "talk", [])
         assert cont is True
-        assert "who" in msg.lower() or "specify" in msg.lower()
+        # With single NPC, conversation should auto-start (shows merchant dialogue)
+        assert "merchant" in msg.lower() or "welcome" in msg.lower()
 
     def test_talk_no_args_no_npcs_in_location(self):
         """Talk command shows 'no NPCs here' when location has no NPCs."""

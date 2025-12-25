@@ -121,6 +121,16 @@ def create_ai_world(
     )
     starting_location.npcs.append(merchant)
 
+    # Add quest giver NPC to starting location
+    quest_giver = NPC(
+        name="Town Elder",
+        description="A wise figure who knows of many adventures",
+        dialogue="Ah, a new adventurer! I may have tasks for you.",
+        is_quest_giver=True,
+        offered_quests=[]
+    )
+    starting_location.npcs.append(quest_giver)
+
     # Queue connections to explore
     for direction, target_name in starting_data["connections"].items():
         if direction in DIRECTION_OFFSETS:

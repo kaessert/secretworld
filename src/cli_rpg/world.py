@@ -103,6 +103,19 @@ def create_default_world() -> tuple[dict[str, Location], str]:
     # Add merchant to Town Square
     town_square.npcs.append(merchant)
 
+    # Create Guard NPC for Town Square
+    guard = NPC(
+        name="Guard",
+        description="A vigilant town guard keeping watch over the square",
+        dialogue="Stay out of trouble, adventurer.",
+        greetings=[
+            "Stay out of trouble, adventurer.",
+            "The roads have been dangerous lately.",
+            "Keep your weapons sheathed in town.",
+        ]
+    )
+    town_square.npcs.append(guard)
+
     # Return world dictionary and starting location (backward compatible)
     return (grid.as_dict(), "Town Square")
 

@@ -1,15 +1,186 @@
 ## Active Issues
 
+### Non-interactive mode for AI agent playtesting
+**Status**: CRITICAL
+
+Enable automated playtesting via AI agents to validate game mechanics, find bugs, and stress-test content generation. The game currently requires interactive terminal input, making automated testing impossible.
+
+**Requirements**:
+
+1. **Non-interactive input mode**
+   - Accept commands from stdin pipe, file, or programmatic API
+   - Run without blocking on `input()` calls
+   - Support command-line flag (e.g., `--non-interactive` or `--batch`)
+   - Graceful handling when input stream ends
+
+2. **Structured output for AI parsing**
+   - Machine-readable output format (JSON lines or similar)
+   - Clear separation of game state, narrative text, and available actions
+   - Emit current valid commands after each action
+   - Error messages with codes, not just human text
+
+3. **Comprehensive gameplay logging**
+   - Full session transcript with timestamps
+   - Log file output (e.g., `--log-file gameplay.log`)
+   - Record: commands issued, game responses, state changes, errors
+   - Include RNG seeds for reproducibility
+   - Log AI-generated content for review
+
+4. **Session state export**
+   - Dump full game state as JSON on demand or at intervals
+   - Include: player stats, inventory, location, quest progress, world state
+   - Enable session replay from logged state
+
+5. **Automation-friendly features**
+   - Configurable delays/timeouts
+   - Deterministic mode option (fixed RNG seed)
+   - Headless operation (no ANSI colors/formatting when piped)
+   - Exit codes reflecting game outcomes
+
+**Use cases**:
+- AI agent explores the world and reports issues
+- Automated regression testing of game mechanics
+- Stress testing AI content generation
+- Fuzzing command parser for edge cases
+- Generating gameplay datasets for analysis
+
+**Implementation notes**:
+- Detect `sys.stdin.isatty()` for automatic mode switching
+- Consider separate `GameSession` class wrapping `GameState` for programmatic use
+- Logging should use Python's `logging` module with configurable levels
+
 ### More content
 **Status**: ACTIVE
 
-Multiple NPCs per location possible, multiple enemies for fights
-boss fights
+~~Multiple NPCs per location~~ (DONE - locations support multiple NPCs with improved talk command UX), multiple enemies for fights, boss fights
 
 ### More content 2
 **Status**: ACTIVE
 
 Users requesting ASCII art for things like locations, npcs, monsters in fights and similar
+
+### Meaningful choices and consequences
+**Status**: ACTIVE
+
+Player decisions should have lasting impact on the world and story. Currently, choices feel inconsequential.
+
+**Desired features**:
+- Dialogue choices that affect NPC relationships and quest outcomes
+- Moral dilemmas with no clear "right" answer
+- Branching quest paths based on player decisions
+- World state changes based on completed quests (e.g., saving a village makes it thrive, ignoring it leads to ruin)
+- NPCs remembering past interactions and reacting accordingly
+
+### Character skill and ability system
+**Status**: ACTIVE
+
+Combat lacks tactical depth - players just attack repeatedly. Need a skill/ability system.
+
+**Desired features**:
+- Learnable skills and abilities (e.g., Power Strike, Fireball, Heal, Stealth)
+- Skill trees or progression paths for different playstyles (warrior, mage, rogue)
+- Resource management (mana, stamina, cooldowns)
+- Passive abilities that modify gameplay
+- Skill synergies and combos
+
+### Status effects and combat depth
+**Status**: ACTIVE
+
+Combat is too simple - attack until enemy dies.
+
+**Desired features**:
+- Status effects: poison, burn, freeze, stun, bleed, buff/debuff
+- Elemental strengths and weaknesses
+- Defensive options: block, dodge, parry
+- Enemy attack patterns and telegraphed special moves
+- Critical hits and miss chances based on stats
+- Combat stances or modes
+
+### Dynamic world events
+**Status**: ACTIVE
+
+The world feels static. Need ambient events and world dynamics.
+
+**Desired features**:
+- Random encounters while traveling (bandits, merchants, wandering creatures)
+- Weather system affecting gameplay (storms reduce visibility, rain extinguishes fire)
+- Day/night cycle with different encounters and NPC availability
+- Seasonal events and festivals
+- World events triggered by player progress or time (invasions, plagues, celebrations)
+
+### Reputation and faction system
+**Status**: ACTIVE
+
+NPCs and towns should react to player's reputation and allegiances.
+
+**Desired features**:
+- Reputation levels with different factions (guilds, towns, races)
+- Actions affect reputation (helping vs. harming, quest choices)
+- Reputation unlocks or blocks content (shops, quests, areas)
+- Faction conflicts where siding with one alienates another
+- Titles and recognition based on achievements
+
+### Crafting and gathering system
+**Status**: ACTIVE
+
+Players should be able to create items, not just buy/find them.
+
+**Desired features**:
+- Gatherable resources in locations (herbs, ore, wood)
+- Crafting recipes for weapons, armor, potions, and tools
+- Crafting skill progression
+- Rare recipes as quest rewards or discoveries
+- Item enhancement/enchanting system
+
+### Secrets and discovery
+**Status**: ACTIVE
+
+Exploration should reward curiosity with hidden content.
+
+**Desired features**:
+- Hidden rooms and secret passages (require specific actions to find)
+- Lore fragments and collectible journal entries
+- Easter eggs and rare encounters
+- Riddles and puzzles guarding treasure
+- Environmental storytelling (discover what happened through clues)
+- Achievements for thorough exploration
+
+### Companion system
+**Status**: ACTIVE
+
+Adventuring alone limits roleplay possibilities.
+
+**Desired features**:
+- Recruitable NPC companions with personalities
+- Companion dialogue and banter during travel
+- Companion abilities in combat
+- Relationship building with companions
+- Companion-specific quests and storylines
+- Companions reacting to player choices
+
+### Immersive text presentation
+**Status**: ACTIVE
+
+Text output could be more atmospheric and engaging.
+
+**Desired features**:
+- Typewriter-style text reveal for dramatic moments
+- Color-coding for different types of information (damage, healing, dialogue, narration)
+- Sound effects via terminal bell for important events
+- Pause and pacing for dramatic tension
+- Stylized borders and frames for different UI elements
+
+### Procedural quest generation
+**Status**: ACTIVE
+
+Quests should be dynamically generated to keep gameplay fresh.
+
+**Desired features**:
+- AI-generated side quests based on current location and world state
+- Quest templates with procedural elements (targets, rewards, locations)
+- Scaling difficulty based on player level
+- Quest chains that build on each other
+- Emergent storylines from completed quests
 
 ## Resolved Issues
 
