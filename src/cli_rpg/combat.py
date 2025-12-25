@@ -55,6 +55,43 @@ _ASCII_ART_DEFAULT = r"""
   / | | \
 """
 
+# Boss-specific ASCII art templates (larger and more detailed)
+_ASCII_ART_BOSS_DEMON = r"""
+      /\  /\
+     (  \/  )
+    /|  ><  |\
+   / | /||\ | \
+  /  |/ || \|  \
+ /   ||    ||   \
+(____||    ||____)
+     |________|
+"""
+
+_ASCII_ART_BOSS_UNDEAD = r"""
+     .-~~~-.
+    (  @  @ )
+     \  <  /
+   __|`---'|__
+  /   |----|   \
+ /  / |    | \  \
+|__/  |    |  \__|
+      |    |
+     /|    |\
+    / |____| \
+"""
+
+_ASCII_ART_BOSS_GUARDIAN = r"""
+    _________
+   |  ___  |
+   | |   | |
+   | | O | |
+   | |___| |
+   |_________|
+   /|       |\
+  / |  |||  | \
+ /  |__|||__|  \
+"""
+
 
 def get_fallback_ascii_art(enemy_name: str) -> str:
     """Get fallback ASCII art based on enemy name.
@@ -194,10 +231,15 @@ class CombatEncounter:
         self.is_active = True
 
         if len(self.enemies) == 1:
-            intro = f"A wild {colors.enemy(self.enemies[0].name)} appears!"
+            enemy = self.enemies[0]
+            # Check if this is a boss encounter
+            if enemy.is_boss:
+                intro = f"A {colors.damage('BOSS')} appears: {colors.enemy(enemy.name)}!"
+            else:
+                intro = f"A wild {colors.enemy(enemy.name)} appears!"
             # Add ASCII art if available
-            if self.enemies[0].ascii_art:
-                intro += "\n" + self.enemies[0].ascii_art.strip()
+            if enemy.ascii_art:
+                intro += "\n" + enemy.ascii_art.strip()
             intro += "\nCombat has begun!"
             return intro
         else:
@@ -400,7 +442,11 @@ class CombatEncounter:
 
             # Generate and award loot from each enemy
             for enemy in self.enemies:
-                loot = generate_loot(enemy, self.player.level)
+                # Use boss loot for boss enemies (guaranteed drop with enhanced stats)
+                if enemy.is_boss:
+                    loot = generate_boss_loot(enemy, self.player.level)
+                else:
+                    loot = generate_loot(enemy, self.player.level)
                 if loot is not None:
                     if self.player.inventory.add_item(loot):
                         messages.append(f"You found: {colors.item(loot.name)}!")
@@ -609,6 +655,169 @@ def spawn_enemy(
         level=level,
         ascii_art=ascii_art,
     )
+
+
+def get_boss_ascii_art(boss_name: str) -> str:
+    """Get ASCII art for a boss enemy.
+
+    Args:
+        boss_name: Name of the boss
+
+    Returns:
+        ASCII art string for the boss
+    """
+    name_lower = boss_name.lower()
+
+    # Demon/infernal bosses
+    if any(term in name_lower for term in ["demon", "lord", "chaos", "overlord"]):
+        return _ASCII_ART_BOSS_DEMON
+
+    # Undead bosses
+    if any(term in name_lower for term in ["lich", "pharaoh", "shadow", "cursed"]):
+        return _ASCII_ART_BOSS_UNDEAD
+
+    # Guardian/construct bosses
+    if any(term in name_lower for term in ["guardian", "golem", "champion", "knight"]):
+        return _ASCII_ART_BOSS_GUARDIAN
+
+    # Default to demon art for unknown bosses
+    return _ASCII_ART_BOSS_DEMON
+
+
+def spawn_boss(
+    location_name: str,
+    level: int,
+    location_category: Optional[str] = None
+) -> Enemy:
+    """
+    Spawn a boss enemy appropriate for the location and player level.
+
+    Bosses have 2x base stats and 4x XP reward compared to normal enemies.
+
+    Args:
+        location_name: Name of the location
+        level: Player level for scaling
+        location_category: Optional category for boss template selection.
+                          Valid: dungeon, ruins, cave, or default for unknown.
+
+    Returns:
+        Enemy instance with is_boss=True
+    """
+    # Boss templates by location type
+    boss_templates = {
+        "dungeon": ["Lich Lord", "Dark Champion", "Demon Lord"],
+        "ruins": ["Ancient Guardian", "Cursed Pharaoh", "Shadow King"],
+        "cave": ["Cave Troll King", "Elder Wyrm", "Crystal Golem"],
+        "default": ["Archdemon", "Overlord", "Chaos Beast"]
+    }
+
+    # Determine boss type based on category
+    category = location_category.lower() if location_category else "default"
+    if category not in boss_templates:
+        category = "default"
+
+    # Select random boss from template
+    boss_list = boss_templates[category]
+    boss_name = random.choice(boss_list)
+
+    # Scale stats: 2x base stats for bosses
+    base_health = (40 + level * 25) * 2
+    base_attack = (5 + level * 3) * 2
+    base_defense = (2 + level * 2) * 2
+    # 4x XP reward for bosses
+    base_xp = (30 + level * 20) * 4
+
+    # Get boss ASCII art
+    ascii_art = get_boss_ascii_art(boss_name)
+
+    return Enemy(
+        name=boss_name,
+        health=base_health,
+        max_health=base_health,
+        attack_power=base_attack,
+        defense=base_defense,
+        xp_reward=base_xp,
+        level=level,
+        ascii_art=ascii_art,
+        is_boss=True,
+    )
+
+
+def generate_boss_loot(boss: Enemy, level: int) -> Item:
+    """Generate guaranteed loot item dropped by defeated boss.
+
+    Boss loot has:
+    - 100% drop rate (guaranteed)
+    - Enhanced stats (higher damage/defense bonuses)
+    - Legendary-tier prefixes
+
+    Args:
+        boss: The defeated boss enemy
+        level: Player level for scaling loot stats
+
+    Returns:
+        Item (always returns an item, guaranteed drop)
+    """
+    # Choose random item type (no misc for bosses)
+    item_types = [
+        (ItemType.WEAPON, 0.35),
+        (ItemType.ARMOR, 0.35),
+        (ItemType.CONSUMABLE, 0.30),
+    ]
+
+    roll = random.random()
+    cumulative: float = 0.0
+    item_type = ItemType.WEAPON
+    for itype, prob in item_types:
+        cumulative += prob
+        if roll <= cumulative:
+            item_type = itype
+            break
+
+    # Legendary prefixes for boss loot
+    legendary_prefixes = ["Legendary", "Ancient", "Cursed", "Divine", "Epic"]
+
+    # Generate item based on type
+    if item_type == ItemType.WEAPON:
+        prefix = random.choice(legendary_prefixes)
+        names = ["Greatsword", "Warblade", "Doom Axe", "Soul Reaver", "Dragon Slayer"]
+        name = random.choice(names)
+        # Enhanced stats: level + random(5, 10)
+        damage_bonus = level + random.randint(5, 10)
+        return Item(
+            name=f"{prefix} {name}",
+            description=f"A powerful weapon dropped by {boss.name}",
+            item_type=ItemType.WEAPON,
+            damage_bonus=damage_bonus
+        )
+
+    elif item_type == ItemType.ARMOR:
+        prefix = random.choice(legendary_prefixes)
+        names = ["Platemail", "Dragon Armor", "Titan Shield", "Crown of Power", "Warlord Gauntlets"]
+        name = random.choice(names)
+        # Enhanced stats: level + random(4, 8)
+        defense_bonus = level + random.randint(4, 8)
+        return Item(
+            name=f"{prefix} {name}",
+            description=f"Legendary armor dropped by {boss.name}",
+            item_type=ItemType.ARMOR,
+            defense_bonus=defense_bonus
+        )
+
+    else:  # CONSUMABLE
+        heal_amount = 50 + (level * 10) + random.randint(10, 30)
+        potions = [
+            ("Grand Elixir", "A powerful healing elixir of legendary quality"),
+            ("Essence of Life", "Pure concentrated life energy"),
+            ("Phoenix Tears", "Mystical tears that restore vitality"),
+        ]
+        name, desc = random.choice(potions)
+        return Item(
+            name=name,
+            description=desc,
+            item_type=ItemType.CONSUMABLE,
+            heal_amount=heal_amount
+        )
 
 
 def ai_spawn_enemy(

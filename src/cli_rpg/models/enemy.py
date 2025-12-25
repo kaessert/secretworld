@@ -18,6 +18,7 @@ class Enemy:
     description: str = ""  # e.g., "A snarling beast with glowing red eyes"
     attack_flavor: str = ""  # e.g., "lunges with razor-sharp claws"
     ascii_art: str = ""  # ASCII art representation of the enemy
+    is_boss: bool = False  # True if this is a boss enemy
     
     def __post_init__(self):
         """Validate enemy attributes."""
@@ -79,6 +80,7 @@ class Enemy:
             "description": self.description,
             "attack_flavor": self.attack_flavor,
             "ascii_art": self.ascii_art,
+            "is_boss": self.is_boss,
         }
     
     @staticmethod
@@ -103,4 +105,5 @@ class Enemy:
             description=data.get("description", ""),
             attack_flavor=data.get("attack_flavor", ""),
             ascii_art=data.get("ascii_art", ""),
+            is_boss=data.get("is_boss", False),
         )

@@ -1,5 +1,107 @@
 ## Active Issues
 
+### AI generation failure exposes raw errors to player
+**Status**: ACTIVE
+
+When AI location generation fails to parse JSON, the raw error is shown to the player instead of gracefully falling back.
+
+**Reproduction**:
+```
+> gw
+Failed to generate area: Failed to parse response as JSON: Expecting value: line 52 column 19 (char 1833)
+
+Failed to generate destination: Failed to parse response as JSON: Expecting value: line 52 column 19 (char 1833)
+```
+
+**Expected behavior**:
+- Fallback location generation should trigger silently
+- Player sees the new location, not error messages
+- Errors logged to debug/log file for developers
+
+**Issues**:
+1. Raw JSON parse errors exposed to player - breaks immersion
+2. Fallback generation not triggering when AI fails
+3. Error messages are technical, not player-friendly
+
+**Fix**:
+- Ensure fallback templates always generate on any AI failure
+- Suppress technical errors from player output
+- Log failures for debugging but show player a seamless experience
+- If fallback also fails, show friendly message like "The path is blocked by an impassable barrier"
+
+### Constrained movement with guaranteed exploration frontier
+**Status**: ACTIVE
+
+Players should NOT be able to move in any direction - only specific exits should exist. However, the world must always have at least one unexplored exit to ensure infinite exploration.
+
+**Current problem**:
+- All 4 cardinal directions are always open (or should be)
+- Makes the world feel like an open grid rather than a structured map
+- No sense of geography, corridors, or natural barriers
+
+**Desired behavior**:
+
+1. **Limited exits per location**
+   - Each location has 1-4 exits, not always all 4
+   - AI generates appropriate connections based on location type
+   - Dungeons: corridors, not open plazas
+   - Forests: winding paths, not open grids
+   - Mountains: limited passable routes
+
+2. **Guaranteed exploration frontier**
+   - World must always have at least one unexplored exit somewhere
+   - When generating new locations, ensure at least one exit leads to unexplored territory
+   - "Dead ends" are OK for individual locations, but world as a whole must remain explorable
+
+3. **Blocked directions**
+   - Invalid directions return "You can't go that way" (not generate new area)
+   - Map shows blocked adjacent cells (already implemented with `█`)
+   - Creates natural boundaries and structure
+
+**Implementation**:
+- Track "frontier exits" globally (exits that lead to unexplored locations)
+- When generating a location, if it would close all frontiers, force an additional unexplored exit
+- AI prompt should specify that not all directions need exits
+
+### Distance-based enemy difficulty scaling
+**Status**: ACTIVE
+
+Enemies should get harder the further the player explores from the starting location.
+
+**Current problem**:
+- Enemy difficulty is flat or only based on player level
+- No incentive to stay near town early game
+- No sense of danger when venturing into the unknown
+
+**Desired behavior**:
+
+1. **Distance-based scaling**
+   - Calculate distance from starting location (Manhattan or path distance)
+   - Enemy stats scale with distance: HP, damage, defense
+   - Enemies at distance 10+ should be significantly harder than starting area
+
+2. **Zone difficulty tiers**
+   - Near spawn (0-3): Easy enemies, safe for new players
+   - Mid-range (4-7): Moderate difficulty, appropriate for leveled players
+   - Far reaches (8-12): Challenging encounters
+   - Deep wilderness (13+): Dangerous, high-risk high-reward
+
+3. **Rewards scale with difficulty**
+   - Harder enemies drop more gold
+   - Better loot tables at higher distances
+   - More XP from distant encounters
+
+4. **Visual/narrative hints**
+   - Location descriptions hint at danger level
+   - "The air grows thick with menace" as player ventures far
+   - NPCs warn about dangerous regions
+
+**Implementation**:
+- Store origin coordinates (0,0) as reference point
+- Pass distance to enemy generation in `ai_service.py`
+- Scale enemy stats: `base_stat * (1 + distance * 0.15)` or similar
+- Update AI prompts to generate appropriately threatening enemies
+
 ### Non-interactive mode enhancements
 **Status**: ACTIVE
 
@@ -94,11 +196,6 @@ Players want a more sophisticated map system with hierarchical locations - an ov
 - Logical grouping of related areas
 - Clearer sense of scale and progression
 - Natural quest hubs (cities) vs adventure zones (dungeons/wilderness)
-
-### More content
-**Status**: ACTIVE
-
-~~Multiple NPCs per location~~ (DONE - locations support multiple NPCs with improved talk command UX), ~~multiple enemies for fights~~ (DONE - combat now spawns 1-3 enemies with target-based attacks), boss fights
 
 ### Unique AI-generated ASCII art per entity
 **Status**: ACTIVE
@@ -521,3 +618,11 @@ Players can now see which adjacent cells are impassable, improving map readabili
 - `NPC.to_dict()/from_dict()` handle all fields including `conversation_history`, `shop`, and `offered_quests`
 
 **Fix**: Added explicit test `test_load_game_state_preserves_npcs` in `tests/test_persistence_game_state.py` to verify NPC persistence through save/load cycles, confirming all NPC fields are preserved.
+
+### More content
+**Status**: RESOLVED
+
+All "more content" features have been implemented:
+- ~~Multiple NPCs per location~~ (DONE - locations support multiple NPCs with improved talk command UX)
+- ~~Multiple enemies for fights~~ (DONE - combat now spawns 1-3 enemies with target-based attacks)
+- ~~Boss fights~~ (DONE - bosses spawn with 2x stats, 4x XP, guaranteed legendary loot drops, unique ASCII art)

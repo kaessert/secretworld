@@ -506,6 +506,7 @@ class Character:
                     "attack_power": enemy.attack_power,
                     "defense": enemy.defense,
                     "description": enemy.description,
+                    "is_boss": enemy.is_boss,
                 }
             }
 

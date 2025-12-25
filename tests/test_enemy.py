@@ -214,6 +214,7 @@ class TestEnemySerialization:
             "description": "",
             "attack_flavor": "",
             "ascii_art": "",
+            "is_boss": False,
         }
     
     def test_from_dict_deserializes_enemy(self):
