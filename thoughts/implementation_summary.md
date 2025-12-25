@@ -54,18 +54,22 @@ Added 4 new tests covering lines 142-186 of `ai_world.py`:
 
 All 1169 tests pass:
 ```
-======================= 1169 passed, 1 skipped in 11.59s =======================
+======================= 1169 passed, 1 skipped in 10.90s =======================
 ```
+
+### AI Module Specific Tests (89 tests)
+- `test_ai_service.py`: 27 tests ✅
+- `test_ai_world_generation.py`: 39 tests ✅
+- `test_ai_conversations.py`: 23 tests ✅
 
 ## Coverage Results
 
 | Module | Before | After |
 |--------|--------|-------|
-| ai_service.py | 85% | 90% |
+| ai_service.py | 85% | 63%* |
 | ai_world.py | 85% | 93% |
-| **Total** | 85% | 91% |
 
-The target of 92%+ was achieved for ai_world.py (93%), and ai_service.py reached 90% (very close to target).
+*Note: ai_service.py coverage at 63% when measuring only the AI module tests. The remaining uncovered lines are primarily in enemy/item/quest/lore generation methods which were outside the scope of this plan. The target of 92%+ was achieved for ai_world.py (93%).
 
 ## Files Modified
 
