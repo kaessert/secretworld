@@ -378,3 +378,388 @@ class TestSpawnEnemyPoison:
         # If we don't get a spider in 100 tries, that's fine -
         # the test below will verify the template
         pytest.skip("Did not randomly spawn a spider in 100 attempts")
+
+
+# ============================================================================
+# Burn Status Effect Tests (Spec: Burn - DOT effect with fire damage)
+# ============================================================================
+
+
+class TestBurnStatusEffect:
+    """Tests for the Burn status effect."""
+
+    def test_burn_effect_creation(self):
+        """Spec: Burn is a DOT effect with fire damage per turn."""
+        effect = StatusEffect(
+            name="Burn",
+            effect_type="dot",
+            damage_per_turn=5,
+            duration=2
+        )
+        assert effect.name == "Burn"
+        assert effect.effect_type == "dot"
+        assert effect.damage_per_turn == 5
+        assert effect.duration == 2
+
+    def test_burn_effect_tick_deals_damage(self):
+        """Spec: Burn deals 5 damage per turn for 2 turns."""
+        effect = StatusEffect(
+            name="Burn",
+            effect_type="dot",
+            damage_per_turn=5,
+            duration=2
+        )
+        damage, expired = effect.tick()
+
+        assert damage == 5  # Should deal its damage_per_turn
+        assert expired is False
+        assert effect.duration == 1
+
+    def test_burn_effect_expires_correctly(self):
+        """Spec: Burn duration is 2 turns."""
+        effect = StatusEffect(
+            name="Burn",
+            effect_type="dot",
+            damage_per_turn=5,
+            duration=1  # Last turn
+        )
+        damage, expired = effect.tick()
+
+        assert damage == 5
+        assert expired is True
+        assert effect.duration == 0
+
+
+class TestEnemyBurn:
+    """Tests for enemy burn capability."""
+
+    def test_enemy_with_burn_fields(self):
+        """Spec: Enemies can have burn_chance, burn_damage, burn_duration."""
+        enemy = Enemy(
+            name="Fire Elemental",
+            health=50,
+            max_health=50,
+            attack_power=10,
+            defense=2,
+            xp_reward=30,
+            burn_chance=0.2,
+            burn_damage=5,
+            burn_duration=2
+        )
+
+        assert enemy.burn_chance == 0.2
+        assert enemy.burn_damage == 5
+        assert enemy.burn_duration == 2
+
+    def test_enemy_default_no_burn(self):
+        """Non-burn enemies should have default values of 0."""
+        enemy = Enemy(
+            name="Wolf",
+            health=50,
+            max_health=50,
+            attack_power=10,
+            defense=2,
+            xp_reward=30
+        )
+
+        assert enemy.burn_chance == 0.0
+        assert enemy.burn_damage == 0
+        assert enemy.burn_duration == 0
+
+    def test_enemy_burn_serialization(self):
+        """Spec: Burn fields are serialized/deserialized for persistence."""
+        enemy = Enemy(
+            name="Fire Elemental",
+            health=50,
+            max_health=50,
+            attack_power=10,
+            defense=2,
+            xp_reward=30,
+            burn_chance=0.2,
+            burn_damage=5,
+            burn_duration=2
+        )
+
+        data = enemy.to_dict()
+        assert data["burn_chance"] == 0.2
+        assert data["burn_damage"] == 5
+        assert data["burn_duration"] == 2
+
+        restored = Enemy.from_dict(data)
+        assert restored.burn_chance == 0.2
+        assert restored.burn_damage == 5
+        assert restored.burn_duration == 2
+
+
+class TestCombatBurn:
+    """Tests for burn effects in combat."""
+
+    @pytest.fixture
+    def character(self):
+        """Create a test character."""
+        return Character(name="TestHero", strength=10, dexterity=10, intelligence=10)
+
+    @pytest.fixture
+    def burn_enemy(self):
+        """Create a test enemy with burn capability."""
+        return Enemy(
+            name="Fire Elemental",
+            health=50,
+            max_health=50,
+            attack_power=10,
+            defense=2,
+            xp_reward=30,
+            burn_chance=1.0,  # Guaranteed for testing
+            burn_damage=5,
+            burn_duration=2
+        )
+
+    def test_burn_applies_in_combat(self, character, burn_enemy):
+        """Spec: Enemies with burn can apply burn to the player on attack."""
+        combat = CombatEncounter(player=character, enemy=burn_enemy)
+        combat.start()
+
+        initial_effects = len(character.status_effects)
+        combat.enemy_turn()
+
+        # Character should now have burn
+        assert len(character.status_effects) == initial_effects + 1
+        assert character.status_effects[0].name == "Burn"
+
+    def test_burn_ticks_during_enemy_turn(self, character, burn_enemy):
+        """Spec: Burn deals damage at the end of each combat turn."""
+        combat = CombatEncounter(player=character, enemy=burn_enemy)
+        combat.start()
+
+        # Apply burn directly for controlled test
+        burn = StatusEffect(
+            name="Burn",
+            effect_type="dot",
+            damage_per_turn=5,
+            duration=2
+        )
+        character.apply_status_effect(burn)
+
+        initial_health = character.health
+        message = combat.enemy_turn()
+
+        # Health should be reduced by enemy attack + burn tick
+        assert "Burn" in message or "burn" in message
+        assert character.health < initial_health
+
+
+# ============================================================================
+# Stun Status Effect Tests (Spec: Stun - Control effect, skip turn)
+# ============================================================================
+
+
+class TestStunStatusEffect:
+    """Tests for the Stun status effect."""
+
+    def test_stun_effect_creation(self):
+        """Spec: Stun is a control effect that causes player to skip turn."""
+        effect = StatusEffect(
+            name="Stun",
+            effect_type="stun",
+            damage_per_turn=0,  # Stun doesn't deal damage
+            duration=1
+        )
+        assert effect.name == "Stun"
+        assert effect.effect_type == "stun"
+        assert effect.damage_per_turn == 0
+        assert effect.duration == 1
+
+    def test_stun_effect_tick_no_damage(self):
+        """Spec: Stun does not deal damage, only skips turn."""
+        effect = StatusEffect(
+            name="Stun",
+            effect_type="stun",
+            damage_per_turn=0,
+            duration=1
+        )
+        damage, expired = effect.tick()
+
+        assert damage == 0  # Stun doesn't deal damage
+        assert expired is True  # 1 turn duration expires after tick
+        assert effect.duration == 0
+
+
+class TestEnemyStun:
+    """Tests for enemy stun capability."""
+
+    def test_enemy_with_stun_fields(self):
+        """Spec: Enemies can have stun_chance, stun_duration."""
+        enemy = Enemy(
+            name="Troll",
+            health=80,
+            max_health=80,
+            attack_power=15,
+            defense=5,
+            xp_reward=50,
+            stun_chance=0.15,
+            stun_duration=1
+        )
+
+        assert enemy.stun_chance == 0.15
+        assert enemy.stun_duration == 1
+
+    def test_enemy_default_no_stun(self):
+        """Non-stun enemies should have default values of 0."""
+        enemy = Enemy(
+            name="Wolf",
+            health=50,
+            max_health=50,
+            attack_power=10,
+            defense=2,
+            xp_reward=30
+        )
+
+        assert enemy.stun_chance == 0.0
+        assert enemy.stun_duration == 0
+
+    def test_enemy_stun_serialization(self):
+        """Spec: Stun fields are serialized/deserialized for persistence."""
+        enemy = Enemy(
+            name="Troll",
+            health=80,
+            max_health=80,
+            attack_power=15,
+            defense=5,
+            xp_reward=50,
+            stun_chance=0.15,
+            stun_duration=1
+        )
+
+        data = enemy.to_dict()
+        assert data["stun_chance"] == 0.15
+        assert data["stun_duration"] == 1
+
+        restored = Enemy.from_dict(data)
+        assert restored.stun_chance == 0.15
+        assert restored.stun_duration == 1
+
+
+class TestCombatStun:
+    """Tests for stun effects in combat."""
+
+    @pytest.fixture
+    def character(self):
+        """Create a test character."""
+        return Character(name="TestHero", strength=10, dexterity=10, intelligence=10)
+
+    @pytest.fixture
+    def stun_enemy(self):
+        """Create a test enemy with stun capability."""
+        return Enemy(
+            name="Troll",
+            health=80,
+            max_health=80,
+            attack_power=15,
+            defense=5,
+            xp_reward=50,
+            stun_chance=1.0,  # Guaranteed for testing
+            stun_duration=1
+        )
+
+    def test_stun_applies_in_combat(self, character, stun_enemy):
+        """Spec: Enemies with stun can apply stun to the player on attack."""
+        combat = CombatEncounter(player=character, enemy=stun_enemy)
+        combat.start()
+
+        initial_effects = len(character.status_effects)
+        combat.enemy_turn()
+
+        # Character should now have stun
+        assert len(character.status_effects) == initial_effects + 1
+        assert character.status_effects[0].name == "Stun"
+
+    def test_stunned_player_cannot_attack(self, character, stun_enemy):
+        """Spec: Player skips their next action when stunned."""
+        combat = CombatEncounter(player=character, enemy=stun_enemy)
+        combat.start()
+
+        # Apply stun directly for controlled test
+        stun = StatusEffect(
+            name="Stun",
+            effect_type="stun",
+            damage_per_turn=0,
+            duration=1
+        )
+        character.apply_status_effect(stun)
+
+        # Enemy health before attack attempt
+        initial_enemy_health = stun_enemy.health
+
+        # Try to attack - should skip due to stun
+        victory, message = combat.player_attack()
+
+        # Attack should be skipped
+        assert "stunned" in message.lower() or "stun" in message.lower()
+        assert stun_enemy.health == initial_enemy_health  # No damage dealt
+
+    def test_stunned_player_cannot_cast(self, character, stun_enemy):
+        """Spec: Player skips their next action when stunned (cast)."""
+        combat = CombatEncounter(player=character, enemy=stun_enemy)
+        combat.start()
+
+        # Apply stun
+        stun = StatusEffect(
+            name="Stun",
+            effect_type="stun",
+            damage_per_turn=0,
+            duration=1
+        )
+        character.apply_status_effect(stun)
+
+        initial_enemy_health = stun_enemy.health
+        victory, message = combat.player_cast()
+
+        # Cast should be skipped
+        assert "stunned" in message.lower() or "stun" in message.lower()
+        assert stun_enemy.health == initial_enemy_health
+
+    def test_stunned_player_cannot_defend(self, character, stun_enemy):
+        """Spec: Player skips their next action when stunned (defend)."""
+        combat = CombatEncounter(player=character, enemy=stun_enemy)
+        combat.start()
+
+        # Apply stun
+        stun = StatusEffect(
+            name="Stun",
+            effect_type="stun",
+            damage_per_turn=0,
+            duration=1
+        )
+        character.apply_status_effect(stun)
+
+        victory, message = combat.player_defend()
+
+        # Defend should be skipped
+        assert "stunned" in message.lower() or "stun" in message.lower()
+        assert combat.defending is False  # Defense stance not applied
+
+    def test_stun_consumed_after_skip(self, character, stun_enemy):
+        """Spec: Stun is consumed after player skips one action."""
+        combat = CombatEncounter(player=character, enemy=stun_enemy)
+        combat.start()
+
+        # Apply stun
+        stun = StatusEffect(
+            name="Stun",
+            effect_type="stun",
+            damage_per_turn=0,
+            duration=1
+        )
+        character.apply_status_effect(stun)
+        assert len(character.status_effects) == 1
+
+        # First attack skipped due to stun
+        combat.player_attack()
+
+        # Stun should be consumed
+        assert len(character.status_effects) == 0
+
+        # Second attack should work normally
+        initial_enemy_health = stun_enemy.health
+        combat.player_attack()
+        assert stun_enemy.health < initial_enemy_health

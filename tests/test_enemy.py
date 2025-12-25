@@ -218,6 +218,11 @@ class TestEnemySerialization:
             "poison_chance": 0.0,
             "poison_damage": 0,
             "poison_duration": 0,
+            "burn_chance": 0.0,
+            "burn_damage": 0,
+            "burn_duration": 0,
+            "stun_chance": 0.0,
+            "stun_duration": 0,
         }
     
     def test_from_dict_deserializes_enemy(self):

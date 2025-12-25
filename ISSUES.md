@@ -495,17 +495,21 @@ Combat lacks tactical depth - players just attack repeatedly. Need a skill/abili
 ### Status effects and combat depth
 **Status**: ACTIVE (Partial)
 
-Combat is too simple - attack until enemy dies. Basic poison status effect has been implemented.
+Combat is too simple - attack until enemy dies. Core status effect system has been implemented with poison, burn, and stun.
 
 **Implemented**:
 - ✅ Basic poison status effect (DOT damage over time)
 - ✅ Poison-capable enemies (spiders, snakes, serpents, vipers with 20% poison chance)
+- ✅ Burn status effect (DOT damage over time, 2 turns)
+- ✅ Burn-capable enemies (fire elementals, dragons, flame creatures with 20% burn chance)
+- ✅ Stun status effect (player skips next action)
+- ✅ Stun-capable enemies (trolls, golems, giants, hammer-wielders with 15% stun chance)
 - ✅ Status effect display in combat status
 - ✅ Status effects cleared on combat end
 - ✅ Full persistence/serialization support
 
 **Remaining features**:
-- Additional status effects: burn, freeze, stun, bleed, buff/debuff
+- Additional status effects: freeze, bleed, buff/debuff
 - Elemental strengths and weaknesses
 - Defensive options: block, dodge, parry
 - Enemy attack patterns and telegraphed special moves

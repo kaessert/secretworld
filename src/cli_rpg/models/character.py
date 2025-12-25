@@ -497,6 +497,7 @@ class Character:
         """Process one turn of all status effects.
 
         Applies damage from DOT effects and removes expired effects.
+        Stun effects are NOT ticked here - they are consumed when player acts.
 
         Returns:
             List of messages describing what happened
@@ -505,6 +506,10 @@ class Character:
         expired_effects = []
 
         for effect in self.status_effects:
+            # Skip stun effects - they are consumed when player tries to act
+            if effect.effect_type == "stun":
+                continue
+
             damage, expired = effect.tick()
 
             if damage > 0:

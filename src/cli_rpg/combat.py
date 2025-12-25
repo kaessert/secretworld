@@ -200,6 +200,19 @@ class CombatEncounter:
         self.is_active = False
         self.defending = False
 
+    def _check_and_consume_stun(self) -> Optional[str]:
+        """Check if player is stunned and consume the stun effect if so.
+
+        Returns:
+            Message about being stunned if stunned, None otherwise.
+        """
+        for effect in self.player.status_effects:
+            if effect.effect_type == "stun":
+                # Remove the stun effect (consume it)
+                self.player.status_effects.remove(effect)
+                return f"You are {colors.damage('stunned')} and cannot act this turn!"
+        return None
+
     @property
     def enemy(self) -> Enemy:
         """Backward compatibility: return first enemy."""
@@ -298,6 +311,11 @@ class CombatEncounter:
             - victory: True if ALL enemies defeated, False otherwise
             - message: Description of the attack
         """
+        # Check if player is stunned
+        stun_msg = self._check_and_consume_stun()
+        if stun_msg:
+            return False, stun_msg
+
         # Get target enemy
         enemy, error = self._get_target(target)
         if enemy is None:
@@ -331,6 +349,11 @@ class CombatEncounter:
             - victory: Always False (combat continues)
             - message: Description of defensive action
         """
+        # Check if player is stunned
+        stun_msg = self._check_and_consume_stun()
+        if stun_msg:
+            return False, stun_msg
+
         self.defending = True
         message = "You brace yourself for the enemy's attack, taking a defensive stance!"
         return False, message
@@ -350,6 +373,11 @@ class CombatEncounter:
             - victory: True if ALL enemies defeated, False otherwise
             - message: Description of the spell cast
         """
+        # Check if player is stunned
+        stun_msg = self._check_and_consume_stun()
+        if stun_msg:
+            return False, stun_msg
+
         # Get target enemy
         enemy, error = self._get_target(target)
         if enemy is None:
@@ -445,6 +473,34 @@ class CombatEncounter:
                 self.player.apply_status_effect(poison)
                 messages.append(
                     f"{colors.enemy(enemy.name)}'s attack {colors.damage('poisons')} you!"
+                )
+
+            # Check if enemy can apply burn
+            if enemy.burn_chance > 0 and random.random() < enemy.burn_chance:
+                # Apply burn effect
+                burn = StatusEffect(
+                    name="Burn",
+                    effect_type="dot",
+                    damage_per_turn=enemy.burn_damage,
+                    duration=enemy.burn_duration
+                )
+                self.player.apply_status_effect(burn)
+                messages.append(
+                    f"{colors.enemy(enemy.name)}'s attack {colors.damage('burns')} you!"
+                )
+
+            # Check if enemy can apply stun
+            if enemy.stun_chance > 0 and random.random() < enemy.stun_chance:
+                # Apply stun effect
+                stun = StatusEffect(
+                    name="Stun",
+                    effect_type="stun",
+                    damage_per_turn=0,
+                    duration=enemy.stun_duration
+                )
+                self.player.apply_status_effect(stun)
+                messages.append(
+                    f"{colors.enemy(enemy.name)}'s attack {colors.damage('stuns')} you!"
                 )
 
         # Reset defensive stance after all attacks
@@ -717,16 +773,33 @@ def spawn_enemy(
     # Get fallback ASCII art based on enemy name
     ascii_art = get_fallback_ascii_art(enemy_name)
 
-    # Determine poison capability based on enemy type
+    # Determine status effect capabilities based on enemy type
+    enemy_name_lower = enemy_name.lower()
+
     # Spiders and snakes get 20% poison chance, 4 damage, 3 turns
     poison_chance = 0.0
     poison_damage = 0
     poison_duration = 0
-    enemy_name_lower = enemy_name.lower()
     if any(term in enemy_name_lower for term in ["spider", "snake", "serpent", "viper"]):
         poison_chance = 0.2
         poison_damage = 4
         poison_duration = 3
+
+    # Fire elementals and dragons get 20% burn chance, 5 damage, 2 turns
+    burn_chance = 0.0
+    burn_damage = 0
+    burn_duration = 0
+    if any(term in enemy_name_lower for term in ["fire", "dragon", "elemental", "flame", "inferno"]):
+        burn_chance = 0.2
+        burn_damage = 5
+        burn_duration = 2
+
+    # Trolls and golems get 15% stun chance, 1 turn
+    stun_chance = 0.0
+    stun_duration = 0
+    if any(term in enemy_name_lower for term in ["troll", "golem", "hammer", "giant"]):
+        stun_chance = 0.15
+        stun_duration = 1
 
     return Enemy(
         name=enemy_name,
@@ -740,6 +813,11 @@ def spawn_enemy(
         poison_chance=poison_chance,
         poison_damage=poison_damage,
         poison_duration=poison_duration,
+        burn_chance=burn_chance,
+        burn_damage=burn_damage,
+        burn_duration=burn_duration,
+        stun_chance=stun_chance,
+        stun_duration=stun_duration,
     )
 
 

@@ -22,6 +22,11 @@ class Enemy:
     poison_chance: float = 0.0  # Chance (0.0-1.0) to apply poison on attack
     poison_damage: int = 0  # Damage per turn if poison is applied
     poison_duration: int = 0  # Duration of poison in turns
+    burn_chance: float = 0.0  # Chance (0.0-1.0) to apply burn on attack
+    burn_damage: int = 0  # Damage per turn if burn is applied
+    burn_duration: int = 0  # Duration of burn in turns
+    stun_chance: float = 0.0  # Chance (0.0-1.0) to apply stun on attack
+    stun_duration: int = 0  # Duration of stun in turns
     
     def __post_init__(self):
         """Validate enemy attributes."""
@@ -87,6 +92,11 @@ class Enemy:
             "poison_chance": self.poison_chance,
             "poison_damage": self.poison_damage,
             "poison_duration": self.poison_duration,
+            "burn_chance": self.burn_chance,
+            "burn_damage": self.burn_damage,
+            "burn_duration": self.burn_duration,
+            "stun_chance": self.stun_chance,
+            "stun_duration": self.stun_duration,
         }
     
     @staticmethod
@@ -115,4 +125,9 @@ class Enemy:
             poison_chance=data.get("poison_chance", 0.0),
             poison_damage=data.get("poison_damage", 0),
             poison_duration=data.get("poison_duration", 0),
+            burn_chance=data.get("burn_chance", 0.0),
+            burn_damage=data.get("burn_damage", 0),
+            burn_duration=data.get("burn_duration", 0),
+            stun_chance=data.get("stun_chance", 0.0),
+            stun_duration=data.get("stun_duration", 0),
         )

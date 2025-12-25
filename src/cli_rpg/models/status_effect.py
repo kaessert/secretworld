@@ -16,7 +16,7 @@ class StatusEffect:
     """
 
     name: str
-    effect_type: str  # "dot", "buff", "debuff"
+    effect_type: str  # "dot", "buff", "debuff", "stun"
     damage_per_turn: int
     duration: int
 
