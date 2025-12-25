@@ -18,9 +18,9 @@ try:
     AI_AVAILABLE = True
 except ImportError:
     AI_AVAILABLE = False
-    AIService = None
-    AIServiceError = Exception
-    expand_area = None
+    AIService = None  # type: ignore[misc, assignment]
+    AIServiceError = Exception  # type: ignore[misc, assignment]
+    expand_area = None  # type: ignore[assignment]
 
 logger = logging.getLogger(__name__)
 
@@ -305,6 +305,8 @@ class GameState:
                 else:
                     return (False, f"Destination '{destination_name}' not found in world.")
 
+            if destination_name is None:
+                return (False, "Failed to determine destination.")
             self.current_location = destination_name
 
         # Autosave after successful movement

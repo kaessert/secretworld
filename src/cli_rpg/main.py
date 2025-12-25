@@ -171,6 +171,8 @@ def handle_conversation_input(game_state: GameState, user_input: str) -> tuple[b
         Tuple of (continue_game, message)
     """
     npc = game_state.current_npc
+    if npc is None:
+        return (True, "No one to talk to.")
 
     # Check for exit commands
     exit_commands = {"bye", "leave", "exit"}
@@ -228,9 +230,11 @@ def handle_combat_command(game_state: GameState, command: str, args: list[str]) 
     """
     if not game_state.is_in_combat():
         return (True, "\n✗ Not in combat.")
-    
+
     combat = game_state.current_combat
-    
+    if combat is None:
+        return (True, "\n✗ Not in combat.")
+
     if command == "attack":
         victory, message = combat.player_attack()
         output = f"\n{message}"
@@ -614,8 +618,8 @@ def handle_exploration_command(game_state: GameState, command: str, args: list[s
                 return (True, f"\nMultiple items match '{item_name}': {names}. Please be more specific.")
             else:
                 # No matches - list available items
-                available = ", ".join(f"'{si.item.name}'" for si in game_state.current_shop.inventory)
-                return (True, f"\nThe shop doesn't have '{item_name}'. Available: {available}")
+                available_items = ", ".join(f"'{si.item.name}'" for si in game_state.current_shop.inventory)
+                return (True, f"\nThe shop doesn't have '{item_name}'. Available: {available_items}")
         if game_state.current_character.gold < shop_item.buy_price:
             return (True, f"\nYou can't afford {shop_item.item.name} ({shop_item.buy_price} gold). You have {game_state.current_character.gold} gold.")
         if game_state.current_character.inventory.is_full():
@@ -989,7 +993,7 @@ def run_game_loop(game_state: GameState) -> None:
                 game_state.current_combat = None
 
         # Show conversation prompt if in conversation
-        if game_state.is_in_conversation:
+        if game_state.is_in_conversation and game_state.current_npc is not None:
             print(f"\n[Talking to {game_state.current_npc.name}]")
 
         print()

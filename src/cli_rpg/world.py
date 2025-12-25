@@ -17,8 +17,8 @@ try:
     AI_AVAILABLE = True
 except ImportError:
     AI_AVAILABLE = False
-    AIService = None
-    create_ai_world = None
+    AIService = None  # type: ignore[misc, assignment]
+    create_ai_world = None  # type: ignore[assignment]
 
 
 def create_default_world() -> tuple[dict[str, Location], str]:

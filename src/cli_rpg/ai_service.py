@@ -3,7 +3,7 @@
 import json
 import hashlib
 import time
-from typing import Optional, TYPE_CHECKING
+from typing import Any, Optional, TYPE_CHECKING
 
 if TYPE_CHECKING:  # pragma: no cover
     from cli_rpg.models.item import ItemType  # pragma: no cover
@@ -13,11 +13,13 @@ import openai
 # Conditionally import Anthropic to handle missing package
 try:
     from anthropic import Anthropic
+    from anthropic.types import TextBlock
     import anthropic as anthropic_module
     ANTHROPIC_AVAILABLE = True
 except ImportError:  # pragma: no cover
-    Anthropic = None  # pragma: no cover
-    anthropic_module = None  # pragma: no cover
+    Anthropic = None  # type: ignore[misc, assignment]  # pragma: no cover
+    TextBlock = None  # type: ignore[misc, assignment]  # pragma: no cover
+    anthropic_module = None  # type: ignore[assignment]  # pragma: no cover
     ANTHROPIC_AVAILABLE = False  # pragma: no cover
 
 import logging
@@ -60,6 +62,9 @@ class AIService:
         provider: The AI provider being used ("openai" or "anthropic")
     """
 
+    # Type annotation for client that can be either OpenAI or Anthropic
+    client: Any
+
     def __init__(self, config: AIConfig):
         """Initialize AI service.
 
@@ -89,7 +94,8 @@ class AIService:
             self.client = OpenAI(api_key=config.api_key)
 
         # Initialize cache if enabled
-        self._cache: dict[str, tuple[dict, float]] = {}  # key -> (data, timestamp)
+        # Cache can hold dict (for single location) or list (for area locations)
+        self._cache: dict[str, tuple[Any, float]] = {}  # key -> (data, timestamp)
 
         # Load persisted cache from disk if caching is enabled
         if self.config.enable_caching:
@@ -98,7 +104,7 @@ class AIService:
     def generate_location(
         self,
         theme: str,
-        context_locations: list[str] = None,
+        context_locations: Optional[list[str]] = None,
         source_location: Optional[str] = None,
         direction: Optional[str] = None
     ) -> dict:
@@ -219,7 +225,7 @@ class AIService:
             AIServiceError: If API call fails after retries
             AITimeoutError: If request times out
         """
-        last_error = None
+        last_error: Optional[Exception] = None
 
         for attempt in range(self.config.max_retries + 1):
             try:
@@ -232,7 +238,8 @@ class AIService:
                     max_tokens=self.config.max_tokens
                 )
 
-                return response.choices[0].message.content
+                content = response.choices[0].message.content
+                return content if content is not None else ""
 
             except openai.APITimeoutError as e:
                 last_error = e
@@ -290,7 +297,7 @@ class AIService:
             AIServiceError: If API call fails after retries
             AITimeoutError: If request times out
         """
-        last_error = None
+        last_error: Optional[Exception] = None
 
         for attempt in range(self.config.max_retries + 1):
             try:
@@ -302,7 +309,12 @@ class AIService:
                     max_tokens=self.config.max_tokens
                 )
 
-                return response.content[0].text
+                # Extract text from first content block (must be TextBlock)
+                first_block = response.content[0]
+                if TextBlock is not None and isinstance(first_block, TextBlock):
+                    return first_block.text
+                # Fallback: access text attribute directly (for mocked responses in tests)
+                return getattr(first_block, 'text', '')
 
             except Exception as e:
                 # Handle Anthropic-specific exceptions if available
@@ -414,27 +426,28 @@ class AIService:
             "category": category
         }
     
-    def _get_cached(self, prompt: str) -> Optional[dict]:
+    def _get_cached(self, prompt: str) -> Optional[dict[str, Any]]:
         """Get cached location data.
-        
+
         Args:
             prompt: The prompt used as cache key
-        
+
         Returns:
             Cached location data if found and not expired, None otherwise
         """
         cache_key = hashlib.md5(prompt.encode()).hexdigest()
-        
+
         if cache_key in self._cache:
             data, timestamp = self._cache[cache_key]
-            
+
             # Check if cache entry is still valid
             if time.time() - timestamp < self.config.cache_ttl:
-                return data.copy()  # Return a copy to avoid mutations
+                result: dict[str, Any] = data.copy()  # Return a copy to avoid mutations
+                return result
             else:
                 # Cache expired, remove it
                 del self._cache[cache_key]
-        
+
         return None
     
     def _set_cached(self, prompt: str, data: dict) -> None:
@@ -770,7 +783,7 @@ Note: Use "EXISTING_WORLD" as placeholder for the connection back to the source 
             "category": category
         }
 
-    def _get_cached_list(self, prompt: str) -> Optional[list]:
+    def _get_cached_list(self, prompt: str) -> Optional[list[dict[str, Any]]]:
         """Get cached area data (list of locations).
 
         Args:
@@ -787,7 +800,8 @@ Note: Use "EXISTING_WORLD" as placeholder for the connection back to the source 
             if time.time() - timestamp < self.config.cache_ttl:
                 # Deep copy the list
                 import copy
-                return copy.deepcopy(data)
+                result: list[dict[str, Any]] = copy.deepcopy(data)
+                return result
             else:
                 del self._cache[cache_key]
 

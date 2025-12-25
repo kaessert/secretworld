@@ -37,7 +37,9 @@ def render_map(world: dict[str, Location], current_location: str) -> str:
     # since we already checked current_loc.coordinates is not None above
     coord_to_location: dict[tuple[int, int], tuple[str, Location]] = {}
     for name, location in locations_with_coords:
-        coord_to_location[location.coordinates] = (name, location)
+        coords = location.coordinates
+        assert coords is not None  # We already filtered for non-None coordinates
+        coord_to_location[coords] = (name, location)
 
     # Build the legend entries
     legend_entries = []
@@ -54,10 +56,12 @@ def render_map(world: dict[str, Location], current_location: str) -> str:
     # Create marker map for coordinates (uncolored for alignment calculations)
     coord_to_marker: dict[tuple[int, int], str] = {}
     for name, location in locations_with_coords:
+        coords = location.coordinates
+        assert coords is not None  # We already filtered for non-None coordinates
         if name == current_location:
-            coord_to_marker[location.coordinates] = "@"
+            coord_to_marker[coords] = "@"
         else:
-            coord_to_marker[location.coordinates] = name[0].upper()
+            coord_to_marker[coords] = name[0].upper()
 
     # Calculate column width for alignment (each cell needs space for marker + padding)
     cell_width = 3

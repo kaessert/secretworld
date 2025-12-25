@@ -1,7 +1,7 @@
 """Location model for the game world."""
 
 from dataclasses import dataclass, field
-from typing import ClassVar, List, Optional, Tuple, TYPE_CHECKING
+from typing import Any, ClassVar, List, Optional, Tuple, TYPE_CHECKING
 
 from cli_rpg import colors
 
@@ -152,13 +152,13 @@ class Location:
                 return npc
         return None
 
-    def to_dict(self) -> dict:
+    def to_dict(self) -> dict[str, Any]:
         """Serialize the location to a dictionary.
 
         Returns:
             A dictionary representation of the location
         """
-        data = {
+        data: dict[str, Any] = {
             "name": self.name,
             "description": self.description,
             "connections": self.connections.copy(),
@@ -166,7 +166,7 @@ class Location:
         }
         # Only include coordinates if present (backward compatibility)
         if self.coordinates is not None:
-            data["coordinates"] = list(self.coordinates)
+            data["coordinates"] = [self.coordinates[0], self.coordinates[1]]
         # Only include category if present (backward compatibility)
         if self.category is not None:
             data["category"] = self.category

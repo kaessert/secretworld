@@ -230,7 +230,7 @@ def generate_loot(enemy: Enemy, level: int) -> Optional[Item]:
     ]
 
     roll = random.random()
-    cumulative = 0
+    cumulative: float = 0.0
     item_type = ItemType.MISC
     for itype, prob in item_types:
         cumulative += prob
