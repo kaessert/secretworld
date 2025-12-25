@@ -11,6 +11,7 @@ from cli_rpg.config import load_ai_config, is_ai_strict_mode
 from cli_rpg.ai_service import AIService
 from cli_rpg.autosave import autosave
 from cli_rpg.map_renderer import render_map
+from cli_rpg.input_handler import init_readline, get_input
 
 
 def get_command_reference() -> str:
@@ -1023,7 +1024,7 @@ def run_game_loop(game_state: GameState) -> None:
             print(f"\n[Talking to {game_state.current_npc.name}]")
 
         print()
-        command_input = input("> ").strip()
+        command_input = get_input("> ")
 
         if not command_input:
             continue
@@ -1510,6 +1511,9 @@ def main(args: Optional[list] = None) -> int:
 
     if parsed_args.non_interactive:
         return run_non_interactive(log_file=parsed_args.log_file, delay_ms=delay_ms)
+
+    # Initialize readline for command history (arrow keys navigation)
+    init_readline()
 
     print("\n" + "=" * 50)
     print("Welcome to CLI RPG!")
