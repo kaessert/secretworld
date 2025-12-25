@@ -1,67 +1,45 @@
-# Distance-Based Enemy Difficulty Scaling - Implementation Summary
+# Implementation Summary: Connection System Bug Fix
 
-## What Was Implemented
+## Task
+Fix the connection system bug where movement in coordinate-based mode was ignoring the `connections` dict, allowing players to move in any direction even without an exit.
 
-### Core Feature
-Enemies now scale in difficulty based on Manhattan distance from the origin (0,0) in the game world. The further players travel from the starting area, the more challenging encounters become.
+## Changes Made
 
-### Formula
-`scaled_stat = base_stat * (1 + distance * 0.15)`
+### Already Implemented
+The fix was already in place in `src/cli_rpg/game_state.py` at lines 297-299:
 
-### Distance Tiers
-- **Near (0-3)**: Easy encounters (multiplier 1.0-1.45)
-- **Mid (4-7)**: Moderate encounters (multiplier 1.6-2.05)
-- **Far (8-12)**: Challenging encounters (multiplier 2.2-2.8)
-- **Deep (13+)**: Dangerous encounters (multiplier 2.95+)
+```python
+# Block movement if no connection exists in that direction
+if not current.has_connection(direction):
+    return (False, "You can't go that way.")
+```
 
-## Files Modified
+This check occurs immediately after validating the direction (north/south/east/west) and BEFORE any coordinate-based movement or new location generation. This ensures:
+1. Players cannot move in directions without exits
+2. New locations are NOT generated when no exit exists
+3. The check works for both coordinate-based and legacy connection-based movement
 
-### 1. `src/cli_rpg/combat.py`
-- Added `calculate_distance_from_origin(coordinates)` - Calculates Manhattan distance from (0,0)
-- Added `get_distance_multiplier(distance)` - Returns stat multiplier based on distance
-- Updated `spawn_enemy()` - New `distance` parameter, applies multiplier to all stats
-- Updated `spawn_enemies()` - Accepts and passes `distance` to `spawn_enemy()`
-- Updated `ai_spawn_enemy()` - Accepts `distance`, applies multiplier to AI-generated enemy stats
+### Test Added
+A test `test_move_blocked_when_no_connection_coordinate_mode` already exists in `tests/test_game_state.py` under `TestGameStateCoordinateBasedMovement` class (lines 648-669) that verifies:
+- Moving in a direction without a connection fails
+- Error message contains "can't go that way"
+- Player location remains unchanged
+- No new locations are generated in the world
 
-### 2. `src/cli_rpg/game_state.py`
-- Updated import to include `calculate_distance_from_origin`
-- Updated `trigger_encounter()` - Calculates distance from current location's coordinates and passes to spawn functions
+## Verification
 
-### 3. `tests/test_distance_scaling.py` (new file)
-- 23 comprehensive tests covering:
-  - Distance calculation utility functions
-  - Multiplier formula verification across all tiers
-  - Enemy stat scaling with distance
-  - Backward compatibility (default distance=0)
-  - GameState integration with location coordinates
-  - AI enemy stat scaling
+### Test Results
+- Specific test: PASSED
+- Full test suite: 1709 tests passed in 32.77s
 
-## Test Results
-- **New tests**: 23 passed
-- **Full suite**: 1708 passed
-- No regressions
+### Expected Behavior
+From a location with only `{"north": "Forest"}`:
+- `go north` → Success, moves to Forest
+- `go south` → Failure, "You can't go that way."
+- `go east` → Failure, "You can't go that way."
+- `go west` → Failure, "You can't go that way."
 
-## Technical Details
-
-### Affected Stats
-All enemy combat stats are scaled by the distance multiplier:
-- `max_health` / `health`
-- `attack_power`
-- `defense`
-- `xp_reward` (rewards scale with difficulty)
-
-### Backward Compatibility
-- All functions default `distance=0` (no scaling)
-- Locations without coordinates (`None`) use distance 0
-- Legacy saves without coordinates continue to work
-
-### Integration Points
-- Template-based enemy spawning (`spawn_enemy`, `spawn_enemies`)
-- AI-generated enemies (`ai_spawn_enemy`)
-- Random encounters in `GameState.trigger_encounter()`
-
-## E2E Validation Suggestions
-1. Start a new game and verify enemies near origin have base stats
-2. Travel 10 tiles away (e.g., coordinates (5,5)) and verify enemies have ~2.5x stats
-3. Verify XP rewards increase proportionally with distance
-4. Test AI-generated enemies also scale correctly when AI service is enabled
+## Technical Notes
+The fix is strategically placed to handle both:
+1. **Coordinate-based movement**: Prevents generation of new locations at target coordinates when no exit exists
+2. **Legacy movement**: The existing check at line 364 becomes redundant but harmless (defense in depth)

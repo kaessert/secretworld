@@ -33,69 +33,6 @@
 - `src/cli_rpg/game_state.py`: Remove fallback, propagate errors
 - `src/cli_rpg/ai_service.py`: Add JSON extraction/repair logic (optional)
 
-### CONNECTION SYSTEM REWORK - Players can go anywhere (BROKEN)
-**Status**: ACTIVE (CRITICAL)
-
-**The Core Bug**: Players can move in ANY direction, even when no connection/exit exists. The game generates new locations on-the-fly for any direction, completely bypassing the exit system.
-
-**Current broken behavior** in `game_state.py:257-344`:
-```python
-# Lines 299-300 - THE BUG:
-else:
-    # No location at target - generate one (AI or fallback)
-```
-
-The move() function:
-1. Calculates target coordinates for the direction
-2. If no location exists there, generates one (AI or fallback)
-3. **NEVER checks if `current.has_connection(direction)`**
-
-This means every location effectively has 4 exits (N/S/E/W) even when connections dict says otherwise.
-
-**Required Fix - Check connections BEFORE generating**:
-
-```python
-# In move(), BEFORE generating new locations:
-if not current.has_connection(direction):
-    return (False, "You can't go that way.")
-```
-
-**Complete Rework Needed**:
-
-1. **Enforce connection-based movement**:
-   - `game_state.py:285-344`: Add connection check before ANY location generation
-   - Only generate new location if `current.has_connection(direction)` returns True
-   - Return "You can't go that way" for directions without exits
-
-2. **Connections must be explicit**:
-   - Locations define their exits in `connections` dict
-   - No implicit "all 4 directions open" behavior
-   - AI generates 1-4 exits per location based on type:
-     - Dungeons: corridors (1-2 exits)
-     - Forests: winding paths (2-3 exits)
-     - Towns: open areas (3-4 exits)
-
-3. **Guaranteed exploration frontier**:
-   - World must always have at least one unexplored exit somewhere
-   - Track "frontier exits" globally (exits pointing to non-existent locations)
-   - When generating a location, ensure at least one exit leads to unexplored territory
-   - Individual dead-ends are OK, but world must remain explorable
-
-4. **Dangling connections for expansion**:
-   - Connections can point to locations that don't exist yet (e.g., "Unexplored North")
-   - When player follows such an exit, THEN generate the new location
-   - This is the ONLY way new locations should be created
-
-5. **Map display**:
-   - Show blocked adjacent cells with `█` (already implemented)
-   - Only show exits that exist in connections dict
-
-**Files to modify**:
-- `src/cli_rpg/game_state.py`: Add connection check in move() before generation
-- `src/cli_rpg/ai_world.py`: Ensure AI generates limited exits per location
-- `src/cli_rpg/world.py`: Validate frontier exits exist in generated worlds
-- `src/cli_rpg/world_grid.py`: Add frontier tracking utilities
-
 ### Non-interactive mode enhancements
 **Status**: ACTIVE
 
@@ -367,6 +304,18 @@ Quests should be dynamically generated to keep gameplay fresh.
 **Description**: When a player talked to a Merchant NPC and opened their shop, then talked to a different non-merchant NPC (like a Guard), the shop context from the Merchant remained active. This allowed the player to execute `shop`, `buy`, and `sell` commands while appearing to be in conversation with the non-merchant NPC.
 
 **Fix**: Added `else` clause in `talk` command handler to clear `game_state.current_shop = None` when NPC is not a merchant. Test added: `test_talk_to_non_merchant_clears_shop_context` in `tests/test_shop_commands.py`.
+
+### Connection system movement bug
+**Status**: RESOLVED
+
+**Description**: Players could move in ANY direction, even when no connection/exit existed. The game generated new locations on-the-fly for any direction, completely bypassing the exit system defined in `connections` dict.
+
+**Fix**: Added connection check in `game_state.py` move() function that blocks movement if no connection exists in that direction:
+```python
+if not current.has_connection(direction):
+    return (False, "You can't go that way.")
+```
+This check occurs before any coordinate-based movement or new location generation, ensuring players can only move in directions with valid exits. Test added: `test_move_blocked_when_no_connection_coordinate_mode` in `tests/test_game_state.py`.
 
 ### Dead-end navigation bug [RESOLVED]
 **Status**: RESOLVED

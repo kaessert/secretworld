@@ -73,23 +73,23 @@ class TestGameplayIntegration:
         assert "invalid" in message.lower() or "use:" in message.lower()
         assert game_state.current_location == "Town Square"
 
-    def test_gameplay_move_to_unexplored_creates_location(self):
-        """Test that move to unexplored direction creates new location.
+    def test_gameplay_move_blocked_without_connection(self):
+        """Test that move in direction without exit fails.
 
-        Spec: With infinite world, moving in any valid cardinal direction should
-        succeed, creating a new location if one doesn't exist at target coordinates.
+        Spec: Movement requires a connection (exit) to exist. Moving in a direction
+        without a connection should fail with "You can't go that way."
         """
         character = Character("Hero", strength=10, dexterity=10, intelligence=10)
         world, starting_location = create_default_world()
         initial_world_size = len(world)
         game_state = GameState(character, world, starting_location)
 
-        success, message = game_state.move("west")  # No west exit from Town Square initially
+        success, message = game_state.move("west")  # No west exit from Town Square
 
-        assert success is True
-        assert isinstance(message, str)
-        assert game_state.current_location != "Town Square"
-        assert len(game_state.world) == initial_world_size + 1  # New location added
+        assert success is False
+        assert "can't go that way" in message.lower()
+        assert game_state.current_location == "Town Square"
+        assert len(game_state.world) == initial_world_size  # No new location added
     
     def test_gameplay_navigation_sequence(self):
         """Test that multiple moves in sequence work correctly.

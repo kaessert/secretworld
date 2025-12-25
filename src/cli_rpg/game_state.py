@@ -294,6 +294,10 @@ class GameState:
         if direction not in valid_game_directions:
             return (False, "Invalid direction. Use: north, south, east, or west.")
 
+        # Block movement if no connection exists in that direction
+        if not current.has_connection(direction):
+            return (False, "You can't go that way.")
+
         # Use coordinate-based movement if current location has coordinates
         if current.coordinates is not None:
             # Calculate target coordinates for valid cardinal directions

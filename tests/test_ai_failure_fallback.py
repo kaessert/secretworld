@@ -20,10 +20,20 @@ def character():
 
 @pytest.fixture
 def world_with_coords():
-    """World with coordinate-based location."""
+    """World with coordinate-based location and dangling connections for testing.
+
+    The location has connections in all directions to test fallback generation
+    when AI fails. The connections point to non-existent locations (dangling).
+    """
     loc = Location(
         name="Town",
         description="A town.",
+        connections={
+            "north": "Unexplored North",
+            "south": "Unexplored South",
+            "east": "Unexplored East",
+            "west": "Unexplored West"
+        },
         coordinates=(0, 0)
     )
     return {"Town": loc}
