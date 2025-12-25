@@ -53,9 +53,10 @@ class TestRecordKill:
         assert len(messages) == 1
         assert "Quest progress: Goblin Slayer [1/3]" in messages[0]
 
-    # Spec: Quest completion detected and status updated to COMPLETED
-    def test_record_kill_marks_quest_completed_when_target_reached(self, character):
-        """Test that quest status is set to COMPLETED when target_count is reached."""
+    # Spec: Quest objectives complete - status updated to READY_TO_TURN_IN (not COMPLETED)
+    # Player must return to quest giver to claim rewards and mark as COMPLETED
+    def test_record_kill_marks_quest_ready_to_turn_in_when_target_reached(self, character):
+        """Test that quest status is set to READY_TO_TURN_IN when target_count is reached."""
         quest = Quest(
             name="Goblin Slayer",
             description="Kill 1 goblin",
@@ -69,12 +70,12 @@ class TestRecordKill:
 
         character.record_kill("Goblin")
 
-        assert quest.status == QuestStatus.COMPLETED
+        assert quest.status == QuestStatus.READY_TO_TURN_IN
         assert quest.current_count == 1
 
-    # Spec: Player receives special notification on quest completion
-    def test_record_kill_returns_completion_message(self, character):
-        """Test that record_kill returns completion notification when quest completes."""
+    # Spec: Player receives notification to return to quest giver
+    def test_record_kill_returns_ready_to_turn_in_message(self, character):
+        """Test that record_kill returns notification to return to quest giver."""
         quest = Quest(
             name="Goblin Slayer",
             description="Kill 1 goblin",
@@ -83,13 +84,15 @@ class TestRecordKill:
             target="Goblin",
             target_count=1,
             current_count=0,
+            quest_giver="Elder Marcus",
         )
         character.quests.append(quest)
 
         messages = character.record_kill("Goblin")
 
         assert len(messages) == 1
-        assert "Quest Complete: Goblin Slayer!" in messages[0]
+        assert "Quest objectives complete: Goblin Slayer!" in messages[0]
+        assert "Return to Elder Marcus" in messages[0]
 
     # Spec: Compare enemy name to quest target (case-insensitive)
     def test_record_kill_matches_case_insensitive(self, character, kill_quest):
@@ -198,9 +201,9 @@ class TestRecordKill:
         # Both quests should progress
         assert quest1.current_count == 1
         assert quest2.current_count == 3
-        # Quest 2 should be completed
-        assert quest2.status == QuestStatus.COMPLETED
-        # Should have 2 messages (one progress, one completion)
+        # Quest 2 should be ready to turn in (not completed - requires returning to NPC)
+        assert quest2.status == QuestStatus.READY_TO_TURN_IN
+        # Should have 2 messages (one progress, one ready to turn in)
         assert len(messages) == 2
 
     def test_record_kill_returns_empty_list_when_no_matching_quests(self, character):
@@ -258,9 +261,9 @@ class TestRecordCollection:
         assert len(messages) == 1
         assert "Quest progress: Herb Gathering [1/3]" in messages[0]
 
-    # Spec: Quest completion detected and status updated to COMPLETED
-    def test_record_collection_marks_quest_completed_when_target_reached(self, character):
-        """Test that quest status is set to COMPLETED when target_count is reached."""
+    # Spec: Quest objectives complete - status updated to READY_TO_TURN_IN (not COMPLETED)
+    def test_record_collection_marks_quest_ready_to_turn_in_when_target_reached(self, character):
+        """Test that quest status is set to READY_TO_TURN_IN when target_count is reached."""
         quest = Quest(
             name="Herb Gathering",
             description="Collect 1 herb",
@@ -274,12 +277,12 @@ class TestRecordCollection:
 
         character.record_collection("Healing Herb")
 
-        assert quest.status == QuestStatus.COMPLETED
+        assert quest.status == QuestStatus.READY_TO_TURN_IN
         assert quest.current_count == 1
 
-    # Spec: Player receives special notification on quest completion
-    def test_record_collection_returns_completion_message(self, character):
-        """Test that record_collection returns completion notification when quest completes."""
+    # Spec: Player receives notification to return to quest giver
+    def test_record_collection_returns_ready_to_turn_in_message(self, character):
+        """Test that record_collection returns notification to return to quest giver."""
         quest = Quest(
             name="Herb Gathering",
             description="Collect 1 herb",
@@ -288,13 +291,15 @@ class TestRecordCollection:
             target="Healing Herb",
             target_count=1,
             current_count=0,
+            quest_giver="Herbalist Rosa",
         )
         character.quests.append(quest)
 
         messages = character.record_collection("Healing Herb")
 
         assert len(messages) == 1
-        assert "Quest Complete: Herb Gathering!" in messages[0]
+        assert "Quest objectives complete: Herb Gathering!" in messages[0]
+        assert "Return to Herbalist Rosa" in messages[0]
 
     # Spec: Compare item name to quest target (case-insensitive)
     def test_record_collection_matches_case_insensitive(self, character, collect_quest):
@@ -405,9 +410,9 @@ class TestRecordCollection:
         # Both quests should progress
         assert quest1.current_count == 1
         assert quest2.current_count == 3
-        # Quest 2 should be completed
-        assert quest2.status == QuestStatus.COMPLETED
-        # Should have 2 messages (one progress, one completion)
+        # Quest 2 should be ready to turn in (not completed - requires returning to NPC)
+        assert quest2.status == QuestStatus.READY_TO_TURN_IN
+        # Should have 2 messages (one progress, one ready to turn in)
         assert len(messages) == 2
 
     # Spec: Returns empty list when no quests match

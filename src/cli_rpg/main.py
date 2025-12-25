@@ -29,6 +29,7 @@ def get_command_reference() -> str:
         "  use (u) <item>     - Use a consumable item",
         "  talk (t) <npc>     - Talk to an NPC",
         "  accept <quest>     - Accept a quest from the current NPC",
+        "  complete <quest>   - Turn in a completed quest to the current NPC",
         "  shop               - View shop inventory (when at a shop)",
         "  buy <item>         - Buy an item from the shop",
         "  sell <item>        - Sell an item to the shop",
@@ -417,6 +418,18 @@ def handle_exploration_command(game_state: GameState, command: str, args: list[s
             game_state.current_shop = npc.shop
             output += "\n\nType 'shop' to see items, 'buy <item>' to purchase, 'sell <item>' to sell."
 
+        # Check for quests ready to turn in to this NPC
+        from cli_rpg.models.quest import QuestStatus
+        ready_to_turn_in = [
+            q for q in game_state.current_character.quests
+            if q.status == QuestStatus.READY_TO_TURN_IN and q.quest_giver == npc.name
+        ]
+        if ready_to_turn_in:
+            output += "\n\nQuests ready to turn in:"
+            for q in ready_to_turn_in:
+                output += f"\n  ★ {q.name}"
+            output += "\n\nType 'complete <quest>' to turn in a quest and claim rewards."
+
         # Show available quests if NPC is a quest giver
         if npc.is_quest_giver and npc.offered_quests:
             available = [
@@ -544,6 +557,7 @@ def handle_exploration_command(game_state: GameState, command: str, args: list[s
             return (True, f"\nYou already have the quest '{matching_quest.name}'.")
 
         # Clone quest and set status to ACTIVE, then add to character
+        # Bug fix: Include gold_reward, xp_reward, item_rewards, and set quest_giver
         new_quest = Quest(
             name=matching_quest.name,
             description=matching_quest.description,
@@ -551,12 +565,58 @@ def handle_exploration_command(game_state: GameState, command: str, args: list[s
             target=matching_quest.target,
             target_count=matching_quest.target_count,
             status=QuestStatus.ACTIVE,
-            current_count=0
+            current_count=0,
+            gold_reward=matching_quest.gold_reward,
+            xp_reward=matching_quest.xp_reward,
+            item_rewards=matching_quest.item_rewards.copy(),
+            quest_giver=npc.name,
         )
         game_state.current_character.quests.append(new_quest)
         autosave(game_state)
 
         return (True, f"\nQuest accepted: {new_quest.name}\n{new_quest.description}")
+
+    elif command == "complete":
+        # Complete/turn in a quest to the current NPC
+        if game_state.current_npc is None:
+            return (True, "\nYou need to talk to an NPC first to turn in a quest.")
+
+        if not args:
+            return (True, "\nComplete which quest? Specify a quest name (e.g., 'complete goblin slayer').")
+
+        quest_name = " ".join(args).lower()
+        npc = game_state.current_npc
+
+        # Find matching quest that is ready to turn in
+        from cli_rpg.models.quest import QuestStatus
+        matching_quest = None
+        for q in game_state.current_character.quests:
+            if (
+                q.status == QuestStatus.READY_TO_TURN_IN
+                and quest_name in q.name.lower()
+            ):
+                matching_quest = q
+                break
+
+        if matching_quest is None:
+            return (True, f"\nNo quest ready to turn in matching '{' '.join(args)}'.")
+
+        # Verify quest was given by this NPC
+        if matching_quest.quest_giver != npc.name:
+            return (
+                True,
+                f"\nYou can't turn in '{matching_quest.name}' to {npc.name}. "
+                f"Return to {matching_quest.quest_giver} instead."
+            )
+
+        # Claim rewards and mark as completed
+        reward_messages = game_state.current_character.claim_quest_rewards(matching_quest)
+        matching_quest.status = QuestStatus.COMPLETED
+        autosave(game_state)
+
+        output_lines = [f"\nQuest completed: {matching_quest.name}!"]
+        output_lines.extend(reward_messages)
+        return (True, "\n".join(output_lines))
 
     elif command == "map":
         map_output = render_map(game_state.world, game_state.current_location)
@@ -567,12 +627,19 @@ def handle_exploration_command(game_state: GameState, command: str, args: list[s
         if not quests:
             return (True, "\n=== Quest Journal ===\nNo active quests.")
 
-        # Separate active and completed quests
+        # Separate active, ready to turn in, and completed quests
         from cli_rpg.models.quest import QuestStatus
         active_quests = [q for q in quests if q.status == QuestStatus.ACTIVE]
+        ready_quests = [q for q in quests if q.status == QuestStatus.READY_TO_TURN_IN]
         completed_quests = [q for q in quests if q.status == QuestStatus.COMPLETED]
 
         lines = ["\n=== Quest Journal ==="]
+
+        if ready_quests:
+            lines.append("\nReady to Turn In:")
+            for quest in ready_quests:
+                giver_hint = f" (Return to {quest.quest_giver})" if quest.quest_giver else ""
+                lines.append(f"  ★ {quest.name}{giver_hint}")
 
         if active_quests:
             lines.append("\nActive Quests:")
@@ -584,7 +651,7 @@ def handle_exploration_command(game_state: GameState, command: str, args: list[s
             for quest in completed_quests:
                 lines.append(f"  ✓ {quest.name}")
 
-        if not active_quests and not completed_quests:
+        if not active_quests and not ready_quests and not completed_quests:
             # Handle edge case: quests exist but are in other states (AVAILABLE, FAILED)
             lines.append("No active quests.")
 
@@ -605,15 +672,21 @@ def handle_exploration_command(game_state: GameState, command: str, args: list[s
 
         # Show details of first matching quest
         quest = matching_quests[0]
+        # Format status - show "Ready to Turn In" in a user-friendly way
+        status_display = quest.status.value.replace("_", " ").title()
         lines = [
             f"\n=== {quest.name} ===",
-            f"Status: {quest.status.value.capitalize()}",
+            f"Status: {status_display}",
+        ]
+        if quest.quest_giver:
+            lines.append(f"Quest Giver: {quest.quest_giver}")
+        lines.extend([
             f"",
             f"{quest.description}",
             f"",
             f"Objective: {quest.objective_type.value.capitalize()} {quest.target}",
             f"Progress: {quest.current_count}/{quest.target_count}",
-        ]
+        ])
         return (True, "\n".join(lines))
 
     elif command == "help":

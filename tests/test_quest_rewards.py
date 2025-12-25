@@ -1,9 +1,10 @@
 """Tests for quest reward system.
 
 Spec: When a quest's objectives are met, the system should:
-1. Automatically mark the quest as COMPLETED (already implemented)
-2. Grant defined rewards to the player: gold, XP, and optionally items
-3. Display reward notification messages to the player
+1. Mark the quest as READY_TO_TURN_IN (player must return to quest giver)
+2. Player claims rewards by using 'complete' command at the quest giver NPC
+3. claim_quest_rewards() grants gold, XP, and items to the player
+4. Display reward notification messages to the player
 """
 
 import pytest
@@ -216,7 +217,7 @@ class TestClaimQuestRewards:
         quest = Quest(
             name="Gold Quest",
             description="Get some gold",
-            status=QuestStatus.COMPLETED,
+            status=QuestStatus.READY_TO_TURN_IN,
             objective_type=ObjectiveType.KILL,
             target="Enemy",
             gold_reward=100,
@@ -233,7 +234,7 @@ class TestClaimQuestRewards:
         quest = Quest(
             name="XP Quest",
             description="Get some XP",
-            status=QuestStatus.COMPLETED,
+            status=QuestStatus.READY_TO_TURN_IN,
             objective_type=ObjectiveType.KILL,
             target="Enemy",
             xp_reward=50,
@@ -250,7 +251,7 @@ class TestClaimQuestRewards:
         quest = Quest(
             name="Item Quest",
             description="Get some items",
-            status=QuestStatus.COMPLETED,
+            status=QuestStatus.READY_TO_TURN_IN,
             objective_type=ObjectiveType.KILL,
             target="Enemy",
             item_rewards=["Health Potion"],
@@ -268,7 +269,7 @@ class TestClaimQuestRewards:
         quest = Quest(
             name="Gold Quest",
             description="Get some gold",
-            status=QuestStatus.COMPLETED,
+            status=QuestStatus.READY_TO_TURN_IN,
             objective_type=ObjectiveType.KILL,
             target="Enemy",
             gold_reward=100,
@@ -283,7 +284,7 @@ class TestClaimQuestRewards:
         quest = Quest(
             name="XP Quest",
             description="Get some XP",
-            status=QuestStatus.COMPLETED,
+            status=QuestStatus.READY_TO_TURN_IN,
             objective_type=ObjectiveType.KILL,
             target="Enemy",
             xp_reward=50,
@@ -299,7 +300,7 @@ class TestClaimQuestRewards:
         quest = Quest(
             name="Item Quest",
             description="Get some items",
-            status=QuestStatus.COMPLETED,
+            status=QuestStatus.READY_TO_TURN_IN,
             objective_type=ObjectiveType.KILL,
             target="Enemy",
             item_rewards=["Health Potion"],
@@ -309,10 +310,10 @@ class TestClaimQuestRewards:
 
         assert any("Health Potion" in msg for msg in messages)
 
-    # Spec: claim_quest_rewards requires COMPLETED status
-    def test_claim_quest_rewards_requires_completed_status(self, character):
-        """Test that claiming rewards requires quest to be COMPLETED."""
-        for status in [QuestStatus.ACTIVE, QuestStatus.AVAILABLE, QuestStatus.FAILED]:
+    # Spec: claim_quest_rewards requires READY_TO_TURN_IN status
+    def test_claim_quest_rewards_requires_ready_to_turn_in_status(self, character):
+        """Test that claiming rewards requires quest to be READY_TO_TURN_IN."""
+        for status in [QuestStatus.ACTIVE, QuestStatus.AVAILABLE, QuestStatus.FAILED, QuestStatus.COMPLETED]:
             quest = Quest(
                 name=f"Quest {status.value}",
                 description="A quest",
@@ -322,7 +323,7 @@ class TestClaimQuestRewards:
                 gold_reward=100,
             )
 
-            with pytest.raises(ValueError, match="Quest must be completed"):
+            with pytest.raises(ValueError, match="Quest must be ready to turn in"):
                 character.claim_quest_rewards(quest)
 
     def test_claim_quest_rewards_with_no_rewards(self, character):
@@ -330,7 +331,7 @@ class TestClaimQuestRewards:
         quest = Quest(
             name="No Reward Quest",
             description="A quest with no rewards",
-            status=QuestStatus.COMPLETED,
+            status=QuestStatus.READY_TO_TURN_IN,
             objective_type=ObjectiveType.KILL,
             target="Enemy",
         )
@@ -348,7 +349,7 @@ class TestClaimQuestRewards:
         quest = Quest(
             name="Full Reward Quest",
             description="Get all the rewards",
-            status=QuestStatus.COMPLETED,
+            status=QuestStatus.READY_TO_TURN_IN,
             objective_type=ObjectiveType.KILL,
             target="Enemy",
             gold_reward=100,
@@ -368,11 +369,11 @@ class TestClaimQuestRewards:
 
 
 class TestRecordKillWithRewards:
-    """Tests for reward granting when quests complete via record_kill."""
+    """Tests for quest status changes via record_kill (rewards require turn-in)."""
 
-    # Spec: When quest completes via record_kill, rewards are granted
-    def test_record_kill_grants_rewards_on_completion(self, character):
-        """Test that completing a quest via record_kill grants rewards."""
+    # Spec: When quest objectives are met via record_kill, quest is READY_TO_TURN_IN (no rewards yet)
+    def test_record_kill_sets_ready_to_turn_in_no_rewards(self, character):
+        """Test that completing objectives via record_kill doesn't grant rewards (requires turn-in)."""
         quest = Quest(
             name="Goblin Slayer",
             description="Kill 1 goblin",
@@ -390,14 +391,14 @@ class TestRecordKillWithRewards:
         initial_xp = character.xp
         messages = character.record_kill("Goblin")
 
-        # Quest should be completed
-        assert quest.status == QuestStatus.COMPLETED
-        # Rewards should be granted
-        assert character.gold == initial_gold + 50
-        assert character.xp >= initial_xp + 25
+        # Quest should be ready to turn in (NOT completed)
+        assert quest.status == QuestStatus.READY_TO_TURN_IN
+        # Rewards should NOT be granted until turn-in
+        assert character.gold == initial_gold
+        assert character.xp == initial_xp
 
-    def test_record_kill_includes_reward_messages(self, character):
-        """Test that record_kill returns reward messages on completion."""
+    def test_record_kill_returns_turn_in_message(self, character):
+        """Test that record_kill returns message about returning to quest giver."""
         quest = Quest(
             name="Goblin Slayer",
             description="Kill 1 goblin",
@@ -408,15 +409,16 @@ class TestRecordKillWithRewards:
             current_count=0,
             gold_reward=50,
             xp_reward=25,
+            quest_giver="Captain Guard",
         )
         character.quests.append(quest)
 
         messages = character.record_kill("Goblin")
 
-        # Should have completion message + reward messages
-        assert any("Quest Complete" in msg for msg in messages)
-        assert any("50 gold" in msg for msg in messages)
-        assert any("25 XP" in msg or "Gained 25" in msg for msg in messages)
+        # Should have message about objectives complete and returning to quest giver
+        assert len(messages) == 1
+        assert "Quest objectives complete" in messages[0]
+        assert "Captain Guard" in messages[0]
 
     def test_record_kill_does_not_grant_rewards_on_progress(self, character):
         """Test that progress (not completion) doesn't grant rewards."""
@@ -446,8 +448,8 @@ class TestRecordKillWithRewards:
         assert len(messages) == 1
         assert "progress" in messages[0].lower()
 
-    def test_record_kill_grants_item_rewards_on_completion(self, character):
-        """Test that item rewards are granted when quest completes via record_kill."""
+    def test_record_kill_does_not_grant_item_rewards_on_objectives_complete(self, character):
+        """Test that item rewards are NOT granted when objectives complete (requires turn-in)."""
         quest = Quest(
             name="Goblin Slayer",
             description="Kill 1 goblin",
@@ -462,6 +464,8 @@ class TestRecordKillWithRewards:
 
         character.record_kill("Goblin")
 
-        # Item should be in inventory
+        # Item should NOT be in inventory yet (requires turn-in)
         item_names = [item.name for item in character.inventory.items]
-        assert "Goblin Ear" in item_names
+        assert "Goblin Ear" not in item_names
+        # Quest should be ready to turn in
+        assert quest.status == QuestStatus.READY_TO_TURN_IN

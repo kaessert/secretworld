@@ -225,3 +225,255 @@ def test_quest_detail_blocked_during_combat(game_state, active_quest):
 
     assert continue_game is True
     assert "combat" in message.lower() or "can't" in message.lower()
+
+
+# ============================================================================
+# Tests for bug fix: accept command copies rewards
+# ============================================================================
+
+from cli_rpg.models.npc import NPC
+
+
+@pytest.fixture
+def quest_giver_npc():
+    """Create a quest-giving NPC with a quest that has rewards."""
+    reward_quest = Quest(
+        name="Kill the Rats",
+        description="Clear the rats from the cellar",
+        objective_type=ObjectiveType.KILL,
+        target="Rat",
+        target_count=5,
+        status=QuestStatus.AVAILABLE,
+        gold_reward=100,
+        xp_reward=50,
+        item_rewards=["Rat Tail"],
+    )
+    return NPC(
+        name="Tavern Keeper",
+        description="A busy innkeeper",
+        dialogue="Welcome, traveler!",
+        is_quest_giver=True,
+        offered_quests=[reward_quest],
+    )
+
+
+@pytest.fixture
+def game_state_with_npc(character, quest_giver_npc):
+    """Create a game state with an NPC that offers quests."""
+    location = Location(
+        name="Town Square",
+        description="A central square.",
+        connections={"north": "Forest"},
+        coordinates=(0, 0),
+        npcs=[quest_giver_npc],
+    )
+    world = {"Town Square": location}
+    return GameState(character, world, starting_location="Town Square")
+
+
+def test_accept_quest_copies_gold_reward(game_state_with_npc, quest_giver_npc):
+    """Test that accepting a quest copies the gold_reward field."""
+    # Talk to NPC first to set current_npc
+    handle_exploration_command(game_state_with_npc, "talk", ["tavern", "keeper"])
+
+    # Accept the quest
+    handle_exploration_command(game_state_with_npc, "accept", ["kill", "the", "rats"])
+
+    # Check that the quest was added with rewards
+    char = game_state_with_npc.current_character
+    assert len(char.quests) == 1
+    accepted_quest = char.quests[0]
+    assert accepted_quest.gold_reward == 100
+
+
+def test_accept_quest_copies_xp_reward(game_state_with_npc, quest_giver_npc):
+    """Test that accepting a quest copies the xp_reward field."""
+    handle_exploration_command(game_state_with_npc, "talk", ["tavern", "keeper"])
+    handle_exploration_command(game_state_with_npc, "accept", ["kill", "the", "rats"])
+
+    char = game_state_with_npc.current_character
+    accepted_quest = char.quests[0]
+    assert accepted_quest.xp_reward == 50
+
+
+def test_accept_quest_copies_item_rewards(game_state_with_npc, quest_giver_npc):
+    """Test that accepting a quest copies the item_rewards field."""
+    handle_exploration_command(game_state_with_npc, "talk", ["tavern", "keeper"])
+    handle_exploration_command(game_state_with_npc, "accept", ["kill", "the", "rats"])
+
+    char = game_state_with_npc.current_character
+    accepted_quest = char.quests[0]
+    assert accepted_quest.item_rewards == ["Rat Tail"]
+
+
+def test_accept_quest_sets_quest_giver(game_state_with_npc, quest_giver_npc):
+    """Test that accepting a quest sets the quest_giver field to NPC name."""
+    handle_exploration_command(game_state_with_npc, "talk", ["tavern", "keeper"])
+    handle_exploration_command(game_state_with_npc, "accept", ["kill", "the", "rats"])
+
+    char = game_state_with_npc.current_character
+    accepted_quest = char.quests[0]
+    assert accepted_quest.quest_giver == "Tavern Keeper"
+
+
+# ============================================================================
+# Tests for READY_TO_TURN_IN quest display
+# ============================================================================
+
+
+@pytest.fixture
+def ready_to_turn_in_quest():
+    """Create a quest that is ready to turn in."""
+    return Quest(
+        name="Goblin Hunt",
+        description="Kill some goblins",
+        objective_type=ObjectiveType.KILL,
+        target="Goblin",
+        target_count=3,
+        current_count=3,
+        status=QuestStatus.READY_TO_TURN_IN,
+        quest_giver="Village Elder",
+    )
+
+
+def test_quests_command_shows_ready_to_turn_in_section(game_state, ready_to_turn_in_quest):
+    """Test that 'quests' shows Ready to Turn In section."""
+    game_state.current_character.quests.append(ready_to_turn_in_quest)
+
+    continue_game, message = handle_exploration_command(game_state, "quests", [])
+
+    assert continue_game is True
+    assert "Ready to Turn In" in message
+    assert "Goblin Hunt" in message
+    assert "Village Elder" in message
+
+
+def test_quest_detail_shows_quest_giver(game_state, ready_to_turn_in_quest):
+    """Test that 'quest <name>' shows quest giver info."""
+    game_state.current_character.quests.append(ready_to_turn_in_quest)
+
+    continue_game, message = handle_exploration_command(game_state, "quest", ["goblin"])
+
+    assert continue_game is True
+    assert "Quest Giver: Village Elder" in message
+
+
+def test_quest_detail_shows_ready_to_turn_in_status(game_state, ready_to_turn_in_quest):
+    """Test that 'quest <name>' shows 'Ready To Turn In' status nicely."""
+    game_state.current_character.quests.append(ready_to_turn_in_quest)
+
+    continue_game, message = handle_exploration_command(game_state, "quest", ["goblin"])
+
+    assert continue_game is True
+    # Should format the status nicely
+    assert "Ready To Turn In" in message
+
+
+# ============================================================================
+# Tests for complete command
+# ============================================================================
+
+
+def test_complete_command_requires_npc(game_state):
+    """Test that 'complete' command requires talking to an NPC first."""
+    continue_game, message = handle_exploration_command(game_state, "complete", ["some", "quest"])
+
+    assert continue_game is True
+    assert "talk to an npc" in message.lower()
+
+
+def test_complete_command_requires_quest_name(game_state_with_npc, quest_giver_npc):
+    """Test that 'complete' command requires a quest name argument."""
+    handle_exploration_command(game_state_with_npc, "talk", ["tavern", "keeper"])
+
+    continue_game, message = handle_exploration_command(game_state_with_npc, "complete", [])
+
+    assert continue_game is True
+    assert "specify" in message.lower() or "which quest" in message.lower()
+
+
+def test_complete_command_requires_ready_to_turn_in_status(game_state_with_npc, quest_giver_npc, active_quest):
+    """Test that 'complete' command only works for READY_TO_TURN_IN quests."""
+    game_state_with_npc.current_character.quests.append(active_quest)  # ACTIVE status
+    handle_exploration_command(game_state_with_npc, "talk", ["tavern", "keeper"])
+
+    continue_game, message = handle_exploration_command(game_state_with_npc, "complete", ["kill", "goblins"])
+
+    assert continue_game is True
+    assert "no quest ready to turn in" in message.lower()
+
+
+def test_complete_command_requires_matching_quest_giver(game_state_with_npc, quest_giver_npc, ready_to_turn_in_quest):
+    """Test that 'complete' verifies quest giver matches current NPC."""
+    # Quest was given by "Village Elder" but we're talking to "Tavern Keeper"
+    game_state_with_npc.current_character.quests.append(ready_to_turn_in_quest)
+    handle_exploration_command(game_state_with_npc, "talk", ["tavern", "keeper"])
+
+    continue_game, message = handle_exploration_command(game_state_with_npc, "complete", ["goblin"])
+
+    assert continue_game is True
+    assert "Village Elder" in message
+    assert "can't turn in" in message.lower()
+
+
+def test_complete_command_grants_rewards_and_sets_completed(game_state_with_npc, quest_giver_npc):
+    """Test that 'complete' grants rewards and sets status to COMPLETED."""
+    # Accept a quest first
+    handle_exploration_command(game_state_with_npc, "talk", ["tavern", "keeper"])
+    handle_exploration_command(game_state_with_npc, "accept", ["kill", "the", "rats"])
+
+    # Manually complete the quest objectives
+    quest = game_state_with_npc.current_character.quests[0]
+    quest.current_count = quest.target_count
+    quest.status = QuestStatus.READY_TO_TURN_IN
+
+    initial_gold = game_state_with_npc.current_character.gold
+    initial_xp = game_state_with_npc.current_character.xp
+
+    # Turn in the quest (use partial match "rats")
+    continue_game, message = handle_exploration_command(game_state_with_npc, "complete", ["rats"])
+
+    assert continue_game is True
+    assert "Quest completed" in message
+    assert quest.status == QuestStatus.COMPLETED
+    assert game_state_with_npc.current_character.gold == initial_gold + 100
+    assert game_state_with_npc.current_character.xp >= initial_xp + 50
+
+
+def test_complete_command_shows_reward_messages(game_state_with_npc, quest_giver_npc):
+    """Test that 'complete' shows reward messages."""
+    handle_exploration_command(game_state_with_npc, "talk", ["tavern", "keeper"])
+    handle_exploration_command(game_state_with_npc, "accept", ["kill", "the", "rats"])
+
+    quest = game_state_with_npc.current_character.quests[0]
+    quest.current_count = quest.target_count
+    quest.status = QuestStatus.READY_TO_TURN_IN
+
+    continue_game, message = handle_exploration_command(game_state_with_npc, "complete", ["rats"])
+
+    assert "100 gold" in message
+    assert "50 XP" in message or "Gained 50" in message
+    assert "Rat Tail" in message
+
+
+# ============================================================================
+# Tests for turn-in indicator in NPC dialogue
+# ============================================================================
+
+
+def test_talk_shows_turn_in_ready_quests(game_state_with_npc, quest_giver_npc):
+    """Test that talking to NPC shows quests ready to turn in."""
+    # Accept and complete quest
+    handle_exploration_command(game_state_with_npc, "talk", ["tavern", "keeper"])
+    handle_exploration_command(game_state_with_npc, "accept", ["kill", "the", "rats"])
+
+    quest = game_state_with_npc.current_character.quests[0]
+    quest.current_count = quest.target_count
+    quest.status = QuestStatus.READY_TO_TURN_IN
+
+    # Talk again
+    continue_game, message = handle_exploration_command(game_state_with_npc, "talk", ["tavern", "keeper"])
+
+    assert "Quests ready to turn in" in message
+    assert "Kill the Rats" in message
+    assert "complete" in message.lower()

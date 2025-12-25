@@ -229,11 +229,17 @@ class Character:
             ):
                 completed = quest.progress()
                 if completed:
-                    quest.status = QuestStatus.COMPLETED
-                    messages.append(f"Quest Complete: {quest.name}!")
-                    # Grant quest rewards
-                    reward_messages = self.claim_quest_rewards(quest)
-                    messages.extend(reward_messages)
+                    quest.status = QuestStatus.READY_TO_TURN_IN
+                    if quest.quest_giver:
+                        messages.append(
+                            f"Quest objectives complete: {quest.name}! "
+                            f"Return to {quest.quest_giver} to claim your reward."
+                        )
+                    else:
+                        messages.append(
+                            f"Quest objectives complete: {quest.name}! "
+                            "Return to the quest giver to claim your reward."
+                        )
                 else:
                     messages.append(
                         f"Quest progress: {quest.name} [{quest.current_count}/{quest.target_count}]"
@@ -260,10 +266,17 @@ class Character:
             ):
                 completed = quest.progress()
                 if completed:
-                    quest.status = QuestStatus.COMPLETED
-                    messages.append(f"Quest Complete: {quest.name}!")
-                    reward_messages = self.claim_quest_rewards(quest)
-                    messages.extend(reward_messages)
+                    quest.status = QuestStatus.READY_TO_TURN_IN
+                    if quest.quest_giver:
+                        messages.append(
+                            f"Quest objectives complete: {quest.name}! "
+                            f"Return to {quest.quest_giver} to claim your reward."
+                        )
+                    else:
+                        messages.append(
+                            f"Quest objectives complete: {quest.name}! "
+                            "Return to the quest giver to claim your reward."
+                        )
                 else:
                     messages.append(
                         f"Quest progress: {quest.name} [{quest.current_count}/{quest.target_count}]"
@@ -271,22 +284,22 @@ class Character:
         return messages
 
     def claim_quest_rewards(self, quest: "Quest") -> List[str]:
-        """Claim rewards from a completed quest.
+        """Claim rewards from a quest ready to turn in.
 
         Args:
-            quest: The completed quest to claim rewards from
+            quest: The quest to claim rewards from (must be READY_TO_TURN_IN)
 
         Returns:
             List of reward notification messages
 
         Raises:
-            ValueError: If quest is not in COMPLETED status
+            ValueError: If quest is not in READY_TO_TURN_IN status
         """
         from cli_rpg.models.quest import QuestStatus
         from cli_rpg.models.item import Item, ItemType
 
-        if quest.status != QuestStatus.COMPLETED:
-            raise ValueError("Quest must be completed to claim rewards")
+        if quest.status != QuestStatus.READY_TO_TURN_IN:
+            raise ValueError("Quest must be ready to turn in to claim rewards")
 
         messages = []
 

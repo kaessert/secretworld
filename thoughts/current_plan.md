@@ -1,96 +1,120 @@
-# Implement COLLECT Objective Type for Quests
+# Implementation Plan: Quest Turn-In Mechanic
 
-## Spec
-When a player picks up an item (from combat loot or shop purchase) that matches an active quest's target, the quest progress should increment. When `current_count >= target_count`, mark quest as COMPLETED and grant rewards.
+## Summary
+Add a "turn in" quest mechanic requiring players to return to the quest-giver NPC to claim rewards, plus fix a critical bug where quest rewards are not copied when accepting quests.
 
-This mirrors the existing `record_kill()` pattern for KILL quests.
+## Bug Fix (Must be done first)
+**File**: `src/cli_rpg/main.py` (lines 546-555)
 
-## Tests (`tests/test_quest_progress.py`)
-
-Add `TestRecordCollection` class with tests:
-1. `test_record_collection_increments_matching_quest_progress` - collecting item increments quest
-2. `test_record_collection_returns_progress_message` - returns progress notification
-3. `test_record_collection_marks_quest_completed_when_target_reached` - completes quest at target
-4. `test_record_collection_returns_completion_message` - returns completion notification
-5. `test_record_collection_matches_case_insensitive` - item name matching is case-insensitive
-6. `test_record_collection_does_not_increment_non_matching_quest` - non-matching items ignored
-7. `test_record_collection_only_affects_active_quests` - only ACTIVE status quests progress
-8. `test_record_collection_only_affects_collect_objective_quests` - only COLLECT type quests
-9. `test_record_collection_progresses_multiple_matching_quests` - multiple quests can match
-10. `test_record_collection_returns_empty_list_when_no_matching_quests` - empty list for no match
-
-## Implementation
-
-### 1. Add `record_collection()` to Character (`src/cli_rpg/models/character.py`)
-
-Add method after `record_kill()` (~line 241):
-
+The `accept` command clones quests WITHOUT copying reward fields:
 ```python
-def record_collection(self, item_name: str) -> List[str]:
-    """Record an item collection for quest progress.
-
-    Args:
-        item_name: Name of the collected item
-
-    Returns:
-        List of notification messages for quest progress/completion
-    """
-    from cli_rpg.models.quest import QuestStatus, ObjectiveType
-
-    messages = []
-    for quest in self.quests:
-        if (
-            quest.status == QuestStatus.ACTIVE
-            and quest.objective_type == ObjectiveType.COLLECT
-            and quest.target.lower() == item_name.lower()
-        ):
-            completed = quest.progress()
-            if completed:
-                quest.status = QuestStatus.COMPLETED
-                messages.append(f"Quest Complete: {quest.name}!")
-                reward_messages = self.claim_quest_rewards(quest)
-                messages.extend(reward_messages)
-            else:
-                messages.append(
-                    f"Quest progress: {quest.name} [{quest.current_count}/{quest.target_count}]"
-                )
-    return messages
+# Current (missing rewards):
+new_quest = Quest(
+    name=matching_quest.name,
+    description=matching_quest.description,
+    objective_type=matching_quest.objective_type,
+    target=matching_quest.target,
+    target_count=matching_quest.target_count,
+    status=QuestStatus.ACTIVE,
+    current_count=0
+)
 ```
 
-### 2. Call `record_collection()` from combat loot (`src/cli_rpg/combat.py`)
+**Fix**: Add `gold_reward`, `xp_reward`, and `item_rewards` to the clone.
 
-Modify `end_combat()` (~line 168) to track collection after adding loot:
+## Feature: Quest Turn-In Mechanic
 
-```python
-if self.player.inventory.add_item(loot):
-    messages.append(f"You found: {colors.item(loot.name)}!")
-    # Track quest progress for collect objectives
-    quest_messages = self.player.record_collection(loot.name)
-    messages.extend(quest_messages)
-```
+### Spec
+1. When quest objectives are met, set status to `READY_TO_TURN_IN` (new status) instead of `COMPLETED`
+2. Rewards are NOT granted automatically - player must return to quest-giver NPC
+3. New `complete <quest>` command when talking to the quest-giving NPC claims rewards and sets status to `COMPLETED`
+4. Quest journal shows "Ready to turn in" for quests awaiting turn-in
+5. NPCs with turn-in-ready quests show indicator in dialogue
 
-### 3. Call `record_collection()` from shop purchase (`src/cli_rpg/main.py`)
+### Changes
 
-Modify buy command handler (~line 476) after adding item:
+#### 1. Add READY_TO_TURN_IN status to Quest model
+**File**: `src/cli_rpg/models/quest.py`
+- Add `READY_TO_TURN_IN = "ready_to_turn_in"` to `QuestStatus` enum
 
-```python
-game_state.current_character.inventory.add_item(new_item)
-# Track quest progress for collect objectives
-quest_messages = game_state.current_character.record_collection(new_item.name)
-for msg in quest_messages:
-    # Prepend newline for formatting
-    pass  # Messages will be included in output
-autosave(game_state)
-output = f"\nYou bought {new_item.name} for {shop_item.buy_price} gold."
-if quest_messages:
-    output += "\n" + "\n".join(quest_messages)
-return (True, output)
-```
+#### 2. Track quest giver on Quest
+**File**: `src/cli_rpg/models/quest.py`
+- Add `quest_giver: Optional[str] = None` field to Quest dataclass
+- Update `to_dict()` and `from_dict()` to serialize/deserialize this field
 
-## Execution Order
-1. Write tests in `tests/test_quest_progress.py`
-2. Run tests to verify they fail: `pytest tests/test_quest_progress.py::TestRecordCollection -v`
-3. Add `record_collection()` to `character.py`
-4. Run tests to verify they pass
-5. Integrate into `combat.py` and `main.py`
-6. Run full test suite: `pytest`
+#### 3. Update record_kill and record_collection
+**File**: `src/cli_rpg/models/character.py`
+- Change: when quest is complete, set `status = QuestStatus.READY_TO_TURN_IN` instead of `COMPLETED`
+- Remove automatic call to `claim_quest_rewards()`
+- Change message from "Quest Complete" to "Quest objectives complete! Return to {quest_giver} to claim your reward."
+
+#### 4. Store quest_giver when accepting quest
+**File**: `src/cli_rpg/main.py`
+- In `accept` command, set `quest_giver=npc.name` on the cloned quest
+
+#### 5. Add `complete` command
+**File**: `src/cli_rpg/main.py`
+- Add "complete" to known_commands set
+- Implement handler:
+  - Check `game_state.current_npc` is set
+  - Find matching quest in character's quests with `status == READY_TO_TURN_IN`
+  - Verify `quest.quest_giver == current_npc.name`
+  - Call `claim_quest_rewards()` and set `status = COMPLETED`
+  - Return reward messages
+
+#### 6. Update quest journal display
+**File**: `src/cli_rpg/main.py`
+- In `quests` command, add section for "Ready to Turn In" quests
+- In `quest <name>` command, show quest_giver and status appropriately
+
+#### 7. Show turn-in indicator in NPC dialogue
+**File**: `src/cli_rpg/main.py`
+- In `talk` command, check if NPC has any turn-in-ready quests from player
+- Show "Quests ready to turn in: ..." if applicable
+
+## Test Plan
+
+### Tests for bug fix
+**File**: `tests/test_quest_commands.py` (add tests)
+- `test_accept_quest_copies_gold_reward`
+- `test_accept_quest_copies_xp_reward`
+- `test_accept_quest_copies_item_rewards`
+
+### Tests for READY_TO_TURN_IN status
+**File**: `tests/test_quest.py` (add tests)
+- `test_ready_to_turn_in_status_exists`
+- `test_quest_giver_field_serialization`
+
+### Tests for turn-in behavior
+**File**: `tests/test_quest_progress.py` (modify existing)
+- Update `test_record_kill_grants_rewards_on_completion` → verify NO rewards granted, status is READY_TO_TURN_IN
+- Update `test_record_collection_grants_rewards_on_completion` → same
+
+### Tests for complete command
+**File**: `tests/test_quest_commands.py` (add tests)
+- `test_complete_command_requires_npc`
+- `test_complete_command_requires_quest_name`
+- `test_complete_command_requires_ready_to_turn_in_status`
+- `test_complete_command_requires_matching_quest_giver`
+- `test_complete_command_grants_rewards`
+- `test_complete_command_sets_completed_status`
+- `test_complete_command_shows_reward_messages`
+
+### Tests for quest journal display
+**File**: `tests/test_quest_commands.py` (add tests)
+- `test_quests_command_shows_ready_to_turn_in_section`
+- `test_quest_detail_shows_quest_giver`
+
+## Implementation Order
+1. Fix the bug in accept command (copy rewards)
+2. Add READY_TO_TURN_IN status to QuestStatus enum
+3. Add quest_giver field to Quest model with serialization
+4. Write tests for new status and field
+5. Update accept command to set quest_giver
+6. Write tests for complete command
+7. Implement complete command
+8. Update record_kill/record_collection to use READY_TO_TURN_IN
+9. Update tests for record_kill/record_collection behavior change
+10. Update quest journal display
+11. Add turn-in indicator to NPC dialogue
+12. Run full test suite

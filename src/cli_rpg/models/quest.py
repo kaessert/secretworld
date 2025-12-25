@@ -2,7 +2,7 @@
 
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import ClassVar, List
+from typing import ClassVar, List, Optional
 
 
 class QuestStatus(Enum):
@@ -10,6 +10,7 @@ class QuestStatus(Enum):
 
     AVAILABLE = "available"
     ACTIVE = "active"
+    READY_TO_TURN_IN = "ready_to_turn_in"
     COMPLETED = "completed"
     FAILED = "failed"
 
@@ -56,6 +57,7 @@ class Quest:
     gold_reward: int = field(default=0)
     xp_reward: int = field(default=0)
     item_rewards: List[str] = field(default_factory=list)
+    quest_giver: Optional[str] = field(default=None)
 
     def __post_init__(self) -> None:
         """Validate quest attributes after initialization."""
@@ -140,6 +142,7 @@ class Quest:
             "gold_reward": self.gold_reward,
             "xp_reward": self.xp_reward,
             "item_rewards": self.item_rewards,
+            "quest_giver": self.quest_giver,
         }
 
     @classmethod
@@ -167,4 +170,5 @@ class Quest:
             gold_reward=data.get("gold_reward", 0),
             xp_reward=data.get("xp_reward", 0),
             item_rewards=data.get("item_rewards", []),
+            quest_giver=data.get("quest_giver"),
         )

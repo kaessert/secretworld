@@ -53,6 +53,7 @@ python -m cli_rpg.main
 - `sell <item>` - Sell an item from your inventory for gold
 - `quests` (q) - View your quest journal with all active and completed quests
 - `quest <name>` - View details of a specific quest (supports partial matching)
+- `complete <quest>` - Turn in a completed quest to the NPC you're talking to
 - `save` - Save complete game state including world, location, and theme (not available during combat)
 - `help` (h) - Display the full command reference
 - `quit` - Exit to main menu
@@ -107,20 +108,25 @@ Quest-giver NPCs can be found throughout the world. Interact with them to receiv
 1. Use `look` to see NPCs in your location
 2. Use `talk <npc>` to interact with a quest-giver and see available quests
 3. Use `accept <quest>` to accept a quest (partial matching supported)
-4. Use `quests` to view your quest journal
+4. Use `quests` to view your quest journal (shows active, ready to turn in, and completed quests)
 
 **Quest Progress**: Quests automatically track your progress:
 - **Kill quests**: Progress updates when you defeat matching enemies in combat
 - **Collect quests**: Progress updates when you acquire matching items (from combat loot or shop purchases)
 
-You'll see progress messages after each relevant action and a completion notification when the quest is fulfilled.
+You'll see progress messages after each relevant action.
 
-**Quest Rewards**: When you complete a quest, rewards are automatically granted:
+**Turning In Quests**: When quest objectives are complete, you must return to the quest giver:
+1. Travel back to the NPC who gave you the quest
+2. Use `talk <npc>` to interact with them (shows quests ready to turn in)
+3. Use `complete <quest>` to claim your rewards
+
+**Quest Rewards**: Rewards are granted when you turn in a quest:
 - **Gold**: Added directly to your gold total
 - **XP**: Grants experience points (may trigger level-ups)
 - **Items**: Quest reward items are added to your inventory
 
-**Note**: You must talk to an NPC before accepting their quests. Quest names are matched case-insensitively.
+**Note**: You must talk to an NPC before accepting or completing their quests. Quest names are matched case-insensitively.
 
 ### Save System
 
@@ -229,6 +235,7 @@ src/cli_rpg/
 │   ├── item.py
 │   ├── inventory.py
 │   ├── npc.py
+│   ├── quest.py
 │   └── shop.py
 └── persistence.py       # Save/load system (character and full game state)
 ```
