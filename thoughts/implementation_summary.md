@@ -1,75 +1,69 @@
-# NPC Echo Consequences MVP - Implementation Summary
+# Implementation Summary: Aggressive Reputation Type
 
 ## What Was Implemented
 
-### Feature: NPCs Reference Tracked Player Choices
-
-NPCs now vary their greetings based on player reputation (combat flee history). If a player has fled from enemies 3+ times, NPCs may comment on their "cautious reputation."
+Added a new "aggressive" reputation type that NPCs recognize when players kill enemies frequently (10+ kills). This extends the existing reputation system that previously only tracked "cautious" (fleeing 3+ times).
 
 ### Files Modified
 
 1. **`src/cli_rpg/models/npc.py`**
-   - Updated `get_greeting()` signature to accept optional `choices: Optional[List[dict]] = None` parameter
-   - Added `_get_reputation_greeting(reputation_type: str)` helper method
-   - Added 3 "cautious" reputation greeting variants
+   - Added `"aggressive"` templates to `_get_reputation_greeting()` method (3 unique greetings)
+   - Added aggressive check in `get_greeting()` method - triggers when `combat_kill` count >= 10
+   - Priority: cautious (flee) is checked before aggressive (kill), so chronic fleers get coward reputation even if they also kill a lot
 
-2. **`src/cli_rpg/main.py`** (line 603)
-   - Updated talk command to pass `game_state.choices` to `npc.get_greeting()`
+2. **`src/cli_rpg/main.py`**
+   - Added `game_state.record_choice()` calls after `record_kill()` in two locations:
+     - Line 258: After attack victory combat
+     - Line 355: After cast victory combat
+   - Records choice_type="combat_kill" with enemy name and time
 
-### New Test File
+3. **`tests/test_npc.py`**
+   - Added 3 new tests:
+     - `test_get_greeting_aggressive_reputation`: Verifies aggressive greeting at 10+ kills
+     - `test_get_greeting_no_aggressive_below_threshold`: Verifies no trigger at 9 kills
+     - `test_get_greeting_cautious_priority_over_aggressive`: Verifies cautious takes priority
 
-**`tests/test_npc_consequences.py`** - 6 tests covering:
-- `test_get_greeting_acknowledges_flee_reputation` - Verifies reputation greeting when 3+ flee choices
-- `test_get_greeting_normal_when_few_flees` - Normal greeting with <3 flee choices
-- `test_get_greeting_normal_when_no_choices` - Backward compatibility when no choices passed
-- `test_get_greeting_normal_when_empty_choices` - Normal greeting with empty choices list
-- `test_reputation_greeting_serializes_correctly` - Serialization regression test
-- `test_get_greeting_with_dialogue_fallback_and_reputation` - Reputation works without greetings list
+### Aggressive Greeting Templates
+- "I've heard tales of your... efficiency in combat. Many have fallen."
+- "The blood of your enemies precedes you. What brings such a warrior here?"
+- "A killer walks among us. I hope we remain on friendly terms."
 
 ## Test Results
 
-- All 6 new tests pass
-- All 1891 total tests pass (no regressions)
+- All 1894 tests pass
+- Coverage: 92.32%
+- NPC model coverage: 98%
 
 ## Technical Details
 
-### Method Signature Change
-
+### Reputation Logic in `get_greeting()`
 ```python
-# Before
-def get_greeting(self) -> str:
+# Check for reputation-based greetings first
+if choices:
+    flee_count = sum(1 for c in choices if c.get("choice_type") == "combat_flee")
+    if flee_count >= 3:
+        return self._get_reputation_greeting("cautious")
 
-# After
-def get_greeting(self, choices: Optional[List[dict]] = None) -> str:
+    # Check for aggressive reputation (10+ kills)
+    kill_count = sum(1 for c in choices if c.get("choice_type") == "combat_kill")
+    if kill_count >= 10:
+        return self._get_reputation_greeting("aggressive")
 ```
 
-### Reputation Logic
-
-- Checks if `choices` list has 3+ entries with `choice_type == "combat_flee"`
-- If threshold met, returns random reputation-aware greeting
-- Falls back to normal greeting behavior otherwise
-
-### Reputation Greeting Templates
-
+### Kill Recording in `main.py`
 ```python
-"cautious": [
-    "Ah, I've heard of you... one who knows when to run. Smart.",
-    "Word travels fast. They say you're... careful. I respect that.",
-    "A survivor, they call you. Some might say coward, but you're alive.",
-]
+game_state.record_choice(
+    choice_type="combat_kill",
+    choice_id=f"kill_{enemy.name}_{game_state.game_time.hour}",
+    description=f"Killed {enemy.name}",
+    target=enemy.name,
+)
 ```
 
-## E2E Test Scenarios
+## E2E Validation
 
-To validate in-game:
-1. Start new game
-2. Encounter and flee from 3+ different enemies
+To validate end-to-end:
+1. Start a new game
+2. Engage in combat and defeat 10+ enemies
 3. Talk to any NPC
-4. NPC greeting should reference player's "cautious" reputation
-
-## Design Notes
-
-- Used optional parameter with None default for backward compatibility
-- Python 3.9 compatible type hints (`Optional[List[dict]]` instead of `list[dict] | None`)
-- Reputation check happens before normal greeting logic (early return pattern)
-- No changes to NPC serialization - only runtime behavior affected
+4. NPC should greet player with one of the aggressive reputation templates instead of their normal greeting

@@ -254,6 +254,13 @@ def handle_combat_command(game_state: GameState, command: str, args: list[str], 
                 quest_messages = game_state.current_character.record_kill(enemy.name)
                 for msg in quest_messages:
                     output += f"\n{msg}"
+                # Record the kill as a choice for reputation tracking
+                game_state.record_choice(
+                    choice_type="combat_kill",
+                    choice_id=f"kill_{enemy.name}_{game_state.game_time.hour}",
+                    description=f"Killed {enemy.name}",
+                    target=enemy.name,
+                )
             game_state.current_combat = None
             # Autosave after combat victory
             try:
@@ -344,6 +351,13 @@ def handle_combat_command(game_state: GameState, command: str, args: list[str], 
                 quest_messages = game_state.current_character.record_kill(enemy.name)
                 for msg in quest_messages:
                     output += f"\n{msg}"
+                # Record the kill as a choice for reputation tracking
+                game_state.record_choice(
+                    choice_type="combat_kill",
+                    choice_id=f"kill_{enemy.name}_{game_state.game_time.hour}",
+                    description=f"Killed {enemy.name}",
+                    target=enemy.name,
+                )
             game_state.current_combat = None
             # Autosave after combat victory
             try:

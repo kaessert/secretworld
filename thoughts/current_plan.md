@@ -1,117 +1,120 @@
-# Implementation Plan: NPC Echo Consequences MVP
+# Implementation Plan: Add "Aggressive" Reputation Type
 
-## Feature Spec
+## Spec
 
-**Goal**: NPCs reference tracked player choices when greeting the player, making past decisions matter.
+Add a new "aggressive" reputation type that NPCs recognize when players kill enemies frequently (10+ kills). This extends the existing reputation system that currently only tracks "cautious" (fleeing 3+ times).
 
-**MVP Scope**: NPC greetings vary based on combat flee history. If a player has fled from enemies multiple times, some NPCs may comment on their "cautious reputation."
-
-**Behavior**:
-1. When `get_greeting()` is called, check the game's choice history
-2. If player has 3+ `combat_flee` choices, return a reputation-aware greeting variant
-3. The NPC must have access to game state's choices to make this determination
-4. Fallback to normal greeting behavior if no significant reputation exists
-
-**Design Decision**: Pass choice history to `get_greeting()` rather than modifying NPC to store game_state reference (cleaner, more testable).
+**Trigger**: Player has 10+ `combat_kill` choices recorded
+**Effect**: NPCs acknowledge the player's violent tendencies with unique greetings
+**Priority**: Cautious (flee) checked before Aggressive (kill), so chronic fleers are recognized as cowards even if they also kill a lot
 
 ---
 
-## Tests First (TDD)
+## Tests (tests/test_npc.py)
 
-### File: `tests/test_npc_consequences.py`
+Add after existing reputation tests around line 138:
 
 ```python
-"""Tests for NPC consequence system - NPCs react to player choices."""
+def test_get_greeting_aggressive_reputation(self):
+    """get_greeting() returns aggressive greeting when player has 10+ kills."""
+    npc = NPC(name="Guard", description="A town guard", dialogue="Hello")
+    choices = [{"choice_type": "combat_kill"} for _ in range(10)]
+    with patch("cli_rpg.models.npc.random.choice") as mock_choice:
+        mock_choice.return_value = "I've heard tales of your... efficiency in combat."
+        result = npc.get_greeting(choices=choices)
+        # Should call _get_reputation_greeting which uses random.choice on templates
+        assert "efficiency" in result or mock_choice.called
+
+def test_get_greeting_no_aggressive_below_threshold(self):
+    """get_greeting() returns normal greeting when kills < 10."""
+    npc = NPC(name="Guard", description="A town guard", dialogue="Hello")
+    choices = [{"choice_type": "combat_kill"} for _ in range(9)]
+    result = npc.get_greeting(choices=choices)
+    assert result == "Hello"  # Falls back to dialogue
+
+def test_get_greeting_cautious_priority_over_aggressive(self):
+    """cautious reputation (flee) takes priority over aggressive (kill)."""
+    npc = NPC(name="Guard", description="A town guard", dialogue="Hello")
+    choices = (
+        [{"choice_type": "combat_flee"} for _ in range(3)] +
+        [{"choice_type": "combat_kill"} for _ in range(10)]
+    )
+    with patch("cli_rpg.models.npc.random.choice") as mock_choice:
+        mock_choice.return_value = "Word travels fast. They say you're... careful."
+        result = npc.get_greeting(choices=choices)
+        # Should get cautious greeting (flee checked first)
+        assert "careful" in result.lower() or "run" in result.lower() or "coward" in result.lower() or "survivor" in result.lower()
 ```
-
-**Test 1**: `test_get_greeting_acknowledges_flee_reputation`
-- Create NPC with standard greetings
-- Pass choices list with 3+ `combat_flee` entries to `get_greeting()`
-- Assert greeting contains reputation reference (e.g., "cautious" or "run")
-
-**Test 2**: `test_get_greeting_normal_when_few_flees`
-- Create NPC with greetings
-- Pass choices list with <3 `combat_flee` entries
-- Assert normal greeting returned (no reputation comment)
-
-**Test 3**: `test_get_greeting_normal_when_no_choices`
-- Create NPC with greetings
-- Pass empty choices list or None
-- Assert normal greeting returned
-
-**Test 4**: `test_reputation_greeting_serializes_correctly`
-- Verify NPC serialization still works (no regression)
 
 ---
 
 ## Implementation Steps
 
-### Step 1: Update `NPC.get_greeting()` signature
+### Step 1: Add aggressive templates to NPC._get_reputation_greeting()
 
-**File**: `src/cli_rpg/models/npc.py`
+**File**: `src/cli_rpg/models/npc.py` (line ~78)
 
-Modify `get_greeting()` to accept optional `choices` parameter:
-
-```python
-def get_greeting(self, choices: list[dict] | None = None) -> str:
-    """Get a greeting, optionally modified by player reputation."""
-    # Check for reputation-based greetings first
-    if choices:
-        flee_count = sum(1 for c in choices if c.get("choice_type") == "combat_flee")
-        if flee_count >= 3:
-            return self._get_reputation_greeting("cautious")
-
-    # Normal greeting logic
-    if self.greetings:
-        return random.choice(self.greetings)
-    return self.dialogue
-```
-
-### Step 2: Add `_get_reputation_greeting()` helper
-
-**File**: `src/cli_rpg/models/npc.py`
+Add "aggressive" key to templates dict:
 
 ```python
-def _get_reputation_greeting(self, reputation_type: str) -> str:
-    """Get greeting based on player reputation."""
-    templates = {
-        "cautious": [
-            "Ah, I've heard of you... one who knows when to run. Smart.",
-            "Word travels fast. They say you're... careful. I respect that.",
-            "A survivor, they call you. Some might say coward, but you're alive.",
-        ]
-    }
-    options = templates.get(reputation_type, [])
-    if options:
-        return random.choice(options)
-    return self.get_greeting(choices=None)  # Fallback to normal
+templates = {
+    "cautious": [
+        "Ah, I've heard of you... one who knows when to run. Smart.",
+        "Word travels fast. They say you're... careful. I respect that.",
+        "A survivor, they call you. Some might say coward, but you're alive.",
+    ],
+    "aggressive": [
+        "I've heard tales of your... efficiency in combat. Many have fallen.",
+        "The blood of your enemies precedes you. What brings such a warrior here?",
+        "A killer walks among us. I hope we remain on friendly terms.",
+    ]
+}
 ```
 
-### Step 3: Pass choices in `main.py` talk command
+### Step 2: Add aggressive check in NPC.get_greeting()
 
-**File**: `src/cli_rpg/main.py` (around line 603)
-
-Update the `talk` command to pass choices:
+**File**: `src/cli_rpg/models/npc.py` (line ~62, after cautious check)
 
 ```python
-# Current:
-output += f"\n{npc.name}: \"{npc.get_greeting()}\""
-
-# Change to:
-output += f"\n{npc.name}: \"{npc.get_greeting(choices=game_state.choices)}\""
+# Check for aggressive reputation (10+ kills)
+kill_count = sum(1 for c in choices if c.get("choice_type") == "combat_kill")
+if kill_count >= 10:
+    return self._get_reputation_greeting("aggressive")
 ```
 
-### Step 4: Update existing test mocks (if needed)
+### Step 3: Record kills as choices in main.py
 
-**File**: `tests/test_npc.py`
+**File**: `src/cli_rpg/main.py`
 
-Verify `test_get_greeting_with_greetings_list` and `test_get_greeting_without_greetings_list` still pass (signature is backward compatible due to default `None`).
+**Location 1** (~line 254, after attack victory):
+```python
+# After: quest_messages = game_state.current_character.record_kill(enemy.name)
+# Add:
+game_state.record_choice(
+    choice_type="combat_kill",
+    choice_id=f"kill_{enemy.name}_{game_state.game_time.hour}",
+    description=f"Killed {enemy.name}",
+    target=enemy.name
+)
+```
+
+**Location 2** (~line 344, after cast victory):
+```python
+# Same addition after record_kill call
+game_state.record_choice(
+    choice_type="combat_kill",
+    choice_id=f"kill_{enemy.name}_{game_state.game_time.hour}",
+    description=f"Killed {enemy.name}",
+    target=enemy.name
+)
+```
 
 ---
 
 ## Verification
 
-1. Run `pytest tests/test_npc_consequences.py -v` - new tests pass
-2. Run `pytest tests/test_npc.py -v` - existing tests still pass
-3. Run `pytest tests/test_choices.py -v` - choice foundation tests still pass
-4. Run full suite `pytest` - all 1885+ tests pass
+```bash
+pytest tests/test_npc.py -v
+pytest tests/test_game_state.py -v
+pytest --cov=src/cli_rpg
+```

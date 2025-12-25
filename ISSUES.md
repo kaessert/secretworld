@@ -54,9 +54,9 @@ Your choice will echo...
 ```
 
 **MVP Implemented**:
-- ✅ **Reputation tracking**: Player choices (like fleeing combat) are tracked in `game_state.choices`
-- ✅ **NPC reputation awareness**: NPCs reference player's "cautious" reputation if they've fled 3+ times
-- ✅ Reputation-aware greetings with 3 variants for "cautious" players
+- ✅ **Reputation tracking**: Player choices (fleeing combat, killing enemies) are tracked in `game_state.choices`
+- ✅ **NPC reputation awareness**: NPCs reference player's "cautious" reputation (3+ flees) or "aggressive" reputation (10+ kills)
+- ✅ Reputation-aware greetings with 3 variants each for "cautious" and "aggressive" players
 
 **Future Enhancements**:
 - Spare the bandit → He becomes an informant, or betrays you later, or saves you in Act 3
@@ -526,6 +526,7 @@ Player decisions should have lasting impact on the world and story.
 
 **Implemented**:
 - ✅ NPCs reference player's combat flee history ("cautious" reputation if 3+ flees)
+- ✅ NPCs reference player's combat kill history ("aggressive" reputation if 10+ kills)
 - ✅ Player choices tracked in `game_state.choices` list
 
 **Remaining features**:
@@ -533,7 +534,7 @@ Player decisions should have lasting impact on the world and story.
 - Moral dilemmas with no clear "right" answer
 - Branching quest paths based on player decisions
 - World state changes based on completed quests (e.g., saving a village makes it thrive, ignoring it leads to ruin)
-- Additional reputation types beyond "cautious" (e.g., aggressive, heroic, wealthy)
+- Additional reputation types (e.g., heroic, wealthy)
 
 ### Character skill and ability system
 **Status**: ACTIVE

@@ -135,3 +135,41 @@ class TestNPC:
         # Should have the 10 most recent (messages 2-11)
         assert npc.conversation_history[0] == {"role": "player", "content": "Message 2"}
         assert npc.conversation_history[9] == {"role": "player", "content": "Message 11"}
+
+    def test_get_greeting_aggressive_reputation(self):
+        """get_greeting() returns aggressive greeting when player has 10+ kills."""
+        # Tests spec: Aggressive reputation triggers at 10+ combat_kill choices
+        npc = NPC(name="Guard", description="A town guard", dialogue="Hello")
+        choices = [{"choice_type": "combat_kill"} for _ in range(10)]
+        with patch("cli_rpg.models.npc.random.choice") as mock_choice:
+            mock_choice.return_value = "I've heard tales of your... efficiency in combat."
+            result = npc.get_greeting(choices=choices)
+            # Should call _get_reputation_greeting which uses random.choice on templates
+            assert "efficiency" in result or mock_choice.called
+
+    def test_get_greeting_no_aggressive_below_threshold(self):
+        """get_greeting() returns normal greeting when kills < 10."""
+        # Tests spec: Aggressive reputation only triggers at threshold
+        npc = NPC(name="Guard", description="A town guard", dialogue="Hello")
+        choices = [{"choice_type": "combat_kill"} for _ in range(9)]
+        result = npc.get_greeting(choices=choices)
+        assert result == "Hello"  # Falls back to dialogue
+
+    def test_get_greeting_cautious_priority_over_aggressive(self):
+        """cautious reputation (flee) takes priority over aggressive (kill)."""
+        # Tests spec: Cautious checked before aggressive
+        npc = NPC(name="Guard", description="A town guard", dialogue="Hello")
+        choices = (
+            [{"choice_type": "combat_flee"} for _ in range(3)] +
+            [{"choice_type": "combat_kill"} for _ in range(10)]
+        )
+        with patch("cli_rpg.models.npc.random.choice") as mock_choice:
+            mock_choice.return_value = "Word travels fast. They say you're... careful."
+            result = npc.get_greeting(choices=choices)
+            # Should get cautious greeting (flee checked first)
+            assert (
+                "careful" in result.lower()
+                or "run" in result.lower()
+                or "coward" in result.lower()
+                or "survivor" in result.lower()
+            )

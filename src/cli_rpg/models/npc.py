@@ -61,6 +61,11 @@ class NPC:
             if flee_count >= 3:
                 return self._get_reputation_greeting("cautious")
 
+            # Check for aggressive reputation (10+ kills)
+            kill_count = sum(1 for c in choices if c.get("choice_type") == "combat_kill")
+            if kill_count >= 10:
+                return self._get_reputation_greeting("aggressive")
+
         # Normal greeting logic
         if self.greetings:
             return random.choice(self.greetings)
@@ -80,7 +85,12 @@ class NPC:
                 "Ah, I've heard of you... one who knows when to run. Smart.",
                 "Word travels fast. They say you're... careful. I respect that.",
                 "A survivor, they call you. Some might say coward, but you're alive.",
-            ]
+            ],
+            "aggressive": [
+                "I've heard tales of your... efficiency in combat. Many have fallen.",
+                "The blood of your enemies precedes you. What brings such a warrior here?",
+                "A killer walks among us. I hope we remain on friendly terms.",
+            ],
         }
         options = templates.get(reputation_type, [])
         if options:
