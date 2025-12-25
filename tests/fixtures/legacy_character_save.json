@@ -1,0 +1,12 @@
+{
+    "name": "LegacyHero",
+    "strength": 10,
+    "dexterity": 12,
+    "intelligence": 8,
+    "constitution": 10,
+    "level": 1,
+    "health": 100,
+    "max_health": 100,
+    "xp": 0,
+    "xp_to_next_level": 100
+}

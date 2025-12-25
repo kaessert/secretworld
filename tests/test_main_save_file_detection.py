@@ -202,25 +202,25 @@ class TestLoadGameStateSave:
 
 class TestBackwardCompatibility:
     """Tests for backward compatibility with existing saves."""
-    
+
     def test_load_existing_character_save(self):
         """Test loading real existing character-only save.
-        
+
         Spec: Backward compatibility - all existing character-only saves must work
         """
-        # Check if the real save file exists
-        existing_save = "saves/sasdf_20251224_011809.json"
-        if not os.path.exists(existing_save):
-            pytest.skip("Real save file not found for backward compatibility test")
-        
+        # Use the stable fixture file for backward compatibility testing
+        existing_save = os.path.join(
+            os.path.dirname(__file__), "fixtures", "legacy_character_save.json"
+        )
+
         # Verify it's detected as character-only
         save_type = detect_save_type(existing_save)
         assert save_type == "character"
-        
+
         # Verify it loads without errors
         character = load_character(existing_save)
         assert character is not None
-        assert character.name == "sasdf"
+        assert character.name == "LegacyHero"
 
 
 class TestErrorHandling:
