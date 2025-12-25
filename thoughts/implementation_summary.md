@@ -51,12 +51,12 @@ The `generate_quest()` method returns a dictionary with:
 - `xp_reward`: int (≥0) - XP reward
 - `quest_giver`: str - Set to the NPC name passed in
 
-## Test Results
+## Test Results (Verified)
 
-- **All 19 new tests pass** in `test_ai_quest_generation.py`
-- **All 19 ai_config tests pass** (no regressions)
-- **All 168 quest-related tests pass**
-- **Full test suite: 1036 passed, 1 skipped**
+- **All 19 tests pass** in `test_ai_quest_generation.py`
+- **All 155 AI-related tests pass** (no regressions)
+- Test run: `pytest tests/test_ai_quest_generation.py -v` → 19 passed in 1.27s
+- Test run: `pytest tests/test_ai_*.py -v` → 155 passed in 6.10s
 
 ## Design Decisions
 
