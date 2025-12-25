@@ -188,11 +188,18 @@ def create_default_world() -> tuple[dict[str, Location], str]:
         item_type=ItemType.ARMOR,
         defense_bonus=3
     )
+    torch = Item(
+        name="Torch",
+        description="A wooden torch that provides light in dark places",
+        item_type=ItemType.CONSUMABLE,
+        light_duration=5
+    )
 
     shop_items = [
         ShopItem(item=potion, buy_price=50),
         ShopItem(item=sword, buy_price=100),
-        ShopItem(item=armor, buy_price=80)
+        ShopItem(item=armor, buy_price=80),
+        ShopItem(item=torch, buy_price=15)
     ]
     shop = Shop(name="General Store", inventory=shop_items)
     merchant = NPC(

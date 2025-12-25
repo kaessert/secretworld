@@ -93,7 +93,7 @@ Exploring dangerous areas builds **Dread**:
 **Future Enhancements**:
 - **At 100%**: Shadow creature attacks, madness events
 - **Hallucinations**: Fake enemies at high dread
-- **Light sources**: Items that reduce dread buildup
+- ✅ **Light sources**: Items that reduce dread buildup - MVP IMPLEMENTED (Torches reduce dread buildup by 50%, negate night bonus, consumable with limited duration)
 - **Brave player rewards**: Best secrets in high-dread areas
 
 ---

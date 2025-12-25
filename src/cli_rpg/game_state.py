@@ -528,6 +528,11 @@ class GameState:
     def _update_dread_on_move(self, location: Location) -> Optional[str]:
         """Update dread level when moving to a new location.
 
+        Light sources affect dread calculation:
+        - Halves dread from location category
+        - Negates night dread bonus
+        - Does not affect town reduction or weather/health modifiers
+
         Args:
             location: The destination location
 
@@ -536,18 +541,25 @@ class GameState:
         """
         category = location.category or "default"
         dread_meter = self.current_character.dread_meter
+        has_light = self.current_character.has_active_light()
 
-        # Towns reduce dread
+        # Towns reduce dread (unaffected by light)
         if category == "town":
             if dread_meter.dread > 0:
                 dread_meter.reduce_dread(DREAD_TOWN_REDUCTION)
-            return None
+            # Tick light even in town
+            light_message = self.current_character.tick_light()
+            return light_message
 
-        # Calculate dread increase based on category and time of day
+        # Calculate dread increase based on category
         dread_increase = DREAD_BY_CATEGORY.get(category, 5)  # Default 5 for unknown
 
-        # Night adds extra dread
-        if self.game_time.is_night():
+        # Light reduces category dread by 50%
+        if has_light:
+            dread_increase = dread_increase // 2
+
+        # Night adds extra dread (negated by light)
+        if self.game_time.is_night() and not has_light:
             dread_increase += DREAD_NIGHT_BONUS
 
         # Weather adds dread (but not in caves - you're underground)
@@ -562,8 +574,16 @@ class GameState:
         if self.current_character.health < self.current_character.max_health * 0.3:
             dread_increase += 5
 
-        # Add dread and return any milestone message
-        return dread_meter.add_dread(dread_increase)
+        # Add dread
+        dread_message = dread_meter.add_dread(dread_increase)
+
+        # Tick light and check for expiration
+        light_message = self.current_character.tick_light()
+
+        # Combine messages
+        if dread_message and light_message:
+            return f"{dread_message}\n{light_message}"
+        return dread_message or light_message
 
     def record_choice(
         self,

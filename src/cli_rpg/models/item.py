@@ -36,6 +36,7 @@ class Item:
     damage_bonus: int = 0
     defense_bonus: int = 0
     heal_amount: int = 0
+    light_duration: int = 0
 
     def __post_init__(self):
         """Validate item attributes."""
@@ -60,6 +61,8 @@ class Item:
             raise ValueError("defense_bonus cannot be negative")
         if self.heal_amount < 0:
             raise ValueError("heal_amount cannot be negative")
+        if self.light_duration < 0:
+            raise ValueError("light_duration cannot be negative")
 
     def to_dict(self) -> Dict:
         """Serialize item to dictionary.
@@ -73,7 +76,8 @@ class Item:
             "item_type": self.item_type.value,
             "damage_bonus": self.damage_bonus,
             "defense_bonus": self.defense_bonus,
-            "heal_amount": self.heal_amount
+            "heal_amount": self.heal_amount,
+            "light_duration": self.light_duration
         }
 
     @classmethod
@@ -92,7 +96,8 @@ class Item:
             item_type=ItemType(data["item_type"]),
             damage_bonus=data.get("damage_bonus", 0),
             defense_bonus=data.get("defense_bonus", 0),
-            heal_amount=data.get("heal_amount", 0)
+            heal_amount=data.get("heal_amount", 0),
+            light_duration=data.get("light_duration", 0)
         )
 
     def __str__(self) -> str:
@@ -110,6 +115,8 @@ class Item:
             stat_parts.append(f"+{self.defense_bonus} defense")
         if self.heal_amount > 0:
             stat_parts.append(f"heals {self.heal_amount} HP")
+        if self.light_duration > 0:
+            stat_parts.append(f"{self.light_duration} moves of light")
 
         stats_str = f" ({', '.join(stat_parts)})" if stat_parts else ""
         return f"{self.name} [{type_str}]{stats_str}"

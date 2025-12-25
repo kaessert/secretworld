@@ -1,104 +1,86 @@
-# Seasonal Events and Festivals Implementation Summary
+# Implementation Summary: Light Sources to Reduce Dread Buildup
 
 ## What Was Implemented
 
-### 1. Season System (GameTime Model)
-**File: `src/cli_rpg/models/game_time.py`**
+Light sources are now consumable items that reduce dread buildup when entering dark areas. When a light source is active:
+- Dread increases from location category are reduced by 50%
+- Night dread bonus is negated
+- Light sources last for a limited number of moves (e.g., 5 moves for a Torch)
+- Multiple light sources stack by extending duration (not multiplying effect)
 
-Extended the `GameTime` model with:
-- `total_hours: int = 0` - Tracks total elapsed time for season/day calculation
-- `get_day()` - Returns current day (1-120, wrapping)
-- `get_season()` - Returns season based on day:
-  - Spring: Days 1-30
-  - Summer: Days 31-60
-  - Autumn: Days 61-90
-  - Winter: Days 91-120
-- `get_season_display()` - Returns "Day X (Season)" format
-- `get_season_dread_modifier()` - Returns season-based dread modifiers:
-  - Spring: -1
-  - Summer: 0
-  - Autumn: +1
-  - Winter: +2
-- Updated `advance()` to accumulate `total_hours`
-- Updated `to_dict()`/`from_dict()` to serialize `total_hours`
+## Files Modified
 
-### 2. Festival System (New Module)
-**File: `src/cli_rpg/seasons.py` (NEW)**
+### 1. `src/cli_rpg/models/item.py`
+- Added `light_duration: int = 0` field to the Item dataclass
+- Added validation in `__post_init__`: `light_duration` cannot be negative
+- Updated `to_dict()` to include `light_duration`
+- Updated `from_dict()` to deserialize `light_duration` (with backward compatibility default of 0)
+- Updated `__str__()` to display "X moves of light" for light source items
 
-Created complete festival system with:
+### 2. `src/cli_rpg/models/character.py`
+- Added `light_remaining: int = 0` field to Character dataclass
+- Added `use_light_source(duration: int)` method: Activates or extends light duration
+- Added `tick_light() -> Optional[str]` method: Decrements light, returns message when it expires
+- Added `has_active_light() -> bool` method: Checks if character has active light
+- Updated `use_item()` to handle light source items (activates light, removes item from inventory)
+- Updated `to_dict()` to include `light_remaining`
+- Updated `from_dict()` to restore `light_remaining` (with backward compatibility default of 0)
 
-**Festival Templates:**
-1. **Spring Festival** (Days 10-12):
-   - 20% shop discount
-   - Double dread reduction
-   - Duration: 48 hours
+### 3. `src/cli_rpg/game_state.py`
+- Modified `_update_dread_on_move()` to:
+  - Check for active light with `has_light = self.current_character.has_active_light()`
+  - Halve category dread when light is active: `dread_increase = dread_increase // 2`
+  - Skip night bonus when light is active
+  - Tick light on every move (including towns)
+  - Combine dread messages with light expiration messages
 
-2. **Midsummer Night** (Summer days 15-16 = overall days 45-46):
-   - 50% increased whisper chance
-   - Duration: 36 hours
+### 4. `src/cli_rpg/world.py`
+- Added Torch item to the default merchant shop:
+  - Name: "Torch"
+  - Description: "A wooden torch that provides light in dark places"
+  - Type: CONSUMABLE
+  - Light duration: 5 moves
+  - Price: 15 gold
 
-3. **Harvest Moon** (Autumn days 20-22 = overall days 80-82):
-   - 25% XP bonus
-   - Duration: 72 hours
+## Test Files Created/Modified
 
-4. **Winter Solstice** (Winter days 15-17 = overall days 105-107):
-   - Dread immunity in towns
-   - +25 HP on rest in town
-   - Duration: 72 hours
+### 1. `tests/test_light_source.py` (New - 19 tests)
+- `TestItemLightDuration`: 5 tests for Item light_duration field
+- `TestCharacterLightRemaining`: 9 tests for Character light tracking
+- `TestUseLightSourceItem`: 5 tests for using light source items
 
-**API Functions:**
-- `check_for_festival(game_state)` - Spawns festivals when conditions match
-- `get_active_festival(game_state)` - Returns active festival WorldEvent
-- `get_festival_shop_discount(game_state)` - Returns discount decimal (0.0-0.20)
-- `get_festival_xp_multiplier(game_state)` - Returns XP multiplier (1.0-1.25)
-- `get_festival_rest_bonus(game_state)` - Returns extra HP on rest (0-25)
-- `get_festival_whisper_multiplier(game_state)` - Returns whisper chance multiplier
-- `get_festival_dread_reduction_multiplier(game_state)` - Returns dread reduction multiplier
-- `has_town_dread_immunity(game_state)` - Returns True if dread blocked in towns
-
-### 3. Events Display Update
-**File: `src/cli_rpg/world_events.py`**
-
-Updated `get_active_events_display()`:
-- Added `[FESTIVAL]` tag with gold coloring for festival events
-- Festivals show "Everywhere" instead of specific location
-
-### 4. Test Suite
-**File: `tests/test_seasons.py` (NEW)**
-
-Created comprehensive test suite with 20 tests covering:
-- Season model tests (10 tests)
-- Festival spawning tests (4 tests)
-- Festival effects tests (4 tests)
-- Persistence tests (2 tests)
+### 2. `tests/test_dread_integration.py` (Modified - 7 new tests)
+- `TestLightSourceDreadReduction`: 7 tests for light + dread integration
+  - Light halves category dread
+  - Light negates night bonus
+  - Light ticks down on move
+  - Light expires after duration
+  - Light expiration message appears
+  - Dread returns to normal after light expires
+  - Light does not affect town dread reduction
 
 ## Test Results
 
-All 2103 tests pass, including:
-- 20 new season/festival tests
-- All existing tests remain passing
+All 2129 tests pass, including:
+- 26 new tests specifically for light sources
+- All existing tests continue to pass (backward compatibility verified)
 
-## Integration Points (For Future Use)
+## Design Decisions
 
-The following helper functions are available for integration into game systems:
+1. **Light ticks in towns too**: Even though towns reduce dread, light still ticks down when moving through towns (represents passage of time)
 
-1. **Shop System**: Call `get_festival_shop_discount()` in buy logic
-2. **Combat XP**: Call `get_festival_xp_multiplier()` in XP calculation
-3. **Rest Command**: Call `get_festival_rest_bonus()` for extra HP
-4. **Whisper System**: Call `get_festival_whisper_multiplier()` to adjust base chance
-5. **Dread System**:
-   - Call `get_season_dread_modifier()` for seasonal dread adjustment
-   - Call `has_town_dread_immunity()` to block dread in towns during Winter Solstice
-6. **Movement**: Call `check_for_festival()` in move logic (similar to world events)
-7. **Status Display**: Use `get_season_display()` to show current day/season
+2. **Light only affects category dread and night bonus**: Weather and low-health dread modifiers are not reduced by light (these represent different dangers)
+
+3. **Stacking extends duration**: Using multiple torches adds to the remaining duration rather than creating separate timers
+
+4. **Integer division for halving**: `dread_increase // 2` ensures predictable behavior (e.g., 5 becomes 2, not 2.5)
 
 ## E2E Testing Recommendations
 
-1. Start a new game, advance time to day 10, verify Spring Festival spawns
-2. Verify shop prices reduced during Spring Festival
-3. Advance to day 45, verify Midsummer Night spawns
-4. Advance to day 80, verify Harvest Moon spawns
-5. Advance to day 105, verify Winter Solstice spawns
-6. Test that resting during Winter Solstice gives +25 HP bonus
-7. Save and load during a festival, verify festival persists
-8. Verify `events` command shows festivals with [FESTIVAL] tag
+1. Start game, buy a Torch from Merchant
+2. Travel to Dark Cave with torch equipped
+3. Verify dread increase is halved compared to traveling without torch
+4. Travel at night to verify night dread bonus is negated
+5. Travel multiple times to verify torch expires after 5 moves
+6. Verify expiration message appears when torch runs out
+7. Verify dread returns to normal after torch expires

@@ -1,6 +1,6 @@
 """Character model for CLI RPG."""
 from dataclasses import dataclass, field
-from typing import ClassVar, Dict, List, Tuple, TYPE_CHECKING
+from typing import ClassVar, Dict, List, Optional, Tuple, TYPE_CHECKING
 
 from cli_rpg import colors
 
@@ -55,6 +55,7 @@ class Character:
     status_effects: List["StatusEffect"] = field(default_factory=list)
     look_counts: Dict[str, int] = field(default_factory=dict)
     dread_meter: DreadMeter = field(default_factory=DreadMeter)
+    light_remaining: int = 0
 
     def __post_init__(self):
         """Validate attributes and calculate derived stats."""
@@ -228,6 +229,20 @@ class Character:
             # Record item use for quest progress
             quest_messages = self.record_use(item.name)
             message = f"You used {item.name} and healed {healed} health!"
+            if quest_messages:
+                message += "\n" + "\n".join(quest_messages)
+            return (True, message)
+
+        # Handle light source items
+        if item.light_duration > 0:
+            had_light = self.light_remaining > 0
+            self.use_light_source(item.light_duration)
+            self.inventory.remove_item(item)
+            if had_light:
+                message = f"You add the {item.name} to your light. Your light will last longer."
+            else:
+                message = f"You light the {item.name}. It illuminates your surroundings."
+            quest_messages = self.record_use(item.name)
             if quest_messages:
                 message += "\n" + "\n".join(quest_messages)
             return (True, message)
@@ -561,6 +576,34 @@ class Character:
         """
         self.status_effects.clear()
 
+    def use_light_source(self, duration: int) -> None:
+        """Activate or extend light source duration.
+
+        Args:
+            duration: Number of moves the light will last
+        """
+        self.light_remaining += duration
+
+    def tick_light(self) -> Optional[str]:
+        """Tick down light remaining. Returns message if light expires.
+
+        Returns:
+            Message if light expires, None otherwise
+        """
+        if self.light_remaining > 0:
+            self.light_remaining -= 1
+            if self.light_remaining == 0:
+                return "Your light source fades into darkness..."
+        return None
+
+    def has_active_light(self) -> bool:
+        """Check if character has an active light source.
+
+        Returns:
+            True if character has light_remaining > 0
+        """
+        return self.light_remaining > 0
+
     def record_look(self, location_name: str) -> int:
         """Record a look at a location and return the new count.
 
@@ -735,6 +778,7 @@ class Character:
             "status_effects": [effect.to_dict() for effect in self.status_effects],
             "look_counts": self.look_counts,
             "dread_meter": self.dread_meter.to_dict(),
+            "light_remaining": self.light_remaining,
         }
     
     @classmethod
@@ -804,6 +848,8 @@ class Character:
             character.dread_meter = DreadMeter.from_dict(data["dread_meter"])
         else:
             character.dread_meter = DreadMeter()
+        # Restore light_remaining (with backward compatibility, defaults to 0)
+        character.light_remaining = data.get("light_remaining", 0)
         return character
     
     def __str__(self) -> str:

@@ -390,3 +390,199 @@ class TestDreadPersistence:
         restored = GameState.from_dict(data)
 
         assert restored.current_character.dread_meter.dread == 67
+
+
+class TestLightSourceDreadReduction:
+    """Test that active light sources reduce dread buildup."""
+
+    def test_light_halves_category_dread(self):
+        """Active light halves dread from location category."""
+        char = create_test_character()
+        world = create_test_world()
+        game_state = GameState(char, world, "Town Square")
+
+        # Activate light
+        char.use_light_source(10)
+        initial_dread = char.dread_meter.dread
+
+        # Move to cave - patch random to prevent encounter
+        with patch("cli_rpg.game_state.random.random", return_value=0.9):
+            success, _ = game_state.move("north")
+
+        assert success
+        # Cave normally gives 12 dread, but with light it should be 6 (12 // 2)
+        expected_increase = DREAD_BY_CATEGORY["cave"] // 2
+        assert char.dread_meter.dread == initial_dread + expected_increase
+
+    def test_light_negates_night_bonus(self):
+        """Active light removes DREAD_NIGHT_BONUS."""
+        char = create_test_character()
+        world = create_test_world()
+        game_state = GameState(char, world, "Town Square")
+
+        # Activate light
+        char.use_light_source(10)
+
+        # Set it to night (hour 22)
+        game_state.game_time.hour = 22
+        initial_dread = char.dread_meter.dread
+
+        # Move to cave at night - patch random to prevent encounter
+        with patch("cli_rpg.game_state.random.random", return_value=0.9):
+            success, _ = game_state.move("north")
+
+        assert success
+        # Cave normally gives 12 + 5 (night) = 17, but with light it should be 6 (just halved category, no night bonus)
+        expected_increase = DREAD_BY_CATEGORY["cave"] // 2
+        assert char.dread_meter.dread == initial_dread + expected_increase
+
+    def test_light_ticks_down_on_move(self):
+        """Light decrements after each move."""
+        char = create_test_character()
+        world = create_test_world()
+        game_state = GameState(char, world, "Town Square")
+
+        # Activate light
+        char.use_light_source(5)
+        assert char.light_remaining == 5
+
+        # Move - patch random to prevent encounter
+        with patch("cli_rpg.game_state.random.random", return_value=0.9):
+            game_state.move("north")
+
+        # Should tick down by 1
+        assert char.light_remaining == 4
+
+    def test_light_expires_after_duration(self):
+        """Light reaches 0 after correct number of moves."""
+        char = create_test_character()
+        # Create a multi-location world for multiple moves
+        town = Location(
+            name="Town Square",
+            description="A town.",
+            connections={"north": "Cave 1"},
+            coordinates=(0, 0),
+            category="town"
+        )
+        cave1 = Location(
+            name="Cave 1",
+            description="First cave.",
+            connections={"south": "Town Square", "north": "Cave 2"},
+            coordinates=(0, 1),
+            category="cave"
+        )
+        cave2 = Location(
+            name="Cave 2",
+            description="Second cave.",
+            connections={"south": "Cave 1", "north": "Cave 3"},
+            coordinates=(0, 2),
+            category="cave"
+        )
+        cave3 = Location(
+            name="Cave 3",
+            description="Third cave.",
+            connections={"south": "Cave 2"},
+            coordinates=(0, 3),
+            category="cave"
+        )
+        world = {"Town Square": town, "Cave 1": cave1, "Cave 2": cave2, "Cave 3": cave3}
+        game_state = GameState(char, world, "Town Square")
+
+        # Activate light for 3 moves
+        char.use_light_source(3)
+
+        with patch("cli_rpg.game_state.random.random", return_value=0.9):
+            game_state.move("north")  # Cave 1, light_remaining = 2
+            assert char.light_remaining == 2
+
+            game_state.move("north")  # Cave 2, light_remaining = 1
+            assert char.light_remaining == 1
+
+            game_state.move("north")  # Cave 3, light_remaining = 0
+            assert char.light_remaining == 0
+
+    def test_light_expiration_message_in_move(self):
+        """Move output includes 'light fades' message when light expires."""
+        char = create_test_character()
+        world = create_test_world()
+        game_state = GameState(char, world, "Town Square")
+
+        # Activate light for 1 move
+        char.use_light_source(1)
+
+        # Move - patch random to prevent encounter
+        with patch("cli_rpg.game_state.random.random", return_value=0.9):
+            success, message = game_state.move("north")
+
+        assert success
+        assert char.light_remaining == 0
+        assert "fades" in message.lower() or "darkness" in message.lower()
+
+    def test_dread_normal_after_light_expires(self):
+        """Full dread returns when light is gone."""
+        char = create_test_character()
+        # Create a world with adjacent caves
+        town = Location(
+            name="Town Square",
+            description="A town.",
+            connections={"north": "Cave 1"},
+            coordinates=(0, 0),
+            category="town"
+        )
+        cave1 = Location(
+            name="Cave 1",
+            description="First cave.",
+            connections={"south": "Town Square", "north": "Cave 2"},
+            coordinates=(0, 1),
+            category="cave"
+        )
+        cave2 = Location(
+            name="Cave 2",
+            description="Second cave.",
+            connections={"south": "Cave 1"},
+            coordinates=(0, 2),
+            category="cave"
+        )
+        world = {"Town Square": town, "Cave 1": cave1, "Cave 2": cave2}
+        game_state = GameState(char, world, "Town Square")
+
+        # Activate light for 1 move only
+        char.use_light_source(1)
+
+        with patch("cli_rpg.game_state.random.random", return_value=0.9):
+            # First move with light - cave dread halved
+            game_state.move("north")
+            dread_after_first = char.dread_meter.dread
+            assert char.light_remaining == 0  # Light expired
+
+            # Second move without light - full cave dread
+            game_state.move("north")
+            dread_after_second = char.dread_meter.dread
+
+        # First move added halved dread (cave=12//2=6)
+        # Second move added full dread (cave=12)
+        # So second increase should be larger
+        first_increase = dread_after_first  # From 0
+        second_increase = dread_after_second - dread_after_first
+        assert second_increase == DREAD_BY_CATEGORY["cave"]
+        assert first_increase == DREAD_BY_CATEGORY["cave"] // 2
+
+    def test_light_does_not_affect_town_reduction(self):
+        """Town dread reduction is unchanged by light."""
+        char = create_test_character()
+        world = create_test_world()
+        game_state = GameState(char, world, "Dark Cave")
+
+        # Set some initial dread
+        char.dread_meter.dread = 50
+
+        # Activate light
+        char.use_light_source(10)
+
+        # Move to town - patch random to prevent encounter
+        with patch("cli_rpg.game_state.random.random", return_value=0.9):
+            success, _ = game_state.move("south")
+
+        assert success
+        # Town should reduce dread by 15 regardless of light
+        assert char.dread_meter.dread == 50 - DREAD_TOWN_REDUCTION
