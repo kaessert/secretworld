@@ -223,6 +223,9 @@ class TestEnemySerialization:
             "burn_duration": 0,
             "stun_chance": 0.0,
             "stun_duration": 0,
+            "freeze_chance": 0.0,
+            "freeze_duration": 0,
+            "status_effects": [],
         }
     
     def test_from_dict_deserializes_enemy(self):

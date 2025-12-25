@@ -339,6 +339,35 @@ Your vision fades... but this is not the end.
 
 ---
 
+### Non-interactive mode bugs
+**Status**: ACTIVE
+
+Issues discovered while playtesting `--non-interactive` mode:
+
+1. **Character creation broken in non-interactive mode**
+   - The first 3 inputs intended for character creation (race selection, name, class selection) are treated as "Unknown command"
+   - Character creation flow doesn't work at all - game skips directly to gameplay with default character named "Agent"
+   - Expected: Inputs should be consumed by character creation prompts before game loop begins
+   - Workaround: None - stuck with default character
+
+2. **Shop command requires prior NPC interaction**
+   - Running `shop` command without first doing `talk Merchant` fails with "You're not at a shop"
+   - This is counterintuitive when standing in Town Square with a Merchant NPC visible
+   - Suggestion: Allow `shop` command to work directly when a merchant NPC is present, or provide clearer guidance
+
+3. ~~**NPC conversation responses are generic**~~ (RESOLVED with AI service)
+   - When AI is enabled, NPCs respond intelligently to player input
+   - Without AI, NPCs fall back to "nods thoughtfully" responses
+
+4. **Enemy attack text duplicates name**
+   - AI-generated attack flavor text includes enemy name, but combat code also prefixes it
+   - Result: "Frostbite Yeti The Frostbite Yeti unleashes a chilling roar..."
+   - Fix: Either strip name from AI output or don't prefix in combat code
+
+5. **Non-interactive mode skipped AI initialization** (RESOLVED)
+   - `run_non_interactive()` and `run_json_mode()` hardcoded `ai_service=None`
+   - Fixed: Now loads AI config from environment variables like interactive mode
+
 ### Non-interactive mode enhancements
 **Status**: ACTIVE
 
@@ -495,7 +524,7 @@ Combat lacks tactical depth - players just attack repeatedly. Need a skill/abili
 ### Status effects and combat depth
 **Status**: ACTIVE (Partial)
 
-Combat is too simple - attack until enemy dies. Core status effect system has been implemented with poison, burn, and stun.
+Combat is too simple - attack until enemy dies. Core status effect system has been implemented with poison, burn, stun, and freeze.
 
 **Implemented**:
 - ✅ Basic poison status effect (DOT damage over time)
@@ -504,12 +533,15 @@ Combat is too simple - attack until enemy dies. Core status effect system has be
 - ✅ Burn-capable enemies (fire elementals, dragons, flame creatures with 20% burn chance)
 - ✅ Stun status effect (player skips next action)
 - ✅ Stun-capable enemies (trolls, golems, giants, hammer-wielders with 15% stun chance)
+- ✅ Freeze status effect (reduces attack damage by 50% while frozen)
+- ✅ Freeze-capable enemies (yetis, ice-themed creatures with 20% freeze chance, 2 turns)
+- ✅ Freeze can be applied to both players and enemies
 - ✅ Status effect display in combat status
 - ✅ Status effects cleared on combat end
 - ✅ Full persistence/serialization support
 
 **Remaining features**:
-- Additional status effects: freeze, bleed, buff/debuff
+- Additional status effects: bleed, buff/debuff
 - Elemental strengths and weaknesses
 - Defensive options: block, dodge, parry
 - Enemy attack patterns and telegraphed special moves

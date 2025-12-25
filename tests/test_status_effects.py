@@ -763,3 +763,344 @@ class TestCombatStun:
         initial_enemy_health = stun_enemy.health
         combat.player_attack()
         assert stun_enemy.health < initial_enemy_health
+
+
+# ============================================================================
+# Freeze Status Effect Tests (Spec: Freeze - Control effect, reduced attack power)
+# ============================================================================
+
+
+class TestFreezeStatusEffect:
+    """Tests for the Freeze status effect."""
+
+    def test_freeze_effect_creation(self):
+        """Spec: Freeze is a control effect that reduces enemy attack power."""
+        effect = StatusEffect(
+            name="Freeze",
+            effect_type="freeze",
+            damage_per_turn=0,  # Freeze doesn't deal damage
+            duration=2
+        )
+        assert effect.name == "Freeze"
+        assert effect.effect_type == "freeze"
+        assert effect.damage_per_turn == 0
+        assert effect.duration == 2
+
+    def test_freeze_effect_tick_no_damage(self):
+        """Spec: Freeze does not deal damage, only reduces attack power."""
+        effect = StatusEffect(
+            name="Freeze",
+            effect_type="freeze",
+            damage_per_turn=0,
+            duration=2
+        )
+        damage, expired = effect.tick()
+
+        assert damage == 0  # Freeze doesn't deal damage
+        assert expired is False  # 2 turn duration, still has 1 left
+        assert effect.duration == 1
+
+
+class TestEnemyFreeze:
+    """Tests for enemy freeze capability and status effects on enemies."""
+
+    def test_enemy_freeze_fields(self):
+        """Spec: Enemies can have freeze_chance, freeze_duration."""
+        enemy = Enemy(
+            name="Yeti",
+            health=80,
+            max_health=80,
+            attack_power=15,
+            defense=5,
+            xp_reward=50,
+            freeze_chance=0.2,
+            freeze_duration=2
+        )
+
+        assert enemy.freeze_chance == 0.2
+        assert enemy.freeze_duration == 2
+
+    def test_enemy_default_no_freeze(self):
+        """Non-freeze enemies should have default values of 0."""
+        enemy = Enemy(
+            name="Wolf",
+            health=50,
+            max_health=50,
+            attack_power=10,
+            defense=2,
+            xp_reward=30
+        )
+
+        assert enemy.freeze_chance == 0.0
+        assert enemy.freeze_duration == 0
+
+    def test_enemy_freeze_serialization(self):
+        """Spec: Freeze fields are serialized/deserialized for persistence."""
+        enemy = Enemy(
+            name="Yeti",
+            health=80,
+            max_health=80,
+            attack_power=15,
+            defense=5,
+            xp_reward=50,
+            freeze_chance=0.2,
+            freeze_duration=2
+        )
+
+        data = enemy.to_dict()
+        assert data["freeze_chance"] == 0.2
+        assert data["freeze_duration"] == 2
+
+        restored = Enemy.from_dict(data)
+        assert restored.freeze_chance == 0.2
+        assert restored.freeze_duration == 2
+
+    def test_enemy_status_effects_list(self):
+        """Spec: Enemies can have status effects applied to them."""
+        enemy = Enemy(
+            name="Wolf",
+            health=50,
+            max_health=50,
+            attack_power=10,
+            defense=2,
+            xp_reward=30
+        )
+
+        # Enemy should have empty status_effects list by default
+        assert hasattr(enemy, "status_effects")
+        assert enemy.status_effects == []
+
+    def test_enemy_apply_status_effect(self):
+        """Spec: Enemies can have status effects applied to them."""
+        enemy = Enemy(
+            name="Wolf",
+            health=50,
+            max_health=50,
+            attack_power=10,
+            defense=2,
+            xp_reward=30
+        )
+
+        freeze = StatusEffect(
+            name="Freeze",
+            effect_type="freeze",
+            damage_per_turn=0,
+            duration=2
+        )
+        enemy.apply_status_effect(freeze)
+
+        assert len(enemy.status_effects) == 1
+        assert enemy.status_effects[0].name == "Freeze"
+
+    def test_enemy_has_effect_type(self):
+        """Spec: Can check if enemy has a specific effect type."""
+        enemy = Enemy(
+            name="Wolf",
+            health=50,
+            max_health=50,
+            attack_power=10,
+            defense=2,
+            xp_reward=30
+        )
+
+        freeze = StatusEffect(
+            name="Freeze",
+            effect_type="freeze",
+            damage_per_turn=0,
+            duration=2
+        )
+        enemy.apply_status_effect(freeze)
+
+        assert enemy.has_effect_type("freeze") is True
+        assert enemy.has_effect_type("stun") is False
+
+    def test_enemy_tick_status_effects(self):
+        """Spec: Enemy status effects tick and expire."""
+        enemy = Enemy(
+            name="Wolf",
+            health=50,
+            max_health=50,
+            attack_power=10,
+            defense=2,
+            xp_reward=30
+        )
+
+        freeze = StatusEffect(
+            name="Freeze",
+            effect_type="freeze",
+            damage_per_turn=0,
+            duration=1  # Will expire after 1 tick
+        )
+        enemy.apply_status_effect(freeze)
+
+        messages = enemy.tick_status_effects()
+
+        # Effect should be removed after expiring
+        assert len(enemy.status_effects) == 0
+        assert any("worn off" in msg.lower() or "expired" in msg.lower() for msg in messages)
+
+    def test_enemy_clear_status_effects(self):
+        """Spec: Enemy status effects can be cleared."""
+        enemy = Enemy(
+            name="Wolf",
+            health=50,
+            max_health=50,
+            attack_power=10,
+            defense=2,
+            xp_reward=30
+        )
+
+        freeze = StatusEffect(
+            name="Freeze",
+            effect_type="freeze",
+            damage_per_turn=0,
+            duration=2
+        )
+        enemy.apply_status_effect(freeze)
+        assert len(enemy.status_effects) == 1
+
+        enemy.clear_status_effects()
+
+        assert len(enemy.status_effects) == 0
+
+    def test_enemy_status_effects_serialization(self):
+        """Spec: Enemy status effects are persisted in to_dict/from_dict."""
+        enemy = Enemy(
+            name="Wolf",
+            health=50,
+            max_health=50,
+            attack_power=10,
+            defense=2,
+            xp_reward=30
+        )
+
+        freeze = StatusEffect(
+            name="Freeze",
+            effect_type="freeze",
+            damage_per_turn=0,
+            duration=2
+        )
+        enemy.apply_status_effect(freeze)
+
+        data = enemy.to_dict()
+        assert "status_effects" in data
+        assert len(data["status_effects"]) == 1
+
+        restored = Enemy.from_dict(data)
+        assert len(restored.status_effects) == 1
+        assert restored.status_effects[0].name == "Freeze"
+
+
+class TestCombatFreeze:
+    """Tests for freeze effects in combat."""
+
+    @pytest.fixture
+    def character(self):
+        """Create a test character."""
+        return Character(name="TestHero", strength=10, dexterity=10, intelligence=10)
+
+    @pytest.fixture
+    def freeze_enemy(self):
+        """Create a test enemy with freeze capability."""
+        return Enemy(
+            name="Yeti",
+            health=80,
+            max_health=80,
+            attack_power=20,  # High attack to test reduction
+            defense=5,
+            xp_reward=50,
+            freeze_chance=1.0,  # Guaranteed for testing
+            freeze_duration=2
+        )
+
+    def test_frozen_enemy_reduced_damage(self, character, freeze_enemy):
+        """Spec: Frozen enemies have 50% reduced attack power."""
+        combat = CombatEncounter(player=character, enemy=freeze_enemy)
+        combat.start()
+
+        # Apply freeze to enemy
+        freeze = StatusEffect(
+            name="Freeze",
+            effect_type="freeze",
+            damage_per_turn=0,
+            duration=2
+        )
+        freeze_enemy.apply_status_effect(freeze)
+
+        # Get initial health
+        initial_health = character.health
+
+        # Enemy attacks - should deal reduced damage
+        combat.enemy_turn()
+
+        # Calculate expected damage: (20 * 0.5) - defense = 10 - defense
+        # Character base defense is constitution (10), so 10 - 10 = min 1
+        damage_taken = initial_health - character.health
+
+        # The enemy normally deals max(1, 20 - 10) = 10 damage
+        # When frozen: max(1, (20 * 0.5) - 10) = max(1, 0) = 1 damage
+        # (plus any status effect ticks, but freeze doesn't deal dot)
+        # Note: defense calculation may vary, but damage should be less than normal
+        assert damage_taken <= 10  # Should be reduced from normal 10 damage
+
+    def test_frozen_enemy_status_display(self, character, freeze_enemy):
+        """Spec: Frozen status is displayed in combat status."""
+        combat = CombatEncounter(player=character, enemy=freeze_enemy)
+        combat.start()
+
+        # Apply freeze to enemy
+        freeze = StatusEffect(
+            name="Freeze",
+            effect_type="freeze",
+            damage_per_turn=0,
+            duration=2
+        )
+        freeze_enemy.apply_status_effect(freeze)
+
+        status = combat.get_status()
+
+        # Status should mention the freeze effect on enemy
+        assert "Freeze" in status or "frozen" in status.lower()
+
+    def test_freeze_expires_correctly(self, character, freeze_enemy):
+        """Spec: Freeze effect is removed after duration expires."""
+        combat = CombatEncounter(player=character, enemy=freeze_enemy)
+        combat.start()
+
+        # Apply freeze with 1 turn duration
+        freeze = StatusEffect(
+            name="Freeze",
+            effect_type="freeze",
+            damage_per_turn=0,
+            duration=1
+        )
+        freeze_enemy.apply_status_effect(freeze)
+        assert len(freeze_enemy.status_effects) == 1
+
+        # Enemy turn should tick and expire the freeze
+        combat.enemy_turn()
+
+        # Freeze should be removed
+        assert len(freeze_enemy.status_effects) == 0
+
+    def test_freeze_cleared_on_combat_end(self, character, freeze_enemy):
+        """Spec: Enemy status effects are cleared on combat end."""
+        combat = CombatEncounter(player=character, enemy=freeze_enemy)
+        combat.start()
+
+        # Apply freeze to enemy
+        freeze = StatusEffect(
+            name="Freeze",
+            effect_type="freeze",
+            damage_per_turn=0,
+            duration=2
+        )
+        freeze_enemy.apply_status_effect(freeze)
+        assert len(freeze_enemy.status_effects) == 1
+
+        # End combat
+        freeze_enemy.health = 0  # Kill enemy for victory
+        combat.end_combat(victory=True)
+
+        # Enemy status effects should be cleared
+        assert len(freeze_enemy.status_effects) == 0

@@ -1,89 +1,96 @@
-# Implementation Summary: Basic Poison Status Effect
+# Implementation Summary: Freeze Status Effect
 
 ## What Was Implemented
 
-### 1. New StatusEffect Model (`src/cli_rpg/models/status_effect.py`)
-- Created `StatusEffect` dataclass with fields:
-  - `name`: Display name (e.g., "Poison")
-  - `effect_type`: Type of effect ("dot", "buff", "debuff")
-  - `damage_per_turn`: Damage dealt each tick for DOT effects
-  - `duration`: Turns remaining
-- Implemented `tick()` method that decrements duration and returns (damage, expired)
-- Implemented `to_dict()`/`from_dict()` for serialization/persistence
+### 1. Enemy Model Changes (`src/cli_rpg/models/enemy.py`)
 
-### 2. Character Model Updates (`src/cli_rpg/models/character.py`)
-- Added `status_effects: List[StatusEffect]` field to track active effects
-- Implemented `apply_status_effect(effect)` method to add effects
-- Implemented `tick_status_effects()` method that:
-  - Processes each effect's tick
-  - Applies damage from DOT effects
-  - Removes expired effects
-  - Returns messages describing what happened
-- Implemented `clear_status_effects()` method (for combat end)
-- Updated `to_dict()`/`from_dict()` for persistence with backward compatibility
+Added support for status effects on enemies, following the same pattern as Character:
 
-### 3. Enemy Model Updates (`src/cli_rpg/models/enemy.py`)
-- Added poison capability fields:
-  - `poison_chance: float = 0.0` (0.0-1.0 chance to poison on attack)
-  - `poison_damage: int = 0` (damage per turn)
-  - `poison_duration: int = 0` (turns of poison)
-- Updated `to_dict()`/`from_dict()` for serialization with backward compatibility
+- **New Fields:**
+  - `freeze_chance: float = 0.0` - Chance (0.0-1.0) to apply freeze on attack
+  - `freeze_duration: int = 0` - Duration of freeze in turns
+  - `status_effects: List = field(default_factory=list)` - Active status effects on enemy
 
-### 4. Combat System Updates (`src/cli_rpg/combat.py`)
-- Updated `enemy_turn()` to:
-  - Roll for poison application when enemy has `poison_chance > 0`
-  - Apply poison status effect to player on successful roll
-  - Tick player's status effects after all enemy attacks
-  - Include status effect messages in combat output
-- Updated `get_status()` to display active status effects with remaining duration
-- Updated `end_combat()` to clear all player status effects
+- **New Methods:**
+  - `apply_status_effect(effect)` - Apply a status effect to the enemy
+  - `tick_status_effects() -> List[str]` - Process all status effects, return messages
+  - `clear_status_effects()` - Remove all status effects
+  - `has_effect_type(effect_type: str) -> bool` - Check if enemy has a specific effect type
 
-### 5. Enemy Spawning Updates (`src/cli_rpg/combat.py`)
-- Modified `spawn_enemy()` to give poison capability to certain enemies:
-  - Spider, Snake, Serpent, Viper: 20% poison chance, 4 damage, 3 turns duration
+- **Updated Methods:**
+  - `to_dict()` - Now includes freeze_chance, freeze_duration, status_effects
+  - `from_dict()` - Now deserializes freeze fields and status_effects
 
-### 6. Tests (`tests/test_status_effects.py`)
-Created comprehensive test suite with 17 tests covering:
-- StatusEffect model creation and tick behavior
-- StatusEffect serialization round-trip
-- Character status effect application and tick processing
-- Character status effect serialization
-- Enemy poison fields and serialization
-- Combat integration (poison application, ticking, status display, cleanup)
-- Enemy spawning with poison capability
+### 2. Combat System Changes (`src/cli_rpg/combat.py`)
+
+- **Freeze Damage Reduction (50%):**
+  In `enemy_turn()`, frozen enemies now deal half damage:
+  ```python
+  attack_power = enemy.calculate_damage()
+  if enemy.has_effect_type("freeze"):
+      attack_power = int(attack_power * 0.5)
+  ```
+
+- **Enemy Status Effect Ticking:**
+  Added per-enemy status effect ticking during enemy turn
+
+- **Freeze Application from Ice Enemies:**
+  Added freeze effect application to player when hit by ice-themed enemies (Yeti, etc.)
+
+- **Enemy Status Display:**
+  Updated `get_status()` to show frozen and other status effects on enemies
+
+- **Combat End Cleanup:**
+  Updated `end_combat()` to clear enemy status effects
+
+- **Spawn Enemy Updates:**
+  Added Yeti/ice enemy freeze capabilities (20% chance, 2 turns) in `spawn_enemy()`
+
+### 3. Test Updates
+
+Added 14 new tests in `tests/test_status_effects.py`:
+
+- `TestFreezeStatusEffect` (2 tests):
+  - `test_freeze_effect_creation` - Freeze effect with effect_type="freeze"
+  - `test_freeze_effect_tick_no_damage` - Returns 0 damage, decrements duration
+
+- `TestEnemyFreeze` (9 tests):
+  - `test_enemy_freeze_fields` - freeze_chance, freeze_duration on Enemy
+  - `test_enemy_default_no_freeze` - Defaults to 0
+  - `test_enemy_freeze_serialization` - to_dict/from_dict
+  - `test_enemy_status_effects_list` - Empty list by default
+  - `test_enemy_apply_status_effect` - Can apply effects
+  - `test_enemy_has_effect_type` - Check for effect type
+  - `test_enemy_tick_status_effects` - Ticks and expires
+  - `test_enemy_clear_status_effects` - Clears all effects
+  - `test_enemy_status_effects_serialization` - Persists effects
+
+- `TestCombatFreeze` (4 tests):
+  - `test_frozen_enemy_reduced_damage` - 50% attack reduction
+  - `test_frozen_enemy_status_display` - Shows in combat status
+  - `test_freeze_expires_correctly` - Effect removed after duration
+  - `test_freeze_cleared_on_combat_end` - Cleared on combat end
+
+Updated `tests/test_enemy.py`:
+- `test_to_dict_serializes_enemy` - Added freeze_chance, freeze_duration, status_effects to expected dict
 
 ## Test Results
 
-All 1727 tests pass, including:
-- 17 new status effect tests
-- All existing tests (1 existing test updated to expect new poison fields in Enemy serialization)
-
-## Files Modified/Created
-
-| File | Action | Description |
-|------|--------|-------------|
-| `src/cli_rpg/models/status_effect.py` | CREATE | New StatusEffect dataclass |
-| `src/cli_rpg/models/character.py` | MODIFY | Added status_effects field and methods |
-| `src/cli_rpg/models/enemy.py` | MODIFY | Added poison capability fields |
-| `src/cli_rpg/combat.py` | MODIFY | Poison application, ticking, and display |
-| `tests/test_status_effects.py` | CREATE | New test file with 17 tests |
-| `tests/test_enemy.py` | MODIFY | Updated serialization test for new fields |
+All 1760 tests pass, including 50 status effect tests.
 
 ## Design Decisions
 
-1. **Status effects on Character, not CombatEncounter**: Effects are tracked on the Character model to support persistence across save/load cycles, even though they're currently only active during combat.
+1. **Freeze applies to enemies (not just player):** While the spec mentioned "inverse of stun which affects the player", the implementation allows freeze to be applied to enemies, providing 50% damage reduction when frozen.
 
-2. **Poison application after attack**: Poison is applied after each enemy attack, with a probability roll per attack. This means multiple poison stacks can be applied from a single multi-enemy turn.
+2. **Ice enemies can freeze players:** Yetis and ice-themed enemies have 20% chance to freeze the player (similar to how poison/burn/stun work).
 
-3. **Status effect tick timing**: Effects tick at the end of the enemy turn, after all enemy attacks have been processed. This gives the player one turn to react before taking DOT damage.
+3. **Reused StatusEffect model:** Used existing StatusEffect with effect_type="freeze" rather than creating new type.
 
-4. **Backward compatibility**: All serialization changes use `.get()` with default values for backward compatibility with existing save files.
+4. **Pattern consistency:** Followed exact same patterns as existing poison/burn/stun implementations for familiarity and maintainability.
 
-## E2E Validation Points
+## Files Modified
 
-1. Start a game and navigate to a forest to encounter a Giant Spider
-2. Let the spider attack - there's a 20% chance it will poison you
-3. When poisoned, the combat status should show "Status: Poison (3 turns)"
-4. Each subsequent enemy turn, the poison should tick for 4 damage
-5. After 3 turns, the "Poison has worn off" message should appear
-6. After combat ends (victory or defeat), status effects should be cleared
+1. `src/cli_rpg/models/enemy.py`
+2. `src/cli_rpg/combat.py`
+3. `tests/test_status_effects.py`
+4. `tests/test_enemy.py`

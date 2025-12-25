@@ -1231,15 +1231,24 @@ def run_json_mode(log_file: Optional[str] = None, delay_ms: int = 0) -> int:
     # Disable ANSI colors for machine-readable output
     set_colors_enabled(False)
 
+    # Load AI configuration
+    ai_config = load_ai_config()
+    ai_service = None
+    if ai_config:
+        try:
+            ai_service = AIService(ai_config)
+        except Exception:
+            pass  # Silently fall back to non-AI mode
+
     # Create a default character and world for JSON mode
     character = Character(name="Agent", strength=10, dexterity=10, intelligence=10)
-    world, starting_location = create_world(ai_service=None, theme="fantasy", strict=False)
+    world, starting_location = create_world(ai_service=ai_service, theme="fantasy", strict=False)
 
     game_state = GameState(
         character,
         world,
         starting_location=starting_location,
-        ai_service=None,
+        ai_service=ai_service,
         theme="fantasy"
     )
 
@@ -1407,16 +1416,25 @@ def run_non_interactive(log_file: Optional[str] = None, delay_ms: int = 0) -> in
     # Disable ANSI colors for machine-readable output
     set_colors_enabled(False)
 
+    # Load AI configuration
+    ai_config = load_ai_config()
+    ai_service = None
+    if ai_config:
+        try:
+            ai_service = AIService(ai_config)
+        except Exception:
+            pass  # Silently fall back to non-AI mode
+
     # Create a default character and world for non-interactive mode
     # Use balanced stats (10 each) for a generic character
     character = Character(name="Agent", strength=10, dexterity=10, intelligence=10)
-    world, starting_location = create_world(ai_service=None, theme="fantasy", strict=False)
+    world, starting_location = create_world(ai_service=ai_service, theme="fantasy", strict=False)
 
     game_state = GameState(
         character,
         world,
         starting_location=starting_location,
-        ai_service=None,
+        ai_service=ai_service,
         theme="fantasy"
     )
 

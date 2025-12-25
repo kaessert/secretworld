@@ -437,7 +437,11 @@ class CombatEncounter:
 
         for enemy in living:
             # Calculate damage: enemy attack - player defense (constitution + armor bonus), minimum 1
-            base_damage = max(1, enemy.calculate_damage() - self.player.get_defense())
+            # Apply freeze reduction (50%) if enemy is frozen
+            attack_power = enemy.calculate_damage()
+            if enemy.has_effect_type("freeze"):
+                attack_power = int(attack_power * 0.5)
+            base_damage = max(1, attack_power - self.player.get_defense())
 
             # Apply defense reduction if player is defending (applies to all attacks this turn)
             if self.defending:
@@ -503,6 +507,24 @@ class CombatEncounter:
                     f"{colors.enemy(enemy.name)}'s attack {colors.damage('stuns')} you!"
                 )
 
+            # Check if enemy can apply freeze (to player - ice enemies freeze the player)
+            if enemy.freeze_chance > 0 and random.random() < enemy.freeze_chance:
+                # Apply freeze effect to player
+                freeze = StatusEffect(
+                    name="Freeze",
+                    effect_type="freeze",
+                    damage_per_turn=0,
+                    duration=enemy.freeze_duration
+                )
+                self.player.apply_status_effect(freeze)
+                messages.append(
+                    f"{colors.enemy(enemy.name)}'s attack {colors.damage('freezes')} you!"
+                )
+
+            # Tick status effects on this enemy
+            enemy_status_messages = enemy.tick_status_effects()
+            messages.extend(enemy_status_messages)
+
         # Reset defensive stance after all attacks
         self.defending = False
 
@@ -532,6 +554,10 @@ class CombatEncounter:
 
         # Clear player status effects at end of combat
         self.player.clear_status_effects()
+
+        # Clear enemy status effects at end of combat
+        for enemy in self.enemies:
+            enemy.clear_status_effects()
 
         if victory:
             # Build victory message based on number of enemies
@@ -600,6 +626,13 @@ class CombatEncounter:
         for enemy in self.enemies:
             status = "DEAD" if not enemy.is_alive() else f"{enemy.health}/{enemy.max_health} HP"
             lines.append(f"Enemy: {colors.enemy(enemy.name)} - {status}")
+
+            # Display active status effects on enemy
+            if enemy.is_alive() and enemy.status_effects:
+                effect_strs = [
+                    f"{e.name} ({e.duration} turns)" for e in enemy.status_effects
+                ]
+                lines.append(f"  Status: {colors.damage(', '.join(effect_strs))}")
 
         return "\n".join(lines)
 
@@ -801,6 +834,13 @@ def spawn_enemy(
         stun_chance = 0.15
         stun_duration = 1
 
+    # Yetis and ice enemies get 20% freeze chance, 2 turns
+    freeze_chance = 0.0
+    freeze_duration = 0
+    if any(term in enemy_name_lower for term in ["yeti", "ice", "frost", "frozen", "blizzard"]):
+        freeze_chance = 0.2
+        freeze_duration = 2
+
     return Enemy(
         name=enemy_name,
         health=scaled_health,
@@ -818,6 +858,8 @@ def spawn_enemy(
         burn_duration=burn_duration,
         stun_chance=stun_chance,
         stun_duration=stun_duration,
+        freeze_chance=freeze_chance,
+        freeze_duration=freeze_duration,
     )
 
 

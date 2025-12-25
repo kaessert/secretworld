@@ -1,7 +1,10 @@
 """Enemy model for combat encounters."""
 
-from dataclasses import dataclass
-from typing import Dict
+from dataclasses import dataclass, field
+from typing import Dict, List, TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from cli_rpg.models.status_effect import StatusEffect
 
 
 @dataclass
@@ -27,7 +30,10 @@ class Enemy:
     burn_duration: int = 0  # Duration of burn in turns
     stun_chance: float = 0.0  # Chance (0.0-1.0) to apply stun on attack
     stun_duration: int = 0  # Duration of stun in turns
-    
+    freeze_chance: float = 0.0  # Chance (0.0-1.0) to apply freeze on attack
+    freeze_duration: int = 0  # Duration of freeze in turns
+    status_effects: List = field(default_factory=list)  # Active status effects on this enemy
+
     def __post_init__(self):
         """Validate enemy attributes."""
         if self.health < 0:
@@ -64,12 +70,59 @@ class Enemy:
     def calculate_damage(self) -> int:
         """
         Compute attack damage.
-        
+
         Returns:
             Attack power value
         """
         return self.attack_power
-    
+
+    def apply_status_effect(self, effect: "StatusEffect") -> None:
+        """Apply a status effect to this enemy.
+
+        Args:
+            effect: The status effect to apply
+        """
+        self.status_effects.append(effect)
+
+    def tick_status_effects(self) -> List[str]:
+        """Process all status effects for one turn.
+
+        Returns:
+            List of messages describing what happened
+        """
+        messages = []
+        expired_effects = []
+
+        for effect in self.status_effects:
+            damage, expired = effect.tick()
+            if damage > 0:
+                self.take_damage(damage)
+                messages.append(f"{self.name} takes {damage} damage from {effect.name}!")
+            if expired:
+                expired_effects.append(effect)
+                messages.append(f"{effect.name} has worn off from {self.name}.")
+
+        # Remove expired effects
+        for effect in expired_effects:
+            self.status_effects.remove(effect)
+
+        return messages
+
+    def clear_status_effects(self) -> None:
+        """Remove all status effects from this enemy."""
+        self.status_effects.clear()
+
+    def has_effect_type(self, effect_type: str) -> bool:
+        """Check if enemy has a specific effect type.
+
+        Args:
+            effect_type: The effect type to check for (e.g., "freeze", "stun")
+
+        Returns:
+            True if enemy has an effect of that type, False otherwise
+        """
+        return any(e.effect_type == effect_type for e in self.status_effects)
+
     def to_dict(self) -> Dict:
         """
         Serialize enemy to dictionary.
@@ -97,6 +150,9 @@ class Enemy:
             "burn_duration": self.burn_duration,
             "stun_chance": self.stun_chance,
             "stun_duration": self.stun_duration,
+            "freeze_chance": self.freeze_chance,
+            "freeze_duration": self.freeze_duration,
+            "status_effects": [e.to_dict() for e in self.status_effects],
         }
     
     @staticmethod
@@ -110,6 +166,13 @@ class Enemy:
         Returns:
             Enemy instance
         """
+        from cli_rpg.models.status_effect import StatusEffect
+
+        # Deserialize status effects
+        status_effects = [
+            StatusEffect.from_dict(e) for e in data.get("status_effects", [])
+        ]
+
         return Enemy(
             name=data["name"],
             health=data["health"],
@@ -130,4 +193,7 @@ class Enemy:
             burn_duration=data.get("burn_duration", 0),
             stun_chance=data.get("stun_chance", 0.0),
             stun_duration=data.get("stun_duration", 0),
+            freeze_chance=data.get("freeze_chance", 0.0),
+            freeze_duration=data.get("freeze_duration", 0),
+            status_effects=status_effects,
         )
