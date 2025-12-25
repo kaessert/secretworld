@@ -12,6 +12,7 @@ from cli_rpg.ai_service import AIService
 from cli_rpg.autosave import autosave
 from cli_rpg.map_renderer import render_map
 from cli_rpg.input_handler import init_readline, get_input, set_completer_context
+from cli_rpg.dreams import maybe_trigger_dream
 
 
 def get_command_reference() -> str:
@@ -1084,6 +1085,15 @@ def handle_exploration_command(game_state: GameState, command: str, args: list[s
 
         # Advance time by 4 hours for rest
         game_state.game_time.advance(4)
+
+        # Check for dream during rest
+        dream = maybe_trigger_dream(
+            dread=char.dread_meter.dread,
+            choices=getattr(game_state, 'choices', None),
+            theme=getattr(game_state, 'theme', 'fantasy')
+        )
+        if dream:
+            messages.append(dream)
 
         return (True, "\n" + " ".join(messages))
 

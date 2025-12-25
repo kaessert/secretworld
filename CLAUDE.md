@@ -42,6 +42,7 @@ src/cli_rpg/
 ├── input_handler.py     # Readline-based input with command history
 ├── completer.py         # Tab auto-completion for commands and arguments
 ├── whisper.py           # Ambient whisper system for atmosphere
+├── dreams.py            # Dream sequences triggered on rest
 └── models/
     ├── character.py     # Player character model
     ├── dread.py         # Dread meter for psychological horror

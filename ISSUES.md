@@ -125,6 +125,7 @@ The world has a heartbeat. Events happen whether you're there or not:
 
 #### 5. DREAM SEQUENCES - Surreal Narrative Moments
 **Impact**: Storytelling, foreshadowing, emotional depth
+**Status**: MVP IMPLEMENTED
 
 When you rest, sometimes you dream:
 
@@ -147,11 +148,19 @@ You wake with a strange sense of purpose.
 [Gained insight: "The Mountain's Secret"]
 ```
 
-- **Prophetic dreams** hint at future locations, enemies, or choices
+**MVP Implemented**:
+- ✅ **25% trigger rate** on rest command
+- ✅ **Prophetic dreams** hint at future events and locations
+- ✅ **Atmospheric dreams** with surreal mood-setting content
+- ✅ **Nightmare sequences** at 50%+ dread (psychological horror)
+- ✅ **Choice-based personalization**: Dreams reflect player behavior (3+ flees → flee-themed, 10+ kills → combat-themed)
+- ✅ **Formatted output** with decorative borders and intro/outro text
+
+**Future Enhancements**:
 - **Memory dreams** replay key moments with new perspective
 - **Character dreams** reveal companion backstories
-- **Nightmare sequences** if Dread is high (interactive horror)
 - **Dream items** that manifest in reality
+- **AI-generated dreams** for dynamic content
 
 ---
 
@@ -366,7 +375,7 @@ Your vision fades... but this is not the end.
 9. ~~Darkness Meter~~ ✅ MVP IMPLEMENTED - Psychological tension
 
 **Phase 4 - Transcendence** (Truly unique):
-10. Dream Sequences - Surreal storytelling
+10. ~~Dream Sequences~~ ✅ MVP IMPLEMENTED - Surreal storytelling
 11. Legacy System - Death becomes narrative
 
 ---

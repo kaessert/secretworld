@@ -65,7 +65,7 @@ python -m cli_rpg.main
 - `lore` - Discover AI-generated lore snippets about your current location
 - `bestiary` (b) - View all defeated enemies with kill counts and stats
 - `dump-state` - Export complete game state as JSON for programmatic inspection
-- `rest` (r) - Rest to recover health (restores 25% of max HP, advances time by 4 hours, not available during combat)
+- `rest` (r) - Rest to recover health (restores 25% of max HP, advances time by 4 hours, reduces dread, may trigger dreams; not available during combat)
 - `save` - Save complete game state including world, location, and theme (not available during combat)
 - `help` (h) - Display the full command reference
 - `quit` - Exit to main menu
@@ -386,6 +386,7 @@ src/cli_rpg/
 ├── location_art.py      # Fallback ASCII art for locations
 ├── npc_art.py           # Fallback ASCII art for NPCs
 ├── autosave.py          # Automatic game saving
+├── dreams.py            # Dream sequences triggered on rest
 ├── models/              # Data models
 │   ├── character.py
 │   ├── location.py

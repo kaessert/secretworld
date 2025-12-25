@@ -1,62 +1,9 @@
-# Dream Sequences - Basic Implementation Plan
-
-## Spec
-
-Add a `dreams.py` module with a `maybe_trigger_dream()` function that:
-- Has ~25% chance to trigger when player rests
-- Displays themed dream messages (prophetic, atmospheric, surreal)
-- Integrates with dread meter: nightmares at high dread (50%+)
-- Integrates with player choices tracking for personalized dreams
-- Returns formatted dream text or None
-
-## Files to Create/Modify
-
-| File | Action |
-|------|--------|
-| `src/cli_rpg/dreams.py` | CREATE |
-| `src/cli_rpg/main.py` | MODIFY (rest command ~line 1059) |
-| `tests/test_dreams.py` | CREATE |
-
----
-
-## Step 1: Write Tests (`tests/test_dreams.py`)
-
-```python
-# Unit tests for dream system
-class TestDreamServiceCreation:
-    test_dream_constants_exist()  # DREAM_CHANCE = 0.25, etc.
-
-class TestMaybeTriggerDream:
-    test_returns_string_or_none()
-    test_dream_chance_is_25_percent()  # Statistical test like whisper
-    test_nightmare_at_high_dread()  # dread >= 50 uses NIGHTMARES pool
-    test_normal_dream_at_low_dread()  # dread < 50 uses normal pools
-    test_choices_influence_dreams()  # flee choices -> running dreams
-
-class TestDreamCategories:
-    test_prophetic_dreams_exist()
-    test_atmospheric_dreams_exist()
-    test_nightmares_exist()
-    test_choice_dreams_exist()
-
-class TestFormatDream:
-    test_format_dream_has_borders()
-    test_format_dream_has_intro_outro()
-
-class TestDreamIntegration:
-    test_rest_can_trigger_dream()  # Integration with rest command
-```
-
----
-
-## Step 2: Create `src/cli_rpg/dreams.py`
-
-```python
 """Dream sequences triggered during rest.
 
 Dreams add atmospheric storytelling when the player rests.
 High dread (50%+) triggers nightmares instead of normal dreams.
 """
+
 import random
 from typing import Optional
 
@@ -182,38 +129,3 @@ def format_dream(dream_text: str) -> str:
     {border}
 
 {outro}"""
-```
-
----
-
-## Step 3: Modify `src/cli_rpg/main.py` (rest command)
-
-Location: `handle_exploration_command()`, `elif command == "rest":` block (~line 1059)
-
-After the existing rest logic (heal + dread reduction + time advance), before `return`:
-
-```python
-# Import at top of file
-from cli_rpg.dreams import maybe_trigger_dream
-
-# In rest command handler, after existing logic:
-# Check for dream
-dream = maybe_trigger_dream(
-    dread=char.dread_meter.dread,
-    choices=game_state.choices,
-    theme=game_state.theme
-)
-if dream:
-    messages.append(dream)
-```
-
----
-
-## Test Execution Order
-
-1. Run `pytest tests/test_dreams.py -v` (will fail - TDD)
-2. Create `src/cli_rpg/dreams.py`
-3. Run tests again (should pass)
-4. Modify `src/cli_rpg/main.py`
-5. Run `pytest tests/test_rest_command.py tests/test_dreams.py -v`
-6. Run full test suite `pytest`
