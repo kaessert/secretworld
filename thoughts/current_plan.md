@@ -1,219 +1,81 @@
-# Dream Sequences - Basic Implementation Plan
+# Random Travel Encounters - Implementation Plan
+
+## Feature Summary
+Add a random encounter system that triggers occasional events (hostile enemies, friendly merchants, or neutral wanderers) when the player moves between locations, adding urgency and emergent gameplay.
 
 ## Spec
 
-Add a `dreams.py` module with a `maybe_trigger_dream()` function that:
-- Has ~25% chance to trigger when player rests
-- Displays themed dream messages (prophetic, atmospheric, surreal)
-- Integrates with dread meter: nightmares at high dread (50%+)
-- Integrates with player choices tracking for personalized dreams
-- Returns formatted dream text or None
+### RandomEncounter Model
+- **Type**: `dataclass` in new file `src/cli_rpg/models/random_encounter.py`
+- **Fields**:
+  - `encounter_type`: str ("hostile", "merchant", "wanderer")
+  - `entity`: Union[Enemy, NPC] - the encounter entity
+  - `description`: str - flavor text for the encounter
+- **Serialization**: `to_dict()` / `from_dict()` for persistence
+
+### Encounter Trigger Logic
+- **Location**: Inside `GameState.move()` after successful movement (before whispers/combat)
+- **Trigger chance**: 15% per move (configurable constant `RANDOM_ENCOUNTER_CHANCE = 0.15`)
+- **Encounter types by weight**:
+  - Hostile (60%): Triggers combat using existing `trigger_encounter()` pattern
+  - Merchant (25%): Spawns a wandering merchant NPC with random wares
+  - Wanderer (15%): Spawns a passive NPC with lore/hints
+
+### Integration Points
+- Hostile encounters: Reuse `spawn_enemy()` / `ai_spawn_enemy()` from `combat.py`
+- Merchant encounters: Create temporary NPC with `is_merchant=True`, shop with 2-3 items
+- Wanderer encounters: Create temporary NPC with atmospheric dialogue
+
+### Output Format
+```
+You head north to Forest...
+
+[Random Encounter!]
+A traveling merchant blocks your path!
+"Greetings traveler! Care to see my wares?"
+(Use 'talk Merchant' to interact)
+```
+
+## Tests (TDD)
+
+### File: `tests/test_random_encounters.py`
+
+1. **test_random_encounter_model_creation** - RandomEncounter dataclass with required fields
+2. **test_random_encounter_serialization** - to_dict/from_dict roundtrip
+3. **test_move_can_trigger_random_encounter** - Move with seeded RNG triggers encounter (mock random)
+4. **test_random_encounter_chance_configurable** - Verify 15% chance constant exists
+5. **test_hostile_encounter_starts_combat** - Hostile encounter type creates CombatEncounter
+6. **test_merchant_encounter_creates_npc** - Merchant encounter creates talkable NPC at location
+7. **test_wanderer_encounter_creates_npc** - Wanderer encounter creates NPC at location
+8. **test_no_encounter_when_already_in_combat** - Skip random encounters if combat active
+9. **test_encounter_respects_location_category** - Hostile encounters use location category for enemy type
+10. **test_encounter_message_format** - Verify output includes "[Random Encounter!]" marker
+
+## Implementation Steps
+
+1. **Create `src/cli_rpg/models/random_encounter.py`**
+   - Define `RandomEncounter` dataclass
+   - Add `to_dict()` / `from_dict()` methods
+
+2. **Create `src/cli_rpg/random_encounters.py`**
+   - Constants: `RANDOM_ENCOUNTER_CHANCE = 0.15`
+   - Encounter type weights: `ENCOUNTER_WEIGHTS = {"hostile": 0.60, "merchant": 0.25, "wanderer": 0.15}`
+   - `check_for_random_encounter(game_state) -> Optional[str]` - main trigger function
+   - `spawn_wandering_merchant(level: int) -> NPC` - creates merchant NPC with shop
+   - `spawn_wanderer(theme: str) -> NPC` - creates atmospheric NPC
+   - `format_encounter_message(encounter: RandomEncounter) -> str` - formats output
+
+3. **Modify `src/cli_rpg/game_state.py`**
+   - Import `check_for_random_encounter` from new module
+   - In `move()`: After successful movement and before whispers, call `check_for_random_encounter()`
+   - If encounter returned, append message and handle side effects (start combat or add NPC)
+
+4. **Write tests in `tests/test_random_encounters.py`**
+   - Follow existing test patterns from `test_game_state.py`
+   - Use `unittest.mock.patch` to control RNG for deterministic tests
 
 ## Files to Create/Modify
-
-| File | Action |
-|------|--------|
-| `src/cli_rpg/dreams.py` | CREATE |
-| `src/cli_rpg/main.py` | MODIFY (rest command ~line 1059) |
-| `tests/test_dreams.py` | CREATE |
-
----
-
-## Step 1: Write Tests (`tests/test_dreams.py`)
-
-```python
-# Unit tests for dream system
-class TestDreamServiceCreation:
-    test_dream_constants_exist()  # DREAM_CHANCE = 0.25, etc.
-
-class TestMaybeTriggerDream:
-    test_returns_string_or_none()
-    test_dream_chance_is_25_percent()  # Statistical test like whisper
-    test_nightmare_at_high_dread()  # dread >= 50 uses NIGHTMARES pool
-    test_normal_dream_at_low_dread()  # dread < 50 uses normal pools
-    test_choices_influence_dreams()  # flee choices -> running dreams
-
-class TestDreamCategories:
-    test_prophetic_dreams_exist()
-    test_atmospheric_dreams_exist()
-    test_nightmares_exist()
-    test_choice_dreams_exist()
-
-class TestFormatDream:
-    test_format_dream_has_borders()
-    test_format_dream_has_intro_outro()
-
-class TestDreamIntegration:
-    test_rest_can_trigger_dream()  # Integration with rest command
-```
-
----
-
-## Step 2: Create `src/cli_rpg/dreams.py`
-
-```python
-"""Dream sequences triggered during rest.
-
-Dreams add atmospheric storytelling when the player rests.
-High dread (50%+) triggers nightmares instead of normal dreams.
-"""
-import random
-from typing import Optional
-
-from cli_rpg import colors
-
-DREAM_CHANCE = 0.25  # 25% chance on rest
-NIGHTMARE_DREAD_THRESHOLD = 50
-
-# Prophetic dreams - hints at future/foreshadowing
-PROPHETIC_DREAMS = [
-    "You stand at a crossroads. One path glows with warmth, the other with shadow...",
-    "A voice whispers a name you've never heard, yet it feels like your own...",
-    "You see a mountain crumbling in the distance. Something stirs beneath.",
-    "Three doors stand before you. Only one leads forward. The others... consume.",
-]
-
-# Atmospheric dreams - surreal mood-setting
-ATMOSPHERIC_DREAMS = [
-    "You drift through clouds of starlight, formless and free...",
-    "The world shifts like water beneath your feet...",
-    "Colors you cannot name swirl around you, singing...",
-    "You float in an endless library. The books whisper secrets.",
-]
-
-# Memory/choice-based dream templates (keyed by choice_type)
-CHOICE_DREAMS = {
-    "combat_flee": [
-        "You run through endless corridors, but the exit always moves...",
-        "Something pursues you. Your legs feel like lead...",
-    ],
-    "combat_kill": [
-        "Faces of the fallen watch you from mirrors that line an infinite hall...",
-        "A battlefield stretches endlessly. You stand alone among the silence.",
-    ],
-}
-
-# Nightmares (triggered at high dread 50%+)
-NIGHTMARES = [
-    "Something hunts you through the dark. You cannot scream.",
-    "Your reflection doesn't move when you do...",
-    "You fall endlessly through nothing. The nothing watches back.",
-    "Hands reach from the shadows. They know your name.",
-    "The walls breathe. They've always been breathing.",
-    "You wake in your childhood bed. Something is in the closet. It remembers you.",
-]
-
-
-def maybe_trigger_dream(
-    dread: int = 0,
-    choices: Optional[list[dict]] = None,
-    theme: str = "fantasy"
-) -> Optional[str]:
-    """Potentially trigger a dream during rest.
-
-    Args:
-        dread: Current dread level (0-100)
-        choices: Player's recorded choices (from game_state.choices)
-        theme: World theme (unused for now, for future AI dreams)
-
-    Returns:
-        Formatted dream text if triggered, None otherwise
-    """
-    # 25% chance to dream
-    if random.random() > DREAM_CHANCE:
-        return None
-
-    # Select dream based on dread level
-    if dread >= NIGHTMARE_DREAD_THRESHOLD:
-        dream_text = random.choice(NIGHTMARES)
-    else:
-        dream_text = _select_dream(choices)
-
-    return format_dream(dream_text)
-
-
-def _select_dream(choices: Optional[list[dict]]) -> str:
-    """Select a dream based on player choices or random pool.
-
-    Args:
-        choices: Player's recorded choices
-
-    Returns:
-        Dream text string
-    """
-    # 30% chance for choice-based dream if choices exist
-    if choices and random.random() < 0.30:
-        # Count choice types
-        flee_count = sum(1 for c in choices if c.get("choice_type") == "combat_flee")
-        kill_count = sum(1 for c in choices if c.get("choice_type") == "combat_kill")
-
-        if flee_count >= 3 and "combat_flee" in CHOICE_DREAMS:
-            return random.choice(CHOICE_DREAMS["combat_flee"])
-        if kill_count >= 10 and "combat_kill" in CHOICE_DREAMS:
-            return random.choice(CHOICE_DREAMS["combat_kill"])
-
-    # Default: random from prophetic or atmospheric
-    all_dreams = PROPHETIC_DREAMS + ATMOSPHERIC_DREAMS
-    return random.choice(all_dreams)
-
-
-def format_dream(dream_text: str) -> str:
-    """Format a dream for display with borders and intro/outro.
-
-    Args:
-        dream_text: The dream content
-
-    Returns:
-        Formatted string with decorative borders
-    """
-    border = "═" * 40
-    intro = colors.colorize("You drift into an uneasy sleep...", colors.MAGENTA)
-    outro = colors.colorize("You wake with fragments of the dream still lingering...", colors.MAGENTA)
-
-    dream_content = colors.colorize(f"    {dream_text}", colors.CYAN)
-
-    return f"""
-{intro}
-
-    {border}
-
-{dream_content}
-
-    {border}
-
-{outro}"""
-```
-
----
-
-## Step 3: Modify `src/cli_rpg/main.py` (rest command)
-
-Location: `handle_exploration_command()`, `elif command == "rest":` block (~line 1059)
-
-After the existing rest logic (heal + dread reduction + time advance), before `return`:
-
-```python
-# Import at top of file
-from cli_rpg.dreams import maybe_trigger_dream
-
-# In rest command handler, after existing logic:
-# Check for dream
-dream = maybe_trigger_dream(
-    dread=char.dread_meter.dread,
-    choices=game_state.choices,
-    theme=game_state.theme
-)
-if dream:
-    messages.append(dream)
-```
-
----
-
-## Test Execution Order
-
-1. Run `pytest tests/test_dreams.py -v` (will fail - TDD)
-2. Create `src/cli_rpg/dreams.py`
-3. Run tests again (should pass)
-4. Modify `src/cli_rpg/main.py`
-5. Run `pytest tests/test_rest_command.py tests/test_dreams.py -v`
-6. Run full test suite `pytest`
+- **Create**: `src/cli_rpg/models/random_encounter.py`
+- **Create**: `src/cli_rpg/random_encounters.py`
+- **Create**: `tests/test_random_encounters.py`
+- **Modify**: `src/cli_rpg/game_state.py` (add encounter check in move())

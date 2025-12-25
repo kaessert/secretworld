@@ -18,6 +18,7 @@ from cli_rpg.combat import (
 from cli_rpg.autosave import autosave
 from cli_rpg import colors
 from cli_rpg.whisper import WhisperService, format_whisper
+from cli_rpg.random_encounters import check_for_random_encounter
 
 # Import AI components (with optional support)
 try:
@@ -475,8 +476,8 @@ class GameState:
             if whisper:
                 message += f"\n\n{format_whisper(whisper)}"
 
-        # Check for random encounter
-        encounter_message = self.trigger_encounter(self.current_location)
+        # Check for random encounter (replaces old trigger_encounter)
+        encounter_message = check_for_random_encounter(self)
         if encounter_message:
             message += f"\n{encounter_message}"
 

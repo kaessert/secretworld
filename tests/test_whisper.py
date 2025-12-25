@@ -335,11 +335,12 @@ class TestWhisperIntegration:
         world = self._create_test_world()
         gs = GameState(char, world)
 
-        # Put player in combat
+        # Put player in combat (must call start() to set is_active=True)
         enemy = Enemy(
             name="Goblin", health=10, max_health=10, attack_power=5, defense=2, xp_reward=10
         )
         gs.current_combat = CombatEncounter(char, enemies=[enemy])
+        gs.current_combat.start()  # Activates combat so is_in_combat() returns True
 
         # During combat, move should be blocked (combat blocks movement)
         # So whispers won't appear since move fails

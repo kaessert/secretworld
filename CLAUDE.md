@@ -43,6 +43,7 @@ src/cli_rpg/
 ├── completer.py         # Tab auto-completion for commands and arguments
 ├── whisper.py           # Ambient whisper system for atmosphere
 ├── dreams.py            # Dream sequences triggered on rest
+├── random_encounters.py # Random travel encounters (merchants, wanderers, hostiles)
 └── models/
     ├── character.py     # Player character model
     ├── dread.py         # Dread meter for psychological horror
@@ -54,7 +55,8 @@ src/cli_rpg/
     ├── npc.py           # Non-player character model
     ├── quest.py         # Quest system with objectives and progress tracking
     ├── shop.py          # Shop system
-    └── status_effect.py # Status effects (poison, buffs, debuffs)
+    ├── status_effect.py # Status effects (poison, buffs, debuffs)
+    └── random_encounter.py # Random encounter model for travel events
 ```
 
 ## Key Architectural Patterns

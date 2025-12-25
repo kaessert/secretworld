@@ -606,9 +606,9 @@ The world feels static. Need ambient events and world dynamics.
 
 **Implemented**:
 - ✅ Day/night cycle with NPC availability (time advances on movement/rest, night whispers, NPCs can be unavailable at night)
+- ✅ Random travel encounters (15% chance per move: hostile enemies 60%, wandering merchants 25%, mysterious wanderers 15%)
 
 **Remaining features**:
-- Random encounters while traveling (bandits, merchants, wandering creatures)
 - Weather system affecting gameplay (storms reduce visibility, rain extinguishes fire)
 - Seasonal events and festivals
 - World events triggered by player progress or time (invasions, plagues, celebrations)

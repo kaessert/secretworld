@@ -70,6 +70,14 @@ python -m cli_rpg.main
 - `help` (h) - Display the full command reference
 - `quit` - Exit to main menu
 
+### Random Travel Encounters
+When moving between locations, you have a 15% chance to trigger a random encounter:
+- **Hostile Encounters** (60%): Wandering enemies ambush you, immediately starting combat
+- **Merchant Encounters** (25%): A traveling merchant appears with 2-3 items for sale (use `talk` to shop)
+- **Wanderer Encounters** (15%): A mysterious traveler offers lore and atmosphere (use `talk` to converse)
+
+Merchants and wanderers are added to your current location and can be interacted with normally.
+
 ### Combat System
 Combat encounters occur randomly as you explore. You may face multiple enemies at once (1-2 enemies at lower levels, up to 3 at level 4+). Enemies display ASCII art when combat begins.
 
