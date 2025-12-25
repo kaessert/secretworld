@@ -1,67 +1,117 @@
-# Echo Choices Foundation Implementation Plan
+# Implementation Plan: NPC Echo Consequences MVP
 
-## Overview
-Add a minimal "choice tracking" foundation to record significant player decisions. This is the prerequisite data structure for all Phase 2 "Consequence" features (NPC reactions, world state changes, reputation effects).
+## Feature Spec
 
-## Spec
+**Goal**: NPCs reference tracked player choices when greeting the player, making past decisions matter.
 
-**Choice Data Structure:**
-- `choices: list[dict]` field added to `GameState`
-- Each choice dict contains:
-  - `choice_type: str` - category of choice (e.g., "combat_mercy", "dialogue", "quest")
-  - `choice_id: str` - unique identifier (e.g., "spare_bandit_001")
-  - `description: str` - human-readable description
-  - `timestamp: int` - game time (hour) when choice was made
-  - `location: str` - location name where choice occurred
-  - `target: Optional[str]` - NPC/enemy name involved (if applicable)
+**MVP Scope**: NPC greetings vary based on combat flee history. If a player has fled from enemies multiple times, some NPCs may comment on their "cautious reputation."
 
-**Recording API:**
+**Behavior**:
+1. When `get_greeting()` is called, check the game's choice history
+2. If player has 3+ `combat_flee` choices, return a reputation-aware greeting variant
+3. The NPC must have access to game state's choices to make this determination
+4. Fallback to normal greeting behavior if no significant reputation exists
+
+**Design Decision**: Pass choice history to `get_greeting()` rather than modifying NPC to store game_state reference (cleaner, more testable).
+
+---
+
+## Tests First (TDD)
+
+### File: `tests/test_npc_consequences.py`
+
 ```python
-def record_choice(self, choice_type: str, choice_id: str, description: str, target: Optional[str] = None) -> None
-def has_choice(self, choice_id: str) -> bool  # Check if specific choice was made
-def get_choices_by_type(self, choice_type: str) -> list[dict]  # Filter by type
+"""Tests for NPC consequence system - NPCs react to player choices."""
 ```
 
-**Persistence:**
-- `choices` serialized in `GameState.to_dict()` and restored in `from_dict()`
-- Backward compatible: old saves default to empty list
+**Test 1**: `test_get_greeting_acknowledges_flee_reputation`
+- Create NPC with standard greetings
+- Pass choices list with 3+ `combat_flee` entries to `get_greeting()`
+- Assert greeting contains reputation reference (e.g., "cautious" or "run")
+
+**Test 2**: `test_get_greeting_normal_when_few_flees`
+- Create NPC with greetings
+- Pass choices list with <3 `combat_flee` entries
+- Assert normal greeting returned (no reputation comment)
+
+**Test 3**: `test_get_greeting_normal_when_no_choices`
+- Create NPC with greetings
+- Pass empty choices list or None
+- Assert normal greeting returned
+
+**Test 4**: `test_reputation_greeting_serializes_correctly`
+- Verify NPC serialization still works (no regression)
 
 ---
 
 ## Implementation Steps
 
-### 1. Add choices field to GameState (`src/cli_rpg/game_state.py`)
-- Add `choices: list[dict] = []` in `__init__`
-- Implement `record_choice()`, `has_choice()`, `get_choices_by_type()` methods
-- Update `to_dict()` to include `"choices": self.choices`
-- Update `from_dict()` to restore `choices` with backward compat default `[]`
+### Step 1: Update `NPC.get_greeting()` signature
 
-### 2. Add first choice point: flee from combat (`src/cli_rpg/main.py`)
-- When player flees combat, record choice: `game_state.record_choice("combat_flee", f"flee_{enemy_name}", f"Fled from {enemy_name}", enemy_name)`
-- This is a simple integration point to validate the system works
+**File**: `src/cli_rpg/models/npc.py`
+
+Modify `get_greeting()` to accept optional `choices` parameter:
+
+```python
+def get_greeting(self, choices: list[dict] | None = None) -> str:
+    """Get a greeting, optionally modified by player reputation."""
+    # Check for reputation-based greetings first
+    if choices:
+        flee_count = sum(1 for c in choices if c.get("choice_type") == "combat_flee")
+        if flee_count >= 3:
+            return self._get_reputation_greeting("cautious")
+
+    # Normal greeting logic
+    if self.greetings:
+        return random.choice(self.greetings)
+    return self.dialogue
+```
+
+### Step 2: Add `_get_reputation_greeting()` helper
+
+**File**: `src/cli_rpg/models/npc.py`
+
+```python
+def _get_reputation_greeting(self, reputation_type: str) -> str:
+    """Get greeting based on player reputation."""
+    templates = {
+        "cautious": [
+            "Ah, I've heard of you... one who knows when to run. Smart.",
+            "Word travels fast. They say you're... careful. I respect that.",
+            "A survivor, they call you. Some might say coward, but you're alive.",
+        ]
+    }
+    options = templates.get(reputation_type, [])
+    if options:
+        return random.choice(options)
+    return self.get_greeting(choices=None)  # Fallback to normal
+```
+
+### Step 3: Pass choices in `main.py` talk command
+
+**File**: `src/cli_rpg/main.py` (around line 603)
+
+Update the `talk` command to pass choices:
+
+```python
+# Current:
+output += f"\n{npc.name}: \"{npc.get_greeting()}\""
+
+# Change to:
+output += f"\n{npc.name}: \"{npc.get_greeting(choices=game_state.choices)}\""
+```
+
+### Step 4: Update existing test mocks (if needed)
+
+**File**: `tests/test_npc.py`
+
+Verify `test_get_greeting_with_greetings_list` and `test_get_greeting_without_greetings_list` still pass (signature is backward compatible due to default `None`).
 
 ---
 
-## Test Plan (`tests/test_choices.py`)
+## Verification
 
-### GameState Choice Tracking
-- `test_record_choice_adds_to_list` - choice appears in choices list
-- `test_record_choice_includes_all_fields` - all fields populated correctly
-- `test_has_choice_returns_true_for_recorded` - returns True for existing choice
-- `test_has_choice_returns_false_for_missing` - returns False for non-existent
-- `test_get_choices_by_type_filters_correctly` - only returns matching type
-- `test_get_choices_by_type_empty_when_no_matches` - empty list if none match
-
-### Persistence
-- `test_choices_persist_in_save` - save/load roundtrip preserves choices
-- `test_choices_backward_compatibility` - old saves load with empty choices list
-
-### Integration
-- `test_flee_combat_records_choice` - fleeing combat records a choice
-
----
-
-## Files to Modify
-- `src/cli_rpg/game_state.py` - add choices field, methods, serialization
-- `src/cli_rpg/main.py` - record choice on flee
-- `tests/test_choices.py` - new test file
+1. Run `pytest tests/test_npc_consequences.py -v` - new tests pass
+2. Run `pytest tests/test_npc.py -v` - existing tests still pass
+3. Run `pytest tests/test_choices.py -v` - choice foundation tests still pass
+4. Run full suite `pytest` - all 1885+ tests pass

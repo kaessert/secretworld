@@ -39,6 +39,7 @@ You enter the Forgotten Chapel...
 
 #### 2. ECHO CHOICES - Decisions That Haunt You
 **Impact**: Emotional weight, replayability
+**Status**: MVP IMPLEMENTED
 
 Every significant choice creates an "echo" that reverberates through the game:
 
@@ -52,7 +53,12 @@ The wounded bandit begs for mercy...
 Your choice will echo...
 ```
 
-**Echo Examples**:
+**MVP Implemented**:
+- ✅ **Reputation tracking**: Player choices (like fleeing combat) are tracked in `game_state.choices`
+- ✅ **NPC reputation awareness**: NPCs reference player's "cautious" reputation if they've fled 3+ times
+- ✅ Reputation-aware greetings with 3 variants for "cautious" players
+
+**Future Enhancements**:
 - Spare the bandit → He becomes an informant, or betrays you later, or saves you in Act 3
 - A town you helped prospers; one you ignored falls to ruin (visible on return)
 - NPCs reference your reputation: "You're the one who burned the witch... or was it saved her?"
@@ -514,16 +520,20 @@ ASCII art should be unique and AI-generated for each distinct monster type, NPC,
    - `bestiary` command to view discovered monster art?
 
 ### Meaningful choices and consequences
-**Status**: ACTIVE
+**Status**: ACTIVE (Partial)
 
-Player decisions should have lasting impact on the world and story. Currently, choices feel inconsequential.
+Player decisions should have lasting impact on the world and story.
 
-**Desired features**:
+**Implemented**:
+- ✅ NPCs reference player's combat flee history ("cautious" reputation if 3+ flees)
+- ✅ Player choices tracked in `game_state.choices` list
+
+**Remaining features**:
 - Dialogue choices that affect NPC relationships and quest outcomes
 - Moral dilemmas with no clear "right" answer
 - Branching quest paths based on player decisions
 - World state changes based on completed quests (e.g., saving a village makes it thrive, ignoring it leads to ruin)
-- NPCs remembering past interactions and reacting accordingly
+- Additional reputation types beyond "cautious" (e.g., aggressive, heroic, wealthy)
 
 ### Character skill and ability system
 **Status**: ACTIVE

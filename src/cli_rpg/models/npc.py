@@ -44,15 +44,48 @@ class NPC:
         if not 1 <= len(self.description) <= 200:
             raise ValueError("Description must be 1-200 characters")
 
-    def get_greeting(self) -> str:
+    def get_greeting(self, choices: Optional[List[dict]] = None) -> str:
         """Get a greeting to display when talking to this NPC.
 
-        Returns a random greeting from the greetings list if available,
+        Args:
+            choices: Optional list of player choice dicts to check for reputation.
+                     Each choice dict should have a "choice_type" key.
+
+        Returns a greeting potentially modified by player reputation,
+        or a random greeting from the greetings list if available,
         otherwise falls back to the dialogue field.
         """
+        # Check for reputation-based greetings first
+        if choices:
+            flee_count = sum(1 for c in choices if c.get("choice_type") == "combat_flee")
+            if flee_count >= 3:
+                return self._get_reputation_greeting("cautious")
+
+        # Normal greeting logic
         if self.greetings:
             return random.choice(self.greetings)
         return self.dialogue
+
+    def _get_reputation_greeting(self, reputation_type: str) -> str:
+        """Get greeting based on player reputation.
+
+        Args:
+            reputation_type: The type of reputation (e.g., "cautious")
+
+        Returns:
+            A reputation-aware greeting string.
+        """
+        templates = {
+            "cautious": [
+                "Ah, I've heard of you... one who knows when to run. Smart.",
+                "Word travels fast. They say you're... careful. I respect that.",
+                "A survivor, they call you. Some might say coward, but you're alive.",
+            ]
+        }
+        options = templates.get(reputation_type, [])
+        if options:
+            return random.choice(options)
+        return self.get_greeting(choices=None)  # Fallback to normal
 
     def add_conversation(self, role: str, content: str) -> None:
         """Add a conversation entry to the history.

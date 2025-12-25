@@ -600,7 +600,7 @@ def handle_exploration_command(game_state: GameState, command: str, args: list[s
         output = ""
         if npc.ascii_art:
             output = f"\n{npc.ascii_art}\n"
-        output += f"\n{npc.name}: \"{npc.get_greeting()}\""
+        output += f"\n{npc.name}: \"{npc.get_greeting(choices=game_state.choices)}\""
 
         # Record talk for TALK quest progress tracking
         talk_messages = game_state.current_character.record_talk(npc.name)
