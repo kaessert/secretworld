@@ -1,72 +1,52 @@
-# Implementation Plan: Typewriter-Style Text Reveal
+# Implementation Plan: Integrate Typewriter Effect into Dreams
 
 ## Spec
+Dream sequences displayed during rest should use the typewriter effect for atmospheric text reveal. The `dreams.py` module returns formatted dream text, and display happens in `main.py`. The typewriter effect should apply to the dream text output while respecting the existing effects_enabled() toggle.
 
-Add a typewriter-style text reveal effect for dramatic moments in the game. The effect prints text character-by-character with configurable delays, enhancing atmosphere for:
-- Dream sequences (via `dreams.py`)
-- Whispers (via `whisper.py`)
-- Combat announcements (boss encounters, combo triggers)
+## Approach
+Add a new `display_dream()` function in `dreams.py` that wraps the formatted dream text with typewriter output. The caller in `main.py` will use this function instead of just appending the dream string to messages.
 
-**Requirements:**
-1. Create `text_effects.py` module with `typewriter_print()` function
-2. Configurable delay between characters (default ~30ms)
-3. Respects `CLI_RPG_NO_COLOR` / non-interactive mode (instant print when disabled)
-4. Supports ANSI color codes (prints codes instantly, delays only visible chars)
-5. Can be interrupted by keyboard (Ctrl+C falls back to instant print)
-
-## Tests
-
-Create `tests/test_text_effects.py`:
-
-1. `test_typewriter_outputs_all_text` - Complete text is output
-2. `test_respects_disabled_effects` - Prints instantly when effects disabled
-3. `test_handles_ansi_codes` - Color codes don't add delay
-4. `test_empty_string` - Empty input produces no crash
-5. `test_multiline` - Newlines are respected
-6. `test_custom_delay` - Custom delay parameter works
-7. `test_effects_enabled_respects_color_setting` - Follows color_enabled()
+**Key Design Decision**: Since `maybe_trigger_dream()` returns a string that gets joined with other messages, we need a separate display function that directly prints with typewriter effect. The dream is a self-contained atmospheric moment that should be displayed separately from other rest messages.
 
 ## Implementation Steps
 
-### Step 1: Create `src/cli_rpg/text_effects.py`
+### 1. Add test for dream typewriter display
+**File**: `tests/test_dreams.py`
 
-New module with:
-- `DEFAULT_TYPEWRITER_DELAY = 0.03`
-- `_effects_enabled: bool` global flag
-- `set_effects_enabled(enabled: bool)` - Global toggle
-- `effects_enabled() -> bool` - Check if effects active (respects color_enabled())
-- `typewriter_print(text, delay, file)` - Main function
+Add new test class `TestDreamTypewriterDisplay`:
+- Test that `display_dream()` exists and calls typewriter_print
+- Test that display respects effects_enabled toggle
+- Test that formatted dream text is passed to typewriter
 
-Key logic:
-- Skip effect if `not effects_enabled()`, print instantly
-- Detect ANSI sequences (`\x1b[...m`) and print them instantly without delay
-- Delay only for visible characters
-- Handle KeyboardInterrupt to print remaining text instantly
+### 2. Add display_dream function to dreams.py
+**File**: `src/cli_rpg/dreams.py`
 
-### Step 2: Create `tests/test_text_effects.py`
+- Import `typewriter_print` from `text_effects`
+- Add function `display_dream(dream_text: str) -> None` that:
+  - Calls `typewriter_print()` for each line of the formatted dream
+  - Uses a slower delay (0.04-0.05s) for more atmospheric effect
 
-Test all scenarios from spec with mocked time.sleep and captured stdout.
+### 3. Update main.py to use display_dream
+**File**: `src/cli_rpg/main.py` (around line 1250)
 
-### Step 3: Integrate into `dreams.py`
+Change from:
+```python
+if dream:
+    messages.append(dream)
+```
 
-In `format_dream()`, optionally call typewriter for content. Or add `display_dream()` helper.
+To:
+```python
+if dream:
+    from cli_rpg.dreams import display_dream
+    display_dream(dream)
+```
 
-### Step 4: Integrate into `whisper.py`
+The dream is displayed directly with typewriter effect, not appended to messages.
 
-Add `display_whisper()` that uses typewriter with faster delay (0.02s).
-
-### Step 5: Integrate into `combat.py`
-
-Boss introduction uses typewriter for dramatic effect in `CombatEncounter.start()`.
-
-### Step 6: Update `main.py`
-
-Call `set_effects_enabled(False)` when `--non-interactive` or `--json` mode is active.
-
-### Step 7: Run tests
-
+## Test Commands
 ```bash
-pytest tests/test_text_effects.py -v
 pytest tests/test_dreams.py -v
-pytest -x  # Full suite to verify no regressions
+pytest tests/test_text_effects.py -v
+pytest --cov=src/cli_rpg -v
 ```

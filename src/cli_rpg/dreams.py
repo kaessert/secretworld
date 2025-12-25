@@ -8,6 +8,7 @@ import random
 from typing import Optional
 
 from cli_rpg import colors
+from cli_rpg.text_effects import typewriter_print
 
 DREAM_CHANCE = 0.25  # 25% chance on rest
 NIGHTMARE_DREAD_THRESHOLD = 50
@@ -129,3 +130,21 @@ def format_dream(dream_text: str) -> str:
     {border}
 
 {outro}"""
+
+
+# Slower delay for atmospheric dream display
+DREAM_TYPEWRITER_DELAY = 0.04
+
+
+def display_dream(dream_text: str) -> None:
+    """Display a formatted dream with typewriter effect.
+
+    Uses a slower delay for atmospheric effect. The typewriter_print
+    function handles the effects_enabled toggle internally.
+
+    Args:
+        dream_text: The formatted dream text to display
+    """
+    # Print each line with typewriter effect for atmosphere
+    for line in dream_text.split("\n"):
+        typewriter_print(line, delay=DREAM_TYPEWRITER_DELAY)

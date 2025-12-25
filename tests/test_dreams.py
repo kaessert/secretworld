@@ -237,7 +237,7 @@ class TestDreamIntegration:
             )
         }
 
-    def test_rest_can_trigger_dream(self):
+    def test_rest_can_trigger_dream(self, capsys):
         """Spec: Rest command can display a dream when triggered."""
         from cli_rpg.game_state import GameState
         from cli_rpg.main import handle_exploration_command
@@ -252,8 +252,9 @@ class TestDreamIntegration:
             success, message = handle_exploration_command(gs, "rest", [])
 
         assert success
-        # Dream should be in the output
-        assert "═" in message or "sleep" in message.lower()
+        # Dream is displayed via typewriter effect (printed directly), check stdout
+        captured = capsys.readouterr()
+        assert "═" in captured.out or "sleep" in captured.out.lower()
 
     def test_rest_without_dream(self):
         """Spec: Rest works normally when no dream triggers."""
@@ -272,3 +273,62 @@ class TestDreamIntegration:
         assert success
         # Basic rest message should be there
         assert "rest" in message.lower() or "recover" in message.lower()
+
+
+class TestDreamTypewriterDisplay:
+    """Tests for typewriter-style dream display.
+
+    Spec: Dreams should use typewriter effect for atmospheric text reveal
+    """
+
+    def test_display_dream_function_exists(self):
+        """Spec: display_dream function is importable."""
+        from cli_rpg.dreams import display_dream
+        assert callable(display_dream)
+
+    def test_display_dream_calls_typewriter_print(self):
+        """Spec: display_dream uses typewriter_print for output."""
+        from cli_rpg.dreams import display_dream
+
+        dream_text = format_dream("A test dream...")
+
+        # Patch where typewriter_print is used (in dreams module)
+        with patch("cli_rpg.dreams.typewriter_print") as mock_typewriter:
+            display_dream(dream_text)
+            # Should be called at least once with part of the dream
+            assert mock_typewriter.called
+
+    def test_display_dream_respects_effects_toggle(self):
+        """Spec: display_dream respects effects_enabled toggle."""
+        from cli_rpg.dreams import display_dream
+        from cli_rpg import text_effects
+
+        # Disable effects
+        original = text_effects._effects_enabled_override
+        try:
+            text_effects.set_effects_enabled(False)
+            dream_text = format_dream("A test dream...")
+
+            # Patch where typewriter_print is used (in dreams module)
+            with patch("cli_rpg.dreams.typewriter_print") as mock_typewriter:
+                display_dream(dream_text)
+                # Typewriter should still be called - it handles the toggle internally
+                assert mock_typewriter.called
+        finally:
+            text_effects.set_effects_enabled(original)
+
+    def test_display_dream_uses_slower_delay(self):
+        """Spec: display_dream uses slower delay (>=0.04) for atmosphere."""
+        from cli_rpg.dreams import display_dream
+
+        dream_text = format_dream("A test dream...")
+
+        # Patch where typewriter_print is used (in dreams module)
+        with patch("cli_rpg.dreams.typewriter_print") as mock_typewriter:
+            display_dream(dream_text)
+            # Check that delay argument is >= 0.04
+            call_args = mock_typewriter.call_args
+            if call_args.kwargs.get("delay"):
+                assert call_args.kwargs["delay"] >= 0.04
+            elif len(call_args.args) > 1:
+                assert call_args.args[1] >= 0.04

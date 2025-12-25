@@ -712,7 +712,7 @@ Text output could be more atmospheric and engaging.
 - ✅ Effects follow color settings (disabled when colors are disabled, or when `--non-interactive`/`--json` mode)
 
 **Remaining integration**:
-- Integrate typewriter effect into `dreams.py` for dream sequences
+- ~~Integrate typewriter effect into `dreams.py` for dream sequences~~ ✅ IMPLEMENTED
 - Integrate into `whisper.py` for ambient whispers
 - Integrate into `combat.py` for dramatic combat moments
 - Update `main.py` to disable effects in non-interactive/JSON modes
