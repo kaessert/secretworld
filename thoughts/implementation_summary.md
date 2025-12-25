@@ -1,40 +1,77 @@
-# Implementation Summary: Ultra-short Movement Commands
+# Implementation Summary: JSON Output for Non-Interactive Mode
 
 ## What Was Implemented
 
-Added ultra-short movement command shortcuts to `parse_command()` in `src/cli_rpg/game_state.py`:
+Added a `--json` flag to the CLI RPG that outputs structured JSON Lines for programmatic consumption.
 
-### New Shortcuts
-- **Single-character**: `n` → `go north`, `w` → `go west`
-- **Two-character**: `gn` → `go north`, `gs` → `go south`, `ge` → `go east`, `gw` → `go west`
+### New Files
+- `src/cli_rpg/json_output.py` - JSON output module with emit functions for each message type
 
-### Preserved Behavior
-- `s` still maps to `status` (not `go south`)
-- `e` still maps to `equip` (not `go east`)
+### Modified Files
+- `src/cli_rpg/main.py` - Added `--json` argument and `run_json_mode()` function
 
-## Files Modified
+### New Test File
+- `tests/test_json_output.py` - 9 tests covering all spec requirements
 
-1. **`src/cli_rpg/game_state.py`** (lines 75-101):
-   - Added movement shortcuts to `aliases` dict: `"n": "go"`, `"w": "go"`, `"gn": "go"`, `"gs": "go"`, `"ge": "go"`, `"gw": "go"`
-   - Added `raw_command` capture before alias expansion
-   - Added direction inference logic for movement shortcuts when no args provided
+## Features
 
-2. **`tests/test_game_state.py`** (lines 152-186):
-   - Added `test_parse_command_movement_shortcuts_two_char` - tests gn, gs, ge, gw
-   - Added `test_parse_command_movement_shortcuts_single_char` - tests n, w
-   - Added `test_parse_command_s_still_means_status` - confirms s → status preserved
-   - Added `test_parse_command_e_still_means_equip` - confirms e → equip preserved
+### JSON Message Types
+1. **state** - Current game state with location, health, max_health, gold, level
+2. **narrative** - Human-readable text (descriptions, action results)
+3. **actions** - Available exits, NPCs, and valid commands
+4. **error** - Machine-readable error code + human message
+5. **combat** - Combat state with enemy name, enemy health, player health
+
+### Key Behaviors
+- `--json` implies non-interactive mode (reads commands from stdin)
+- ANSI colors are disabled for clean JSON output
+- Each line is a valid JSON object
+- Errors are classified automatically using pattern matching
+
+### Error Codes
+- INVALID_DIRECTION - Moving in invalid direction
+- NOT_IN_SHOP - Shop command when not at shop
+- ITEM_NOT_FOUND - Item not in inventory
+- UNKNOWN_COMMAND - Unrecognized command
+- NOT_IN_COMBAT - Combat command outside combat
+- IN_CONVERSATION - Movement blocked by conversation
+- NO_NPC - Talk command with no NPCs
+- INVENTORY_FULL - Inventory capacity reached
+- INSUFFICIENT_GOLD - Can't afford purchase
 
 ## Test Results
 
-- All 4 new tests pass
-- Full test suite: **1462 passed** in 14.52s
-- No regressions introduced
+All 9 JSON output tests pass:
+- test_json_flag_accepted
+- test_json_implies_non_interactive
+- test_json_output_valid_lines
+- test_json_state_message
+- test_json_narrative_message
+- test_json_actions_message
+- test_json_error_message
+- test_json_no_ansi_codes
+- test_json_combat_state
 
-## Technical Design
+Full test suite: 1471 passed, 0 failures
 
-The implementation:
-1. Saves the raw command before alias expansion (`raw_command = command`)
-2. Expands aliases as before (converting `n`, `w`, `gn`, etc. to `go`)
-3. After alias expansion, if command is `go` with no args, checks if `raw_command` was a movement shortcut and infers the direction
-4. This approach preserves backward compatibility with existing `go n` style commands
+## Usage Example
+
+```bash
+echo -e "look\ngo north\nstatus" | cli-rpg --json
+```
+
+Output:
+```json
+{"type": "state", "location": "Town Square", "health": 150, "max_health": 150, "gold": 0, "level": 1}
+{"type": "narrative", "text": "=== Town Square ===\nA bustling town square..."}
+{"type": "actions", "exits": ["north", "east"], "npcs": ["Town Merchant"], "commands": ["look", "go", ...]}
+...
+```
+
+## E2E Validation
+
+To validate in production:
+1. Run `cli-rpg --json` with piped commands
+2. Verify each line parses as valid JSON
+3. Check that state/narrative/actions appear after commands
+4. Confirm no ANSI codes in output

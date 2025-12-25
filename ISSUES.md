@@ -5,11 +5,7 @@
 
 The basic `--non-interactive` mode has been implemented. The following enhancements would improve automated playtesting further:
 
-1. **Structured output for AI parsing**
-   - Machine-readable output format (JSON lines or similar)
-   - Clear separation of game state, narrative text, and available actions
-   - Emit current valid commands after each action
-   - Error messages with codes, not just human text
+1. ~~**Structured output for AI parsing**~~ (DONE - see "JSON output mode" in Resolved Issues)
 
 2. **Comprehensive gameplay logging**
    - Full session transcript with timestamps
@@ -406,5 +402,29 @@ Enhanced the map renderer with:
 - Category-based location markers with emoji icons (🏠 town, 🏪 shop, ⚔ dungeon, 🌲 forest, etc.)
 - Vertical legend format for better readability
 - Increased cell width to accommodate emoji markers
+
+### JSON output mode for structured AI parsing
+**Status**: RESOLVED
+
+**Description**: Added a `--json` flag for machine-readable output, enabling AI agents and automation tools to parse game output.
+
+**Features implemented**:
+- `--json` CLI flag (implies `--non-interactive`)
+- JSON Lines output format (one JSON object per line)
+- Message types: `state`, `narrative`, `actions`, `error`, `combat`
+- Structured error codes for programmatic handling (e.g., `INVALID_DIRECTION`, `UNKNOWN_COMMAND`)
+- ANSI colors automatically disabled for clean output
+
+**Usage**:
+```bash
+echo -e "look\ngo north\nstatus" | cli-rpg --json
+```
+
+**Output example**:
+```json
+{"type": "state", "location": "Town Square", "health": 150, "max_health": 150, "gold": 0, "level": 1}
+{"type": "narrative", "text": "=== Town Square ===\nA bustling town square..."}
+{"type": "actions", "exits": ["north", "east"], "npcs": ["Town Merchant"], "commands": ["look", "go", ...]}
+```
 
 

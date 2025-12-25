@@ -35,6 +35,7 @@ src/cli_rpg/
 ├── ai_config.py         # AI service configuration
 ├── config.py            # General configuration
 ├── colors.py            # ANSI color output utilities
+├── json_output.py       # JSON Lines output for --json mode
 └── models/
     ├── character.py     # Player character model
     ├── enemy.py         # Enemy/monster model

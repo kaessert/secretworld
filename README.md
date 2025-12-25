@@ -236,6 +236,45 @@ cli-rpg --non-interactive < commands.txt
 - Uses a default character ("Agent") with balanced stats (10/10/10)
 - Runs without AI service for deterministic behavior
 
+### JSON Output Mode
+
+For programmatic consumption and AI agent integration, use the `--json` flag to output structured JSON Lines:
+
+```bash
+echo -e "look\ngo north\nstatus" | cli-rpg --json
+```
+
+**Output format** (one JSON object per line):
+```json
+{"type": "state", "location": "Town Square", "health": 150, "max_health": 150, "gold": 0, "level": 1}
+{"type": "narrative", "text": "=== Town Square ===\nA bustling town square..."}
+{"type": "actions", "exits": ["north", "east"], "npcs": ["Town Merchant"], "commands": ["look", "go", ...]}
+```
+
+**Message types:**
+- `state` - Current game state (location, health, gold, level)
+- `narrative` - Human-readable text (descriptions, action results)
+- `actions` - Available exits, NPCs, and valid commands
+- `error` - Machine-readable error code + human message
+- `combat` - Combat state (enemy name, enemy health, player health)
+
+**Error codes** for programmatic handling:
+- `INVALID_DIRECTION` - Moving in invalid direction
+- `NOT_IN_SHOP` - Shop command when not at shop
+- `ITEM_NOT_FOUND` - Item not in inventory
+- `UNKNOWN_COMMAND` - Unrecognized command
+- `NOT_IN_COMBAT` - Combat command outside combat
+- `IN_CONVERSATION` - Movement blocked by conversation
+- `NO_NPC` - Talk command with no NPCs
+- `INVENTORY_FULL` - Inventory capacity reached
+- `INSUFFICIENT_GOLD` - Can't afford purchase
+
+**Features:**
+- Implies non-interactive mode (reads from stdin)
+- ANSI colors automatically disabled
+- Each line is a valid JSON object
+- Suitable for AI agents, testing frameworks, and automation tools
+
 ## Development
 
 ### Running Tests

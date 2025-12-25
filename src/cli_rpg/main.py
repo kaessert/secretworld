@@ -1149,6 +1149,125 @@ def show_main_menu() -> str:
     return choice
 
 
+def run_json_mode() -> int:
+    """Run game in JSON mode, emitting structured JSON Lines output.
+
+    This mode is designed for programmatic consumption by external tools
+    or AI agents. It creates a default character and world, then processes
+    commands from stdin, emitting JSON for each response.
+
+    Returns:
+        Exit code (0 for success, 1 for error)
+    """
+    from cli_rpg.colors import set_colors_enabled
+    from cli_rpg.models.character import Character
+    from cli_rpg.json_output import (
+        emit_state, emit_narrative, emit_actions, emit_error, emit_combat,
+        classify_output
+    )
+
+    # Disable ANSI colors for machine-readable output
+    set_colors_enabled(False)
+
+    # Create a default character and world for JSON mode
+    character = Character(name="Agent", strength=10, dexterity=10, intelligence=10)
+    world, starting_location = create_world(ai_service=None, theme="fantasy", strict=False)
+
+    game_state = GameState(
+        character,
+        world,
+        starting_location=starting_location,
+        ai_service=None,
+        theme="fantasy"
+    )
+
+    def get_available_commands() -> list[str]:
+        """Get list of available commands based on current state."""
+        if game_state.is_in_combat():
+            return ["attack", "defend", "cast", "flee", "use", "status", "help", "quit"]
+        return list(KNOWN_COMMANDS)
+
+    def emit_current_state() -> None:
+        """Emit current game state as JSON."""
+        char = game_state.current_character
+        emit_state(
+            location=game_state.current_location,
+            health=char.health,
+            max_health=char.max_health,
+            gold=char.gold,
+            level=char.level
+        )
+
+    def emit_current_actions() -> None:
+        """Emit available actions as JSON."""
+        location = game_state.get_current_location()
+        exits = list(location.connections.keys())
+        npcs = [npc.name for npc in location.npcs] if location.npcs else []
+        commands = get_available_commands()
+        emit_actions(exits=exits, npcs=npcs, commands=commands)
+
+    def emit_combat_state() -> None:
+        """Emit combat state if in combat."""
+        if game_state.is_in_combat() and game_state.current_combat:
+            combat = game_state.current_combat
+            emit_combat(
+                enemy=combat.enemy.name,
+                enemy_health=combat.enemy.health,
+                player_health=game_state.current_character.health
+            )
+
+    # Emit initial state
+    emit_current_state()
+    emit_narrative(game_state.look())
+    emit_current_actions()
+
+    # Read commands from stdin until EOF
+    for line in sys.stdin:
+        command_input = line.strip()
+        if not command_input:
+            continue
+
+        # Parse and execute command
+        command, args = parse_command(command_input)
+
+        if game_state.is_in_combat():
+            continue_game, message = handle_combat_command(game_state, command, args)
+        elif game_state.is_in_conversation and command == "unknown":
+            continue_game, message = handle_conversation_input(game_state, command_input)
+        else:
+            continue_game, message = handle_exploration_command(game_state, command, args)
+
+        # Clean up message (remove leading newlines)
+        message = message.strip()
+
+        # Classify and emit output
+        if message:
+            msg_type, error_code = classify_output(message)
+            if msg_type == "error" and error_code:
+                emit_error(code=error_code, message=message)
+            else:
+                emit_narrative(message)
+
+        # Emit state after each command
+        emit_current_state()
+
+        # Emit combat state if in combat
+        if game_state.is_in_combat():
+            emit_combat_state()
+        else:
+            emit_current_actions()
+
+        if not continue_game:
+            break
+
+        # Check if player died
+        if not game_state.current_character.is_alive():
+            emit_narrative("GAME OVER - You have fallen in battle.")
+            break
+
+    return 0
+
+
 def run_non_interactive() -> int:
     """Run game in non-interactive mode, reading commands from stdin.
 
@@ -1232,7 +1351,15 @@ def main(args: Optional[list] = None) -> int:
         action="store_true",
         help="Run in non-interactive mode, reading commands from stdin"
     )
+    parser.add_argument(
+        "--json",
+        action="store_true",
+        help="Output structured JSON Lines (implies --non-interactive)"
+    )
     parsed_args = parser.parse_args(args)
+
+    if parsed_args.json:
+        return run_json_mode()
 
     if parsed_args.non_interactive:
         return run_non_interactive()
