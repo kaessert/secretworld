@@ -78,9 +78,22 @@ def parse_command(command_str: str) -> tuple[str, list[str]]:
         "d": "defend", "f": "flee", "s": "status", "i": "inventory",
         "m": "map", "h": "help", "t": "talk", "u": "use", "e": "equip",
         "q": "quests", "dr": "drop", "r": "rest", "stats": "status",
-        "b": "bestiary"
+        "b": "bestiary",
+        # Ultra-short movement shortcuts
+        "n": "go", "w": "go",
+        "gn": "go", "gs": "go", "ge": "go", "gw": "go"
     }
+    raw_command = command  # Save for movement shortcut detection
     command = aliases.get(command, command)
+
+    # Infer direction from movement shortcuts (when no args provided)
+    if command == "go" and not args:
+        movement_directions = {
+            "n": "north", "w": "west",
+            "gn": "north", "gs": "south", "ge": "east", "gw": "west"
+        }
+        if raw_command in movement_directions:
+            args = [movement_directions[raw_command]]
 
     # Expand direction shorthands for go command
     if command == "go" and args:

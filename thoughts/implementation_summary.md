@@ -1,41 +1,40 @@
-# Implementation Summary: Argument Parsing Fix
+# Implementation Summary: Ultra-short Movement Commands
 
 ## What Was Implemented
 
-Fixed the argument parsing conflict in `main.py` that caused 15 test failures when pytest ran tests calling `main()`.
+Added ultra-short movement command shortcuts to `parse_command()` in `src/cli_rpg/game_state.py`:
 
-### Root Cause
-The `main()` function called `parser.parse_args()` without arguments, which defaults to `sys.argv[1:]`. When pytest runs tests, pytest's arguments (e.g., `tests/test_main.py -v --tb=short`) get parsed by argparse, causing errors like "unrecognized arguments".
+### New Shortcuts
+- **Single-character**: `n` → `go north`, `w` → `go west`
+- **Two-character**: `gn` → `go north`, `gs` → `go south`, `ge` → `go east`, `gw` → `go west`
 
-### Solution
-Modified `main()` to accept an optional `args` parameter:
-- When `args=None` (default), argparse uses `sys.argv[1:]` (normal CLI behavior)
-- When `args=[]`, argparse uses an empty list (no arguments to parse)
-- Tests now pass `args=[]` to avoid pytest argument conflicts
+### Preserved Behavior
+- `s` still maps to `status` (not `go south`)
+- `e` still maps to `equip` (not `go east`)
 
 ## Files Modified
 
-### 1. `src/cli_rpg/main.py` (line 1217)
-- Changed function signature from `def main() -> int:` to `def main(args: Optional[list] = None) -> int:`
-- Changed `args = parser.parse_args()` to `parsed_args = parser.parse_args(args)`
-- Updated condition from `if args.non_interactive:` to `if parsed_args.non_interactive:`
-- Added docstring documenting the `args` parameter
+1. **`src/cli_rpg/game_state.py`** (lines 75-101):
+   - Added movement shortcuts to `aliases` dict: `"n": "go"`, `"w": "go"`, `"gn": "go"`, `"gs": "go"`, `"ge": "go"`, `"gw": "go"`
+   - Added `raw_command` capture before alias expansion
+   - Added direction inference logic for movement shortcuts when no args provided
 
-### 2. Test files updated to pass `args=[]`:
-- `tests/test_main.py` (2 calls)
-- `tests/test_main_menu.py` (5 calls)
-- `tests/test_main_coverage.py` (2 calls)
-- `tests/test_e2e_ai_integration.py` (4 calls)
-- `tests/test_main_load_integration.py` (2 calls)
+2. **`tests/test_game_state.py`** (lines 152-186):
+   - Added `test_parse_command_movement_shortcuts_two_char` - tests gn, gs, ge, gw
+   - Added `test_parse_command_movement_shortcuts_single_char` - tests n, w
+   - Added `test_parse_command_s_still_means_status` - confirms s → status preserved
+   - Added `test_parse_command_e_still_means_equip` - confirms e → equip preserved
 
 ## Test Results
 
-- **100 tests** in the affected test files: all PASSED
-- **Full test suite**: 1457 passed, 1 failed (unrelated documentation test)
+- All 4 new tests pass
+- Full test suite: **1462 passed** in 14.52s
+- No regressions introduced
 
-The 1 failing test (`test_resolved_issues_are_marked`) is unrelated to this fix - it checks documentation markers in `issues.md`.
+## Technical Design
 
-## Technical Notes
-
-- Used `Optional[list]` instead of `list[str] | None` for Python 3.9 compatibility
-- The `Optional` import was already present in the file
+The implementation:
+1. Saves the raw command before alias expansion (`raw_command = command`)
+2. Expands aliases as before (converting `n`, `w`, `gn`, etc. to `go`)
+3. After alias expansion, if command is `go` with no args, checks if `raw_command` was a movement shortcut and infers the direction
+4. This approach preserves backward compatibility with existing `go n` style commands

@@ -1,33 +1,82 @@
-# Fix: Argument Parsing Conflict in main.py
+# Ultra-short Movement Commands
 
-## Problem
-The `main()` function in `main.py` calls `parser.parse_args()` without arguments, which defaults to `sys.argv[1:]`. When pytest runs tests that call `main()`, pytest's arguments (e.g., `tests/test_main.py -v --tb=short`) are parsed by argparse, causing 15 test failures because argparse doesn't recognize them.
+## Spec
+Add single-character (`n`, `s`, `e`, `w`) and two-character (`gn`, `gs`, `ge`, `gw`) shortcuts for movement.
 
-## Solution
-Modify `main()` to accept an optional `args` parameter (default `None`). Pass this to `parser.parse_args(args)`. When `args=None`, argparse uses `sys.argv[1:]` (normal behavior). When `args=[]` or a specific list, it uses that instead.
+**Behavior:**
+- `n` / `gn` → `go north`
+- `s` / `gs` → `go south` (but `s` alone conflicts with `status`)
+- `e` / `ge` → `go east` (but `e` alone conflicts with `equip`)
+- `w` / `gw` → `go west`
 
-## Implementation Steps
+**Resolution:** Keep existing `s` → `status` and `e` → `equip` aliases. Add:
+- Single-letter: `n` → go north, `w` → go west
+- Two-character: `gn`, `gs`, `ge`, `gw` → go <direction>
 
-1. **Modify `main()` function signature** in `src/cli_rpg/main.py` (line 1217):
-   - Change `def main() -> int:` to `def main(args: Optional[list[str]] = None) -> int:`
-   - Change `args = parser.parse_args()` to `parsed_args = parser.parse_args(args)`
-   - Rename internal variable from `args` to `parsed_args` to avoid shadowing parameter
-   - Update references: `args.non_interactive` → `parsed_args.non_interactive`
+## Tests (tests/test_game_state.py)
 
-2. **Update tests** that call `main()` to pass `args=[]`:
-   - `tests/test_main.py` - `test_main_function_callable`, `test_main_returns_zero`
-   - `tests/test_main_menu.py` - any direct `main()` calls
-   - `tests/test_main_coverage.py` - any direct `main()` calls
-   - `tests/test_e2e_ai_integration.py` - any direct `main()` calls
-   - `tests/test_main_load_integration.py` - any direct `main()` calls
+```python
+def test_parse_command_movement_shortcuts_two_char(self):
+    """Test ultra-short movement shortcuts (gn, gs, ge, gw)."""
+    for shortcut, direction in [("gn", "north"), ("gs", "south"), ("ge", "east"), ("gw", "west")]:
+        cmd, args = parse_command(shortcut)
+        assert cmd == "go"
+        assert args == [direction]
 
-## Files to Modify
-- `src/cli_rpg/main.py` (lines 1217-1234)
-- `tests/test_main.py`
-- `tests/test_main_menu.py`
-- `tests/test_main_coverage.py`
-- `tests/test_e2e_ai_integration.py`
-- `tests/test_main_load_integration.py`
+def test_parse_command_movement_shortcuts_single_char(self):
+    """Test single-char movement shortcuts (n, w) - s/e have existing meanings."""
+    for shortcut, direction in [("n", "north"), ("w", "west")]:
+        cmd, args = parse_command(shortcut)
+        assert cmd == "go"
+        assert args == [direction]
 
-## Verification
-Run: `pytest -v` to confirm all 15 previously failing tests now pass.
+def test_parse_command_s_still_means_status(self):
+    """Confirm 's' still maps to 'status' (not 'go south')."""
+    cmd, args = parse_command("s")
+    assert cmd == "status"
+
+def test_parse_command_e_still_means_equip(self):
+    """Confirm 'e' still maps to 'equip' (not 'go east')."""
+    cmd, args = parse_command("e")
+    assert cmd == "equip"
+```
+
+## Implementation (src/cli_rpg/game_state.py)
+
+**Step 1:** Add movement aliases to the `aliases` dict (around line 76):
+```python
+aliases = {
+    # ... existing aliases ...
+    # Ultra-short movement shortcuts
+    "n": "go", "w": "go",
+    "gn": "go", "gs": "go", "ge": "go", "gw": "go"
+}
+```
+
+**Step 2:** Save raw command before alias expansion and add direction inference after line 83:
+```python
+command = parts[0]
+raw_command = command  # Save for movement shortcut detection
+original_command = command
+args = parts[1:]
+
+# Expand shorthand aliases
+aliases = { ... }
+command = aliases.get(command, command)
+
+# Infer direction from movement shortcuts (when no args provided)
+if command == "go" and not args:
+    movement_directions = {
+        "n": "north", "w": "west",
+        "gn": "north", "gs": "south", "ge": "east", "gw": "west"
+    }
+    if raw_command in movement_directions:
+        args = [movement_directions[raw_command]]
+```
+
+## Steps
+1. Add tests to `tests/test_game_state.py`
+2. Run tests (should fail)
+3. Update `parse_command()` in `src/cli_rpg/game_state.py`
+4. Run tests (should pass)
+5. Run full test suite

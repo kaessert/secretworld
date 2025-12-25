@@ -149,6 +149,42 @@ class TestParseCommand:
         assert cmd == "unknown"
         assert args == []
 
+    def test_parse_command_movement_shortcuts_two_char(self):
+        """Test ultra-short movement shortcuts (gn, gs, ge, gw).
+
+        Spec: 'gn', 'gs', 'ge', 'gw' should map to 'go <direction>'
+        """
+        for shortcut, direction in [("gn", "north"), ("gs", "south"), ("ge", "east"), ("gw", "west")]:
+            cmd, args = parse_command(shortcut)
+            assert cmd == "go"
+            assert args == [direction]
+
+    def test_parse_command_movement_shortcuts_single_char(self):
+        """Test single-char movement shortcuts (n, w) - s/e have existing meanings.
+
+        Spec: 'n' and 'w' should map to 'go north' and 'go west'
+        """
+        for shortcut, direction in [("n", "north"), ("w", "west")]:
+            cmd, args = parse_command(shortcut)
+            assert cmd == "go"
+            assert args == [direction]
+
+    def test_parse_command_s_still_means_status(self):
+        """Confirm 's' still maps to 'status' (not 'go south').
+
+        Spec: 's' should remain as 'status' alias, not become 'go south'
+        """
+        cmd, args = parse_command("s")
+        assert cmd == "status"
+
+    def test_parse_command_e_still_means_equip(self):
+        """Confirm 'e' still maps to 'equip' (not 'go east').
+
+        Spec: 'e' should remain as 'equip' alias, not become 'go east'
+        """
+        cmd, args = parse_command("e")
+        assert cmd == "equip"
+
 
 class TestGameStateInit:
     """Tests for GameState.__init__()."""

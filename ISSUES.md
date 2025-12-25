@@ -100,18 +100,6 @@ The game uses basic `input()` which lacks the conveniences of a modern terminal.
 - Register custom completers per command type
 - Fallback to basic input if readline unavailable (e.g., Windows without pyreadline)
 
-### Ultra-short movement commands
-**Status**: ACTIVE
-
-Navigation is too verbose. Players should be able to move quickly with minimal typing.
-
-**Desired shortcuts**:
-- `gn` / `n` → go north
-- `gs` / `s` → go south
-- `ge` / `e` → go east
-- `gw` / `w` → go west
-
-Single-letter commands (`n`, `s`, `e`, `w`) are ideal if they don't conflict with other commands.
 
 ### Map alignment and blocked location markers
 **Status**: ACTIVE
@@ -274,6 +262,19 @@ Quests should be dynamically generated to keep gameplay fresh.
 - Emergent storylines from completed quests
 
 ## Resolved Issues
+
+### Ultra-short movement commands
+**Status**: RESOLVED
+
+**Description**: Navigation was too verbose. Players wanted quick movement shortcuts.
+
+**Fix**: Added ultra-short movement shortcuts to `parse_command()` in `game_state.py`:
+- `n`, `gn` → go north
+- `w`, `gw` → go west
+- `gs` → go south
+- `ge` → go east
+
+Note: `s` remains mapped to `status` and `e` remains mapped to `equip` to avoid conflicts with existing commands.
 
 ### Dead-end navigation bug [RESOLVED]
 **Status**: RESOLVED
