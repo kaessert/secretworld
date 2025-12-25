@@ -1,76 +1,76 @@
-# Fix Misleading Error Message for 'use' on Equipped Items
+# Implementation Plan: Bestiary Command
+
+**Note**: The quest log feature (`quests` and `quest <name>` commands) already exists in the codebase. This plan proposes a **bestiary** feature instead - a monster log tracking defeated enemies.
 
 ## Spec
-When a player tries to `use` an equipped item (weapon or armor), the error should explain the item is equipped, not say it's missing. Message format: "{Item Name} is currently equipped as your {weapon/armor} and cannot be used."
 
-## Tests (add to tests/test_main_inventory_commands.py)
+Add a `bestiary` command that displays all enemies the player has defeated, with kill counts and enemy details. This enhances gameplay by:
+- Providing a sense of progression/achievement
+- Helping players remember enemy stats for combat strategy
+- Complementing the existing quest system (KILL objectives)
 
-```python
-def test_use_equipped_weapon_shows_equipped_message(self, game_state_with_items):
-    """Spec: 'use' on equipped weapon shows equipped message, not 'not found'."""
-    gs = game_state_with_items
-    sword = gs.current_character.inventory.find_item_by_name("Iron Sword")
-    gs.current_character.inventory.equip(sword)
-    cont, msg = handle_exploration_command(gs, "use", ["iron", "sword"])
-    assert cont is True
-    assert "equipped" in msg.lower()
-    assert "weapon" in msg.lower()
-    assert "don't have" not in msg.lower()
+### Command: `bestiary` (alias: `b`)
+```
+=== Bestiary ===
 
-def test_use_equipped_armor_shows_equipped_message(self, game_state_with_items):
-    """Spec: 'use' on equipped armor shows equipped message, not 'not found'."""
-    gs = game_state_with_items
-    armor = gs.current_character.inventory.find_item_by_name("Leather Armor")
-    gs.current_character.inventory.equip(armor)
-    cont, msg = handle_exploration_command(gs, "use", ["leather", "armor"])
-    assert cont is True
-    assert "equipped" in msg.lower()
-    assert "armor" in msg.lower()
-    assert "don't have" not in msg.lower()
+Goblin Scout (x3)
+  Level 2 | ATK: 8 | DEF: 3
+  "A small, green-skinned creature with beady eyes"
+
+Shadow Wolf (x1)
+  Level 4 | ATK: 12 | DEF: 5
+  "A spectral wolf that prowls the darkness"
+
+Total enemies defeated: 4
 ```
 
-## Implementation
+## Implementation Steps
 
-1. **src/cli_rpg/main.py** - `handle_exploration_command()` (line ~456-464):
+### 1. Add bestiary field to Character model
+**File**: `src/cli_rpg/models/character.py`
+- Add `bestiary: Dict[str, dict]` field (default empty dict)
+- Keys: enemy name (lowercase), Values: `{"count": int, "enemy_data": dict}`
 
-   Replace the simple "not found" check with equipped item detection:
-   ```python
-   elif command == "use":
-       if not args:
-           return (True, "\nUse what? Specify an item name.")
-       item_name = " ".join(args)
-       item = game_state.current_character.inventory.find_item_by_name(item_name)
-       if item is None:
-           # Check if item is equipped
-           inv = game_state.current_character.inventory
-           item_name_lower = item_name.lower()
-           if inv.equipped_weapon and inv.equipped_weapon.name.lower() == item_name_lower:
-               return (True, f"\n{inv.equipped_weapon.name} is currently equipped as your weapon and cannot be used.")
-           if inv.equipped_armor and inv.equipped_armor.name.lower() == item_name_lower:
-               return (True, f"\n{inv.equipped_armor.name} is currently equipped as your armor and cannot be used.")
-           return (True, f"\nYou don't have '{item_name}' in your inventory.")
-       success, message = game_state.current_character.use_item(item)
-       return (True, f"\n{message}")
-   ```
+### 2. Add record_enemy_defeat method to Character
+**File**: `src/cli_rpg/models/character.py`
+- Method: `record_enemy_defeat(enemy: Enemy) -> None`
+- Stores enemy name, count, and first-seen stats (level, attack, defense, description)
 
-2. **src/cli_rpg/main.py** - `handle_combat_command()` (line ~346-352):
+### 3. Update Character serialization
+**File**: `src/cli_rpg/models/character.py`
+- Update `to_dict()` to include bestiary
+- Update `from_dict()` to restore bestiary
 
-   Apply same fix to combat `use` command:
-   ```python
-   elif command == "use":
-       if not args:
-           return (True, "\nUse what? Specify an item name.")
-       item_name = " ".join(args)
-       item = game_state.current_character.inventory.find_item_by_name(item_name)
-       if item is None:
-           inv = game_state.current_character.inventory
-           item_name_lower = item_name.lower()
-           if inv.equipped_weapon and inv.equipped_weapon.name.lower() == item_name_lower:
-               return (True, f"\n{inv.equipped_weapon.name} is currently equipped as your weapon and cannot be used.")
-           if inv.equipped_armor and inv.equipped_armor.name.lower() == item_name_lower:
-               return (True, f"\n{inv.equipped_armor.name} is currently equipped as your armor and cannot be used.")
-           return (True, f"\nYou don't have '{item_name}' in your inventory.")
-       # ... rest of combat use logic
-   ```
+### 4. Call record_enemy_defeat in combat victory
+**File**: `src/cli_rpg/combat.py`
+- In `process_enemy_death()` or equivalent, call `character.record_enemy_defeat(enemy)`
 
-Note: This pattern matches the existing pattern used by `sell` and `drop` commands (lines ~629-638, ~658-667) which already check for equipped items before giving the "not found" error.
+### 5. Add bestiary command handler
+**File**: `src/cli_rpg/main.py`
+- Add "bestiary" to `known_commands` set in `game_state.py`
+- Add alias "b" -> "bestiary" in `parse_command()`
+- Add command handler in `handle_exploration_command()`
+
+### 6. Add to help text
+**File**: `src/cli_rpg/main.py`
+- Add `bestiary (b) - View defeated enemies` to `get_command_reference()`
+
+## Tests
+
+### File: `tests/test_bestiary.py`
+
+```python
+# Test Character.record_enemy_defeat()
+- test_record_first_enemy_defeat: First kill stores enemy data with count=1
+- test_record_repeated_enemy_defeat: Repeated kills increment count
+- test_record_different_enemies: Multiple enemy types tracked separately
+- test_bestiary_serialization: to_dict/from_dict preserves bestiary
+
+# Test bestiary command
+- test_bestiary_command_empty: Shows "No enemies defeated yet" when empty
+- test_bestiary_command_with_kills: Shows formatted enemy list
+- test_bestiary_alias: "b" works as alias for "bestiary"
+```
+
+### Integration in existing tests
+- Verify combat victory calls `record_enemy_defeat`

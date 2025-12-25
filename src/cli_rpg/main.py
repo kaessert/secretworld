@@ -41,6 +41,7 @@ def get_command_reference() -> str:
         "  rest (r)           - Rest to recover health (25% of max HP)",
         "  quests (q)         - View your quest journal",
         "  quest <name>       - View details of a specific quest",
+        "  bestiary (b)       - View defeated enemies",
         "  help (h)           - Display this command reference",
         "  save               - Save your game (not available during combat)",
         "  quit               - Return to main menu",
@@ -237,6 +238,8 @@ def handle_combat_command(game_state: GameState, command: str, args: list[str]) 
         if victory:
             # Enemy defeated
             enemy_name = combat.enemy.name
+            # Record in bestiary before end_combat (preserves enemy reference)
+            game_state.current_character.record_enemy_defeat(combat.enemy)
             end_message = combat.end_combat(victory=True)
             output += f"\n{end_message}"
             # Track quest progress for kill objectives
@@ -314,6 +317,8 @@ def handle_combat_command(game_state: GameState, command: str, args: list[str]) 
         if victory:
             # Enemy defeated
             enemy_name = combat.enemy.name
+            # Record in bestiary before end_combat (preserves enemy reference)
+            game_state.current_character.record_enemy_defeat(combat.enemy)
             end_message = combat.end_combat(victory=True)
             output += f"\n{end_message}"
             # Track quest progress for kill objectives
@@ -853,6 +858,30 @@ def handle_exploration_command(game_state: GameState, command: str, args: list[s
             f"Objective: {quest.objective_type.value.capitalize()} {quest.target}",
             f"Progress: {quest.current_count}/{quest.target_count}",
         ])
+        return (True, "\n".join(lines))
+
+    elif command == "bestiary":
+        bestiary = game_state.current_character.bestiary
+        if not bestiary:
+            return (True, "\n=== Bestiary ===\nNo enemies defeated yet.")
+
+        lines = ["\n=== Bestiary ===", ""]
+        total_kills = 0
+
+        # Sort by enemy name for consistent output
+        for key in sorted(bestiary.keys()):
+            entry = bestiary[key]
+            count = entry["count"]
+            data = entry["enemy_data"]
+            total_kills += count
+
+            lines.append(f"{data['name']} (x{count})")
+            lines.append(f"  Level {data['level']} | ATK: {data['attack_power']} | DEF: {data['defense']}")
+            if data.get("description"):
+                lines.append(f'  "{data["description"]}"')
+            lines.append("")
+
+        lines.append(f"Total enemies defeated: {total_kills}")
         return (True, "\n".join(lines))
 
     elif command == "help":

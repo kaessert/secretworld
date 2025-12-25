@@ -52,7 +52,8 @@ def parse_command(command_str: str) -> tuple[str, list[str]]:
         "g": "go", "l": "look", "a": "attack", "c": "cast",
         "d": "defend", "f": "flee", "s": "status", "i": "inventory",
         "m": "map", "h": "help", "t": "talk", "u": "use", "e": "equip",
-        "q": "quests", "dr": "drop", "r": "rest", "stats": "status"
+        "q": "quests", "dr": "drop", "r": "rest", "stats": "status",
+        "b": "bestiary"
     }
     command = aliases.get(command, command)
 
@@ -64,7 +65,8 @@ def parse_command(command_str: str) -> tuple[str, list[str]]:
     # Validate known commands
     known_commands = {"look", "go", "save", "quit", "attack", "defend", "flee", "status", "cast",
                       "inventory", "equip", "unequip", "use", "drop", "talk", "buy", "sell", "shop",
-                      "map", "help", "quests", "quest", "accept", "complete", "abandon", "lore", "rest"}
+                      "map", "help", "quests", "quest", "accept", "complete", "abandon", "lore", "rest",
+                      "bestiary"}
     
     if command not in known_commands:
         return ("unknown", [])

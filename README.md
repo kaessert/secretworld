@@ -58,6 +58,7 @@ python -m cli_rpg.main
 - `complete <quest>` - Turn in a completed quest to the NPC you're talking to
 - `abandon <quest>` - Abandon an active quest from your journal
 - `lore` - Discover AI-generated lore snippets about your current location
+- `bestiary` (b) - View all defeated enemies with kill counts and stats
 - `rest` (r) - Rest to recover health (restores 25% of max HP, not available during combat)
 - `save` - Save complete game state including world, location, and theme (not available during combat)
 - `help` (h) - Display the full command reference

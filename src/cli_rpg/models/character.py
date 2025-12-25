@@ -1,6 +1,6 @@
 """Character model for CLI RPG."""
 from dataclasses import dataclass, field
-from typing import ClassVar, List, Tuple, TYPE_CHECKING
+from typing import ClassVar, Dict, List, Tuple, TYPE_CHECKING
 
 from cli_rpg import colors
 
@@ -8,6 +8,7 @@ if TYPE_CHECKING:
     from cli_rpg.models.item import Item
     from cli_rpg.models.inventory import Inventory
     from cli_rpg.models.quest import Quest
+    from cli_rpg.models.enemy import Enemy
 
 
 @dataclass
@@ -47,6 +48,7 @@ class Character:
     inventory: "Inventory" = field(init=False)
     gold: int = 0
     quests: List["Quest"] = field(default_factory=list)
+    bestiary: Dict[str, dict] = field(default_factory=dict)
 
     def __post_init__(self):
         """Validate attributes and calculate derived stats."""
@@ -481,6 +483,32 @@ class Character:
         self.quests.remove(matching_quest)
         return (True, f"Quest abandoned: {matching_quest.name}")
 
+    def record_enemy_defeat(self, enemy: "Enemy") -> None:
+        """Record a defeated enemy in the bestiary.
+
+        Stores enemy data on first defeat and increments kill count on subsequent defeats.
+
+        Args:
+            enemy: The defeated enemy to record
+        """
+        key = enemy.name.lower()
+
+        if key in self.bestiary:
+            # Increment count for existing enemy
+            self.bestiary[key]["count"] += 1
+        else:
+            # Store first-seen enemy data
+            self.bestiary[key] = {
+                "count": 1,
+                "enemy_data": {
+                    "name": enemy.name,
+                    "level": enemy.level,
+                    "attack_power": enemy.attack_power,
+                    "defense": enemy.defense,
+                    "description": enemy.description,
+                }
+            }
+
     def claim_quest_rewards(self, quest: "Quest") -> List[str]:
         """Claim rewards from a quest ready to turn in.
 
@@ -592,7 +620,8 @@ class Character:
             "xp": self.xp,
             "inventory": self.inventory.to_dict(),
             "gold": self.gold,
-            "quests": [quest.to_dict() for quest in self.quests]
+            "quests": [quest.to_dict() for quest in self.quests],
+            "bestiary": self.bestiary,
         }
     
     @classmethod
@@ -647,6 +676,8 @@ class Character:
         if "quests" in data:
             from cli_rpg.models.quest import Quest
             character.quests = [Quest.from_dict(q) for q in data["quests"]]
+        # Restore bestiary (with backward compatibility, defaults to empty dict)
+        character.bestiary = data.get("bestiary", {})
         return character
     
     def __str__(self) -> str:
