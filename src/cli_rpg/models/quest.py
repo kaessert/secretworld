@@ -23,6 +23,7 @@ class ObjectiveType(Enum):
     EXPLORE = "explore"
     TALK = "talk"
     DROP = "drop"
+    USE = "use"
 
 
 @dataclass

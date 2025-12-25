@@ -192,11 +192,21 @@ class Character:
             self.heal(item.heal_amount)
             healed = self.health - old_health
             self.inventory.remove_item(item)
-            return (True, f"You used {item.name} and healed {healed} health!")
+            # Record item use for quest progress
+            quest_messages = self.record_use(item.name)
+            message = f"You used {item.name} and healed {healed} health!"
+            if quest_messages:
+                message += "\n" + "\n".join(quest_messages)
+            return (True, message)
 
         # Generic consumable without heal effect
         self.inventory.remove_item(item)
-        return (True, f"You used {item.name}.")
+        # Record item use for quest progress
+        quest_messages = self.record_use(item.name)
+        message = f"You used {item.name}."
+        if quest_messages:
+            message += "\n" + "\n".join(quest_messages)
+        return (True, message)
 
     def has_quest(self, quest_name: str) -> bool:
         """Check if character has a quest by name.
@@ -377,6 +387,43 @@ class Character:
                 quest.status == QuestStatus.ACTIVE
                 and quest.objective_type == ObjectiveType.TALK
                 and quest.target.lower() == npc_name.lower()
+            ):
+                completed = quest.progress()
+                if completed:
+                    quest.status = QuestStatus.READY_TO_TURN_IN
+                    if quest.quest_giver:
+                        messages.append(
+                            f"Quest objectives complete: {quest.name}! "
+                            f"Return to {quest.quest_giver} to claim your reward."
+                        )
+                    else:
+                        messages.append(
+                            f"Quest objectives complete: {quest.name}! "
+                            "Return to the quest giver to claim your reward."
+                        )
+                else:
+                    messages.append(
+                        f"Quest progress: {quest.name} [{quest.current_count}/{quest.target_count}]"
+                    )
+        return messages
+
+    def record_use(self, item_name: str) -> List[str]:
+        """Record using an item for quest progress.
+
+        Args:
+            item_name: Name of the item used
+
+        Returns:
+            List of notification messages for quest progress/completion
+        """
+        from cli_rpg.models.quest import QuestStatus, ObjectiveType
+
+        messages = []
+        for quest in self.quests:
+            if (
+                quest.status == QuestStatus.ACTIVE
+                and quest.objective_type == ObjectiveType.USE
+                and quest.target.lower() == item_name.lower()
             ):
                 completed = quest.progress()
                 if completed:
