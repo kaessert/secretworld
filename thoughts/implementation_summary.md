@@ -1,34 +1,29 @@
-# Implementation Summary: Shop Context Clearing Fix
+# Implementation Summary
 
 ## What was implemented
 
-Fixed a bug where the shop context (`current_shop`) persisted after switching from a merchant NPC to a non-merchant NPC. Previously, players could still use `shop`, `buy`, and `sell` commands after talking to a non-merchant if they had previously talked to a merchant.
+Added a resolved issue entry to ISSUES.md for the "Dead-end navigation bug" that was fixed.
 
-## Changes made
+### Files modified
+- `ISSUES.md`: Added new resolved issue entry at the end of the "Resolved Issues" section
 
-### 1. Test added: `tests/test_shop_commands.py`
-- Added `test_talk_to_non_merchant_clears_shop_context` in `TestTalkCommand` class
-- Test verifies: merchant talk sets shop → non-merchant talk clears shop → shop command fails
+### Entry added
+```markdown
+### Dead-end navigation bug [RESOLVED]
+**Status**: RESOLVED
 
-### 2. Fix applied: `src/cli_rpg/main.py` (line ~591)
-- Added `else` clause to clear `game_state.current_shop = None` when NPC is not a merchant
+**Description**: Players could get stuck in locations with no exits, unable to continue exploring.
 
-```python
-if npc.is_merchant and npc.shop:
-    game_state.current_shop = npc.shop
-    output += "\n\nType 'shop' to see items, 'buy <item>' to purchase, 'sell <item>' to sell."
-else:
-    game_state.current_shop = None  # Clear shop context for non-merchants
+**Fix**: Fixed world generation to ensure all locations have at least one valid exit. Commit: 8d7f56f.
 ```
 
 ## Test results
 
-- New test passes: `test_talk_to_non_merchant_clears_shop_context`
-- All 24 shop command tests pass
-- Full test suite: **1685 tests passed**
+All tests in `tests/test_issues_documentation.py` pass:
+- `test_issues_file_exists` - PASSED
+- `test_resolved_issues_are_marked` - PASSED
+- `test_no_active_resolved_issues` - PASSED
 
-## E2E validation
+## Notes
 
-To manually verify:
-1. Talk to a merchant → `shop` command works
-2. Talk to a non-merchant (guard, etc.) → `shop` command shows "not at a shop" error
+This was a documentation-only change to satisfy the test expectations in `test_resolved_issues_are_marked` which looks for a resolved dead-end navigation bug entry with "[RESOLVED]" tag and commit "8d7f56f".

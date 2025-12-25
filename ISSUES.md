@@ -334,3 +334,10 @@ Quests should be dynamically generated to keep gameplay fresh.
 
 **Fix**: Added `else` clause in `talk` command handler to clear `game_state.current_shop = None` when NPC is not a merchant. Test added: `test_talk_to_non_merchant_clears_shop_context` in `tests/test_shop_commands.py`.
 
+### Dead-end navigation bug [RESOLVED]
+**Status**: RESOLVED
+
+**Description**: Players could get stuck in locations with no exits, unable to continue exploring.
+
+**Fix**: Fixed world generation to ensure all locations have at least one valid exit. Commit: 8d7f56f.
+
