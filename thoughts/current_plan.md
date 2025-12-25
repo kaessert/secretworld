@@ -1,159 +1,121 @@
-# Implementation Plan: JSON Output for Non-Interactive Mode
+# Implementation Plan: `--log-file` CLI Option
+
+## Summary
+Add `--log-file <path>` CLI argument for comprehensive gameplay logging with timestamps, commands, responses, and state changes.
 
 ## Spec
 
-Add a `--json` flag to emit structured JSON Lines output that separates game state, narrative text, available actions, and valid commands. Each output is a single JSON object per line.
+The `--log-file <path>` option writes a complete session transcript to the specified file:
+- Timestamps (ISO 8601) for each entry
+- Commands issued by player
+- Game responses (narrative, errors)
+- State changes (location, health, gold, level, combat start/end)
+- AI-generated content (if applicable)
+- RNG seed (for reproducibility, when deterministic mode is added later)
 
-### JSON Output Schema
+Format: JSON Lines (one JSON object per line), consistent with `--json` mode structure.
 
-Each line is a JSON object with a `type` field indicating the message category:
-
-```json
-{"type": "state", "location": "Town Square", "health": 150, "max_health": 150, "gold": 0, "level": 1}
-{"type": "narrative", "text": "A bustling town square with a fountain in the center."}
-{"type": "actions", "exits": ["north", "east"], "npcs": ["Town Merchant"], "commands": ["look", "go", "status", ...]}
-{"type": "error", "code": "INVALID_DIRECTION", "message": "You can't go that way."}
-{"type": "combat", "enemy": "Goblin", "enemy_health": 30, "player_health": 150}
-```
-
-### Message Types
-
-1. **state** - Emitted after each command with current game state
-2. **narrative** - Human-readable text (location descriptions, action results)
-3. **actions** - Available actions at current state (exits, NPCs, valid commands)
-4. **error** - Error with machine-readable code and human message
-5. **combat** - Combat-specific state when in battle
+Works in both interactive and non-interactive modes.
 
 ## Tests
 
-File: `tests/test_json_output.py`
+Create `tests/test_log_file.py`:
 
-1. `test_json_flag_accepted` - `--json` flag parses without error
-2. `test_json_implies_non_interactive` - `--json` enables non-interactive mode
-3. `test_json_output_valid_lines` - Each line is valid JSON
-4. `test_json_state_message` - State message contains location, health, gold, level
-5. `test_json_narrative_message` - Narrative type contains text field
-6. `test_json_actions_message` - Actions include exits, npcs, commands
-7. `test_json_error_message` - Error includes code and message
-8. `test_json_combat_state` - Combat state emitted during battle
-9. `test_json_no_ansi_codes` - No ANSI escape sequences in JSON output
+1. `test_log_file_flag_accepted` - `--log-file path.log` parses without error
+2. `test_log_file_creates_file` - Running with `--log-file` creates the log file
+3. `test_log_file_json_lines_format` - Each line in log file is valid JSON
+4. `test_log_file_has_timestamp` - Each log entry has ISO 8601 timestamp
+5. `test_log_file_logs_commands` - Commands appear in log with type "command"
+6. `test_log_file_logs_responses` - Game responses appear in log with type "response"
+7. `test_log_file_logs_state_changes` - State changes appear in log with type "state"
+8. `test_log_file_works_with_non_interactive` - `--log-file` + `--non-interactive` both work together
+9. `test_log_file_works_with_json` - `--log-file` + `--json` both work together (log file separate from stdout JSON)
+10. `test_log_file_session_start_entry` - Log includes session_start entry with initial state
+11. `test_log_file_session_end_entry` - Log includes session_end entry when game exits
 
 ## Implementation
 
-### 1. Add JSON output module (`src/cli_rpg/json_output.py`)
+### 1. Create `src/cli_rpg/logging_service.py`
+
+New module for gameplay logging:
 
 ```python
+"""Gameplay logging service for session transcripts."""
 import json
-from typing import List, Optional
+from datetime import datetime, timezone
+from pathlib import Path
+from typing import Optional, Any
 
-# Error codes for machine-readable errors
-ERROR_CODES = {
-    "invalid_direction": "INVALID_DIRECTION",
-    "not_in_shop": "NOT_IN_SHOP",
-    "item_not_found": "ITEM_NOT_FOUND",
-    "unknown_command": "UNKNOWN_COMMAND",
-    "not_in_combat": "NOT_IN_COMBAT",
-    "in_conversation": "IN_CONVERSATION",
-    "no_npc": "NO_NPC",
-    "inventory_full": "INVENTORY_FULL",
-    "insufficient_gold": "INSUFFICIENT_GOLD",
-}
+class GameplayLogger:
+    def __init__(self, log_path: str):
+        self.log_path = Path(log_path)
+        self.file = open(self.log_path, 'w', encoding='utf-8')
 
-def emit_state(location: str, health: int, max_health: int, gold: int, level: int) -> None:
-    print(json.dumps({
-        "type": "state",
-        "location": location,
-        "health": health,
-        "max_health": max_health,
-        "gold": gold,
-        "level": level
-    }))
+    def _write_entry(self, entry_type: str, data: dict[str, Any]) -> None:
+        entry = {
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "type": entry_type,
+            **data
+        }
+        self.file.write(json.dumps(entry) + "\n")
+        self.file.flush()
 
-def emit_narrative(text: str) -> None:
-    print(json.dumps({"type": "narrative", "text": text}))
+    def log_session_start(self, character_name: str, location: str, theme: str) -> None:
+        self._write_entry("session_start", {
+            "character": character_name,
+            "location": location,
+            "theme": theme
+        })
 
-def emit_actions(exits: List[str], npcs: List[str], commands: List[str]) -> None:
-    print(json.dumps({
-        "type": "actions",
-        "exits": exits,
-        "npcs": npcs,
-        "commands": commands
-    }))
+    def log_command(self, command: str) -> None:
+        self._write_entry("command", {"input": command})
 
-def emit_error(code: str, message: str) -> None:
-    print(json.dumps({"type": "error", "code": code, "message": message}))
+    def log_response(self, message: str) -> None:
+        self._write_entry("response", {"text": message})
 
-def emit_combat(enemy: str, enemy_health: int, player_health: int) -> None:
-    print(json.dumps({
-        "type": "combat",
-        "enemy": enemy,
-        "enemy_health": enemy_health,
-        "player_health": player_health
-    }))
+    def log_state(self, location: str, health: int, max_health: int, gold: int, level: int) -> None:
+        self._write_entry("state", {
+            "location": location,
+            "health": health,
+            "max_health": max_health,
+            "gold": gold,
+            "level": level
+        })
+
+    def log_session_end(self, reason: str) -> None:
+        self._write_entry("session_end", {"reason": reason})
+
+    def close(self) -> None:
+        self.file.close()
 ```
 
-### 2. Add `--json` flag to argparse in `main.py` (line ~1230)
+### 2. Update `src/cli_rpg/main.py`
 
+Add CLI argument (after `--json` argument, around line 1358):
 ```python
 parser.add_argument(
-    "--json",
-    action="store_true",
-    help="Output structured JSON Lines (implies --non-interactive)"
+    "--log-file",
+    type=str,
+    metavar="PATH",
+    help="Write session transcript to file (JSON Lines format)"
 )
 ```
 
-### 3. Create `run_json_mode()` in `main.py`
+Pass logger through game loops:
+- `run_non_interactive()`: Create logger if `--log-file` specified, pass to game loop
+- `run_json_mode()`: Same treatment
+- `run_game_loop()`: Accept optional `GameplayLogger`, log commands/responses
+- `handle_exploration_command()` / `handle_combat_command()`: No changes needed (return messages, loop logs them)
 
-New function that:
-- Disables ANSI colors
-- Creates default character and world (same as non-interactive)
-- Emits initial state + actions
-- Processes stdin commands
-- For each command:
-  - Parse and execute (reusing handle_exploration_command/handle_combat_command)
-  - Parse response to determine if error or narrative
-  - Emit appropriate JSON (state, narrative, error, combat, actions)
+Key integration points in `run_non_interactive()` and `run_json_mode()`:
+1. At function start: Create logger if `log_file` path provided
+2. Before stdin loop: `logger.log_session_start(...)`
+3. After `parse_command()`: `logger.log_command(command_input)`
+4. After getting response: `logger.log_response(message)` and `logger.log_state(...)`
+5. At function end: `logger.log_session_end(reason)` and `logger.close()`
 
-### 4. Update `main()` to route to JSON mode (after line 1237)
+### 3. Files to modify
 
-```python
-if parsed_args.json:
-    return run_json_mode()
-```
-
-### 5. Helper: classify output and extract error codes
-
-Add function to detect error patterns and map to codes:
-```python
-def classify_output(message: str) -> tuple[str, Optional[str]]:
-    """Classify command output as error or narrative.
-
-    Returns: (type, error_code) where type is 'error' or 'narrative'
-    """
-    error_patterns = {
-        "You can't go that way": "INVALID_DIRECTION",
-        "Invalid direction": "INVALID_DIRECTION",
-        "You're not at a shop": "NOT_IN_SHOP",
-        "Unknown command": "UNKNOWN_COMMAND",
-        # ...
-    }
-    for pattern, code in error_patterns.items():
-        if pattern in message:
-            return ("error", code)
-    return ("narrative", None)
-```
-
-## File Changes
-
-1. **New**: `src/cli_rpg/json_output.py` - JSON output helpers and error codes
-2. **New**: `tests/test_json_output.py` - Tests for JSON output mode
-3. **Modify**: `src/cli_rpg/main.py` - Add `--json` flag and `run_json_mode()` function
-
-## Steps
-
-1. Create `tests/test_json_output.py` with spec tests
-2. Run tests (should fail - no implementation)
-3. Create `src/cli_rpg/json_output.py` with emit functions
-4. Add `--json` flag and `run_json_mode()` to `main.py`
-5. Run tests (should pass)
-6. Run full test suite to verify no regressions
+- `src/cli_rpg/main.py`: Add `--log-file` arg, integrate logger into `run_non_interactive()` and `run_json_mode()`
+- `src/cli_rpg/logging_service.py`: New file (gameplay logger class)
+- `tests/test_log_file.py`: New file (all tests for the feature)

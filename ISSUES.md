@@ -7,12 +7,12 @@ The basic `--non-interactive` mode has been implemented. The following enhanceme
 
 1. ~~**Structured output for AI parsing**~~ (DONE - see "JSON output mode" in Resolved Issues)
 
-2. **Comprehensive gameplay logging**
-   - Full session transcript with timestamps
-   - Log file output (e.g., `--log-file gameplay.log`)
-   - Record: commands issued, game responses, state changes, errors
-   - Include RNG seeds for reproducibility
-   - Log AI-generated content for review
+2. ~~**Comprehensive gameplay logging**~~ (DONE - `--log-file` option implemented)
+   - ~~Full session transcript with timestamps~~
+   - ~~Log file output (e.g., `--log-file gameplay.log`)~~
+   - ~~Record: commands issued, game responses, state changes~~
+   - Future: Include RNG seeds for reproducibility
+   - Future: Log AI-generated content for review
 
 3. **Session state export**
    - Dump full game state as JSON on demand or at intervals

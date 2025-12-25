@@ -1149,12 +1149,15 @@ def show_main_menu() -> str:
     return choice
 
 
-def run_json_mode() -> int:
+def run_json_mode(log_file: Optional[str] = None) -> int:
     """Run game in JSON mode, emitting structured JSON Lines output.
 
     This mode is designed for programmatic consumption by external tools
     or AI agents. It creates a default character and world, then processes
     commands from stdin, emitting JSON for each response.
+
+    Args:
+        log_file: Optional path to write session transcript (JSON Lines format)
 
     Returns:
         Exit code (0 for success, 1 for error)
@@ -1165,6 +1168,7 @@ def run_json_mode() -> int:
         emit_state, emit_narrative, emit_actions, emit_error, emit_combat,
         classify_output
     )
+    from cli_rpg.logging_service import GameplayLogger
 
     # Disable ANSI colors for machine-readable output
     set_colors_enabled(False)
@@ -1180,6 +1184,16 @@ def run_json_mode() -> int:
         ai_service=None,
         theme="fantasy"
     )
+
+    # Initialize logger if log file specified
+    logger: Optional[GameplayLogger] = None
+    if log_file:
+        logger = GameplayLogger(log_file)
+        logger.log_session_start(
+            character_name=character.name,
+            location=starting_location,
+            theme="fantasy"
+        )
 
     def get_available_commands() -> list[str]:
         """Get list of available commands based on current state."""
@@ -1218,14 +1232,32 @@ def run_json_mode() -> int:
 
     # Emit initial state
     emit_current_state()
-    emit_narrative(game_state.look())
+    look_output = game_state.look()
+    emit_narrative(look_output)
     emit_current_actions()
+
+    # Log initial state if logger is active
+    if logger:
+        logger.log_response(look_output)
+        logger.log_state(
+            location=game_state.current_location,
+            health=character.health,
+            max_health=character.max_health,
+            gold=character.gold,
+            level=character.level
+        )
+
+    end_reason = "eof"
 
     # Read commands from stdin until EOF
     for line in sys.stdin:
         command_input = line.strip()
         if not command_input:
             continue
+
+        # Log command
+        if logger:
+            logger.log_command(command_input)
 
         # Parse and execute command
         command, args = parse_command(command_input)
@@ -1248,6 +1280,17 @@ def run_json_mode() -> int:
             else:
                 emit_narrative(message)
 
+        # Log response and state
+        if logger:
+            logger.log_response(message)
+            logger.log_state(
+                location=game_state.current_location,
+                health=game_state.current_character.health,
+                max_health=game_state.current_character.max_health,
+                gold=game_state.current_character.gold,
+                level=game_state.current_character.level
+            )
+
         # Emit state after each command
         emit_current_state()
 
@@ -1258,28 +1301,39 @@ def run_json_mode() -> int:
             emit_current_actions()
 
         if not continue_game:
+            end_reason = "quit"
             break
 
         # Check if player died
         if not game_state.current_character.is_alive():
             emit_narrative("GAME OVER - You have fallen in battle.")
+            end_reason = "death"
             break
+
+    # Close logger
+    if logger:
+        logger.log_session_end(end_reason)
+        logger.close()
 
     return 0
 
 
-def run_non_interactive() -> int:
+def run_non_interactive(log_file: Optional[str] = None) -> int:
     """Run game in non-interactive mode, reading commands from stdin.
 
     This mode is designed for automated testing and AI agent playtesting.
     It creates a default character and world, then processes commands from stdin
     until EOF is reached.
 
+    Args:
+        log_file: Optional path to write session transcript (JSON Lines format)
+
     Returns:
         Exit code (0 for success, 1 for error)
     """
     from cli_rpg.colors import set_colors_enabled
     from cli_rpg.models.character import Character
+    from cli_rpg.logging_service import GameplayLogger
 
     # Disable ANSI colors for machine-readable output
     set_colors_enabled(False)
@@ -1297,14 +1351,40 @@ def run_non_interactive() -> int:
         theme="fantasy"
     )
 
+    # Initialize logger if log file specified
+    logger: Optional[GameplayLogger] = None
+    if log_file:
+        logger = GameplayLogger(log_file)
+        logger.log_session_start(
+            character_name=character.name,
+            location=starting_location,
+            theme="fantasy"
+        )
+
     # Show starting location
-    print(game_state.look())
+    look_output = game_state.look()
+    print(look_output)
+    if logger:
+        logger.log_response(look_output)
+        logger.log_state(
+            location=game_state.current_location,
+            health=character.health,
+            max_health=character.max_health,
+            gold=character.gold,
+            level=character.level
+        )
+
+    end_reason = "eof"
 
     # Read commands from stdin until EOF
     for line in sys.stdin:
         command_input = line.strip()
         if not command_input:
             continue
+
+        # Log command
+        if logger:
+            logger.log_command(command_input)
 
         # Parse and execute command
         command, args = parse_command(command_input)
@@ -1318,17 +1398,35 @@ def run_non_interactive() -> int:
 
         print(message)
 
+        # Log response and state
+        if logger:
+            logger.log_response(message.strip())
+            logger.log_state(
+                location=game_state.current_location,
+                health=game_state.current_character.health,
+                max_health=game_state.current_character.max_health,
+                gold=game_state.current_character.gold,
+                level=game_state.current_character.level
+            )
+
         # Show combat status if in combat
         if game_state.is_in_combat() and game_state.current_combat is not None:
             print(game_state.current_combat.get_status())
 
         if not continue_game:
+            end_reason = "quit"
             break
 
         # Check if player died
         if not game_state.current_character.is_alive():
             print("GAME OVER - You have fallen in battle.")
+            end_reason = "death"
             break
+
+    # Close logger
+    if logger:
+        logger.log_session_end(end_reason)
+        logger.close()
 
     return 0
 
@@ -1356,13 +1454,19 @@ def main(args: Optional[list] = None) -> int:
         action="store_true",
         help="Output structured JSON Lines (implies --non-interactive)"
     )
+    parser.add_argument(
+        "--log-file",
+        type=str,
+        metavar="PATH",
+        help="Write session transcript to file (JSON Lines format)"
+    )
     parsed_args = parser.parse_args(args)
 
     if parsed_args.json:
-        return run_json_mode()
+        return run_json_mode(log_file=parsed_args.log_file)
 
     if parsed_args.non_interactive:
-        return run_non_interactive()
+        return run_non_interactive(log_file=parsed_args.log_file)
 
     print("\n" + "=" * 50)
     print("Welcome to CLI RPG!")

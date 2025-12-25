@@ -236,6 +236,34 @@ cli-rpg --non-interactive < commands.txt
 - Uses a default character ("Agent") with balanced stats (10/10/10)
 - Runs without AI service for deterministic behavior
 
+### Gameplay Logging
+
+For comprehensive session logging, use the `--log-file` option to record all gameplay activity:
+
+```bash
+# Log session to file
+cli-rpg --non-interactive --log-file session.log < commands.txt
+
+# Combined with JSON mode (log file separate from stdout)
+cli-rpg --json --log-file transcript.log < commands.txt
+```
+
+**Log format** (JSON Lines, one entry per line):
+```json
+{"timestamp": "2025-01-15T12:00:00.000000+00:00", "type": "session_start", "character": "Agent", "location": "Town Square", "theme": "fantasy"}
+{"timestamp": "2025-01-15T12:00:01.000000+00:00", "type": "command", "input": "look"}
+{"timestamp": "2025-01-15T12:00:01.100000+00:00", "type": "response", "text": "=== Town Square ===\n..."}
+{"timestamp": "2025-01-15T12:00:01.100000+00:00", "type": "state", "location": "Town Square", "health": 100, "max_health": 100, "gold": 50, "level": 1}
+{"timestamp": "2025-01-15T12:00:02.000000+00:00", "type": "session_end", "reason": "eof"}
+```
+
+**Entry types:**
+- `session_start` - Session initialization with character, location, and theme
+- `command` - Player input commands
+- `response` - Game output text
+- `state` - Game state snapshots (location, health, gold, level)
+- `session_end` - Session termination with reason (eof/quit/death)
+
 ### JSON Output Mode
 
 For programmatic consumption and AI agent integration, use the `--json` flag to output structured JSON Lines:

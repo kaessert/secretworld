@@ -36,6 +36,7 @@ src/cli_rpg/
 ├── config.py            # General configuration
 ├── colors.py            # ANSI color output utilities
 ├── json_output.py       # JSON Lines output for --json mode
+├── logging_service.py   # Gameplay logging for --log-file option
 └── models/
     ├── character.py     # Player character model
     ├── enemy.py         # Enemy/monster model
