@@ -26,7 +26,8 @@ def basic_config():
         temperature=0.7,
         max_tokens=500,
         max_retries=3,
-        retry_delay=0.1  # Short delay for tests
+        retry_delay=0.1,  # Short delay for tests
+        enable_caching=False  # Disable caching to ensure mock is called
     )
 
 

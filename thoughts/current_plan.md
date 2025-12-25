@@ -1,39 +1,37 @@
-# Implementation Plan: Persistent AI Response Cache
+# Fix: test_generate_quest_uses_context failing due to caching
 
-## Overview
-Add file-based persistent caching for AI-generated content to reduce API costs across game sessions. Currently, the cache is in-memory only and lost when the game exits.
+## Problem
+The test `test_ai_quest_generation.py::TestAIServiceGenerateQuest::test_generate_quest_uses_context` fails because `call_args` is `None` - the mock's `chat.completions.create` method is never called.
 
-## Spec
-- Cache AI responses to a JSON file in a configurable location (default: `~/.cli_rpg/cache/`)
-- Load existing cache on AIService initialization
-- Write cache entries after each new API response
-- Honor existing `cache_ttl` for expiration (both in-memory and on disk)
-- Add `cache_file` config option to AIConfig (default: `~/.cli_rpg/cache/ai_cache.json`)
-- Gracefully handle file I/O errors (log warning, continue with in-memory only)
+**Root cause**: `AIConfig` defaults to `enable_caching=True`. The `generate_quest()` method checks cache before calling the LLM. If a cached result exists (from persistent file cache at `~/.cli_rpg/cache/ai_cache.json` or from a prior test), the mock is bypassed.
 
-## Implementation Steps
+## Fix
+Update the `basic_config` fixture to disable caching explicitly:
 
-### 1. Update `src/cli_rpg/ai_config.py`
-- Add `cache_file: Optional[str] = None` field to AIConfig dataclass
-- Default to `~/.cli_rpg/cache/ai_cache.json` when `enable_caching` is True
-- Add `AI_CACHE_FILE` environment variable support in `from_env()`
-- Update `to_dict()` and `from_dict()` to include cache_file
+**File**: `tests/test_ai_quest_generation.py`, lines 21-30
 
-### 2. Update `src/cli_rpg/ai_service.py`
-- Add `_load_cache_from_file()` method to load persisted cache on init
-- Add `_save_cache_to_file()` method to persist cache after updates
-- Modify `__init__()` to call `_load_cache_from_file()` if caching enabled
-- Modify `_set_cached()` and `_set_cached_list()` to call `_save_cache_to_file()`
-- Handle file I/O errors gracefully (log, don't crash)
-- Prune expired entries when loading from disk
+```python
+@pytest.fixture
+def basic_config():
+    """Create a basic AIConfig for testing."""
+    return AIConfig(
+        api_key="test-key-123",
+        model="gpt-3.5-turbo",
+        temperature=0.7,
+        max_tokens=500,
+        max_retries=3,
+        retry_delay=0.1,  # Short delay for tests
+        enable_caching=False  # Disable caching to ensure mock is called
+    )
+```
 
-### 3. Add tests in `tests/test_ai_cache_persistence.py`
-- Test cache file is created when caching enabled
-- Test cache persists across AIService instances
-- Test expired entries are pruned on load
-- Test graceful fallback when cache file is unreadable/corrupt
-- Test cache_file config option works
+## Verification
+Run the failing test:
+```bash
+pytest tests/test_ai_quest_generation.py::TestAIServiceGenerateQuest::test_generate_quest_uses_context -v
+```
 
-### 4. Run tests
-- `pytest tests/test_ai_cache_persistence.py -v`
-- `pytest tests/test_ai_service.py tests/test_ai_config.py -v`
+Then run all AI quest generation tests to ensure no regressions:
+```bash
+pytest tests/test_ai_quest_generation.py -v
+```
