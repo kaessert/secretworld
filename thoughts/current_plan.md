@@ -1,56 +1,93 @@
-# Implementation Plan: game_state.py Coverage Gaps (Lines 19-23, 45)
+# Implementation Plan: Improve Test Coverage for Remaining Uncovered Lines
 
-## Spec
+## Summary
+Add targeted tests to cover the 18 uncovered lines across `main.py`, `models/character.py`, and `ai_service.py`.
 
-Cover the 6 uncovered lines in `game_state.py`:
-- **Lines 19-23**: Import fallback block when `ai_service`/`ai_world` imports fail
-- **Line 45**: `parse_command("")` returning `("unknown", [])` for empty input
+---
 
-## Tests
+## 1. main.py Lines 361, 363 (Lowest Hanging Fruit)
 
-### File: `tests/test_game_state_import_fallback.py`
+**Uncovered code**: Using an equipped weapon/armor during combat shows "equipped" message instead of "not found"
 
-Test import fallback behavior using subprocess with coverage (same pattern as `test_world_import_fallback.py`):
+**Location**: `handle_combat_command()` in `src/cli_rpg/main.py`, lines 351-363
 
-```python
-def test_ai_import_failure_sets_fallback_values():
-    """When ai_service/ai_world imports fail in game_state.py:
-    - AI_AVAILABLE should be False
-    - AIService should be None
-    - AIServiceError should be Exception
-    - expand_area should be None
-    """
-```
-
-### File: `tests/test_game_state.py` (add to TestParseCommand class)
+**Tests to add** in `tests/test_main_combat_integration.py`:
 
 ```python
-def test_parse_command_empty_string():
-    """Spec: Empty string should return ("unknown", [])"""
-    cmd, args = parse_command("")
-    assert cmd == "unknown"
-    assert args == []
+class TestUseEquippedItemDuringCombat:
+    """Tests for 'use' on equipped items during combat."""
 
-def test_parse_command_whitespace_only():
-    """Spec: Whitespace-only string should return ("unknown", [])"""
-    cmd, args = parse_command("   ")
-    assert cmd == "unknown"
-    assert args == []
+    def test_use_equipped_weapon_during_combat_shows_equipped_message(self):
+        """Spec: 'use' on equipped weapon during combat shows equipped message."""
+        # Setup: Equip weapon, enter combat, try to use it
+        # Assert: "equipped as your weapon" in message
+
+    def test_use_equipped_armor_during_combat_shows_equipped_message(self):
+        """Spec: 'use' on equipped armor during combat shows equipped message."""
+        # Setup: Equip armor, enter combat, try to use it
+        # Assert: "equipped as your armor" in message
 ```
 
-## Implementation Steps
+---
 
-1. **Add empty input tests to `tests/test_game_state.py`**
-   - Add `test_parse_command_empty_string` to `TestParseCommand` class
-   - Add `test_parse_command_whitespace_only` to `TestParseCommand` class
+## 2. models/character.py Lines 8-11, 71, 97, 113 (7 lines)
 
-2. **Create `tests/test_game_state_import_fallback.py`**
-   - Follow same subprocess+coverage pattern as `test_world_import_fallback.py`
-   - Mock imports for `cli_rpg.ai_service` and `cli_rpg.ai_world` to raise ImportError
-   - Import `cli_rpg.game_state` and verify fallback values
-   - Source: `cli_rpg.game_state` (not `cli_rpg.world`)
+**Uncovered lines**:
+- Lines 8-11: `TYPE_CHECKING` imports (runtime never executed - skip, standard Python pattern)
+- Line 71: `if not isinstance(stat_value, int)` validation error
+- Line 97: `if amount < 0` in `add_gold()`
+- Line 113: `if amount < 0` in `remove_gold()`
 
-3. **Run tests to verify coverage increase**
-   - `pytest tests/test_game_state.py::TestParseCommand -v`
-   - `pytest tests/test_game_state_import_fallback.py -v`
-   - `pytest --cov=src/cli_rpg/game_state --cov-report=term-missing`
+**Tests to add** in `tests/test_character.py`:
+
+```python
+def test_character_stat_non_integer_raises_error():
+    """Spec: Non-integer stat values raise ValueError."""
+    # Pass float/string as strength/dexterity/intelligence
+
+def test_add_gold_negative_amount_raises_error():
+    """Spec: Adding negative gold raises ValueError."""
+
+def test_remove_gold_negative_amount_raises_error():
+    """Spec: Removing negative gold raises ValueError."""
+```
+
+---
+
+## 3. ai_service.py Lines 9, 18-21, 252, 309, 423, 455 (9 lines)
+
+**Uncovered lines**:
+- Line 9: `TYPE_CHECKING` import (skip - standard pattern)
+- Lines 18-21: `except ImportError` block for Anthropic (requires uninstalling anthropic package)
+- Line 252: Final fallback `raise AIServiceError` in `_call_openai()` - unreachable defensive code
+- Line 309: Final fallback `raise AIServiceError` in `_call_anthropic()` - unreachable defensive code
+- Line 423: Cache load handles expired entries (edge case, already tested implicitly)
+- Line 455: Cache save to file with no parent directory
+
+**Practical tests to add** (skipping unreachable defensive code):
+
+```python
+# In tests/test_ai_service.py - test cache save with no parent dir
+def test_save_cache_handles_no_parent_directory():
+    """Spec: Cache saves when file has no parent directory (e.g., 'cache.json')."""
+```
+
+Note: Lines 18-21, 252, 309 are defensive fallbacks that are intentionally difficult to reach. Covering them would require:
+- Uninstalling anthropic package (lines 18-21)
+- Creating impossible retry loop conditions (lines 252, 309)
+
+These are acceptable to leave uncovered as they represent defensive programming.
+
+---
+
+## Implementation Order
+
+1. **tests/test_main_combat_integration.py** - Add `TestUseEquippedItemDuringCombat` class (covers lines 361, 363)
+2. **tests/test_character.py** - Add negative/invalid input tests (covers lines 71, 97, 113)
+3. Optionally: Add cache edge case test if time permits
+
+## Expected Coverage Improvement
+
+- main.py: 99% → 100% (+2 lines)
+- models/character.py: 97% → 99% (+3 lines, 4 TYPE_CHECKING lines remain)
+- Overall: ~98.81% → ~99.0%

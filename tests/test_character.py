@@ -94,6 +94,33 @@ class TestCharacterCreation:
                 intelligence=10
             )
 
+    def test_character_stat_non_integer_raises_error(self):
+        """Spec: Non-integer stat values raise ValueError."""
+        # Test with float strength
+        with pytest.raises(ValueError, match="must be an integer"):
+            Character(
+                name="Hero",
+                strength=10.5,  # type: ignore - intentionally testing invalid type
+                dexterity=10,
+                intelligence=10
+            )
+        # Test with string dexterity
+        with pytest.raises(ValueError, match="must be an integer"):
+            Character(
+                name="Hero",
+                strength=10,
+                dexterity="fast",  # type: ignore - intentionally testing invalid type
+                intelligence=10
+            )
+        # Test with None intelligence
+        with pytest.raises(ValueError, match="must be an integer"):
+            Character(
+                name="Hero",
+                strength=10,
+                dexterity=10,
+                intelligence=None  # type: ignore - intentionally testing invalid type
+            )
+
 
 class TestCharacterMethods:
     """Test character methods."""
@@ -166,6 +193,29 @@ class TestCharacterMethods:
         )
         character.take_damage(10000)
         assert character.is_alive() is False
+
+    def test_add_gold_negative_amount_raises_error(self):
+        """Spec: Adding negative gold raises ValueError."""
+        character = Character(
+            name="Hero",
+            strength=10,
+            dexterity=10,
+            intelligence=10
+        )
+        with pytest.raises(ValueError, match="non-negative"):
+            character.add_gold(-10)
+
+    def test_remove_gold_negative_amount_raises_error(self):
+        """Spec: Removing negative gold raises ValueError."""
+        character = Character(
+            name="Hero",
+            strength=10,
+            dexterity=10,
+            intelligence=10
+        )
+        character.gold = 100  # Give them some gold first
+        with pytest.raises(ValueError, match="non-negative"):
+            character.remove_gold(-10)
 
 
 class TestCharacterSerialization:

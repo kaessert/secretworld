@@ -667,3 +667,73 @@ class TestCombatStatePersistence:
         # Only check if combat still active (might end if enemy defeated)
         if game_state.current_combat is not None:
             assert game_state.current_combat is combat_instance, "Combat instance should persist"
+
+
+class TestUseEquippedItemDuringCombat:
+    """Tests for 'use' on equipped items during combat."""
+
+    def test_use_equipped_weapon_during_combat_shows_equipped_message(self):
+        """Spec: 'use' on equipped weapon during combat shows equipped message."""
+        from cli_rpg.models.item import Item, ItemType
+        from cli_rpg.main import handle_combat_command
+
+        # Setup: Create character with a weapon, equip it
+        character = Character(name="Hero", strength=10, dexterity=10, intelligence=10)
+        sword = Item(
+            name="Iron Sword",
+            description="A sturdy iron sword",
+            item_type=ItemType.WEAPON,
+            damage_bonus=5
+        )
+        character.inventory.add_item(sword)
+        character.inventory.equip(sword)  # Equip the sword
+
+        # Verify sword is equipped and not in inventory
+        assert character.inventory.equipped_weapon is not None
+        assert character.inventory.equipped_weapon.name == "Iron Sword"
+        assert character.inventory.find_item_by_name("Iron Sword") is None
+
+        enemy = Enemy(name="Wolf", health=50, max_health=50, attack_power=5, defense=2, xp_reward=20)
+        world = {"Forest": Location(name="Forest", description="A dark forest", connections={})}
+        game_state = GameState(character, world, starting_location="Forest")
+        game_state.current_combat = CombatEncounter(character, enemy)
+        game_state.current_combat.is_active = True
+
+        # Test: Try to use the equipped weapon
+        continue_game, result = handle_combat_command(game_state, "use", ["Iron", "Sword"])
+
+        # Assert: Message indicates it's equipped as weapon
+        assert "equipped as your weapon" in result.lower()
+
+    def test_use_equipped_armor_during_combat_shows_equipped_message(self):
+        """Spec: 'use' on equipped armor during combat shows equipped message."""
+        from cli_rpg.models.item import Item, ItemType
+        from cli_rpg.main import handle_combat_command
+
+        # Setup: Create character with armor, equip it
+        character = Character(name="Hero", strength=10, dexterity=10, intelligence=10)
+        armor = Item(
+            name="Iron Chestplate",
+            description="A sturdy iron chestplate",
+            item_type=ItemType.ARMOR,
+            defense_bonus=5
+        )
+        character.inventory.add_item(armor)
+        character.inventory.equip(armor)  # Equip the armor
+
+        # Verify armor is equipped and not in inventory
+        assert character.inventory.equipped_armor is not None
+        assert character.inventory.equipped_armor.name == "Iron Chestplate"
+        assert character.inventory.find_item_by_name("Iron Chestplate") is None
+
+        enemy = Enemy(name="Wolf", health=50, max_health=50, attack_power=5, defense=2, xp_reward=20)
+        world = {"Forest": Location(name="Forest", description="A dark forest", connections={})}
+        game_state = GameState(character, world, starting_location="Forest")
+        game_state.current_combat = CombatEncounter(character, enemy)
+        game_state.current_combat.is_active = True
+
+        # Test: Try to use the equipped armor
+        continue_game, result = handle_combat_command(game_state, "use", ["Iron", "Chestplate"])
+
+        # Assert: Message indicates it's equipped as armor
+        assert "equipped as your armor" in result.lower()

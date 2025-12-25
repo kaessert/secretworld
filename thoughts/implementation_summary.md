@@ -1,42 +1,38 @@
-# Implementation Summary: game_state.py Coverage Gaps
+# Implementation Summary: Test Coverage Improvements
 
 ## What Was Implemented
 
-### 1. Empty Input Tests in `tests/test_game_state.py`
-Added two test methods to the `TestParseCommand` class:
-- `test_parse_command_empty_string`: Verifies `parse_command("")` returns `("unknown", [])`
-- `test_parse_command_whitespace_only`: Verifies `parse_command("   ")` returns `("unknown", [])`
+Added 5 targeted tests to improve test coverage for previously uncovered code paths:
 
-These tests cover **line 45** of `game_state.py`: the `if not parts:` branch that handles empty input.
+### tests/test_main_combat_integration.py
+Added `TestUseEquippedItemDuringCombat` class with 2 tests:
+1. `test_use_equipped_weapon_during_combat_shows_equipped_message` - Covers line 361 in main.py
+2. `test_use_equipped_armor_during_combat_shows_equipped_message` - Covers line 363 in main.py
 
-### 2. Created `tests/test_game_state_import_fallback.py`
-New test file following the same subprocess+coverage pattern as `test_world_import_fallback.py`:
-- Uses `builtins.__import__` mock to intercept and raise `ImportError` for AI modules
-- Verifies fallback values are set correctly:
-  - `AI_AVAILABLE = False`
-  - `AIService = None`
-  - `AIServiceError = Exception`
-  - `expand_area = None`
-- Runs in subprocess with coverage tracking to capture the except block execution
+These tests verify that when a player tries to use an equipped weapon or armor during combat, they receive an appropriate message indicating the item is currently equipped.
 
-This test covers **lines 19-23** of `game_state.py`: the import fallback block.
+### tests/test_character.py
+Added 3 tests:
+1. `test_character_stat_non_integer_raises_error` - Covers line 71 in character.py (validates non-integer stats raise ValueError)
+2. `test_add_gold_negative_amount_raises_error` - Covers line 97 in character.py (validates negative gold amounts raise ValueError)
+3. `test_remove_gold_negative_amount_raises_error` - Covers line 113 in character.py (validates negative gold amounts raise ValueError)
 
 ## Test Results
-```
-tests/test_game_state.py::TestParseCommand::test_parse_command_empty_string PASSED
-tests/test_game_state.py::TestParseCommand::test_parse_command_whitespace_only PASSED
-tests/test_game_state_import_fallback.py::TestGameStateAIImportFallback::test_ai_import_failure_sets_fallback_values PASSED
+- All 5 new tests pass
+- Full test suite: 1346 passed, 1 skipped
+- Total coverage: 98.98%
 
-All 1341 tests pass (1 skipped)
-```
+## Coverage Improvements
+| File | Before | After | Lines Covered |
+|------|--------|-------|---------------|
+| main.py | 99% | 100% | Lines 361, 363 |
+| models/character.py | 97% | 99% | Lines 71, 97, 113 |
 
-## Coverage Result
-- `game_state.py`: **100% coverage** (was missing lines 19-23, 45)
-- Overall test suite: 82.26% (above 80% required threshold)
+## Remaining Uncovered Lines (acceptable)
+- Lines 8-11 in character.py: `TYPE_CHECKING` imports (standard Python pattern, never executed at runtime)
+- Lines 18-21, 252, 309, 423, 455 in ai_service.py: Defensive fallback code that requires extreme conditions to trigger
 
-## Files Modified
-- `tests/test_game_state.py`: Added 2 test methods
-- `tests/test_game_state_import_fallback.py`: Created new file with 1 test class/method
-
-## E2E Validation
-No E2E tests required - these are unit tests covering import fallback behavior and edge case input handling.
+## E2E Tests Should Validate
+- Using `use <item>` on equipped weapons/armor during combat shows appropriate message
+- Character creation with invalid stat types is rejected
+- Negative gold operations are rejected with clear error messages
