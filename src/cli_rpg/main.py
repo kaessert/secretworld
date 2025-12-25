@@ -1,4 +1,5 @@
 """Main entry point for CLI RPG."""
+import sys
 from typing import Optional
 from cli_rpg.character_creation import create_character, get_theme_selection
 from cli_rpg.models.character import Character
@@ -314,10 +315,12 @@ def handle_combat_command(game_state: GameState, command: str, args: list[str]) 
         print("\n" + "=" * 50)
         print("⚠️  Warning: You are in combat! Saving is disabled during combat.")
         print("If you quit now, your combat progress will be lost.")
+        sys.stdout.flush()  # Ensure prompt is visible before blocking
         response = input("Quit without saving? (y/n): ").strip().lower()
         if response == 'y':
             print("\nReturning to main menu...")
             return (False, "")
+        print("\nContinuing combat...")
         return (True, "")  # Cancel quit, continue combat
 
     else:

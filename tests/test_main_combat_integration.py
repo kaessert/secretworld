@@ -464,6 +464,27 @@ class TestQuitCommandDuringCombat:
         assert continue_game is True
         assert game_state.current_combat is not None
 
+    def test_quit_during_combat_cancel_shows_message(self):
+        """Spec: Cancelling quit during combat should show 'Continuing combat...' message."""
+        import io
+        # Setup
+        character = Character(name="Hero", strength=10, dexterity=10, intelligence=10)
+        enemy = Enemy(name="Wolf", health=30, max_health=30, attack_power=5, defense=2, xp_reward=20)
+        world = {"Forest": Location(name="Forest", description="A dark forest", connections={})}
+        game_state = GameState(character, world, starting_location="Forest")
+        game_state.current_combat = CombatEncounter(character, enemy)
+        game_state.current_combat.is_active = True
+
+        # Test: Capture printed output when cancelling quit
+        from cli_rpg.main import handle_combat_command
+        captured_output = io.StringIO()
+        with patch('builtins.input', return_value='n'), patch('sys.stdout', captured_output):
+            continue_game, message = handle_combat_command(game_state, "quit", [])
+
+        # Assert: Confirmation message was printed
+        output = captured_output.getvalue()
+        assert "continuing combat" in output.lower()
+
 
 class TestUseItemDuringCombat:
     """Test using consumable items during combat."""
