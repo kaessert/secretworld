@@ -160,10 +160,10 @@ class TestMainMenuIntegration:
                 {'name': 'TestHero', 'filepath': str(save_file), 'timestamp': '20240101_120000'}
             ]):
                 with patch('builtins.print'):  # Suppress output
-                    result = main()
-        
+                    result = main(args=[])
+
         assert result == 0
-    
+
     def test_main_handles_game_state_load(self, tmp_path, sample_game_state):
         """Test main menu properly handles game state load.
         
@@ -182,8 +182,8 @@ class TestMainMenuIntegration:
                 {'name': 'TestHero', 'filepath': str(save_file), 'timestamp': '20240101_120000'}
             ]):
                 with patch('builtins.print'):  # Suppress output
-                    result = main()
-        
+                    result = main(args=[])
+
         assert result == 0
 
 

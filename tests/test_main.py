@@ -53,11 +53,11 @@ def test_main_function_callable():
         sys.stdout = StringIO()
         
         try:
-            main()
+            main(args=[])
             output = sys.stdout.getvalue()
         finally:
             sys.stdout = old_stdout
-        
+
         # Should execute without raising exceptions
         assert output is not None
         assert "Welcome to CLI RPG!" in output
@@ -78,9 +78,9 @@ def test_main_returns_zero():
         sys.stdout = StringIO()
         
         try:
-            result = main()
+            result = main(args=[])
         finally:
             sys.stdout = old_stdout
-        
+
         # Should return 0 for success (or None which is also acceptable)
         assert result == 0 or result is None

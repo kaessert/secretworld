@@ -1214,8 +1214,12 @@ def run_non_interactive() -> int:
     return 0
 
 
-def main() -> int:
+def main(args: Optional[list] = None) -> int:
     """Main function to start the CLI RPG game.
+
+    Args:
+        args: Command-line arguments. If None, uses sys.argv[1:].
+              Pass [] in tests to avoid parsing pytest arguments.
 
     Returns:
         Exit code (0 for success)
@@ -1228,9 +1232,9 @@ def main() -> int:
         action="store_true",
         help="Run in non-interactive mode, reading commands from stdin"
     )
-    args = parser.parse_args()
+    parsed_args = parser.parse_args(args)
 
-    if args.non_interactive:
+    if parsed_args.non_interactive:
         return run_non_interactive()
 
     print("\n" + "=" * 50)

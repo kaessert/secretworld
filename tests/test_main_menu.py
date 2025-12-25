@@ -25,30 +25,30 @@ class TestMainFunction:
     @patch('builtins.input', side_effect=["1", "Hero", "1", "10", "12", "8", "yes", "quit", "n", "3"])
     def test_main_create_character_then_exit(self, mock_input):
         """Test: Main menu character creation integration (spec requirement)"""
-        result = main()
+        result = main(args=[])
         assert result == 0
-    
+
     @patch('cli_rpg.main.list_saves', return_value=[])  # Ensure no saves exist for this test
     @patch('builtins.input', side_effect=["2", "3"])
     def test_main_load_character_no_saves(self, mock_input, mock_list_saves):
         """Test: Load character shows message when no saves exist"""
-        result = main()
+        result = main(args=[])
         assert result == 0
-    
+
     @patch('builtins.input', side_effect=["3"])
     def test_main_exit_immediately(self, mock_input):
         """Test: Can exit immediately from main menu"""
-        result = main()
+        result = main(args=[])
         assert result == 0
-    
+
     @patch('builtins.input', side_effect=["99", "3"])
     def test_main_invalid_choice(self, mock_input):
         """Test: Invalid menu choice is handled gracefully"""
-        result = main()
+        result = main(args=[])
         assert result == 0
-    
+
     @patch('builtins.input', side_effect=["1", "cancel", "3"])
     def test_main_cancelled_character_creation(self, mock_input):
         """Test: Cancelled character creation returns to menu"""
-        result = main()
+        result = main(args=[])
         assert result == 0

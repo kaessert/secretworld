@@ -27,6 +27,43 @@ The basic `--non-interactive` mode has been implemented. The following enhanceme
    - Configurable delays/timeouts
    - Deterministic mode option (fixed RNG seed)
 
+### Long-running AI simulation test suite
+**Status**: ACTIVE
+
+Once non-interactive mode is fully implemented, set up periodic long-running simulations to catch bugs and evaluate gameplay quality.
+
+**Goals**:
+- Discover edge cases and crashes through extended play
+- Evaluate AI-generated content quality over time
+- Catch gameplay dead-ends or stuck states
+- Measure game balance (combat difficulty, economy, progression)
+- Build regression test corpus from successful runs
+
+**Implementation**:
+
+1. **AI agent player**
+   - Script or agent that plays the game autonomously
+   - Makes contextual decisions (explore, fight, shop, quest)
+   - Varies playstyles (aggressive, cautious, completionist)
+
+2. **Scheduled runs**
+   - CI/cron job running simulations periodically (nightly, weekly)
+   - Multiple concurrent sessions with different seeds
+   - Configurable session length (commands, time, or milestones)
+
+3. **Reporting and analysis**
+   - Aggregate logs from simulation runs
+   - Flag anomalies: crashes, infinite loops, stuck states, empty responses
+   - Track metrics: locations visited, quests completed, deaths, gold earned
+   - Generate summary reports for review
+
+4. **Reproducibility**
+   - Save RNG seeds and full command logs
+   - Replay failed sessions to debug issues
+   - Snapshot game state at intervals for analysis
+
+**Depends on**: Non-interactive mode enhancements (structured output, logging)
+
 ### Terminal-like input with history and auto-complete
 **Status**: ACTIVE
 
@@ -237,6 +274,13 @@ Quests should be dynamically generated to keep gameplay fresh.
 - Emergent storylines from completed quests
 
 ## Resolved Issues
+
+### Dead-end navigation bug [RESOLVED]
+**Status**: RESOLVED
+
+**Description**: Players could encounter locations with no valid exits, becoming permanently stuck with no way to continue the game.
+
+**Fix**: Fixed in commit 8d7f56f by ensuring AI-generated locations always include at least one valid exit connection. Additional safeguards were added in fa915b9 to prevent dead-ends in initial world generation.
 
 ### Non-interactive mode for AI agent playtesting (basic)
 **Status**: RESOLVED

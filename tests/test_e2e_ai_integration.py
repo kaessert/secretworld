@@ -67,11 +67,11 @@ def test_ai_config_loading_at_startup(mock_ai_config):
         sys.stdout = StringIO()
         
         try:
-            result = main()
+            result = main(args=[])
             output = sys.stdout.getvalue()
         finally:
             sys.stdout = old_stdout
-        
+
         # Verify AI service was initialized
         MockAIService.assert_called_once_with(mock_ai_config)
         
@@ -95,14 +95,14 @@ def test_ai_graceful_fallback_when_unavailable():
         sys.stdout = StringIO()
         
         try:
-            result = main()
+            result = main(args=[])
             output = sys.stdout.getvalue()
         finally:
             sys.stdout = old_stdout
-        
+
         # Should run without errors
         assert result == 0
-        
+
         # Should indicate AI not available
         assert "AI" in output or "not available" in output
 
@@ -145,11 +145,11 @@ def test_theme_selection_flow_with_ai(mock_ai_config, mock_ai_service):
         sys.stdout = StringIO()
         
         try:
-            result = main()
+            result = main(args=[])
             sys.stdout.getvalue()
         finally:
             sys.stdout = old_stdout
-        
+
         # Verify create_world was called with AI service and theme
         assert mock_create_world.called
         call_args = mock_create_world.call_args
@@ -300,19 +300,19 @@ def test_complete_e2e_flow_with_mocked_ai(mock_ai_config, mock_ai_service):
             # Capture output
             old_stdout = sys.stdout
             sys.stdout = StringIO()
-            
+
             try:
-                result = main()
+                result = main(args=[])
                 output = sys.stdout.getvalue()
             finally:
                 sys.stdout = old_stdout
-        
+
         # Verify successful execution
         assert result == 0
-        
+
         # Verify AI was loaded
         assert "AI" in output
-        
+
         # Verify character was created
         assert "Hero" in output
         

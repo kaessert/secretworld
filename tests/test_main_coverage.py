@@ -1409,7 +1409,7 @@ class TestMainAIInit:
             mock_ai_class.return_value = Mock()
             captured_output = io.StringIO()
             with patch('sys.stdout', captured_output):
-                main()
+                main(args=[])
 
             output = captured_output.getvalue()
             assert "fallback mode" in output.lower()
@@ -1426,7 +1426,7 @@ class TestMainAIInit:
              patch('builtins.input', return_value='3'):  # Exit immediately
             captured_output = io.StringIO()
             with patch('sys.stdout', captured_output):
-                main()
+                main(args=[])
 
             output = captured_output.getvalue()
             assert "ai initialization failed" in output.lower()
