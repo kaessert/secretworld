@@ -1,92 +1,63 @@
-# Plan: Integration Tests for Coordinate-Based AI World Expansion
+# Implementation Plan: Improve AI Module Test Coverage
 
-## Summary
-Add tests for uncovered lines in `GameState.move()`:
-- **Lines 254-275**: Coordinate-based AI expansion via `expand_area()`
-- **Lines 311-312**: Autosave `IOError` silent failure
-- **Line 319**: Quest exploration message appending
+## Goal
+Increase test coverage for `ai_service.py` (85%→92%+) and `ai_world.py` (85%→92%+) by adding edge case tests for uncovered code paths.
 
-## Test File
-`tests/test_game_state_ai_integration.py` (extend existing)
+## Analysis of Missing Coverage
 
-## Tests to Add
+### ai_service.py (lines 278-306, 1361-1382, 1409-1422, etc.)
+- **Lines 15-18, 69**: Anthropic import failure and initialization when unavailable
+- **Lines 278-306**: `_call_anthropic()` retry/error handling paths (timeout, rate limit, auth errors)
+- **Lines 1361-1382**: `generate_conversation_response()` method
+- **Lines 1409-1422**: `_build_conversation_prompt()` method (conversation history formatting)
 
-### 1. `test_move_triggers_coordinate_based_ai_expansion`
-Create world with coordinates, mock `expand_area` to add location at target coords, verify move succeeds.
+### ai_world.py (lines 142-186, 343-518)
+- **Lines 142-186**: Error handling in `create_ai_world()` (skip non-grid directions, duplicate names)
+- **Lines 343-518**: `expand_area()` function (area generation with coordinate placement)
 
-### 2. `test_move_coordinate_expansion_returns_failure_on_error`
-Mock `expand_area` to raise `AIServiceError`, verify returns `(False, "Failed to generate destination: ...")`.
+---
 
-### 3. `test_move_coordinate_expansion_fails_when_location_not_created`
-Mock `expand_area` to not place location, verify returns `(False, "Failed to generate destination.")`.
+## Implementation Steps
 
-### 4. `test_move_autosave_ioerror_silent_failure`
-Patch `autosave` to raise `IOError`, verify move still succeeds.
+### 1. Add Anthropic provider edge case tests (tests/test_ai_service.py)
 
-### 5. `test_move_appends_exploration_quest_messages`
-Create character with active exploration quest, move to location, verify quest message in output.
+Add tests for:
+- `test_anthropic_timeout_error_raises_ai_timeout_error` - Anthropic API timeout handling
+- `test_anthropic_rate_limit_error_retries_and_fails` - Rate limit with retry exhaustion
+- `test_anthropic_auth_error_raises_immediately` - Auth error (no retry)
+- `test_anthropic_provider_not_available_raises_error` - Anthropic package not installed
 
-## Implementation
+### 2. Add conversation response tests (tests/test_ai_conversations.py)
 
-```python
-# New fixture for coordinate-based world
-@pytest.fixture
-def coord_world():
-    """World with coordinates for testing coordinate-based movement."""
-    town = Location(name="Town", description="A town.", coordinates=(0, 0))
-    town.connections = {"north": "Placeholder"}  # Exit but no destination
-    return {"Town": town}
+Add tests for:
+- `test_generate_conversation_response_success` - Basic successful conversation
+- `test_generate_conversation_response_with_history` - Includes formatted history
+- `test_generate_conversation_response_too_short_raises_error` - Response validation
+- `test_generate_conversation_response_truncates_long_response` - 200 char limit
 
-# Test 1: Coordinate expansion success
-@patch("cli_rpg.game_state.expand_area")
-def test_move_triggers_coordinate_based_ai_expansion(mock_expand, test_character, coord_world, mock_ai_service):
-    def add_location(world, ai_service, from_location, direction, theme, target_coords):
-        new_loc = Location(name="Northern Area", description="desc", coordinates=target_coords)
-        new_loc.connections = {"south": "Town"}
-        world["Northern Area"] = new_loc
-    mock_expand.side_effect = add_location
+### 3. Add expand_area tests (tests/test_ai_world_generation.py)
 
-    game = GameState(character=test_character, world=coord_world, starting_location="Town", ai_service=mock_ai_service)
-    success, msg = game.move("north")
+Add tests for:
+- `test_expand_area_generates_area_cluster` - Basic area generation
+- `test_expand_area_places_locations_at_correct_coordinates` - Coordinate validation
+- `test_expand_area_connects_entry_to_source` - Bidirectional connection check
+- `test_expand_area_fallback_to_single_location_on_empty_response` - Fallback behavior
+- `test_expand_area_skips_occupied_coordinates` - Collision handling
+- `test_expand_area_skips_duplicate_names` - Name collision handling
 
-    assert success is True
-    assert game.current_location == "Northern Area"
-    mock_expand.assert_called_once()
+### 4. Add create_ai_world edge case tests (tests/test_ai_world_generation.py)
 
-# Test 2: Expansion failure
-@patch("cli_rpg.game_state.expand_area")
-def test_move_coordinate_expansion_returns_failure_on_error(mock_expand, ...):
-    mock_expand.side_effect = AIServiceError("API failed")
-    success, msg = game.move("north")
-    assert success is False
-    assert "Failed to generate destination" in msg
+Add tests for:
+- `test_create_ai_world_skips_non_grid_direction` - Filters non-cardinal directions
+- `test_create_ai_world_handles_generation_failure_in_expansion` - Exception handling in loop
 
-# Test 3: Expansion succeeds but no location created
-@patch("cli_rpg.game_state.expand_area")
-def test_move_coordinate_expansion_fails_when_location_not_created(mock_expand, ...):
-    mock_expand.return_value = None  # Does nothing
-    success, msg = game.move("north")
-    assert success is False
-    assert msg == "Failed to generate destination."
+---
 
-# Test 4: Autosave IOError
-@patch("cli_rpg.game_state.autosave")
-def test_move_autosave_ioerror_silent_failure(mock_autosave, ...):
-    mock_autosave.side_effect = IOError("Disk full")
-    # Create world with existing destination
-    success, msg = game.move("north")
-    assert success is True  # Move succeeds despite autosave failure
+## Test Verification
 
-# Test 5: Quest exploration messages
-def test_move_appends_exploration_quest_messages(...):
-    # Add exploration quest to character
-    character.quests.append(quest_with_explore_objective)
-    success, msg = game.move("north")
-    assert "quest progress" in msg.lower() or objective tracked
+After implementation, run:
+```bash
+pytest tests/test_ai_service.py tests/test_ai_world_generation.py tests/test_ai_conversations.py -v --cov=src/cli_rpg/ai_service --cov=src/cli_rpg/ai_world --cov-report=term-missing
 ```
 
-## Steps
-1. Add `coord_world` fixture with coordinates
-2. Add 5 tests with appropriate mocking
-3. Run `pytest tests/test_game_state_ai_integration.py -v`
-4. Verify coverage on lines 254-275, 311-312, 319
+Target: Both modules at 92%+ coverage (up from 85%).

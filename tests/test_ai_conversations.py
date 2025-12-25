@@ -370,3 +370,197 @@ class TestNpcDialoguePromptTemplate:
         assert "Test NPC" in formatted
         assert "merchant" in formatted
         assert "fantasy" in formatted
+
+
+# ========================================================================
+# Conversation Response Tests (Coverage for lines 1361-1382, 1409-1422)
+# ========================================================================
+
+class TestGenerateConversationResponse:
+    """Tests for AIService.generate_conversation_response()"""
+
+    # Test: generate_conversation_response returns valid string - spec: lines 1361-1382
+    def test_generate_conversation_response_success(self, mock_ai_config):
+        """Test generate_conversation_response returns a valid string response.
+
+        Spec: generate_conversation_response() calls _build_conversation_prompt and
+        validates response length (lines 1361-1382).
+        """
+        with patch.object(AIService, '_call_llm') as mock_call:
+            mock_call.return_value = "Ah, you wish to know more? The ancient tales speak of..."
+            service = AIService(mock_ai_config)
+
+            result = service.generate_conversation_response(
+                npc_name="Elder Sage",
+                npc_description="A wise old sage",
+                npc_role="quest_giver",
+                theme="fantasy",
+                location_name="Library of Ancients",
+                conversation_history=[],
+                player_input="Tell me about the ancient prophecy."
+            )
+
+            assert isinstance(result, str)
+            assert len(result) >= 10
+            assert "ancient tales" in result
+            mock_call.assert_called_once()
+
+    # Test: generate_conversation_response with conversation history - spec: lines 1409-1422
+    def test_generate_conversation_response_with_history(self, mock_ai_config):
+        """Test generate_conversation_response includes formatted history in prompt.
+
+        Spec: Conversation history is formatted with Player/NPC prefixes in
+        _build_conversation_prompt (lines 1409-1422).
+        """
+        with patch.object(AIService, '_call_llm') as mock_call:
+            mock_call.return_value = "Indeed, as I mentioned before, the artifact awaits."
+            service = AIService(mock_ai_config)
+
+            conversation_history = [
+                {"role": "player", "content": "Hello, wise one."},
+                {"role": "npc", "content": "Greetings, traveler. What brings you here?"},
+                {"role": "player", "content": "I seek the ancient artifact."}
+            ]
+
+            result = service.generate_conversation_response(
+                npc_name="Elder Sage",
+                npc_description="A wise old sage",
+                npc_role="quest_giver",
+                theme="fantasy",
+                location_name="Library",
+                conversation_history=conversation_history,
+                player_input="Where can I find it?"
+            )
+
+            # Verify the prompt contains formatted history
+            prompt = mock_call.call_args[0][0]
+            assert "Player: Hello, wise one." in prompt
+            assert "Elder Sage: Greetings, traveler." in prompt
+            assert "Player: I seek the ancient artifact." in prompt
+            assert "Where can I find it?" in prompt
+
+    # Test: generate_conversation_response with empty history - spec: line 1420
+    def test_generate_conversation_response_empty_history(self, mock_ai_config):
+        """Test generate_conversation_response handles empty conversation history.
+
+        Spec: When conversation_history is empty, prompt shows "(No previous conversation)"
+        (line 1420).
+        """
+        with patch.object(AIService, '_call_llm') as mock_call:
+            mock_call.return_value = "Welcome, stranger! How may I assist you?"
+            service = AIService(mock_ai_config)
+
+            result = service.generate_conversation_response(
+                npc_name="Merchant",
+                npc_description="A friendly shopkeeper",
+                npc_role="merchant",
+                theme="fantasy",
+                location_name="Market",
+                conversation_history=[],  # Empty history
+                player_input="What do you sell?"
+            )
+
+            prompt = mock_call.call_args[0][0]
+            assert "(No previous conversation)" in prompt
+
+    # Test: generate_conversation_response raises on short response - spec: lines 1376-1377
+    def test_generate_conversation_response_too_short_raises_error(self, mock_ai_config):
+        """Test generate_conversation_response raises AIGenerationError if response too short.
+
+        Spec: Response less than 10 characters raises AIGenerationError (lines 1376-1377).
+        """
+        with patch.object(AIService, '_call_llm') as mock_call:
+            mock_call.return_value = "Hi"  # Too short (< 10 chars)
+            service = AIService(mock_ai_config)
+
+            with pytest.raises(AIGenerationError) as exc_info:
+                service.generate_conversation_response(
+                    npc_name="NPC",
+                    npc_description="A character",
+                    npc_role="villager",
+                    theme="fantasy",
+                    location_name="Village",
+                    conversation_history=[],
+                    player_input="Hello"
+                )
+
+            assert "too short" in str(exc_info.value)
+
+    # Test: generate_conversation_response truncates long response - spec: lines 1379-1380
+    def test_generate_conversation_response_truncates_long_response(self, mock_ai_config):
+        """Test generate_conversation_response truncates responses longer than 200 chars.
+
+        Spec: Response longer than 200 characters is truncated to 197 chars + "..."
+        (lines 1379-1380).
+        """
+        with patch.object(AIService, '_call_llm') as mock_call:
+            long_response = "A" * 250  # Way too long
+            mock_call.return_value = long_response
+            service = AIService(mock_ai_config)
+
+            result = service.generate_conversation_response(
+                npc_name="NPC",
+                npc_description="A character",
+                npc_role="villager",
+                theme="fantasy",
+                location_name="Village",
+                conversation_history=[],
+                player_input="Tell me a long story."
+            )
+
+            assert len(result) == 200
+            assert result.endswith("...")
+
+    # Test: generate_conversation_response strips quotes - spec: line 1374
+    def test_generate_conversation_response_strips_quotes(self, mock_ai_config):
+        """Test generate_conversation_response strips surrounding quotes.
+
+        Spec: Response is stripped of surrounding quotes (line 1374).
+        """
+        with patch.object(AIService, '_call_llm') as mock_call:
+            mock_call.return_value = '"Hello there, stranger! Welcome to our village."'
+            service = AIService(mock_ai_config)
+
+            result = service.generate_conversation_response(
+                npc_name="NPC",
+                npc_description="A character",
+                npc_role="villager",
+                theme="fantasy",
+                location_name="Village",
+                conversation_history=[],
+                player_input="Hi"
+            )
+
+            assert not result.startswith('"')
+            assert not result.endswith('"')
+            assert result == "Hello there, stranger! Welcome to our village."
+
+    # Test: _build_conversation_prompt includes all required elements - spec: lines 1384-1430
+    def test_build_conversation_prompt_includes_all_elements(self, mock_ai_config):
+        """Test _build_conversation_prompt includes NPC info, history, and player input.
+
+        Spec: The built prompt must include npc_name, npc_description, npc_role,
+        theme, location_name, formatted history, and player_input.
+        """
+        with patch.object(AIService, '_call_llm') as mock_call:
+            mock_call.return_value = "A proper response for testing purposes here."
+            service = AIService(mock_ai_config)
+
+            service.generate_conversation_response(
+                npc_name="Guard Captain",
+                npc_description="A stern military officer",
+                npc_role="quest_giver",
+                theme="medieval",
+                location_name="Castle Barracks",
+                conversation_history=[{"role": "player", "content": "Greetings"}],
+                player_input="I need your help."
+            )
+
+            prompt = mock_call.call_args[0][0]
+            assert "Guard Captain" in prompt
+            assert "stern military officer" in prompt
+            assert "quest_giver" in prompt
+            assert "medieval" in prompt
+            assert "Castle Barracks" in prompt
+            assert "Player: Greetings" in prompt
+            assert "I need your help." in prompt

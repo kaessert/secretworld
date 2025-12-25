@@ -630,3 +630,237 @@ def test_generate_area_filters_non_cardinal_directions(mock_openai_class, basic_
     assert "up" not in result[1]["connections"]
     assert result[0]["connections"] == {"south": "EXISTING_WORLD", "north": "First Chamber"}
     assert result[1]["connections"] == {"south": "Dungeon Entrance", "east": "Treasure Room"}
+
+
+# ========================================================================
+# Anthropic Provider Edge Case Tests (Coverage for lines 278-306)
+# ========================================================================
+
+# Test: Anthropic timeout error raises AITimeoutError - spec: timeout handling for Anthropic API
+@patch('cli_rpg.ai_service.Anthropic')
+@patch('cli_rpg.ai_service.anthropic_module')
+def test_anthropic_timeout_error_raises_ai_timeout_error(mock_anthropic_module, mock_anthropic_class, tmp_path):
+    """Test Anthropic API timeout raises AITimeoutError after retries.
+
+    Spec: When Anthropic API times out, retry with exponential backoff and raise
+    AITimeoutError if all retries exhausted (lines 281-286).
+    """
+    config = AIConfig(
+        api_key="anthropic-test-key",
+        provider="anthropic",
+        model="claude-3-5-sonnet-latest",
+        max_retries=2,
+        retry_delay=0.01,  # Fast retry for tests
+        cache_file=str(tmp_path / "test_cache.json")
+    )
+
+    mock_client = Mock()
+    mock_anthropic_class.return_value = mock_client
+
+    # Create a mock APITimeoutError class
+    mock_timeout_error = type('APITimeoutError', (Exception,), {})
+    mock_anthropic_module.APITimeoutError = mock_timeout_error
+    mock_anthropic_module.APIConnectionError = type('APIConnectionError', (Exception,), {})
+    mock_anthropic_module.RateLimitError = type('RateLimitError', (Exception,), {})
+    mock_anthropic_module.AuthenticationError = type('AuthenticationError', (Exception,), {})
+
+    # Simulate timeout on all attempts
+    mock_client.messages.create.side_effect = mock_timeout_error("Request timed out")
+
+    service = AIService(config)
+
+    with pytest.raises(AITimeoutError, match="timed out"):
+        service.generate_location(theme="fantasy")
+
+    # Should have retried (initial + max_retries attempts)
+    assert mock_client.messages.create.call_count == config.max_retries + 1
+
+
+# Test: Anthropic rate limit error retries and fails - spec: rate limit handling for Anthropic API
+@patch('cli_rpg.ai_service.Anthropic')
+@patch('cli_rpg.ai_service.anthropic_module')
+def test_anthropic_rate_limit_error_retries_and_fails(mock_anthropic_module, mock_anthropic_class, tmp_path):
+    """Test Anthropic rate limit error retries and raises AIServiceError when exhausted.
+
+    Spec: When Anthropic API returns rate limit error, retry with exponential backoff
+    and raise AIServiceError if all retries exhausted (lines 288-293).
+    """
+    config = AIConfig(
+        api_key="anthropic-test-key",
+        provider="anthropic",
+        model="claude-3-5-sonnet-latest",
+        max_retries=2,
+        retry_delay=0.01,
+        cache_file=str(tmp_path / "test_cache.json")
+    )
+
+    mock_client = Mock()
+    mock_anthropic_class.return_value = mock_client
+
+    # Create mock Anthropic error classes
+    mock_anthropic_module.APITimeoutError = type('APITimeoutError', (Exception,), {})
+    mock_anthropic_module.APIConnectionError = type('APIConnectionError', (Exception,), {})
+    mock_rate_limit_error = type('RateLimitError', (Exception,), {})
+    mock_anthropic_module.RateLimitError = mock_rate_limit_error
+    mock_anthropic_module.AuthenticationError = type('AuthenticationError', (Exception,), {})
+
+    # Simulate rate limit on all attempts
+    mock_client.messages.create.side_effect = mock_rate_limit_error("Rate limit exceeded")
+
+    service = AIService(config)
+
+    with pytest.raises(AIServiceError, match="API call failed"):
+        service.generate_location(theme="fantasy")
+
+    # Should have retried
+    assert mock_client.messages.create.call_count == config.max_retries + 1
+
+
+# Test: Anthropic auth error raises immediately - spec: auth error should not retry
+@patch('cli_rpg.ai_service.Anthropic')
+@patch('cli_rpg.ai_service.anthropic_module')
+def test_anthropic_auth_error_raises_immediately(mock_anthropic_module, mock_anthropic_class, tmp_path):
+    """Test Anthropic authentication error raises immediately without retry.
+
+    Spec: Authentication errors should not be retried - raise AIServiceError
+    immediately (lines 295-296).
+    """
+    config = AIConfig(
+        api_key="anthropic-test-key",
+        provider="anthropic",
+        model="claude-3-5-sonnet-latest",
+        max_retries=3,
+        retry_delay=0.01,
+        cache_file=str(tmp_path / "test_cache.json")
+    )
+
+    mock_client = Mock()
+    mock_anthropic_class.return_value = mock_client
+
+    # Create mock Anthropic error classes
+    mock_anthropic_module.APITimeoutError = type('APITimeoutError', (Exception,), {})
+    mock_anthropic_module.APIConnectionError = type('APIConnectionError', (Exception,), {})
+    mock_anthropic_module.RateLimitError = type('RateLimitError', (Exception,), {})
+    mock_auth_error = type('AuthenticationError', (Exception,), {})
+    mock_anthropic_module.AuthenticationError = mock_auth_error
+
+    # Simulate auth error
+    mock_client.messages.create.side_effect = mock_auth_error("Invalid API key")
+
+    service = AIService(config)
+
+    with pytest.raises(AIServiceError, match="Authentication failed"):
+        service.generate_location(theme="fantasy")
+
+    # Should NOT have retried - only 1 attempt
+    assert mock_client.messages.create.call_count == 1
+
+
+# Test: Anthropic connection error retries - spec: connection error handling
+@patch('cli_rpg.ai_service.Anthropic')
+@patch('cli_rpg.ai_service.anthropic_module')
+def test_anthropic_connection_error_retries(mock_anthropic_module, mock_anthropic_class, tmp_path):
+    """Test Anthropic connection error retries with exponential backoff.
+
+    Spec: When Anthropic API has connection issues, retry and then succeed
+    (lines 288-293 - transient error path).
+    """
+    config = AIConfig(
+        api_key="anthropic-test-key",
+        provider="anthropic",
+        model="claude-3-5-sonnet-latest",
+        max_retries=3,
+        retry_delay=0.01,
+        cache_file=str(tmp_path / "test_cache.json")
+    )
+
+    mock_client = Mock()
+    mock_anthropic_class.return_value = mock_client
+
+    # Create mock Anthropic error classes
+    mock_anthropic_module.APITimeoutError = type('APITimeoutError', (Exception,), {})
+    mock_conn_error = type('APIConnectionError', (Exception,), {})
+    mock_anthropic_module.APIConnectionError = mock_conn_error
+    mock_anthropic_module.RateLimitError = type('RateLimitError', (Exception,), {})
+    mock_anthropic_module.AuthenticationError = type('AuthenticationError', (Exception,), {})
+
+    # Mock successful response after retry
+    location_data = {
+        "name": "Test Location",
+        "description": "A test location for connection retry test.",
+        "connections": {"north": "Another Place"}
+    }
+    import json
+    mock_response = Mock()
+    mock_response.content = [Mock()]
+    mock_response.content[0].text = json.dumps(location_data)
+
+    # First call fails, second succeeds
+    mock_client.messages.create.side_effect = [
+        mock_conn_error("Connection failed"),
+        mock_response
+    ]
+
+    service = AIService(config)
+    result = service.generate_location(theme="fantasy")
+
+    # Should have retried once then succeeded
+    assert mock_client.messages.create.call_count == 2
+    assert result["name"] == "Test Location"
+
+
+# Test: Anthropic provider not available raises error - spec: graceful handling of missing package
+@patch('cli_rpg.ai_service.ANTHROPIC_AVAILABLE', False)
+def test_anthropic_provider_not_available_raises_error():
+    """Test AIService raises AIServiceError when Anthropic package is not installed.
+
+    Spec: When provider=anthropic but anthropic package not installed, raise
+    AIServiceError with helpful message (lines 68-72).
+    """
+    config = AIConfig(
+        api_key="anthropic-test-key",
+        provider="anthropic",
+        model="claude-3-5-sonnet-latest"
+    )
+
+    with pytest.raises(AIServiceError, match="Anthropic provider requested but 'anthropic' package is not installed"):
+        AIService(config)
+
+
+# Test: Anthropic general exception handling - spec: fallback error handling
+@patch('cli_rpg.ai_service.Anthropic')
+@patch('cli_rpg.ai_service.anthropic_module')
+def test_anthropic_general_exception_retries(mock_anthropic_module, mock_anthropic_class, tmp_path):
+    """Test Anthropic general exceptions are retried with exponential backoff.
+
+    Spec: Unknown exceptions should be retried and raise AIServiceError when
+    exhausted (lines 298-303).
+    """
+    config = AIConfig(
+        api_key="anthropic-test-key",
+        provider="anthropic",
+        model="claude-3-5-sonnet-latest",
+        max_retries=2,
+        retry_delay=0.01,
+        cache_file=str(tmp_path / "test_cache.json")
+    )
+
+    mock_client = Mock()
+    mock_anthropic_class.return_value = mock_client
+
+    # Create mock Anthropic error classes (needed for isinstance checks)
+    mock_anthropic_module.APITimeoutError = type('APITimeoutError', (Exception,), {})
+    mock_anthropic_module.APIConnectionError = type('APIConnectionError', (Exception,), {})
+    mock_anthropic_module.RateLimitError = type('RateLimitError', (Exception,), {})
+    mock_anthropic_module.AuthenticationError = type('AuthenticationError', (Exception,), {})
+
+    # Simulate a generic exception (not an Anthropic-specific error)
+    mock_client.messages.create.side_effect = RuntimeError("Unexpected error")
+
+    service = AIService(config)
+
+    with pytest.raises(AIServiceError, match="API call failed"):
+        service.generate_location(theme="fantasy")
+
+    # Should have retried
+    assert mock_client.messages.create.call_count == config.max_retries + 1

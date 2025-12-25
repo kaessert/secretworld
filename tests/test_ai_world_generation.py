@@ -579,3 +579,551 @@ def test_expand_world_assigns_coordinates(mock_ai_service):
 
     # New location should be north of Town Square (0, 1)
     assert updated_world["Dark Forest"].coordinates == (0, 1)
+
+
+# ========================================================================
+# expand_area Tests (Coverage for lines 343-518)
+# ========================================================================
+
+from cli_rpg.ai_world import expand_area
+
+
+# Test: expand_area generates area cluster - spec: lines 343-372
+def test_expand_area_generates_area_cluster(mock_ai_service):
+    """Test expand_area generates multiple connected locations.
+
+    Spec: expand_area calls generate_area and places locations at
+    relative coordinates (lines 343-372).
+    """
+    # Create a world with source location
+    town_square = Location(
+        name="Town Square",
+        description="A bustling town square.",
+        coordinates=(0, 0)
+    )
+    world = {"Town Square": town_square}
+
+    # Mock generate_area to return area data
+    mock_ai_service.generate_area.return_value = [
+        {
+            "name": "Forest Entry",
+            "description": "The entrance to a dark forest.",
+            "relative_coords": [0, 0],
+            "connections": {"south": "EXISTING_WORLD", "north": "Deep Woods"}
+        },
+        {
+            "name": "Deep Woods",
+            "description": "Deep in the forest.",
+            "relative_coords": [0, 1],
+            "connections": {"south": "Forest Entry"}
+        }
+    ]
+
+    updated_world = expand_area(
+        world=world,
+        ai_service=mock_ai_service,
+        from_location="Town Square",
+        direction="north",
+        theme="fantasy",
+        target_coords=(0, 1),
+        size=2
+    )
+
+    # Verify both locations were added
+    assert "Forest Entry" in updated_world
+    assert "Deep Woods" in updated_world
+    assert len(updated_world) == 3  # Original + 2 new locations
+
+
+# Test: expand_area places locations at correct coordinates - spec: lines 391-427
+def test_expand_area_places_locations_at_correct_coordinates(mock_ai_service):
+    """Test expand_area places locations at correct absolute coordinates.
+
+    Spec: Relative coordinates from generate_area are added to target_coords
+    to calculate absolute coordinates (lines 391-427).
+    """
+    town_square = Location(
+        name="Town Square",
+        description="A bustling town square.",
+        coordinates=(0, 0)
+    )
+    world = {"Town Square": town_square}
+
+    mock_ai_service.generate_area.return_value = [
+        {
+            "name": "Central Hub",
+            "description": "The center of the area.",
+            "relative_coords": [0, 0],
+            "connections": {"south": "EXISTING_WORLD"}
+        },
+        {
+            "name": "East Wing",
+            "description": "The eastern section.",
+            "relative_coords": [1, 0],
+            "connections": {"west": "Central Hub"}
+        },
+        {
+            "name": "North Chamber",
+            "description": "The northern section.",
+            "relative_coords": [0, 1],
+            "connections": {"south": "Central Hub"}
+        }
+    ]
+
+    updated_world = expand_area(
+        world=world,
+        ai_service=mock_ai_service,
+        from_location="Town Square",
+        direction="north",
+        theme="fantasy",
+        target_coords=(0, 1),  # Entry at (0,1), north of Town Square
+        size=3
+    )
+
+    # Verify coordinates
+    assert updated_world["Central Hub"].coordinates == (0, 1)
+    assert updated_world["East Wing"].coordinates == (1, 1)
+    assert updated_world["North Chamber"].coordinates == (0, 2)
+
+
+# Test: expand_area connects entry to source - spec: lines 454-471
+def test_expand_area_connects_entry_to_source(mock_ai_service):
+    """Test expand_area creates bidirectional connection between entry and source.
+
+    Spec: The entry location (at relative 0,0) must connect to the source
+    location via the opposite direction (lines 454-471).
+    """
+    town_square = Location(
+        name="Town Square",
+        description="A bustling town square.",
+        coordinates=(0, 0)
+    )
+    world = {"Town Square": town_square}
+
+    mock_ai_service.generate_area.return_value = [
+        {
+            "name": "Cave Entrance",
+            "description": "A dark cave entrance.",
+            "relative_coords": [0, 0],
+            "connections": {"south": "EXISTING_WORLD", "north": "Inner Cave"}
+        },
+        {
+            "name": "Inner Cave",
+            "description": "Deep inside the cave.",
+            "relative_coords": [0, 1],
+            "connections": {"south": "Cave Entrance"}
+        }
+    ]
+
+    updated_world = expand_area(
+        world=world,
+        ai_service=mock_ai_service,
+        from_location="Town Square",
+        direction="north",
+        theme="fantasy",
+        target_coords=(0, 1),
+        size=2
+    )
+
+    # Verify bidirectional connections
+    assert updated_world["Town Square"].get_connection("north") == "Cave Entrance"
+    assert updated_world["Cave Entrance"].get_connection("south") == "Town Square"
+
+
+# Test: expand_area fallback to single location on empty response - spec: lines 374-383, 437-446
+def test_expand_area_fallback_to_single_location_on_empty_response(mock_ai_service):
+    """Test expand_area falls back to expand_world when area_data is empty.
+
+    Spec: If generate_area returns empty list, fall back to single location
+    expansion (lines 374-383, 437-446).
+    """
+    town_square = Location(
+        name="Town Square",
+        description="A bustling town square.",
+        coordinates=(0, 0)
+    )
+    world = {"Town Square": town_square}
+
+    # Mock generate_area to return empty list
+    mock_ai_service.generate_area.return_value = []
+
+    # Mock generate_location for fallback
+    mock_ai_service.generate_location.return_value = {
+        "name": "Fallback Location",
+        "description": "A fallback single location.",
+        "connections": {"south": "Town Square"}
+    }
+
+    updated_world = expand_area(
+        world=world,
+        ai_service=mock_ai_service,
+        from_location="Town Square",
+        direction="north",
+        theme="fantasy",
+        target_coords=(0, 1),
+        size=5
+    )
+
+    # Should fall back to single location
+    assert "Fallback Location" in updated_world
+    assert len(updated_world) == 2
+
+
+# Test: expand_area skips occupied coordinates - spec: lines 397-408
+def test_expand_area_skips_occupied_coordinates(mock_ai_service):
+    """Test expand_area skips locations that would be placed at occupied coordinates.
+
+    Spec: If a coordinate is already occupied, skip that location (lines 397-408).
+    """
+    # Create world with existing location at (1, 1)
+    town_square = Location(
+        name="Town Square",
+        description="A bustling town square.",
+        coordinates=(0, 0)
+    )
+    existing_location = Location(
+        name="Existing Place",
+        description="An existing place.",
+        coordinates=(1, 1)
+    )
+    world = {"Town Square": town_square, "Existing Place": existing_location}
+
+    mock_ai_service.generate_area.return_value = [
+        {
+            "name": "Entry Point",
+            "description": "The entry point.",
+            "relative_coords": [0, 0],
+            "connections": {"south": "EXISTING_WORLD"}
+        },
+        {
+            "name": "Collision Location",
+            "description": "This should be skipped.",
+            "relative_coords": [1, 0],  # Would be at (1, 1) - occupied!
+            "connections": {"west": "Entry Point"}
+        }
+    ]
+
+    updated_world = expand_area(
+        world=world,
+        ai_service=mock_ai_service,
+        from_location="Town Square",
+        direction="north",
+        theme="fantasy",
+        target_coords=(0, 1),
+        size=2
+    )
+
+    # Entry should be added, but Collision Location should be skipped
+    assert "Entry Point" in updated_world
+    assert "Collision Location" not in updated_world
+    # Original locations still exist
+    assert "Existing Place" in updated_world
+
+
+# Test: expand_area skips duplicate names - spec: lines 410-412
+def test_expand_area_skips_duplicate_names(mock_ai_service):
+    """Test expand_area skips locations with names that already exist.
+
+    Spec: If a location name already exists in the world, skip it (lines 410-412).
+    """
+    town_square = Location(
+        name="Town Square",
+        description="A bustling town square.",
+        coordinates=(0, 0)
+    )
+    world = {"Town Square": town_square}
+
+    mock_ai_service.generate_area.return_value = [
+        {
+            "name": "New Location",
+            "description": "A new location.",
+            "relative_coords": [0, 0],
+            "connections": {"south": "EXISTING_WORLD"}
+        },
+        {
+            "name": "Town Square",  # Duplicate name!
+            "description": "This should be skipped.",
+            "relative_coords": [0, 1],
+            "connections": {"south": "New Location"}
+        }
+    ]
+
+    updated_world = expand_area(
+        world=world,
+        ai_service=mock_ai_service,
+        from_location="Town Square",
+        direction="north",
+        theme="fantasy",
+        target_coords=(0, 1),
+        size=2
+    )
+
+    # New Location should be added, duplicate Town Square skipped
+    assert "New Location" in updated_world
+    # Original Town Square still at (0,0)
+    assert updated_world["Town Square"].coordinates == (0, 0)
+
+
+# Test: expand_area with invalid source location - spec: lines 343-344
+def test_expand_area_invalid_source_location(mock_ai_service):
+    """Test expand_area raises ValueError for invalid source location.
+
+    Spec: If from_location not in world, raise ValueError (lines 343-344).
+    """
+    town_square = Location(
+        name="Town Square",
+        description="A bustling town square.",
+        coordinates=(0, 0)
+    )
+    world = {"Town Square": town_square}
+
+    with pytest.raises(ValueError, match="not found in world"):
+        expand_area(
+            world=world,
+            ai_service=mock_ai_service,
+            from_location="Nonexistent",
+            direction="north",
+            theme="fantasy",
+            target_coords=(0, 1),
+            size=5
+        )
+
+
+# Test: expand_area with invalid direction - spec: lines 346-350
+def test_expand_area_invalid_direction(mock_ai_service):
+    """Test expand_area raises ValueError for invalid direction.
+
+    Spec: If direction not valid, raise ValueError (lines 346-350).
+    """
+    town_square = Location(
+        name="Town Square",
+        description="A bustling town square.",
+        coordinates=(0, 0)
+    )
+    world = {"Town Square": town_square}
+
+    with pytest.raises(ValueError, match="Invalid direction"):
+        expand_area(
+            world=world,
+            ai_service=mock_ai_service,
+            from_location="Town Square",
+            direction="northeast",
+            theme="fantasy",
+            target_coords=(0, 1),
+            size=5
+        )
+
+
+# Test: expand_area adds bidirectional connections between placed locations - spec: lines 473-501
+def test_expand_area_adds_bidirectional_connections(mock_ai_service):
+    """Test expand_area creates bidirectional connections based on coordinates.
+
+    Spec: Adjacent locations by coordinates should have bidirectional
+    connections (lines 473-501).
+    """
+    town_square = Location(
+        name="Town Square",
+        description="A bustling town square.",
+        coordinates=(0, 0)
+    )
+    world = {"Town Square": town_square}
+
+    mock_ai_service.generate_area.return_value = [
+        {
+            "name": "Center Room",
+            "description": "The center.",
+            "relative_coords": [0, 0],
+            "connections": {"south": "EXISTING_WORLD"}
+        },
+        {
+            "name": "East Room",
+            "description": "The eastern room.",
+            "relative_coords": [1, 0],
+            "connections": {}
+        }
+    ]
+
+    updated_world = expand_area(
+        world=world,
+        ai_service=mock_ai_service,
+        from_location="Town Square",
+        direction="north",
+        theme="fantasy",
+        target_coords=(0, 1),
+        size=2
+    )
+
+    # Verify bidirectional connection based on coordinates
+    assert updated_world["Center Room"].get_connection("east") == "East Room"
+    assert updated_world["East Room"].get_connection("west") == "Center Room"
+
+
+# ========================================================================
+# create_ai_world Edge Case Tests (Coverage for lines 142-186)
+# ========================================================================
+
+# Test: create_ai_world skips non-grid direction - spec: lines 148-151
+def test_create_ai_world_skips_non_grid_direction(mock_ai_service):
+    """Test create_ai_world skips non-grid directions (up/down) in connections.
+
+    Spec: Directions not in DIRECTION_OFFSETS are logged and skipped (lines 148-151).
+    """
+    call_count = [0]
+
+    def mock_generate(theme, context_locations=None, source_location=None, direction=None):
+        call_count[0] += 1
+        if call_count[0] == 1:
+            # Starting location with non-grid direction 'up'
+            return {
+                "name": "Ground Floor",
+                "description": "The ground floor of a tower.",
+                "connections": {
+                    "north": "Garden",
+                    "up": "Upper Floor"  # Non-grid direction - should be skipped
+                }
+            }
+        else:
+            # Only north should be followed, not up
+            return {
+                "name": "Garden",
+                "description": "A peaceful garden.",
+                "connections": {"south": "Ground Floor"}
+            }
+
+    mock_ai_service.generate_location.side_effect = mock_generate
+
+    world, starting_location = create_ai_world(mock_ai_service, theme="fantasy", initial_size=2)
+
+    # Verify starting location was created
+    assert "Ground Floor" in world
+    # Garden should be created (from north connection)
+    assert "Garden" in world
+    # Upper Floor should NOT be created (up is skipped)
+    assert "Upper Floor" not in world
+
+
+# Test: create_ai_world handles generation failure in expansion - spec: lines 184-186
+def test_create_ai_world_handles_generation_failure_in_expansion(mock_ai_service):
+    """Test create_ai_world continues when individual expansion fails.
+
+    Spec: Exception during location expansion is logged and skipped (lines 184-186).
+    """
+    from cli_rpg.ai_service import AIGenerationError
+
+    call_count = [0]
+
+    def mock_generate(theme, context_locations=None, source_location=None, direction=None):
+        call_count[0] += 1
+        if call_count[0] == 1:
+            # Starting location
+            return {
+                "name": "Starting Point",
+                "description": "The starting point.",
+                "connections": {"north": "First Expansion", "east": "Second Expansion"}
+            }
+        elif call_count[0] == 2:
+            # First expansion fails
+            raise AIGenerationError("Failed to generate location")
+        else:
+            # Second expansion succeeds
+            return {
+                "name": "Second Expansion",
+                "description": "Successfully generated.",
+                "connections": {"west": "Starting Point"}
+            }
+
+    mock_ai_service.generate_location.side_effect = mock_generate
+
+    world, starting_location = create_ai_world(mock_ai_service, theme="fantasy", initial_size=3)
+
+    # Starting location should exist
+    assert "Starting Point" in world
+    # Second expansion should succeed despite first failure
+    assert "Second Expansion" in world
+    # First expansion failed so it should not exist
+    assert "First Expansion" not in world
+
+
+# Test: create_ai_world skips duplicate location names in expansion - spec: lines 145-146, 181-182
+def test_create_ai_world_skips_duplicate_name_in_expansion(mock_ai_service):
+    """Test create_ai_world skips locations with names that already exist.
+
+    Spec: If generated location name already exists, skip and log warning
+    (lines 145-146 for suggested name check, 181-182 for generated name check).
+    """
+    call_count = [0]
+
+    def mock_generate(theme, context_locations=None, source_location=None, direction=None):
+        call_count[0] += 1
+        if call_count[0] == 1:
+            # Starting location
+            return {
+                "name": "Central Hub",
+                "description": "The central hub.",
+                "connections": {"north": "Duplicate Test"}
+            }
+        else:
+            # Always returns same name - should be skipped
+            return {
+                "name": "Central Hub",  # Duplicate!
+                "description": "Another hub.",
+                "connections": {"south": "Central Hub"}
+            }
+
+    mock_ai_service.generate_location.side_effect = mock_generate
+
+    world, starting_location = create_ai_world(mock_ai_service, theme="fantasy", initial_size=3)
+
+    # Only original should exist
+    assert "Central Hub" in world
+    # Should only have 1 location since duplicates are skipped
+    assert len(world) == 1
+
+
+# Test: create_ai_world skips when position already occupied - spec: lines 141-142
+def test_create_ai_world_skips_occupied_position(mock_ai_service):
+    """Test create_ai_world skips expansion when target position is occupied.
+
+    Spec: If grid position is already occupied, skip that expansion (lines 141-142).
+    """
+    call_count = [0]
+
+    def mock_generate(theme, context_locations=None, source_location=None, direction=None):
+        call_count[0] += 1
+        if call_count[0] == 1:
+            return {
+                "name": "Center",
+                "description": "The center.",
+                "connections": {"north": "North Place", "south": "South Place"}
+            }
+        elif direction == "north":
+            return {
+                "name": "North Place",
+                "description": "To the north.",
+                "connections": {"south": "Center"}
+            }
+        elif direction == "south":
+            return {
+                "name": "South Place",
+                "description": "To the south.",
+                "connections": {"north": "Center"}
+            }
+        else:
+            return {
+                "name": "Other Place",
+                "description": "Some other place.",
+                "connections": {}
+            }
+
+    mock_ai_service.generate_location.side_effect = mock_generate
+
+    world, starting_location = create_ai_world(mock_ai_service, theme="fantasy", initial_size=3)
+
+    # All three locations should be created at different positions
+    assert "Center" in world
+    assert world["Center"].coordinates == (0, 0)
+    # North and South should be at different y coordinates
+    if "North Place" in world:
+        assert world["North Place"].coordinates == (0, 1)
+    if "South Place" in world:
+        assert world["South Place"].coordinates == (0, -1)
