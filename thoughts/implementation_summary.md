@@ -1,56 +1,74 @@
-# Random Travel Encounters - Implementation Summary
+# Living World Events - Implementation Summary
 
 ## What Was Implemented
 
-The random encounter system is fully implemented and tested. This feature adds urgency and emergent gameplay by triggering occasional events when players move between locations.
+### Feature Overview
+Added a timed world events system (plagues, caravans, invasions) that progress with in-game time, giving players urgency and making the world feel alive.
 
 ### Files Created
 
-1. **`src/cli_rpg/models/random_encounter.py`**
-   - `RandomEncounter` dataclass with fields: `encounter_type`, `entity`, `description`
-   - Validation ensures proper entity types (Enemy for hostile, NPC for merchant/wanderer)
-   - Serialization via `to_dict()` / `from_dict()` for persistence
+1. **`src/cli_rpg/models/world_event.py`** - WorldEvent dataclass model
+   - Fields: event_id, name, description, event_type, affected_locations, start_hour, duration_hours, is_active, is_resolved, consequence_applied
+   - Methods: `get_time_remaining(current_hour)`, `is_expired(current_hour)`, `to_dict()`, `from_dict()`
+   - Handles midnight wrap-around for events spanning across days
 
-2. **`src/cli_rpg/random_encounters.py`**
-   - `RANDOM_ENCOUNTER_CHANCE = 0.15` (15% trigger chance per move)
-   - `ENCOUNTER_WEIGHTS` (hostile: 60%, merchant: 25%, wanderer: 15%)
-   - `check_for_random_encounter(game_state)` - main trigger function
-   - `spawn_wandering_merchant(level)` - creates merchant NPC with shop (2-3 items)
-   - `spawn_wanderer(theme)` - creates atmospheric NPC with lore dialogue
-   - `format_encounter_message()` - formats output with `[Random Encounter!]` marker
+2. **`src/cli_rpg/world_events.py`** - WorldEventManager module
+   - Constants: `EVENT_SPAWN_CHANCE = 0.05` (5% per move), `EVENT_TEMPLATES`
+   - Event templates for: caravan, plague, invasion
+   - Functions:
+     - `spawn_random_event(game_state)` - Creates new event from templates
+     - `check_for_new_event(game_state)` - Rolls for event spawn on move (max 3 active)
+     - `progress_events(game_state)` - Applies consequences for expired events
+     - `apply_consequence(event, game_state)` - Consequence logic per event type
+     - `resolve_event(game_state, event_id)` - Player resolves event
+     - `format_event_notification(event, current_hour)` - Decorative box format
+     - `get_location_event_warning(location_name, events)` - Warning on enter
+     - `get_active_events_display(game_state)` - Display for `events` command
+     - `get_active_event_count(game_state)` - Count of active events
 
-3. **`tests/test_random_encounters.py`**
-   - 26 comprehensive tests covering all spec requirements
-   - Model creation and validation tests
-   - Serialization roundtrip tests
-   - Integration tests with GameState.move()
-   - Combat, merchant, and wanderer encounter tests
-   - Message formatting tests
+3. **`tests/test_world_events.py`** - 20 comprehensive tests
+   - Model creation and serialization tests
+   - Event spawn and progression tests
+   - Consequence and resolution tests
+   - Output formatting tests
+   - Persistence tests (save/load roundtrip)
+   - Location warning tests
 
 ### Files Modified
 
-- **`src/cli_rpg/game_state.py`**
-   - Imported `check_for_random_encounter` from new module
-   - Called in `move()` after successful movement (line 480-482)
+1. **`src/cli_rpg/game_state.py`**
+   - Added import for WorldEvent and world_events functions
+   - Added "events" to KNOWN_COMMANDS
+   - Added `world_events: list[WorldEvent] = []` attribute to GameState
+   - Integrated into `move()` method:
+     - Check for new event spawn after random encounters
+     - Show warning when entering affected locations
+     - Progress events with time advancement
+   - Updated `to_dict()` to serialize world_events
+   - Updated `from_dict()` to deserialize world_events
+
+2. **`src/cli_rpg/main.py`**
+   - Added "events" command in help documentation
+   - Added "events" command handler in `handle_exploration_command()`
 
 ## Test Results
 
-All tests pass:
-- 26 random encounter tests
-- 1987 total tests in suite
+All 2007 tests pass, including the 20 new tests for world events.
 
-## Key Design Decisions
+## Design Decisions
 
-1. **Encounter types respect existing patterns**: Hostile encounters reuse `spawn_enemy()` from combat.py
-2. **NPCs are temporary**: Wanderers and merchants are added to the current location's NPC list
-3. **Location category awareness**: Hostile encounters use location category for appropriate enemy spawning
-4. **Combat integration**: Hostile encounters properly start combat using existing `CombatEncounter`
-5. **Clear messaging**: All encounters show `[Random Encounter!]` marker and interaction hints
+1. **Event Type System**: Three event types (caravan, plague, invasion) with different consequences and durations
+2. **Spawn Limit**: Maximum 3 active events at a time to avoid overwhelming players
+3. **Time Tracking**: Events use game hours, handling midnight wrap-around correctly
+4. **Consequence Application**: Consequences apply when events expire without player resolution
+5. **Color Scheme**: Used existing color functions (heal for success, damage for danger, warning for alerts)
 
-## E2E Validation
+## E2E Test Validation
 
-To validate in-game:
-1. Move between locations multiple times (15% trigger rate)
-2. Hostile encounters should start combat immediately
-3. Merchant encounters should add talkable NPC with shop (use `talk` command)
-4. Wanderer encounters should add atmospheric NPC with dialogue
+The following scenarios should be validated in E2E testing:
+1. Move around the world and eventually trigger a world event spawn
+2. Use `events` command to view active events
+3. Check that entering an affected location shows a warning
+4. Let time pass (via rest or movement) and observe event progression
+5. Save and reload game, verify events persist
+6. Let an event expire and observe the consequence message

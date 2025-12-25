@@ -19,6 +19,12 @@ from cli_rpg.autosave import autosave
 from cli_rpg import colors
 from cli_rpg.whisper import WhisperService, format_whisper
 from cli_rpg.random_encounters import check_for_random_encounter
+from cli_rpg.models.world_event import WorldEvent
+from cli_rpg.world_events import (
+    check_for_new_event,
+    progress_events,
+    get_location_event_warning,
+)
 
 # Import AI components (with optional support)
 try:
@@ -41,7 +47,7 @@ KNOWN_COMMANDS: set[str] = {
     "look", "go", "save", "quit", "attack", "defend", "flee", "status", "cast",
     "inventory", "equip", "unequip", "use", "drop", "talk", "buy", "sell", "shop",
     "map", "help", "quests", "quest", "accept", "complete", "abandon", "lore", "rest",
-    "bestiary", "dump-state"
+    "bestiary", "dump-state", "events"
 }
 
 # Dread increases by location category (darker areas = more dread)
@@ -193,6 +199,7 @@ class GameState:
         self.whisper_service = WhisperService(ai_service=ai_service)
         self.game_time = GameTime()  # Day/night cycle tracking
         self.choices: list[dict] = []  # Echo choices: tracking significant player decisions
+        self.world_events: list[WorldEvent] = []  # Living world events
 
     @property
     def is_in_conversation(self) -> bool:
@@ -481,6 +488,21 @@ class GameState:
         if encounter_message:
             message += f"\n{encounter_message}"
 
+        # Check for world event spawn
+        event_message = check_for_new_event(self)
+        if event_message:
+            message += f"\n{event_message}"
+
+        # Check if entering a location with active events
+        event_warning = get_location_event_warning(self.current_location, self.world_events)
+        if event_warning:
+            message += f"\n{event_warning}"
+
+        # Progress world events with time
+        event_progress_messages = progress_events(self)
+        for msg in event_progress_messages:
+            message += f"\n{msg}"
+
         return (True, message)
 
     def _update_dread_on_move(self, location: Location) -> Optional[str]:
@@ -566,7 +588,7 @@ class GameState:
         """Serialize game state to dictionary.
 
         Returns:
-            Dictionary containing character, current_location, world data, theme, game_time, and choices
+            Dictionary containing character, current_location, world data, theme, game_time, choices, and world_events
         """
         return {
             "character": self.current_character.to_dict(),
@@ -578,6 +600,7 @@ class GameState:
             "theme": self.theme,
             "game_time": self.game_time.to_dict(),
             "choices": self.choices,
+            "world_events": [event.to_dict() for event in self.world_events],
         }
     
     @classmethod
@@ -620,5 +643,11 @@ class GameState:
 
         # Restore choices if present (default to empty list for backward compatibility)
         game_state.choices = data.get("choices", [])
+
+        # Restore world_events if present (default to empty list for backward compatibility)
+        game_state.world_events = [
+            WorldEvent.from_dict(event_data)
+            for event_data in data.get("world_events", [])
+        ]
 
         return game_state

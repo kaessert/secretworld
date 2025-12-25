@@ -100,6 +100,7 @@ Exploring dangerous areas builds **Dread**:
 
 #### 4. LIVING WORLD EVENTS - The World Moves Without You
 **Impact**: Immersion, urgency, emergent stories
+**Status**: MVP IMPLEMENTED
 
 The world has a heartbeat. Events happen whether you're there or not:
 
@@ -115,11 +116,21 @@ The world has a heartbeat. Events happen whether you're there or not:
 ╚════════════════════════════════════════════╝
 ```
 
+**MVP Implemented**:
+- ✅ **WorldEvent model** with event types, affected locations, duration, and time tracking
+- ✅ **Event types**: Caravan, plague, and invasion events with unique consequences
+- ✅ **Timed events**: Events have duration and expire after a set number of game hours
+- ✅ **Event spawn**: 5% chance to spawn a new event on each move (max 3 active)
+- ✅ **Consequences**: Expired events apply negative effects (health loss, gold loss, dread increase)
+- ✅ **Location warnings**: Players warned when entering affected locations
+- ✅ **`events` command**: View all active events with time remaining
+- ✅ **Persistence**: Events saved/loaded with game state
+
+**Future Enhancements**:
 - **Spreading events**: Plagues, wars, monster migrations, seasons changing
-- **Timed quests**: Some opportunities expire ("The caravan leaves at dawn")
-- **Consequences of inaction**: Towns can fall, NPCs can die, regions can become corrupted
 - **Cascading effects**: Saved village → thriving trade → better shop inventory
 - **Rival adventurers**: NPCs who complete quests you ignore, becoming allies or enemies
+- **Event resolution**: Player actions to resolve events before they expire
 
 ---
 
@@ -366,7 +377,7 @@ Your vision fades... but this is not the end.
 
 **Phase 2 - Consequence** (Make choices matter):
 4. Echo Choices - Every decision resonates
-5. Living World Events - Urgency and stakes
+5. ~~Living World Events~~ ✅ MVP IMPLEMENTED - Urgency and stakes
 6. The Weight of Gold - Meaningful economy
 
 **Phase 3 - Depth** (Mastery and investment):
@@ -607,11 +618,11 @@ The world feels static. Need ambient events and world dynamics.
 **Implemented**:
 - ✅ Day/night cycle with NPC availability (time advances on movement/rest, night whispers, NPCs can be unavailable at night)
 - ✅ Random travel encounters (15% chance per move: hostile enemies 60%, wandering merchants 25%, mysterious wanderers 15%)
+- ✅ Living world events (5% spawn chance per move: caravans, plagues, invasions with timed consequences)
 
 **Remaining features**:
 - Weather system affecting gameplay (storms reduce visibility, rain extinguishes fire)
 - Seasonal events and festivals
-- World events triggered by player progress or time (invasions, plagues, celebrations)
 
 ### Reputation and faction system
 **Status**: ACTIVE

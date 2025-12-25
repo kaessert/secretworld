@@ -66,9 +66,19 @@ python -m cli_rpg.main
 - `bestiary` (b) - View all defeated enemies with kill counts and stats
 - `dump-state` - Export complete game state as JSON for programmatic inspection
 - `rest` (r) - Rest to recover health (restores 25% of max HP, advances time by 4 hours, reduces dread, may trigger dreams; not available during combat)
+- `events` - View active world events and their status
 - `save` - Save complete game state including world, location, and theme (not available during combat)
 - `help` (h) - Display the full command reference
 - `quit` - Exit to main menu
+
+### World Events
+The world is alive with timed events that progress with in-game time:
+
+- **Caravans**: Trading caravans pass through locations, offering opportunities for commerce
+- **Plagues**: Disease outbreaks spread through affected areas, creating urgency
+- **Invasions**: Hostile forces threaten locations, requiring player intervention
+
+Events have limited duration and consequences if not resolved. Use the `events` command to view active events and their time remaining. When entering a location affected by an event, you'll receive a warning. Events persist across save/load.
 
 ### Random Travel Encounters
 When moving between locations, you have a 15% chance to trigger a random encounter:

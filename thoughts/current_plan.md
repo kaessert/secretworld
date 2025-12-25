@@ -1,81 +1,127 @@
-# Random Travel Encounters - Implementation Plan
+# Living World Events - Implementation Plan
 
 ## Feature Summary
-Add a random encounter system that triggers occasional events (hostile enemies, friendly merchants, or neutral wanderers) when the player moves between locations, adding urgency and emergent gameplay.
+Add timed world events (plagues, caravans, invasions) that progress with in-game time, giving players urgency and making the world feel alive. Leverages existing GameTime infrastructure.
 
 ## Spec
 
-### RandomEncounter Model
-- **Type**: `dataclass` in new file `src/cli_rpg/models/random_encounter.py`
+### WorldEvent Model
+- **Type**: `dataclass` in new file `src/cli_rpg/models/world_event.py`
 - **Fields**:
-  - `encounter_type`: str ("hostile", "merchant", "wanderer")
-  - `entity`: Union[Enemy, NPC] - the encounter entity
-  - `description`: str - flavor text for the encounter
+  - `event_id`: str - unique identifier (e.g., "plague_millbrook_001")
+  - `name`: str - display name (e.g., "The Crimson Plague")
+  - `description`: str - what's happening (e.g., "A deadly plague spreads through Millbrook")
+  - `event_type`: str - category ("plague", "caravan", "invasion", "festival")
+  - `affected_locations`: list[str] - location names affected
+  - `start_hour`: int - game hour when event started
+  - `duration_hours`: int - how long event lasts before consequence
+  - `is_active`: bool - whether event is still ongoing
+  - `is_resolved`: bool - whether player addressed it
+  - `consequence_applied`: bool - whether negative outcome happened
 - **Serialization**: `to_dict()` / `from_dict()` for persistence
 
-### Encounter Trigger Logic
-- **Location**: Inside `GameState.move()` after successful movement (before whispers/combat)
-- **Trigger chance**: 15% per move (configurable constant `RANDOM_ENCOUNTER_CHANCE = 0.15`)
-- **Encounter types by weight**:
-  - Hostile (60%): Triggers combat using existing `trigger_encounter()` pattern
-  - Merchant (25%): Spawns a wandering merchant NPC with random wares
-  - Wanderer (15%): Spawns a passive NPC with lore/hints
+### WorldEventManager
+- **Location**: New file `src/cli_rpg/world_events.py`
+- **State**: `active_events: list[WorldEvent]` stored in GameState
+- **Functions**:
+  - `check_for_new_event(game_state, chance=0.05) -> Optional[WorldEvent]` - 5% chance per move to spawn
+  - `progress_events(game_state) -> list[str]` - called on time advance, returns progress messages
+  - `get_active_events() -> list[WorldEvent]` - for status display
+  - `resolve_event(event_id) -> str` - mark event resolved
+  - `apply_consequence(event: WorldEvent) -> str` - when event timer expires
+
+### Event Types (MVP - 3 types)
+1. **Caravan Arriving** (positive, timed)
+   - "A merchant caravan arrives in {location}. They leave in {hours} hours."
+   - Adds temporary merchant NPC with rare items
+   - Consequence: Caravan leaves, merchant despawns
+
+2. **Plague Spreading** (negative, timed)
+   - "A plague spreads in {location}. Find a cure within {hours} hours!"
+   - Affected location has "plague" marker
+   - Consequence: NPCs become unavailable, shop prices double
+
+3. **Monster Incursion** (negative, timed)
+   - "Monsters overrun {location}! Clear them within {hours} hours."
+   - Higher encounter rate in affected location
+   - Consequence: Location becomes dangerous (instant combat on entry)
 
 ### Integration Points
-- Hostile encounters: Reuse `spawn_enemy()` / `ai_spawn_enemy()` from `combat.py`
-- Merchant encounters: Create temporary NPC with `is_merchant=True`, shop with 2-3 items
-- Wanderer encounters: Create temporary NPC with atmospheric dialogue
+- **Time progression**: Hook into `GameTime.advance()` to progress events
+- **Move**: Show event warnings when entering affected locations
+- **Status command**: Show active events and remaining time
+- **New command**: `events` - list all active world events
 
 ### Output Format
 ```
-You head north to Forest...
-
-[Random Encounter!]
-A traveling merchant blocks your path!
-"Greetings traveler! Care to see my wares?"
-(Use 'talk Merchant' to interact)
+╔════════════════════════════════════════════════════════╗
+║  WORLD EVENT: Merchant Caravan Arriving               ║
+║                                                       ║
+║  A wealthy caravan has arrived at Millbrook Village.  ║
+║  They will depart in 12 hours.                        ║
+║                                                       ║
+║  [Hint]: Visit Millbrook to trade for rare goods!     ║
+╚════════════════════════════════════════════════════════╝
 ```
 
 ## Tests (TDD)
 
-### File: `tests/test_random_encounters.py`
+### File: `tests/test_world_events.py`
 
-1. **test_random_encounter_model_creation** - RandomEncounter dataclass with required fields
-2. **test_random_encounter_serialization** - to_dict/from_dict roundtrip
-3. **test_move_can_trigger_random_encounter** - Move with seeded RNG triggers encounter (mock random)
-4. **test_random_encounter_chance_configurable** - Verify 15% chance constant exists
-5. **test_hostile_encounter_starts_combat** - Hostile encounter type creates CombatEncounter
-6. **test_merchant_encounter_creates_npc** - Merchant encounter creates talkable NPC at location
-7. **test_wanderer_encounter_creates_npc** - Wanderer encounter creates NPC at location
-8. **test_no_encounter_when_already_in_combat** - Skip random encounters if combat active
-9. **test_encounter_respects_location_category** - Hostile encounters use location category for enemy type
-10. **test_encounter_message_format** - Verify output includes "[Random Encounter!]" marker
+1. **test_world_event_model_creation** - WorldEvent dataclass with required fields
+2. **test_world_event_serialization** - to_dict/from_dict roundtrip
+3. **test_event_spawns_on_move** - With seeded RNG, event can trigger on move
+4. **test_event_progresses_with_time** - Event duration decreases as GameTime advances
+5. **test_event_consequence_when_expired** - Consequence applied when timer reaches 0
+6. **test_event_resolved_before_expiry** - Resolving event prevents consequence
+7. **test_caravan_adds_merchant_npc** - Caravan event adds temporary merchant to location
+8. **test_plague_affects_location** - Plague marks location, affects NPCs
+9. **test_events_command_lists_active** - `events` command shows active events
+10. **test_status_shows_event_count** - Status command mentions active events
+11. **test_events_persist_on_save_load** - Events survive save/load cycle
+12. **test_enter_affected_location_shows_warning** - Moving to affected location shows event message
 
 ## Implementation Steps
 
-1. **Create `src/cli_rpg/models/random_encounter.py`**
-   - Define `RandomEncounter` dataclass
+1. **Create `src/cli_rpg/models/world_event.py`**
+   - Define `WorldEvent` dataclass
    - Add `to_dict()` / `from_dict()` methods
+   - Add `get_time_remaining(current_hour: int) -> int` method
+   - Add `is_expired(current_hour: int) -> bool` method
 
-2. **Create `src/cli_rpg/random_encounters.py`**
-   - Constants: `RANDOM_ENCOUNTER_CHANCE = 0.15`
-   - Encounter type weights: `ENCOUNTER_WEIGHTS = {"hostile": 0.60, "merchant": 0.25, "wanderer": 0.15}`
-   - `check_for_random_encounter(game_state) -> Optional[str]` - main trigger function
-   - `spawn_wandering_merchant(level: int) -> NPC` - creates merchant NPC with shop
-   - `spawn_wanderer(theme: str) -> NPC` - creates atmospheric NPC
-   - `format_encounter_message(encounter: RandomEncounter) -> str` - formats output
+2. **Create `src/cli_rpg/world_events.py`**
+   - Constants: `EVENT_SPAWN_CHANCE = 0.05`, `EVENT_TEMPLATES`
+   - `spawn_random_event(game_state) -> WorldEvent` - creates event from templates
+   - `check_for_new_event(game_state) -> Optional[str]` - rolls for event spawn
+   - `progress_events(game_state) -> list[str]` - advances all events, applies consequences
+   - `format_event_notification(event) -> str` - formats event announcement box
+   - `get_location_event_warning(location, events) -> Optional[str]` - warning for affected location
 
 3. **Modify `src/cli_rpg/game_state.py`**
-   - Import `check_for_random_encounter` from new module
-   - In `move()`: After successful movement and before whispers, call `check_for_random_encounter()`
-   - If encounter returned, append message and handle side effects (start combat or add NPC)
+   - Add `world_events: list[WorldEvent] = []` attribute
+   - In `move()`: Check for new event spawn (after random encounters)
+   - In `move()`: Show warning if entering affected location
+   - Modify `to_dict()` / `from_dict()` to include world_events
 
-4. **Write tests in `tests/test_random_encounters.py`**
-   - Follow existing test patterns from `test_game_state.py`
-   - Use `unittest.mock.patch` to control RNG for deterministic tests
+4. **Modify `src/cli_rpg/models/game_time.py`**
+   - Add callback hook or modify `advance()` to trigger event progression
+   - Or: Call event progression from GameState when time advances
+
+5. **Add `events` command to game loop**
+   - List all active world events with time remaining
+   - Format: "1. The Crimson Plague - Millbrook (8 hours remaining)"
+
+6. **Modify status command**
+   - Add line: "Active Events: 2" (if any)
+
+7. **Write tests in `tests/test_world_events.py`**
+   - Follow existing test patterns from `test_random_encounters.py` and `test_dread.py`
+   - Use `unittest.mock.patch` to control RNG
 
 ## Files to Create/Modify
-- **Create**: `src/cli_rpg/models/random_encounter.py`
-- **Create**: `src/cli_rpg/random_encounters.py`
-- **Create**: `tests/test_random_encounters.py`
-- **Modify**: `src/cli_rpg/game_state.py` (add encounter check in move())
+- **Create**: `src/cli_rpg/models/world_event.py`
+- **Create**: `src/cli_rpg/world_events.py`
+- **Create**: `tests/test_world_events.py`
+- **Modify**: `src/cli_rpg/game_state.py` (add world_events list, hooks in move())
+- **Modify**: `src/cli_rpg/main.py` (add `events` command)
+- **Modify**: Status command output (show event count)

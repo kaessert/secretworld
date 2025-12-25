@@ -44,6 +44,7 @@ def get_command_reference() -> str:
         "  quests (q)         - View your quest journal",
         "  quest <name>       - View details of a specific quest",
         "  bestiary (b)       - View defeated enemies",
+        "  events             - View active world events",
         "  help (h)           - Display this command reference",
         "  dump-state         - Export full game state as JSON",
         "  save               - Save your game (not available during combat)",
@@ -1001,6 +1002,10 @@ def handle_exploration_command(game_state: GameState, command: str, args: list[s
 
         lines.append(f"Total enemies defeated: {total_kills}")
         return (True, "\n".join(lines))
+
+    elif command == "events":
+        from cli_rpg.world_events import get_active_events_display
+        return (True, get_active_events_display(game_state))
 
     elif command == "help":
         return (True, "\n" + get_command_reference())

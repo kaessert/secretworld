@@ -44,6 +44,7 @@ src/cli_rpg/
 ├── whisper.py           # Ambient whisper system for atmosphere
 ├── dreams.py            # Dream sequences triggered on rest
 ├── random_encounters.py # Random travel encounters (merchants, wanderers, hostiles)
+├── world_events.py      # Living world events (plagues, caravans, invasions)
 └── models/
     ├── character.py     # Player character model
     ├── dread.py         # Dread meter for psychological horror
@@ -56,7 +57,8 @@ src/cli_rpg/
     ├── quest.py         # Quest system with objectives and progress tracking
     ├── shop.py          # Shop system
     ├── status_effect.py # Status effects (poison, buffs, debuffs)
-    └── random_encounter.py # Random encounter model for travel events
+    ├── random_encounter.py # Random encounter model for travel events
+    └── world_event.py   # World event model for timed events
 ```
 
 ## Key Architectural Patterns
