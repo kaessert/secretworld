@@ -349,6 +349,13 @@ def handle_combat_command(game_state: GameState, command: str, args: list[str]) 
         item_name = " ".join(args)
         item = game_state.current_character.inventory.find_item_by_name(item_name)
         if item is None:
+            # Check if item is equipped
+            inv = game_state.current_character.inventory
+            item_name_lower = item_name.lower()
+            if inv.equipped_weapon and inv.equipped_weapon.name.lower() == item_name_lower:
+                return (True, f"\n{inv.equipped_weapon.name} is currently equipped as your weapon and cannot be used.")
+            if inv.equipped_armor and inv.equipped_armor.name.lower() == item_name_lower:
+                return (True, f"\n{inv.equipped_armor.name} is currently equipped as your armor and cannot be used.")
             return (True, f"\nYou don't have '{item_name}' in your inventory.")
         success, message = game_state.current_character.use_item(item)
         output = f"\n{message}"
@@ -459,6 +466,13 @@ def handle_exploration_command(game_state: GameState, command: str, args: list[s
         item_name = " ".join(args)
         item = game_state.current_character.inventory.find_item_by_name(item_name)
         if item is None:
+            # Check if item is equipped
+            inv = game_state.current_character.inventory
+            item_name_lower = item_name.lower()
+            if inv.equipped_weapon and inv.equipped_weapon.name.lower() == item_name_lower:
+                return (True, f"\n{inv.equipped_weapon.name} is currently equipped as your weapon and cannot be used.")
+            if inv.equipped_armor and inv.equipped_armor.name.lower() == item_name_lower:
+                return (True, f"\n{inv.equipped_armor.name} is currently equipped as your armor and cannot be used.")
             return (True, f"\nYou don't have '{item_name}' in your inventory.")
         success, message = game_state.current_character.use_item(item)
         return (True, f"\n{message}")

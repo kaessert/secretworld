@@ -155,6 +155,32 @@ class TestParseCommandInventory:
         assert args == ["iron", "sword"]
 
 
+class TestUseEquippedItem:
+    """Tests for 'use' on equipped items - Spec: Show 'equipped' message, not 'not found'."""
+
+    def test_use_equipped_weapon_shows_equipped_message(self, game_state_with_items):
+        """Spec: 'use' on equipped weapon shows equipped message, not 'not found'."""
+        gs = game_state_with_items
+        sword = gs.current_character.inventory.find_item_by_name("Iron Sword")
+        gs.current_character.inventory.equip(sword)
+        cont, msg = handle_exploration_command(gs, "use", ["iron", "sword"])
+        assert cont is True
+        assert "equipped" in msg.lower()
+        assert "weapon" in msg.lower()
+        assert "don't have" not in msg.lower()
+
+    def test_use_equipped_armor_shows_equipped_message(self, game_state_with_items):
+        """Spec: 'use' on equipped armor shows equipped message, not 'not found'."""
+        gs = game_state_with_items
+        armor = gs.current_character.inventory.find_item_by_name("Leather Armor")
+        gs.current_character.inventory.equip(armor)
+        cont, msg = handle_exploration_command(gs, "use", ["leather", "armor"])
+        assert cont is True
+        assert "equipped" in msg.lower()
+        assert "armor" in msg.lower()
+        assert "don't have" not in msg.lower()
+
+
 class TestDropCommand:
     """Tests for 'drop' command - Spec: Remove item from inventory permanently."""
 

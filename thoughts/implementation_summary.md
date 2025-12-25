@@ -1,16 +1,35 @@
-# Implementation Summary: Add "stats" Alias for Status Command
+# Implementation Summary: Fix Misleading 'use' Error for Equipped Items
 
-## What was implemented
-Added "stats" as a word alias for the "status" command, improving discoverability for players who naturally try "stats" instead of "status".
+## What Was Implemented
 
-## Files modified
-1. **src/cli_rpg/game_state.py** - Added `"stats": "status"` to the aliases dict in `parse_command()`
-2. **src/cli_rpg/main.py** - Updated help text for both exploration and combat sections to show "(s, stats)" instead of "(s)"
-3. **tests/test_shorthand_commands.py** - Added test `test_stats_expands_to_status` verifying the alias works
+Fixed the `use` command to show an appropriate "equipped" message when a player tries to use an item that is currently equipped as a weapon or armor, instead of the misleading "You don't have '<item>' in your inventory" message.
 
-## Test results
-- All 22 shorthand command tests pass
-- Full test suite: 1325 passed, 1 skipped
+### Files Modified
 
-## Technical details
-The alias is implemented in the same `aliases` dict that handles single-letter shortcuts. The change follows the existing pattern - when a user types "stats", `parse_command()` translates it to "status" before command validation.
+1. **src/cli_rpg/main.py** - Two locations updated:
+   - `handle_exploration_command()` (lines 461-468): Added equipped item check before "not found" error
+   - `handle_combat_command()` (lines 351-358): Same fix applied for combat context
+
+2. **tests/test_main_inventory_commands.py** - Added new test class:
+   - `TestUseEquippedItem` with 2 tests verifying the spec
+
+### Implementation Details
+
+Both exploration and combat `use` command handlers now check if the item being used is currently equipped before returning the "not found" error. The new message format is:
+- `"{Item Name} is currently equipped as your weapon and cannot be used."`
+- `"{Item Name} is currently equipped as your armor and cannot be used."`
+
+This matches the pattern already used by `sell` and `drop` commands in the codebase.
+
+## Test Results
+
+- 2 new tests added for the spec (weapon and armor cases)
+- All 24 inventory command tests pass
+- Full test suite: 1327 passed, 1 skipped
+
+## E2E Validation
+
+To manually verify:
+1. Start game, equip a weapon (e.g., `equip iron sword`)
+2. Try `use iron sword` - should see "Iron Sword is currently equipped as your weapon and cannot be used."
+3. Equip armor and try to use it - should see similar message mentioning "armor"

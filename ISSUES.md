@@ -1,24 +1,19 @@
 ## Active Issues
 
-### Misleading error message when trying to 'use' an equipped item
-**Status**: ACTIVE
-
-**Description**: When a user tries to use the `use` command on an item that is currently equipped (e.g., `use Steel Spear` when Steel Spear is equipped as their weapon), the game shows the error message "You don't have 'steel spear' in your inventory." This message is misleading because the user DOES have the item - it's equipped, not missing.
-
-**Steps to Reproduce**:
-1. Load a character with a weapon (e.g., Steel Spear) in their inventory
-2. Use `equip Steel Spear` to equip the weapon
-3. Verify with `i` (inventory) that the weapon is shown as `[Weapon] Steel Spear`
-4. Try `use Steel Spear`
-5. Observe the message: "You don't have 'steel spear' in your inventory."
-
-**Expected Behavior**: The error message should indicate that the item is equipped, not missing. For example: "Steel Spear is currently equipped as your weapon and cannot be used." or "You can't use Steel Spear - it's equipped as your weapon. Use 'unequip weapon' first."
-
-**Actual Behavior**: The message "You don't have 'steel spear' in your inventory." implies the item doesn't exist, when it's actually just equipped.
-
-**Impact**: Minor UX issue. Could confuse users who know they have the item but see a message suggesting it's missing.
+*No active issues at this time.*
 
 ## Resolved Issues
+
+### Misleading error message when trying to 'use' an equipped item
+**Status**: RESOLVED
+
+**Description**: When a user tried to use the `use` command on an item that was currently equipped (e.g., `use Steel Spear` when Steel Spear was equipped as their weapon), the game showed the error message "You don't have 'steel spear' in your inventory." This was misleading because the user had the item - it was equipped, not missing.
+
+**Fix**: Updated both exploration and combat `use` command handlers to check if the target item is currently equipped before returning the "not found" error. The new messages clearly indicate why the item cannot be used:
+- "{Item Name} is currently equipped as your weapon and cannot be used."
+- "{Item Name} is currently equipped as your armor and cannot be used."
+
+This matches the pattern already used by `sell` and `drop` commands in the codebase.
 
 ### Unclear error message when trying to equip non-equippable items
 **Status**: RESOLVED
