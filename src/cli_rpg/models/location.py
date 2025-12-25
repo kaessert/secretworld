@@ -34,6 +34,7 @@ class Location:
     connections: dict[str, str] = field(default_factory=dict)
     npcs: List["NPC"] = field(default_factory=list)
     coordinates: Optional[Tuple[int, int]] = None
+    category: Optional[str] = None
     
     def __post_init__(self) -> None:
         """Validate location attributes after initialization."""
@@ -166,6 +167,9 @@ class Location:
         # Only include coordinates if present (backward compatibility)
         if self.coordinates is not None:
             data["coordinates"] = list(self.coordinates)
+        # Only include category if present (backward compatibility)
+        if self.category is not None:
+            data["category"] = self.category
         return data
     
     @classmethod
@@ -189,12 +193,15 @@ class Location:
         if "coordinates" in data and data["coordinates"] is not None:
             coords = data["coordinates"]
             coordinates = (coords[0], coords[1])
+        # Parse category if present (for backward compatibility)
+        category = data.get("category")
         return cls(
             name=data["name"],
             description=data["description"],
             connections=data.get("connections", {}),
             npcs=npcs,
-            coordinates=coordinates
+            coordinates=coordinates,
+            category=category
         )
     
     def __str__(self) -> str:

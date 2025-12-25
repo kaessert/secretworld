@@ -310,8 +310,7 @@ pytest tests/test_e2e_world_expansion.py -v
 ## Limitations
 
 ### Current Limitations
-1. No location categories/types
-2. Basic prompt templates
+1. Basic prompt templates
 
 ### 7. AI-Generated Enemies
 - Combat encounters feature AI-generated enemies with unique names and stats

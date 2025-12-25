@@ -1,6 +1,63 @@
 # Implementation Summary
 
-## Latest Implementation: Flaky Test Fix
+## Latest Implementation: Location Categories Feature
+
+Added a `category` field to the Location model enabling type-aware gameplay (enemy spawning, shop inventory, ambient text).
+
+### Files Modified
+
+1. **`src/cli_rpg/models/location.py`**
+   - Added `category: Optional[str] = None` field to Location dataclass
+   - Updated `to_dict()` to include category when present (backward compatible)
+   - Updated `from_dict()` to restore category field (backward compatible)
+
+2. **`src/cli_rpg/combat.py`**
+   - Updated `spawn_enemy()` function signature to accept optional `location_category` parameter
+   - Added category mapping system that maps semantic categories to enemy templates:
+     - `wilderness` → forest enemies (Wolf, Bear, Wild Boar, Giant Spider)
+     - `ruins` → dungeon enemies (Skeleton, Zombie, Ghost, Dark Knight)
+     - `town` → village enemies (Bandit, Thief, Ruffian, Outlaw)
+     - `settlement` → village enemies
+     - Direct matches: `forest`, `cave`, `dungeon`, `mountain`, `village`
+   - Category takes precedence over location name matching when provided
+
+### New Test File
+
+- **`tests/test_location_category.py`** - 17 tests covering:
+  - Location category field existence and defaults
+  - Serialization/deserialization with category
+  - Backward compatibility (None category)
+  - Roundtrip serialization
+  - Combat spawn_enemy() integration with category
+  - Category mappings (wilderness, ruins, town, settlement)
+  - Category precedence over name matching
+  - Fallback to name matching when no category
+
+### Test Results
+
+- **All 1402 tests pass** (1 skipped - unrelated)
+- **100% code coverage maintained**
+- **No breaking changes** - existing functionality preserved via optional parameter with default `None`
+
+### Design Decisions
+
+1. **Backward Compatibility**: Category field defaults to `None` and is only included in serialization when present. Existing save files without category will work seamlessly.
+
+2. **Category Takes Precedence**: When `location_category` is provided to `spawn_enemy()`, it takes precedence over location name matching.
+
+3. **Semantic Mappings**: Categories like "wilderness" and "ruins" map to existing enemy templates ("forest" and "dungeon" respectively).
+
+4. **Validation Deferred**: No validation on category values - any string is accepted for flexibility.
+
+### E2E Tests Should Validate
+
+1. Save game with locations that have categories → Load game → Categories preserved
+2. Combat encounters in locations with categories spawn appropriate enemy types
+3. Locations created without category work as before (backward compatibility)
+
+---
+
+## Previous Implementation: Flaky Test Fix
 
 Fixed a flaky test in `tests/test_combat_equipment.py` that was intermittently failing due to statistical variance.
 

@@ -295,14 +295,21 @@ def generate_loot(enemy: Enemy, level: int) -> Optional[Item]:
         )
 
 
-def spawn_enemy(location_name: str, level: int) -> Enemy:
+def spawn_enemy(
+    location_name: str,
+    level: int,
+    location_category: Optional[str] = None
+) -> Enemy:
     """
     Spawn an enemy appropriate for the location and player level.
-    
+
     Args:
         location_name: Name of the location
         level: Player level for scaling
-        
+        location_category: Optional category from Location.category field.
+                          When provided, takes precedence over location name matching.
+                          Valid: town, dungeon, wilderness, settlement, ruins, cave, forest, mountain, village
+
     Returns:
         Enemy instance
     """
@@ -315,14 +322,37 @@ def spawn_enemy(location_name: str, level: int) -> Enemy:
         "village": ["Bandit", "Thief", "Ruffian", "Outlaw"],
         "default": ["Monster", "Creature", "Beast", "Fiend"]
     }
-    
-    # Determine location type from location name
+
+    # Category mappings: map location categories to enemy template keys
+    # This allows semantic categories like "wilderness" to map to "forest" enemies
+    category_mappings = {
+        "wilderness": "forest",
+        "ruins": "dungeon",
+        "town": "village",
+        "settlement": "village",
+        # Direct matches
+        "forest": "forest",
+        "cave": "cave",
+        "dungeon": "dungeon",
+        "mountain": "mountain",
+        "village": "village",
+    }
+
+    # Determine location type:
+    # 1. Use location_category if provided (takes precedence)
+    # 2. Otherwise fall back to matching against location name
     location_type = "default"
-    location_lower = location_name.lower()
-    for loc_type in enemy_templates:
-        if loc_type in location_lower:
-            location_type = loc_type
-            break
+
+    if location_category:
+        # Use category mapping if available
+        location_type = category_mappings.get(location_category.lower(), "default")
+    else:
+        # Fall back to name-based matching
+        location_lower = location_name.lower()
+        for loc_type in enemy_templates:
+            if loc_type in location_lower:
+                location_type = loc_type
+                break
     
     # Select random enemy from template
     enemy_list = enemy_templates.get(location_type, enemy_templates["default"])
