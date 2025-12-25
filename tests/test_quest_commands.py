@@ -477,3 +477,98 @@ def test_talk_shows_turn_in_ready_quests(game_state_with_npc, quest_giver_npc):
     assert "Quests ready to turn in" in message
     assert "Kill the Rats" in message
     assert "complete" in message.lower()
+
+
+# ============================================================================
+# Tests for abandon command
+# ============================================================================
+
+
+def test_parse_abandon_command():
+    """Test that 'abandon' command is recognized."""
+    command, args = parse_command("abandon Kill Goblins")
+    assert command == "abandon"
+    # parse_command lowercases all parts
+    assert args == ["kill", "goblins"]
+
+
+def test_abandon_quest_removes_active_quest(game_state, active_quest):
+    """Test that abandoning removes quest from character's quest list."""
+    game_state.current_character.quests.append(active_quest)
+    assert len(game_state.current_character.quests) == 1
+
+    continue_game, message = handle_exploration_command(game_state, "abandon", ["kill", "goblins"])
+
+    assert continue_game is True
+    assert len(game_state.current_character.quests) == 0
+    assert "abandoned" in message.lower()
+    assert "Kill Goblins" in message
+
+
+def test_abandon_quest_not_found(game_state):
+    """Test that abandoning unknown quest returns error."""
+    continue_game, message = handle_exploration_command(game_state, "abandon", ["unknown", "quest"])
+
+    assert continue_game is True
+    assert "not found" in message.lower() or "no quest" in message.lower()
+
+
+def test_abandon_quest_no_args(game_state):
+    """Test that 'abandon' without args prompts for quest name."""
+    continue_game, message = handle_exploration_command(game_state, "abandon", [])
+
+    assert continue_game is True
+    assert "specify" in message.lower() or "which quest" in message.lower()
+
+
+def test_abandon_quest_partial_match(game_state, active_quest):
+    """Test that 'abandon' finds quests with partial name match (case-insensitive)."""
+    game_state.current_character.quests.append(active_quest)
+
+    # Should find "Kill Goblins" with partial match "kill"
+    continue_game, message = handle_exploration_command(game_state, "abandon", ["kill"])
+
+    assert continue_game is True
+    assert len(game_state.current_character.quests) == 0
+    assert "Kill Goblins" in message
+
+
+def test_abandon_cannot_abandon_completed(game_state, completed_quest):
+    """Test that 'abandon' returns error for COMPLETED status quests."""
+    game_state.current_character.quests.append(completed_quest)
+
+    continue_game, message = handle_exploration_command(game_state, "abandon", ["find", "the", "map"])
+
+    assert continue_game is True
+    # Quest should still be in the list
+    assert len(game_state.current_character.quests) == 1
+    # Should show error about quest not being active
+    assert "active" in message.lower() or "can't abandon" in message.lower() or "cannot abandon" in message.lower()
+
+
+def test_abandon_cannot_abandon_ready_to_turn_in(game_state, ready_to_turn_in_quest):
+    """Test that 'abandon' returns error for READY_TO_TURN_IN status quests."""
+    game_state.current_character.quests.append(ready_to_turn_in_quest)
+
+    continue_game, message = handle_exploration_command(game_state, "abandon", ["goblin"])
+
+    assert continue_game is True
+    # Quest should still be in the list
+    assert len(game_state.current_character.quests) == 1
+    # Should show error about quest not being active
+    assert "active" in message.lower() or "can't abandon" in message.lower() or "cannot abandon" in message.lower()
+
+
+def test_abandon_blocked_during_combat(game_state, active_quest):
+    """Test that 'abandon' returns combat error during combat."""
+    game_state.current_character.quests.append(active_quest)
+
+    # Start combat
+    enemy = Enemy(name="Goblin", health=50, max_health=50, attack_power=5, defense=2, xp_reward=10)
+    game_state.current_combat = CombatEncounter(game_state.current_character, enemy)
+
+    # Try abandon command
+    continue_game, message = handle_combat_command(game_state, "abandon", ["kill", "goblins"])
+
+    assert continue_game is True
+    assert "combat" in message.lower() or "can't" in message.lower()

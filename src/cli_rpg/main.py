@@ -32,6 +32,7 @@ def get_command_reference() -> str:
         "  talk (t) <npc>     - Talk to an NPC (then chat freely, 'bye' to leave)",
         "  accept <quest>     - Accept a quest from the current NPC",
         "  complete <quest>   - Turn in a completed quest to the current NPC",
+        "  abandon <quest>    - Abandon an active quest from your journal",
         "  shop               - View shop inventory (when at a shop)",
         "  buy <item>         - Buy an item from the shop",
         "  sell <item>        - Sell an item to the shop",
@@ -756,6 +757,15 @@ def handle_exploration_command(game_state: GameState, command: str, args: list[s
         output_lines = [f"\nQuest completed: {matching_quest.name}!"]
         output_lines.extend(reward_messages)
         return (True, "\n".join(output_lines))
+
+    elif command == "abandon":
+        # Abandon an active quest
+        if not args:
+            return (True, "\nAbandon which quest? Specify a quest name (e.g., 'abandon goblin slayer').")
+
+        quest_name = " ".join(args)
+        success, message = game_state.current_character.abandon_quest(quest_name)
+        return (True, f"\n{message}")
 
     elif command == "map":
         map_output = render_map(game_state.world, game_state.current_location)

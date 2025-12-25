@@ -56,6 +56,7 @@ python -m cli_rpg.main
 - `quests` (q) - View your quest journal with all active and completed quests
 - `quest <name>` - View details of a specific quest (supports partial matching)
 - `complete <quest>` - Turn in a completed quest to the NPC you're talking to
+- `abandon <quest>` - Abandon an active quest from your journal
 - `lore` - Discover AI-generated lore snippets about your current location
 - `rest` (r) - Rest to recover health (restores 25% of max HP, not available during combat)
 - `save` - Save complete game state including world, location, and theme (not available during combat)

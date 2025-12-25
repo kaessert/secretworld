@@ -1,63 +1,51 @@
-# Implementation Plan: Improve AI Module Test Coverage
+# Implementation Plan: Abandon Quest Command
 
-## Goal
-Increase test coverage for `ai_service.py` (85%→92%+) and `ai_world.py` (85%→92%+) by adding edge case tests for uncovered code paths.
+## Spec
 
-## Analysis of Missing Coverage
-
-### ai_service.py (lines 278-306, 1361-1382, 1409-1422, etc.)
-- **Lines 15-18, 69**: Anthropic import failure and initialization when unavailable
-- **Lines 278-306**: `_call_anthropic()` retry/error handling paths (timeout, rate limit, auth errors)
-- **Lines 1361-1382**: `generate_conversation_response()` method
-- **Lines 1409-1422**: `_build_conversation_prompt()` method (conversation history formatting)
-
-### ai_world.py (lines 142-186, 343-518)
-- **Lines 142-186**: Error handling in `create_ai_world()` (skip non-grid directions, duplicate names)
-- **Lines 343-518**: `expand_area()` function (area generation with coordinate placement)
-
----
+Add an `abandon` command that allows players to remove active quests from their journal. When abandoned:
+- Quest is removed from the character's quest list
+- Quest status does NOT change to `FAILED` (just removed entirely - `FAILED` status is for future use like failed timed quests)
+- Can only abandon `ACTIVE` quests (not `READY_TO_TURN_IN` or `COMPLETED`)
+- Works outside of combat (exploration mode only)
 
 ## Implementation Steps
 
-### 1. Add Anthropic provider edge case tests (tests/test_ai_service.py)
+### 1. Add `abandon` to known commands
+**File:** `src/cli_rpg/game_state.py` (line 65-67)
+- Add `"abandon"` to the `known_commands` set
 
-Add tests for:
-- `test_anthropic_timeout_error_raises_ai_timeout_error` - Anthropic API timeout handling
-- `test_anthropic_rate_limit_error_retries_and_fails` - Rate limit with retry exhaustion
-- `test_anthropic_auth_error_raises_immediately` - Auth error (no retry)
-- `test_anthropic_provider_not_available_raises_error` - Anthropic package not installed
+### 2. Add help text for abandon command
+**File:** `src/cli_rpg/main.py` (line 33-34, in HELP_TEXT)
+- Add: `"  abandon <quest>    - Abandon an active quest from your journal"`
 
-### 2. Add conversation response tests (tests/test_ai_conversations.py)
+### 3. Implement `abandon_quest` method on Character
+**File:** `src/cli_rpg/models/character.py`
+- Add method `abandon_quest(self, quest_name: str) -> Tuple[bool, str]`:
+  - Find quest by partial name match (case-insensitive), same pattern as `quest` command
+  - Only allow abandoning `ACTIVE` status quests
+  - Remove quest from `self.quests` list
+  - Return `(True, success_message)` or `(False, error_message)`
 
-Add tests for:
-- `test_generate_conversation_response_success` - Basic successful conversation
-- `test_generate_conversation_response_with_history` - Includes formatted history
-- `test_generate_conversation_response_too_short_raises_error` - Response validation
-- `test_generate_conversation_response_truncates_long_response` - 200 char limit
+### 4. Handle `abandon` command in exploration
+**File:** `src/cli_rpg/main.py` (in `handle_exploration_command`, after `complete` command handling ~line 760)
+- Add `elif command == "abandon":` block:
+  - Require quest name argument
+  - Call `game_state.current_character.abandon_quest(quest_name)`
+  - Return result message
 
-### 3. Add expand_area tests (tests/test_ai_world_generation.py)
+### 5. Block `abandon` in combat
+**File:** `src/cli_rpg/main.py` (in `handle_combat_command`)
+- Add `abandon` to the list of commands that return "Can't do that during combat"
 
-Add tests for:
-- `test_expand_area_generates_area_cluster` - Basic area generation
-- `test_expand_area_places_locations_at_correct_coordinates` - Coordinate validation
-- `test_expand_area_connects_entry_to_source` - Bidirectional connection check
-- `test_expand_area_fallback_to_single_location_on_empty_response` - Fallback behavior
-- `test_expand_area_skips_occupied_coordinates` - Collision handling
-- `test_expand_area_skips_duplicate_names` - Name collision handling
+## Tests
 
-### 4. Add create_ai_world edge case tests (tests/test_ai_world_generation.py)
+**File:** `tests/test_quest_commands.py` (add at end)
 
-Add tests for:
-- `test_create_ai_world_skips_non_grid_direction` - Filters non-cardinal directions
-- `test_create_ai_world_handles_generation_failure_in_expansion` - Exception handling in loop
-
----
-
-## Test Verification
-
-After implementation, run:
-```bash
-pytest tests/test_ai_service.py tests/test_ai_world_generation.py tests/test_ai_conversations.py -v --cov=src/cli_rpg/ai_service --cov=src/cli_rpg/ai_world --cov-report=term-missing
-```
-
-Target: Both modules at 92%+ coverage (up from 85%).
+1. `test_parse_abandon_command` - parse_command recognizes "abandon"
+2. `test_abandon_quest_removes_active_quest` - abandoning removes from list
+3. `test_abandon_quest_not_found` - error for unknown quest
+4. `test_abandon_quest_no_args` - prompts for quest name
+5. `test_abandon_quest_partial_match` - finds by partial name
+6. `test_abandon_cannot_abandon_completed` - error for COMPLETED status
+7. `test_abandon_cannot_abandon_ready_to_turn_in` - error for READY_TO_TURN_IN status
+8. `test_abandon_blocked_during_combat` - returns combat error

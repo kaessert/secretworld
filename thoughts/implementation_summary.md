@@ -1,94 +1,65 @@
-# Implementation Summary: AI Module Test Coverage Improvement
+# Implementation Summary: Abandon Quest Command
 
-## What Was Verified
+## What Was Implemented
 
-All edge case tests specified in the plan were **already implemented** in the existing test files. This verification pass confirmed that:
+Added an `abandon` command that allows players to remove active quests from their quest journal.
 
-### 1. Anthropic Provider Edge Case Tests (`tests/test_ai_service.py`)
+### Features
+- Players can abandon quests by name (supports partial case-insensitive matching)
+- Only `ACTIVE` status quests can be abandoned
+- Quest is completely removed from the quest list (not marked as `FAILED`)
+- Blocked during combat (exploration mode only)
 
-Tests covering lines 278-306 of `ai_service.py`:
+### Files Modified
 
-- `test_anthropic_timeout_error_raises_ai_timeout_error` - Tests timeout handling with retry/exponential backoff for Anthropic API
-- `test_anthropic_rate_limit_error_retries_and_fails` - Tests rate limit error handling with retry exhaustion
-- `test_anthropic_auth_error_raises_immediately` - Tests authentication errors are not retried
-- `test_anthropic_connection_error_retries` - Tests connection error recovery with successful retry
-- `test_anthropic_provider_not_available_raises_error` - Tests graceful handling when anthropic package not installed
-- `test_anthropic_general_exception_retries` - Tests generic exception retry behavior
+1. **`src/cli_rpg/game_state.py`** (line 67)
+   - Added `"abandon"` to the `known_commands` set
 
-### 2. Conversation Response Tests (`tests/test_ai_conversations.py`)
+2. **`src/cli_rpg/main.py`** (line 35, lines 761-768)
+   - Added help text: `"  abandon <quest>    - Abandon an active quest from your journal"`
+   - Added command handler in `handle_exploration_command` that:
+     - Requires quest name argument
+     - Calls `game_state.current_character.abandon_quest(quest_name)`
+     - Returns result message
 
-Tests covering lines 1361-1422 of `ai_service.py`:
+3. **`src/cli_rpg/models/character.py`** (lines 400-434)
+   - Added `abandon_quest(self, quest_name: str) -> Tuple[bool, str]` method that:
+     - Finds quest by partial name match (case-insensitive)
+     - Only allows abandoning `ACTIVE` status quests
+     - Removes quest from `self.quests` list
+     - Returns `(True, success_message)` or `(False, error_message)`
 
-- `test_generate_conversation_response_success` - Tests basic conversation response generation
-- `test_generate_conversation_response_with_history` - Tests conversation history formatting
-- `test_generate_conversation_response_empty_history` - Tests empty history placeholder
-- `test_generate_conversation_response_too_short_raises_error` - Tests short response validation
-- `test_generate_conversation_response_truncates_long_response` - Tests 200-char truncation
-- `test_generate_conversation_response_strips_quotes` - Tests quote stripping
-- `test_build_conversation_prompt_includes_all_elements` - Tests prompt construction
-
-### 3. expand_area Tests (`tests/test_ai_world_generation.py`)
-
-Tests covering lines 343-518 of `ai_world.py`:
-
-- `test_expand_area_generates_area_cluster` - Tests multi-location area generation
-- `test_expand_area_places_locations_at_correct_coordinates` - Tests coordinate calculation
-- `test_expand_area_connects_entry_to_source` - Tests bidirectional source connection
-- `test_expand_area_fallback_to_single_location_on_empty_response` - Tests empty response fallback
-- `test_expand_area_skips_occupied_coordinates` - Tests coordinate collision handling
-- `test_expand_area_skips_duplicate_names` - Tests name collision handling
-- `test_expand_area_invalid_source_location` - Tests invalid source validation
-- `test_expand_area_invalid_direction` - Tests invalid direction validation
-- `test_expand_area_adds_bidirectional_connections` - Tests coordinate-based connections
-
-### 4. create_ai_world Edge Case Tests (`tests/test_ai_world_generation.py`)
-
-Tests covering lines 142-186 of `ai_world.py`:
-
-- `test_create_ai_world_skips_non_grid_direction` - Tests skipping up/down directions
-- `test_create_ai_world_handles_generation_failure_in_expansion` - Tests error recovery
-- `test_create_ai_world_skips_duplicate_name_in_expansion` - Tests duplicate name handling
-- `test_create_ai_world_skips_occupied_position` - Tests position collision handling
+4. **`tests/test_quest_commands.py`** (lines 481-574)
+   - Added 8 new tests:
+     - `test_parse_abandon_command` - parse_command recognizes "abandon"
+     - `test_abandon_quest_removes_active_quest` - abandoning removes from list
+     - `test_abandon_quest_not_found` - error for unknown quest
+     - `test_abandon_quest_no_args` - prompts for quest name
+     - `test_abandon_quest_partial_match` - finds by partial name
+     - `test_abandon_cannot_abandon_completed` - error for COMPLETED status
+     - `test_abandon_cannot_abandon_ready_to_turn_in` - error for READY_TO_TURN_IN status
+     - `test_abandon_blocked_during_combat` - returns combat error
 
 ## Test Results
 
-All 1169 tests pass:
-```
-1169 passed, 1 skipped in 10.83s
-```
+- All 8 new abandon command tests pass
+- All 35 quest command tests pass
+- Full test suite: 1177 passed, 1 skipped
 
-### AI Module Specific Tests (194 tests)
-- `test_ai_service.py`: 27 tests ✅
-- `test_ai_world_generation.py`: 39 tests ✅
-- `test_ai_conversations.py`: 23 tests ✅
-- `test_ai_enemy_generation.py`: 34 tests ✅
-- `test_ai_item_generation.py`: 29 tests ✅
-- `test_ai_quest_generation.py`: 26 tests ✅
-- `test_ai_lore_generation.py`: 14 tests ✅
-- `test_ai_config.py`: 2 tests ✅
+## Design Decisions
 
-## Coverage Results
+1. **Quest removal vs FAILED status**: Per the spec, abandoned quests are removed entirely rather than being marked as `FAILED`. The `FAILED` status is reserved for future use cases like timed quests that expire.
 
-| Module | Coverage |
-|--------|----------|
-| ai_service.py | 90% |
-| ai_world.py | 93% |
-| **Combined** | **91%** |
+2. **Combat blocking**: The `abandon` command is automatically blocked during combat through the existing fallback in `handle_combat_command` that returns "Can't do that during combat!" for unrecognized exploration commands.
 
-Coverage exceeds the 80% fail-under threshold configured in the project.
+3. **Partial name matching**: Follows the same pattern as the `quest` and `complete` commands for consistent UX.
 
 ## E2E Test Validation
 
-The tests validate:
-- Anthropic API error handling (timeout, rate limit, auth, connection errors)
-- NPC conversation response generation with history formatting
-- Area generation with coordinate placement and collision handling
-- World creation with non-grid direction filtering and error recovery
-
-## Technical Notes
-
-- All tests use proper mocking to avoid actual API calls
-- Tests include spec comments referencing the line numbers they cover
-- Error handling paths are thoroughly tested including retry logic
-- Both success and failure scenarios are covered
-- No code changes were required - tests were already fully implemented
+To validate manually:
+1. Start game and accept a quest from an NPC
+2. Use `quests` to see the active quest
+3. Use `abandon <quest-name>` to abandon it
+4. Verify `quests` no longer shows the quest
+5. Verify attempting to abandon a completed/ready-to-turn-in quest shows an error
+6. Verify `abandon` command is blocked during combat

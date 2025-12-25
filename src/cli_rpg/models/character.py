@@ -397,6 +397,42 @@ class Character:
                     )
         return messages
 
+    def abandon_quest(self, quest_name: str) -> Tuple[bool, str]:
+        """Abandon an active quest by name.
+
+        Args:
+            quest_name: Name or partial name of the quest to abandon (case-insensitive)
+
+        Returns:
+            Tuple of (success, message) - success is True if quest was abandoned
+        """
+        from cli_rpg.models.quest import QuestStatus
+
+        quest_name_lower = quest_name.lower()
+
+        # Find matching quest by partial name match
+        matching_quest = None
+        for q in self.quests:
+            if quest_name_lower in q.name.lower():
+                matching_quest = q
+                break
+
+        if matching_quest is None:
+            return (False, f"No quest found matching '{quest_name}'.")
+
+        # Only allow abandoning ACTIVE quests
+        if matching_quest.status != QuestStatus.ACTIVE:
+            status_name = matching_quest.status.name.replace("_", " ").title()
+            return (
+                False,
+                f"Can't abandon '{matching_quest.name}' - "
+                f"only active quests can be abandoned (current status: {status_name})."
+            )
+
+        # Remove quest from list
+        self.quests.remove(matching_quest)
+        return (True, f"Quest abandoned: {matching_quest.name}")
+
     def claim_quest_rewards(self, quest: "Quest") -> List[str]:
         """Claim rewards from a quest ready to turn in.
 
