@@ -8,6 +8,7 @@ import random
 from typing import Optional
 
 from cli_rpg import colors
+from cli_rpg.frames import frame_dream
 from cli_rpg.text_effects import typewriter_print, pause_medium
 
 DREAM_CHANCE = 0.25  # 25% chance on rest
@@ -114,20 +115,16 @@ def format_dream(dream_text: str) -> str:
     Returns:
         Formatted string with decorative borders
     """
-    border = "═" * 40
     intro = colors.colorize("You drift into an uneasy sleep...", colors.MAGENTA)
     outro = colors.colorize("You wake with fragments of the dream still lingering...", colors.MAGENTA)
 
-    dream_content = colors.colorize(f"    {dream_text}", colors.CYAN)
+    dream_content = colors.colorize(dream_text, colors.CYAN)
+    framed_dream = frame_dream(dream_content)
 
     return f"""
 {intro}
 
-    {border}
-
-{dream_content}
-
-    {border}
+{framed_dream}
 
 {outro}"""
 

@@ -9,6 +9,7 @@ from typing import Optional, TYPE_CHECKING
 
 from cli_rpg.models.world_event import WorldEvent
 from cli_rpg import colors
+from cli_rpg.frames import frame_announcement
 
 if TYPE_CHECKING:
     from cli_rpg.game_state import GameState
@@ -230,31 +231,21 @@ def format_event_notification(event: WorldEvent, current_hour: int) -> str:
     template = EVENT_TEMPLATES.get(event.event_type, {})
     hint = template.get("hint", "")
 
-    # Build the box
-    width = 56
-    border = "=" * width
-
-    lines = [
+    # Build content
+    content_lines = [
+        event.description,
         "",
-        colors.gold(border),
-        colors.gold(f"  WORLD EVENT: {event.name}"),
-        colors.gold(border),
-        "",
-        f"  {event.description}",
-        "",
-        f"  Time remaining: {time_remaining} hours",
-        "",
+        f"Time remaining: {time_remaining} hours",
     ]
 
     if hint:
-        lines.append(colors.location(f"  [Hint]: {hint}"))  # cyan color
+        content_lines.append("")
+        content_lines.append(colors.location(f"[Hint]: {hint}"))  # cyan color
 
-    lines.extend([
-        "",
-        colors.gold(border),
-    ])
+    content = "\n".join(content_lines)
+    title = f"WORLD EVENT: {event.name}"
 
-    return "\n".join(lines)
+    return "\n" + frame_announcement(content, title=title)
 
 
 def get_location_event_warning(

@@ -38,6 +38,7 @@ src/cli_rpg/
 ├── config.py            # General configuration
 ├── colors.py            # ANSI color output utilities
 ├── text_effects.py      # Typewriter text reveal and dramatic pause effects
+├── frames.py            # Stylized borders and frames for UI elements
 ├── json_output.py       # JSON Lines output for --json mode
 ├── logging_service.py   # Gameplay logging for --log-file option
 ├── input_handler.py     # Readline-based input with command history

@@ -8,7 +8,7 @@ from typing import Optional, TYPE_CHECKING
 
 from cli_rpg.models.enemy import Enemy
 from cli_rpg.combat import CombatEncounter
-from cli_rpg import colors
+from cli_rpg.frames import frame_combat_intro
 
 if TYPE_CHECKING:
     from cli_rpg.game_state import GameState
@@ -95,17 +95,12 @@ def check_and_trigger_shadow_attack(game_state: "GameState") -> Optional[str]:
     )
 
     # Build dramatic message
-    intro_lines = [
-        "",
-        colors.damage("=" * 50),
-        colors.damage("  THE DARKNESS TAKES FORM"),
-        colors.damage("=" * 50),
-        "",
-        "Your dread has reached its peak. The shadows around you",
-        "coalesce into a terrifying manifestation of your fears.",
-        "",
-    ]
+    intro_text = (
+        "Your dread has reached its peak. The shadows around you "
+        "coalesce into a terrifying manifestation of your fears."
+    )
+    intro_frame = frame_combat_intro(intro_text, title="THE DARKNESS TAKES FORM")
 
     combat_start = game_state.current_combat.start()
 
-    return "\n".join(intro_lines) + "\n" + combat_start
+    return "\n" + intro_frame + "\n\n" + combat_start
