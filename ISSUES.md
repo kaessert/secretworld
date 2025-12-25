@@ -60,6 +60,39 @@ Once non-interactive mode is fully implemented, set up periodic long-running sim
 
 **Depends on**: Non-interactive mode enhancements (structured output, logging)
 
+### World not truly infinite and NPC persistence issues
+**Status**: ACTIVE
+
+Players report the world can be fully explored despite being advertised as infinite. Additionally, NPCs only appear in the starting location.
+
+**Issues**:
+
+1. **World stops expanding**
+   - Players can explore all locations and hit a boundary
+   - No new locations generate when moving to unexplored exits
+   - World feels small and finite rather than infinite
+
+2. **NPCs only in starting location**
+   - New locations are generated without NPCs
+   - Only the initial "Town Square" or starting area has NPCs
+   - Makes exploration feel empty and pointless
+
+3. **NPCs don't persist in locations**
+   - NPCs should be permanent fixtures of their locations
+   - Revisiting a location should show the same NPCs
+   - Exception: special quest NPCs may move or disappear after quest completion
+
+**Expected behavior**:
+- Every unexplored exit should generate a new location on demand
+- AI-generated locations should include contextually appropriate NPCs (merchants in towns, guards in dungeons, hermits in wilderness)
+- NPCs should persist in their locations across visits and save/load
+- World should truly be infinite - always have at least one unexplored direction available
+
+**Fix areas**:
+- `world.py` / `world_grid.py`: Ensure location generation triggers on unexplored exits
+- `ai_service.py`: Include NPC generation in location creation prompts
+- `persistence.py`: Verify NPC data is saved/loaded with locations
+
 ### Blocked location markers on map
 **Status**: ACTIVE
 
@@ -83,7 +116,7 @@ Map lacks visual feedback for inaccessible areas.
 ### More content 2
 **Status**: ACTIVE
 
-Users requesting ASCII art for things like locations, npcs, monsters in fights and similar
+Users requesting ASCII art for things like locations and NPCs. ~~Monsters in combat~~ (DONE - enemies now display ASCII art when combat starts, with AI-generated or fallback template art)
 
 ### Meaningful choices and consequences
 **Status**: ACTIVE

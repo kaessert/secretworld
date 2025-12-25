@@ -175,6 +175,22 @@ Rewards scaling guidelines (based on player level {player_level}):
 - xp_reward: 25 + (player_level * 12) with some variance"""
 
 
+# Default prompt template for ASCII art generation
+DEFAULT_ASCII_ART_GENERATION_PROMPT = """Generate ASCII art for a {theme} RPG enemy.
+
+Enemy Name: {enemy_name}
+Description: {enemy_description}
+
+Requirements:
+1. Create ASCII art that is 5-8 lines tall
+2. Maximum 40 characters wide per line
+3. Use only ASCII characters (letters, numbers, symbols)
+4. Make it visually represent the enemy's appearance
+5. Keep it simple but recognizable
+
+Respond with ONLY the ASCII art, no explanation or formatting."""
+
+
 # Default prompt template for NPC conversation responses
 DEFAULT_NPC_CONVERSATION_PROMPT = """You are roleplaying as {npc_name} in a {theme} RPG.
 
@@ -235,6 +251,7 @@ class AIConfig:
     lore_generation_prompt: str = field(default=DEFAULT_LORE_GENERATION_PROMPT)
     quest_generation_prompt: str = field(default=DEFAULT_QUEST_GENERATION_PROMPT)
     npc_conversation_prompt: str = field(default=DEFAULT_NPC_CONVERSATION_PROMPT)
+    ascii_art_generation_prompt: str = field(default=DEFAULT_ASCII_ART_GENERATION_PROMPT)
     
     def __post_init__(self) -> None:
         """Validate configuration after initialization."""
@@ -385,7 +402,8 @@ class AIConfig:
             "item_generation_prompt": self.item_generation_prompt,
             "lore_generation_prompt": self.lore_generation_prompt,
             "quest_generation_prompt": self.quest_generation_prompt,
-            "npc_conversation_prompt": self.npc_conversation_prompt
+            "npc_conversation_prompt": self.npc_conversation_prompt,
+            "ascii_art_generation_prompt": self.ascii_art_generation_prompt,
         }
     
     @classmethod
@@ -419,5 +437,8 @@ class AIConfig:
             item_generation_prompt=data.get("item_generation_prompt", DEFAULT_ITEM_GENERATION_PROMPT),
             lore_generation_prompt=data.get("lore_generation_prompt", DEFAULT_LORE_GENERATION_PROMPT),
             quest_generation_prompt=data.get("quest_generation_prompt", DEFAULT_QUEST_GENERATION_PROMPT),
-            npc_conversation_prompt=data.get("npc_conversation_prompt", DEFAULT_NPC_CONVERSATION_PROMPT)
+            npc_conversation_prompt=data.get("npc_conversation_prompt", DEFAULT_NPC_CONVERSATION_PROMPT),
+            ascii_art_generation_prompt=data.get(
+                "ascii_art_generation_prompt", DEFAULT_ASCII_ART_GENERATION_PROMPT
+            ),
         )

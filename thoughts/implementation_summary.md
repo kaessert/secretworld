@@ -1,48 +1,59 @@
-# Implementation Summary: Map Emoji Alignment Fix
+# Implementation Summary: ASCII Art for Combat Monsters
 
 ## What Was Implemented
 
-### Problem Solved
-Emoji markers (🏠, ⚔, 🌲, etc.) in the map renderer were causing column misalignment because they have display width 2 but Python's string formatting treated them as width 1.
+### 1. Enemy Model Enhancement (`src/cli_rpg/models/enemy.py`)
+- Added `ascii_art: str = ""` field to the Enemy dataclass
+- Updated `to_dict()` to serialize the ascii_art field
+- Updated `from_dict()` to deserialize with default fallback
 
-### Solution
-Used the `wcwidth` library to calculate actual display widths and pad markers correctly.
+### 2. Fallback ASCII Art Templates (`src/cli_rpg/combat.py`)
+- Added 5 ASCII art templates for different enemy categories:
+  - `_ASCII_ART_BEAST` - for wolves, bears, boars, etc.
+  - `_ASCII_ART_UNDEAD` - for skeletons, zombies, ghosts
+  - `_ASCII_ART_HUMANOID` - for goblins, bandits, thieves
+  - `_ASCII_ART_CREEPY` - for spiders, bats
+  - `_ASCII_ART_DEFAULT` - generic monster art
+- Created `get_fallback_ascii_art(enemy_name: str) -> str` function
+  - Matches enemy name against category keywords
+  - Returns appropriate 5-7 line ASCII art (max 40 chars wide)
 
-### Files Modified
+### 3. Combat Start Display (`src/cli_rpg/combat.py`)
+- Modified `CombatEncounter.start()` to include ASCII art in intro message
+- Art appears between "A wild X appears!" and "Combat has begun!"
+- Gracefully handles empty ascii_art (no extra output)
 
-1. **`pyproject.toml`**
-   - Added `wcwidth>=0.2.0` to dependencies
+### 4. Enemy Spawning Integration (`src/cli_rpg/combat.py`)
+- Updated `spawn_enemy()` to set fallback ASCII art for template enemies
+- Updated `ai_spawn_enemy()` to:
+  - Call `ai_service.generate_ascii_art()` for AI-generated art
+  - Fall back to template art if AI generation fails
 
-2. **`src/cli_rpg/map_renderer.py`**
-   - Added import: `from wcwidth import wcswidth`
-   - Added helper function `pad_marker(marker: str, target_width: int) -> str` that:
-     - Calculates actual display width using `wcswidth()`
-     - Adds appropriate left-padding to achieve target visual width
-   - Updated `render_map()` to use `pad_marker()` instead of Python's format strings
+### 5. AI ASCII Art Generation (`src/cli_rpg/ai_service.py`)
+- Added `generate_ascii_art(enemy_name, enemy_description, theme) -> str`
+- Added `_build_ascii_art_prompt()` helper method
+- Added `_parse_ascii_art_response()` with validation:
+  - Minimum 3 lines
+  - Maximum 8 lines
+  - Truncates lines longer than 40 characters
 
-3. **`tests/test_map_renderer.py`**
-   - Added new `TestEmojiAlignment` test class with 4 tests:
-     - `test_emoji_cell_visual_width`: Verifies all markers produce cells with visual width 4
-     - `test_multiple_cells_accumulate_correctly`: Verifies total row width is correct
-     - `test_emoji_markers_align_with_header`: Verifies markers align with column headers
-     - `test_no_visual_overlap_between_cells`: Verifies adjacent cells don't overlap
-
-### Technical Details
-
-- The `pad_marker()` function uses left-padding (spaces before marker) to right-align markers within their cells
-- Each cell is exactly 4 visual columns wide regardless of marker type:
-  - ASCII markers (@, •): 3 spaces + 1-width char = 4 visual columns
-  - Emoji markers (🌲, 🏪): 2 spaces + 2-width char = 4 visual columns
-- The colorized @ marker for the player position uses hardcoded padding since ANSI escape codes would break `wcswidth()` calculation
+### 6. AI Configuration (`src/cli_rpg/ai_config.py`)
+- Added `DEFAULT_ASCII_ART_GENERATION_PROMPT` constant
+- Added `ascii_art_generation_prompt` field to AIConfig dataclass
+- Updated `to_dict()` and `from_dict()` to include the new field
 
 ## Test Results
+- All 15 new tests in `tests/test_ascii_art.py` pass
+- Full test suite: 1577 tests pass
+- Tests cover:
+  - Enemy model ascii_art field storage/serialization
+  - Fallback art templates for each category
+  - Combat intro displaying art
+  - Enemy spawning with art
+  - AI ASCII art generation (mocked)
 
-- All 17 map renderer tests pass
-- Full test suite: 1562 tests pass
-
-## E2E Validation
-
-The fix can be validated by:
-1. Running `cli-rpg`
-2. Using the `map` command
-3. Observing that emoji markers (🏠, 🏪, ⚔, 🌲, 🕳, 🌊) align properly in columns with the @ player marker and column header numbers
+## E2E Validation Points
+- Start a combat encounter and verify ASCII art appears
+- Check that different enemy types show different ASCII art
+- Verify AI-generated enemies have ASCII art (when AI is available)
+- Verify template enemies have fallback ASCII art

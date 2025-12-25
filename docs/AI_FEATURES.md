@@ -317,6 +317,9 @@ pytest tests/test_e2e_world_expansion.py -v
 - Combat encounters feature AI-generated enemies with unique names and stats
 - Enemies include descriptions (appearance text) and attack flavor text
 - Attack flavor text appears during combat for immersive combat messages
+- **ASCII art display**: Enemies show ASCII art when combat begins (5-7 lines, max 40 chars wide)
+- AI generates unique ASCII art for each enemy type via `generate_ascii_art()`
+- Fallback templates for common enemy categories (beasts, undead, humanoids, creepy crawlies)
 - Graceful fallback to template-based enemies when AI is unavailable
 - Enemy stats are scaled to player level for balanced encounters
 

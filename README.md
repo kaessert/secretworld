@@ -69,7 +69,7 @@ python -m cli_rpg.main
 - `quit` - Exit to main menu
 
 ### Combat System
-Combat encounters occur randomly as you explore. You may face multiple enemies at once (1-2 enemies at lower levels, up to 3 at level 4+).
+Combat encounters occur randomly as you explore. You may face multiple enemies at once (1-2 enemies at lower levels, up to 3 at level 4+). Enemies display ASCII art when combat begins.
 
 **Combat Commands:**
 - `attack [target]` (a) - Attack an enemy (damage based on your strength vs enemy defense). Specify a target name when facing multiple enemies, or attacks the first living enemy.

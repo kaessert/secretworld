@@ -212,7 +212,8 @@ class TestEnemySerialization:
             "xp_reward": 25,
             "level": 1,
             "description": "",
-            "attack_flavor": ""
+            "attack_flavor": "",
+            "ascii_art": "",
         }
     
     def test_from_dict_deserializes_enemy(self):

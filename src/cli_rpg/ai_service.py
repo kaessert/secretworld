@@ -1016,6 +1016,94 @@ Note: Use "EXISTING_WORLD" as placeholder for the connection back to the source 
             "level": player_level
         }
 
+    def generate_ascii_art(
+        self,
+        enemy_name: str,
+        enemy_description: str,
+        theme: str
+    ) -> str:
+        """Generate ASCII art for an enemy.
+
+        Args:
+            enemy_name: Name of the enemy
+            enemy_description: Description of the enemy's appearance
+            theme: World theme (e.g., "fantasy", "sci-fi")
+
+        Returns:
+            ASCII art string (5-8 lines, max 40 chars wide)
+
+        Raises:
+            AIGenerationError: If generation fails or response is invalid
+            AIServiceError: If API call fails
+            AITimeoutError: If request times out
+        """
+        # Build prompt
+        prompt = self._build_ascii_art_prompt(
+            enemy_name=enemy_name,
+            enemy_description=enemy_description,
+            theme=theme
+        )
+
+        # Call LLM
+        response_text = self._call_llm(prompt)
+
+        # Clean and validate response
+        art = self._parse_ascii_art_response(response_text)
+
+        return art
+
+    def _build_ascii_art_prompt(
+        self,
+        enemy_name: str,
+        enemy_description: str,
+        theme: str
+    ) -> str:
+        """Build prompt for ASCII art generation.
+
+        Args:
+            enemy_name: Name of the enemy
+            enemy_description: Description of the enemy's appearance
+            theme: World theme
+
+        Returns:
+            Formatted prompt string
+        """
+        return self.config.ascii_art_generation_prompt.format(
+            enemy_name=enemy_name,
+            enemy_description=enemy_description,
+            theme=theme
+        )
+
+    def _parse_ascii_art_response(self, response_text: str) -> str:
+        """Parse and validate LLM response for ASCII art generation.
+
+        Args:
+            response_text: Raw response text from LLM
+
+        Returns:
+            Cleaned ASCII art string
+
+        Raises:
+            AIGenerationError: If validation fails
+        """
+        # Strip whitespace and clean up
+        art = response_text.strip()
+
+        # Validate minimum content
+        lines = art.splitlines()
+        if len(lines) < 3:
+            raise AIGenerationError("ASCII art too short (min 3 lines)")
+
+        # Truncate lines that are too long (max 40 chars)
+        cleaned_lines = []
+        for line in lines[:8]:  # Max 8 lines
+            if len(line) > 40:
+                cleaned_lines.append(line[:40])
+            else:
+                cleaned_lines.append(line)
+
+        return "\n".join(cleaned_lines)
+
     def generate_item(
         self,
         theme: str,

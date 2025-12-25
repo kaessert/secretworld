@@ -14,6 +14,81 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
+# Fallback ASCII art templates for different enemy categories
+_ASCII_ART_BEAST = r"""
+    /\_/\
+   ( o.o )
+    > ^ <
+   /|   |\
+  (_|   |_)
+"""
+
+_ASCII_ART_UNDEAD = r"""
+     .-.
+    (o o)
+    | O |
+   /|   |\
+  / |   | \
+"""
+
+_ASCII_ART_HUMANOID = r"""
+     O
+    /|\
+    / \
+   /   \
+  |     |
+"""
+
+_ASCII_ART_CREEPY = r"""
+   /\ /\
+  (  V  )
+  /|   |\
+ / |   | \
+(___|___|_)
+"""
+
+_ASCII_ART_DEFAULT = r"""
+   .---.
+  ( o o )
+   \ = /
+   /| |\
+  / | | \
+"""
+
+
+def get_fallback_ascii_art(enemy_name: str) -> str:
+    """Get fallback ASCII art based on enemy name.
+
+    Matches enemy name against categories and returns appropriate art.
+
+    Args:
+        enemy_name: Name of the enemy
+
+    Returns:
+        ASCII art string (5-7 lines, max 40 chars wide)
+    """
+    name_lower = enemy_name.lower()
+
+    # Beast category: wolf, bear, boar, lion, etc.
+    if any(term in name_lower for term in ["wolf", "bear", "boar", "lion", "cat", "dog"]):
+        return _ASCII_ART_BEAST
+
+    # Undead category: skeleton, zombie, ghost, wraith, etc.
+    if any(term in name_lower for term in ["skeleton", "zombie", "ghost", "wraith", "undead"]):
+        return _ASCII_ART_UNDEAD
+
+    # Humanoid category: goblin, bandit, thief, orc, troll, etc.
+    if any(term in name_lower for term in ["goblin", "bandit", "thief", "orc", "troll", "knight"]):
+        return _ASCII_ART_HUMANOID
+
+    # Creepy category: spider, bat, insect, etc.
+    if any(term in name_lower for term in ["spider", "bat", "insect", "scorpion"]):
+        return _ASCII_ART_CREEPY
+
+    # Default for unknown types
+    return _ASCII_ART_DEFAULT
+
+
 class CombatEncounter:
     """Manages a combat encounter between player and one or more enemies."""
 
@@ -114,15 +189,25 @@ class CombatEncounter:
         Initialize combat and return intro message.
 
         Returns:
-            Intro message describing the encounter
+            Intro message describing the encounter (includes ASCII art if available)
         """
         self.is_active = True
 
         if len(self.enemies) == 1:
-            return f"A wild {colors.enemy(self.enemies[0].name)} appears! Combat has begun!"
+            intro = f"A wild {colors.enemy(self.enemies[0].name)} appears!"
+            # Add ASCII art if available
+            if self.enemies[0].ascii_art:
+                intro += "\n" + self.enemies[0].ascii_art.strip()
+            intro += "\nCombat has begun!"
+            return intro
         else:
             enemy_names = [colors.enemy(e.name) for e in self.enemies]
-            return f"Enemies appear: {', '.join(enemy_names)}! Combat has begun!"
+            intro = f"Enemies appear: {', '.join(enemy_names)}!"
+            # Add ASCII art for first enemy if available
+            if self.enemies[0].ascii_art:
+                intro += "\n" + self.enemies[0].ascii_art.strip()
+            intro += "\nCombat has begun!"
+            return intro
     
     def player_attack(self, target: str = "") -> Tuple[bool, str]:
         """
@@ -510,7 +595,10 @@ def spawn_enemy(
     base_attack = 3 + (level * 2)
     base_defense = 1 + level
     base_xp = 20 + (level * 10)
-    
+
+    # Get fallback ASCII art based on enemy name
+    ascii_art = get_fallback_ascii_art(enemy_name)
+
     return Enemy(
         name=enemy_name,
         health=base_health,
@@ -518,7 +606,8 @@ def spawn_enemy(
         attack_power=base_attack,
         defense=base_defense,
         xp_reward=base_xp,
-        level=level
+        level=level,
+        ascii_art=ascii_art,
     )
 
 
@@ -546,6 +635,18 @@ def ai_spawn_enemy(
                 location_name=location_name,
                 player_level=player_level
             )
+
+            # Try to generate ASCII art with AI, fallback to template
+            try:
+                ascii_art = ai_service.generate_ascii_art(
+                    enemy_name=enemy_data["name"],
+                    enemy_description=enemy_data["description"],
+                    theme=theme
+                )
+            except Exception as art_error:
+                logger.warning(f"AI ASCII art generation failed, using fallback: {art_error}")
+                ascii_art = get_fallback_ascii_art(enemy_data["name"])
+
             return Enemy(
                 name=enemy_data["name"],
                 health=enemy_data["health"],
@@ -555,7 +656,8 @@ def ai_spawn_enemy(
                 xp_reward=enemy_data["xp_reward"],
                 level=enemy_data["level"],
                 description=enemy_data["description"],
-                attack_flavor=enemy_data["attack_flavor"]
+                attack_flavor=enemy_data["attack_flavor"],
+                ascii_art=ascii_art,
             )
         except Exception as e:
             logger.warning(f"AI enemy generation failed, using fallback: {e}")

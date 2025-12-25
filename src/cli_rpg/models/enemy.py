@@ -17,6 +17,7 @@ class Enemy:
     level: int = 1
     description: str = ""  # e.g., "A snarling beast with glowing red eyes"
     attack_flavor: str = ""  # e.g., "lunges with razor-sharp claws"
+    ascii_art: str = ""  # ASCII art representation of the enemy
     
     def __post_init__(self):
         """Validate enemy attributes."""
@@ -76,7 +77,8 @@ class Enemy:
             "xp_reward": self.xp_reward,
             "level": self.level,
             "description": self.description,
-            "attack_flavor": self.attack_flavor
+            "attack_flavor": self.attack_flavor,
+            "ascii_art": self.ascii_art,
         }
     
     @staticmethod
@@ -99,5 +101,6 @@ class Enemy:
             xp_reward=data["xp_reward"],
             level=data.get("level", 1),
             description=data.get("description", ""),
-            attack_flavor=data.get("attack_flavor", "")
+            attack_flavor=data.get("attack_flavor", ""),
+            ascii_art=data.get("ascii_art", ""),
         )
