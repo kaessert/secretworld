@@ -2,7 +2,7 @@
 
 ## Overview
 
-The CLI RPG includes AI-powered dynamic location generation using OpenAI's GPT models or Anthropic's Claude models. This feature allows the game world to expand dynamically as players explore, creating unique locations on-demand.
+The CLI RPG includes AI-powered dynamic location generation using OpenAI's GPT models, Anthropic's Claude models, or local Ollama models. This feature allows the game world to expand dynamically as players explore, creating unique locations on-demand.
 
 ## Features
 
@@ -55,15 +55,20 @@ The CLI RPG includes AI-powered dynamic location generation using OpenAI's GPT m
 
 ## Setup
 
-### 1. Get an API Key
+### 1. Choose Your AI Provider
 
-**Option A: OpenAI**
+**Option A: OpenAI (Cloud)**
 1. Sign up at [OpenAI](https://platform.openai.com/)
 2. Generate an API key
 
-**Option B: Anthropic**
+**Option B: Anthropic (Cloud)**
 1. Sign up at [Anthropic Console](https://console.anthropic.com/)
 2. Generate an API key
+
+**Option C: Ollama (Local - Free, No API Key Required)**
+1. Install Ollama from [ollama.ai](https://ollama.ai/)
+2. Pull a model: `ollama pull llama3.2`
+3. Start the Ollama server: `ollama serve`
 
 ### 2. Configure Environment
 Copy `.env.example` to `.env`:
@@ -71,19 +76,33 @@ Copy `.env.example` to `.env`:
 cp .env.example .env
 ```
 
-Edit `.env` and add your API key:
-```bash
-# For OpenAI
-OPENAI_API_KEY=your-api-key-here
+Edit `.env` and configure your provider:
 
-# OR for Anthropic
+**For OpenAI:**
+```bash
+OPENAI_API_KEY=your-api-key-here
+```
+
+**For Anthropic:**
+```bash
 ANTHROPIC_API_KEY=your-api-key-here
+```
+
+**For Ollama (Local AI):**
+```bash
+AI_PROVIDER=ollama
+# Optional: customize the endpoint and model
+# OLLAMA_BASE_URL=http://localhost:11434/v1
+# OLLAMA_MODEL=llama3.2
 ```
 
 ### 3. Optional Configuration
 Customize other settings in `.env`:
-- `AI_PROVIDER`: Explicit provider selection (`openai` or `anthropic`)
-- `AI_MODEL`: Model to use (default: `gpt-3.5-turbo` for OpenAI, `claude-3-5-sonnet-latest` for Anthropic)
+- `AI_PROVIDER`: Explicit provider selection (`openai`, `anthropic`, or `ollama`)
+- `AI_MODEL`: Model to use (default varies by provider)
+  - OpenAI: `gpt-3.5-turbo`
+  - Anthropic: `claude-3-5-sonnet-latest`
+  - Ollama: `llama3.2`
 - `AI_TEMPERATURE`: Randomness (0.0-2.0, default: 0.7)
 - `AI_MAX_TOKENS`: Response length (default: 500)
 - `AI_MAX_RETRIES`: Retry attempts (default: 3)
@@ -91,12 +110,18 @@ Customize other settings in `.env`:
 - `AI_CACHE_FILE`: Custom cache file path (default: `~/.cli_rpg/cache/ai_cache.json`)
 - `CLI_RPG_REQUIRE_AI`: Strict mode for AI generation (default: true)
 
+**Ollama-specific settings:**
+- `OLLAMA_BASE_URL`: Custom Ollama endpoint (default: `http://localhost:11434/v1`)
+- `OLLAMA_MODEL`: Model to use (default: `llama3.2`)
+
 ### Provider Selection Logic
 
 When both API keys are configured:
 1. If `AI_PROVIDER` is explicitly set, that provider is used
 2. Otherwise, Anthropic is preferred when both keys are present
 3. If only one key is configured, that provider is used automatically
+
+**Note:** Ollama requires `AI_PROVIDER=ollama` to be explicitly set since it doesn't use API keys.
 
 ### Strict Mode (CLI_RPG_REQUIRE_AI)
 
@@ -179,15 +204,16 @@ loaded_game.ai_service = ai_service
    - Manages configuration
    - Validates settings
    - Loads from environment
-   - Supports both OpenAI and Anthropic providers
+   - Supports OpenAI, Anthropic, and Ollama providers
 
 2. **AIService** (`ai_service.py`)
-   - Interfaces with OpenAI or Anthropic API
+   - Interfaces with OpenAI, Anthropic, or Ollama API
    - Handles retries and errors
    - Manages caching (in-memory with file persistence)
    - Persists cache to disk for cross-session reuse
    - Validates responses
    - Auto-detects provider from configuration
+   - Ollama uses OpenAI-compatible API with custom base URL
    - `generate_area()`: Generates clusters of 4-7 connected locations with thematic consistency
 
 3. **AI World** (`ai_world.py`)
@@ -328,8 +354,8 @@ pytest tests/test_e2e_world_expansion.py -v
 - Graceful fallback when AI is unavailable
 
 ### Future Enhancements
-- Local model support
 - Advanced world consistency validation
+- Additional local model providers
 
 ## Troubleshooting
 
@@ -338,22 +364,32 @@ pytest tests/test_e2e_world_expansion.py -v
 - Check `OPENAI_API_KEY` or `ANTHROPIC_API_KEY` is set correctly
 - Verify no extra spaces or quotes
 - If using `AI_PROVIDER`, ensure the corresponding API key is configured
+- For Ollama, set `AI_PROVIDER=ollama` (no API key needed)
+
+### "Failed to connect to Ollama"
+- Ensure Ollama is installed and running (`ollama serve`)
+- Check that the model is pulled (`ollama pull llama3.2`)
+- Verify `OLLAMA_BASE_URL` if using a custom endpoint
+- Default URL is `http://localhost:11434/v1`
 
 ### "Rate limit exceeded"
 - Wait before retrying
 - Reduce exploration speed
-- Check OpenAI dashboard for limits
+- Check OpenAI/Anthropic dashboard for limits
+- Consider switching to Ollama for unlimited local generation
 
 ### "Generation failed"
-- Check internet connection
+- Check internet connection (for cloud providers)
 - Verify API key is valid
-- Check OpenAI service status
+- Check OpenAI/Anthropic service status
+- For Ollama, ensure the model is loaded
 - Game will fall back to default world
 
 ### Slow generation
-- First generation takes 1-3 seconds (normal)
+- First generation takes 1-3 seconds (normal for cloud providers)
+- Ollama speed depends on your hardware (faster with GPU)
 - Subsequent visits use cache (<1ms)
-- Check network connection
+- Check network connection (for cloud providers)
 
 ## Support
 

@@ -1,93 +1,133 @@
-# Implementation Plan: Improve Test Coverage for Remaining Uncovered Lines
+# Implementation Plan: Ollama Local Model Support
 
-## Summary
-Add targeted tests to cover the 18 uncovered lines across `main.py`, `models/character.py`, and `ai_service.py`.
+## Overview
+Add Ollama as a third AI provider option alongside OpenAI and Anthropic, allowing users to run the game with AI features using local models without external API keys or costs.
 
----
+## Spec
 
-## 1. main.py Lines 361, 363 (Lowest Hanging Fruit)
+Ollama is a local LLM runner that exposes an OpenAI-compatible API at `http://localhost:11434/v1`. The integration will:
 
-**Uncovered code**: Using an equipped weapon/armor during combat shows "equipped" message instead of "not found"
+1. Add `"ollama"` as a valid provider option
+2. Use the OpenAI client library pointed at the local Ollama endpoint (API-compatible)
+3. Allow configuration via environment variables:
+   - `AI_PROVIDER=ollama` - Select Ollama as provider
+   - `OLLAMA_BASE_URL` - Custom Ollama endpoint (default: `http://localhost:11434/v1`)
+   - `OLLAMA_MODEL` - Model to use (default: `llama3.2`)
+4. Ollama requires no API key (use placeholder value for OpenAI client)
+5. Handle Ollama-specific connection errors gracefully (service not running)
 
-**Location**: `handle_combat_command()` in `src/cli_rpg/main.py`, lines 351-363
+## Tests (TDD)
 
-**Tests to add** in `tests/test_main_combat_integration.py`:
-
-```python
-class TestUseEquippedItemDuringCombat:
-    """Tests for 'use' on equipped items during combat."""
-
-    def test_use_equipped_weapon_during_combat_shows_equipped_message(self):
-        """Spec: 'use' on equipped weapon during combat shows equipped message."""
-        # Setup: Equip weapon, enter combat, try to use it
-        # Assert: "equipped as your weapon" in message
-
-    def test_use_equipped_armor_during_combat_shows_equipped_message(self):
-        """Spec: 'use' on equipped armor during combat shows equipped message."""
-        # Setup: Equip armor, enter combat, try to use it
-        # Assert: "equipped as your armor" in message
-```
-
----
-
-## 2. models/character.py Lines 8-11, 71, 97, 113 (7 lines)
-
-**Uncovered lines**:
-- Lines 8-11: `TYPE_CHECKING` imports (runtime never executed - skip, standard Python pattern)
-- Line 71: `if not isinstance(stat_value, int)` validation error
-- Line 97: `if amount < 0` in `add_gold()`
-- Line 113: `if amount < 0` in `remove_gold()`
-
-**Tests to add** in `tests/test_character.py`:
+### File: `tests/test_ai_ollama.py`
 
 ```python
-def test_character_stat_non_integer_raises_error():
-    """Spec: Non-integer stat values raise ValueError."""
-    # Pass float/string as strength/dexterity/intelligence
+# Test cases to implement:
 
-def test_add_gold_negative_amount_raises_error():
-    """Spec: Adding negative gold raises ValueError."""
+1. test_ai_config_from_env_with_ollama_provider
+   - Set AI_PROVIDER=ollama
+   - Verify config.provider == "ollama"
+   - Verify config.api_key is set to placeholder "ollama"
+   - Verify default model is "llama3.2"
 
-def test_remove_gold_negative_amount_raises_error():
-    """Spec: Removing negative gold raises ValueError."""
+2. test_ai_config_from_env_ollama_with_custom_base_url
+   - Set OLLAMA_BASE_URL=http://custom:8080/v1
+   - Verify config.ollama_base_url is set correctly
+
+3. test_ai_config_from_env_ollama_with_custom_model
+   - Set OLLAMA_MODEL=mistral
+   - Verify config.model == "mistral"
+
+4. test_ai_service_initialization_with_ollama
+   - Create config with provider="ollama"
+   - Verify AIService creates OpenAI client with custom base_url
+   - Verify service.provider == "ollama"
+
+5. test_generate_location_with_ollama
+   - Mock OpenAI client for Ollama
+   - Verify generate_location works and returns valid structure
+
+6. test_ollama_connection_error_raises_service_error
+   - Simulate connection refused (Ollama not running)
+   - Verify AIServiceError is raised with helpful message
+
+7. test_ai_config_serialization_with_ollama
+   - Create config with provider="ollama" and custom base_url
+   - Verify to_dict() includes ollama_base_url
+   - Verify from_dict() restores ollama_base_url
 ```
 
----
+## Implementation Steps
 
-## 3. ai_service.py Lines 9, 18-21, 252, 309, 423, 455 (9 lines)
+### Step 1: Update `ai_config.py`
 
-**Uncovered lines**:
-- Line 9: `TYPE_CHECKING` import (skip - standard pattern)
-- Lines 18-21: `except ImportError` block for Anthropic (requires uninstalling anthropic package)
-- Line 252: Final fallback `raise AIServiceError` in `_call_openai()` - unreachable defensive code
-- Line 309: Final fallback `raise AIServiceError` in `_call_anthropic()` - unreachable defensive code
-- Line 423: Cache load handles expired entries (edge case, already tested implicitly)
-- Line 455: Cache save to file with no parent directory
+1. Add `ollama_base_url` field to AIConfig dataclass:
+   ```python
+   ollama_base_url: Optional[str] = None
+   ```
 
-**Practical tests to add** (skipping unreachable defensive code):
+2. Update `from_env()` to handle Ollama provider:
+   - Check for `AI_PROVIDER=ollama`
+   - Read `OLLAMA_BASE_URL` (default: `http://localhost:11434/v1`)
+   - Read `OLLAMA_MODEL` for custom model (default: `llama3.2`)
+   - Set api_key to `"ollama"` placeholder (Ollama doesn't require auth)
 
-```python
-# In tests/test_ai_service.py - test cache save with no parent dir
-def test_save_cache_handles_no_parent_directory():
-    """Spec: Cache saves when file has no parent directory (e.g., 'cache.json')."""
+3. Update `to_dict()` to include `ollama_base_url`
+
+4. Update `from_dict()` to restore `ollama_base_url`
+
+5. Update `__post_init__()` validation:
+   - Skip API key validation when provider is "ollama" (allow placeholder)
+
+### Step 2: Update `ai_service.py`
+
+1. Add Ollama client initialization in `__init__`:
+   ```python
+   elif self.provider == "ollama":
+       self.client = OpenAI(
+           api_key=config.api_key,  # placeholder
+           base_url=config.ollama_base_url or "http://localhost:11434/v1"
+       )
+   ```
+
+2. Add `_call_ollama()` method (delegates to `_call_openai()` since API is compatible)
+
+3. Update `_call_llm()` to route "ollama" to `_call_openai()` (they're compatible)
+
+4. Handle Ollama-specific connection errors:
+   - Catch `openai.APIConnectionError` in retry logic
+   - Provide helpful message about Ollama not running
+
+### Step 3: Update `.env.example`
+
+Add Ollama configuration section:
+```bash
+# Ollama (Local AI) Configuration
+# Set AI_PROVIDER=ollama to use local Ollama
+# OLLAMA_BASE_URL=http://localhost:11434/v1
+# OLLAMA_MODEL=llama3.2
 ```
 
-Note: Lines 18-21, 252, 309 are defensive fallbacks that are intentionally difficult to reach. Covering them would require:
-- Uninstalling anthropic package (lines 18-21)
-- Creating impossible retry loop conditions (lines 252, 309)
+### Step 4: Update `docs/AI_FEATURES.md`
 
-These are acceptable to leave uncovered as they represent defensive programming.
+Add Ollama setup section under "Setup":
+- Prerequisites: Install Ollama, pull a model
+- Configuration examples
+- Note about no API key required
+- Troubleshooting for "Ollama not running" error
 
----
+## File Changes Summary
 
-## Implementation Order
+| File | Changes |
+|------|---------|
+| `src/cli_rpg/ai_config.py` | Add `ollama_base_url` field, update `from_env()`, `to_dict()`, `from_dict()`, relax API key validation for ollama |
+| `src/cli_rpg/ai_service.py` | Add Ollama client initialization, route to OpenAI-compatible calls |
+| `tests/test_ai_ollama.py` | New file with 7 test cases |
+| `.env.example` | Add Ollama configuration section |
+| `docs/AI_FEATURES.md` | Add Ollama setup and troubleshooting documentation |
 
-1. **tests/test_main_combat_integration.py** - Add `TestUseEquippedItemDuringCombat` class (covers lines 361, 363)
-2. **tests/test_character.py** - Add negative/invalid input tests (covers lines 71, 97, 113)
-3. Optionally: Add cache edge case test if time permits
+## Verification
 
-## Expected Coverage Improvement
-
-- main.py: 99% → 100% (+2 lines)
-- models/character.py: 97% → 99% (+3 lines, 4 TYPE_CHECKING lines remain)
-- Overall: ~98.81% → ~99.0%
+1. Run new tests: `pytest tests/test_ai_ollama.py -v`
+2. Run full test suite: `pytest`
+3. Verify coverage maintained: `pytest --cov=src/cli_rpg`
+4. Manual test (if Ollama installed): Run game with `AI_PROVIDER=ollama`

@@ -74,6 +74,10 @@ class AIService:
                     "Install it with: pip install anthropic"
                 )
             self.client = Anthropic(api_key=config.api_key)
+        elif self.provider == "ollama":
+            # Ollama uses OpenAI-compatible API with custom base_url
+            base_url = config.ollama_base_url or "http://localhost:11434/v1"
+            self.client = OpenAI(api_key=config.api_key, base_url=base_url)
         else:
             # Default to OpenAI
             self.client = OpenAI(api_key=config.api_key)
@@ -190,10 +194,13 @@ class AIService:
         """
         if self.provider == "anthropic":
             return self._call_anthropic(prompt)
+        elif self.provider == "ollama":
+            # Ollama uses OpenAI-compatible API
+            return self._call_openai(prompt, is_ollama=True)
         else:
             return self._call_openai(prompt)
 
-    def _call_openai(self, prompt: str) -> str:
+    def _call_openai(self, prompt: str, is_ollama: bool = False) -> str:
         """Call OpenAI API with retry logic.
 
         Args:
@@ -228,8 +235,21 @@ class AIService:
                     continue
                 raise AITimeoutError(f"Request timed out after {attempt + 1} attempts") from e
 
-            except (openai.APIConnectionError, openai.RateLimitError) as e:
-                # Transient errors - retry
+            except openai.APIConnectionError as e:
+                # Connection error - may be Ollama not running
+                last_error = e
+                if attempt < self.config.max_retries:
+                    time.sleep(self.config.retry_delay * (2 ** attempt))  # Exponential backoff
+                    continue
+                if is_ollama:
+                    raise AIServiceError(
+                        f"Failed to connect to Ollama after {attempt + 1} attempts. "
+                        "Is Ollama running? Start it with 'ollama serve' or check OLLAMA_BASE_URL."
+                    ) from e
+                raise AIServiceError(f"API call failed after {attempt + 1} attempts: {str(e)}") from e
+
+            except openai.RateLimitError as e:
+                # Rate limit - retry
                 last_error = e
                 if attempt < self.config.max_retries:
                     time.sleep(self.config.retry_delay * (2 ** attempt))  # Exponential backoff

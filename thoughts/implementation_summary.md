@@ -1,38 +1,71 @@
-# Implementation Summary: Test Coverage Improvements
+# Implementation Summary: Ollama Local Model Support
 
 ## What Was Implemented
 
-Added 5 targeted tests to improve test coverage for previously uncovered code paths:
+Added Ollama as a third AI provider option alongside OpenAI and Anthropic, allowing users to run the game with AI features using local models without external API keys or costs.
 
-### tests/test_main_combat_integration.py
-Added `TestUseEquippedItemDuringCombat` class with 2 tests:
-1. `test_use_equipped_weapon_during_combat_shows_equipped_message` - Covers line 361 in main.py
-2. `test_use_equipped_armor_during_combat_shows_equipped_message` - Covers line 363 in main.py
+## Files Modified
 
-These tests verify that when a player tries to use an equipped weapon or armor during combat, they receive an appropriate message indicating the item is currently equipped.
+### 1. `src/cli_rpg/ai_config.py`
+- Added `ollama_base_url` field to AIConfig dataclass
+- Updated `from_env()` to handle `AI_PROVIDER=ollama`:
+  - Sets `api_key` to placeholder value "ollama"
+  - Reads `OLLAMA_BASE_URL` (default: `http://localhost:11434/v1`)
+  - Reads `OLLAMA_MODEL` for custom model (default: `llama3.2`)
+- Updated `to_dict()` to include `ollama_base_url`
+- Updated `from_dict()` to restore `ollama_base_url`
+- Updated error message to include "ollama" as valid provider
 
-### tests/test_character.py
-Added 3 tests:
-1. `test_character_stat_non_integer_raises_error` - Covers line 71 in character.py (validates non-integer stats raise ValueError)
-2. `test_add_gold_negative_amount_raises_error` - Covers line 97 in character.py (validates negative gold amounts raise ValueError)
-3. `test_remove_gold_negative_amount_raises_error` - Covers line 113 in character.py (validates negative gold amounts raise ValueError)
+### 2. `src/cli_rpg/ai_service.py`
+- Added Ollama client initialization in `__init__`:
+  - Uses OpenAI client with custom `base_url` (Ollama is API-compatible)
+  - Falls back to default endpoint if `ollama_base_url` not set
+- Updated `_call_llm()` to route "ollama" to `_call_openai(is_ollama=True)`
+- Updated `_call_openai()` to:
+  - Accept `is_ollama` parameter
+  - Provide Ollama-specific error message on connection failures
+
+### 3. `tests/test_ai_ollama.py` (New file)
+9 test cases covering:
+- AIConfig from_env with ollama provider
+- Custom OLLAMA_BASE_URL handling
+- Custom OLLAMA_MODEL handling
+- AIService initialization with Ollama
+- Location generation with mocked Ollama
+- Connection error with helpful Ollama-specific message
+- Serialization/deserialization with ollama_base_url
+- Default base URL behavior
+- No external API keys required for Ollama
+
+### 4. `.env.example`
+- Added provider selection section with OpenAI, Anthropic, and Ollama options
+- Added Ollama-specific environment variables documentation
+
+### 5. `docs/AI_FEATURES.md`
+- Updated overview to mention Ollama
+- Added Ollama setup instructions (Option C)
+- Updated configuration section with Ollama-specific settings
+- Updated architecture documentation
+- Added Ollama troubleshooting section
+- Updated Future Enhancements (removed "local model support" - now implemented)
 
 ## Test Results
-- All 5 new tests pass
-- Full test suite: 1346 passed, 1 skipped
-- Total coverage: 98.98%
 
-## Coverage Improvements
-| File | Before | After | Lines Covered |
-|------|--------|-------|---------------|
-| main.py | 99% | 100% | Lines 361, 363 |
-| models/character.py | 97% | 99% | Lines 71, 97, 113 |
+- All 9 new Ollama tests pass
+- Full test suite: 1355 passed, 1 skipped
 
-## Remaining Uncovered Lines (acceptable)
-- Lines 8-11 in character.py: `TYPE_CHECKING` imports (standard Python pattern, never executed at runtime)
-- Lines 18-21, 252, 309, 423, 455 in ai_service.py: Defensive fallback code that requires extreme conditions to trigger
+## Technical Details
 
-## E2E Tests Should Validate
-- Using `use <item>` on equipped weapons/armor during combat shows appropriate message
-- Character creation with invalid stat types is rejected
-- Negative gold operations are rejected with clear error messages
+- Ollama uses OpenAI-compatible API at `http://localhost:11434/v1`
+- No API key required (uses "ollama" as placeholder for OpenAI client)
+- Connection errors provide helpful message: "Is Ollama running? Start it with 'ollama serve'"
+- Default model: `llama3.2`
+
+## E2E Validation
+
+The following should be validated with a real Ollama installation:
+1. Start Ollama: `ollama serve`
+2. Pull a model: `ollama pull llama3.2`
+3. Configure: `AI_PROVIDER=ollama` in `.env`
+4. Run the game: `cli-rpg`
+5. Verify AI-generated locations appear when exploring

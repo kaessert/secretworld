@@ -15,7 +15,7 @@ python -m cli_rpg.main
 ## Features
 
 - **Character Creation**: Create custom characters with customizable attributes (strength, dexterity, intelligence)
-- **AI-Generated Worlds**: Dynamically generated locations using OpenAI or Anthropic Claude models (optional)
+- **AI-Generated Worlds**: Dynamically generated locations using OpenAI, Anthropic, or Ollama local models (optional)
 - **Turn-Based Combat**: Engage enemies with attack, defend, and flee commands
 - **Inventory & Equipment**: Collect loot from defeated enemies, equip weapons and armor, use consumables
 - **NPC Shops**: Interact with merchants, buy equipment, and sell items for gold
@@ -167,7 +167,7 @@ The game supports automatic and manual saving:
 
 ### AI World Generation (Optional)
 
-Enable dynamic world generation with AI using either OpenAI or Anthropic:
+Enable dynamic world generation with AI using OpenAI, Anthropic, or Ollama (local):
 
 **Option 1: OpenAI**
 1. Get an API key from [platform.openai.com](https://platform.openai.com/)
@@ -183,7 +183,16 @@ Enable dynamic world generation with AI using either OpenAI or Anthropic:
    ANTHROPIC_API_KEY=your-api-key-here
    ```
 
-**Both keys configured?** Anthropic is used by default. Set `AI_PROVIDER=openai` to use OpenAI instead.
+**Option 3: Ollama (Local - Free, No API Key)**
+1. Install Ollama from [ollama.ai](https://ollama.ai/)
+2. Pull a model: `ollama pull llama3.2`
+3. Start the server: `ollama serve`
+4. Create a `.env` file:
+   ```bash
+   AI_PROVIDER=ollama
+   ```
+
+**Multiple providers configured?** Anthropic is used by default. Set `AI_PROVIDER=openai` or `AI_PROVIDER=ollama` to override.
 
 3. Select a theme when creating a new character (fantasy, sci-fi, cyberpunk, etc.)
 

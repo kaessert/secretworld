@@ -202,8 +202,8 @@ class AIConfig:
 
     Attributes:
         api_key: API key for the LLM provider (required)
-        provider: AI provider - "openai" or "anthropic" (default: "openai")
-        model: Model identifier (default: "gpt-3.5-turbo" for openai, "claude-3-5-sonnet-latest" for anthropic)
+        provider: AI provider - "openai", "anthropic", or "ollama" (default: "openai")
+        model: Model identifier (default: "gpt-3.5-turbo" for openai, "claude-3-5-sonnet-latest" for anthropic, "llama3.2" for ollama)
         temperature: Generation randomness 0.0-2.0 (default: 0.7)
         max_tokens: Maximum response length (default: 500)
         max_retries: Retry attempts for API failures (default: 3)
@@ -211,6 +211,7 @@ class AIConfig:
         enable_caching: Enable response caching (default: True)
         cache_ttl: Cache time-to-live in seconds (default: 3600)
         cache_file: Path to persistent cache file (default: ~/.cli_rpg/cache/ai_cache.json when caching enabled)
+        ollama_base_url: Base URL for Ollama API (default: http://localhost:11434/v1)
         location_generation_prompt: Prompt template for location generation
     """
 
@@ -224,6 +225,7 @@ class AIConfig:
     enable_caching: bool = True
     cache_ttl: int = 3600
     cache_file: Optional[str] = None
+    ollama_base_url: Optional[str] = None
     location_generation_prompt: str = field(default=DEFAULT_LOCATION_PROMPT)
     npc_dialogue_prompt: str = field(default=DEFAULT_NPC_DIALOGUE_PROMPT)
     enemy_generation_prompt: str = field(default=DEFAULT_ENEMY_GENERATION_PROMPT)
@@ -234,7 +236,7 @@ class AIConfig:
     
     def __post_init__(self) -> None:
         """Validate configuration after initialization."""
-        # Validate API key
+        # Validate API key (allow placeholder for Ollama provider)
         if not self.api_key or not self.api_key.strip():
             raise AIConfigError("API key cannot be empty")
 
@@ -290,6 +292,7 @@ class AIConfig:
         explicit_provider = os.getenv("AI_PROVIDER", "").lower()
 
         # Determine provider and API key
+        ollama_base_url = None
         if explicit_provider:
             # Explicit provider selection
             if explicit_provider == "anthropic":
@@ -302,8 +305,13 @@ class AIConfig:
                     raise AIConfigError("AI_PROVIDER=openai but OPENAI_API_KEY not set")
                 provider = "openai"
                 api_key = openai_key
+            elif explicit_provider == "ollama":
+                # Ollama runs locally, no API key required
+                provider = "ollama"
+                api_key = "ollama"  # Placeholder for OpenAI client
+                ollama_base_url = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434/v1")
             else:
-                raise AIConfigError(f"Invalid AI_PROVIDER: {explicit_provider}. Must be 'openai' or 'anthropic'")
+                raise AIConfigError(f"Invalid AI_PROVIDER: {explicit_provider}. Must be 'openai', 'anthropic', or 'ollama'")
         elif anthropic_key:
             # Prefer Anthropic when both keys are available
             provider = "anthropic"
@@ -315,10 +323,20 @@ class AIConfig:
             raise AIConfigError("No API key found. Set OPENAI_API_KEY or ANTHROPIC_API_KEY")
 
         # Set default model based on provider
-        default_model = "claude-3-5-sonnet-latest" if provider == "anthropic" else "gpt-3.5-turbo"
+        if provider == "anthropic":
+            default_model = "claude-3-5-sonnet-latest"
+        elif provider == "ollama":
+            # Check for OLLAMA_MODEL first, then AI_MODEL, then default
+            default_model = os.getenv("OLLAMA_MODEL", "llama3.2")
+        else:
+            default_model = "gpt-3.5-turbo"
 
         # Read optional environment variables with defaults
-        model = os.getenv("AI_MODEL", default_model)
+        # For Ollama, OLLAMA_MODEL takes precedence over AI_MODEL
+        if provider == "ollama":
+            model = os.getenv("OLLAMA_MODEL", os.getenv("AI_MODEL", default_model))
+        else:
+            model = os.getenv("AI_MODEL", default_model)
         temperature = float(os.getenv("AI_TEMPERATURE", "0.7"))
         max_tokens = int(os.getenv("AI_MAX_TOKENS", "500"))
         max_retries = int(os.getenv("AI_MAX_RETRIES", "3"))
@@ -337,7 +355,8 @@ class AIConfig:
             retry_delay=retry_delay,
             enable_caching=enable_caching,
             cache_ttl=cache_ttl,
-            cache_file=cache_file
+            cache_file=cache_file,
+            ollama_base_url=ollama_base_url
         )
     
     def to_dict(self) -> dict:
@@ -357,6 +376,7 @@ class AIConfig:
             "enable_caching": self.enable_caching,
             "cache_ttl": self.cache_ttl,
             "cache_file": self.cache_file,
+            "ollama_base_url": self.ollama_base_url,
             "location_generation_prompt": self.location_generation_prompt,
             "npc_dialogue_prompt": self.npc_dialogue_prompt,
             "enemy_generation_prompt": self.enemy_generation_prompt,
@@ -390,6 +410,7 @@ class AIConfig:
             enable_caching=data.get("enable_caching", True),
             cache_ttl=data.get("cache_ttl", 3600),
             cache_file=data.get("cache_file"),
+            ollama_base_url=data.get("ollama_base_url"),
             location_generation_prompt=data.get("location_generation_prompt", DEFAULT_LOCATION_PROMPT),
             npc_dialogue_prompt=data.get("npc_dialogue_prompt", DEFAULT_NPC_DIALOGUE_PROMPT),
             enemy_generation_prompt=data.get("enemy_generation_prompt", DEFAULT_ENEMY_GENERATION_PROMPT),
