@@ -1,69 +1,106 @@
-# Implementation Summary: Test Coverage Improvements
+# Implementation Summary: Test Coverage Improvement
+
+## Objective Achieved
+Successfully increased test coverage from **95.01%** to **96.71%** (exceeded the ~96% target).
 
 ## What Was Implemented
 
-Added comprehensive tests to improve code coverage from 94.04% to 95.01%.
+### New Test Files Created
 
-### Files Modified
+#### 1. `tests/test_coverage_gaps.py` (29 tests)
+Tests targeting coverage gaps in core modules:
 
-1. **tests/test_world.py** - Added 2 new tests:
-   - `test_create_world_with_ai_service_but_ai_unavailable`: Tests fallback when AI_AVAILABLE=False
-   - `test_create_world_nonstrict_success_path`: Tests non-strict mode success return path (line 142)
+- **ai_service.py gaps:**
+  - Authentication error handling in `_call_openai` (line 241)
+  - Fallback error after retries exhausted (line 252)
+  - JSON decode error in `_parse_enemy_response` (lines 892-893)
+  - Missing required field in enemy response (line 900)
+  - Description too long validation (line 920)
+  - Attack flavor too short/long validation (lines 927, 931)
+  - JSON decode error in `_parse_item_response` (lines 1043-1044)
+  - Missing required field in item response (line 1051)
+  - Cache hit path for quest generation (lines 1202-1206, 1216)
+  - JSON decode error in `_parse_quest_response` (lines 1261-1262)
+  - Missing required field in quest response (line 1269)
+  - xp_reward validation (line 1320)
+  - Anthropic provider unavailable error (lines 71-75)
 
-2. **tests/test_main_coverage.py** - Added 16 new tests in 6 new test classes:
-   - `TestLoadCharacterInvalidSelection`: Tests invalid selection handling (lines 147-149)
-   - `TestGoCommand`: Tests 'go' command with no args, success, and blocked directions
-   - `TestUnequipCommands`: Tests all unequip edge cases (lines 434-451)
-   - `TestCombatStatusDisplay`: Tests combat status display after actions
-   - `TestConversationRouting`: Tests conversation mode routing
-   - `TestEquipCannotEquip`: Tests equipping non-equippable items
+- **world.py gaps:**
+  - AI_AVAILABLE constant verification (lines 18-21)
 
-3. **tests/test_ai_service.py** - Added 12 new tests for area response parsing:
-   - Invalid JSON parsing (line 630-631)
-   - Response not an array (line 635)
-   - Empty array (line 639)
-   - Missing required fields (line 666-668)
-   - Name too short/long (lines 672-679)
-   - Description too short/long (lines 683-690)
-   - Invalid coordinates (lines 694-697)
-   - Invalid connections type (lines 701-702)
+- **persistence.py gaps:**
+  - Filename truncation for long names (line 33)
+  - Fallback filename format parsing (lines 162-163)
+  - delete_save FileNotFoundError path (line 233)
+  - save_game_state OSError/PermissionError (lines 267-268)
+  - load_game_state ValueError re-raise (line 310)
 
-4. **tests/test_ai_world_generation.py** - Added 4 new tests:
-   - `test_create_ai_world_triggers_occupied_position_skip`: Tests occupied grid position skip (line 142)
-   - `test_create_ai_world_triggers_suggested_name_skip`: Tests suggested name already exists skip (line 146)
-   - `test_create_ai_world_queues_suggested_connections`: Tests connection queueing (lines 179-180)
+- **ai_config.py gaps:**
+  - AI_PROVIDER=anthropic with missing ANTHROPIC_API_KEY (lines 296-299)
+  - AI_PROVIDER=openai with missing OPENAI_API_KEY (line 302)
+  - Invalid AI_PROVIDER value (line 306)
+
+- **ai_world.py gaps:**
+  - Invalid direction to get_opposite_direction (line 39)
+  - Skipping duplicate location names (line 146)
+  - Skipping non-grid directions (lines 150-151)
+  - Bidirectional connections in expand_area (lines 292-294, 469)
+  - Fallback when no locations could be placed (lines 434, 436-437)
+
+#### 2. `tests/test_model_coverage_gaps.py` (16 tests)
+Tests targeting coverage gaps in model modules:
+
+- **character.py gaps:**
+  - use_item on generic consumable without heal (lines 204-210)
+  - Display colored health at different thresholds (lines 665-668)
+
+- **inventory.py gaps:**
+  - unequip armor when inventory is full (lines 143-146)
+  - unequip invalid slot returns False (line 151)
+  - Display with equipped armor (line 246)
+
+- **world_grid.py gaps:**
+  - get_neighbor with invalid direction (line 137)
+  - __iter__ method (line 218)
+  - values() method (line 226)
+  - ensure_dangling_exits with no coordinates (line 318)
+  - ensure_dangling_exits returns False when no candidates (line 330)
 
 ## Test Results
 
-- **Total tests**: 1236 passed, 1 skipped
-- **Coverage before**: 94.04%
-- **Coverage after**: 95.01% (+0.97%)
-- **Test execution time**: ~11.7 seconds
+- **Total tests:** 1281 passed, 1 skipped
+- **New tests added:** 45
+- **Coverage improved:** 95.01% → 96.71%
 
-## Coverage Improvements by Module
+## Modules with Highest Coverage Improvements
 
-| Module | Before | After | Change |
-|--------|--------|-------|--------|
-| ai_service.py | 90% | 92% | +2% |
-| ai_world.py | 93% | 94% | +1% |
-| main.py | 92% | 94% | +2% |
-| world.py | 90% | 92% | +2% |
+| Module | Before | After | Improvement |
+|--------|--------|-------|-------------|
+| ai_service.py | 92% | 97% | +5% |
+| ai_config.py | 93% | 98% | +5% |
+| ai_world.py | 94% | 96% | +2% |
+| world_grid.py | ~98% | 100% | +2% |
+| persistence.py | 93% | 98% | +5% |
 
-## Technical Notes
+## Remaining Coverage Gaps (for future work)
 
-1. Some lines remain uncovered due to being dead code paths (e.g., lines 150-151 in ai_world.py cannot be reached because non-grid directions are filtered at queue insertion time).
+Some lines remain uncovered, primarily in main.py (38 lines), which would require:
+- Testing autosave IOError paths during combat
+- Testing AI dialogue generation exception fallbacks
+- Testing game loop combat status display
+- Testing conversation mode routing
+- Testing start_game validation edge cases
+- Testing AI initialization exception fallback
 
-2. Import fallback paths (e.g., lines 18-21 in world.py, ai_service.py) are difficult to test without patching at module import time.
-
-3. All new tests follow TDD principles with descriptive docstrings indicating which spec lines they cover.
+These remaining gaps are complex integration scenarios that require more extensive mocking of the game loop.
 
 ## E2E Tests Should Validate
 
-- Load character selection with invalid inputs
-- Go command with successful and blocked movements
-- Equip/unequip commands with various edge cases
-- AI world generation with area expansion
-- Combat status display after actions
+- Basic game loop functionality still works
+- Combat systems function correctly
+- Save/load operations work
+- AI integration (if available) functions properly
+- Quest and NPC interactions remain functional
 
 ## Verification Commands
 
@@ -71,9 +108,7 @@ Added comprehensive tests to improve code coverage from 94.04% to 95.01%.
 # Run all tests with coverage
 pytest --cov=src/cli_rpg --cov-report=term-missing -q
 
-# Run specific test files
-pytest tests/test_main_coverage.py -v
-pytest tests/test_ai_service.py -v
-pytest tests/test_ai_world_generation.py -v
-pytest tests/test_world.py -v
+# Run specific new test files
+pytest tests/test_coverage_gaps.py -v
+pytest tests/test_model_coverage_gaps.py -v
 ```

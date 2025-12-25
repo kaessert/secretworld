@@ -1,113 +1,97 @@
-# Implementation Plan: Improve Test Coverage
+# Implementation Plan: Increase Test Coverage Beyond 95.01%
 
-## Summary
-Overall test coverage is excellent at 94%, with all 1205 tests passing. The focus will be on targeting specific uncovered code paths in modules with lower coverage to reach 95%+ overall coverage.
+## Objective
+Increase test coverage from 95.01% to ~96%+ by adding targeted tests for uncovered lines in the lowest-coverage modules.
 
-## Modules with Coverage Gaps (Priority Order)
+## Coverage Gap Analysis (by impact)
 
-| Module | Coverage | Missing Lines |
-|--------|----------|---------------|
-| `ai_service.py` | 90% | 44 lines - error handling, edge cases |
-| `world.py` | 90% | 5 lines - AI import fallback, non-strict fallback |
-| `main.py` | 92% | 52 lines - error paths, edge cases |
-| `ai_world.py` | 93% | 14 lines - edge cases in grid generation |
-| `ai_config.py` | 93% | 6 lines - error handling |
-
-## Spec: Target Coverage Gaps
-
-### 1. `world.py` (Lines 18-21, 142)
-- Line 18-21: `ImportError` fallback when AI components unavailable
-- Line 142: Non-strict mode AI failure fallback path
-
-### 2. `main.py` (Lines 148-149, 157-159, 404-415, etc.)
-- Lines 148-149, 157-159: Load character error paths (invalid selection, generic exception)
-- Lines 404-415: `go` command path with movement success/failure
-- Lines 434, 441, 446, 451: `unequip` command edge cases
-- Lines 953-968: Combat status display and conversation routing
-
-### 3. `ai_service.py` (Lines 630-631, 635, 639, etc.)
-- JSON parse error handling paths
-- Validation error paths for area generation
-- Rate limiting and retry paths
-
-### 4. `ai_world.py` (Lines 142, 146, 150-151)
-- Duplicate location name handling
-- Invalid grid direction handling
+| Module | Current | Missing Lines | Priority |
+|--------|---------|---------------|----------|
+| ai_service.py | 92% | 34 lines | HIGH |
+| world.py | 92% | 4 lines | HIGH |
+| persistence.py | 93% | 8 lines | HIGH |
+| ai_config.py | 93% | 6 lines | MEDIUM |
+| ai_world.py | 94% | 11 lines | MEDIUM |
+| main.py | 94% | 38 lines | MEDIUM |
 
 ## Implementation Steps
 
-### Step 1: Create `tests/test_world_coverage.py`
-Add tests for `world.py` uncovered paths:
-```python
-# Test ImportError fallback (lines 18-21)
-def test_world_without_ai_components():
-    """Test fallback when AI components unavailable."""
+### 1. Create `tests/test_coverage_gaps.py`
 
-# Test non-strict mode fallback (line 142)
-def test_create_world_nonstrict_ai_failure():
-    """Test non-strict mode falls back on AI error."""
-```
+#### ai_service.py gaps
+- Test Anthropic import fallback when package unavailable (lines 18-21)
+- Test authentication error handling in `_call_openai` (line 241)
+- Test fallback error after retries exhausted (line 252)
+- Test JSON decode error in `_parse_enemy_response` (lines 892-893)
+- Test missing required field in enemy response (line 900)
+- Test description too long validation (line 920)
+- Test attack_flavor too short/long validation (lines 927, 931)
+- Test JSON decode error in `_parse_item_response` (lines 1043-1044)
+- Test missing required field in item response (line 1051)
+- Test cache hit path for quest generation (lines 1202-1206, 1216)
+- Test JSON decode error in `_parse_quest_response` (lines 1261-1262)
+- Test missing required field in quest response (line 1269)
+- Test xp_reward validation (line 1320)
 
-### Step 2: Add tests to `tests/test_main_coverage.py`
-Cover additional main.py error paths:
-```python
-# Test invalid save selection
-def test_select_load_character_invalid_selection():
-    """Test handling of out-of-range save selection."""
+#### world.py gaps (lines 18-21)
+- Test AI import fallback when ai_service unavailable
 
-# Test generic exception during load
-def test_select_load_character_generic_exception():
-    """Test handling of unexpected exceptions during load."""
+#### persistence.py gaps (lines 9, 33, 162-163, 233, 267-268, 310)
+- Test filename truncation for long names (line 33)
+- Test fallback filename format parsing (lines 162-163)
+- Test delete_save FileNotFoundError path (line 233)
+- Test save_game_state OSError/PermissionError (lines 267-268)
+- Test load_game_state ValueError re-raise (line 310)
 
-# Test go command with no args
-def test_exploration_go_no_args():
-    """Test 'go' without direction argument."""
+#### ai_config.py gaps (lines 296-299, 302, 306)
+- Test AI_PROVIDER=anthropic with missing ANTHROPIC_API_KEY
+- Test AI_PROVIDER=openai with missing OPENAI_API_KEY
+- Test invalid AI_PROVIDER value
 
-# Test unequip edge cases
-def test_unequip_invalid_slot():
-    """Test unequip with invalid slot name."""
-```
+#### ai_world.py gaps (lines 39, 146, 150-151, 292-294, 434, 436-437, 469)
+- Test invalid direction to get_opposite_direction (line 39)
+- Test skipping duplicate location names (line 146)
+- Test skipping non-grid directions (lines 150-151)
 
-### Step 3: Add tests to `tests/test_ai_service.py`
-Cover validation error paths:
-```python
-# Test JSON parse failure
-def test_parse_area_response_invalid_json():
-    """Test area response with invalid JSON."""
+### 2. Create `tests/test_main_additional_coverage.py`
 
-# Test missing required fields
-def test_validate_area_location_missing_field():
-    """Test validation with missing required field."""
+#### main.py gaps (lines 157-159, 250-251, 294-295, 327-328, 490-491, 609-610, 617, 805, 857-858, 909, 959-961, 964-968, 1028, 1032, 1097-1100)
+- Test load failure exception handling (lines 157-159)
+- Test autosave IOError during combat victory (lines 250-251)
+- Test autosave IOError during flee (lines 294-295)
+- Test autosave IOError during cast victory (lines 327-328)
+- Test AI dialogue generation exception fallback (lines 490-491)
+- Test buy command with quest progress messages (lines 609-610)
+- Test sell command without args (line 617)
+- Test quests command edge case - no active quests message (line 805)
+- Test quit command save flow (lines 857-858)
+- Test rest command outside combat (line 909)
+- Test game loop combat status display (lines 959-961)
+- Test game loop conversation mode routing (lines 964-968)
+- Test start_game empty world validation (line 1028)
+- Test start_game missing starting location validation (line 1032)
+- Test AI initialization exception fallback (lines 1097-1100)
 
-# Test empty location array
-def test_parse_area_response_empty_array():
-    """Test area response with empty array."""
-```
+### 3. Create `tests/test_model_coverage_gaps.py`
 
-### Step 4: Add tests to `tests/test_ai_world.py` or `tests/test_ai_world_generation.py`
-Cover grid generation edge cases:
-```python
-# Test duplicate location name
-def test_generate_world_duplicate_location_name():
-    """Test handling of duplicate location names during generation."""
+#### character.py gaps (lines 204-210, 665-668)
+- Test use_item on generic consumable without heal (lines 204-210)
+- Test display colored health at different thresholds (lines 665-668)
 
-# Test invalid direction handling
-def test_generate_world_invalid_direction():
-    """Test skipping of non-grid directions."""
-```
+#### inventory.py gaps (lines 143-146, 151, 246)
+- Test unequip armor when inventory is full (lines 143-146)
+- Test unequip invalid slot returns False (line 151)
+- Test display with equipped armor (line 246)
 
-## Test Execution
-After implementing each step:
-```bash
-source venv/bin/activate && pytest --cov=src/cli_rpg --cov-report=term-missing -v tests/test_<new_file>.py
-```
+#### world_grid.py gaps (lines 137, 218, 226, 318, 330)
+- Test get_neighbor with invalid direction (line 137)
+- Test __iter__ method (line 218)
+- Test values() method (line 226)
+- Test ensure_dangling_exits with no coordinates (line 318)
+- Test ensure_dangling_exits returns False when no candidates (line 330)
 
-Final verification:
+## Verification
 ```bash
 source venv/bin/activate && pytest --cov=src/cli_rpg --cov-report=term-missing
+# Target: Coverage should increase from 95.01% to 96%+
 ```
-
-## Expected Outcome
-- Overall coverage increase from 94% to 95-96%
-- All identified uncovered error paths have test coverage
-- Improved confidence in error handling behavior
