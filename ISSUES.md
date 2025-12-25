@@ -736,27 +736,14 @@ Quests should be dynamically generated to keep gameplay fresh.
 - Quest chains that build on each other
 - Emergent storylines from completed quests
 
-### `companion-quest` command missing from help output
-**Status**: ACTIVE
-
-**Description**: The `companion-quest <name>` command is documented in README.md under "Companion Personal Quests" but is not listed in the in-game `help` command output. Users who don't read the full README wouldn't know this command exists.
-
-**Steps to Reproduce**:
-1. Start a new game: `cli-rpg --non-interactive --skip-character-creation`
-2. Run `help` command
-3. Search the output for "companion-quest"
-
-**Expected**: The help output should list `companion-quest <name>` in the Exploration Commands section.
-
-**Actual**: The help output only shows `companions`, `recruit <npc>`, and `dismiss <name>` - the `companion-quest` command is completely missing.
-
-**Impact**: Users may not discover this feature exists, reducing the value of the companion quest system.
-
-**Fix**: Add `companion-quest <name>` to the help output in the command handler.
-
----
-
 ## Resolved Issues
+
+### `companion-quest` command missing from help output
+**Status**: RESOLVED
+
+**Description**: The `companion-quest <name>` command was documented in README.md under "Companion Personal Quests" but was not listed in the in-game `help` command output.
+
+**Fix**: Added `companion-quest <name> - Accept a companion's personal quest` to the exploration commands section in `get_command_reference()` in `main.py`. Test added: `test_help_includes_companion_quest` in `tests/test_main_help_command.py`.
 
 ### Silent fallback masks AI generation failures
 **Status**: RESOLVED

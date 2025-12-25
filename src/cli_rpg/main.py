@@ -49,6 +49,7 @@ def get_command_reference() -> str:
         "  companions         - View your party members and bond levels",
         "  recruit <npc>      - Recruit an NPC to join your party",
         "  dismiss <name>     - Dismiss a companion from your party",
+        "  companion-quest <name> - Accept a companion's personal quest",
         "  help (h)           - Display this command reference",
         "  dump-state         - Export full game state as JSON",
         "  save               - Save your game (not available during combat)",

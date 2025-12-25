@@ -142,3 +142,14 @@ class TestHelpCommandDuringCombat:
         assert continue_game is True
         assert isinstance(message, str)
         assert len(message) > 0
+
+
+# Test companion-quest command in help
+class TestHelpCommandExploration:
+    """Tests for command discoverability via help."""
+
+    def test_help_includes_companion_quest(self):
+        """get_command_reference() includes companion-quest command."""
+        # Spec: companion-quest <name> should be discoverable via help
+        result = get_command_reference()
+        assert "companion-quest" in result.lower()
