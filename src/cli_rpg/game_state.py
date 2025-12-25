@@ -131,6 +131,15 @@ class GameState:
         self.current_combat: Optional[CombatEncounter] = None
         self.current_shop: Optional[Shop] = None  # Active shop interaction
         self.current_npc: Optional[NPC] = None  # NPC being talked to (for accept command)
+
+    @property
+    def is_in_conversation(self) -> bool:
+        """Check if player is currently in conversation with an NPC.
+
+        Returns:
+            True if in conversation, False otherwise
+        """
+        return self.current_npc is not None
     
     def get_current_location(self) -> Location:
         """Get the current Location object.
@@ -211,6 +220,10 @@ class GameState:
             - success is True if move was successful, False otherwise
             - message describes the result
         """
+        # Block movement during conversation
+        if self.is_in_conversation:
+            return (False, "You're in a conversation. Say 'bye' to leave first.")
+
         from cli_rpg.world_grid import DIRECTION_OFFSETS
 
         current = self.get_current_location()

@@ -173,6 +173,29 @@ Rewards scaling guidelines (based on player level {player_level}):
 - xp_reward: 25 + (player_level * 12) with some variance"""
 
 
+# Default prompt template for NPC conversation responses
+DEFAULT_NPC_CONVERSATION_PROMPT = """You are roleplaying as {npc_name} in a {theme} RPG.
+
+Character Information:
+- Name: {npc_name}
+- Description: {npc_description}
+- Role: {npc_role}
+- Location: {location_name}
+
+Conversation History:
+{conversation_history}
+
+Player says: "{player_input}"
+
+Instructions:
+- Respond in-character as {npc_name}
+- Keep your response to 1-2 sentences (10-200 characters)
+- Stay consistent with your role and the {theme} setting
+- Reference the conversation history if relevant
+
+Respond with ONLY the dialogue text, no quotes or formatting."""
+
+
 @dataclass
 class AIConfig:
     """Configuration for AI services.
@@ -207,6 +230,7 @@ class AIConfig:
     item_generation_prompt: str = field(default=DEFAULT_ITEM_GENERATION_PROMPT)
     lore_generation_prompt: str = field(default=DEFAULT_LORE_GENERATION_PROMPT)
     quest_generation_prompt: str = field(default=DEFAULT_QUEST_GENERATION_PROMPT)
+    npc_conversation_prompt: str = field(default=DEFAULT_NPC_CONVERSATION_PROMPT)
     
     def __post_init__(self) -> None:
         """Validate configuration after initialization."""
@@ -338,7 +362,8 @@ class AIConfig:
             "enemy_generation_prompt": self.enemy_generation_prompt,
             "item_generation_prompt": self.item_generation_prompt,
             "lore_generation_prompt": self.lore_generation_prompt,
-            "quest_generation_prompt": self.quest_generation_prompt
+            "quest_generation_prompt": self.quest_generation_prompt,
+            "npc_conversation_prompt": self.npc_conversation_prompt
         }
     
     @classmethod
@@ -370,5 +395,6 @@ class AIConfig:
             enemy_generation_prompt=data.get("enemy_generation_prompt", DEFAULT_ENEMY_GENERATION_PROMPT),
             item_generation_prompt=data.get("item_generation_prompt", DEFAULT_ITEM_GENERATION_PROMPT),
             lore_generation_prompt=data.get("lore_generation_prompt", DEFAULT_LORE_GENERATION_PROMPT),
-            quest_generation_prompt=data.get("quest_generation_prompt", DEFAULT_QUEST_GENERATION_PROMPT)
+            quest_generation_prompt=data.get("quest_generation_prompt", DEFAULT_QUEST_GENERATION_PROMPT),
+            npc_conversation_prompt=data.get("npc_conversation_prompt", DEFAULT_NPC_CONVERSATION_PROMPT)
         )

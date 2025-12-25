@@ -47,7 +47,7 @@ python -m cli_rpg.main
 - `equip <item name>` (e) - Equip a weapon or armor from your inventory
 - `unequip weapon|armor` - Unequip from the specified slot and return to inventory
 - `use <item name>` (u) - Use a consumable item (e.g., health potion)
-- `talk <npc>` (t) - Talk to an NPC (opens shop if merchant, shows quests if quest-giver)
+- `talk <npc>` (t) - Talk to an NPC (opens shop if merchant, shows quests if quest-giver, or enter extended conversation)
 - `accept <quest>` - Accept a quest from the NPC you're talking to
 - `shop` - View the current merchant's inventory and prices
 - `buy <item>` - Purchase an item from the current shop

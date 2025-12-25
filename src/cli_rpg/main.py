@@ -29,7 +29,7 @@ def get_command_reference() -> str:
         "  unequip <slot>     - Unequip weapon or armor (slot: weapon/armor)",
         "  use (u) <item>     - Use a consumable item",
         "  drop (dr) <item>   - Drop an item from your inventory",
-        "  talk (t) <npc>     - Talk to an NPC",
+        "  talk (t) <npc>     - Talk to an NPC (then chat freely, 'bye' to leave)",
         "  accept <quest>     - Accept a quest from the current NPC",
         "  complete <quest>   - Turn in a completed quest to the current NPC",
         "  shop               - View shop inventory (when at a shop)",
@@ -156,6 +156,61 @@ def select_and_load_character() -> tuple[Optional[Character], Optional[GameState
     except Exception as e:
         print(f"\n✗ Failed to load: {e}")
         return (None, None)
+
+
+def handle_conversation_input(game_state: GameState, user_input: str) -> tuple[bool, str]:
+    """Handle player input during conversation mode.
+
+    Args:
+        game_state: Current game state (must have current_npc set)
+        user_input: The player's input text
+
+    Returns:
+        Tuple of (continue_game, message)
+    """
+    npc = game_state.current_npc
+
+    # Check for exit commands
+    exit_commands = {"bye", "leave", "exit"}
+    if user_input.lower().strip() in exit_commands:
+        npc_name = npc.name
+        game_state.current_npc = None
+        game_state.current_shop = None
+        return (True, f"\nYou say goodbye to {npc_name}.")
+
+    # Generate AI response if available
+    if game_state.ai_service:
+        try:
+            # Determine NPC role
+            if npc.is_merchant:
+                role = "merchant"
+            elif npc.is_quest_giver:
+                role = "quest_giver"
+            else:
+                role = "villager"
+
+            response = game_state.ai_service.generate_conversation_response(
+                npc_name=npc.name,
+                npc_description=npc.description,
+                npc_role=role,
+                theme=game_state.theme,
+                location_name=game_state.current_location,
+                conversation_history=npc.conversation_history,
+                player_input=user_input
+            )
+
+            # Add both player input and NPC response to history
+            npc.add_conversation("player", user_input)
+            npc.add_conversation("npc", response)
+
+            return (True, f'\n{npc.name}: "{response}"')
+
+        except Exception:
+            # Fallback on any AI error
+            pass
+
+    # Fallback without AI service
+    return (True, f"\n{npc.name} nods thoughtfully.")
 
 
 def handle_combat_command(game_state: GameState, command: str, args: list[str]) -> tuple[bool, str]:
@@ -497,6 +552,9 @@ def handle_exploration_command(game_state: GameState, command: str, args: list[s
                 for q in available:
                     output += f"\n  - {q.name}"
                 output += "\n\nType 'accept <quest>' to accept a quest."
+
+        # Add conversation prompt
+        output += "\n\n(Continue chatting or type 'bye' to leave)"
 
         return (True, output)
 
@@ -846,7 +904,7 @@ def handle_exploration_command(game_state: GameState, command: str, args: list[s
 
 def run_game_loop(game_state: GameState) -> None:
     """Run the main gameplay loop.
-    
+
     Args:
         game_state: The game state to run the loop for
     """
@@ -866,16 +924,20 @@ def run_game_loop(game_state: GameState) -> None:
                 print("\n✓ Health restored. Returning to town square...")
                 game_state.current_location = "Town Square"
                 game_state.current_combat = None
-        
+
+        # Show conversation prompt if in conversation
+        if game_state.is_in_conversation:
+            print(f"\n[Talking to {game_state.current_npc.name}]")
+
         print()
         command_input = input("> ").strip()
-        
+
         if not command_input:
             continue
-        
+
         # Parse command
         command, args = parse_command(command_input)
-        
+
         # Route command based on combat state
         if game_state.is_in_combat():
             continue_game, message = handle_combat_command(game_state, command, args)
@@ -887,6 +949,13 @@ def run_game_loop(game_state: GameState) -> None:
             # Show combat status after each action if still in combat
             if game_state.is_in_combat() and game_state.current_combat is not None:
                 print("\n" + game_state.current_combat.get_status())
+        elif game_state.is_in_conversation and command == "unknown":
+            # In conversation mode - route to conversation handler
+            continue_game, message = handle_conversation_input(game_state, command_input)
+            print(message)
+
+            if not continue_game:
+                break
         else:
             continue_game, message = handle_exploration_command(game_state, command, args)
             print(message)

@@ -1329,3 +1329,102 @@ Note: Use "EXISTING_WORLD" as placeholder for the connection back to the source 
             "xp_reward": int(data["xp_reward"]),
             "quest_giver": npc_name
         }
+
+    def generate_conversation_response(
+        self,
+        npc_name: str,
+        npc_description: str,
+        npc_role: str,
+        theme: str,
+        location_name: str,
+        conversation_history: list[dict],
+        player_input: str
+    ) -> str:
+        """Generate a contextual conversation response from an NPC.
+
+        Args:
+            npc_name: Name of the NPC
+            npc_description: NPC's description
+            npc_role: Role type ("merchant", "quest_giver", "villager")
+            theme: World theme (e.g., "fantasy", "sci-fi")
+            location_name: Current location name for context
+            conversation_history: List of previous exchanges [{"role": str, "content": str}]
+            player_input: The player's latest message
+
+        Returns:
+            Generated response string (10-200 chars)
+
+        Raises:
+            AIGenerationError: If generation fails or response is too short
+            AIServiceError: If API call fails
+        """
+        prompt = self._build_conversation_prompt(
+            npc_name=npc_name,
+            npc_description=npc_description,
+            npc_role=npc_role,
+            theme=theme,
+            location_name=location_name,
+            conversation_history=conversation_history,
+            player_input=player_input
+        )
+
+        response_text = self._call_llm(prompt)
+
+        # Clean and validate response
+        response = response_text.strip().strip('"').strip("'")
+
+        if len(response) < 10:
+            raise AIGenerationError("Generated conversation response too short")
+
+        if len(response) > 200:
+            response = response[:197] + "..."
+
+        return response
+
+    def _build_conversation_prompt(
+        self,
+        npc_name: str,
+        npc_description: str,
+        npc_role: str,
+        theme: str,
+        location_name: str,
+        conversation_history: list[dict],
+        player_input: str
+    ) -> str:
+        """Build prompt for NPC conversation response generation.
+
+        Args:
+            npc_name: Name of the NPC
+            npc_description: NPC's description
+            npc_role: Role type
+            theme: World theme
+            location_name: Current location name
+            conversation_history: List of previous exchanges
+            player_input: The player's latest message
+
+        Returns:
+            Formatted prompt string
+        """
+        # Format conversation history
+        if conversation_history:
+            history_lines = []
+            for entry in conversation_history:
+                role = entry.get("role", "unknown")
+                content = entry.get("content", "")
+                if role == "player":
+                    history_lines.append(f"Player: {content}")
+                else:
+                    history_lines.append(f"{npc_name}: {content}")
+            formatted_history = "\n".join(history_lines)
+        else:
+            formatted_history = "(No previous conversation)"
+
+        return self.config.npc_conversation_prompt.format(
+            npc_name=npc_name,
+            npc_description=npc_description,
+            npc_role=npc_role,
+            theme=theme,
+            location_name=location_name or "unknown location",
+            conversation_history=formatted_history,
+            player_input=player_input
+        )

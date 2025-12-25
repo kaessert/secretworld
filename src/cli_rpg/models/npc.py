@@ -20,6 +20,7 @@ class NPC:
         shop: Optional shop if NPC is a merchant
         is_quest_giver: Whether NPC offers quests
         offered_quests: List of quests this NPC offers
+        conversation_history: List of conversation exchanges with player
     """
 
     name: str
@@ -30,6 +31,7 @@ class NPC:
     is_quest_giver: bool = False
     offered_quests: List["Quest"] = field(default_factory=list)
     greetings: List[str] = field(default_factory=list)
+    conversation_history: List[dict] = field(default_factory=list)
 
     def __post_init__(self):
         """Validate NPC attributes."""
@@ -48,6 +50,20 @@ class NPC:
             return random.choice(self.greetings)
         return self.dialogue
 
+    def add_conversation(self, role: str, content: str) -> None:
+        """Add a conversation entry to the history.
+
+        Maintains a maximum of 10 entries, removing oldest when exceeded.
+
+        Args:
+            role: The role of the speaker ("player" or "npc")
+            content: The message content
+        """
+        self.conversation_history.append({"role": role, "content": content})
+        # Cap at 10 entries
+        while len(self.conversation_history) > 10:
+            self.conversation_history.pop(0)
+
     def to_dict(self) -> dict:
         """Serialize NPC to dictionary.
 
@@ -62,7 +78,8 @@ class NPC:
             "shop": self.shop.to_dict() if self.shop else None,
             "is_quest_giver": self.is_quest_giver,
             "offered_quests": [q.to_dict() for q in self.offered_quests],
-            "greetings": self.greetings
+            "greetings": self.greetings,
+            "conversation_history": self.conversation_history
         }
 
     @classmethod
@@ -90,5 +107,6 @@ class NPC:
             shop=shop,
             is_quest_giver=data.get("is_quest_giver", False),
             offered_quests=offered_quests,
-            greetings=data.get("greetings", [])
+            greetings=data.get("greetings", []),
+            conversation_history=data.get("conversation_history", [])
         )
