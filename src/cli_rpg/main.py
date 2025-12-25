@@ -588,6 +588,8 @@ def handle_exploration_command(game_state: GameState, command: str, args: list[s
         if npc.is_merchant and npc.shop:
             game_state.current_shop = npc.shop
             output += "\n\nType 'shop' to see items, 'buy <item>' to purchase, 'sell <item>' to sell."
+        else:
+            game_state.current_shop = None  # Clear shop context for non-merchants
 
         # Check for quests ready to turn in to this NPC
         from cli_rpg.models.quest import QuestStatus

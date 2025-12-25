@@ -65,6 +65,24 @@ class TestTalkCommand:
         assert cont is True
         assert "no npc" in msg.lower() or "no one" in msg.lower()
 
+    def test_talk_to_non_merchant_clears_shop_context(self, game_with_shop):
+        """Talking to non-merchant NPC clears any active shop context."""
+        # Tests spec: Shop context must be cleared when talking to non-merchant
+        guard = NPC(name="Guard", description="A town guard", dialogue="Move along.", is_merchant=False)
+        game_with_shop.get_current_location().npcs.append(guard)
+
+        # Talk to merchant first - sets current_shop
+        handle_exploration_command(game_with_shop, "talk", ["merchant"])
+        assert game_with_shop.current_shop is not None
+
+        # Talk to non-merchant - should clear current_shop
+        handle_exploration_command(game_with_shop, "talk", ["guard"])
+        assert game_with_shop.current_shop is None
+
+        # Shop command should now fail
+        cont, msg = handle_exploration_command(game_with_shop, "shop", [])
+        assert "not at a shop" in msg.lower() or "talk" in msg.lower()
+
 
 class TestBuyCommand:
     """Tests for buy command - tests spec: Commands (buy)."""
