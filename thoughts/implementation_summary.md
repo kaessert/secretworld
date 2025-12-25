@@ -1,24 +1,28 @@
-# Implementation Summary: autosave.py Coverage Analysis
+# Implementation Summary: 100% Coverage for models/inventory.py
 
-## Overview
+## What was implemented
 
-No code changes were required. The plan correctly identified that line 9 in `autosave.py` is a `TYPE_CHECKING`-only import, which is intentionally excluded from runtime execution.
+Added 6 new tests to `tests/test_inventory.py` to cover the previously uncovered lines in `inventory.py`:
 
-## Analysis
+### Tests added to `TestInventoryUnequip` class:
+1. **`test_unequip_armor_empty_slot`** - Tests that `unequip("armor")` returns `False` when no armor is equipped (covers line 143)
+2. **`test_unequip_invalid_slot`** - Tests that `unequip()` with an invalid slot name returns `False` (covers line 151)
 
-- **Line 9**: `from cli_rpg.game_state import GameState` is inside a `TYPE_CHECKING` block
-- The `TYPE_CHECKING` constant from `typing` is always `False` at runtime
-- This pattern is standard Python practice for avoiding circular imports while maintaining type hints
-- The import is only used for static type checking tools (mypy, pyright)
+### New `TestInventoryStr` class (covers lines 241-255):
+3. **`test_str_empty_inventory`** - Tests string representation of empty inventory shows "Inventory", "(0/20)", and "No items"
+4. **`test_str_with_items`** - Tests string representation with items shows item count and item names
+5. **`test_str_with_equipped_weapon`** - Tests string representation shows equipped weapon with "Weapon" label
+6. **`test_str_with_equipped_armor`** - Tests string representation shows equipped armor with "Armor" label
 
-## Conclusion
+## Test Results
 
-The coverage gap is expected and correct. No implementation changes are needed. The codebase has appropriate coverage for runtime code.
+- **All 47 tests pass** (41 existing + 6 new)
+- **Coverage: 100%** for `src/cli_rpg/models/inventory.py` (104 statements, 0 missed)
 
-## Options (if 100% coverage is strictly required)
+## Files Modified
 
-If full coverage is needed for reporting purposes, either:
-1. Add `# pragma: no cover` to the `TYPE_CHECKING` block
-2. Configure coverage globally to exclude `TYPE_CHECKING` blocks in `pyproject.toml`
+- `tests/test_inventory.py` - Added 6 new test methods
 
-These are cosmetic changes for coverage reporting only and do not affect functionality.
+## E2E Validation
+
+No E2E tests needed - this was a unit test coverage improvement task. The `__str__` method is used for console display of inventory and the `unequip()` edge cases are internal logic paths.

@@ -305,6 +305,18 @@ class TestInventoryUnequip:
         assert result is False
         assert inventory.equipped_armor == armor  # Still equipped
 
+    def test_unequip_armor_empty_slot(self):
+        """Test: Unequip armor returns False when no armor equipped (covers line 143)"""
+        inventory = Inventory()
+        result = inventory.unequip("armor")
+        assert result is False
+
+    def test_unequip_invalid_slot(self):
+        """Test: Unequip invalid slot returns False (covers line 151)"""
+        inventory = Inventory()
+        result = inventory.unequip("invalid_slot")
+        assert result is False
+
 
 class TestInventoryStatBonuses:
     """Test equipped item stat bonuses (spec requirement)."""
@@ -521,3 +533,45 @@ class TestInventoryListItems:
         items = inventory.list_items()
 
         assert len(items) == 2
+
+
+class TestInventoryStr:
+    """Test inventory string representation (covers lines 241-255)."""
+
+    def test_str_empty_inventory(self):
+        """Test: String representation of empty inventory"""
+        inventory = Inventory()
+        result = str(inventory)
+        assert "Inventory" in result
+        assert "(0/20)" in result
+        assert "No items" in result
+
+    def test_str_with_items(self):
+        """Test: String representation with items"""
+        inventory = Inventory()
+        sword = Item(name="Iron Sword", description="Sharp", item_type=ItemType.WEAPON)
+        inventory.add_item(sword)
+        result = str(inventory)
+        assert "Inventory" in result
+        assert "(1/20)" in result
+        assert "Iron Sword" in result
+
+    def test_str_with_equipped_weapon(self):
+        """Test: String representation with equipped weapon"""
+        inventory = Inventory()
+        sword = Item(name="Iron Sword", description="Sharp", item_type=ItemType.WEAPON)
+        inventory.add_item(sword)
+        inventory.equip(sword)
+        result = str(inventory)
+        assert "Weapon" in result
+        assert "Iron Sword" in result
+
+    def test_str_with_equipped_armor(self):
+        """Test: String representation with equipped armor"""
+        inventory = Inventory()
+        armor = Item(name="Chainmail", description="Protective", item_type=ItemType.ARMOR)
+        inventory.add_item(armor)
+        inventory.equip(armor)
+        result = str(inventory)
+        assert "Armor" in result
+        assert "Chainmail" in result
