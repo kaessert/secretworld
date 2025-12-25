@@ -23,6 +23,7 @@ from cli_rpg.whisper import WhisperService, format_whisper
 from cli_rpg.companion_banter import CompanionBanterService, format_banter
 from cli_rpg.random_encounters import check_for_random_encounter
 from cli_rpg.shadow_creature import check_and_trigger_shadow_attack
+from cli_rpg.hallucinations import check_for_hallucination, DREAD_REDUCTION_ON_DISPEL
 from cli_rpg.models.world_event import WorldEvent
 from cli_rpg.world_events import (
     check_for_new_event,
@@ -498,6 +499,12 @@ class GameState:
         shadow_message = check_and_trigger_shadow_attack(self)
         if shadow_message:
             message += f"\n{shadow_message}"
+
+        # Check for hallucination at high dread (only if no shadow attack)
+        if not shadow_message and not self.is_in_combat():
+            hallucination_message = check_for_hallucination(self)
+            if hallucination_message:
+                message += f"\n{hallucination_message}"
 
         # Check for exploration quest progress
         explore_messages = self.current_character.record_explore(self.current_location)

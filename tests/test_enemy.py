@@ -228,6 +228,7 @@ class TestEnemySerialization:
             "bleed_chance": 0.0,
             "bleed_damage": 0,
             "bleed_duration": 0,
+            "is_hallucination": False,
             "status_effects": [],
         }
 

@@ -243,8 +243,8 @@ class TestBanterContextInMove:
         )
         game_state.companions.append(companion)
 
-        # Set high dread
-        character.dread_meter.dread = 75
+        # Set high dread (but not in hallucination range to avoid combat)
+        character.dread_meter.dread = 60
 
         with patch.object(game_state.banter_service, "get_banter") as mock_get_banter:
             mock_get_banter.return_value = None
@@ -252,4 +252,4 @@ class TestBanterContextInMove:
 
             call_kwargs = mock_get_banter.call_args.kwargs
             # Dread may increase during move (forest adds dread), verify it's high
-            assert call_kwargs["dread"] >= 75
+            assert call_kwargs["dread"] >= 60

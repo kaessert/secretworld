@@ -50,6 +50,7 @@ src/cli_rpg/
 ├── world_events.py      # Living world events (plagues, caravans, invasions)
 ├── seasons.py           # Seasonal events and festivals system
 ├── shadow_creature.py   # Shadow creature attack at 100% dread
+├── hallucinations.py    # Dread hallucinations at 75-99% dread
 └── models/
     ├── character.py     # Player character model
     ├── dread.py         # Dread meter for psychological horror

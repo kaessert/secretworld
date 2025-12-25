@@ -458,6 +458,19 @@ class CombatEncounter:
         if enemy is None:
             return False, error or "No target found."
 
+        # Check if target is a hallucination
+        if enemy.is_hallucination:
+            self.enemies.remove(enemy)
+            self.is_active = len(self.get_living_enemies()) > 0
+            message = (
+                f"Your attack passes through {colors.enemy(enemy.name)}!\n"
+                f"The creature {colors.warning('dissipates')} like morning mist - "
+                f"it was never real."
+            )
+            if not self.get_living_enemies():
+                message += f" {colors.heal('The illusion fades.')}"
+            return (not self.get_living_enemies(), message)
+
         # Check for Frenzy combo (Attack x3 -> triple attack, 1.5x damage)
         if self.pending_combo == "frenzy":
             base_damage = max(1, self.player.get_attack_power() - enemy.defense)

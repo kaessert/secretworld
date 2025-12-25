@@ -35,6 +35,7 @@ class Enemy:
     bleed_chance: float = 0.0  # Chance (0.0-1.0) to apply bleed on attack
     bleed_damage: int = 0  # Damage per turn if bleed is applied
     bleed_duration: int = 0  # Duration of bleed in turns
+    is_hallucination: bool = False  # True if this is a dread-induced hallucination
     status_effects: List = field(default_factory=list)  # Active status effects on this enemy
 
     def __post_init__(self):
@@ -187,6 +188,7 @@ class Enemy:
             "bleed_chance": self.bleed_chance,
             "bleed_damage": self.bleed_damage,
             "bleed_duration": self.bleed_duration,
+            "is_hallucination": self.is_hallucination,
             "status_effects": [e.to_dict() for e in self.status_effects],
         }
     
@@ -233,5 +235,6 @@ class Enemy:
             bleed_chance=data.get("bleed_chance", 0.0),
             bleed_damage=data.get("bleed_damage", 0),
             bleed_duration=data.get("bleed_duration", 0),
+            is_hallucination=data.get("is_hallucination", False),
             status_effects=status_effects,
         )

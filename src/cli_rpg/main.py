@@ -249,6 +249,17 @@ def handle_combat_command(game_state: GameState, command: str, args: list[str], 
         output = f"\n{message}"
 
         if victory:
+            # Check if this was a hallucination-only fight
+            all_hallucinations = all(e.is_hallucination for e in combat.enemies)
+            if all_hallucinations:
+                # Hallucination dispelled - reduce dread, skip XP/bestiary
+                from cli_rpg.hallucinations import DREAD_REDUCTION_ON_DISPEL
+                from cli_rpg import colors
+                game_state.current_character.dread_meter.reduce_dread(DREAD_REDUCTION_ON_DISPEL)
+                output += f"\n{colors.heal('Your mind clears slightly as the illusion fades.')}"
+                game_state.current_combat = None
+                return (True, output)
+
             # All enemies defeated - record each in bestiary
             for enemy in combat.enemies:
                 game_state.current_character.record_enemy_defeat(enemy)
@@ -354,6 +365,17 @@ def handle_combat_command(game_state: GameState, command: str, args: list[str], 
         output = f"\n{message}"
 
         if victory:
+            # Check if this was a hallucination-only fight
+            all_hallucinations = all(e.is_hallucination for e in combat.enemies)
+            if all_hallucinations:
+                # Hallucination dispelled - reduce dread, skip XP/bestiary
+                from cli_rpg.hallucinations import DREAD_REDUCTION_ON_DISPEL
+                from cli_rpg import colors
+                game_state.current_character.dread_meter.reduce_dread(DREAD_REDUCTION_ON_DISPEL)
+                output += f"\n{colors.heal('Your mind clears slightly as the illusion fades.')}"
+                game_state.current_combat = None
+                return (True, output)
+
             # All enemies defeated - record each in bestiary
             for enemy in combat.enemies:
                 game_state.current_character.record_enemy_defeat(enemy)

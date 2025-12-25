@@ -1,55 +1,69 @@
-# Shadow Creature Attack Implementation Summary
+# Dread Hallucinations System - Implementation Summary
 
 ## What Was Implemented
 
-Implemented the Shadow Creature attack system that triggers when dread reaches 100%, as documented in `models/dread.py` line 9: "100%: Shadow creature attack triggered".
+### New Module: `src/cli_rpg/hallucinations.py`
+- Created hallucination spawning and trigger logic
+- **Constants**:
+  - `HALLUCINATION_DREAD_THRESHOLD = 75` (triggers at 75-99% dread)
+  - `HALLUCINATION_CHANCE = 0.30` (30% chance per movement)
+  - `DREAD_REDUCTION_ON_DISPEL = 5` (catharsis on dispel)
+- **Functions**:
+  - `spawn_hallucination(level)`: Creates a hallucination enemy scaled to player level
+  - `check_for_hallucination(game_state)`: Checks and triggers hallucination encounter
+- **Templates**: Shadow Mimic, Phantom Shade, Nightmare Echo with unique descriptions and ASCII art
 
-### New File: `src/cli_rpg/shadow_creature.py`
+### Modified: `src/cli_rpg/models/enemy.py`
+- Added `is_hallucination: bool = False` field to Enemy dataclass
+- Updated `to_dict()` to serialize the new field
+- Updated `from_dict()` to deserialize with backward compatibility (defaults to False)
 
-Created a new module with:
-- `SHADOW_CREATURE_NAME = "Shadow of Dread"` - Themed creature name
-- `SHADOW_CREATURE_DESCRIPTION` - Flavor text describing the manifestation
-- `SHADOW_ATTACK_FLAVOR` - Attack text ("lashes out with tendrils of pure terror")
-- `SHADOW_VICTORY_DREAD_REDUCTION = 50` - Constant for dread reduction on victory
-- `SHADOW_ASCII_ART` - Visual representation of the shadow creature
-- `spawn_shadow_creature(level: int) -> Enemy` - Creates a level-scaled shadow enemy:
-  - Health: 30 + level * 15
-  - Attack: 5 + level * 2
-  - Defense: 2 + level (lower than normal - ethereal)
-  - XP: 25 + level * 15 (rewarding for facing fears)
-- `check_and_trigger_shadow_attack(game_state) -> Optional[str]` - Checks for critical dread and triggers combat
+### Modified: `src/cli_rpg/combat.py`
+- Added hallucination check in `player_attack()` method
+- When attacking a hallucination:
+  - The creature dissipates (removed from enemies list)
+  - Special message displayed: "Your attack passes through... it was never real"
+  - Combat ends if no other enemies remain
+  - No damage calculation occurs
 
-### Modified File: `src/cli_rpg/game_state.py`
+### Modified: `src/cli_rpg/game_state.py`
+- Added import for hallucination module
+- Integrated hallucination check in `move()` after shadow creature check
+- Hallucinations only trigger if:
+  - No shadow attack (100% dread priority)
+  - Not already in combat
+  - Dread is 75-99%
+  - 30% random chance succeeds
 
-- Added import for `check_and_trigger_shadow_attack`
-- Added shadow creature check after `_update_dread_on_move()` call in the `move()` method (lines 497-500)
-
-### New Test File: `tests/test_shadow_creature.py`
-
-15 tests covering:
-- `TestSpawnShadowCreature` (7 tests): Enemy creation, scaling, ASCII art, flavor text
-- `TestCheckAndTriggerShadowAttack` (4 tests): Trigger conditions at 100% dread, no trigger below 100%, no trigger during combat
-- `TestShadowCreatureInGameState` (2 tests): Integration with movement system
-- `TestShadowDefeatDreadReduction` (2 tests): Victory dread reduction constant, combat initialization
+### Modified: `src/cli_rpg/main.py`
+- Updated `handle_combat_command()` for both attack and cast commands
+- Added special handling for hallucination-only fights:
+  - Skips bestiary recording
+  - Skips XP/loot/gold rewards
+  - Skips quest progress tracking
+  - Reduces dread by 5 with "Your mind clears slightly" message
 
 ## Test Results
 
-- All 15 new tests pass
-- Full test suite: 2239 tests pass
+All 17 new tests pass + 2239 existing tests (2256 total):
+- `tests/test_hallucinations.py`: Full coverage of new functionality
+  - Spawn tests: enemy creation, flag, names, level scaling, description, ASCII art
+  - Trigger tests: 75% threshold, below threshold, at 100%, in combat, chance check
+  - Combat tests: dispel on attack, combat ends
+  - Enemy model tests: default flag, serialization roundtrip, backward compatibility
+  - Constants test: dread reduction value
 
-## Design Decisions
+## Test Files Modified
 
-1. **Trigger Point**: Shadow creature check happens after dread updates during movement, ensuring it catches both pre-existing 100% dread and dread that crosses the threshold during a move
-2. **Combat Integration**: Uses existing `CombatEncounter` infrastructure with companions support
-3. **Not a Boss**: Shadow creature is marked `is_boss=False` to keep it as a special encounter rather than a major boss fight
-4. **Dramatic Introduction**: Includes a dramatic "THE DARKNESS TAKES FORM" message header when combat triggers
-5. **No Double-Trigger**: Checks `is_in_combat()` to prevent shadow from interrupting existing combat
+- `tests/test_enemy.py`: Added `is_hallucination: False` to expected serialization dict
+- `tests/test_companion_banter_integration.py`: Changed dread level from 75 to 60 to avoid hallucination trigger interference
 
-## E2E Validation
+## E2E Validation Suggestions
 
-The implementation should be validated by:
-1. Starting a game and moving to high-dread locations (dungeon, caves)
-2. Reaching 100% dread and confirming shadow creature combat triggers
-3. Defeating the shadow creature and verifying combat ends properly
-4. Testing that dread at 99% does not trigger the shadow
-5. Testing that shadow does not trigger if already in combat
+1. Create a new game and enter a dungeon/cave
+2. Increase dread to 75%+ (can be done by exploring dark areas)
+3. Move around - with 30% chance, hallucinations should appear
+4. Attack the hallucination - should dispel with special message
+5. Verify dread is reduced by 5
+6. Verify no XP/gold/loot awarded
+7. Verify hallucination not added to bestiary
