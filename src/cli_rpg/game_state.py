@@ -305,7 +305,9 @@ class GameState:
                     level=self.current_character.level,
                     distance=distance,
                 )
-            self.current_combat = CombatEncounter(self.current_character, enemies=enemies)
+            self.current_combat = CombatEncounter(
+                self.current_character, enemies=enemies, weather=self.weather
+            )
 
             # Combat increases dread
             dread_message = self.current_character.dread_meter.add_dread(DREAD_COMBAT_INCREASE)

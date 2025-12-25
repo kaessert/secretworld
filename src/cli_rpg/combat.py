@@ -7,6 +7,7 @@ from cli_rpg.models.character import Character
 from cli_rpg.models.enemy import Enemy
 from cli_rpg.models.item import Item, ItemType
 from cli_rpg.models.status_effect import StatusEffect
+from cli_rpg.models.weather import Weather
 from cli_rpg import colors
 
 if TYPE_CHECKING:
@@ -201,7 +202,8 @@ class CombatEncounter:
         self,
         player: Character,
         enemies: Optional[Union[list[Enemy], Enemy]] = None,
-        enemy: Optional[Enemy] = None
+        enemy: Optional[Enemy] = None,
+        weather: Optional[Weather] = None
     ):
         """
         Initialize combat encounter.
@@ -210,12 +212,14 @@ class CombatEncounter:
             player: Player character
             enemies: List of enemies to fight (or single Enemy for backward compat)
             enemy: Single enemy to fight (backward compatibility keyword arg)
+            weather: Optional weather for weather-combat interactions
 
         Note: Either enemies or enemy must be provided. If both are provided,
         enemies takes precedence. If enemy is provided, it's wrapped in a list.
         Backward compatibility: CombatEncounter(player, enemy) works as before.
         """
         self.player = player
+        self.weather = weather
 
         # Handle backward compatibility
         if enemies is not None:
@@ -250,6 +254,50 @@ class CombatEncounter:
                 self.player.status_effects.remove(effect)
                 return f"You are {colors.damage('stunned')} and cannot act this turn!"
         return None
+
+    def _check_rain_extinguish(self) -> list[str]:
+        """Check if rain extinguishes burn effects (40% chance each).
+
+        Rain/storm weather can extinguish Burn status effects on all combatants.
+        Each burn effect has a 40% chance to be removed.
+
+        Returns:
+            List of flavor messages about extinguished flames.
+        """
+        messages = []
+
+        # Check player burns
+        for effect in list(self.player.status_effects):
+            if effect.name == "Burn" and random.random() < 0.4:
+                self.player.status_effects.remove(effect)
+                messages.append("The rain douses your flames!")
+
+        # Check enemy burns
+        for enemy in self.get_living_enemies():
+            for effect in list(enemy.status_effects):
+                if effect.name == "Burn" and random.random() < 0.4:
+                    enemy.status_effects.remove(effect)
+                    messages.append(f"The rain extinguishes {enemy.name}'s flames!")
+
+        return messages
+
+    def apply_status_effect_with_weather(
+        self,
+        target: Union[Character, Enemy],
+        effect: StatusEffect
+    ) -> None:
+        """Apply status effect with weather modifications.
+
+        Storm weather extends Freeze duration by 1 turn (cold prolongs freezing).
+
+        Args:
+            target: Character or Enemy to apply effect to.
+            effect: The status effect to apply.
+        """
+        # Storm extends freeze duration by 1 turn
+        if self.weather and self.weather.condition == "storm" and effect.effect_type == "freeze":
+            effect.duration += 1
+        target.apply_status_effect(effect)
 
     @property
     def enemy(self) -> Enemy:
@@ -700,6 +748,10 @@ class CombatEncounter:
         # Tick status effects on player (DOT damage, expiration)
         status_messages = self.player.tick_status_effects()
         messages.extend(status_messages)
+
+        # Weather interactions: rain/storm can extinguish burn
+        if self.weather and self.weather.condition in ("rain", "storm"):
+            messages.extend(self._check_rain_extinguish())
 
         # Combine messages
         result = "\n".join(messages)
