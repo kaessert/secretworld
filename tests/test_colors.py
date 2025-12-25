@@ -158,6 +158,41 @@ class TestSemanticHelpers:
             assert colors.MAGENTA in result
             assert "Health" in result
 
+    def test_dialogue_uses_blue(self):
+        """dialogue() should use blue color for NPC speech."""
+        with patch.dict(os.environ, {}, clear=True):
+            os.environ.pop("CLI_RPG_NO_COLOR", None)
+            _clear_color_cache()
+            result = colors.dialogue("Hello, adventurer!")
+            assert colors.BLUE in result
+            assert "Hello, adventurer!" in result
+
+    def test_narration_uses_default(self):
+        """narration() should return text unchanged (default color)."""
+        with patch.dict(os.environ, {}, clear=True):
+            os.environ.pop("CLI_RPG_NO_COLOR", None)
+            _clear_color_cache()
+            result = colors.narration("The wind howls.")
+            assert result == "The wind howls."
+
+    def test_warning_uses_yellow(self):
+        """warning() should use yellow color."""
+        with patch.dict(os.environ, {}, clear=True):
+            os.environ.pop("CLI_RPG_NO_COLOR", None)
+            _clear_color_cache()
+            result = colors.warning("Watch out!")
+            assert colors.YELLOW in result
+            assert "Watch out!" in result
+
+    def test_companion_uses_cyan(self):
+        """companion() should use cyan color."""
+        with patch.dict(os.environ, {}, clear=True):
+            os.environ.pop("CLI_RPG_NO_COLOR", None)
+            _clear_color_cache()
+            result = colors.companion("Kira")
+            assert colors.CYAN in result
+            assert "Kira" in result
+
 
 class TestColorConstants:
     """Tests for color constant values."""

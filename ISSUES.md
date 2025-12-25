@@ -716,7 +716,7 @@ Text output could be more atmospheric and engaging.
 - ✅ Effects disabled in `--non-interactive` and `--json` modes via `set_effects_enabled(False)` in `main.py`
 
 **Remaining features**:
-- Color-coding for different types of information (damage, healing, dialogue, narration)
+- ✅ Color-coding for dialogue and narration - MVP IMPLEMENTED (semantic `dialogue()` and `narration()` helpers in `colors.py`; NPC dialogue displays with blue text, narration uses default terminal color)
 - Sound effects via terminal bell for important events
 - Pause and pacing for dramatic tension
 - Stylized borders and frames for different UI elements

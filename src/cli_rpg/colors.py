@@ -212,3 +212,30 @@ def companion(text: str) -> str:
         Cyan-colored text.
     """
     return colorize(text, CYAN)
+
+
+def dialogue(text: str) -> str:
+    """Color text as dialogue/NPC speech (blue).
+
+    Args:
+        text: Dialogue text spoken by NPCs.
+
+    Returns:
+        Blue-colored text.
+    """
+    return colorize(text, BLUE)
+
+
+def narration(text: str) -> str:
+    """Return narration text unchanged (default terminal color).
+
+    Narration uses the terminal's default color for readability.
+    This function exists for semantic consistency and future styling.
+
+    Args:
+        text: Narrative/descriptive text.
+
+    Returns:
+        Unchanged text.
+    """
+    return text

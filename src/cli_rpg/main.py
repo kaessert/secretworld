@@ -655,10 +655,13 @@ def handle_exploration_command(game_state: GameState, command: str, args: list[s
                 pass  # Silent fallback to existing greetings
 
         # Build output with ASCII art first
+        from cli_rpg import colors
         output = ""
         if npc.ascii_art:
             output = f"\n{npc.ascii_art}\n"
-        output += f"\n{npc.name}: \"{npc.get_greeting(choices=game_state.choices)}\""
+        greeting = npc.get_greeting(choices=game_state.choices)
+        dialogue_text = f'"{greeting}"'
+        output += f"\n{colors.npc(npc.name)}: {colors.dialogue(dialogue_text)}"
 
         # Record talk for TALK quest progress tracking
         talk_messages = game_state.current_character.record_talk(npc.name)
