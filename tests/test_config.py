@@ -1,8 +1,56 @@
 """Tests for config module."""
 
 import os
+import logging
 import pytest
 from unittest.mock import patch
+
+
+class TestLoadAIConfig:
+    """Tests for load_ai_config() function.
+
+    Spec: Load AI configuration from environment variables, with logging.
+    """
+
+    def test_load_ai_config_returns_config_when_api_key_set(self, caplog):
+        """Test that load_ai_config returns AIConfig when OPENAI_API_KEY is set.
+
+        Spec: Should return AIConfig instance and log success message when API key available.
+        """
+        from cli_rpg.config import load_ai_config
+        from cli_rpg.ai_config import AIConfig
+
+        # Clear any existing env vars that might interfere
+        env_vars = {
+            'OPENAI_API_KEY': 'test-key-12345',
+            'ANTHROPIC_API_KEY': '',  # Clear this to avoid Anthropic being preferred
+        }
+        with patch.dict(os.environ, env_vars, clear=False):
+            # Remove ANTHROPIC_API_KEY if present
+            os.environ.pop('ANTHROPIC_API_KEY', None)
+            with caplog.at_level(logging.INFO, logger='cli_rpg.config'):
+                config = load_ai_config()
+
+        assert config is not None
+        assert isinstance(config, AIConfig)
+        assert "AI configuration loaded successfully" in caplog.text
+
+    def test_load_ai_config_returns_none_when_no_api_key(self, caplog):
+        """Test that load_ai_config returns None when no API key is set.
+
+        Spec: Should return None and log info message when no API key available.
+        """
+        from cli_rpg.config import load_ai_config
+
+        # Clear all API keys
+        with patch.dict(os.environ, {}, clear=True):
+            os.environ.pop('OPENAI_API_KEY', None)
+            os.environ.pop('ANTHROPIC_API_KEY', None)
+            with caplog.at_level(logging.INFO, logger='cli_rpg.config'):
+                config = load_ai_config()
+
+        assert config is None
+        assert "AI configuration not available" in caplog.text
 
 
 class TestIsAIStrictMode:

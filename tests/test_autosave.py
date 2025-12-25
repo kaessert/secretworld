@@ -137,3 +137,34 @@ class TestLoadAutosave:
         """
         loaded = load_autosave("NonExistent", save_dir=str(tmp_path))
         assert loaded is None
+
+    def test_load_autosave_corrupted_json(self, tmp_path):
+        """Should return None for corrupted JSON file.
+
+        Spec: Handle corrupted save files gracefully by returning None (line 73).
+        """
+        filepath = tmp_path / "autosave_Hero.json"
+        filepath.write_text("not valid json{{{")
+        loaded = load_autosave("Hero", save_dir=str(tmp_path))
+        assert loaded is None
+
+    def test_load_autosave_invalid_data_structure(self, tmp_path):
+        """Should return None for valid JSON with invalid structure.
+
+        Spec: Handle missing required fields gracefully by returning None (line 73-74).
+        """
+        filepath = tmp_path / "autosave_Hero.json"
+        filepath.write_text('{"invalid": "structure"}')
+        loaded = load_autosave("Hero", save_dir=str(tmp_path))
+        assert loaded is None
+
+    def test_load_autosave_missing_character_data(self, tmp_path):
+        """Should return None when character data is malformed.
+
+        Spec: Handle ValueError from GameState.from_dict gracefully (line 73-74).
+        """
+        filepath = tmp_path / "autosave_Hero.json"
+        # Valid JSON structure but missing required character fields
+        filepath.write_text('{"character": {"name": "Hero"}, "world": {}, "current_location": "Town"}')
+        loaded = load_autosave("Hero", save_dir=str(tmp_path))
+        assert loaded is None

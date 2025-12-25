@@ -1,69 +1,59 @@
-# Implementation Summary: Abandon Quest Command
-
-## Status: COMPLETE (Already Implemented)
-
-The abandon quest command was already fully implemented in the codebase. All tests pass.
+# Implementation Summary: Improve Test Coverage for Low-Coverage Modules
 
 ## What Was Implemented
 
-Added an `abandon` command that allows players to remove active quests from their quest journal.
+Added new tests to improve coverage for the following modules:
 
-### Features
-- Players can abandon quests by name (supports partial case-insensitive matching)
-- Only `ACTIVE` status quests can be abandoned
-- Quest is completely removed from the quest list (not marked as `FAILED`)
-- Blocked during combat (exploration mode only)
+### 1. config.py (now 100%, was 88%)
+- Added `TestLoadAIConfig` class with 2 new tests:
+  - `test_load_ai_config_returns_config_when_api_key_set`: Tests the success path when OPENAI_API_KEY is set, verifying AIConfig is returned and success message is logged
+  - `test_load_ai_config_returns_none_when_no_api_key`: Tests that None is returned when no API key is available
 
-### Files Modified
+### 2. autosave.py (now 96%, was 89%)
+- Added 3 new tests to `TestLoadAutosave` class:
+  - `test_load_autosave_corrupted_json`: Tests handling of corrupted JSON files
+  - `test_load_autosave_invalid_data_structure`: Tests handling of valid JSON with missing required fields
+  - `test_load_autosave_missing_character_data`: Tests handling of malformed character data
 
-1. **`src/cli_rpg/game_state.py`** (line 67)
-   - Added `"abandon"` to the `known_commands` set
+### 3. world.py (remains at 90%)
+- Added 2 new tests to `TestCreateWorld` class:
+  - `test_create_world_logs_warning_on_ai_failure_non_strict`: Tests that warning is logged when AI fails in non-strict mode
+  - `test_create_world_uses_default_when_no_ai_service`: Tests that default world is used when no AI service is provided
 
-2. **`src/cli_rpg/main.py`** (line 35, lines 761-768)
-   - Added help text: `"  abandon <quest>    - Abandon an active quest from your journal"`
-   - Added command handler in `handle_exploration_command` that:
-     - Requires quest name argument
-     - Calls `game_state.current_character.abandon_quest(quest_name)`
-     - Returns result message
+Note: Lines 18-21 (ImportError handling for AI imports) remain uncovered as testing them would require removing the actual AI modules, which is impractical.
 
-3. **`src/cli_rpg/models/character.py`** (lines 400-434)
-   - Added `abandon_quest(self, quest_name: str) -> Tuple[bool, str]` method that:
-     - Finds quest by partial name match (case-insensitive)
-     - Only allows abandoning `ACTIVE` status quests
-     - Removes quest from `self.quests` list
-     - Returns `(True, success_message)` or `(False, error_message)`
+### 4. main.py (remains at 92%)
+- Added `TestExplorationCombatCommandsOutsideCombat` class with 4 new tests:
+  - `test_attack_command_outside_combat`: Tests attack command shows "Not in combat" when not in combat
+  - `test_defend_command_outside_combat`: Tests defend command shows "Not in combat" when not in combat
+  - `test_flee_command_outside_combat`: Tests flee command shows "Not in combat" when not in combat
+  - `test_unknown_command_shows_help_hint`: Tests unknown command shows help hint
 
-4. **`tests/test_quest_commands.py`** (lines 481-574)
-   - Added 8 new tests:
-     - `test_parse_abandon_command` - parse_command recognizes "abandon"
-     - `test_abandon_quest_removes_active_quest` - abandoning removes from list
-     - `test_abandon_quest_not_found` - error for unknown quest
-     - `test_abandon_quest_no_args` - prompts for quest name
-     - `test_abandon_quest_partial_match` - finds by partial name
-     - `test_abandon_cannot_abandon_completed` - error for COMPLETED status
-     - `test_abandon_cannot_abandon_ready_to_turn_in` - error for READY_TO_TURN_IN status
-     - `test_abandon_blocked_during_combat` - returns combat error
+## Files Modified
+- `tests/test_config.py`: Added TestLoadAIConfig class with 2 tests
+- `tests/test_autosave.py`: Added 3 tests to TestLoadAutosave class
+- `tests/test_world.py`: Added 2 tests to TestCreateWorld class
+- `tests/test_main_coverage.py`: Added TestExplorationCombatCommandsOutsideCombat class with 4 tests
 
 ## Test Results
+- All 1188 tests pass
+- Overall coverage: 94.21% (maintained)
+- Target modules improved:
+  - config.py: 88% -> 100%
+  - autosave.py: 89% -> 96%
+  - world.py: lines 142, 146 now covered through logging test
+  - main.py: lines 905-912 now covered
 
-- All 8 new abandon command tests pass
-- All 35 quest command tests pass
-- Full test suite: 1177 passed, 1 skipped
+## Verification Steps
+```bash
+source venv/bin/activate && pytest tests/test_config.py tests/test_autosave.py tests/test_world.py tests/test_main_coverage.py -v
+# All 71 tests in these files pass
 
-## Design Decisions
+source venv/bin/activate && pytest --cov=src/cli_rpg --cov-report=term-missing
+# All 1188 tests pass, 94.21% coverage
+```
 
-1. **Quest removal vs FAILED status**: Per the spec, abandoned quests are removed entirely rather than being marked as `FAILED`. The `FAILED` status is reserved for future use cases like timed quests that expire.
-
-2. **Combat blocking**: The `abandon` command is automatically blocked during combat through the existing fallback in `handle_combat_command` that returns "Can't do that during combat!" for unrecognized exploration commands.
-
-3. **Partial name matching**: Follows the same pattern as the `quest` and `complete` commands for consistent UX.
-
-## E2E Test Validation
-
-To validate manually:
-1. Start game and accept a quest from an NPC
-2. Use `quests` to see the active quest
-3. Use `abandon <quest-name>` to abandon it
-4. Verify `quests` no longer shows the quest
-5. Verify attempting to abandon a completed/ready-to-turn-in quest shows an error
-6. Verify `abandon` command is blocked during combat
+## E2E Tests Should Validate
+- Load autosave with corrupted files should gracefully return to game start
+- AI configuration loading should succeed when API key is set
+- Combat commands outside combat should show appropriate error messages

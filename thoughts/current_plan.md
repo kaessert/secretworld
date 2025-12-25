@@ -1,51 +1,94 @@
-# Implementation Plan: Abandon Quest Command
+# Implementation Plan: Improve Test Coverage for Low-Coverage Modules
 
-## Spec
+## Summary
+Add tests for uncovered lines in modules below 94% coverage to increase overall reliability. Coverage is already excellent (94%), so this focuses on specific untested edge cases.
 
-Add an `abandon` command that allows players to remove active quests from their journal. When abandoned:
-- Quest is removed from the character's quest list
-- Quest status does NOT change to `FAILED` (just removed entirely - `FAILED` status is for future use like failed timed quests)
-- Can only abandon `ACTIVE` quests (not `READY_TO_TURN_IN` or `COMPLETED`)
-- Works outside of combat (exploration mode only)
+## Priority Modules (lowest coverage first)
 
-## Implementation Steps
+### 1. config.py (88% - lines 34-35)
+**Missing:** `load_ai_config()` success path logging
 
-### 1. Add `abandon` to known commands
-**File:** `src/cli_rpg/game_state.py` (line 65-67)
-- Add `"abandon"` to the `known_commands` set
+```python
+# tests/test_config.py - Add to TestLoadAIConfig class:
+def test_load_ai_config_returns_config_when_api_key_set(self):
+    """Test that load_ai_config returns AIConfig when OPENAI_API_KEY is set."""
+    with patch.dict(os.environ, {'OPENAI_API_KEY': 'test-key'}):
+        config = load_ai_config()
+        assert config is not None
+        assert isinstance(config, AIConfig)
+```
 
-### 2. Add help text for abandon command
-**File:** `src/cli_rpg/main.py` (line 33-34, in HELP_TEXT)
-- Add: `"  abandon <quest>    - Abandon an active quest from your journal"`
+### 2. autosave.py (89% - lines 9, 73-74)
+**Missing:** TYPE_CHECKING import (line 9 - not testable), corrupted file handling (lines 73-74)
 
-### 3. Implement `abandon_quest` method on Character
-**File:** `src/cli_rpg/models/character.py`
-- Add method `abandon_quest(self, quest_name: str) -> Tuple[bool, str]`:
-  - Find quest by partial name match (case-insensitive), same pattern as `quest` command
-  - Only allow abandoning `ACTIVE` status quests
-  - Remove quest from `self.quests` list
-  - Return `(True, success_message)` or `(False, error_message)`
+```python
+# tests/test_autosave.py - Add test:
+def test_load_autosave_corrupted_json(self, tmp_path):
+    """Should return None for corrupted JSON file."""
+    filepath = tmp_path / "autosave_Hero.json"
+    filepath.write_text("not valid json{{{")
+    loaded = load_autosave("Hero", save_dir=str(tmp_path))
+    assert loaded is None
 
-### 4. Handle `abandon` command in exploration
-**File:** `src/cli_rpg/main.py` (in `handle_exploration_command`, after `complete` command handling ~line 760)
-- Add `elif command == "abandon":` block:
-  - Require quest name argument
-  - Call `game_state.current_character.abandon_quest(quest_name)`
-  - Return result message
+def test_load_autosave_invalid_data_structure(self, tmp_path):
+    """Should return None for valid JSON with invalid structure."""
+    filepath = tmp_path / "autosave_Hero.json"
+    filepath.write_text('{"invalid": "structure"}')
+    loaded = load_autosave("Hero", save_dir=str(tmp_path))
+    assert loaded is None
+```
 
-### 5. Block `abandon` in combat
-**File:** `src/cli_rpg/main.py` (in `handle_combat_command`)
-- Add `abandon` to the list of commands that return "Can't do that during combat"
+### 3. world.py (90% - lines 18-21, 142, 146, 150-151)
+**Missing:** ImportError handling when AI unavailable, fallback path in non-strict mode
 
-## Tests
+```python
+# tests/test_world.py - Add tests:
+def test_create_world_logs_warning_on_ai_failure_non_strict(self, mock_create_ai_world, caplog):
+    """Test that warning is logged when AI fails in non-strict mode."""
+    mock_create_ai_world.side_effect = Exception("AI failed")
+    mock_ai_service = Mock()
 
-**File:** `tests/test_quest_commands.py` (add at end)
+    with caplog.at_level(logging.WARNING):
+        world, _ = create_world(ai_service=mock_ai_service, strict=False)
 
-1. `test_parse_abandon_command` - parse_command recognizes "abandon"
-2. `test_abandon_quest_removes_active_quest` - abandoning removes from list
-3. `test_abandon_quest_not_found` - error for unknown quest
-4. `test_abandon_quest_no_args` - prompts for quest name
-5. `test_abandon_quest_partial_match` - finds by partial name
-6. `test_abandon_cannot_abandon_completed` - error for COMPLETED status
-7. `test_abandon_cannot_abandon_ready_to_turn_in` - error for READY_TO_TURN_IN status
-8. `test_abandon_blocked_during_combat` - returns combat error
+    assert "AI world generation failed" in caplog.text
+    assert "Town Square" in world  # Falls back to default
+```
+
+### 4. main.py (92% - multiple scattered lines)
+**Key uncovered paths:**
+- Lines 148-149, 157-159: Load character error paths in main menu
+- Lines 404-415: Combat command when already in combat
+- Lines 905-912: Combat commands outside combat
+- Lines 953-968: Conversation mode handling
+
+```python
+# tests/test_main_coverage.py - Add tests for edge cases:
+
+def test_handle_exploration_attack_when_not_in_combat(self):
+    """Attack command should say 'Not in combat' when not in combat."""
+    game_state = create_test_game_state()
+    continue_game, message = handle_exploration_command(game_state, "attack", [])
+    assert "Not in combat" in message
+
+def test_handle_exploration_unknown_command(self):
+    """Unknown command should show help hint."""
+    game_state = create_test_game_state()
+    continue_game, message = handle_exploration_command(game_state, "xyz", [])
+    assert "Unknown command" in message
+```
+
+## Test Execution Order
+
+1. Add tests to `tests/test_config.py` for `load_ai_config()` success path
+2. Add tests to `tests/test_autosave.py` for corrupted/invalid file handling
+3. Add tests to `tests/test_world.py` for logging in non-strict fallback
+4. Add tests to `tests/test_main_coverage.py` for remaining edge cases
+
+## Verification
+
+```bash
+pytest --cov=src/cli_rpg --cov-report=term-missing tests/test_config.py tests/test_autosave.py tests/test_world.py tests/test_main_coverage.py -v
+```
+
+Target: Increase coverage from 94% to 95%+ by covering these specific edge cases.

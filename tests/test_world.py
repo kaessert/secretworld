@@ -275,3 +275,44 @@ class TestCreateWorld:
         # Should return default world tuple
         assert starting_location == "Town Square"
         assert "Town Square" in world
+
+    @patch('cli_rpg.world.create_ai_world')
+    def test_create_world_logs_warning_on_ai_failure_non_strict(self, mock_create_ai_world, caplog):
+        """Test that warning is logged when AI fails in non-strict mode.
+
+        Spec: When AI world generation fails in non-strict mode, a warning should be
+        logged before falling back to default world (lines 144-146).
+        """
+        import logging
+
+        # Mock AI world generation to fail
+        mock_create_ai_world.side_effect = Exception("AI failed")
+        mock_ai_service = Mock()
+
+        # Capture at INFO level to get both WARNING and INFO logs
+        with caplog.at_level(logging.INFO, logger='cli_rpg.world'):
+            world, starting_location = create_world(
+                ai_service=mock_ai_service, theme="fantasy", strict=False
+            )
+
+        # Verify warning was logged for the failure
+        assert "AI world generation failed" in caplog.text
+        # Verify info was logged for the fallback
+        assert "Falling back to default world" in caplog.text
+
+        # Should still return default world
+        assert starting_location == "Town Square"
+        assert "Town Square" in world
+
+    def test_create_world_uses_default_when_no_ai_service(self, caplog):
+        """Test that create_world uses default world when no AI service provided.
+
+        Spec: When ai_service is None, should use default world (lines 149-151).
+        """
+        world, starting_location = create_world(ai_service=None)
+
+        # Should return default world
+        assert starting_location == "Town Square"
+        assert "Town Square" in world
+        assert "Forest" in world
+        assert "Cave" in world

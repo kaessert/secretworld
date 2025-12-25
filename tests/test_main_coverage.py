@@ -534,3 +534,61 @@ class TestCorruptedSaveFileDetection:
             assert result == (None, None)
             output = captured_output.getvalue()
             assert "corrupted" in output.lower()
+
+
+class TestExplorationCombatCommandsOutsideCombat:
+    """Tests for combat commands when not in combat (lines 905-912)."""
+
+    def test_attack_command_outside_combat(self):
+        """Spec: Attack command should say 'Not in combat' when not in combat."""
+        from cli_rpg.main import handle_exploration_command
+
+        character = Character(name="Hero", strength=10, dexterity=10, intelligence=10)
+        world = {"Town": Location(name="Town", description="A town", connections={})}
+        game_state = GameState(character, world, starting_location="Town")
+        # No combat active
+
+        continue_game, message = handle_exploration_command(game_state, "attack", [])
+
+        assert continue_game is True
+        assert "Not in combat" in message
+
+    def test_defend_command_outside_combat(self):
+        """Spec: Defend command should say 'Not in combat' when not in combat."""
+        from cli_rpg.main import handle_exploration_command
+
+        character = Character(name="Hero", strength=10, dexterity=10, intelligence=10)
+        world = {"Town": Location(name="Town", description="A town", connections={})}
+        game_state = GameState(character, world, starting_location="Town")
+
+        continue_game, message = handle_exploration_command(game_state, "defend", [])
+
+        assert continue_game is True
+        assert "Not in combat" in message
+
+    def test_flee_command_outside_combat(self):
+        """Spec: Flee command should say 'Not in combat' when not in combat."""
+        from cli_rpg.main import handle_exploration_command
+
+        character = Character(name="Hero", strength=10, dexterity=10, intelligence=10)
+        world = {"Town": Location(name="Town", description="A town", connections={})}
+        game_state = GameState(character, world, starting_location="Town")
+
+        continue_game, message = handle_exploration_command(game_state, "flee", [])
+
+        assert continue_game is True
+        assert "Not in combat" in message
+
+    def test_unknown_command_shows_help_hint(self):
+        """Spec: Unknown command should show help hint."""
+        from cli_rpg.main import handle_exploration_command
+
+        character = Character(name="Hero", strength=10, dexterity=10, intelligence=10)
+        world = {"Town": Location(name="Town", description="A town", connections={})}
+        game_state = GameState(character, world, starting_location="Town")
+
+        continue_game, message = handle_exploration_command(game_state, "xyz", [])
+
+        assert continue_game is True
+        assert "Unknown command" in message
+        assert "help" in message.lower()
