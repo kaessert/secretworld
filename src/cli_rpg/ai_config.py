@@ -27,6 +27,8 @@ Requirements:
 5. Ensure the location fits the {theme} theme
 6. Make the location interesting and explorable
 7. Include a category for the location type (one of: town, dungeon, wilderness, settlement, ruins, cave, forest, mountain, village)
+8. Generate 0-2 NPCs appropriate for this location (optional)
+   - Each NPC needs: name (2-30 chars), description (1-200 chars), dialogue (a greeting), role (villager, merchant, or quest_giver)
 
 Respond with valid JSON in this exact format (no additional text):
 {{
@@ -35,7 +37,15 @@ Respond with valid JSON in this exact format (no additional text):
   "connections": {{
     "direction": "location_name"
   }},
-  "category": "wilderness"
+  "category": "wilderness",
+  "npcs": [
+    {{
+      "name": "NPC Name",
+      "description": "Brief description of the NPC.",
+      "dialogue": "What the NPC says when greeted.",
+      "role": "villager"
+    }}
+  ]
 }}"""
 
 

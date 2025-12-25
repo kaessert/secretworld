@@ -418,14 +418,80 @@ class AIService:
                 )
                 category = None
 
+        # Parse NPCs (optional field)
+        npcs = self._parse_npcs(data.get("npcs", []), name)
+
         # Return validated data with filtered connections
         return {
             "name": name,
             "description": description,
             "connections": filtered_connections,
-            "category": category
+            "category": category,
+            "npcs": npcs
         }
     
+    def _parse_npcs(self, npcs_data: list, location_name: str) -> list[dict]:
+        """Parse and validate NPC data from AI response.
+
+        Args:
+            npcs_data: List of NPC dictionaries from AI response
+            location_name: Name of the location (for logging)
+
+        Returns:
+            List of validated NPC dictionaries
+        """
+        if not isinstance(npcs_data, list):
+            logger.warning(
+                f"Invalid npcs field for location '{location_name}', expected list"
+            )
+            return []
+
+        validated_npcs = []
+        for idx, npc in enumerate(npcs_data):
+            if not isinstance(npc, dict):
+                logger.warning(
+                    f"Invalid NPC {idx} for location '{location_name}', expected dict"
+                )
+                continue
+
+            # Validate name (2-30 chars)
+            name = npc.get("name", "").strip() if isinstance(npc.get("name"), str) else ""
+            if len(name) < 2 or len(name) > 30:
+                logger.warning(
+                    f"Invalid NPC name length at location '{location_name}': '{name}'"
+                )
+                continue
+
+            # Validate description (1-200 chars)
+            description = npc.get("description", "").strip() if isinstance(npc.get("description"), str) else ""
+            if len(description) < 1 or len(description) > 200:
+                logger.warning(
+                    f"Invalid NPC description length at location '{location_name}': NPC '{name}'"
+                )
+                continue
+
+            # Get dialogue (optional, default to empty)
+            dialogue = npc.get("dialogue", "").strip() if isinstance(npc.get("dialogue"), str) else ""
+            if not dialogue:
+                dialogue = f"Hello, traveler."
+
+            # Get role (default to 'villager')
+            role = npc.get("role", "villager").strip().lower() if isinstance(npc.get("role"), str) else "villager"
+            if role not in ("villager", "merchant", "quest_giver"):
+                logger.warning(
+                    f"Invalid NPC role '{role}' at location '{location_name}', defaulting to 'villager'"
+                )
+                role = "villager"
+
+            validated_npcs.append({
+                "name": name,
+                "description": description,
+                "dialogue": dialogue,
+                "role": role
+            })
+
+        return validated_npcs
+
     def _get_cached(self, prompt: str) -> Optional[dict[str, Any]]:
         """Get cached location data.
 
@@ -641,6 +707,8 @@ Requirements:
 8. Valid directions: north, south, east, west (no up/down for this area)
 9. Ensure internal consistency: if A connects north to B, then B must connect south to A
 10. Include a category for each location (one of: town, dungeon, wilderness, settlement, ruins, cave, forest, mountain, village)
+11. Optionally include 0-2 NPCs per location appropriate to that location
+   - Each NPC needs: name (2-30 chars), description (1-200 chars), dialogue (a greeting), role (villager, merchant, or quest_giver)
 
 Respond with valid JSON array (no additional text):
 [
@@ -649,14 +717,23 @@ Respond with valid JSON array (no additional text):
     "description": "Description of entry location",
     "relative_coords": [0, 0],
     "connections": {{"{back_direction}": "EXISTING_WORLD", "north": "Next Location Name"}},
-    "category": "wilderness"
+    "category": "wilderness",
+    "npcs": [
+      {{
+        "name": "NPC Name",
+        "description": "Brief description of the NPC.",
+        "dialogue": "What the NPC says when greeted.",
+        "role": "villager"
+      }}
+    ]
   }},
   {{
     "name": "Next Location Name",
     "description": "Description",
     "relative_coords": [0, 1],
     "connections": {{"south": "Entry Location Name"}},
-    "category": "forest"
+    "category": "forest",
+    "npcs": []
   }}
 ]
 
@@ -775,12 +852,16 @@ Note: Use "EXISTING_WORLD" as placeholder for the connection back to the source 
                 )
                 category = None
 
+        # Parse NPCs (optional field)
+        npcs = self._parse_npcs(loc.get("npcs", []), name)
+
         return {
             "name": name,
             "description": description,
             "relative_coords": coords,
             "connections": filtered_connections,
-            "category": category
+            "category": category,
+            "npcs": npcs
         }
 
     def _get_cached_list(self, prompt: str) -> Optional[list[dict[str, Any]]]:

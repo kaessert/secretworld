@@ -1,71 +1,80 @@
-# Implementation Plan: Add ASCII Art for NPCs
+# Implementation Plan: NPCs in AI-Generated Locations
 
-## Summary
-Add ASCII art display when talking to NPCs, following the established pattern for locations and combat monsters.
+## Problem
+Currently, NPCs only exist in the starting location. When AI generates new locations via `generate_location()`, `expand_world()`, or `expand_area()`, the locations are created without any NPCs, making exploration feel empty.
 
-## Spec
-When a player talks to an NPC, display ASCII art of the NPC above or alongside the greeting dialogue. ASCII art should be:
-- AI-generated when AI service is available
-- Template-based fallback when AI fails or is unavailable
-- 5-7 lines tall, max 40 chars wide (similar to enemy art)
-- Based on NPC role: merchant, quest_giver, villager, guard, etc.
+## Solution Overview
+1. Extend AI prompts to request NPC generation alongside location generation
+2. Parse NPC data from AI responses and create NPC objects
+3. Attach NPCs to newly generated locations
+
+## Implementation Steps
+
+### Step 1: Add NPC Generation Prompt to Location Prompts
+
+**File: `src/cli_rpg/ai_config.py`**
+
+Update `DEFAULT_LOCATION_PROMPT` to include NPC generation:
+- Add requirement for 0-2 NPCs appropriate to the location
+- Specify NPC fields: name, description, dialogue, role (villager/merchant/quest_giver)
+- Add "npcs" key to the expected JSON response format
+
+### Step 2: Update AI Service to Parse NPCs
+
+**File: `src/cli_rpg/ai_service.py`**
+
+Update `_parse_location_response()`:
+- Add parsing for optional "npcs" field in response
+- Validate NPC data (name 2-30 chars, description 1-200 chars)
+- Handle missing or empty npcs field gracefully (default to empty list)
+- Return npcs list in the location data dict
+
+Update `_validate_area_location()`:
+- Same NPC parsing logic for area generation responses
+
+### Step 3: Update AI World Module to Create NPC Objects
+
+**File: `src/cli_rpg/ai_world.py`**
+
+Update `create_ai_world()`:
+- After creating Location from AI data, create NPC objects from npcs list
+- Add NPCs to the location's npcs attribute
+- Keep existing merchant/quest_giver in starting location (they're special)
+
+Update `expand_world()`:
+- Same NPC creation logic for expanded locations
+
+Update `expand_area()`:
+- Same NPC creation logic for area locations
+
+### Step 4: Add Tests
+
+**File: `tests/test_ai_service.py`**
+
+Add tests:
+- `test_generate_location_parses_npcs`: Verify NPC data is parsed from response
+- `test_generate_location_handles_empty_npcs`: Verify empty/missing npcs field returns empty list
+- `test_generate_location_validates_npc_name_length`: Invalid NPC data is handled
+- `test_generate_area_parses_npcs`: Same for area generation
+
+**File: `tests/test_ai_world_generation.py`**
+
+Add tests:
+- `test_expand_world_creates_npcs`: Verify NPCs are attached to expanded locations
+- `test_expand_area_creates_npcs`: Verify NPCs are attached to area locations
+- `test_ai_generated_locations_have_npcs`: Integration test
+
+## Key Design Decisions
+
+1. **NPCs are optional** - If AI doesn't return NPCs, location is still valid (empty list)
+2. **Validation is lenient** - Invalid NPC data is logged and skipped, not fatal
+3. **Role mapping** - Map "villager" to default NPC, "merchant" gets is_merchant=True, "quest_giver" gets is_quest_giver=True
+4. **No shops/quests for AI NPCs** - Only flags are set; shops/quests can be added separately later
 
 ## Files to Modify
 
-### 1. `src/cli_rpg/models/npc.py`
-- Add `ascii_art: str = ""` field to NPC dataclass
-- Update `to_dict()` to include ascii_art (only when non-empty)
-- Update `from_dict()` to load ascii_art with fallback
-
-### 2. `src/cli_rpg/npc_art.py` (NEW)
-- Create fallback ASCII art templates for NPC roles:
-  - merchant, quest_giver, villager, guard, elder, blacksmith, innkeeper, default
-- Create `get_fallback_npc_ascii_art(role: Optional[str], npc_name: str) -> str`
-
-### 3. `src/cli_rpg/ai_config.py`
-- Add `DEFAULT_NPC_ASCII_ART_PROMPT` template
-- Add `npc_ascii_art_generation_prompt` field to `AIConfig`
-
-### 4. `src/cli_rpg/ai_service.py`
-- Add `generate_npc_ascii_art()` method (similar to enemy/location art)
-- Add `_build_npc_ascii_art_prompt()` helper
-- Add `_parse_npc_ascii_art_response()` validation
-
-### 5. `src/cli_rpg/main.py`
-- In `handle_exploration_command()` talk command handler:
-  - Generate/get NPC ASCII art if not already set
-  - Display ASCII art above greeting dialogue
-
-## Tests to Write
-
-### `tests/test_npc_ascii_art.py` (NEW)
-1. **TestNPCModelAsciiArt**
-   - test_npc_model_has_ascii_art_field
-   - test_npc_to_dict_includes_ascii_art
-   - test_npc_from_dict_loads_ascii_art
-   - test_npc_default_ascii_art_is_empty
-
-2. **TestFallbackNPCAsciiArt**
-   - test_get_fallback_art_merchant
-   - test_get_fallback_art_quest_giver
-   - test_get_fallback_art_villager
-   - test_get_fallback_art_guard
-   - test_get_fallback_art_default
-
-3. **TestTalkCommandAsciiArt**
-   - test_talk_displays_ascii_art_when_present
-   - test_talk_generates_art_with_ai
-   - test_talk_uses_fallback_without_ai
-
-4. **TestAINPCAsciiArtGeneration**
-   - test_ai_npc_ascii_art_generation
-   - test_ai_npc_ascii_art_prompt_formatting
-
-## Implementation Order
-
-1. Add ascii_art field to NPC model
-2. Create npc_art.py with fallback templates
-3. Add prompt template to ai_config.py
-4. Add generate_npc_ascii_art() to ai_service.py
-5. Update talk command to display art
-6. Write and run tests
+1. `src/cli_rpg/ai_config.py` - Update prompts
+2. `src/cli_rpg/ai_service.py` - Parse NPC data
+3. `src/cli_rpg/ai_world.py` - Create NPC objects
+4. `tests/test_ai_service.py` - New tests
+5. `tests/test_ai_world_generation.py` - New tests

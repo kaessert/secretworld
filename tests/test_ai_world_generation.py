@@ -1641,3 +1641,292 @@ def test_create_ai_world_skips_suggested_name_already_in_grid(mock_ai_service):
     # suggested name "North Area" already exists
     # Only 2 locations should exist, not 3
     assert len(world) == 2
+
+
+# ========================================================================
+# NPC Creation in AI-Generated Locations Tests
+# Spec: AI-generated locations should include NPCs created from parsed data
+# ========================================================================
+
+
+# Test: expand_world creates NPCs from AI response
+def test_expand_world_creates_npcs(mock_ai_service):
+    """Test expand_world creates NPC objects from AI response data.
+
+    Spec: When AI returns location with NPCs, create NPC objects and attach
+    to the new location.
+    """
+    town_square = Location(
+        name="Town Square",
+        description="A bustling town square.",
+        coordinates=(0, 0)
+    )
+    world = {"Town Square": town_square}
+
+    mock_ai_service.generate_location.return_value = {
+        "name": "Village Market",
+        "description": "A lively marketplace.",
+        "connections": {"south": "Town Square"},
+        "npcs": [
+            {
+                "name": "Trader Marcus",
+                "description": "A shrewd merchant.",
+                "dialogue": "Best prices in town!",
+                "role": "merchant"
+            },
+            {
+                "name": "Village Elder",
+                "description": "A wise old woman.",
+                "dialogue": "I have tasks for brave adventurers.",
+                "role": "quest_giver"
+            }
+        ]
+    }
+
+    updated_world = expand_world(
+        world=world,
+        ai_service=mock_ai_service,
+        from_location="Town Square",
+        direction="north",
+        theme="fantasy"
+    )
+
+    # Verify NPCs were created
+    new_loc = updated_world["Village Market"]
+    assert len(new_loc.npcs) == 2
+    assert new_loc.npcs[0].name == "Trader Marcus"
+    assert new_loc.npcs[0].is_merchant is True
+    assert new_loc.npcs[1].name == "Village Elder"
+    assert new_loc.npcs[1].is_quest_giver is True
+
+
+# Test: expand_world handles location with no NPCs
+def test_expand_world_handles_no_npcs(mock_ai_service):
+    """Test expand_world handles location with no NPCs gracefully.
+
+    Spec: When AI returns location without NPCs, location should have empty
+    npcs list (excluding starting location special NPCs).
+    """
+    town_square = Location(
+        name="Town Square",
+        description="A bustling town square.",
+        coordinates=(0, 0)
+    )
+    world = {"Town Square": town_square}
+
+    mock_ai_service.generate_location.return_value = {
+        "name": "Abandoned Cave",
+        "description": "A dark, empty cave.",
+        "connections": {"south": "Town Square"},
+        "npcs": []
+    }
+
+    updated_world = expand_world(
+        world=world,
+        ai_service=mock_ai_service,
+        from_location="Town Square",
+        direction="north",
+        theme="fantasy"
+    )
+
+    # Verify no NPCs
+    new_loc = updated_world["Abandoned Cave"]
+    assert len(new_loc.npcs) == 0
+
+
+# Test: expand_area creates NPCs for area locations
+def test_expand_area_creates_npcs(mock_ai_service):
+    """Test expand_area creates NPC objects for area locations.
+
+    Spec: When AI returns area locations with NPCs, create NPC objects
+    for each location.
+    """
+    town_square = Location(
+        name="Town Square",
+        description="A bustling town square.",
+        coordinates=(0, 0)
+    )
+    world = {"Town Square": town_square}
+
+    mock_ai_service.generate_area.return_value = [
+        {
+            "name": "Forest Entry",
+            "description": "The entrance to a forest.",
+            "relative_coords": [0, 0],
+            "connections": {"south": "EXISTING_WORLD", "north": "Deep Woods"},
+            "npcs": [
+                {
+                    "name": "Forest Ranger",
+                    "description": "A vigilant ranger.",
+                    "dialogue": "The forest holds many secrets.",
+                    "role": "villager"
+                }
+            ]
+        },
+        {
+            "name": "Deep Woods",
+            "description": "Deep in the forest.",
+            "relative_coords": [0, 1],
+            "connections": {"south": "Forest Entry"},
+            "npcs": [
+                {
+                    "name": "Hermit Sage",
+                    "description": "A mysterious hermit.",
+                    "dialogue": "Seek the ancient wisdom.",
+                    "role": "quest_giver"
+                }
+            ]
+        }
+    ]
+
+    updated_world = expand_area(
+        world=world,
+        ai_service=mock_ai_service,
+        from_location="Town Square",
+        direction="north",
+        theme="fantasy",
+        target_coords=(0, 1),
+        size=2
+    )
+
+    # Verify NPCs in Forest Entry
+    entry_loc = updated_world["Forest Entry"]
+    assert len(entry_loc.npcs) == 1
+    assert entry_loc.npcs[0].name == "Forest Ranger"
+    assert entry_loc.npcs[0].is_merchant is False
+    assert entry_loc.npcs[0].is_quest_giver is False
+
+    # Verify NPCs in Deep Woods
+    deep_loc = updated_world["Deep Woods"]
+    assert len(deep_loc.npcs) == 1
+    assert deep_loc.npcs[0].name == "Hermit Sage"
+    assert deep_loc.npcs[0].is_quest_giver is True
+
+
+# Test: create_ai_world generates NPCs in connected locations
+def test_create_ai_world_generates_npcs_in_connected_locations(mock_ai_service):
+    """Test create_ai_world creates NPCs for all generated locations.
+
+    Spec: NPCs from AI responses should be attached to generated locations.
+    The starting location has special merchant/quest_giver NPCs.
+    """
+    call_count = [0]
+
+    def mock_generate(theme, context_locations=None, source_location=None, direction=None):
+        call_count[0] += 1
+        if call_count[0] == 1:
+            # Starting location
+            return {
+                "name": "Town Square",
+                "description": "A bustling town square.",
+                "connections": {"north": "Forest"},
+                "npcs": [
+                    {
+                        "name": "Town Guard",
+                        "description": "A watchful guard.",
+                        "dialogue": "Stay safe out there.",
+                        "role": "villager"
+                    }
+                ]
+            }
+        else:
+            # Connected location
+            return {
+                "name": "Forest",
+                "description": "A dark forest.",
+                "connections": {"south": "Town Square"},
+                "npcs": [
+                    {
+                        "name": "Forest Spirit",
+                        "description": "A glowing spirit.",
+                        "dialogue": "The trees speak of your coming.",
+                        "role": "quest_giver"
+                    }
+                ]
+            }
+
+    mock_ai_service.generate_location.side_effect = mock_generate
+
+    world, starting_location = create_ai_world(mock_ai_service, theme="fantasy", initial_size=2)
+
+    # Starting location should have the AI-generated NPC plus merchant/quest_giver
+    start_loc = world["Town Square"]
+    # Starting location gets merchant and quest_giver added by create_ai_world
+    assert len(start_loc.npcs) >= 3  # AI NPC + Merchant + Town Elder
+
+    # Check for the AI-generated NPC
+    npc_names = [npc.name for npc in start_loc.npcs]
+    assert "Town Guard" in npc_names
+    assert "Merchant" in npc_names
+    assert "Town Elder" in npc_names
+
+    # Connected location should have AI-generated NPCs only
+    if "Forest" in world:
+        forest_loc = world["Forest"]
+        assert len(forest_loc.npcs) >= 1
+        forest_npc_names = [npc.name for npc in forest_loc.npcs]
+        assert "Forest Spirit" in forest_npc_names
+
+
+# Test: NPC role mapping to is_merchant and is_quest_giver flags
+def test_npc_role_mapping(mock_ai_service):
+    """Test NPC roles are correctly mapped to is_merchant and is_quest_giver.
+
+    Spec: Role 'merchant' sets is_merchant=True, 'quest_giver' sets
+    is_quest_giver=True, 'villager' sets both to False.
+    """
+    town_square = Location(
+        name="Town Square",
+        description="A bustling town square.",
+        coordinates=(0, 0)
+    )
+    world = {"Town Square": town_square}
+
+    mock_ai_service.generate_location.return_value = {
+        "name": "Market District",
+        "description": "A busy market area.",
+        "connections": {"south": "Town Square"},
+        "npcs": [
+            {
+                "name": "Merchant Joe",
+                "description": "A shopkeeper.",
+                "dialogue": "Buy something!",
+                "role": "merchant"
+            },
+            {
+                "name": "Quest Master",
+                "description": "A quest giver.",
+                "dialogue": "I have a job for you.",
+                "role": "quest_giver"
+            },
+            {
+                "name": "Simple Villager",
+                "description": "Just a villager.",
+                "dialogue": "Nice day.",
+                "role": "villager"
+            }
+        ]
+    }
+
+    updated_world = expand_world(
+        world=world,
+        ai_service=mock_ai_service,
+        from_location="Town Square",
+        direction="north",
+        theme="fantasy"
+    )
+
+    new_loc = updated_world["Market District"]
+
+    # Find each NPC and verify flags
+    merchant = next(npc for npc in new_loc.npcs if npc.name == "Merchant Joe")
+    assert merchant.is_merchant is True
+    assert merchant.is_quest_giver is False
+
+    quest_giver = next(npc for npc in new_loc.npcs if npc.name == "Quest Master")
+    assert quest_giver.is_merchant is False
+    assert quest_giver.is_quest_giver is True
+
+    villager = next(npc for npc in new_loc.npcs if npc.name == "Simple Villager")
+    assert villager.is_merchant is False
+    assert villager.is_quest_giver is False

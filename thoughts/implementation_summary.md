@@ -1,4 +1,83 @@
-# Implementation Summary: ASCII Art for NPCs
+# Implementation Summary: AI-Generated NPCs for Locations
+
+## Overview
+Added the ability for the AI to generate NPCs (non-player characters) as part of location generation. Previously, only the starting location had NPCs (a merchant and quest giver). Now, all AI-generated locations can include thematically appropriate NPCs.
+
+## What Was Implemented
+
+### Files Modified
+
+1. **`src/cli_rpg/ai_config.py`**
+   - Updated `DEFAULT_LOCATION_PROMPT` to include NPC generation instructions
+   - NPCs have name (2-30 chars), description (1-200 chars), dialogue, and role (villager, merchant, or quest_giver)
+
+2. **`src/cli_rpg/ai_service.py`**
+   - Added `_parse_npcs()` helper method to parse and validate NPC data from AI responses
+     - Validates NPC name length (2-30 characters)
+     - Validates NPC description length (1-200 characters)
+     - Defaults dialogue to "Hello, traveler." if not provided
+     - Defaults role to "villager" if not provided or invalid
+   - Updated `_parse_location_response()` to include parsed NPCs in location data
+   - Updated `_validate_area_location()` to include parsed NPCs in area location data
+   - Updated area generation prompt in `_build_area_prompt()` to include NPC generation instructions
+
+3. **`src/cli_rpg/ai_world.py`**
+   - Added `_create_npcs_from_data()` helper function to create NPC objects from parsed dictionaries
+     - Maps role to `is_merchant` and `is_quest_giver` flags
+   - Updated `create_ai_world()` to add AI-generated NPCs to both starting and connected locations
+   - Updated `expand_world()` to add AI-generated NPCs to newly generated locations
+   - Updated `expand_area()` to add AI-generated NPCs to area locations
+
+### Tests Added
+
+**`tests/test_ai_service.py` (8 new tests)**
+- `test_generate_location_parses_npcs` - Verifies NPCs are parsed from AI response
+- `test_generate_location_handles_empty_npcs` - Handles empty NPC array
+- `test_generate_location_handles_missing_npcs` - Defaults to empty list when missing
+- `test_generate_location_validates_npc_name_length` - Skips invalid name lengths
+- `test_generate_location_validates_npc_description_length` - Skips invalid descriptions
+- `test_generate_area_parses_npcs` - Parses NPCs in area generation
+- `test_generate_area_handles_missing_npcs` - Handles missing NPCs in area locations
+- `test_generate_location_npc_role_defaults_to_villager` - Role defaults correctly
+
+**`tests/test_ai_world_generation.py` (5 new tests)**
+- `test_expand_world_creates_npcs` - Creates NPC objects from AI response
+- `test_expand_world_handles_no_npcs` - Handles locations with no NPCs
+- `test_expand_area_creates_npcs` - Creates NPCs for area locations
+- `test_create_ai_world_generates_npcs_in_connected_locations` - NPCs in all locations
+- `test_npc_role_mapping` - Verifies role-to-flag mapping (merchant, quest_giver, villager)
+
+## Test Results
+
+All 1636 tests pass successfully.
+
+## Technical Details
+
+### NPC Role Mapping
+- `role: "merchant"` → `is_merchant=True`, `is_quest_giver=False`
+- `role: "quest_giver"` → `is_merchant=False`, `is_quest_giver=True`
+- `role: "villager"` → `is_merchant=False`, `is_quest_giver=False`
+
+### Validation Rules
+- NPC name: 2-30 characters (skip if invalid)
+- NPC description: 1-200 characters (skip if invalid)
+- NPC dialogue: Falls back to "Hello, traveler." if empty
+- NPC role: Falls back to "villager" if invalid or missing
+
+### Backward Compatibility
+- Locations without NPCs in AI response get an empty `npcs` list
+- Starting location still gets default Merchant and Town Elder NPCs
+- Existing saved games remain compatible (NPC list is optional in Location)
+
+## E2E Validation Suggestions
+1. Start a new game with AI enabled and verify starting location has merchant + quest_giver + any AI-generated NPCs
+2. Move to a connected location and verify AI-generated NPCs appear
+3. Use `expand` command to generate new area and verify NPCs are created there
+4. Save/load game and verify NPCs persist correctly
+
+---
+
+# Previous Implementation Summary: ASCII Art for NPCs
 
 ## Overview
 Added ASCII art display when talking to NPCs, following the established pattern for locations and combat monsters.

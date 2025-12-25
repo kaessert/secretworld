@@ -15,6 +15,36 @@ from cli_rpg.location_art import get_fallback_location_ascii_art
 logger = logging.getLogger(__name__)
 
 
+def _create_npcs_from_data(npcs_data: list[dict]) -> list[NPC]:
+    """Create NPC objects from parsed NPC data.
+
+    Args:
+        npcs_data: List of NPC dictionaries from AI service
+
+    Returns:
+        List of NPC objects
+    """
+    npcs = []
+    for npc_data in npcs_data:
+        try:
+            role = npc_data.get("role", "villager")
+            is_merchant = role == "merchant"
+            is_quest_giver = role == "quest_giver"
+
+            npc = NPC(
+                name=npc_data["name"],
+                description=npc_data["description"],
+                dialogue=npc_data.get("dialogue", "Hello, traveler."),
+                is_merchant=is_merchant,
+                is_quest_giver=is_quest_giver
+            )
+            npcs.append(npc)
+        except (KeyError, ValueError) as e:
+            logger.warning(f"Failed to create NPC from data: {e}")
+            continue
+    return npcs
+
+
 def _generate_location_ascii_art(
     ai_service: AIService,
     location_name: str,
@@ -179,6 +209,11 @@ def create_ai_world(
     )
     starting_location.npcs.append(quest_giver)
 
+    # Add AI-generated NPCs to starting location (if any)
+    ai_npcs = _create_npcs_from_data(starting_data.get("npcs", []))
+    for npc in ai_npcs:
+        starting_location.npcs.append(npc)
+
     # Queue connections to explore
     for direction, target_name in starting_data["connections"].items():
         if direction in DIRECTION_OFFSETS:
@@ -234,6 +269,11 @@ def create_ai_world(
                 category=location_data.get("category"),
                 ascii_art=new_ascii_art
             )
+
+            # Add AI-generated NPCs to the new location
+            location_npcs = _create_npcs_from_data(location_data.get("npcs", []))
+            for npc in location_npcs:
+                new_location.npcs.append(npc)
 
             # Add to grid if name is unique (WorldGrid handles connections)
             if new_location.name not in grid:
@@ -353,6 +393,11 @@ def expand_world(
         category=location_data.get("category"),
         ascii_art=new_ascii_art
     )
+
+    # Add AI-generated NPCs to the new location
+    location_npcs = _create_npcs_from_data(location_data.get("npcs", []))
+    for npc in location_npcs:
+        new_location.npcs.append(npc)
 
     # Add to world
     world[new_location.name] = new_location
@@ -504,6 +549,11 @@ def expand_area(
             category=loc_data.get("category"),
             ascii_art=loc_ascii_art
         )
+
+        # Add AI-generated NPCs to the location
+        location_npcs = _create_npcs_from_data(loc_data.get("npcs", []))
+        for npc in location_npcs:
+            new_loc.npcs.append(npc)
 
         placed_locations[loc_data["name"]] = {
             "location": new_loc,

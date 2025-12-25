@@ -1584,3 +1584,338 @@ def test_openai_auth_error_raises_immediately(mock_openai_class, basic_config):
 
     # Should NOT have retried - only 1 attempt
     assert mock_client.chat.completions.create.call_count == 1
+
+
+# ========================================================================
+# NPC Generation in Location Response Tests
+# Spec: AI-generated locations should include NPCs appropriate to the location
+# ========================================================================
+
+
+# Test: generate_location parses NPCs from response
+@patch('cli_rpg.ai_service.OpenAI')
+def test_generate_location_parses_npcs(mock_openai_class, basic_config):
+    """Test generate_location parses NPC data from AI response.
+
+    Spec: When AI response includes 'npcs' field, parse it and include in result.
+    NPCs should have name, description, dialogue, and role fields.
+    """
+    mock_client = Mock()
+    mock_openai_class.return_value = mock_client
+
+    # Response with NPCs
+    response_with_npcs = {
+        "name": "Village Square",
+        "description": "A peaceful village square with a well.",
+        "connections": {"north": "Forest Path"},
+        "npcs": [
+            {
+                "name": "Elder Thomas",
+                "description": "A wise old man with a long beard.",
+                "dialogue": "Welcome to our village, traveler.",
+                "role": "villager"
+            },
+            {
+                "name": "Merchant Bella",
+                "description": "A cheerful merchant with colorful wares.",
+                "dialogue": "Looking for something special?",
+                "role": "merchant"
+            }
+        ]
+    }
+
+    mock_response = Mock()
+    mock_response.choices = [Mock()]
+    mock_response.choices[0].message.content = json.dumps(response_with_npcs)
+    mock_client.chat.completions.create.return_value = mock_response
+
+    service = AIService(basic_config)
+    result = service.generate_location(theme="fantasy")
+
+    # Verify NPCs are parsed
+    assert "npcs" in result
+    assert len(result["npcs"]) == 2
+    assert result["npcs"][0]["name"] == "Elder Thomas"
+    assert result["npcs"][0]["role"] == "villager"
+    assert result["npcs"][1]["name"] == "Merchant Bella"
+    assert result["npcs"][1]["role"] == "merchant"
+
+
+# Test: generate_location handles empty npcs field
+@patch('cli_rpg.ai_service.OpenAI')
+def test_generate_location_handles_empty_npcs(mock_openai_class, basic_config):
+    """Test generate_location handles empty npcs field gracefully.
+
+    Spec: When AI response includes empty 'npcs' array, return empty list.
+    """
+    mock_client = Mock()
+    mock_openai_class.return_value = mock_client
+
+    response_empty_npcs = {
+        "name": "Abandoned Ruins",
+        "description": "Ancient ruins with no sign of life.",
+        "connections": {"south": "Town Square"},
+        "npcs": []
+    }
+
+    mock_response = Mock()
+    mock_response.choices = [Mock()]
+    mock_response.choices[0].message.content = json.dumps(response_empty_npcs)
+    mock_client.chat.completions.create.return_value = mock_response
+
+    service = AIService(basic_config)
+    result = service.generate_location(theme="fantasy")
+
+    # Verify empty list is returned
+    assert "npcs" in result
+    assert result["npcs"] == []
+
+
+# Test: generate_location handles missing npcs field
+@patch('cli_rpg.ai_service.OpenAI')
+def test_generate_location_handles_missing_npcs(mock_openai_class, basic_config, mock_openai_response):
+    """Test generate_location handles missing npcs field gracefully.
+
+    Spec: When AI response does not include 'npcs' field, default to empty list.
+    """
+    mock_client = Mock()
+    mock_openai_class.return_value = mock_client
+
+    # mock_openai_response doesn't have npcs field
+    mock_response = Mock()
+    mock_response.choices = [Mock()]
+    mock_response.choices[0].message.content = json.dumps(mock_openai_response)
+    mock_client.chat.completions.create.return_value = mock_response
+
+    service = AIService(basic_config)
+    result = service.generate_location(theme="fantasy")
+
+    # Verify empty list is returned when npcs field is missing
+    assert "npcs" in result
+    assert result["npcs"] == []
+
+
+# Test: generate_location validates NPC name length
+@patch('cli_rpg.ai_service.OpenAI')
+def test_generate_location_validates_npc_name_length(mock_openai_class, basic_config):
+    """Test generate_location validates NPC name length.
+
+    Spec: NPC names must be 2-30 characters. Invalid NPCs are logged and skipped.
+    """
+    mock_client = Mock()
+    mock_openai_class.return_value = mock_client
+
+    response_invalid_npc = {
+        "name": "Village Square",
+        "description": "A peaceful village square.",
+        "connections": {},
+        "npcs": [
+            {
+                "name": "A",  # Too short - should be skipped
+                "description": "An invalid NPC.",
+                "dialogue": "Hello.",
+                "role": "villager"
+            },
+            {
+                "name": "Valid Villager",  # Valid - should be kept
+                "description": "A friendly villager.",
+                "dialogue": "Good day!",
+                "role": "villager"
+            }
+        ]
+    }
+
+    mock_response = Mock()
+    mock_response.choices = [Mock()]
+    mock_response.choices[0].message.content = json.dumps(response_invalid_npc)
+    mock_client.chat.completions.create.return_value = mock_response
+
+    service = AIService(basic_config)
+    result = service.generate_location(theme="fantasy")
+
+    # Only valid NPC should be in result
+    assert len(result["npcs"]) == 1
+    assert result["npcs"][0]["name"] == "Valid Villager"
+
+
+# Test: generate_location validates NPC description length
+@patch('cli_rpg.ai_service.OpenAI')
+def test_generate_location_validates_npc_description_length(mock_openai_class, basic_config):
+    """Test generate_location validates NPC description length.
+
+    Spec: NPC descriptions must be 1-200 characters. Invalid NPCs are skipped.
+    """
+    mock_client = Mock()
+    mock_openai_class.return_value = mock_client
+
+    response_invalid_desc = {
+        "name": "Village Square",
+        "description": "A peaceful village square.",
+        "connections": {},
+        "npcs": [
+            {
+                "name": "Empty Description NPC",
+                "description": "",  # Too short - should be skipped
+                "dialogue": "Hello.",
+                "role": "villager"
+            },
+            {
+                "name": "Long Description NPC",
+                "description": "A" * 201,  # Too long - should be skipped
+                "dialogue": "Hello.",
+                "role": "villager"
+            },
+            {
+                "name": "Valid NPC",
+                "description": "A valid description.",
+                "dialogue": "Hello.",
+                "role": "villager"
+            }
+        ]
+    }
+
+    mock_response = Mock()
+    mock_response.choices = [Mock()]
+    mock_response.choices[0].message.content = json.dumps(response_invalid_desc)
+    mock_client.chat.completions.create.return_value = mock_response
+
+    service = AIService(basic_config)
+    result = service.generate_location(theme="fantasy")
+
+    # Only valid NPC should be in result
+    assert len(result["npcs"]) == 1
+    assert result["npcs"][0]["name"] == "Valid NPC"
+
+
+# Test: generate_area parses NPCs from response
+@patch('cli_rpg.ai_service.OpenAI')
+def test_generate_area_parses_npcs(mock_openai_class, basic_config):
+    """Test generate_area parses NPC data from area locations.
+
+    Spec: When area locations include 'npcs' field, parse it for each location.
+    """
+    mock_client = Mock()
+    mock_openai_class.return_value = mock_client
+
+    area_response_with_npcs = [
+        {
+            "name": "Forest Entry",
+            "description": "The entrance to a mystical forest.",
+            "relative_coords": [0, 0],
+            "connections": {"south": "EXISTING_WORLD"},
+            "npcs": [
+                {
+                    "name": "Forest Guardian",
+                    "description": "A mystical being protecting the forest.",
+                    "dialogue": "State your purpose, traveler.",
+                    "role": "quest_giver"
+                }
+            ]
+        },
+        {
+            "name": "Deep Woods",
+            "description": "Deep in the forest.",
+            "relative_coords": [0, 1],
+            "connections": {"south": "Forest Entry"},
+            "npcs": []  # Empty NPCs
+        }
+    ]
+
+    mock_response = Mock()
+    mock_response.choices = [Mock()]
+    mock_response.choices[0].message.content = json.dumps(area_response_with_npcs)
+    mock_client.chat.completions.create.return_value = mock_response
+
+    service = AIService(basic_config)
+    result = service.generate_area(
+        theme="fantasy",
+        sub_theme_hint="forest",
+        entry_direction="north",
+        context_locations=[],
+        size=2
+    )
+
+    # Verify NPCs are parsed for first location
+    assert "npcs" in result[0]
+    assert len(result[0]["npcs"]) == 1
+    assert result[0]["npcs"][0]["name"] == "Forest Guardian"
+    assert result[0]["npcs"][0]["role"] == "quest_giver"
+
+    # Verify empty NPCs for second location
+    assert "npcs" in result[1]
+    assert result[1]["npcs"] == []
+
+
+# Test: generate_area handles missing npcs field
+@patch('cli_rpg.ai_service.OpenAI')
+def test_generate_area_handles_missing_npcs(mock_openai_class, basic_config):
+    """Test generate_area handles missing npcs field gracefully.
+
+    Spec: When area locations don't include 'npcs' field, default to empty list.
+    """
+    mock_client = Mock()
+    mock_openai_class.return_value = mock_client
+
+    area_response_no_npcs = [
+        {
+            "name": "Cave Entry",
+            "description": "A dark cave entrance.",
+            "relative_coords": [0, 0],
+            "connections": {"south": "EXISTING_WORLD"}
+            # No 'npcs' field
+        }
+    ]
+
+    mock_response = Mock()
+    mock_response.choices = [Mock()]
+    mock_response.choices[0].message.content = json.dumps(area_response_no_npcs)
+    mock_client.chat.completions.create.return_value = mock_response
+
+    service = AIService(basic_config)
+    result = service.generate_area(
+        theme="fantasy",
+        sub_theme_hint="cave",
+        entry_direction="north",
+        context_locations=[],
+        size=1
+    )
+
+    # Verify empty list is returned when npcs field is missing
+    assert "npcs" in result[0]
+    assert result[0]["npcs"] == []
+
+
+# Test: NPC role defaults to villager when missing
+@patch('cli_rpg.ai_service.OpenAI')
+def test_generate_location_npc_role_defaults_to_villager(mock_openai_class, basic_config):
+    """Test NPC role defaults to 'villager' when not specified.
+
+    Spec: If role is missing or invalid, default to 'villager'.
+    """
+    mock_client = Mock()
+    mock_openai_class.return_value = mock_client
+
+    response_no_role = {
+        "name": "Village Square",
+        "description": "A peaceful village square.",
+        "connections": {},
+        "npcs": [
+            {
+                "name": "Simple Farmer",
+                "description": "A hardworking farmer.",
+                "dialogue": "Fine day for farming!"
+                # No 'role' field
+            }
+        ]
+    }
+
+    mock_response = Mock()
+    mock_response.choices = [Mock()]
+    mock_response.choices[0].message.content = json.dumps(response_no_role)
+    mock_client.chat.completions.create.return_value = mock_response
+
+    service = AIService(basic_config)
+    result = service.generate_location(theme="fantasy")
+
+    # Verify role defaults to villager
+    assert result["npcs"][0]["role"] == "villager"

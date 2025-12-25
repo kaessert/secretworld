@@ -60,10 +60,10 @@ Once non-interactive mode is fully implemented, set up periodic long-running sim
 
 **Depends on**: Non-interactive mode enhancements (structured output, logging)
 
-### World not truly infinite and NPC persistence issues
+### World not truly infinite
 **Status**: ACTIVE
 
-Players report the world can be fully explored despite being advertised as infinite. Additionally, NPCs only appear in the starting location.
+Players report the world can be fully explored despite being advertised as infinite.
 
 **Issues**:
 
@@ -72,26 +72,27 @@ Players report the world can be fully explored despite being advertised as infin
    - No new locations generate when moving to unexplored exits
    - World feels small and finite rather than infinite
 
-2. **NPCs only in starting location**
-   - New locations are generated without NPCs
-   - Only the initial "Town Square" or starting area has NPCs
-   - Makes exploration feel empty and pointless
-
-3. **NPCs don't persist in locations**
-   - NPCs should be permanent fixtures of their locations
-   - Revisiting a location should show the same NPCs
-   - Exception: special quest NPCs may move or disappear after quest completion
-
 **Expected behavior**:
 - Every unexplored exit should generate a new location on demand
-- AI-generated locations should include contextually appropriate NPCs (merchants in towns, guards in dungeons, hermits in wilderness)
-- NPCs should persist in their locations across visits and save/load
 - World should truly be infinite - always have at least one unexplored direction available
 
 **Fix areas**:
 - `world.py` / `world_grid.py`: Ensure location generation triggers on unexplored exits
-- `ai_service.py`: Include NPC generation in location creation prompts
-- `persistence.py`: Verify NPC data is saved/loaded with locations
+
+### NPC persistence issues (PARTIALLY RESOLVED)
+**Status**: PARTIALLY RESOLVED
+
+~~NPCs only in starting location~~ - FIXED: AI-generated locations now include thematically appropriate NPCs (merchants, quest-givers, villagers).
+
+**Remaining issue**:
+
+1. **NPCs don't persist in locations** (needs verification)
+   - NPCs should be permanent fixtures of their locations
+   - Revisiting a location should show the same NPCs
+   - Exception: special quest NPCs may move or disappear after quest completion
+
+**Fix areas**:
+- `persistence.py`: Verify NPC data is saved/loaded with locations (likely already working)
 
 ### Blocked location markers on map
 **Status**: ACTIVE
