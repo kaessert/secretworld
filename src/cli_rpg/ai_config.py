@@ -187,6 +187,7 @@ class AIConfig:
         retry_delay: Delay between retries in seconds (default: 1.0)
         enable_caching: Enable response caching (default: True)
         cache_ttl: Cache time-to-live in seconds (default: 3600)
+        cache_file: Path to persistent cache file (default: ~/.cli_rpg/cache/ai_cache.json when caching enabled)
         location_generation_prompt: Prompt template for location generation
     """
 
@@ -199,6 +200,7 @@ class AIConfig:
     retry_delay: float = 1.0
     enable_caching: bool = True
     cache_ttl: int = 3600
+    cache_file: Optional[str] = None
     location_generation_prompt: str = field(default=DEFAULT_LOCATION_PROMPT)
     npc_dialogue_prompt: str = field(default=DEFAULT_NPC_DIALOGUE_PROMPT)
     enemy_generation_prompt: str = field(default=DEFAULT_ENEMY_GENERATION_PROMPT)
@@ -211,22 +213,26 @@ class AIConfig:
         # Validate API key
         if not self.api_key or not self.api_key.strip():
             raise AIConfigError("API key cannot be empty")
-        
+
         # Validate temperature
         if not (0.0 <= self.temperature <= 2.0):
             raise AIConfigError("Temperature must be between 0.0 and 2.0")
-        
+
         # Validate max_tokens
         if self.max_tokens <= 0:
             raise AIConfigError("max_tokens must be positive")
-        
+
         # Validate max_retries
         if self.max_retries < 0:
             raise AIConfigError("max_retries must be non-negative")
-        
+
         # Validate retry_delay
         if self.retry_delay <= 0:
             raise AIConfigError("retry_delay must be positive")
+
+        # Set default cache_file when caching is enabled and no explicit path provided
+        if self.enable_caching and self.cache_file is None:
+            self.cache_file = os.path.expanduser("~/.cli_rpg/cache/ai_cache.json")
     
     @classmethod
     def from_env(cls) -> "AIConfig":
@@ -295,6 +301,7 @@ class AIConfig:
         retry_delay = float(os.getenv("AI_RETRY_DELAY", "1.0"))
         enable_caching = os.getenv("AI_ENABLE_CACHING", "true").lower() == "true"
         cache_ttl = int(os.getenv("AI_CACHE_TTL", "3600"))
+        cache_file = os.getenv("AI_CACHE_FILE")  # None if not set, __post_init__ will set default
 
         return cls(
             api_key=api_key,
@@ -305,7 +312,8 @@ class AIConfig:
             max_retries=max_retries,
             retry_delay=retry_delay,
             enable_caching=enable_caching,
-            cache_ttl=cache_ttl
+            cache_ttl=cache_ttl,
+            cache_file=cache_file
         )
     
     def to_dict(self) -> dict:
@@ -324,6 +332,7 @@ class AIConfig:
             "retry_delay": self.retry_delay,
             "enable_caching": self.enable_caching,
             "cache_ttl": self.cache_ttl,
+            "cache_file": self.cache_file,
             "location_generation_prompt": self.location_generation_prompt,
             "npc_dialogue_prompt": self.npc_dialogue_prompt,
             "enemy_generation_prompt": self.enemy_generation_prompt,
@@ -355,6 +364,7 @@ class AIConfig:
             retry_delay=data.get("retry_delay", 1.0),
             enable_caching=data.get("enable_caching", True),
             cache_ttl=data.get("cache_ttl", 3600),
+            cache_file=data.get("cache_file"),
             location_generation_prompt=data.get("location_generation_prompt", DEFAULT_LOCATION_PROMPT),
             npc_dialogue_prompt=data.get("npc_dialogue_prompt", DEFAULT_NPC_DIALOGUE_PROMPT),
             enemy_generation_prompt=data.get("enemy_generation_prompt", DEFAULT_ENEMY_GENERATION_PROMPT),

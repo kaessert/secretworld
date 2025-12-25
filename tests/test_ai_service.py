@@ -15,15 +15,16 @@ from cli_rpg.ai_service import (
 # Fixtures
 
 @pytest.fixture
-def basic_config():
-    """Create a basic AIConfig for testing."""
+def basic_config(tmp_path):
+    """Create a basic AIConfig for testing with isolated cache file."""
     return AIConfig(
         api_key="test-key-123",
         model="gpt-3.5-turbo",
         temperature=0.7,
         max_tokens=500,
         max_retries=3,
-        retry_delay=0.1  # Short delay for tests
+        retry_delay=0.1,  # Short delay for tests
+        cache_file=str(tmp_path / "test_cache.json")  # Isolated cache per test
     )
 
 
@@ -217,10 +218,15 @@ def test_generate_location_connection_directions_filtered(mock_openai_class, bas
 
 # Test: Caching enabled
 @patch('cli_rpg.ai_service.OpenAI')
-def test_generate_location_caching_enabled(mock_openai_class, mock_openai_response):
+def test_generate_location_caching_enabled(mock_openai_class, mock_openai_response, tmp_path):
     """Test generate_location uses cache when enabled."""
     # Config with caching enabled
-    config = AIConfig(api_key="test-key", enable_caching=True, retry_delay=0.1)
+    config = AIConfig(
+        api_key="test-key",
+        enable_caching=True,
+        retry_delay=0.1,
+        cache_file=str(tmp_path / "test_cache.json")
+    )
     
     mock_client = Mock()
     mock_openai_class.return_value = mock_client
@@ -279,9 +285,14 @@ def test_generate_location_prompt_includes_context(mock_openai_class, basic_conf
 
 # Test: Configurable model
 @patch('cli_rpg.ai_service.OpenAI')
-def test_ai_service_configurable_model(mock_openai_class, mock_openai_response):
+def test_ai_service_configurable_model(mock_openai_class, mock_openai_response, tmp_path):
     """Test AIService uses the configured model."""
-    config = AIConfig(api_key="test-key", model="gpt-4", retry_delay=0.1)
+    config = AIConfig(
+        api_key="test-key",
+        model="gpt-4",
+        retry_delay=0.1,
+        cache_file=str(tmp_path / "test_cache.json")
+    )
     
     mock_client = Mock()
     mock_openai_class.return_value = mock_client
@@ -301,9 +312,14 @@ def test_ai_service_configurable_model(mock_openai_class, mock_openai_response):
 
 # Test: Configurable temperature
 @patch('cli_rpg.ai_service.OpenAI')
-def test_ai_service_configurable_temperature(mock_openai_class, mock_openai_response):
+def test_ai_service_configurable_temperature(mock_openai_class, mock_openai_response, tmp_path):
     """Test AIService uses the configured temperature."""
-    config = AIConfig(api_key="test-key", temperature=0.9, retry_delay=0.1)
+    config = AIConfig(
+        api_key="test-key",
+        temperature=0.9,
+        retry_delay=0.1,
+        cache_file=str(tmp_path / "test_cache.json")
+    )
     
     mock_client = Mock()
     mock_openai_class.return_value = mock_client
@@ -432,13 +448,14 @@ def test_ai_service_initialization_with_anthropic(mock_anthropic_class):
 
 # Test: Generate location with Anthropic provider
 @patch('cli_rpg.ai_service.Anthropic')
-def test_generate_location_with_anthropic(mock_anthropic_class):
+def test_generate_location_with_anthropic(mock_anthropic_class, tmp_path):
     """Test generate_location calls Anthropic API correctly and returns valid location."""
     config = AIConfig(
         api_key="anthropic-test-key",
         provider="anthropic",
         model="claude-3-5-sonnet-latest",
-        retry_delay=0.1
+        retry_delay=0.1,
+        cache_file=str(tmp_path / "test_cache.json")
     )
 
     mock_client = Mock()

@@ -17,8 +17,10 @@ The CLI RPG includes AI-powered dynamic location generation using OpenAI's GPT m
 
 ### 2. Intelligent Caching
 - Generated locations are cached to reduce API calls
-- Cache expires after 1 hour (configurable)
-- Significant cost savings for repeated scenarios
+- **Persistent file-based cache**: Cache survives game restarts (stored at `~/.cli_rpg/cache/ai_cache.json` by default)
+- Cache expires after 1 hour (configurable via `cache_ttl`)
+- Expired entries are automatically pruned on load
+- Significant cost savings for repeated scenarios and across sessions
 
 ### 3. Graceful Fallbacks
 - Game works without API key (uses default world)
@@ -80,6 +82,7 @@ Customize other settings in `.env`:
 - `AI_MAX_TOKENS`: Response length (default: 500)
 - `AI_MAX_RETRIES`: Retry attempts (default: 3)
 - `AI_ENABLE_CACHING`: Enable caching (default: true)
+- `AI_CACHE_FILE`: Custom cache file path (default: `~/.cli_rpg/cache/ai_cache.json`)
 - `CLI_RPG_REQUIRE_AI`: Strict mode for AI generation (default: true)
 
 ### Provider Selection Logic
@@ -175,7 +178,8 @@ loaded_game.ai_service = ai_service
 2. **AIService** (`ai_service.py`)
    - Interfaces with OpenAI or Anthropic API
    - Handles retries and errors
-   - Manages caching
+   - Manages caching (in-memory with file persistence)
+   - Persists cache to disk for cross-session reuse
    - Validates responses
    - Auto-detects provider from configuration
    - `generate_area()`: Generates clusters of 4-7 connected locations with thematic consistency
@@ -244,9 +248,10 @@ See [Strict Mode](#strict-mode-cli_rpg_require_ai) above for details on how fail
 
 All AI features are fully tested with comprehensive test coverage:
 
-### Unit and Integration Tests (55 tests)
+### Unit and Integration Tests (68 tests)
 - Configuration validation (13 tests)
 - AI service functionality (16 tests)
+- AI cache persistence (13 tests)
 - World generation (15 tests)
 - GameState integration (11 tests)
 
@@ -273,9 +278,8 @@ pytest tests/test_e2e_world_expansion.py -v
 ## Limitations
 
 ### Current Limitations
-1. In-memory cache only
-2. No location categories/types
-3. Basic prompt templates
+1. No location categories/types
+2. Basic prompt templates
 
 ### 7. AI-Generated Enemies
 - Combat encounters feature AI-generated enemies with unique names and stats
@@ -319,7 +323,6 @@ pytest tests/test_e2e_world_expansion.py -v
 
 ### Future Enhancements
 - Local model support
-- Persistent cache (database/file)
 - AI-powered NPC personalities and extended conversations
 - Advanced world consistency validation
 

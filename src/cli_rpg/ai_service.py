@@ -77,6 +77,10 @@ class AIService:
 
         # Initialize cache if enabled
         self._cache: dict[str, tuple[dict, float]] = {}  # key -> (data, timestamp)
+
+        # Load persisted cache from disk if caching is enabled
+        if self.config.enable_caching:
+            self._load_cache_from_file()
     
     def generate_location(
         self,
@@ -402,6 +406,72 @@ class AIService:
         """
         cache_key = hashlib.md5(prompt.encode()).hexdigest()
         self._cache[cache_key] = (data.copy(), time.time())
+        self._save_cache_to_file()
+
+    def _load_cache_from_file(self) -> None:
+        """Load persisted cache from disk.
+
+        Reads the cache file specified in config, parses JSON, and populates
+        the in-memory cache. Expired entries are pruned during load.
+        Handles file I/O errors gracefully by logging a warning.
+        """
+        cache_file = self.config.cache_file
+        if not cache_file:
+            return
+
+        import os
+        if not os.path.exists(cache_file):
+            return
+
+        try:
+            with open(cache_file, 'r') as f:
+                raw_data = json.load(f)
+
+            # Load entries, pruning expired ones
+            current_time = time.time()
+            for key, entry in raw_data.items():
+                if isinstance(entry, dict) and "data" in entry and "timestamp" in entry:
+                    timestamp = entry["timestamp"]
+                    if current_time - timestamp < self.config.cache_ttl:
+                        # Entry is still valid
+                        self._cache[key] = (entry["data"], timestamp)
+                    # Else: entry expired, don't load it
+
+        except (json.JSONDecodeError, IOError, OSError) as e:
+            logger.warning(f"Failed to load cache from {cache_file}: {e}")
+
+    def _save_cache_to_file(self) -> None:
+        """Persist cache to disk.
+
+        Writes the in-memory cache to the cache file specified in config.
+        Creates parent directories if they don't exist.
+        Handles file I/O errors gracefully by logging a warning.
+        """
+        cache_file = self.config.cache_file
+        if not cache_file:
+            return
+
+        import os
+
+        try:
+            # Create parent directories if needed
+            cache_dir = os.path.dirname(cache_file)
+            if cache_dir:
+                os.makedirs(cache_dir, exist_ok=True)
+
+            # Convert cache to serializable format
+            serializable_cache = {}
+            for key, (data, timestamp) in self._cache.items():
+                serializable_cache[key] = {
+                    "data": data,
+                    "timestamp": timestamp
+                }
+
+            with open(cache_file, 'w') as f:
+                json.dump(serializable_cache, f)
+
+        except (IOError, OSError) as e:
+            logger.warning(f"Failed to save cache to {cache_file}: {e}")
 
     def generate_area(
         self,
@@ -679,6 +749,7 @@ Note: Use "EXISTING_WORLD" as placeholder for the connection back to the source 
         import copy
         cache_key = hashlib.md5(prompt.encode()).hexdigest()
         self._cache[cache_key] = (copy.deepcopy(data), time.time())
+        self._save_cache_to_file()
 
     def generate_npc_dialogue(
         self,

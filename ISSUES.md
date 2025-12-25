@@ -1,6 +1,28 @@
 ## Active Issues
 
-(No active issues)
+### Combat quit confirmation prompt doesn't consume y/n input
+**Status**: OPEN
+
+**Description**: When a player types `quit` during combat, the warning prompt "Quit without saving? (y/n):" is displayed, but the code does not actually wait for and consume the y/n response. Instead, combat continues immediately and the user's next input (intended to be 'y' or 'n' for the confirmation) is treated as a combat command.
+
+**Steps to Reproduce**:
+1. Start a new game and create a character
+2. Move around until a combat encounter is triggered (e.g., `go east` repeatedly)
+3. During combat, type `quit`
+4. Type `n` (intending to cancel the quit and continue combat)
+5. Observe that `n` is not consumed as the confirmation response; combat displays status again and 'n' is silently ignored or treated as invalid command
+
+**Expected Behavior**:
+- After typing `quit`, the prompt should wait for and consume either 'y' or 'n'
+- If 'n', combat should continue with a clear message like "Continuing combat..."
+- If 'y', player should return to main menu
+
+**Actual Behavior**:
+- The prompt displays but immediately continues to the combat loop
+- The 'n' input is treated as a combat command (ignored as invalid)
+- User has to type `quit` again and then 'y' to actually quit
+
+**Impact**: Confusing user experience - players may think their input was acknowledged when it wasn't
 
 ## Resolved Issues
 
