@@ -1,6 +1,5 @@
 """Map renderer for displaying an ASCII map of explored locations."""
 
-from typing import Optional
 from cli_rpg.models.location import Location
 from cli_rpg import colors
 

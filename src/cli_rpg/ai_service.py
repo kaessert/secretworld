@@ -3,7 +3,10 @@
 import json
 import hashlib
 import time
-from typing import Optional
+from typing import Optional, TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from cli_rpg.models.item import ItemType
 from openai import OpenAI
 import openai
 
@@ -911,22 +914,22 @@ Note: Use "EXISTING_WORLD" as placeholder for the connection back to the source 
         description = data["description"].strip()
         if len(description) < 10:
             raise AIGenerationError(
-                f"Enemy description too short (min 10 chars)"
+                "Enemy description too short (min 10 chars)"
             )
         if len(description) > 150:
             raise AIGenerationError(
-                f"Enemy description too long (max 150 chars)"
+                "Enemy description too long (max 150 chars)"
             )
 
         # Validate attack_flavor length (10-100 chars)
         attack_flavor = data["attack_flavor"].strip()
         if len(attack_flavor) < 10:
             raise AIGenerationError(
-                f"Attack flavor too short (min 10 chars)"
+                "Attack flavor too short (min 10 chars)"
             )
         if len(attack_flavor) > 100:
             raise AIGenerationError(
-                f"Attack flavor too long (max 100 chars)"
+                "Attack flavor too long (max 100 chars)"
             )
 
         # Validate positive stats

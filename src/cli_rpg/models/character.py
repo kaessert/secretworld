@@ -1,11 +1,12 @@
 """Character model for CLI RPG."""
 from dataclasses import dataclass, field
-from typing import ClassVar, List, Optional, Tuple, TYPE_CHECKING
+from typing import ClassVar, List, Tuple, TYPE_CHECKING
 
 from cli_rpg import colors
 
 if TYPE_CHECKING:
     from cli_rpg.models.item import Item
+    from cli_rpg.models.inventory import Inventory
     from cli_rpg.models.quest import Quest
 
 

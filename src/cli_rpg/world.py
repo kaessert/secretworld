@@ -1,7 +1,7 @@
 """World module for creating and managing game locations."""
 
 import logging
-from typing import Optional, Union
+from typing import Optional
 from cli_rpg.models.location import Location
 from cli_rpg.models.item import Item, ItemType
 from cli_rpg.models.shop import Shop, ShopItem

@@ -2,7 +2,7 @@
 
 import logging
 from typing import Optional
-from cli_rpg.ai_service import AIService, AIServiceError
+from cli_rpg.ai_service import AIService
 from cli_rpg.models.location import Location
 from cli_rpg.models.npc import NPC
 from cli_rpg.models.shop import Shop, ShopItem
@@ -348,8 +348,6 @@ def expand_area(
             f"Invalid direction '{direction}'. Must be one of: "
             f"{', '.join(sorted(Location.VALID_DIRECTIONS))}"
         )
-
-    source_loc = world[from_location]
 
     # Generate area sub-theme hint based on source location
     # This could be enhanced with more sophisticated theme selection

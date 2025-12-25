@@ -68,7 +68,7 @@ def prompt_save_character(character: Character) -> None:
     if response == 'y':
         try:
             filepath = save_character(character)
-            print(f"\n✓ Character saved successfully!")
+            print("\n✓ Character saved successfully!")
             print(f"  Save location: {filepath}")
         except IOError as e:
             print(f"\n✗ Failed to save character: {e}")
@@ -126,7 +126,7 @@ def select_and_load_character() -> tuple[Optional[Character], Optional[GameState
                 # Load complete game state
                 try:
                     game_state = load_game_state(selected_save['filepath'])
-                    print(f"\n✓ Game state loaded successfully!")
+                    print("\n✓ Game state loaded successfully!")
                     print(f"  Location: {game_state.current_location}")
                     print(f"  Character: {game_state.current_character.name}")
                     print("\n" + str(game_state.current_character))
@@ -138,7 +138,7 @@ def select_and_load_character() -> tuple[Optional[Character], Optional[GameState
                 # Load character only (backward compatibility)
                 try:
                     character = load_character(selected_save['filepath'])
-                    print(f"\n✓ Character loaded successfully!")
+                    print("\n✓ Character loaded successfully!")
                     print("\n" + str(character))
                     return (character, None)
                 except Exception as e:
@@ -830,9 +830,9 @@ def handle_exploration_command(game_state: GameState, command: str, args: list[s
         if quest.quest_giver:
             lines.append(f"Quest Giver: {quest.quest_giver}")
         lines.extend([
-            f"",
+            "",
             f"{quest.description}",
-            f"",
+            "",
             f"Objective: {quest.objective_type.value.capitalize()} {quest.target}",
             f"Progress: {quest.current_count}/{quest.target_count}",
         ])
@@ -854,7 +854,7 @@ def handle_exploration_command(game_state: GameState, command: str, args: list[s
         if response == 'y':
             try:
                 filepath = save_game_state(game_state)
-                print(f"\n✓ Game saved successfully!")
+                print("\n✓ Game saved successfully!")
                 print(f"  Save location: {filepath}")
             except IOError as e:
                 print(f"\n✗ Failed to save game: {e}")
@@ -1117,7 +1117,7 @@ def main() -> int:
                     theme = get_theme_selection()
                     print(f"\n✓ Selected theme: {theme}")
                 
-                print(f"Your character is ready for adventure!")
+                print("Your character is ready for adventure!")
 
                 # Start the game with AI service and theme
                 start_game(

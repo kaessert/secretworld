@@ -2,12 +2,12 @@
 
 import logging
 import random
-from typing import ClassVar, Optional
+from typing import Optional
 from cli_rpg.models.character import Character
 from cli_rpg.models.location import Location
 from cli_rpg.models.npc import NPC
 from cli_rpg.models.shop import Shop
-from cli_rpg.combat import CombatEncounter, spawn_enemy, ai_spawn_enemy
+from cli_rpg.combat import CombatEncounter, ai_spawn_enemy
 from cli_rpg.autosave import autosave
 from cli_rpg import colors
 

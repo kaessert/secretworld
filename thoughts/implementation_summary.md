@@ -1,46 +1,51 @@
-# Implementation Summary: USE Objective Type for Quests
+# Implementation Summary: Code Quality & Linting Fixes
 
 ## What Was Implemented
 
-Added a new `USE` objective type that allows quests to require players to use specific items (e.g., "Use a Health Potion to heal yourself").
+Fixed all 24 ruff linting errors across 9 files.
 
-### Changes Made
+### Files Modified
 
-1. **`src/cli_rpg/models/quest.py`** (line 26)
-   - Added `USE = "use"` to the `ObjectiveType` enum
+1. **`src/cli_rpg/ai_service.py`**
+   - Removed `f` prefix from 4 f-strings without placeholders (lines 914, 918, 925, 929)
+   - Added `TYPE_CHECKING` import and `ItemType` type annotation import
 
-2. **`src/cli_rpg/models/character.py`**
-   - Added `record_use(item_name: str) -> List[str]` method (lines 400-435)
-     - Follows the same pattern as `record_talk()` and other record methods
-     - Case-insensitive matching of item names to quest targets
-     - Only progresses ACTIVE quests with USE objective type
-     - Returns quest progress/completion messages
-   - Modified `use_item()` method (lines 186-209)
-     - Calls `record_use(item.name)` after successful item consumption
-     - Appends quest progress messages to the return message
+2. **`src/cli_rpg/ai_world.py`**
+   - Removed unused `AIServiceError` import
+   - Removed unused `source_loc` variable in `expand_area()` function
 
-3. **`tests/test_quest_use.py`** (new file - 17 tests)
-   - `TestUseObjectiveType`: Enum existence and value tests
-   - `TestRecordUse`: Direct record_use() method tests
-   - `TestUseItemIntegration`: End-to-end use_item() integration tests
-   - `TestQuestSerializationWithUse`: Serialization round-trip tests
+3. **`src/cli_rpg/game_state.py`**
+   - Removed unused `ClassVar` import
+   - Removed unused `spawn_enemy` import
+
+4. **`src/cli_rpg/main.py`**
+   - Removed `f` prefix from 7 f-strings without placeholders (lines 71, 129, 141, 833, 835, 857, 1120)
+
+5. **`src/cli_rpg/map_renderer.py`**
+   - Removed unused `Optional` import
+
+6. **`src/cli_rpg/models/character.py`**
+   - Removed unused `Optional` import
+   - Added `Inventory` to `TYPE_CHECKING` block
+
+7. **`src/cli_rpg/models/item.py`**
+   - Removed unused `field` import from dataclasses
+
+8. **`src/cli_rpg/persistence.py`**
+   - Removed unused `os` import
+   - Removed unused `Optional` import
+
+9. **`src/cli_rpg/world.py`**
+   - Removed unused `Union` import
 
 ## Test Results
 
-- All 17 new tests pass
-- Full test suite: 1205 passed, 1 skipped
-- No regressions
+- **1205 tests passed**, 1 skipped
+- `ruff check src/` reports **0 errors**
 
-## Design Decisions
+## Verification Commands
 
-- Follows existing pattern of other objective types (KILL, COLLECT, TALK, EXPLORE, DROP)
-- Quest progress messages are appended to use_item() return message using newline separator
-- Works with both healing consumables and generic consumables
-
-## E2E Validation
-
-To validate in the game:
-1. Create/accept a quest with `objective_type: USE` and `target: "Health Potion"`
-2. Use a Health Potion when health is below max
-3. Quest should progress and show appropriate message
-4. Save/load game - USE quest should persist correctly
+```bash
+ruff check src/     # Should report "All checks passed!"
+pytest --tb=short   # All tests should pass
+```

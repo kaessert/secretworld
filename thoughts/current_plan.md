@@ -1,40 +1,49 @@
-# Implementation Plan: USE Objective Type for Quests
+# Code Quality & Linting Fixes
 
-## Spec
-Add `USE` objective type allowing quests to require players to use specific items (e.g., "Use a Health Potion to heal yourself"). Follows the established pattern of other objective types (KILL, COLLECT, TALK, EXPLORE, DROP).
+## Summary
+Fix 24 ruff linting errors including unused imports, undefined names, and f-strings without placeholders.
 
-## Implementation Steps
+## Fixes Required
 
-### 1. Add USE to ObjectiveType enum
-**File:** `src/cli_rpg/models/quest.py` (line ~24)
-- Add `USE = "use"` to the ObjectiveType enum
+### 1. `src/cli_rpg/ai_service.py`
+- **Lines 914, 918, 925, 929**: Remove `f` prefix from f-strings without placeholders
+- **Lines 956, 996**: Add `ItemType` import to TYPE_CHECKING block:
+  ```python
+  from typing import Optional, TYPE_CHECKING
+  if TYPE_CHECKING:
+      from cli_rpg.models.item import ItemType
+  ```
 
-### 2. Add `record_use()` method to Character
-**File:** `src/cli_rpg/models/character.py` (after `record_talk`, around line 398)
-- Add `record_use(self, item_name: str) -> List[str]` method
-- Pattern: identical to `record_talk` but matches ObjectiveType.USE and item names
-- Case-insensitive matching on target vs item_name
+### 2. `src/cli_rpg/ai_world.py`
+- **Line 5**: Remove unused import `AIServiceError`
+- **Line 352**: Remove or use `source_loc` variable
 
-### 3. Call `record_use()` from `use_item()`
-**File:** `src/cli_rpg/models/character.py` (in `use_item` method, around line 197)
-- After successful item use, call `self.record_use(item.name)`
-- Append quest progress messages to return message
+### 3. `src/cli_rpg/game_state.py`
+- **Line 5**: Remove unused import `ClassVar`
+- **Line 10**: Remove unused import `spawn_enemy`
 
-### 4. Write tests (TDD)
-**File:** `tests/test_quest_use.py` (new file)
-- Test `ObjectiveType.USE` enum exists and has value `"use"`
-- Test `record_use()` increments progress for matching ACTIVE USE quests
-- Test case-insensitive matching
-- Test non-matching items don't progress
-- Test only ACTIVE quests progress
-- Test only USE objective type quests progress
-- Test status changes to READY_TO_TURN_IN on completion
-- Test multiple USE quests can progress from single item use
-- Test quest serialization round-trips with USE type
+### 4. `src/cli_rpg/main.py`
+- **Lines 71, 129, 141, 833, 835, 857, 1120**: Remove `f` prefix from f-strings without placeholders
 
-## Test-First Order
-1. Create `tests/test_quest_use.py` with all tests (they will fail)
-2. Add `USE = "use"` to ObjectiveType enum (some tests pass)
-3. Add `record_use()` method (more tests pass)
-4. Integrate into `use_item()` (all tests pass)
-5. Run full test suite to ensure no regressions
+### 5. `src/cli_rpg/map_renderer.py`
+- **Line 3**: Remove unused import `Optional`
+
+### 6. `src/cli_rpg/models/character.py`
+- **Line 3**: Remove unused import `Optional`
+- **Line 46**: Add `Inventory` to TYPE_CHECKING block
+
+### 7. `src/cli_rpg/models/item.py`
+- **Line 2**: Remove unused import `field`
+
+### 8. `src/cli_rpg/persistence.py`
+- **Line 3**: Remove unused import `os`
+- **Line 6**: Remove unused import `Optional`
+
+### 9. `src/cli_rpg/world.py`
+- **Line 4**: Remove unused import `Union`
+
+## Verification
+```bash
+ruff check src/  # Should report 0 errors
+pytest           # All tests should still pass
+```

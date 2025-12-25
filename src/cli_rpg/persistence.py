@@ -1,9 +1,8 @@
 """Character and game state persistence system for CLI RPG."""
 import json
-import os
 from datetime import datetime
 from pathlib import Path
-from typing import Optional, TYPE_CHECKING
+from typing import TYPE_CHECKING
 from cli_rpg.models.character import Character
 
 if TYPE_CHECKING:
