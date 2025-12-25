@@ -1,4 +1,5 @@
 """NPC model for non-hostile characters."""
+import random
 from dataclasses import dataclass, field
 from typing import List, Optional, TYPE_CHECKING
 
@@ -28,6 +29,7 @@ class NPC:
     shop: Optional["Shop"] = None
     is_quest_giver: bool = False
     offered_quests: List["Quest"] = field(default_factory=list)
+    greetings: List[str] = field(default_factory=list)
 
     def __post_init__(self):
         """Validate NPC attributes."""
@@ -35,6 +37,16 @@ class NPC:
             raise ValueError("NPC name must be 2-30 characters")
         if not 1 <= len(self.description) <= 200:
             raise ValueError("Description must be 1-200 characters")
+
+    def get_greeting(self) -> str:
+        """Get a greeting to display when talking to this NPC.
+
+        Returns a random greeting from the greetings list if available,
+        otherwise falls back to the dialogue field.
+        """
+        if self.greetings:
+            return random.choice(self.greetings)
+        return self.dialogue
 
     def to_dict(self) -> dict:
         """Serialize NPC to dictionary.
@@ -49,7 +61,8 @@ class NPC:
             "is_merchant": self.is_merchant,
             "shop": self.shop.to_dict() if self.shop else None,
             "is_quest_giver": self.is_quest_giver,
-            "offered_quests": [q.to_dict() for q in self.offered_quests]
+            "offered_quests": [q.to_dict() for q in self.offered_quests],
+            "greetings": self.greetings
         }
 
     @classmethod
@@ -76,5 +89,6 @@ class NPC:
             is_merchant=data.get("is_merchant", False),
             shop=shop,
             is_quest_giver=data.get("is_quest_giver", False),
-            offered_quests=offered_quests
+            offered_quests=offered_quests,
+            greetings=data.get("greetings", [])
         )

@@ -1,151 +1,147 @@
-# Implementation Plan: DROP Quest Objective Type
+# Implementation Plan: NPC Dialogue Variety (Greeting Text)
+
+## Summary
+Add a `greetings` list to NPCs so talking to them shows varied, randomly-selected greeting text before functional UI (shop/quests), making interactions feel more immersive.
 
 ## Spec
-
-Add a `DROP` objective type to the quest system that tracks specific item drops from specific enemy types. Unlike `COLLECT` (any item acquisition) or `KILL` (any enemy defeat), `DROP` requires **both conditions**: a specific item dropped from a specific enemy type.
-
-**Example quest**: "Collect 3 Wolf Pelts from Wolves"
-- Target enemy: "Wolf"
-- Target item: "Wolf Pelt"
-- Progress increments only when a Wolf is killed AND drops a Wolf Pelt
-
-### Quest Model Changes
-- New `ObjectiveType.DROP` enum value
-- New optional field `drop_item: Optional[str]` on `Quest` for the item to track
-- Serialization/deserialization support for `drop_item`
-
-### Tracking Mechanism
-- New `Character.record_drop(enemy_name: str, item_name: str)` method
-- Called from `CombatEncounter.end_combat()` when loot drops
-- Only progresses DROP quests where both enemy AND item match
-
----
+- NPCs gain an optional `greetings: List[str]` field (default: empty list)
+- When talking to an NPC:
+  - If `greetings` is non-empty, display a random greeting from the list
+  - Otherwise, fall back to existing `dialogue` field (backward compatible)
+- Greeting appears first, then existing shop/quest prompts
 
 ## Tests (TDD)
 
-### File: `tests/test_quest_drop.py`
+### File: `tests/test_npc_greetings.py`
 
 ```python
-"""Tests for DROP quest objective type."""
+import pytest
+from cli_rpg.models.npc import NPC
+
+class TestNPCGreetings:
+    def test_npc_greetings_default_empty(self):
+        """NPC greetings defaults to empty list."""
+        npc = NPC(name="Guard", description="A guard", dialogue="Halt!")
+        assert npc.greetings == []
+
+    def test_npc_with_greetings(self):
+        """NPC can be created with greetings list."""
+        greetings = ["Hello!", "Welcome!", "Good day!"]
+        npc = NPC(name="Merchant", description="A shopkeeper", dialogue="Hi", greetings=greetings)
+        assert npc.greetings == greetings
+
+    def test_npc_get_greeting_returns_from_list(self):
+        """get_greeting returns a greeting from the list when available."""
+        greetings = ["Hello!", "Welcome!"]
+        npc = NPC(name="Merchant", description="A shopkeeper", dialogue="Hi", greetings=greetings)
+        assert npc.get_greeting() in greetings
+
+    def test_npc_get_greeting_falls_back_to_dialogue(self):
+        """get_greeting returns dialogue when greetings is empty."""
+        npc = NPC(name="Guard", description="A guard", dialogue="Move along.")
+        assert npc.get_greeting() == "Move along."
+
+    def test_npc_greetings_serialization(self):
+        """Greetings are serialized to dict."""
+        greetings = ["Hello!", "Welcome!"]
+        npc = NPC(name="Merchant", description="A shopkeeper", dialogue="Hi", greetings=greetings)
+        data = npc.to_dict()
+        assert data["greetings"] == greetings
+
+    def test_npc_greetings_deserialization(self):
+        """Greetings are deserialized from dict."""
+        data = {
+            "name": "Merchant",
+            "description": "A shopkeeper",
+            "dialogue": "Hi",
+            "greetings": ["Hello!", "Welcome!"],
+            "is_merchant": False,
+            "shop": None,
+            "is_quest_giver": False,
+            "offered_quests": []
+        }
+        npc = NPC.from_dict(data)
+        assert npc.greetings == ["Hello!", "Welcome!"]
+
+    def test_npc_greetings_deserialization_missing(self):
+        """Missing greetings in dict defaults to empty list."""
+        data = {
+            "name": "Guard",
+            "description": "A guard",
+            "dialogue": "Halt!",
+            "is_merchant": False,
+            "shop": None
+        }
+        npc = NPC.from_dict(data)
+        assert npc.greetings == []
 ```
 
-1. **test_drop_objective_type_exists** - Verify `ObjectiveType.DROP` is valid
-2. **test_quest_with_drop_item_field** - Create quest with `drop_item` set
-3. **test_quest_drop_item_serialization** - `to_dict()`/`from_dict()` round-trip
-4. **test_record_drop_increments_matching_quest** - Both enemy + item match → progress
-5. **test_record_drop_enemy_mismatch_no_progress** - Wrong enemy, right item → no progress
-6. **test_record_drop_item_mismatch_no_progress** - Right enemy, wrong item → no progress
-7. **test_record_drop_case_insensitive** - Both matches are case-insensitive
-8. **test_record_drop_only_active_quests** - Only ACTIVE status gets progress
-9. **test_record_drop_marks_ready_to_turn_in** - Completion sets READY_TO_TURN_IN
-10. **test_record_drop_returns_progress_messages** - Returns proper notifications
-11. **test_record_drop_multiple_quests** - Multiple DROP quests can progress together
+### Test in `tests/test_shop_commands.py` (add to TestTalkCommand):
 
----
+```python
+def test_talk_uses_get_greeting(self, game_with_shop):
+    """Talk command uses get_greeting() method for display."""
+    # Uses existing dialogue when greetings empty
+    cont, msg = handle_exploration_command(game_with_shop, "talk", ["merchant"])
+    assert "Welcome to my shop!" in msg  # Falls back to dialogue
+```
 
 ## Implementation Steps
 
-### Step 1: Add DROP to ObjectiveType enum
-**File**: `src/cli_rpg/models/quest.py` (line 18-25)
+### Step 1: Add `greetings` field and `get_greeting()` method to NPC model
+**File**: `src/cli_rpg/models/npc.py`
 
 ```python
-class ObjectiveType(Enum):
-    KILL = "kill"
-    COLLECT = "collect"
-    EXPLORE = "explore"
-    TALK = "talk"
-    DROP = "drop"  # NEW
-```
+# Add import at top
+import random
 
-### Step 2: Add drop_item field to Quest dataclass
-**File**: `src/cli_rpg/models/quest.py` (after line 60)
+# Add field to NPC dataclass (after line 30):
+greetings: List[str] = field(default_factory=list)
 
-```python
-drop_item: Optional[str] = field(default=None)
-```
+# Add method to NPC class (after __post_init__):
+def get_greeting(self) -> str:
+    """Get a greeting to display when talking to this NPC.
 
-### Step 3: Update Quest.to_dict()
-**File**: `src/cli_rpg/models/quest.py` (line 128-146)
-
-Add `"drop_item": self.drop_item` to the returned dict.
-
-### Step 4: Update Quest.from_dict()
-**File**: `src/cli_rpg/models/quest.py` (line 162-174)
-
-Add `drop_item=data.get("drop_item")` to the constructor call.
-
-### Step 5: Add record_drop method to Character
-**File**: `src/cli_rpg/models/character.py` (after line 284)
-
-```python
-def record_drop(self, enemy_name: str, item_name: str) -> List[str]:
-    """Record an item drop from an enemy for DROP quest progress.
-
-    Args:
-        enemy_name: Name of the defeated enemy
-        item_name: Name of the dropped item
-
-    Returns:
-        List of notification messages for quest progress/completion
+    Returns a random greeting from the greetings list if available,
+    otherwise falls back to the dialogue field.
     """
-    from cli_rpg.models.quest import QuestStatus, ObjectiveType
+    if self.greetings:
+        return random.choice(self.greetings)
+    return self.dialogue
 
-    messages = []
-    for quest in self.quests:
-        if (
-            quest.status == QuestStatus.ACTIVE
-            and quest.objective_type == ObjectiveType.DROP
-            and quest.target.lower() == enemy_name.lower()
-            and quest.drop_item
-            and quest.drop_item.lower() == item_name.lower()
-        ):
-            completed = quest.progress()
-            if completed:
-                quest.status = QuestStatus.READY_TO_TURN_IN
-                if quest.quest_giver:
-                    messages.append(
-                        f"Quest objectives complete: {quest.name}! "
-                        f"Return to {quest.quest_giver} to claim your reward."
-                    )
-                else:
-                    messages.append(
-                        f"Quest objectives complete: {quest.name}! "
-                        "Return to the quest giver to claim your reward."
-                    )
-            else:
-                messages.append(
-                    f"Quest progress: {quest.name} [{quest.current_count}/{quest.target_count}]"
-                )
-    return messages
+# Update to_dict() to include greetings:
+"greetings": self.greetings,
+
+# Update from_dict() to parse greetings:
+greetings=data.get("greetings", []),
 ```
 
-### Step 6: Call record_drop from combat loot
-**File**: `src/cli_rpg/combat.py` (line 165-172)
+### Step 2: Update talk command to use `get_greeting()`
+**File**: `src/cli_rpg/main.py` (line 416)
 
-After adding loot to inventory, call `record_drop`:
-
+Change:
 ```python
-if loot is not None:
-    if self.player.inventory.add_item(loot):
-        messages.append(f"You found: {colors.item(loot.name)}!")
-        # Track quest progress for collect objectives
-        quest_messages = self.player.record_collection(loot.name)
-        messages.extend(quest_messages)
-        # Track quest progress for drop objectives (enemy + item)
-        drop_messages = self.player.record_drop(self.enemy.name, loot.name)
-        messages.extend(drop_messages)
+output = f"\n{npc.name}: \"{npc.dialogue}\""
 ```
 
-### Step 7: Update Character.to_dict() and from_dict()
-No changes needed - quests already serialize via `Quest.to_dict()`.
+To:
+```python
+output = f"\n{npc.name}: \"{npc.get_greeting()}\""
+```
 
----
+### Step 3: Update default world NPCs with sample greetings (optional enhancement)
+**File**: `src/cli_rpg/world.py` (line 91-95)
+
+Add greetings to the default Merchant NPC:
+```python
+greetings=[
+    "Welcome, traveler! Take a look at my goods.",
+    "Ah, a customer! What can I get for you today?",
+    "Come in, come in! Best prices in town!",
+]
+```
 
 ## Verification
-
-Run tests:
-```bash
-pytest tests/test_quest_drop.py -v
-pytest tests/test_quest*.py -v  # Ensure no regressions
-pytest --cov=src/cli_rpg  # Full coverage check
-```
+1. Run: `pytest tests/test_npc_greetings.py -v`
+2. Run: `pytest tests/test_shop_commands.py::TestTalkCommand -v`
+3. Run full suite: `pytest`

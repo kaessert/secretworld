@@ -92,7 +92,12 @@ def create_default_world() -> tuple[dict[str, Location], str]:
         description="A friendly shopkeeper with various wares",
         dialogue="Welcome, traveler! Take a look at my goods.",
         is_merchant=True,
-        shop=shop
+        shop=shop,
+        greetings=[
+            "Welcome, traveler! Take a look at my goods.",
+            "Ah, a customer! What can I get for you today?",
+            "Come in, come in! Best prices in town!",
+        ]
     )
 
     # Add merchant to Town Square

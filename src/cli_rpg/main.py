@@ -413,7 +413,7 @@ def handle_exploration_command(game_state: GameState, command: str, args: list[s
         # Store current NPC for accept command context
         game_state.current_npc = npc
 
-        output = f"\n{npc.name}: \"{npc.dialogue}\""
+        output = f"\n{npc.name}: \"{npc.get_greeting()}\""
         if npc.is_merchant and npc.shop:
             game_state.current_shop = npc.shop
             output += "\n\nType 'shop' to see items, 'buy <item>' to purchase, 'sell <item>' to sell."

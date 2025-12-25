@@ -1,6 +1,7 @@
 ## Active Issues
+**Status**: ACTIVE
 
-*No active issues*
+All the content should be ai generated (NPC conversations, Item catalogue, Monsters, Lore) and persistet, ever extending throughout the game
 
 ## Resolved Issues
 
