@@ -1,6 +1,23 @@
 ## Active Issues
 
-*No active issues*
+### EXPLORE and TALK quest objective types are not implemented
+**Status**: ACTIVE
+
+**Description**: The quest system defines `ObjectiveType.EXPLORE` and `ObjectiveType.TALK` enum values, and the AI configuration documents them (e.g., "explore: Visit location (target = location name, target_count = 1)"). However, there is no code that tracks when a player visits a location or talks to an NPC for these quest types.
+
+**Steps to Reproduce**:
+1. Create a quest with `objective_type=ObjectiveType.EXPLORE` and `target='Forest'`
+2. Accept the quest
+3. Move to the Forest location
+4. Check quest progress - it remains at 0/1 despite visiting the target location
+
+**Expected Behavior**: Quest progress should update to 1/1 when the player visits the target location (for EXPLORE) or talks to the target NPC (for TALK).
+
+**Actual Behavior**: Quest progress stays at 0/1 forever because no code handles these objective types.
+
+**Impact**: If AI generates quests with EXPLORE or TALK objectives, players will be stuck with uncompletable quests.
+
+**Root Cause**: The `Character` class has `record_kill()`, `record_collection()`, and `record_drop()` methods, but no corresponding `record_explore()` or `record_talk()` methods. The `GameState.move()` and talk command handler don't call any quest tracking for these objectives.
 
 ## Resolved Issues
 

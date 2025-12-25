@@ -1,47 +1,20 @@
-# Implementation Summary: `lore` Command
+# Implementation Summary: Fix test_resolved_issues_are_marked
 
-## What Was Implemented
+## What was implemented
 
-Added a new `lore` command that allows players to discover AI-generated lore snippets about their current location.
+Fixed a false positive in `tests/test_issues_documentation.py::test_resolved_issues_are_marked`.
 
-### Files Modified
+**File modified:** `tests/test_issues_documentation.py`
 
-1. **`src/cli_rpg/game_state.py`** (line 67)
-   - Added `"lore"` to the `known_commands` set in `parse_command()`
+**Change:** Updated the condition on line 30-32 from checking for `"dead-end" or "stuck"` to checking for `"dead-end" and "navigation"`. This makes the test more specific to the actual dead-end navigation bug that was fixed in commit 8d7f56f, rather than triggering on the word "stuck" appearing in an unrelated context (the quest system issue).
 
-2. **`src/cli_rpg/main.py`** (lines 38, 763-784)
-   - Added lore command to help text: `"  lore               - Discover lore about your current location"`
-   - Added command handler in `handle_exploration_command()`:
-     - Checks if AI service is available, falls back to default message if not
-     - Randomly selects a lore category (history, legend, secret)
-     - Calls `AIService.generate_lore()` with theme, location name, and category
-     - Displays lore with thematic header (Ancient History, Local Legend, or Forbidden Secret)
-     - Gracefully handles AI exceptions with a fallback message
+## Test results
 
-### New Test File Created
+All 3 tests in `tests/test_issues_documentation.py` pass:
+- `test_issues_file_exists` - PASSED
+- `test_resolved_issues_are_marked` - PASSED
+- `test_no_active_resolved_issues` - PASSED
 
-**`tests/test_lore_command.py`** - 6 tests covering:
-- Command parsing recognizes "lore"
-- Fallback message when AI service is unavailable
-- Correct arguments passed to `generate_lore()`
-- Output includes thematic header and lore text
-- Graceful error handling for AI exceptions
-- Lore command appears in help text
+## Technical details
 
-## Test Results
-
-- All 6 new lore command tests pass
-- Full test suite: 1061 passed, 1 skipped
-
-## E2E Validation
-
-To manually test, run the game and use the `lore` command while exploring:
-
-```bash
-source venv/bin/activate && cli-rpg
-# Start a game, then type: lore
-```
-
-Expected behavior:
-- Without AI configured: "No mystical knowledge is available in this realm."
-- With AI: A themed lore snippet about the current location
+The original test was too broad - it checked if either "dead-end" OR "stuck" appeared anywhere in ISSUES.md. The word "stuck" appears on line 18 in the context of uncompletable quests ("players will be stuck with uncompletable quests"), which is an unrelated active issue. By requiring both "dead-end" AND "navigation" to appear, the test now correctly targets only the specific resolved navigation bug.

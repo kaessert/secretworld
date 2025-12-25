@@ -26,9 +26,11 @@ def test_resolved_issues_are_marked():
     issues_file = project_root / "ISSUES.md"
     content = issues_file.read_text()
 
-    # If file mentions dead-end issue, it should be marked resolved
-    if "dead-end" in content.lower() or "stuck" in content.lower():
-        assert "[RESOLVED]" in content, "Dead-end issue should be marked as [RESOLVED]"
+    # Check for the specific dead-end navigation bug (fixed in 8d7f56f)
+    # This was a bug where players could get stuck with no exits - not the same as
+    # uncompletable quests which is a separate active issue
+    if "dead-end" in content.lower() and "navigation" in content.lower():
+        assert "[RESOLVED]" in content, "Dead-end navigation issue should be marked as [RESOLVED]"
         assert "8d7f56f" in content, "Resolution commit should be referenced"
 
 

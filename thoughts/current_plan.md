@@ -1,62 +1,35 @@
-# Implementation Plan: Add `lore` Command
+# Plan: Fix test_resolved_issues_are_marked
 
-## Summary
-Add a player-accessible `lore` command that exposes the existing `AIService.generate_lore()` method, allowing players to discover AI-generated lore snippets about their current location.
+## Problem
+The test checks if "dead-end" or "stuck" appears in ISSUES.md, then requires "[RESOLVED]" and commit "8d7f56f". The word "stuck" appears in an unrelated context (line 18: "players will be stuck with uncompletable quests"), triggering the assertion.
 
-## Spec
-- **Command**: `lore` (no shorthand alias needed - low-frequency use)
-- **Behavior**:
-  - Generates an AI-powered lore snippet about the current location using `AIService.generate_lore()`
-  - Falls back to a default message when AI is unavailable
-  - Uses the game's current theme and location name for context
-  - Randomly selects a lore category (history, legend, secret) for variety
-- **Output**: Displays lore wrapped in an immersive header like "=== Ancient Lore ===" or "=== Local Legend ==="
+## Solution
+Update the test to be more specific - check for the actual dead-end navigation bug context, not just the word "stuck" in any context.
 
-## Tests First (TDD)
+## Implementation
 
-**File**: `tests/test_lore_command.py`
+### File: `tests/test_issues_documentation.py`
 
-1. `test_lore_command_is_recognized` - parse_command recognizes "lore" as valid
-2. `test_lore_command_without_ai_shows_fallback` - Returns fallback message when no AI service
-3. `test_lore_command_with_ai_calls_generate_lore` - Calls AIService.generate_lore with correct args
-4. `test_lore_command_displays_lore_with_header` - Output includes header and lore text
-5. `test_lore_command_handles_ai_error_gracefully` - Catches AI exceptions, shows fallback
+**Change lines 30-32** from:
+```python
+if "dead-end" in content.lower() or "stuck" in content.lower():
+    assert "[RESOLVED]" in content, "Dead-end issue should be marked as [RESOLVED]"
+    assert "8d7f56f" in content, "Resolution commit should be referenced"
+```
 
-## Implementation Steps
+to:
+```python
+# Check for the specific dead-end navigation bug (fixed in 8d7f56f)
+# This was a bug where players could get stuck with no exits - not the same as
+# uncompletable quests which is a separate active issue
+if "dead-end" in content.lower() and "navigation" in content.lower():
+    assert "[RESOLVED]" in content, "Dead-end navigation issue should be marked as [RESOLVED]"
+    assert "8d7f56f" in content, "Resolution commit should be referenced"
+```
 
-### 1. Add "lore" to known commands
-**File**: `src/cli_rpg/game_state.py` (line ~66)
-- Add `"lore"` to `known_commands` set in `parse_command()`
+## Verification
+```bash
+pytest tests/test_issues_documentation.py -v
+```
 
-### 2. Add lore command handler
-**File**: `src/cli_rpg/main.py` (in `handle_exploration_command()`, around line ~740)
-- Add `elif command == "lore":` branch
-- Implementation:
-  ```python
-  elif command == "lore":
-      import random
-      if game_state.ai_service is None:
-          return (True, "\n=== Ancient Lore ===\nNo mystical knowledge is available in this realm.")
-
-      categories = ["history", "legend", "secret"]
-      category = random.choice(categories)
-      headers = {
-          "history": "Ancient History",
-          "legend": "Local Legend",
-          "secret": "Forbidden Secret"
-      }
-
-      try:
-          lore = game_state.ai_service.generate_lore(
-              theme=game_state.theme,
-              location_name=game_state.current_location,
-              lore_category=category
-          )
-          return (True, f"\n=== {headers[category]} ===\n{lore}")
-      except Exception:
-          return (True, "\n=== Ancient Lore ===\nThe mysteries of this place remain hidden...")
-  ```
-
-### 3. Add to help text
-**File**: `src/cli_rpg/main.py` (in `get_command_reference()`, around line 37)
-- Add: `"  lore             - Discover lore about your current location",` after the map command
+All three tests in the file should pass.
