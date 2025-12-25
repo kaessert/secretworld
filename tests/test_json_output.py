@@ -20,7 +20,7 @@ class TestJsonFlag:
         """--json flag should be accepted without error."""
         # Run with --json flag and empty stdin, should not error
         result = subprocess.run(
-            [sys.executable, "-m", "cli_rpg.main", "--json"],
+            [sys.executable, "-m", "cli_rpg.main", "--json", "--skip-character-creation"],
             input="",
             capture_output=True,
             text=True,
@@ -34,7 +34,7 @@ class TestJsonFlag:
         """--json should run non-interactively (no prompts, read from stdin)."""
         # Run with --json and a simple command
         result = subprocess.run(
-            [sys.executable, "-m", "cli_rpg.main", "--json"],
+            [sys.executable, "-m", "cli_rpg.main", "--json", "--skip-character-creation"],
             input="look\n",
             capture_output=True,
             text=True,
@@ -53,7 +53,7 @@ class TestJsonOutputFormat:
     def test_json_output_valid_lines(self):
         """Each non-empty line in output should be valid JSON."""
         result = subprocess.run(
-            [sys.executable, "-m", "cli_rpg.main", "--json"],
+            [sys.executable, "-m", "cli_rpg.main", "--json", "--skip-character-creation"],
             input="look\nstatus\n",
             capture_output=True,
             text=True,
@@ -76,7 +76,7 @@ class TestJsonOutputFormat:
     def test_json_state_message(self):
         """State messages should contain required fields."""
         result = subprocess.run(
-            [sys.executable, "-m", "cli_rpg.main", "--json"],
+            [sys.executable, "-m", "cli_rpg.main", "--json", "--skip-character-creation"],
             input="status\n",
             capture_output=True,
             text=True,
@@ -104,7 +104,7 @@ class TestJsonOutputFormat:
     def test_json_narrative_message(self):
         """Narrative messages should have a text field."""
         result = subprocess.run(
-            [sys.executable, "-m", "cli_rpg.main", "--json"],
+            [sys.executable, "-m", "cli_rpg.main", "--json", "--skip-character-creation"],
             input="look\n",
             capture_output=True,
             text=True,
@@ -128,7 +128,7 @@ class TestJsonOutputFormat:
     def test_json_actions_message(self):
         """Actions messages should have exits, npcs, and commands."""
         result = subprocess.run(
-            [sys.executable, "-m", "cli_rpg.main", "--json"],
+            [sys.executable, "-m", "cli_rpg.main", "--json", "--skip-character-creation"],
             input="look\n",
             capture_output=True,
             text=True,
@@ -156,7 +156,7 @@ class TestJsonOutputFormat:
     def test_json_error_message(self):
         """Error messages should have code and message fields."""
         result = subprocess.run(
-            [sys.executable, "-m", "cli_rpg.main", "--json"],
+            [sys.executable, "-m", "cli_rpg.main", "--json", "--skip-character-creation"],
             input="go nowhere\n",
             capture_output=True,
             text=True,
@@ -184,7 +184,7 @@ class TestJsonOutputFormat:
         import re
 
         result = subprocess.run(
-            [sys.executable, "-m", "cli_rpg.main", "--json"],
+            [sys.executable, "-m", "cli_rpg.main", "--json", "--skip-character-creation"],
             input="look\nstatus\ngo north\n",
             capture_output=True,
             text=True,

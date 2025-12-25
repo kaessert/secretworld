@@ -24,7 +24,7 @@ class TestDumpStateCommand:
         """dump-state should output valid JSON."""
         # Spec: dump-state outputs complete game state as valid JSON
         result = subprocess.run(
-            [sys.executable, "-m", "cli_rpg.main", "--non-interactive"],
+            [sys.executable, "-m", "cli_rpg.main", "--non-interactive", "--skip-character-creation"],
             input="dump-state\n",
             capture_output=True,
             text=True,
@@ -49,7 +49,7 @@ class TestDumpStateCommand:
         """dump-state should include character data."""
         # Spec: dump-state includes player stats, inventory
         result = subprocess.run(
-            [sys.executable, "-m", "cli_rpg.main", "--non-interactive"],
+            [sys.executable, "-m", "cli_rpg.main", "--non-interactive", "--skip-character-creation"],
             input="dump-state\n",
             capture_output=True,
             text=True,
@@ -74,7 +74,7 @@ class TestDumpStateCommand:
         """dump-state should include world data."""
         # Spec: dump-state includes location and world state
         result = subprocess.run(
-            [sys.executable, "-m", "cli_rpg.main", "--non-interactive"],
+            [sys.executable, "-m", "cli_rpg.main", "--non-interactive", "--skip-character-creation"],
             input="dump-state\n",
             capture_output=True,
             text=True,
@@ -93,7 +93,7 @@ class TestDumpStateCommand:
         """dump-state should include theme."""
         # Spec: dump-state includes complete game state (theme is part of it)
         result = subprocess.run(
-            [sys.executable, "-m", "cli_rpg.main", "--non-interactive"],
+            [sys.executable, "-m", "cli_rpg.main", "--non-interactive", "--skip-character-creation"],
             input="dump-state\n",
             capture_output=True,
             text=True,
@@ -113,7 +113,7 @@ class TestDumpStateJsonMode:
         """In JSON mode, dump-state should emit dump_state type message."""
         # Spec: dump-state works in JSON mode (--json) with proper type field
         result = subprocess.run(
-            [sys.executable, "-m", "cli_rpg.main", "--json"],
+            [sys.executable, "-m", "cli_rpg.main", "--json", "--skip-character-creation"],
             input="dump-state\n",
             capture_output=True,
             text=True,

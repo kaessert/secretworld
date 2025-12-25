@@ -13,7 +13,7 @@ class TestSeedOption:
     def test_seed_flag_accepted(self):
         """Spec: --seed flag is accepted without error."""
         result = subprocess.run(
-            [sys.executable, "-m", "cli_rpg.main", "--non-interactive", "--seed", "42"],
+            [sys.executable, "-m", "cli_rpg.main", "--non-interactive", "--skip-character-creation", "--seed", "42"],
             input="",
             capture_output=True,
             text=True,
@@ -25,7 +25,7 @@ class TestSeedOption:
         """Spec: Same seed produces identical output across runs."""
         def run_with_seed(seed):
             result = subprocess.run(
-                [sys.executable, "-m", "cli_rpg.main", "--non-interactive", "--seed", str(seed)],
+                [sys.executable, "-m", "cli_rpg.main", "--non-interactive", "--skip-character-creation", "--seed", str(seed)],
                 input="look\n",
                 capture_output=True,
                 text=True,
@@ -41,7 +41,7 @@ class TestSeedOption:
         """Spec: Different seeds can produce different output (not guaranteed but likely)."""
         def run_with_seed(seed):
             result = subprocess.run(
-                [sys.executable, "-m", "cli_rpg.main", "--non-interactive", "--seed", str(seed)],
+                [sys.executable, "-m", "cli_rpg.main", "--non-interactive", "--skip-character-creation", "--seed", str(seed)],
                 input="look\n",
                 capture_output=True,
                 text=True,
@@ -60,7 +60,7 @@ class TestSeedOption:
     def test_seed_works_with_json_mode(self):
         """Spec: --seed works alongside --json mode."""
         result = subprocess.run(
-            [sys.executable, "-m", "cli_rpg.main", "--json", "--seed", "42"],
+            [sys.executable, "-m", "cli_rpg.main", "--json", "--skip-character-creation", "--seed", "42"],
             input="look\n",
             capture_output=True,
             text=True,
@@ -71,7 +71,7 @@ class TestSeedOption:
     def test_seed_requires_integer(self):
         """Spec: --seed requires an integer argument."""
         result = subprocess.run(
-            [sys.executable, "-m", "cli_rpg.main", "--non-interactive", "--seed", "notanumber"],
+            [sys.executable, "-m", "cli_rpg.main", "--non-interactive", "--skip-character-creation", "--seed", "notanumber"],
             input="",
             capture_output=True,
             text=True,

@@ -23,7 +23,7 @@ class TestLogFileFlagParsing:
 
         try:
             result = subprocess.run(
-                [sys.executable, "-m", "cli_rpg.main", "--non-interactive", "--log-file", log_path],
+                [sys.executable, "-m", "cli_rpg.main", "--non-interactive", "--skip-character-creation", "--log-file", log_path],
                 input="",
                 capture_output=True,
                 text=True,
@@ -45,7 +45,7 @@ class TestLogFileCreation:
             log_path = Path(tmpdir) / "session.log"
 
             result = subprocess.run(
-                [sys.executable, "-m", "cli_rpg.main", "--non-interactive", "--log-file", str(log_path)],
+                [sys.executable, "-m", "cli_rpg.main", "--non-interactive", "--skip-character-creation", "--log-file", str(log_path)],
                 input="look\n",
                 capture_output=True,
                 text=True,
@@ -67,7 +67,7 @@ class TestLogFileFormat:
             log_path = Path(tmpdir) / "session.log"
 
             result = subprocess.run(
-                [sys.executable, "-m", "cli_rpg.main", "--non-interactive", "--log-file", str(log_path)],
+                [sys.executable, "-m", "cli_rpg.main", "--non-interactive", "--skip-character-creation", "--log-file", str(log_path)],
                 input="look\nstatus\n",
                 capture_output=True,
                 text=True,
@@ -104,7 +104,7 @@ class TestLogFileTimestamps:
             log_path = Path(tmpdir) / "session.log"
 
             result = subprocess.run(
-                [sys.executable, "-m", "cli_rpg.main", "--non-interactive", "--log-file", str(log_path)],
+                [sys.executable, "-m", "cli_rpg.main", "--non-interactive", "--skip-character-creation", "--log-file", str(log_path)],
                 input="look\n",
                 capture_output=True,
                 text=True,
@@ -142,7 +142,7 @@ class TestLogFileContent:
             log_path = Path(tmpdir) / "session.log"
 
             result = subprocess.run(
-                [sys.executable, "-m", "cli_rpg.main", "--non-interactive", "--log-file", str(log_path)],
+                [sys.executable, "-m", "cli_rpg.main", "--non-interactive", "--skip-character-creation", "--log-file", str(log_path)],
                 input="look\nstatus\n",
                 capture_output=True,
                 text=True,
@@ -169,7 +169,7 @@ class TestLogFileContent:
             log_path = Path(tmpdir) / "session.log"
 
             result = subprocess.run(
-                [sys.executable, "-m", "cli_rpg.main", "--non-interactive", "--log-file", str(log_path)],
+                [sys.executable, "-m", "cli_rpg.main", "--non-interactive", "--skip-character-creation", "--log-file", str(log_path)],
                 input="look\n",
                 capture_output=True,
                 text=True,
@@ -195,7 +195,7 @@ class TestLogFileContent:
             log_path = Path(tmpdir) / "session.log"
 
             result = subprocess.run(
-                [sys.executable, "-m", "cli_rpg.main", "--non-interactive", "--log-file", str(log_path)],
+                [sys.executable, "-m", "cli_rpg.main", "--non-interactive", "--skip-character-creation", "--log-file", str(log_path)],
                 input="status\n",
                 capture_output=True,
                 text=True,
@@ -229,7 +229,7 @@ class TestLogFileCompatibility:
             log_path = Path(tmpdir) / "session.log"
 
             result = subprocess.run(
-                [sys.executable, "-m", "cli_rpg.main", "--non-interactive", "--log-file", str(log_path)],
+                [sys.executable, "-m", "cli_rpg.main", "--non-interactive", "--skip-character-creation", "--log-file", str(log_path)],
                 input="look\nstatus\n",
                 capture_output=True,
                 text=True,
@@ -254,7 +254,7 @@ class TestLogFileCompatibility:
             log_path = Path(tmpdir) / "session.log"
 
             result = subprocess.run(
-                [sys.executable, "-m", "cli_rpg.main", "--json", "--log-file", str(log_path)],
+                [sys.executable, "-m", "cli_rpg.main", "--json", "--skip-character-creation", "--log-file", str(log_path)],
                 input="look\n",
                 capture_output=True,
                 text=True,
@@ -287,7 +287,7 @@ class TestLogFileSessionMarkers:
             log_path = Path(tmpdir) / "session.log"
 
             result = subprocess.run(
-                [sys.executable, "-m", "cli_rpg.main", "--non-interactive", "--log-file", str(log_path)],
+                [sys.executable, "-m", "cli_rpg.main", "--non-interactive", "--skip-character-creation", "--log-file", str(log_path)],
                 input="look\n",
                 capture_output=True,
                 text=True,
@@ -315,7 +315,7 @@ class TestLogFileSessionMarkers:
             log_path = Path(tmpdir) / "session.log"
 
             result = subprocess.run(
-                [sys.executable, "-m", "cli_rpg.main", "--non-interactive", "--log-file", str(log_path)],
+                [sys.executable, "-m", "cli_rpg.main", "--non-interactive", "--skip-character-creation", "--log-file", str(log_path)],
                 input="look\n",
                 capture_output=True,
                 text=True,

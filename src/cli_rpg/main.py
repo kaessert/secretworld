@@ -1,7 +1,7 @@
 """Main entry point for CLI RPG."""
 import sys
 from typing import Optional
-from cli_rpg.character_creation import create_character, get_theme_selection
+from cli_rpg.character_creation import create_character, get_theme_selection, create_character_non_interactive
 from cli_rpg.models.character import Character
 from cli_rpg.models.item import Item, ItemType
 from cli_rpg.persistence import save_character, load_character, list_saves, save_game_state, load_game_state, detect_save_type
@@ -1205,16 +1205,22 @@ def show_main_menu() -> str:
     return choice
 
 
-def run_json_mode(log_file: Optional[str] = None, delay_ms: int = 0) -> int:
+def run_json_mode(
+    log_file: Optional[str] = None,
+    delay_ms: int = 0,
+    skip_character_creation: bool = False
+) -> int:
     """Run game in JSON mode, emitting structured JSON Lines output.
 
     This mode is designed for programmatic consumption by external tools
-    or AI agents. It creates a default character and world, then processes
-    commands from stdin, emitting JSON for each response.
+    or AI agents. It can either create a custom character from stdin or
+    use a default character.
 
     Args:
         log_file: Optional path to write session transcript (JSON Lines format)
         delay_ms: Delay in milliseconds between commands (0 = no delay)
+        skip_character_creation: If True, use default character. If False, read
+            character creation inputs from stdin.
 
     Returns:
         Exit code (0 for success, 1 for error)
@@ -1240,8 +1246,17 @@ def run_json_mode(log_file: Optional[str] = None, delay_ms: int = 0) -> int:
         except Exception:
             pass  # Silently fall back to non-AI mode
 
-    # Create a default character and world for JSON mode
-    character = Character(name="Agent", strength=10, dexterity=10, intelligence=10)
+    # Create character
+    if skip_character_creation:
+        # Use default character (backward compatible behavior)
+        character = Character(name="Agent", strength=10, dexterity=10, intelligence=10)
+    else:
+        # Read character creation from stdin
+        character, error = create_character_non_interactive(json_mode=True)
+        if character is None:
+            emit_error(code="character_creation_failed", message=error)
+            return 1
+
     world, starting_location = create_world(ai_service=ai_service, theme="fantasy", strict=False)
 
     game_state = GameState(
@@ -1394,16 +1409,21 @@ def run_json_mode(log_file: Optional[str] = None, delay_ms: int = 0) -> int:
     return 0
 
 
-def run_non_interactive(log_file: Optional[str] = None, delay_ms: int = 0) -> int:
+def run_non_interactive(
+    log_file: Optional[str] = None,
+    delay_ms: int = 0,
+    skip_character_creation: bool = False
+) -> int:
     """Run game in non-interactive mode, reading commands from stdin.
 
     This mode is designed for automated testing and AI agent playtesting.
-    It creates a default character and world, then processes commands from stdin
-    until EOF is reached.
+    It can either create a custom character from stdin or use a default character.
 
     Args:
         log_file: Optional path to write session transcript (JSON Lines format)
         delay_ms: Delay in milliseconds between commands (0 = no delay)
+        skip_character_creation: If True, use default character. If False, read
+            character creation inputs from stdin.
 
     Returns:
         Exit code (0 for success, 1 for error)
@@ -1425,9 +1445,17 @@ def run_non_interactive(log_file: Optional[str] = None, delay_ms: int = 0) -> in
         except Exception:
             pass  # Silently fall back to non-AI mode
 
-    # Create a default character and world for non-interactive mode
-    # Use balanced stats (10 each) for a generic character
-    character = Character(name="Agent", strength=10, dexterity=10, intelligence=10)
+    # Create character
+    if skip_character_creation:
+        # Use default character (backward compatible behavior)
+        character = Character(name="Agent", strength=10, dexterity=10, intelligence=10)
+    else:
+        # Read character creation from stdin
+        character, error = create_character_non_interactive(json_mode=False)
+        if character is None:
+            print(error)
+            return 1
+
     world, starting_location = create_world(ai_service=ai_service, theme="fantasy", strict=False)
 
     game_state = GameState(
@@ -1564,6 +1592,11 @@ def main(args: Optional[list] = None) -> int:
         metavar="MS",
         help="Delay in milliseconds between commands (non-interactive/JSON modes)"
     )
+    parser.add_argument(
+        "--skip-character-creation",
+        action="store_true",
+        help="Skip character creation and use default character (non-interactive/JSON modes only)"
+    )
     parsed_args = parser.parse_args(args)
 
     if parsed_args.seed is not None:
@@ -1574,10 +1607,18 @@ def main(args: Optional[list] = None) -> int:
     delay_ms = max(0, min(60000, parsed_args.delay))
 
     if parsed_args.json:
-        return run_json_mode(log_file=parsed_args.log_file, delay_ms=delay_ms)
+        return run_json_mode(
+            log_file=parsed_args.log_file,
+            delay_ms=delay_ms,
+            skip_character_creation=parsed_args.skip_character_creation
+        )
 
     if parsed_args.non_interactive:
-        return run_non_interactive(log_file=parsed_args.log_file, delay_ms=delay_ms)
+        return run_non_interactive(
+            log_file=parsed_args.log_file,
+            delay_ms=delay_ms,
+            skip_character_creation=parsed_args.skip_character_creation
+        )
 
     # Initialize readline for command history (arrow keys navigation)
     init_readline()

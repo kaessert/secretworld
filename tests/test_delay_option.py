@@ -19,7 +19,7 @@ class TestDelayOption:
     def test_delay_flag_accepted(self):
         """--delay 100 is accepted without error when used with --non-interactive."""
         result = subprocess.run(
-            [sys.executable, "-m", "cli_rpg.main", "--non-interactive", "--delay", "100"],
+            [sys.executable, "-m", "cli_rpg.main", "--non-interactive", "--skip-character-creation", "--delay", "100"],
             input="status\n",  # EOF after status, don't use quit (triggers save prompt)
             capture_output=True,
             text=True,
@@ -52,7 +52,7 @@ class TestDelayOption:
         mode would hang waiting for input.
         """
         result = subprocess.run(
-            [sys.executable, "-m", "cli_rpg.main", "--non-interactive", "--delay", "0"],
+            [sys.executable, "-m", "cli_rpg.main", "--non-interactive", "--skip-character-creation", "--delay", "0"],
             input="look\n",  # EOF after look, don't use quit (triggers save prompt)
             capture_output=True,
             text=True,
@@ -69,7 +69,7 @@ class TestDelayOption:
         # Run without delay
         start = time.time()
         result_no_delay = subprocess.run(
-            [sys.executable, "-m", "cli_rpg.main", "--non-interactive", "--delay", "0"],
+            [sys.executable, "-m", "cli_rpg.main", "--non-interactive", "--skip-character-creation", "--delay", "0"],
             input=commands,
             capture_output=True,
             text=True,
@@ -81,7 +81,7 @@ class TestDelayOption:
         # Run with 200ms delay
         start = time.time()
         result_with_delay = subprocess.run(
-            [sys.executable, "-m", "cli_rpg.main", "--non-interactive", "--delay", "200"],
+            [sys.executable, "-m", "cli_rpg.main", "--non-interactive", "--skip-character-creation", "--delay", "200"],
             input=commands,
             capture_output=True,
             text=True,
@@ -100,7 +100,7 @@ class TestDelayOption:
     def test_delay_works_with_json_mode(self):
         """--json --delay 100 works correctly."""
         result = subprocess.run(
-            [sys.executable, "-m", "cli_rpg.main", "--json", "--delay", "100"],
+            [sys.executable, "-m", "cli_rpg.main", "--json", "--skip-character-creation", "--delay", "100"],
             input="status\n",  # EOF ends session (no quit to avoid prompts)
             capture_output=True,
             text=True,
@@ -118,7 +118,7 @@ class TestDelayOption:
 
         start = time.time()
         result = subprocess.run(
-            [sys.executable, "-m", "cli_rpg.main", "--non-interactive"],
+            [sys.executable, "-m", "cli_rpg.main", "--non-interactive", "--skip-character-creation"],
             input=commands,
             capture_output=True,
             text=True,
@@ -135,7 +135,7 @@ class TestDelayOption:
     def test_delay_negative_value_handled(self):
         """--delay with negative value should be rejected or clamped to 0."""
         result = subprocess.run(
-            [sys.executable, "-m", "cli_rpg.main", "--non-interactive", "--delay", "-100"],
+            [sys.executable, "-m", "cli_rpg.main", "--non-interactive", "--skip-character-creation", "--delay", "-100"],
             input="look\n",  # EOF ends session (no quit to avoid save prompt)
             capture_output=True,
             text=True,

@@ -257,16 +257,25 @@ cli-rpg --non-interactive --seed 42 < commands.txt
 
 # With delay between commands (500ms)
 cli-rpg --non-interactive --delay 500 < commands.txt
+
+# Skip character creation and use default "Agent" character
+cli-rpg --non-interactive --skip-character-creation < commands.txt
 ```
 
 **Features:**
 - Reads commands from stdin line-by-line
 - Exits with code 0 when stdin is exhausted (EOF)
 - ANSI colors automatically disabled for machine-readable output
-- Uses a default character ("Agent") with balanced stats (10/10/10)
 - Runs without AI service for deterministic behavior
 - `--seed <int>` option for reproducible random outcomes (combat, loot, etc.)
 - `--delay <ms>` option for pacing between commands (0-60000ms, default 0)
+
+**Character Creation:**
+- By default, reads character creation inputs from stdin (name, stat method, stats, confirmation)
+- Use `--skip-character-creation` to use a default character ("Agent") with balanced stats (10/10/10)
+- Manual stats: provide name, "1", str, dex, int, "yes" (one per line)
+- Random stats: provide name, "2", "yes" (one per line)
+- Invalid inputs return error messages and exit with code 1
 
 ### Gameplay Logging
 

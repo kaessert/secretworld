@@ -344,11 +344,11 @@ Your vision fades... but this is not the end.
 
 Issues discovered while playtesting `--non-interactive` mode:
 
-1. **Character creation broken in non-interactive mode**
-   - The first 3 inputs intended for character creation (race selection, name, class selection) are treated as "Unknown command"
-   - Character creation flow doesn't work at all - game skips directly to gameplay with default character named "Agent"
-   - Expected: Inputs should be consumed by character creation prompts before game loop begins
-   - Workaround: None - stuck with default character
+1. ~~**Character creation broken in non-interactive mode**~~ (RESOLVED)
+   - Fixed: Added `create_character_non_interactive()` function that reads character creation inputs from stdin
+   - New `--skip-character-creation` flag to use default "Agent" character (backward compatible)
+   - Validates all inputs immediately and returns errors for invalid input
+   - Supports manual stat allocation (name, method "1", str, dex, int, confirmation) and random stats (name, method "2", confirmation)
 
 2. **Shop command requires prior NPC interaction**
    - Running `shop` command without first doing `talk Merchant` fails with "You're not at a shop"
@@ -359,10 +359,10 @@ Issues discovered while playtesting `--non-interactive` mode:
    - When AI is enabled, NPCs respond intelligently to player input
    - Without AI, NPCs fall back to "nods thoughtfully" responses
 
-4. **Enemy attack text duplicates name**
-   - AI-generated attack flavor text includes enemy name, but combat code also prefixes it
-   - Result: "Frostbite Yeti The Frostbite Yeti unleashes a chilling roar..."
-   - Fix: Either strip name from AI output or don't prefix in combat code
+4. ~~**Enemy attack text duplicates name**~~ (RESOLVED)
+   - AI-generated attack flavor text included enemy name, but combat code also prefixed it
+   - Result was: "Frostbite Yeti The Frostbite Yeti unleashes a chilling roar..."
+   - Fixed: Added `strip_leading_name()` helper in `combat.py` that removes redundant name prefix from attack flavor text
 
 5. **Non-interactive mode skipped AI initialization** (RESOLVED)
    - `run_non_interactive()` and `run_json_mode()` hardcoded `ai_service=None`

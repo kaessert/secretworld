@@ -1,96 +1,45 @@
-# Implementation Summary: Freeze Status Effect
+# Implementation Summary: Character Creation in Non-Interactive Mode
 
 ## What Was Implemented
 
-### 1. Enemy Model Changes (`src/cli_rpg/models/enemy.py`)
+### New CLI Flag
+- `--skip-character-creation` flag added to `main.py` (line ~1596)
+- When set, uses default "Agent" character (backward compatible)
+- When not set, reads character creation inputs from stdin
 
-Added support for status effects on enemies, following the same pattern as Character:
+### New Function: `create_character_non_interactive()`
+Added to `src/cli_rpg/character_creation.py` (lines 243-344):
+- Reads character creation inputs from stdin without retry loops
+- Validates all inputs immediately and returns errors for invalid input
+- Supports manual stat allocation (lines for name, method "1", str, dex, int, confirmation)
+- Supports random stat allocation (lines for name, method "2", confirmation)
+- Returns tuple of `(Character, None)` on success or `(None, error_message)` on failure
+- `json_mode` parameter controls whether to suppress text output (for clean JSON)
 
-- **New Fields:**
-  - `freeze_chance: float = 0.0` - Chance (0.0-1.0) to apply freeze on attack
-  - `freeze_duration: int = 0` - Duration of freeze in turns
-  - `status_effects: List = field(default_factory=list)` - Active status effects on enemy
-
-- **New Methods:**
-  - `apply_status_effect(effect)` - Apply a status effect to the enemy
-  - `tick_status_effects() -> List[str]` - Process all status effects, return messages
-  - `clear_status_effects()` - Remove all status effects
-  - `has_effect_type(effect_type: str) -> bool` - Check if enemy has a specific effect type
-
-- **Updated Methods:**
-  - `to_dict()` - Now includes freeze_chance, freeze_duration, status_effects
-  - `from_dict()` - Now deserializes freeze fields and status_effects
-
-### 2. Combat System Changes (`src/cli_rpg/combat.py`)
-
-- **Freeze Damage Reduction (50%):**
-  In `enemy_turn()`, frozen enemies now deal half damage:
-  ```python
-  attack_power = enemy.calculate_damage()
-  if enemy.has_effect_type("freeze"):
-      attack_power = int(attack_power * 0.5)
-  ```
-
-- **Enemy Status Effect Ticking:**
-  Added per-enemy status effect ticking during enemy turn
-
-- **Freeze Application from Ice Enemies:**
-  Added freeze effect application to player when hit by ice-themed enemies (Yeti, etc.)
-
-- **Enemy Status Display:**
-  Updated `get_status()` to show frozen and other status effects on enemies
-
-- **Combat End Cleanup:**
-  Updated `end_combat()` to clear enemy status effects
-
-- **Spawn Enemy Updates:**
-  Added Yeti/ice enemy freeze capabilities (20% chance, 2 turns) in `spawn_enemy()`
-
-### 3. Test Updates
-
-Added 14 new tests in `tests/test_status_effects.py`:
-
-- `TestFreezeStatusEffect` (2 tests):
-  - `test_freeze_effect_creation` - Freeze effect with effect_type="freeze"
-  - `test_freeze_effect_tick_no_damage` - Returns 0 damage, decrements duration
-
-- `TestEnemyFreeze` (9 tests):
-  - `test_enemy_freeze_fields` - freeze_chance, freeze_duration on Enemy
-  - `test_enemy_default_no_freeze` - Defaults to 0
-  - `test_enemy_freeze_serialization` - to_dict/from_dict
-  - `test_enemy_status_effects_list` - Empty list by default
-  - `test_enemy_apply_status_effect` - Can apply effects
-  - `test_enemy_has_effect_type` - Check for effect type
-  - `test_enemy_tick_status_effects` - Ticks and expires
-  - `test_enemy_clear_status_effects` - Clears all effects
-  - `test_enemy_status_effects_serialization` - Persists effects
-
-- `TestCombatFreeze` (4 tests):
-  - `test_frozen_enemy_reduced_damage` - 50% attack reduction
-  - `test_frozen_enemy_status_display` - Shows in combat status
-  - `test_freeze_expires_correctly` - Effect removed after duration
-  - `test_freeze_cleared_on_combat_end` - Cleared on combat end
-
-Updated `tests/test_enemy.py`:
-- `test_to_dict_serializes_enemy` - Added freeze_chance, freeze_duration, status_effects to expected dict
+### Updated Functions in `main.py`
+- `run_non_interactive()` (lines 1412-1458): Accepts `skip_character_creation` parameter, calls `create_character_non_interactive()` when not skipping
+- `run_json_mode()` (lines 1208-1258): Same logic, but uses `emit_error()` for JSON error output
+- `main()` (lines 1609-1621): Passes the flag to both run functions
 
 ## Test Results
 
-All 1760 tests pass, including 50 status effect tests.
+All 13 tests in `tests/test_non_interactive_character_creation.py` pass:
 
-## Design Decisions
+1. **Skip flag tests (2)**: `--skip-character-creation` uses default "Agent" in both non-interactive and JSON modes
+2. **Manual stats tests (1)**: Custom character creation with manual stats (name/1/str/dex/int/yes)
+3. **Random stats tests (1)**: Custom character creation with random stats (name/2/yes)
+4. **Error handling tests (6)**: Invalid name (empty/too short), invalid stats (too high/too low/non-numeric), invalid method
+5. **JSON mode tests (2)**: JSON output format verification, JSON error emission
+6. **Confirmation tests (1)**: "no" confirmation exits with code 1
 
-1. **Freeze applies to enemies (not just player):** While the spec mentioned "inverse of stun which affects the player", the implementation allows freeze to be applied to enemies, providing 50% damage reduction when frozen.
-
-2. **Ice enemies can freeze players:** Yetis and ice-themed enemies have 20% chance to freeze the player (similar to how poison/burn/stun work).
-
-3. **Reused StatusEffect model:** Used existing StatusEffect with effect_type="freeze" rather than creating new type.
-
-4. **Pattern consistency:** Followed exact same patterns as existing poison/burn/stun implementations for familiarity and maintainability.
+All 46 existing character creation tests also pass, confirming backward compatibility.
 
 ## Files Modified
+1. `src/cli_rpg/character_creation.py` - Added `create_character_non_interactive()` function
+2. `src/cli_rpg/main.py` - Added CLI flag, updated `run_non_interactive()` and `run_json_mode()`
+3. `tests/test_non_interactive_character_creation.py` - New comprehensive test file
 
-1. `src/cli_rpg/models/enemy.py`
-2. `src/cli_rpg/combat.py`
-3. `tests/test_status_effects.py`
-4. `tests/test_enemy.py`
+## E2E Validation Scenarios
+1. Run `cli-rpg --non-interactive` with stdin: `"Hero\n1\n15\n12\n10\nyes\nstatus\n"` → should show "Hero" character
+2. Run `cli-rpg --json --skip-character-creation` → should work with default "Agent"
+3. Run `cli-rpg --non-interactive` with stdin: `"\n"` → should exit with code 1 and error message

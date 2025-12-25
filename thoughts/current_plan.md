@@ -1,64 +1,69 @@
-# Plan: Add "Freeze" Status Effect to Combat System
+# Implementation Plan: Character Creation in Non-Interactive Mode
+
+## Problem
+Non-interactive mode (`--non-interactive` and `--json`) completely bypasses character creation, hardcoding a default "Agent" character. Users expect to provide character creation inputs via stdin, but those inputs are treated as "Unknown command" because the game loop starts immediately.
+
+## Design Decision
+Add a `--skip-character-creation` flag (default: false) to control whether to use the quick default character or run the full character creation flow in non-interactive mode. This preserves backward compatibility while enabling character customization.
 
 ## Spec
-**Freeze**: A control effect that slows enemies, reducing their attack power.
-- Effect type: `"freeze"` (new type, like "stun" is for player)
-- Applies to enemies (inverse of stun which affects the player)
-- Enemies with freeze get 20% chance to apply it on attack
-- Duration: 2 turns
-- Behavior: Frozen enemies have 50% reduced attack power
+1. **New CLI flag**: `--skip-character-creation` - When set, use default "Agent" character (current behavior). When not set, read character creation inputs from stdin.
+2. **Character creation inputs** in non-interactive mode (when not skipped):
+   - Line 1: Character name (string, 2-30 chars)
+   - Line 2: Stat allocation method ("1" or "2" / "manual" or "random")
+   - If manual: Lines 3-5: strength, dexterity, intelligence (integers 1-20)
+   - Final line: Confirmation ("yes" or "y")
+3. **Error handling**: Invalid inputs should print error and exit with code 1 (no retry loops in non-interactive mode)
+4. **JSON mode**: Same behavior, but errors emit JSON error objects
 
-## Tests to Add (`tests/test_status_effects.py`)
+## Tests (new file: tests/test_non_interactive_character_creation.py)
 
-### 1. Freeze StatusEffect Model Tests
-```python
-class TestFreezeStatusEffect:
-    def test_freeze_effect_creation()  # effect_type="freeze", damage_per_turn=0
-    def test_freeze_effect_tick_no_damage()  # Returns 0 damage, decrements duration
-```
-
-### 2. Enemy Freeze Fields Tests
-```python
-class TestEnemyFreeze:
-    def test_enemy_freeze_fields()  # freeze_chance, freeze_duration on Enemy
-    def test_enemy_default_no_freeze()  # Defaults to 0
-    def test_enemy_freeze_serialization()  # to_dict/from_dict
-```
-
-### 3. Combat Freeze Behavior Tests
-```python
-class TestCombatFreeze:
-    def test_frozen_enemy_reduced_damage()  # 50% attack reduction
-    def test_frozen_enemy_status_display()  # Shows in combat status
-    def test_freeze_expires_correctly()  # Effect removed after duration
-```
+1. `test_non_interactive_with_skip_flag_uses_default_character`: `--skip-character-creation` uses "Agent" (preserves current behavior)
+2. `test_non_interactive_character_creation_manual_stats`: Provide name, "1", str/dex/int, "yes" → custom character
+3. `test_non_interactive_character_creation_random_stats`: Provide name, "2", "yes" → custom character with random stats
+4. `test_non_interactive_character_creation_invalid_name_exits`: Invalid name (empty or too short) → exit code 1
+5. `test_non_interactive_character_creation_invalid_stat_exits`: Invalid stat value → exit code 1
+6. `test_json_mode_character_creation`: Same as above but verify JSON output format
+7. `test_json_mode_with_skip_flag`: `--json --skip-character-creation` works
 
 ## Implementation Steps
 
-### Step 1: Add Enemy Status Effect Support (`src/cli_rpg/models/enemy.py`)
-Currently status effects only exist on Character. Add to Enemy:
-- `status_effects: list = field(default_factory=list)`
-- `apply_status_effect(effect)` method
-- `tick_status_effects()` method
-- `clear_status_effects()` method
-- `has_effect_type(effect_type: str) -> bool` helper
-- Update `to_dict()`/`from_dict()` for persistence
+### 1. Add CLI flag to main.py
+Location: `main()` function, argparse section (~line 1537)
+```python
+parser.add_argument(
+    "--skip-character-creation",
+    action="store_true",
+    help="Skip character creation and use default character (non-interactive/JSON modes only)"
+)
+```
 
-### Step 2: Add Freeze Fields to Enemy (`src/cli_rpg/models/enemy.py`)
-Following burn/stun pattern:
-- `freeze_chance: float = 0.0`
-- `freeze_duration: int = 0`
-- Update serialization methods
+### 2. Create `create_character_non_interactive()` in character_creation.py
+Add new function that reads from stdin without retry loops:
+- Read name, validate, print error and return None if invalid
+- Read allocation method, validate
+- If manual: read 3 stat values, validate each
+- Read confirmation
+- Return Character or None
 
-### Step 3: Update Combat (`src/cli_rpg/combat.py`)
-1. In `enemy_turn()`: Check for freeze effect on enemy, apply 50% damage reduction
-2. In `enemy_turn()`: Tick enemy status effects after their attack
-3. Add freeze application from ice-themed enemies in enemy attack logic
-4. In `spawn_enemy()`: Add freeze to ice enemies (Yeti gets 20% chance, 2 turns)
-5. In `end_combat()`: Clear enemy status effects
-6. In `get_status()`: Display frozen status on enemies
+### 3. Update `run_non_interactive()` in main.py (~line 1397)
+Before creating the default character:
+```python
+if not skip_character_creation:
+    character = create_character_non_interactive()
+    if character is None:
+        return 1  # Exit with error
+else:
+    character = Character(name="Agent", strength=10, dexterity=10, intelligence=10)
+```
 
-## File Changes
-1. `src/cli_rpg/models/enemy.py` - Add status_effects list + freeze fields + methods
-2. `src/cli_rpg/combat.py` - Handle freeze damage reduction, add to spawn templates
-3. `tests/test_status_effects.py` - Add TestFreezeStatusEffect, TestEnemyFreeze, TestCombatFreeze classes
+### 4. Update `run_json_mode()` in main.py (~line 1208)
+Same logic as step 3, but emit JSON error on failure
+
+### 5. Pass flag through to run functions
+Update `run_non_interactive()` and `run_json_mode()` signatures to accept `skip_character_creation: bool` parameter
+
+## Files to Modify
+1. `src/cli_rpg/character_creation.py` - Add `create_character_non_interactive()`
+2. `src/cli_rpg/main.py` - Add CLI flag, update `run_non_interactive()` and `run_json_mode()`
+3. `tests/test_non_interactive_character_creation.py` - New test file

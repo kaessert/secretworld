@@ -17,7 +17,7 @@ class TestNonInteractiveMode:
         Spec: Add --non-interactive CLI flag via argparse.
         """
         result = subprocess.run(
-            [sys.executable, "-m", "cli_rpg.main", "--non-interactive"],
+            [sys.executable, "-m", "cli_rpg.main", "--non-interactive", "--skip-character-creation"],
             input="",
             capture_output=True,
             text=True,
@@ -32,7 +32,7 @@ class TestNonInteractiveMode:
         Spec: When flag is set, game reads commands from stdin line-by-line.
         """
         result = subprocess.run(
-            [sys.executable, "-m", "cli_rpg.main", "--non-interactive"],
+            [sys.executable, "-m", "cli_rpg.main", "--non-interactive", "--skip-character-creation"],
             input="look\n",
             capture_output=True,
             text=True,
@@ -48,7 +48,7 @@ class TestNonInteractiveMode:
         Spec: When stdin is exhausted (EOF), game exits gracefully with exit code 0.
         """
         result = subprocess.run(
-            [sys.executable, "-m", "cli_rpg.main", "--non-interactive"],
+            [sys.executable, "-m", "cli_rpg.main", "--non-interactive", "--skip-character-creation"],
             input="look\nstatus\n",
             capture_output=True,
             text=True,
@@ -62,7 +62,7 @@ class TestNonInteractiveMode:
         Spec: Disable ANSI colors when in non-interactive mode.
         """
         result = subprocess.run(
-            [sys.executable, "-m", "cli_rpg.main", "--non-interactive"],
+            [sys.executable, "-m", "cli_rpg.main", "--non-interactive", "--skip-character-creation"],
             input="look\n",
             capture_output=True,
             text=True,
@@ -77,7 +77,7 @@ class TestNonInteractiveMode:
         Spec: Works with piped input containing multiple commands.
         """
         result = subprocess.run(
-            [sys.executable, "-m", "cli_rpg.main", "--non-interactive"],
+            [sys.executable, "-m", "cli_rpg.main", "--non-interactive", "--skip-character-creation"],
             input="look\nstatus\ninventory\nhelp\n",
             capture_output=True,
             text=True,
@@ -94,7 +94,7 @@ class TestNonInteractiveMode:
         and exit directly without calling input() (which would cause EOFError).
         """
         result = subprocess.run(
-            [sys.executable, "-m", "cli_rpg.main", "--non-interactive"],
+            [sys.executable, "-m", "cli_rpg.main", "--non-interactive", "--skip-character-creation"],
             input="quit\n",
             capture_output=True,
             text=True,
@@ -111,7 +111,7 @@ class TestNonInteractiveMode:
         and exit directly without calling input() (which would cause EOFError).
         """
         result = subprocess.run(
-            [sys.executable, "-m", "cli_rpg.main", "--json"],
+            [sys.executable, "-m", "cli_rpg.main", "--json", "--skip-character-creation"],
             input="quit\n",
             capture_output=True,
             text=True,
