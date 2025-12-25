@@ -55,6 +55,7 @@ python -m cli_rpg.main
 - `quests` (q) - View your quest journal with all active and completed quests
 - `quest <name>` - View details of a specific quest (supports partial matching)
 - `complete <quest>` - Turn in a completed quest to the NPC you're talking to
+- `lore` - Discover AI-generated lore snippets about your current location
 - `save` - Save complete game state including world, location, and theme (not available during combat)
 - `help` (h) - Display the full command reference
 - `quit` - Exit to main menu

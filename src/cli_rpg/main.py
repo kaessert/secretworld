@@ -35,6 +35,7 @@ def get_command_reference() -> str:
         "  buy <item>         - Buy an item from the shop",
         "  sell <item>        - Sell an item to the shop",
         "  map (m)            - Display a map of explored areas",
+        "  lore               - Discover lore about your current location",
         "  quests (q)         - View your quest journal",
         "  quest <name>       - View details of a specific quest",
         "  help (h)           - Display this command reference",
@@ -759,7 +760,30 @@ def handle_exploration_command(game_state: GameState, command: str, args: list[s
         
         print("\nReturning to main menu...")
         return (False, "")
-    
+
+    elif command == "lore":
+        import random
+        if game_state.ai_service is None:
+            return (True, "\n=== Ancient Lore ===\nNo mystical knowledge is available in this realm.")
+
+        categories = ["history", "legend", "secret"]
+        category = random.choice(categories)
+        headers = {
+            "history": "Ancient History",
+            "legend": "Local Legend",
+            "secret": "Forbidden Secret"
+        }
+
+        try:
+            lore = game_state.ai_service.generate_lore(
+                theme=game_state.theme,
+                location_name=game_state.current_location,
+                lore_category=category
+            )
+            return (True, f"\n=== {headers[category]} ===\n{lore}")
+        except Exception:
+            return (True, "\n=== Ancient Lore ===\nThe mysteries of this place remain hidden...")
+
     elif command in ["attack", "defend", "flee"]:
         return (True, "\n✗ Not in combat.")
     

@@ -1,36 +1,47 @@
-# Implementation Summary: Fix test_generate_quest_uses_context
+# Implementation Summary: `lore` Command
 
 ## What Was Implemented
 
-Fixed a failing test by disabling caching in the test fixture.
+Added a new `lore` command that allows players to discover AI-generated lore snippets about their current location.
 
-## Problem
-The test `test_ai_quest_generation.py::TestAIServiceGenerateQuest::test_generate_quest_uses_context` was failing because `call_args` was `None` - the mock's `chat.completions.create` method was never called.
+### Files Modified
 
-## Root Cause
-`AIConfig` defaults to `enable_caching=True`. The `generate_quest()` method checks cache before calling the LLM. When a cached result exists (from persistent file cache or prior test runs), the mock is bypassed entirely.
+1. **`src/cli_rpg/game_state.py`** (line 67)
+   - Added `"lore"` to the `known_commands` set in `parse_command()`
 
-## Fix Applied
-Updated the `basic_config` fixture in `tests/test_ai_quest_generation.py` to explicitly disable caching:
+2. **`src/cli_rpg/main.py`** (lines 38, 763-784)
+   - Added lore command to help text: `"  lore               - Discover lore about your current location"`
+   - Added command handler in `handle_exploration_command()`:
+     - Checks if AI service is available, falls back to default message if not
+     - Randomly selects a lore category (history, legend, secret)
+     - Calls `AIService.generate_lore()` with theme, location name, and category
+     - Displays lore with thematic header (Ancient History, Local Legend, or Forbidden Secret)
+     - Gracefully handles AI exceptions with a fallback message
 
-```python
-@pytest.fixture
-def basic_config():
-    """Create a basic AIConfig for testing."""
-    return AIConfig(
-        api_key="test-key-123",
-        model="gpt-3.5-turbo",
-        temperature=0.7,
-        max_tokens=500,
-        max_retries=3,
-        retry_delay=0.1,  # Short delay for tests
-        enable_caching=False  # Disable caching to ensure mock is called
-    )
-```
+### New Test File Created
 
-## Files Modified
-- `tests/test_ai_quest_generation.py` (lines 29-30)
+**`tests/test_lore_command.py`** - 6 tests covering:
+- Command parsing recognizes "lore"
+- Fallback message when AI service is unavailable
+- Correct arguments passed to `generate_lore()`
+- Output includes thematic header and lore text
+- Graceful error handling for AI exceptions
+- Lore command appears in help text
 
 ## Test Results
-- Target test passes: `test_generate_quest_uses_context`
-- All 19 tests in `test_ai_quest_generation.py` pass with no regressions
+
+- All 6 new lore command tests pass
+- Full test suite: 1061 passed, 1 skipped
+
+## E2E Validation
+
+To manually test, run the game and use the `lore` command while exploring:
+
+```bash
+source venv/bin/activate && cli-rpg
+# Start a game, then type: lore
+```
+
+Expected behavior:
+- Without AI configured: "No mystical knowledge is available in this realm."
+- With AI: A themed lore snippet about the current location

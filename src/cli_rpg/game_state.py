@@ -64,7 +64,7 @@ def parse_command(command_str: str) -> tuple[str, list[str]]:
     # Validate known commands
     known_commands = {"look", "go", "save", "quit", "attack", "defend", "flee", "status", "cast",
                       "inventory", "equip", "unequip", "use", "talk", "buy", "sell", "shop", "map",
-                      "help", "quests", "quest", "accept", "complete"}
+                      "help", "quests", "quest", "accept", "complete", "lore"}
     
     if command not in known_commands:
         return ("unknown", [])

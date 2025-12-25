@@ -1,30 +1,17 @@
 ## Active Issues
 
-### Combat quit confirmation prompt doesn't consume y/n input
-**Status**: OPEN
-
-**Description**: When a player types `quit` during combat, the warning prompt "Quit without saving? (y/n):" is displayed, but the code does not actually wait for and consume the y/n response. Instead, combat continues immediately and the user's next input (intended to be 'y' or 'n' for the confirmation) is treated as a combat command.
-
-**Steps to Reproduce**:
-1. Start a new game and create a character
-2. Move around until a combat encounter is triggered (e.g., `go east` repeatedly)
-3. During combat, type `quit`
-4. Type `n` (intending to cancel the quit and continue combat)
-5. Observe that `n` is not consumed as the confirmation response; combat displays status again and 'n' is silently ignored or treated as invalid command
-
-**Expected Behavior**:
-- After typing `quit`, the prompt should wait for and consume either 'y' or 'n'
-- If 'n', combat should continue with a clear message like "Continuing combat..."
-- If 'y', player should return to main menu
-
-**Actual Behavior**:
-- The prompt displays but immediately continues to the combat loop
-- The 'n' input is treated as a combat command (ignored as invalid)
-- User has to type `quit` again and then 'y' to actually quit
-
-**Impact**: Confusing user experience - players may think their input was acknowledged when it wasn't
+*No active issues*
 
 ## Resolved Issues
+
+### Combat quit confirmation prompt doesn't consume y/n input
+**Status**: RESOLVED
+
+**Root Cause**: The quit confirmation prompt was working correctly, but there were two issues affecting user experience:
+1. Stdout buffering could cause the prompt to not display immediately before the blocking `input()` call
+2. No feedback was provided when the user chose 'n' to cancel the quit
+
+**Fix**: Added `sys.stdout.flush()` before the input() call to ensure the prompt is visible, and added a "Continuing combat..." message when the user cancels the quit action. The confirmation prompt now properly consumes the y/n input and provides clear feedback.
 
 ### `complete` command not recognized
 **Status**: RESOLVED
