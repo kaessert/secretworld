@@ -853,7 +853,7 @@ class TestEquipCannotEquip:
     """Tests for equip command when item cannot be equipped (line 434)."""
 
     def test_equip_misc_item_fails(self):
-        """Spec: Cannot equip misc items (line 433-434)."""
+        """Spec: Cannot equip misc items - explains only weapons/armor can be equipped."""
         from cli_rpg.main import handle_exploration_command
 
         character = Character(name="Hero", strength=10, dexterity=10, intelligence=10)
@@ -865,7 +865,23 @@ class TestEquipCannotEquip:
         continue_game, message = handle_exploration_command(game_state, "equip", ["Key"])
 
         assert continue_game is True
-        assert "can't equip" in message.lower()
+        assert "weapon" in message.lower() or "armor" in message.lower()
+
+    def test_equip_consumable_suggests_use_command(self):
+        """Spec: Equipping consumable explains why and suggests 'use' command."""
+        from cli_rpg.main import handle_exploration_command
+
+        character = Character(name="Hero", strength=10, dexterity=10, intelligence=10)
+        potion = Item(name="Health Potion", description="Heals", item_type=ItemType.CONSUMABLE, heal_amount=20)
+        character.inventory.add_item(potion)
+        world = {"Town": Location(name="Town", description="A town", connections={})}
+        game_state = GameState(character, world, starting_location="Town")
+
+        continue_game, message = handle_exploration_command(game_state, "equip", ["Health", "Potion"])
+
+        assert continue_game is True
+        assert "weapon" in message.lower() or "armor" in message.lower()
+        assert "use" in message.lower()
 
 
 class TestGenericLoadException:

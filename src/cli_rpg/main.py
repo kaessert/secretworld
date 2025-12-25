@@ -3,7 +3,7 @@ import sys
 from typing import Optional
 from cli_rpg.character_creation import create_character, get_theme_selection
 from cli_rpg.models.character import Character
-from cli_rpg.models.item import Item
+from cli_rpg.models.item import Item, ItemType
 from cli_rpg.persistence import save_character, load_character, list_saves, save_game_state, load_game_state, detect_save_type
 from cli_rpg.game_state import GameState, parse_command
 from cli_rpg.world import create_world
@@ -431,7 +431,10 @@ def handle_exploration_command(game_state: GameState, command: str, args: list[s
         if success:
             return (True, f"\nYou equipped {item.name}.")
         else:
-            return (True, f"\nYou can't equip {item.name}.")
+            if item.item_type == ItemType.CONSUMABLE:
+                return (True, f"\nYou can only equip weapons or armor. Use 'use {item.name}' for consumables.")
+            else:
+                return (True, "\nYou can only equip weapons or armor.")
 
     elif command == "unequip":
         if not args:
