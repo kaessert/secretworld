@@ -1,24 +1,17 @@
 ## Active Issues
 
-### Misleading error message when trying to equip an already-equipped item
-**Status**: OPEN
-
-**Description**: When a user tries to run `equip <item>` on an item that is already equipped, the error message shown is "You don't have '<item>' in your inventory." This is confusing because:
-1. The item IS visible in the inventory display (shown with "[Weapon]" or "[Armor]" prefix)
-2. The message suggests the item doesn't exist, rather than that it's already equipped
-
-**Steps to Reproduce**:
-1. Load or create a character with an equippable item
-2. Run `equip worn spear` (or any weapon)
-3. Confirm the item is equipped with `inventory`
-4. Run `equip worn spear` again
-5. Observe the error: "You don't have 'worn spear' in your inventory."
-
-**Expected Behavior**: A clearer message like "Worn Spear is already equipped." or "You've already equipped Worn Spear."
-
-**Notes**: This is similar to the previously resolved issue for the `use` command with equipped items. The same fix pattern (checking if item is equipped first) should apply to the `equip` command.
+_No active issues_
 
 ## Resolved Issues
+
+### Misleading error message when trying to equip an already-equipped item
+**Status**: RESOLVED
+
+**Description**: When a user tried to run `equip <item>` on an item that was already equipped, the error message shown was "You don't have '<item>' in your inventory." This was misleading because the item was visible in the inventory display (shown with "[Weapon]" or "[Armor]" prefix).
+
+**Fix**: Added a check in the `equip` command handler to detect if the item is already equipped as weapon or armor before returning the generic "not found" error. The new message clearly indicates the item is already equipped: "{Item Name} is already equipped."
+
+This follows the same pattern as the `use` command fix for equipped items.
 
 ### Misleading error message when trying to 'use' an equipped item
 **Status**: RESOLVED

@@ -438,6 +438,13 @@ def handle_exploration_command(game_state: GameState, command: str, args: list[s
         item_name = " ".join(args)
         item = game_state.current_character.inventory.find_item_by_name(item_name)
         if item is None:
+            # Check if item is already equipped (following pattern from 'use' command fix)
+            inv = game_state.current_character.inventory
+            item_name_lower = item_name.lower()
+            if inv.equipped_weapon and inv.equipped_weapon.name.lower() == item_name_lower:
+                return (True, f"\n{inv.equipped_weapon.name} is already equipped.")
+            if inv.equipped_armor and inv.equipped_armor.name.lower() == item_name_lower:
+                return (True, f"\n{inv.equipped_armor.name} is already equipped.")
             return (True, f"\nYou don't have '{item_name}' in your inventory.")
         success = game_state.current_character.inventory.equip(item)
         if success:

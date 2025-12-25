@@ -1,28 +1,28 @@
-# Implementation Summary: 100% Coverage for models/inventory.py
+# Implementation Summary: Fix Equip Already-Equipped Error Message
 
-## What was implemented
+## What Was Implemented
 
-Added 6 new tests to `tests/test_inventory.py` to cover the previously uncovered lines in `inventory.py`:
-
-### Tests added to `TestInventoryUnequip` class:
-1. **`test_unequip_armor_empty_slot`** - Tests that `unequip("armor")` returns `False` when no armor is equipped (covers line 143)
-2. **`test_unequip_invalid_slot`** - Tests that `unequip()` with an invalid slot name returns `False` (covers line 151)
-
-### New `TestInventoryStr` class (covers lines 241-255):
-3. **`test_str_empty_inventory`** - Tests string representation of empty inventory shows "Inventory", "(0/20)", and "No items"
-4. **`test_str_with_items`** - Tests string representation with items shows item count and item names
-5. **`test_str_with_equipped_weapon`** - Tests string representation shows equipped weapon with "Weapon" label
-6. **`test_str_with_equipped_armor`** - Tests string representation shows equipped armor with "Armor" label
-
-## Test Results
-
-- **All 47 tests pass** (41 existing + 6 new)
-- **Coverage: 100%** for `src/cli_rpg/models/inventory.py` (104 statements, 0 missed)
+Fixed the misleading error message when running `equip <item>` on an already-equipped item. Previously showed "You don't have '{item}' in your inventory.", now correctly shows "{Item Name} is already equipped."
 
 ## Files Modified
 
-- `tests/test_inventory.py` - Added 6 new test methods
+1. **`src/cli_rpg/main.py`** (lines 440-448): Added check within the `equip` command handler to detect if the item being equipped is already equipped as weapon or armor, before returning the generic "not found" error.
 
-## E2E Validation
+2. **`tests/test_main_inventory_commands.py`**: Added `TestEquipAlreadyEquipped` test class with two tests:
+   - `test_equip_already_equipped_weapon`: Verifies weapon case
+   - `test_equip_already_equipped_armor`: Verifies armor case
 
-No E2E tests needed - this was a unit test coverage improvement task. The `__str__` method is used for console display of inventory and the `unequip()` edge cases are internal logic paths.
+## Implementation Details
+
+The fix follows the same pattern as the existing `use` command fix for equipped items:
+- When `find_item_by_name` returns `None` (item not in general inventory)
+- Check if equipped_weapon or equipped_armor matches the item name (case-insensitive)
+- Return appropriate "already equipped" message instead of "don't have" message
+
+## Test Results
+
+```
+26 passed in 0.36s
+```
+
+All inventory command tests pass, including the 2 new tests for the fix.
