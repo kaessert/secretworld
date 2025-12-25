@@ -45,6 +45,14 @@ BOND_LEVEL_UP_MESSAGES = {
     BondLevel.DEVOTED: "{name}'s bond with you is unbreakable. (Devoted)",
 }
 
+# Combat bonuses by bond level (attack damage multiplier bonus)
+COMBAT_BONUSES = {
+    BondLevel.STRANGER: 0.0,
+    BondLevel.ACQUAINTANCE: 0.03,
+    BondLevel.TRUSTED: 0.05,
+    BondLevel.DEVOTED: 0.10,
+}
+
 
 @dataclass
 class Companion:
@@ -94,6 +102,20 @@ class Companion:
             return BOND_LEVEL_UP_MESSAGES[new_level].format(name=self.name)
 
         return None
+
+    def get_combat_bonus(self) -> float:
+        """Get combat attack bonus based on bond level.
+
+        Higher bond levels provide increased attack damage:
+        - STRANGER (0-24): 0% bonus
+        - ACQUAINTANCE (25-49): 3% bonus
+        - TRUSTED (50-74): 5% bonus
+        - DEVOTED (75-100): 10% bonus
+
+        Returns:
+            Attack damage multiplier bonus (0.0 to 0.10)
+        """
+        return COMBAT_BONUSES.get(self.get_bond_level(), 0.0)
 
     def get_bond_display(self) -> str:
         """Get a visual bar representation of the bond level.

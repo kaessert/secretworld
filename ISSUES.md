@@ -247,7 +247,7 @@ KIRA THE SCOUT
 **Future Enhancements**:
 - **Bond levels** through choices, gifts, and shared experiences
 - **Companion quests** that explore their past and resolve their arc
-- **Combat synergies** unlock at higher bond levels
+- ✅ **Combat synergies** unlock at higher bond levels - MVP IMPLEMENTED (passive attack damage bonuses: STRANGER 0%, ACQUAINTANCE +3%, TRUSTED +5%, DEVOTED +10%)
 - **Companions react** to your choices (approval/disapproval affects bond)
 - **Permadeath option**: Companions can die, with devastating consequences
 - **Betrayal possibility**: Wrong choices can turn companions against you
@@ -697,7 +697,7 @@ Adventuring alone limits roleplay possibilities.
 
 **Remaining features**:
 - ✅ Companion dialogue and banter during travel - MVP IMPLEMENTED (25% trigger chance per move, context-aware comments based on location, weather, time, dread, and bond level)
-- Companion abilities in combat
+- ✅ Companion combat bonuses - MVP IMPLEMENTED (passive attack damage bonus based on bond level: STRANGER 0%, ACQUAINTANCE +3%, TRUSTED +5%, DEVOTED +10%; bonuses stack with multiple companions)
 - Companion-specific quests and storylines
 - Companions reacting to player choices (approval/disapproval)
 

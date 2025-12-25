@@ -8,6 +8,7 @@ from cli_rpg.models.enemy import Enemy
 from cli_rpg.models.item import Item, ItemType
 from cli_rpg.models.status_effect import StatusEffect
 from cli_rpg.models.weather import Weather
+from cli_rpg.models.companion import Companion
 from cli_rpg import colors
 
 if TYPE_CHECKING:
@@ -203,7 +204,8 @@ class CombatEncounter:
         player: Character,
         enemies: Optional[Union[list[Enemy], Enemy]] = None,
         enemy: Optional[Enemy] = None,
-        weather: Optional[Weather] = None
+        weather: Optional[Weather] = None,
+        companions: Optional[list[Companion]] = None
     ):
         """
         Initialize combat encounter.
@@ -213,6 +215,7 @@ class CombatEncounter:
             enemies: List of enemies to fight (or single Enemy for backward compat)
             enemy: Single enemy to fight (backward compatibility keyword arg)
             weather: Optional weather for weather-combat interactions
+            companions: Optional list of companions providing combat bonuses
 
         Note: Either enemies or enemy must be provided. If both are provided,
         enemies takes precedence. If enemy is provided, it's wrapped in a list.
@@ -220,6 +223,7 @@ class CombatEncounter:
         """
         self.player = player
         self.weather = weather
+        self.companions = companions or []
 
         # Handle backward compatibility
         if enemies is not None:
@@ -254,6 +258,20 @@ class CombatEncounter:
                 self.player.status_effects.remove(effect)
                 return f"You are {colors.damage('stunned')} and cannot act this turn!"
         return None
+
+    def _get_companion_bonus(self) -> float:
+        """Calculate total companion attack bonus.
+
+        Companion bonuses stack additively based on bond levels:
+        - STRANGER: +0%
+        - ACQUAINTANCE: +3%
+        - TRUSTED: +5%
+        - DEVOTED: +10%
+
+        Returns:
+            Total companion bonus as a decimal (e.g., 0.10 for +10%)
+        """
+        return sum(c.get_combat_bonus() for c in self.companions)
 
     def _check_rain_extinguish(self) -> list[str]:
         """Check if rain extinguishes burn effects (40% chance each).
@@ -492,6 +510,12 @@ class CombatEncounter:
 
         # Calculate damage: player attack power (strength + weapon bonus) - enemy defense, minimum 1
         dmg = max(1, self.player.get_attack_power() - enemy.defense)
+
+        # Apply companion bonus
+        companion_bonus = self._get_companion_bonus()
+        if companion_bonus > 0:
+            dmg = int(dmg * (1 + companion_bonus))
+
         enemy.take_damage(dmg)
 
         message = f"You attack {colors.enemy(enemy.name)} for {colors.damage(str(dmg))} damage!"
@@ -582,6 +606,12 @@ class CombatEncounter:
 
         # Calculate magic damage: intelligence * 1.5, ignores defense
         dmg = max(1, int(self.player.intelligence * 1.5))
+
+        # Apply companion bonus
+        companion_bonus = self._get_companion_bonus()
+        if companion_bonus > 0:
+            dmg = int(dmg * (1 + companion_bonus))
+
         enemy.take_damage(dmg)
 
         message = f"You cast a spell at {colors.enemy(enemy.name)} for {colors.damage(str(dmg))} magic damage!"
@@ -867,6 +897,12 @@ class CombatEncounter:
         if self.pending_combo:
             combo_name = self.pending_combo.replace("_", " ").title()
             lines.append(f"{colors.heal('COMBO AVAILABLE')}: {combo_name}!")
+
+        # Display companion bonus if any
+        companion_bonus = self._get_companion_bonus()
+        if companion_bonus > 0:
+            bonus_percent = int(companion_bonus * 100)
+            lines.append(f"Companion Bonus: +{bonus_percent}% attack")
 
         return "\n".join(lines)
 

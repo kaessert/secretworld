@@ -268,7 +268,11 @@ def _handle_hostile_encounter(game_state: "GameState") -> str:
     )
 
     # Create combat encounter
-    game_state.current_combat = CombatEncounter(game_state.current_character, enemies=[enemy])
+    game_state.current_combat = CombatEncounter(
+        game_state.current_character,
+        enemies=[enemy],
+        companions=game_state.companions,
+    )
 
     # Build message
     encounter = RandomEncounter(

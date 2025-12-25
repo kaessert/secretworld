@@ -133,6 +133,14 @@ The combat status shows your last actions (e.g., "Last actions: [Attack] → [De
 
 **Targeting:** When facing multiple enemies, you can target specific enemies by name (e.g., `attack goblin` or `cast orc`). Partial, case-insensitive matching is supported. If no target is specified, attacks hit the first living enemy.
 
+**Companion Combat Bonus:** Companions in your party provide passive attack damage bonuses based on their bond level:
+- STRANGER (0-24 points): No bonus
+- ACQUAINTANCE (25-49 points): +3% attack damage
+- TRUSTED (50-74 points): +5% attack damage
+- DEVOTED (75-100 points): +10% attack damage
+
+Multiple companions stack their bonuses additively. The bonus appears in combat status when greater than 0%.
+
 **Combat Flow:**
 1. You attack, defend, or cast
 2. All living enemies attack (unless you fled successfully)

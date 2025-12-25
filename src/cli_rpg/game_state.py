@@ -310,7 +310,10 @@ class GameState:
                     distance=distance,
                 )
             self.current_combat = CombatEncounter(
-                self.current_character, enemies=enemies, weather=self.weather
+                self.current_character,
+                enemies=enemies,
+                weather=self.weather,
+                companions=self.companions,
             )
 
             # Combat increases dread
