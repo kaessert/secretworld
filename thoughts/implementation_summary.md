@@ -1,98 +1,72 @@
-# Implementation Summary: Quest Turn-In Mechanic
+# Implementation Summary: DROP Quest Objective Type
 
 ## What Was Implemented
 
-### 1. Bug Fix: Accept Command Copies Quest Rewards
-**File**: `src/cli_rpg/main.py` (lines 546-572)
+### New Feature: DROP Objective Type
+Added a new quest objective type that requires **both** a specific enemy kill AND a specific item drop to progress the quest. This enables quests like "Collect 3 Wolf Pelts from Wolves" where progress only increments when a Wolf is killed AND drops a Wolf Pelt.
 
-Fixed a critical bug where the `accept` command was cloning quests without copying reward fields (`gold_reward`, `xp_reward`, `item_rewards`). Now all reward fields are properly copied when accepting a quest.
+### Files Modified
 
-### 2. READY_TO_TURN_IN Status
-**File**: `src/cli_rpg/models/quest.py`
+1. **`src/cli_rpg/models/quest.py`**
+   - Added `DROP = "drop"` to the `ObjectiveType` enum
+   - Added `drop_item: Optional[str] = field(default=None)` field to the `Quest` dataclass
+   - Updated `to_dict()` to include `"drop_item"` in serialization
+   - Updated `from_dict()` to parse `drop_item` with backward compatibility (defaults to `None`)
 
-Added new `QuestStatus.READY_TO_TURN_IN = "ready_to_turn_in"` enum value. This status indicates that quest objectives have been met but the player must return to the quest giver to claim rewards.
+2. **`src/cli_rpg/models/character.py`**
+   - Added `record_drop(enemy_name: str, item_name: str) -> List[str]` method
+   - Only progresses quests where:
+     - Status is `ACTIVE`
+     - Objective type is `DROP`
+     - Target (enemy) matches (case-insensitive)
+     - `drop_item` matches (case-insensitive)
+   - Sets quest status to `READY_TO_TURN_IN` upon completion
+   - Returns appropriate progress/completion messages
 
-### 3. Quest Giver Tracking
-**File**: `src/cli_rpg/models/quest.py`
+3. **`src/cli_rpg/combat.py`**
+   - Updated `end_combat()` to call `record_drop()` when loot drops
+   - Added after existing `record_collection()` call to support both COLLECT and DROP quest types simultaneously
 
-Added `quest_giver: Optional[str] = None` field to the Quest dataclass. Updated `to_dict()` and `from_dict()` for serialization. When accepting a quest, the NPC's name is stored in this field.
+4. **`tests/test_quest.py`**
+   - Updated `test_to_dict` to include `drop_item` in expected serialization output
 
-### 4. Updated Quest Progress Behavior
-**File**: `src/cli_rpg/models/character.py`
+### New Test File
 
-Modified `record_kill()` and `record_collection()` methods:
-- When quest objectives are complete, status is now set to `READY_TO_TURN_IN` (not `COMPLETED`)
-- Rewards are NOT granted automatically
-- Message changed from "Quest Complete" to "Quest objectives complete! Return to {quest_giver} to claim your reward."
-
-### 5. New `complete` Command
-**File**: `src/cli_rpg/main.py` (lines 578-619)
-
-Implemented new command handler for `complete <quest>`:
-- Requires talking to an NPC first (`game_state.current_npc` must be set)
-- Finds matching quest with `READY_TO_TURN_IN` status (partial name match)
-- Verifies `quest.quest_giver == current_npc.name`
-- Calls `claim_quest_rewards()` and sets status to `COMPLETED`
-- Returns reward messages to player
-
-### 6. Updated `claim_quest_rewards()`
-**File**: `src/cli_rpg/models/character.py`
-
-Changed to require `READY_TO_TURN_IN` status (previously required `COMPLETED`).
-
-### 7. Updated Quest Journal Display
-**File**: `src/cli_rpg/main.py` (lines 624-657)
-
-- `quests` command now shows "Ready to Turn In" section with star icons
-- Each ready quest shows the quest giver name in parentheses
-- `quest <name>` command shows quest giver and formats status nicely
-
-### 8. Turn-In Indicator in NPC Dialogue
-**File**: `src/cli_rpg/main.py` (lines 420-430)
-
-When talking to an NPC, if the player has any `READY_TO_TURN_IN` quests from that NPC, it shows:
-- "Quests ready to turn in:" section with star icons
-- Hint to use `complete <quest>` command
-
-### 9. Updated Command Reference
-**File**: `src/cli_rpg/main.py` (line 32)
-
-Added `complete <quest>` to the help output.
-
-## Files Modified
-- `src/cli_rpg/main.py` - Bug fix, complete command, UI updates
-- `src/cli_rpg/models/quest.py` - New status, new field, serialization
-- `src/cli_rpg/models/character.py` - Updated record_* methods, claim_quest_rewards
+**`tests/test_quest_drop.py`** - 19 tests covering:
+- `ObjectiveType.DROP` enum existence
+- `drop_item` field on Quest dataclass
+- Serialization/deserialization with `drop_item`
+- `record_drop()` functionality:
+  - Progress increments when both enemy AND item match
+  - No progress when enemy doesn't match
+  - No progress when item doesn't match
+  - Case-insensitive matching
+  - Only ACTIVE quests get progress
+  - Completion sets READY_TO_TURN_IN status
+  - Proper notification messages
+  - Multiple DROP quests can progress together
+  - Does not affect KILL or COLLECT quests
 
 ## Test Results
-**920 tests passed, 1 skipped** (14 new tests added)
 
-### New Tests Added
-- `test_accept_quest_copies_gold_reward` - Bug fix verification
-- `test_accept_quest_copies_xp_reward` - Bug fix verification
-- `test_accept_quest_copies_item_rewards` - Bug fix verification
-- `test_accept_quest_sets_quest_giver` - Quest giver tracking
-- `test_quests_command_shows_ready_to_turn_in_section` - Journal display
-- `test_quest_detail_shows_quest_giver` - Quest detail display
-- `test_quest_detail_shows_ready_to_turn_in_status` - Status formatting
-- `test_complete_command_requires_npc` - Complete command validation
-- `test_complete_command_requires_quest_name` - Complete command validation
-- `test_complete_command_requires_ready_to_turn_in_status` - Status check
-- `test_complete_command_requires_matching_quest_giver` - NPC matching
-- `test_complete_command_grants_rewards_and_sets_completed` - Reward granting
-- `test_complete_command_shows_reward_messages` - Message display
-- `test_talk_shows_turn_in_ready_quests` - NPC dialogue indicator
+- **New tests:** 19 passed
+- **All quest tests:** 129 passed
+- **Full test suite:** 939 passed, 1 skipped
 
-### Updated Tests
-- Existing tests in `test_quest_progress.py` updated for READY_TO_TURN_IN behavior
-- Existing tests in `test_quest_rewards.py` updated for new reward claiming flow
-- `test_quest.py` serialization test updated for quest_giver field
+## Design Decisions
+
+1. **Backward Compatibility**: The `drop_item` field defaults to `None` and `from_dict()` uses `.get()` to handle old save files that don't have this field.
+
+2. **Case Insensitivity**: Both enemy name and item name matching are case-insensitive, consistent with existing `record_kill()` and `record_collection()` methods.
+
+3. **Integration Point**: `record_drop()` is called from `combat.py` after `record_collection()`, allowing both COLLECT and DROP quests to potentially progress from the same loot drop.
+
+4. **Separation of Concerns**: DROP quests don't affect KILL quests (even for same enemy) and don't affect COLLECT quests (even for same item), maintaining clear semantics for each objective type.
 
 ## E2E Validation Scenarios
-1. Accept a quest from an NPC (verify rewards and quest_giver are set)
-2. Complete quest objectives (verify status is READY_TO_TURN_IN, no rewards yet)
-3. View quest journal (verify "Ready to Turn In" section appears)
-4. Talk to wrong NPC (verify turn-in is rejected with correct message)
-5. Talk to correct NPC (verify turn-in indicator shows)
-6. Complete quest (verify rewards are granted, status is COMPLETED)
-7. Save/load game (verify quest_giver and READY_TO_TURN_IN status persist)
+
+1. Create a DROP quest with specific enemy/item targets
+2. Kill the target enemy and receive the target item drop
+3. Verify quest progress message appears
+4. Complete the quest and turn it in to the quest giver
+5. Verify save/load preserves `drop_item` field correctly

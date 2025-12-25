@@ -113,6 +113,7 @@ Quest-giver NPCs can be found throughout the world. Interact with them to receiv
 **Quest Progress**: Quests automatically track your progress:
 - **Kill quests**: Progress updates when you defeat matching enemies in combat
 - **Collect quests**: Progress updates when you acquire matching items (from combat loot or shop purchases)
+- **Drop quests**: Progress updates when you defeat a specific enemy AND it drops a specific item (e.g., "Collect 3 Wolf Pelts from Wolves")
 
 You'll see progress messages after each relevant action.
 

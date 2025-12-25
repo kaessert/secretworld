@@ -283,6 +283,46 @@ class Character:
                     )
         return messages
 
+    def record_drop(self, enemy_name: str, item_name: str) -> List[str]:
+        """Record an item drop from an enemy for DROP quest progress.
+
+        Args:
+            enemy_name: Name of the defeated enemy
+            item_name: Name of the dropped item
+
+        Returns:
+            List of notification messages for quest progress/completion
+        """
+        from cli_rpg.models.quest import QuestStatus, ObjectiveType
+
+        messages = []
+        for quest in self.quests:
+            if (
+                quest.status == QuestStatus.ACTIVE
+                and quest.objective_type == ObjectiveType.DROP
+                and quest.target.lower() == enemy_name.lower()
+                and quest.drop_item
+                and quest.drop_item.lower() == item_name.lower()
+            ):
+                completed = quest.progress()
+                if completed:
+                    quest.status = QuestStatus.READY_TO_TURN_IN
+                    if quest.quest_giver:
+                        messages.append(
+                            f"Quest objectives complete: {quest.name}! "
+                            f"Return to {quest.quest_giver} to claim your reward."
+                        )
+                    else:
+                        messages.append(
+                            f"Quest objectives complete: {quest.name}! "
+                            "Return to the quest giver to claim your reward."
+                        )
+                else:
+                    messages.append(
+                        f"Quest progress: {quest.name} [{quest.current_count}/{quest.target_count}]"
+                    )
+        return messages
+
     def claim_quest_rewards(self, quest: "Quest") -> List[str]:
         """Claim rewards from a quest ready to turn in.
 

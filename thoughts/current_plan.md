@@ -1,120 +1,151 @@
-# Implementation Plan: Quest Turn-In Mechanic
+# Implementation Plan: DROP Quest Objective Type
 
-## Summary
-Add a "turn in" quest mechanic requiring players to return to the quest-giver NPC to claim rewards, plus fix a critical bug where quest rewards are not copied when accepting quests.
+## Spec
 
-## Bug Fix (Must be done first)
-**File**: `src/cli_rpg/main.py` (lines 546-555)
+Add a `DROP` objective type to the quest system that tracks specific item drops from specific enemy types. Unlike `COLLECT` (any item acquisition) or `KILL` (any enemy defeat), `DROP` requires **both conditions**: a specific item dropped from a specific enemy type.
 
-The `accept` command clones quests WITHOUT copying reward fields:
+**Example quest**: "Collect 3 Wolf Pelts from Wolves"
+- Target enemy: "Wolf"
+- Target item: "Wolf Pelt"
+- Progress increments only when a Wolf is killed AND drops a Wolf Pelt
+
+### Quest Model Changes
+- New `ObjectiveType.DROP` enum value
+- New optional field `drop_item: Optional[str]` on `Quest` for the item to track
+- Serialization/deserialization support for `drop_item`
+
+### Tracking Mechanism
+- New `Character.record_drop(enemy_name: str, item_name: str)` method
+- Called from `CombatEncounter.end_combat()` when loot drops
+- Only progresses DROP quests where both enemy AND item match
+
+---
+
+## Tests (TDD)
+
+### File: `tests/test_quest_drop.py`
+
 ```python
-# Current (missing rewards):
-new_quest = Quest(
-    name=matching_quest.name,
-    description=matching_quest.description,
-    objective_type=matching_quest.objective_type,
-    target=matching_quest.target,
-    target_count=matching_quest.target_count,
-    status=QuestStatus.ACTIVE,
-    current_count=0
-)
+"""Tests for DROP quest objective type."""
 ```
 
-**Fix**: Add `gold_reward`, `xp_reward`, and `item_rewards` to the clone.
+1. **test_drop_objective_type_exists** - Verify `ObjectiveType.DROP` is valid
+2. **test_quest_with_drop_item_field** - Create quest with `drop_item` set
+3. **test_quest_drop_item_serialization** - `to_dict()`/`from_dict()` round-trip
+4. **test_record_drop_increments_matching_quest** - Both enemy + item match → progress
+5. **test_record_drop_enemy_mismatch_no_progress** - Wrong enemy, right item → no progress
+6. **test_record_drop_item_mismatch_no_progress** - Right enemy, wrong item → no progress
+7. **test_record_drop_case_insensitive** - Both matches are case-insensitive
+8. **test_record_drop_only_active_quests** - Only ACTIVE status gets progress
+9. **test_record_drop_marks_ready_to_turn_in** - Completion sets READY_TO_TURN_IN
+10. **test_record_drop_returns_progress_messages** - Returns proper notifications
+11. **test_record_drop_multiple_quests** - Multiple DROP quests can progress together
 
-## Feature: Quest Turn-In Mechanic
+---
 
-### Spec
-1. When quest objectives are met, set status to `READY_TO_TURN_IN` (new status) instead of `COMPLETED`
-2. Rewards are NOT granted automatically - player must return to quest-giver NPC
-3. New `complete <quest>` command when talking to the quest-giving NPC claims rewards and sets status to `COMPLETED`
-4. Quest journal shows "Ready to turn in" for quests awaiting turn-in
-5. NPCs with turn-in-ready quests show indicator in dialogue
+## Implementation Steps
 
-### Changes
+### Step 1: Add DROP to ObjectiveType enum
+**File**: `src/cli_rpg/models/quest.py` (line 18-25)
 
-#### 1. Add READY_TO_TURN_IN status to Quest model
-**File**: `src/cli_rpg/models/quest.py`
-- Add `READY_TO_TURN_IN = "ready_to_turn_in"` to `QuestStatus` enum
+```python
+class ObjectiveType(Enum):
+    KILL = "kill"
+    COLLECT = "collect"
+    EXPLORE = "explore"
+    TALK = "talk"
+    DROP = "drop"  # NEW
+```
 
-#### 2. Track quest giver on Quest
-**File**: `src/cli_rpg/models/quest.py`
-- Add `quest_giver: Optional[str] = None` field to Quest dataclass
-- Update `to_dict()` and `from_dict()` to serialize/deserialize this field
+### Step 2: Add drop_item field to Quest dataclass
+**File**: `src/cli_rpg/models/quest.py` (after line 60)
 
-#### 3. Update record_kill and record_collection
-**File**: `src/cli_rpg/models/character.py`
-- Change: when quest is complete, set `status = QuestStatus.READY_TO_TURN_IN` instead of `COMPLETED`
-- Remove automatic call to `claim_quest_rewards()`
-- Change message from "Quest Complete" to "Quest objectives complete! Return to {quest_giver} to claim your reward."
+```python
+drop_item: Optional[str] = field(default=None)
+```
 
-#### 4. Store quest_giver when accepting quest
-**File**: `src/cli_rpg/main.py`
-- In `accept` command, set `quest_giver=npc.name` on the cloned quest
+### Step 3: Update Quest.to_dict()
+**File**: `src/cli_rpg/models/quest.py` (line 128-146)
 
-#### 5. Add `complete` command
-**File**: `src/cli_rpg/main.py`
-- Add "complete" to known_commands set
-- Implement handler:
-  - Check `game_state.current_npc` is set
-  - Find matching quest in character's quests with `status == READY_TO_TURN_IN`
-  - Verify `quest.quest_giver == current_npc.name`
-  - Call `claim_quest_rewards()` and set `status = COMPLETED`
-  - Return reward messages
+Add `"drop_item": self.drop_item` to the returned dict.
 
-#### 6. Update quest journal display
-**File**: `src/cli_rpg/main.py`
-- In `quests` command, add section for "Ready to Turn In" quests
-- In `quest <name>` command, show quest_giver and status appropriately
+### Step 4: Update Quest.from_dict()
+**File**: `src/cli_rpg/models/quest.py` (line 162-174)
 
-#### 7. Show turn-in indicator in NPC dialogue
-**File**: `src/cli_rpg/main.py`
-- In `talk` command, check if NPC has any turn-in-ready quests from player
-- Show "Quests ready to turn in: ..." if applicable
+Add `drop_item=data.get("drop_item")` to the constructor call.
 
-## Test Plan
+### Step 5: Add record_drop method to Character
+**File**: `src/cli_rpg/models/character.py` (after line 284)
 
-### Tests for bug fix
-**File**: `tests/test_quest_commands.py` (add tests)
-- `test_accept_quest_copies_gold_reward`
-- `test_accept_quest_copies_xp_reward`
-- `test_accept_quest_copies_item_rewards`
+```python
+def record_drop(self, enemy_name: str, item_name: str) -> List[str]:
+    """Record an item drop from an enemy for DROP quest progress.
 
-### Tests for READY_TO_TURN_IN status
-**File**: `tests/test_quest.py` (add tests)
-- `test_ready_to_turn_in_status_exists`
-- `test_quest_giver_field_serialization`
+    Args:
+        enemy_name: Name of the defeated enemy
+        item_name: Name of the dropped item
 
-### Tests for turn-in behavior
-**File**: `tests/test_quest_progress.py` (modify existing)
-- Update `test_record_kill_grants_rewards_on_completion` → verify NO rewards granted, status is READY_TO_TURN_IN
-- Update `test_record_collection_grants_rewards_on_completion` → same
+    Returns:
+        List of notification messages for quest progress/completion
+    """
+    from cli_rpg.models.quest import QuestStatus, ObjectiveType
 
-### Tests for complete command
-**File**: `tests/test_quest_commands.py` (add tests)
-- `test_complete_command_requires_npc`
-- `test_complete_command_requires_quest_name`
-- `test_complete_command_requires_ready_to_turn_in_status`
-- `test_complete_command_requires_matching_quest_giver`
-- `test_complete_command_grants_rewards`
-- `test_complete_command_sets_completed_status`
-- `test_complete_command_shows_reward_messages`
+    messages = []
+    for quest in self.quests:
+        if (
+            quest.status == QuestStatus.ACTIVE
+            and quest.objective_type == ObjectiveType.DROP
+            and quest.target.lower() == enemy_name.lower()
+            and quest.drop_item
+            and quest.drop_item.lower() == item_name.lower()
+        ):
+            completed = quest.progress()
+            if completed:
+                quest.status = QuestStatus.READY_TO_TURN_IN
+                if quest.quest_giver:
+                    messages.append(
+                        f"Quest objectives complete: {quest.name}! "
+                        f"Return to {quest.quest_giver} to claim your reward."
+                    )
+                else:
+                    messages.append(
+                        f"Quest objectives complete: {quest.name}! "
+                        "Return to the quest giver to claim your reward."
+                    )
+            else:
+                messages.append(
+                    f"Quest progress: {quest.name} [{quest.current_count}/{quest.target_count}]"
+                )
+    return messages
+```
 
-### Tests for quest journal display
-**File**: `tests/test_quest_commands.py` (add tests)
-- `test_quests_command_shows_ready_to_turn_in_section`
-- `test_quest_detail_shows_quest_giver`
+### Step 6: Call record_drop from combat loot
+**File**: `src/cli_rpg/combat.py` (line 165-172)
 
-## Implementation Order
-1. Fix the bug in accept command (copy rewards)
-2. Add READY_TO_TURN_IN status to QuestStatus enum
-3. Add quest_giver field to Quest model with serialization
-4. Write tests for new status and field
-5. Update accept command to set quest_giver
-6. Write tests for complete command
-7. Implement complete command
-8. Update record_kill/record_collection to use READY_TO_TURN_IN
-9. Update tests for record_kill/record_collection behavior change
-10. Update quest journal display
-11. Add turn-in indicator to NPC dialogue
-12. Run full test suite
+After adding loot to inventory, call `record_drop`:
+
+```python
+if loot is not None:
+    if self.player.inventory.add_item(loot):
+        messages.append(f"You found: {colors.item(loot.name)}!")
+        # Track quest progress for collect objectives
+        quest_messages = self.player.record_collection(loot.name)
+        messages.extend(quest_messages)
+        # Track quest progress for drop objectives (enemy + item)
+        drop_messages = self.player.record_drop(self.enemy.name, loot.name)
+        messages.extend(drop_messages)
+```
+
+### Step 7: Update Character.to_dict() and from_dict()
+No changes needed - quests already serialize via `Quest.to_dict()`.
+
+---
+
+## Verification
+
+Run tests:
+```bash
+pytest tests/test_quest_drop.py -v
+pytest tests/test_quest*.py -v  # Ensure no regressions
+pytest --cov=src/cli_rpg  # Full coverage check
+```

@@ -22,6 +22,7 @@ class ObjectiveType(Enum):
     COLLECT = "collect"
     EXPLORE = "explore"
     TALK = "talk"
+    DROP = "drop"
 
 
 @dataclass
@@ -58,6 +59,7 @@ class Quest:
     xp_reward: int = field(default=0)
     item_rewards: List[str] = field(default_factory=list)
     quest_giver: Optional[str] = field(default=None)
+    drop_item: Optional[str] = field(default=None)
 
     def __post_init__(self) -> None:
         """Validate quest attributes after initialization."""
@@ -143,6 +145,7 @@ class Quest:
             "xp_reward": self.xp_reward,
             "item_rewards": self.item_rewards,
             "quest_giver": self.quest_giver,
+            "drop_item": self.drop_item,
         }
 
     @classmethod
@@ -171,4 +174,5 @@ class Quest:
             xp_reward=data.get("xp_reward", 0),
             item_rewards=data.get("item_rewards", []),
             quest_giver=data.get("quest_giver"),
+            drop_item=data.get("drop_item"),
         )

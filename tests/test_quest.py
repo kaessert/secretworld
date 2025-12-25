@@ -432,6 +432,7 @@ class TestSerialization:
             "xp_reward": 0,
             "item_rewards": [],
             "quest_giver": None,
+            "drop_item": None,
         }
 
     def test_from_dict(self):

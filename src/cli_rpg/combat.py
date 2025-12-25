@@ -170,6 +170,9 @@ class CombatEncounter:
                     # Track quest progress for collect objectives
                     quest_messages = self.player.record_collection(loot.name)
                     messages.extend(quest_messages)
+                    # Track quest progress for drop objectives (enemy + item)
+                    drop_messages = self.player.record_drop(self.enemy.name, loot.name)
+                    messages.extend(drop_messages)
                 else:
                     messages.append(f"You found {colors.item(loot.name)} but your inventory is full!")
 
