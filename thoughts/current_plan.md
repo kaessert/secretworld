@@ -1,68 +1,45 @@
-# Plan: Increase Test Coverage - Target ai_world.py (96% -> 99%+)
+# Plan: Push Test Coverage from 98.23% toward 100%
 
 ## Current State
-- Overall coverage: 98.03% (1304 tests pass)
-- `world.py`: 92% - 4 uncovered lines (18-21) are import-time fallback, hard to unit test
-- `ai_world.py`: 96% - 8 uncovered lines representing testable runtime paths
-- Focus: ai_world.py since its uncovered lines are runtime code paths
+- **Coverage**: 98.23% (1312 tests pass, 51 lines missing)
+- **Goal**: Target testable runtime gaps, accept TYPE_CHECKING/import fallback lines as untestable
 
-## Uncovered Lines in ai_world.py
+## Coverage Analysis
 
-| Lines | Description |
-|-------|-------------|
-| 146 | `continue` when suggested name already exists in grid |
-| 150-151 | `logger.warning` + `continue` for non-grid direction |
-| 292-294 | Adding bidirectional connection when target exists in world |
-| 434 | Warning when no locations placed (fallback to single location) |
-| 469 | Adding back-connection to entry when it doesn't have one |
+| Module | Miss | Lines | Notes |
+|--------|------|-------|-------|
+| ai_service.py | 15 | 9, 18-21, 252, 309, 338, 349, 353, 360, 399, 423, 455, 741 | TYPE_CHECKING + error handlers |
+| models/character.py | 7 | 8-10, 69, 95, 111, 209 | TYPE_CHECKING + edge cases |
+| game_state.py | 6 | 19-23, 45 | ImportError fallback |
+| world.py | 4 | 18-21 | ImportError fallback |
+| ai_world.py | 2 | 150-151 | Warning for non-grid direction |
+| map_renderer.py | 1 | 37 | Edge case |
+| combat.py | 2 | 12, 190 | Import + edge case |
+| Others | 14 | Various | Mostly TYPE_CHECKING |
+
+## Practical Targets (testable code)
+
+### Priority 1: ai_service.py exception handlers (Lines 252, 309, 338, 349, 353, 360, 399, 423, 455, 741)
+These are API error handling paths that can be triggered by mocking exceptions.
+
+### Priority 2: models/character.py line 209
+Generic consumable use without heal effect - testable runtime path.
+
+### Priority 3: combat.py line 190
+Combat edge case - likely testable.
 
 ## Implementation Steps
 
-### 1. Read existing tests to understand patterns
-File: `tests/test_ai_world_generation.py`
-
-### 2. Add tests for uncovered paths
-
-#### Test line 146 - duplicate name skipped
-```python
-def test_create_ai_world_skips_duplicate_name():
-    """Test create_ai_world skips locations when name already exists."""
-    # Mock AI to return location with name that conflicts with existing
-```
-
-#### Test lines 150-151 - non-grid direction warning
-```python
-def test_create_ai_world_warns_on_non_grid_direction(caplog):
-    """Test create_ai_world logs warning for non-grid directions like 'up'."""
-    # Mock location data to include 'up' or 'down' direction
-```
-
-#### Test lines 292-294 - bidirectional connection
-```python
-def test_expand_world_adds_bidirectional_connection_to_existing():
-    """Test expand_world adds reverse connection when target exists."""
-    # Setup world with target location, mock AI to return connection to it
-```
-
-#### Test line 434 - fallback when no locations placed
-```python
-def test_expand_area_falls_back_when_no_locations_placed():
-    """Test expand_area falls back to single expand when none placed."""
-    # Mock generate_area to return locations that can't be placed (all conflicts)
-```
-
-#### Test line 469 - back-connection addition
-```python
-def test_expand_area_adds_back_connection():
-    """Test expand_area ensures entry has back-connection."""
-    # Setup where entry location lacks opposite direction connection
-```
-
-### 3. Run tests and verify coverage
-
-```bash
-pytest tests/test_ai_world_generation.py -v --cov=src/cli_rpg/ai_world --cov-report=term-missing
-```
+1. **Review ai_service.py uncovered lines** to identify which are truly testable vs TYPE_CHECKING
+2. **Add tests for mockable exception paths** in `tests/test_ai_service.py`
+3. **Add test for character.py line 209** - consumable without heal effect
+4. **Run coverage** to verify improvements
 
 ## Files to Modify
-- `tests/test_ai_world_generation.py` - Add 5 new tests
+- `tests/test_ai_service.py` - Add exception handling tests
+- `tests/test_character.py` or `tests/test_character_inventory.py` - Consumable test
+
+## Acceptance Criteria
+- Coverage increases above 98.5%
+- All new tests pass
+- No regressions in existing tests

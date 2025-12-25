@@ -445,7 +445,7 @@ class TestSpawnEnemy:
     def test_spawn_enemy_calculates_stats_correctly(self):
         """Spec: spawn_enemy() should calculate stats based on level."""
         enemy = spawn_enemy("forest", level=3)
-        
+
         # Verify stats are reasonable for level 3
         assert enemy.health > 0
         assert enemy.max_health > 0
@@ -453,3 +453,52 @@ class TestSpawnEnemy:
         assert enemy.attack_power > 0
         assert enemy.defense >= 0
         assert enemy.xp_reward > 0
+
+
+class TestEndCombatLootInventoryFull:
+    """Test end_combat when finding loot with full inventory (line 190)."""
+
+    def test_end_combat_victory_loot_inventory_full(self):
+        """Test that loot message shows inventory full warning when inventory is full.
+
+        Spec: Line 190 - When player wins and enemy drops loot but inventory is full,
+        show message that loot was found but couldn't be picked up.
+        """
+        from cli_rpg.models.item import Item, ItemType
+        from unittest.mock import patch
+
+        # Create player with small inventory capacity
+        player = Character(name="Hero", strength=10, dexterity=10, intelligence=10, level=1)
+        player.inventory.capacity = 2  # Very small capacity
+
+        # Fill the inventory completely
+        item1 = Item(name="Potion1", description="A red potion", item_type=ItemType.CONSUMABLE)
+        item2 = Item(name="Potion2", description="A blue potion", item_type=ItemType.CONSUMABLE)
+        player.inventory.add_item(item1)
+        player.inventory.add_item(item2)
+        assert player.inventory.is_full()
+
+        # Create enemy
+        enemy = Enemy(
+            name="Goblin",
+            health=1,  # Low health for quick defeat
+            max_health=30,
+            attack_power=5,
+            defense=0,
+            xp_reward=25
+        )
+
+        combat = CombatEncounter(player=player, enemy=enemy)
+        combat.start()
+
+        # Mock generate_loot to always return a specific item
+        loot = Item(name="Enemy Sword", description="A rusty sword", item_type=ItemType.WEAPON)
+        with patch('cli_rpg.combat.generate_loot', return_value=loot):
+            message = combat.end_combat(victory=True)
+
+        # Verify inventory full message is in the result
+        assert "inventory is full" in message.lower() or "full" in message.lower()
+        # Verify loot was mentioned
+        assert "Enemy Sword" in message
+        # Verify loot was NOT added to inventory
+        assert loot not in player.inventory.items

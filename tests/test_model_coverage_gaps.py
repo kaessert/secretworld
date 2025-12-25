@@ -42,15 +42,16 @@ class TestCharacterUseItemGenericConsumable:
         assert generic_potion not in char.inventory.items
 
     def test_use_item_generic_consumable_with_quest_progress(self):
-        """Test using generic consumable that triggers quest progress.
+        """Test using generic consumable that triggers quest progress (line 209).
 
         Spec: Lines 204-210 - use_item on generic consumable with quest tracking.
+        This specifically tests line 209 where quest_messages are appended to the message.
         """
         from cli_rpg.models.quest import Quest, ObjectiveType, QuestStatus
 
         char = Character(name="Hero", strength=10, dexterity=10, intelligence=10)
 
-        # Create a consumable with 0 heal amount
+        # Create a consumable with 0 heal amount (generic consumable)
         mystery_item = Item(
             name="Ancient Artifact",
             description="A relic from a forgotten age",
@@ -58,13 +59,14 @@ class TestCharacterUseItemGenericConsumable:
             heal_amount=0
         )
 
-        # Add quest that tracks using this item
+        # Add quest that tracks using this item - USE objective tracks record_use()
         quest = Quest(
             name="Use the Relic",
             description="Use the ancient artifact",
-            objective_type=ObjectiveType.DROP,  # DROP objective tracks item use
+            objective_type=ObjectiveType.USE,  # USE objective tracks record_use
             target="Ancient Artifact",
-            target_count=1
+            target_count=1,
+            status=QuestStatus.ACTIVE
         )
         char.quests.append(quest)
         char.inventory.add_item(mystery_item)
@@ -73,6 +75,8 @@ class TestCharacterUseItemGenericConsumable:
 
         assert success is True
         assert "You used Ancient Artifact" in message
+        # This verifies line 209 - quest messages are appended
+        assert "Quest objectives complete" in message or "Quest progress" in message
 
 
 class TestCharacterDisplayColoredHealth:

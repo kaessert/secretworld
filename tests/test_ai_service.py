@@ -1209,3 +1209,284 @@ def test_validate_area_location_invalid_connections(mock_openai_class, basic_con
             context_locations=[],
             size=3
         )
+
+
+# ========================================================================
+# _parse_location_response Validation Edge Cases (Coverage for lines 338, 349, 353, 360)
+# ========================================================================
+
+
+@patch('cli_rpg.ai_service.OpenAI')
+def test_parse_location_response_name_too_short(mock_openai_class, basic_config):
+    """Test _parse_location_response raises when name is too short (line 338).
+
+    Spec: When location name has fewer than MIN_NAME_LENGTH chars, raise AIGenerationError.
+    """
+    mock_client = Mock()
+    mock_openai_class.return_value = mock_client
+
+    # Return location with name too short
+    mock_response = Mock()
+    mock_response.choices = [Mock()]
+    mock_response.choices[0].message.content = json.dumps({
+        "name": "A",  # Too short - Location.MIN_NAME_LENGTH is 2
+        "description": "A valid description that meets the minimum length requirement for testing.",
+        "connections": {}
+    })
+    mock_client.chat.completions.create.return_value = mock_response
+
+    service = AIService(basic_config)
+
+    with pytest.raises(AIGenerationError, match="name too short"):
+        service.generate_location(theme="fantasy")
+
+
+@patch('cli_rpg.ai_service.OpenAI')
+def test_parse_location_response_description_too_short(mock_openai_class, basic_config):
+    """Test _parse_location_response raises when description is too short (line 349).
+
+    Spec: When location description has fewer than MIN_DESCRIPTION_LENGTH chars, raise AIGenerationError.
+    """
+    mock_client = Mock()
+    mock_openai_class.return_value = mock_client
+
+    # Return location with empty description
+    mock_response = Mock()
+    mock_response.choices = [Mock()]
+    mock_response.choices[0].message.content = json.dumps({
+        "name": "Test Location",
+        "description": "",  # Empty - too short
+        "connections": {}
+    })
+    mock_client.chat.completions.create.return_value = mock_response
+
+    service = AIService(basic_config)
+
+    with pytest.raises(AIGenerationError, match="description too short"):
+        service.generate_location(theme="fantasy")
+
+
+@patch('cli_rpg.ai_service.OpenAI')
+def test_parse_location_response_description_too_long(mock_openai_class, basic_config):
+    """Test _parse_location_response raises when description is too long (line 353).
+
+    Spec: When location description exceeds MAX_DESCRIPTION_LENGTH chars, raise AIGenerationError.
+    """
+    mock_client = Mock()
+    mock_openai_class.return_value = mock_client
+
+    # Return location with description too long (>500 chars)
+    mock_response = Mock()
+    mock_response.choices = [Mock()]
+    mock_response.choices[0].message.content = json.dumps({
+        "name": "Test Location",
+        "description": "A" * 501,  # Too long - Location.MAX_DESCRIPTION_LENGTH is 500
+        "connections": {}
+    })
+    mock_client.chat.completions.create.return_value = mock_response
+
+    service = AIService(basic_config)
+
+    with pytest.raises(AIGenerationError, match="description too long"):
+        service.generate_location(theme="fantasy")
+
+
+@patch('cli_rpg.ai_service.OpenAI')
+def test_parse_location_response_connections_not_dict(mock_openai_class, basic_config):
+    """Test _parse_location_response raises when connections is not a dictionary (line 360).
+
+    Spec: When connections field is not a dict, raise AIGenerationError.
+    """
+    mock_client = Mock()
+    mock_openai_class.return_value = mock_client
+
+    # Return location with invalid connections type
+    mock_response = Mock()
+    mock_response.choices = [Mock()]
+    mock_response.choices[0].message.content = json.dumps({
+        "name": "Test Location",
+        "description": "A valid description that meets the minimum length requirement.",
+        "connections": ["north", "south"]  # Should be a dict, not a list
+    })
+    mock_client.chat.completions.create.return_value = mock_response
+
+    service = AIService(basic_config)
+
+    with pytest.raises(AIGenerationError, match="Connections must be a dictionary"):
+        service.generate_location(theme="fantasy")
+
+
+# ========================================================================
+# Cache Expiration Tests (Coverage for lines 399, 741)
+# ========================================================================
+
+
+@patch('cli_rpg.ai_service.OpenAI')
+@patch('cli_rpg.ai_service.time')
+def test_get_cached_expired_entry_deleted(mock_time, mock_openai_class, tmp_path):
+    """Test _get_cached deletes expired entries from cache (line 399).
+
+    Spec: When a cached entry's timestamp is older than cache_ttl, delete it
+    from the cache and return None.
+    """
+    config = AIConfig(
+        api_key="test-key",
+        enable_caching=True,
+        cache_ttl=3600,  # 1 hour
+        retry_delay=0.1,
+        cache_file=str(tmp_path / "test_cache.json")
+    )
+
+    mock_client = Mock()
+    mock_openai_class.return_value = mock_client
+
+    # Create a valid location response
+    location_data = {
+        "name": "Test Location",
+        "description": "A valid description that meets the minimum length requirement.",
+        "connections": {"north": "Another Location"}
+    }
+    mock_response = Mock()
+    mock_response.choices = [Mock()]
+    mock_response.choices[0].message.content = json.dumps(location_data)
+    mock_client.chat.completions.create.return_value = mock_response
+
+    service = AIService(config)
+
+    # First call - time is 0, cache gets populated
+    mock_time.time.return_value = 0
+    result1 = service.generate_location(theme="fantasy")
+    assert mock_client.chat.completions.create.call_count == 1
+
+    # Second call - time is beyond cache_ttl (4000 > 3600)
+    # This should trigger the expired entry deletion (line 399)
+    mock_time.time.return_value = 4000
+    result2 = service.generate_location(theme="fantasy")
+
+    # API should be called again because cache was expired
+    assert mock_client.chat.completions.create.call_count == 2
+
+
+@patch('cli_rpg.ai_service.OpenAI')
+@patch('cli_rpg.ai_service.time')
+def test_get_cached_list_expired_entry_deleted(mock_time, mock_openai_class, tmp_path):
+    """Test _get_cached_list deletes expired entries from cache (line 741).
+
+    Spec: When a cached list entry's timestamp is older than cache_ttl, delete it
+    from the cache and return None.
+    """
+    config = AIConfig(
+        api_key="test-key",
+        enable_caching=True,
+        cache_ttl=3600,  # 1 hour
+        retry_delay=0.1,
+        cache_file=str(tmp_path / "test_cache.json")
+    )
+
+    mock_client = Mock()
+    mock_openai_class.return_value = mock_client
+
+    # Create a valid area response (list of locations)
+    area_data = [
+        {
+            "name": "Test Location",
+            "description": "A valid description that meets the minimum length requirement.",
+            "relative_coords": [0, 0],
+            "connections": {"south": "EXISTING_WORLD"}
+        }
+    ]
+    mock_response = Mock()
+    mock_response.choices = [Mock()]
+    mock_response.choices[0].message.content = json.dumps(area_data)
+    mock_client.chat.completions.create.return_value = mock_response
+
+    service = AIService(config)
+
+    # First call - time is 0, cache gets populated
+    mock_time.time.return_value = 0
+    result1 = service.generate_area(
+        theme="fantasy",
+        sub_theme_hint="forest",
+        entry_direction="north",
+        context_locations=[],
+        size=1
+    )
+    assert mock_client.chat.completions.create.call_count == 1
+
+    # Second call - time is beyond cache_ttl (4000 > 3600)
+    # This should trigger the expired entry deletion (line 741)
+    mock_time.time.return_value = 4000
+    result2 = service.generate_area(
+        theme="fantasy",
+        sub_theme_hint="forest",
+        entry_direction="north",
+        context_locations=[],
+        size=1
+    )
+
+    # API should be called again because cache was expired
+    assert mock_client.chat.completions.create.call_count == 2
+
+
+# ========================================================================
+# Cache File Configuration Tests (Coverage for lines 423, 455)
+# ========================================================================
+
+
+@patch('cli_rpg.ai_service.OpenAI')
+def test_load_cache_no_cache_file_configured(mock_openai_class):
+    """Test _load_cache_from_file returns early when no cache file (line 423).
+
+    Spec: When config.cache_file is None/empty, return immediately without
+    attempting to load from disk.
+    """
+    # Config with caching disabled results in cache_file being None
+    config = AIConfig(
+        api_key="test-key",
+        enable_caching=False,  # This keeps cache_file as None
+        retry_delay=0.1
+    )
+
+    mock_client = Mock()
+    mock_openai_class.return_value = mock_client
+
+    # This should not raise any file-related errors
+    service = AIService(config)
+
+    # Verify the service was created successfully with no cache file
+    assert service.config.cache_file is None
+
+
+@patch('cli_rpg.ai_service.OpenAI')
+def test_save_cache_no_cache_file_configured(mock_openai_class):
+    """Test _save_cache_to_file returns early when no cache file (line 455).
+
+    Spec: When config.cache_file is None/empty, return immediately without
+    attempting to write to disk.
+    """
+    config = AIConfig(
+        api_key="test-key",
+        enable_caching=False,  # This keeps cache_file as None
+        retry_delay=0.1
+    )
+
+    mock_client = Mock()
+    mock_openai_class.return_value = mock_client
+
+    location_data = {
+        "name": "Test Location",
+        "description": "A valid description that meets the minimum length requirement.",
+        "connections": {}
+    }
+    mock_response = Mock()
+    mock_response.choices = [Mock()]
+    mock_response.choices[0].message.content = json.dumps(location_data)
+    mock_client.chat.completions.create.return_value = mock_response
+
+    service = AIService(config)
+
+    # This should work without trying to save to file
+    result = service.generate_location(theme="fantasy")
+
+    # Verify result is correct
+    assert result["name"] == "Test Location"
