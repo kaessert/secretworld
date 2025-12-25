@@ -14,6 +14,7 @@ from cli_rpg.map_renderer import render_map
 from cli_rpg.input_handler import init_readline, get_input, set_completer_context
 from cli_rpg.dreams import maybe_trigger_dream, display_dream
 from cli_rpg.companion_reactions import process_companion_reactions
+from cli_rpg.text_effects import set_effects_enabled
 
 
 def get_command_reference() -> str:
@@ -1469,8 +1470,9 @@ def run_json_mode(
     )
     from cli_rpg.logging_service import GameplayLogger
 
-    # Disable ANSI colors for machine-readable output
+    # Disable ANSI colors and typewriter effects for machine-readable output
     set_colors_enabled(False)
+    set_effects_enabled(False)
 
     # Load AI configuration
     ai_config = load_ai_config()
@@ -1668,8 +1670,9 @@ def run_non_interactive(
     from cli_rpg.models.character import Character
     from cli_rpg.logging_service import GameplayLogger
 
-    # Disable ANSI colors for machine-readable output
+    # Disable ANSI colors and typewriter effects for machine-readable output
     set_colors_enabled(False)
+    set_effects_enabled(False)
 
     # Load AI configuration
     ai_config = load_ai_config()

@@ -710,15 +710,12 @@ Text output could be more atmospheric and engaging.
 **Implemented**:
 - ✅ Typewriter-style text reveal module (`text_effects.py`) with configurable delay, ANSI code handling, and Ctrl+C graceful fallback
 - ✅ Effects follow color settings (disabled when colors are disabled, or when `--non-interactive`/`--json` mode)
+- ✅ Typewriter effect integrated into `dreams.py` for dream sequences
+- ✅ Typewriter effect integrated into `whisper.py` for ambient whispers
+- ✅ Typewriter effect integrated into `combat.py` for dramatic combat moments (display functions: `display_combat_start()`, `display_combo()`, `display_combat_end()`)
+- ✅ Effects disabled in `--non-interactive` and `--json` modes via `set_effects_enabled(False)` in `main.py`
 
-**Remaining integration**:
-- ~~Integrate typewriter effect into `dreams.py` for dream sequences~~ ✅ IMPLEMENTED
-- ~~Integrate into `whisper.py` for ambient whispers~~ ✅ IMPLEMENTED
-- ~~Integrate into `combat.py` for dramatic combat moments~~ ✅ IMPLEMENTED (display functions ready: `display_combat_start()`, `display_combo()`, `display_combat_end()`)
-- Update `main.py` to disable effects in non-interactive/JSON modes
-
-**Desired features**:
-- ~~Typewriter-style text reveal for dramatic moments~~ ✅ Module implemented
+**Remaining features**:
 - Color-coding for different types of information (damage, healing, dialogue, narration)
 - Sound effects via terminal bell for important events
 - Pause and pacing for dramatic tension
