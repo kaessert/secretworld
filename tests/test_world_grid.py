@@ -493,19 +493,18 @@ class TestWorldGridExpansionValidation:
     def test_find_frontier_exits_with_cardinal_directions_only(self):
         """Only considers cardinal directions (north, south, east, west).
 
-        Spec: Exits to non-cardinal directions (up, down) don't affect
-        coordinate-based frontier validation.
+        Spec: A location with no connections has no frontier exits.
         """
         grid = WorldGrid()
         loc = Location(
             name="Start",
             description="Starting location",
-            connections={"up": "Sky", "down": "Basement"}  # Non-cardinal
+            connections={}  # No connections
         )
         grid.add_location(loc, 0, 0)
 
         frontier = grid.find_frontier_exits()
-        # up/down don't have coordinate offsets, so they shouldn't be in frontier
+        # No connections, so no frontier exits
         assert frontier == []
 
     # Backward compatibility tests for old method names

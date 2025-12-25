@@ -1,79 +1,52 @@
-# Better Map Implementation Plan
+# Remove "up"/"down" Directions from 2D World Grid
 
 ## Spec
 
-Enhance the map renderer to display a larger, more visually appealing map that:
-1. Expands viewport from 5x5 to 9x9 (4 tiles in each direction from player)
-2. Uses box-drawing characters for a proper border/frame
-3. Displays location category icons instead of first-letter markers (e.g., ⚔ for combat, 🏠 for town)
-4. Improves legend formatting with vertical layout
-5. Shows path connections between adjacent locations
+Remove vertical directions ("up"/"down") from the 2D world grid system to prevent:
+- Player confusion from seeing impossible movement options
+- Stuck states where only vertical exits exist
 
-## Test Changes
+## Changes
 
-Update `tests/test_map_renderer.py`:
-
-1. **Update viewport size tests**: Change from 5x5 to 9x9
-   - `test_map_shows_5x5_viewport` → `test_map_shows_9x9_viewport` (verify x/y range is ±4)
-   - `test_map_centered_on_player` → update to verify 9x9 centering
-   - `test_map_clips_locations_outside_viewport` → adjust distance threshold
-
-2. **Add new tests for visual improvements**:
-   - `test_map_has_box_border`: Verify box-drawing characters (┌┐└┘─│) present
-   - `test_location_markers_show_category`: Verify category-based markers (⚔🏠🏪🌲 etc.)
-   - `test_legend_vertical_format`: Verify legend entries on separate lines
-
-## Implementation Changes
-
-Modify `src/cli_rpg/map_renderer.py`:
-
-### 1. Update viewport constants (line 22-25)
+### 1. `src/cli_rpg/models/location.py` (line 30)
 ```python
-# Change from 2 to 4 tiles in each direction
-player_x, player_y = current_loc.coordinates
-min_x, max_x = player_x - 4, player_x + 4
-min_y, max_y = player_y - 4, player_y + 4
+# Before
+VALID_DIRECTIONS: ClassVar[set[str]] = {"north", "south", "east", "west", "up", "down"}
+
+# After
+VALID_DIRECTIONS: ClassVar[set[str]] = {"north", "south", "east", "west"}
 ```
 
-### 2. Add category-to-marker mapping (new, near top of file)
+Also update docstring (lines 16-17) to remove "up, down" reference.
+
+### 2. `src/cli_rpg/world_grid.py` (lines 22-24)
 ```python
-CATEGORY_MARKERS = {
-    "town": "🏠",
-    "shop": "🏪",
-    "dungeon": "⚔",
-    "forest": "🌲",
-    "cave": "🕳",
-    "water": "🌊",
-    None: "•",  # default for uncategorized
-}
+# Remove these two lines from OPPOSITE_DIRECTIONS:
+    "up": "down",
+    "down": "up",
 ```
 
-### 3. Update marker logic (around line 53-64)
-- Replace first-letter markers with category-based markers
-- Keep `@` for player position
-
-### 4. Add box border rendering (lines 70-91)
+### 3. `src/cli_rpg/ai_config.py` (line 25)
 ```python
-# Top border
-top_border = "┌" + "─" * (width) + "┐"
-# Row format: "│ {content} │"
-# Bottom border
-bottom_border = "└" + "─" * (width) + "┘"
+# Before
+3. Suggest 1-4 connections to other locations using valid directions: north, south, east, west, up, down
+
+# After
+3. Suggest 1-4 connections to other locations using valid directions: north, south, east, west
 ```
 
-### 5. Update legend format (lines 100-108)
-- Display each legend entry on its own line
-- Group by category type
-- Format: "  🏠 Town Name"
-
-### 6. Increase cell_width (line 67)
-```python
-cell_width = 4  # Accommodate emoji markers
-```
-
-## File Summary
+### 4. Test updates
 
 | File | Changes |
 |------|---------|
-| `src/cli_rpg/map_renderer.py` | Expand viewport, add borders, category markers, vertical legend |
-| `tests/test_map_renderer.py` | Update viewport tests, add new visual tests |
+| `tests/test_model_coverage_gaps.py:356-357` | Remove "up"/"down" connection tests or change to expect ValueError |
+| `tests/test_world_grid.py:503` | Remove "up"/"down" from non-cardinal connection test |
+| `tests/test_game_state.py:430` | Keep "up" in invalid_dir list (now correctly invalid) |
+| `tests/test_ai_service.py:513-630` | Keep tests - they verify filtering of invalid directions |
+| `tests/test_ai_world_generation.py:330-331` | Remove up/down opposite direction assertions |
+| `tests/test_e2e_world_expansion.py:54-55,63,181,723` | Remove up/down from test data |
+| `tests/test_initial_world_dead_end_prevention.py:57` | Remove up/down from opposite map |
+
+## Verification
+
+Run: `pytest tests/test_location.py tests/test_world_grid.py tests/test_game_state.py tests/test_ai_service.py tests/test_ai_world_generation.py tests/test_e2e_world_expansion.py tests/test_initial_world_dead_end_prevention.py tests/test_model_coverage_gaps.py -v`

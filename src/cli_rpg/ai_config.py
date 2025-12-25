@@ -22,7 +22,7 @@ Context:
 Requirements:
 1. Create a unique location name (2-50 characters)
 2. Write a vivid description (1-500 characters)
-3. Suggest 1-4 connections to other locations using valid directions: north, south, east, west, up, down
+3. Suggest 1-4 connections to other locations using valid directions: north, south, east, west
 4. If expanding from a location, include a connection back to {source_location} via the opposite direction
 5. Ensure the location fits the {theme} theme
 6. Make the location interesting and explorable

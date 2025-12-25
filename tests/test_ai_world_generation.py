@@ -327,8 +327,6 @@ def test_get_opposite_direction():
     assert get_opposite_direction("south") == "north"
     assert get_opposite_direction("east") == "west"
     assert get_opposite_direction("west") == "east"
-    assert get_opposite_direction("up") == "down"
-    assert get_opposite_direction("down") == "up"
 
 
 # Test: Expand world with invalid source location

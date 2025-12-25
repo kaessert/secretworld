@@ -19,8 +19,6 @@ OPPOSITE_DIRECTIONS: Dict[str, str] = {
     "south": "north",
     "east": "west",
     "west": "east",
-    "up": "down",
-    "down": "up",
 }
 
 

@@ -50,17 +50,14 @@ def mock_ai_service_success():
             "north": "Dark Forest",
             "south": "Sunny Meadow",
             "east": "Ancient Cave",
-            "west": "Crystal Lake",
-            "up": "Mountain Peak",
-            "down": "Underground Cavern"
+            "west": "Crystal Lake"
         }
         name = location_names.get(direction, "Mystery Location")
-        
+
         # Get opposite direction for return connection
         opposites = {
             "north": "south", "south": "north",
-            "east": "west", "west": "east",
-            "up": "down", "down": "up"
+            "east": "west", "west": "east"
         }
         opposite = opposites.get(direction, "north")
         
@@ -177,10 +174,9 @@ def verify_bidirectional_connection(world, loc1_name, direction, loc2_name):
     """
     opposites = {
         "north": "south", "south": "north",
-        "east": "west", "west": "east",
-        "up": "down", "down": "up"
+        "east": "west", "west": "east"
     }
-    
+
     # Check forward connection
     assert loc1_name in world, f"Location {loc1_name} not in world"
     assert world[loc1_name].has_connection(direction), \
@@ -720,7 +716,7 @@ def test_expanded_location_never_dead_end(basic_character, mock_ai_service_succe
     # Override mock to return only back-connection
     def generate_dead_end(theme, context_locations, source_location, direction):
         opposites = {"north": "south", "south": "north", "east": "west",
-                     "west": "east", "up": "down", "down": "up"}
+                     "west": "east"}
         return {
             "name": "Chrome Canyon",
             "description": "A canyon with chrome walls.",

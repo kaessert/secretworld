@@ -1,81 +1,41 @@
-# Better Map Implementation Summary
+# Implementation Summary: Remove "up"/"down" Directions from 2D World Grid
 
 ## What Was Implemented
 
-Enhanced the map renderer (`src/cli_rpg/map_renderer.py`) with the following features:
+Removed vertical directions ("up"/"down") from the 2D world grid system to prevent player confusion from seeing impossible movement options and stuck states where only vertical exits exist.
 
-### 1. Expanded Viewport (9x9)
-- Changed from 5x5 to 9x9 viewport (4 tiles in each direction from player instead of 2)
-- Player sees more of the surrounding area for better navigation
+### Source Code Changes
 
-### 2. Box-Drawing Border
-- Added decorative box border using Unicode characters: `┌┐└┘─│`
-- Map content is now enclosed in a visual frame
-- Added padding logic to handle ANSI color codes without breaking alignment
+1. **`src/cli_rpg/models/location.py`**
+   - Updated `VALID_DIRECTIONS` from `{"north", "south", "east", "west", "up", "down"}` to `{"north", "south", "east", "west"}`
+   - Updated docstring to remove "up, down" reference
 
-### 3. Category-Based Location Markers
-- Introduced `CATEGORY_MARKERS` dictionary mapping location categories to icons:
-  - `town`: 🏠
-  - `shop`: 🏪
-  - `dungeon`: ⚔
-  - `forest`: 🌲
-  - `cave`: 🕳
-  - `water`: 🌊
-  - `None` (uncategorized): •
-- Player position still uses `@` marker with cyan color
-- New helper function `get_category_marker()` for marker lookup
+2. **`src/cli_rpg/world_grid.py`**
+   - Removed `"up": "down"` and `"down": "up"` from `OPPOSITE_DIRECTIONS` dictionary
 
-### 4. Vertical Legend Format
-- Changed legend from comma-separated single line to vertical format
-- Each location entry on its own line with "Legend:" header
-- Format: `  marker = Location Name`
+3. **`src/cli_rpg/ai_config.py`**
+   - Updated location generation prompt to only list valid directions: "north, south, east, west"
 
-### 5. Increased Cell Width
-- Changed `cell_width` from 3 to 4 to accommodate emoji markers
+### Test Updates
 
-## Files Modified
+1. **`tests/test_model_coverage_gaps.py`** - Changed test to verify empty connections result in no frontier exits (previously tested up/down connections)
 
-| File | Changes |
-|------|---------|
-| `src/cli_rpg/map_renderer.py` | Full implementation of all features |
-| `tests/test_map_renderer.py` | Updated tests for 9x9 viewport, added new test class `TestMapVisualImprovements` |
+2. **`tests/test_world_grid.py`** - Updated test to verify locations with no connections have no frontier exits
+
+3. **`tests/test_ai_world_generation.py`** - Removed up/down assertions from `test_get_opposite_direction`
+
+4. **`tests/test_e2e_world_expansion.py`** - Removed up/down from:
+   - Location names mapping in mock fixture
+   - Opposites dictionary in helper function
+   - Dead-end generation test
+
+5. **`tests/test_initial_world_dead_end_prevention.py`** - Removed up/down from opposites dictionary in mock fixture
 
 ## Test Results
 
-All 13 map renderer tests pass:
-- 9 tests in `TestPlayerCenteredMap` (viewport, centering, clipping, alignment, exits)
-- 4 tests in `TestMapVisualImprovements` (box border, category markers, vertical legend)
+- All 245 targeted tests passed
+- Full test suite: 1450 tests passed in 12.24s
 
-Full test suite: **1450 tests passed**
+## E2E Validation Notes
 
-## Example Output
-
-```
-=== MAP ===
-┌────────────────────────────────────────┐
-│      -4  -3  -2  -1   0   1   2   3   4│
-│  4                                     │
-│  3                                     │
-│  2                                     │
-│  1                         🌲          │
-│  0                    @   🏪           │
-│ -1                                     │
-│ -2                                     │
-│ -3                                     │
-│ -4                                     │
-└────────────────────────────────────────┘
-
-Legend:
-  @ = You (Town Square)
-  🏪 = General Store
-  🌲 = Forest Path
-Exits: east, north
-```
-
-## E2E Validation
-
-The implementation can be validated by:
-1. Running the game and using the `map` command
-2. Verifying the 9x9 grid displays correctly
-3. Checking that location category icons appear correctly
-4. Confirming the box border renders properly in the terminal
+Players using `"up"` or `"down"` as a direction will now receive an "Invalid direction" error message, consistent with any other non-cardinal direction. The AI will no longer suggest vertical connections in generated locations.

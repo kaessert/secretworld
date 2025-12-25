@@ -14,7 +14,7 @@ class Location:
     """Represents a location in the game world.
     
     A location has a name, description, and connections to other locations
-    via directional exits (north, south, east, west, up, down).
+    via directional exits (north, south, east, west).
     
     Attributes:
         name: The location's name (2-50 characters)
@@ -27,7 +27,7 @@ class Location:
     MAX_NAME_LENGTH: ClassVar[int] = 50
     MIN_DESCRIPTION_LENGTH: ClassVar[int] = 1
     MAX_DESCRIPTION_LENGTH: ClassVar[int] = 500
-    VALID_DIRECTIONS: ClassVar[set[str]] = {"north", "south", "east", "west", "up", "down"}
+    VALID_DIRECTIONS: ClassVar[set[str]] = {"north", "south", "east", "west"}
     
     name: str
     description: str

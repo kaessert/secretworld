@@ -53,8 +53,7 @@ class TestAIWorldDeadEndPrevention:
             call_count[0] += 1
             opposites = {
                 "north": "south", "south": "north",
-                "east": "west", "west": "east",
-                "up": "down", "down": "up"
+                "east": "west", "west": "east"
             }
 
             if source_location is None:

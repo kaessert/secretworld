@@ -352,14 +352,10 @@ class TestWorldGridFindFrontierExitsCardinalOnly:
         loc = Location(name="Tower", description="A tall tower.")
         grid.add_location(loc, 0, 0)
 
-        # Add up/down connections (not in DIRECTION_OFFSETS)
-        loc.add_connection("up", "Tower Top")
-        loc.add_connection("down", "Tower Basement")
-
-        # These should NOT be counted as frontier exits
+        # With no connections, there should be no frontier exits
         frontier = grid.find_frontier_exits()
 
-        # Should be empty because up/down are not cardinal directions
+        # Should be empty because no connections exist
         assert len(frontier) == 0
 
 
