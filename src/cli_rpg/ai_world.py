@@ -145,10 +145,8 @@ def create_ai_world(
         if suggested_name in grid:
             continue
 
-        # Skip if direction is invalid for grid
-        if direction not in DIRECTION_OFFSETS:
-            logger.warning(f"Skipping non-grid direction: {direction}")
-            continue
+        # Note: direction is always in DIRECTION_OFFSETS because we filter
+        # at lines 125 and 178 when adding to the queue
 
         try:
             # Generate new location

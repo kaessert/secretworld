@@ -277,3 +277,21 @@ def test_ai_config_defaults_to_openai_provider():
     config = AIConfig(api_key="test-key")
 
     assert config.provider == "openai"
+
+
+# Test: AI_PROVIDER=anthropic explicit selection (coverage for ai_config.py:301-302)
+def test_ai_config_from_env_explicit_anthropic_provider_selection(monkeypatch):
+    """Test AI_PROVIDER=anthropic selects Anthropic when both keys are set.
+
+    Spec: Covers lines 301-302 in ai_config.py where AI_PROVIDER=anthropic
+    explicitly selects the Anthropic provider.
+    """
+    monkeypatch.setenv("OPENAI_API_KEY", "openai-test-key")
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "anthropic-test-key")
+    monkeypatch.setenv("AI_PROVIDER", "anthropic")
+
+    config = AIConfig.from_env()
+
+    assert config.api_key == "anthropic-test-key"
+    assert config.provider == "anthropic"
+    assert config.model == "claude-3-5-sonnet-latest"

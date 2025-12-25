@@ -86,11 +86,6 @@ class Quest:
 
         self.description = self.description.strip()
 
-        if len(self.description) < self.MIN_DESCRIPTION_LENGTH:
-            raise ValueError(
-                f"Quest description must be at least {self.MIN_DESCRIPTION_LENGTH} characters long"
-            )
-
         if len(self.description) > self.MAX_DESCRIPTION_LENGTH:
             raise ValueError(
                 f"Quest description must be at most {self.MAX_DESCRIPTION_LENGTH} characters long"

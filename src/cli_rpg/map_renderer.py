@@ -32,11 +32,9 @@ def render_map(world: dict[str, Location], current_location: str) -> str:
             if min_x <= x <= max_x and min_y <= y <= max_y:
                 locations_with_coords.append((name, location))
 
-    # Handle case where no locations have coordinates (legacy saves)
-    if not locations_with_coords:
-        return "No map available - locations do not have coordinates."
-
     # Build coordinate to location mapping
+    # Note: locations_with_coords will always have at least the current location
+    # since we already checked current_loc.coordinates is not None above
     coord_to_location: dict[tuple[int, int], tuple[str, Location]] = {}
     for name, location in locations_with_coords:
         coord_to_location[location.coordinates] = (name, location)

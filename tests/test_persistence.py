@@ -390,6 +390,26 @@ class TestDeleteSave:
             os.chmod(filepath, 0o644)
 
 
+    def test_delete_save_race_condition_file_not_found(self, sample_character, temp_save_dir):
+        """Test: Race condition where file deleted between exists check and unlink.
+
+        Spec: Covers line 233 in persistence.py - FileNotFoundError during unlink
+        returns False gracefully.
+        """
+        from unittest.mock import patch
+
+        filepath = save_character(sample_character, temp_save_dir)
+        assert Path(filepath).exists()
+
+        # Mock unlink to raise FileNotFoundError simulating race condition
+        # where file is deleted between the exists() check and the unlink() call
+        with patch.object(Path, 'unlink', side_effect=FileNotFoundError("Race condition")):
+            result = delete_save(filepath)
+
+        # Should return False (same behavior as file not found)
+        assert result is False
+
+
 class TestIntegrationSaveLoad:
     """Integration tests for save/load functionality."""
     

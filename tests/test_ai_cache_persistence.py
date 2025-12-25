@@ -357,6 +357,74 @@ def test_cache_saved_after_each_response(mock_openai_class, temp_cache_file, moc
     assert len(cache_data) == 2
 
 
+# Test: cache load returns early when file does not exist (coverage for ai_service.py:446-447)
+@patch('cli_rpg.ai_service.OpenAI')
+def test_cache_load_returns_early_when_file_not_exists(mock_openai_class, temp_cache_dir):
+    """Test that _load_cache_from_file returns early when cache file doesn't exist.
+
+    Spec: Covers lines 446-447 in ai_service.py - early return when cache file
+    path is set but the file does not exist on disk.
+    """
+    mock_client = Mock()
+    mock_openai_class.return_value = mock_client
+
+    # Use a cache file path that doesn't exist
+    nonexistent_cache_file = os.path.join(temp_cache_dir, "does_not_exist.json")
+
+    config = AIConfig(
+        api_key="test-key",
+        enable_caching=True,
+        cache_file=nonexistent_cache_file,
+        retry_delay=0.1
+    )
+
+    # Service should initialize without error - _load_cache_from_file returns early
+    service = AIService(config)
+
+    # Cache should be empty (nothing was loaded)
+    assert len(service._cache) == 0
+
+    # File should still not exist (we didn't write anything yet)
+    assert not os.path.exists(nonexistent_cache_file)
+
+
+# Test: cache load and save returns early when cache_file is empty string (coverage for ai_service.py:443, 475)
+@patch('cli_rpg.ai_service.OpenAI')
+def test_cache_returns_early_when_cache_file_empty_string(mock_openai_class, mock_openai_response):
+    """Test that cache functions return early when cache_file is empty string.
+
+    Spec: Covers lines 443 and 475 in ai_service.py - early return when cache_file
+    is an empty string (falsy but not None).
+    """
+    mock_client = Mock()
+    mock_openai_class.return_value = mock_client
+
+    mock_response = Mock()
+    mock_response.choices = [Mock()]
+    mock_response.choices[0].message.content = json.dumps(mock_openai_response)
+    mock_client.chat.completions.create.return_value = mock_response
+
+    # Explicitly set cache_file to empty string while enabling caching
+    # This triggers the early return check at lines 443 and 475
+    config = AIConfig(
+        api_key="test-key",
+        enable_caching=True,
+        cache_file="",  # Empty string - triggers "if not cache_file: return"
+        retry_delay=0.1
+    )
+
+    # Service should initialize without error - _load_cache_from_file returns early
+    service = AIService(config)
+
+    # Cache should be empty (nothing was loaded)
+    assert len(service._cache) == 0
+
+    # Should be able to generate and cache in-memory without file I/O errors
+    result = service.generate_location(theme="fantasy")
+    assert result is not None
+    assert "name" in result
+
+
 # Test: list caching (for generate_area) persists to disk
 @patch('cli_rpg.ai_service.OpenAI')
 def test_list_cache_persists_to_disk(mock_openai_class, temp_cache_file):
