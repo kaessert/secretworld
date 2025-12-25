@@ -1,62 +1,9 @@
-# Implementation Plan: Whisper System (MVP)
+"""Whisper system for ambient narrative hints.
 
-## Spec
-
-Add an ambient whisper system that displays random narrative hints when entering locations:
-
-**Core Behavior**:
-- When player enters a location, there's a 30% chance a whisper appears
-- Whispers are displayed in a distinctive styled box after the location description
-- Whisper content is based on location category (town, dungeon, wilderness, etc.)
-
-**Whisper Types**:
-1. **Ambient whispers**: Atmospheric text based on location type/theme
-2. **Player-history-aware whispers**: Reference player's stats or past actions (e.g., high kill count, gold, level)
-
-**Display Format**:
-```
-[Whisper]: "The stones here remember ancient sorrows..."
-```
-
-**Design Constraints**:
-- Self-contained module (`whisper.py`) - no changes to core game mechanics
-- Works with or without AI service (template fallback)
-- Optional AI-generated whispers when AI service is available
-
-## Tests (TDD)
-
-Create `tests/test_whisper.py`:
-
-### 1. WhisperService tests
-- `test_whisper_service_creation`: Service initializes with optional AI
-- `test_get_whisper_returns_string_or_none`: Returns whisper text or None
-- `test_whisper_chance_respected`: ~30% trigger rate (statistical test)
-- `test_whisper_based_on_location_category`: Different categories get thematic whispers
-
-### 2. Template whisper tests
-- `test_town_whispers_thematic`: Town locations get town-related whispers
-- `test_dungeon_whispers_thematic`: Dungeon locations get dark/dangerous whispers
-- `test_wilderness_whispers_thematic`: Wilderness gets nature-themed whispers
-- `test_fallback_whisper_for_unknown_category`: Generic whisper for unmapped categories
-
-### 3. Player-history-aware whisper tests
-- `test_high_gold_whisper`: Player with 500+ gold gets wealth-related whispers
-- `test_high_level_whisper`: Level 5+ player gets recognition whispers
-- `test_low_health_whisper`: Player below 30% health gets warning whispers
-- `test_player_history_whisper_probability`: History whispers are rarer (10% of whispers)
-
-### 4. Integration tests
-- `test_whisper_displayed_on_location_entry`: Whisper appears after move
-- `test_whisper_formatted_correctly`: Output has correct style/prefix
-- `test_no_whisper_during_combat`: Whispers disabled during combat
-
-## Implementation Steps
-
-### Step 1: Create whisper module
-**File**: `src/cli_rpg/whisper.py`
-
-```python
-"""Whisper system for ambient narrative hints."""
+The whisper system displays random narrative hints when entering locations.
+Whispers are triggered with a 30% chance and are based on location category
+or player history.
+"""
 
 import random
 from typing import Optional, TYPE_CHECKING
@@ -132,6 +79,11 @@ class WhisperService:
     """Service for generating ambient whispers."""
 
     def __init__(self, ai_service: Optional["AIService"] = None):
+        """Initialize the whisper service.
+
+        Args:
+            ai_service: Optional AI service for dynamic whisper generation
+        """
         self.ai_service = ai_service
 
     def get_whisper(
@@ -171,13 +123,33 @@ class WhisperService:
         return self._get_template_whisper(location_category)
 
     def _get_template_whisper(self, category: Optional[str]) -> str:
-        """Get a random template whisper for the location category."""
+        """Get a random template whisper for the location category.
+
+        Args:
+            category: Location category (town, dungeon, etc.)
+
+        Returns:
+            A random whisper string from the category templates
+        """
         whispers = CATEGORY_WHISPERS.get(category or "default", CATEGORY_WHISPERS["default"])
         return random.choice(whispers)
 
     def _get_player_history_whisper(self, character: "Character") -> Optional[str]:
-        """Get a whisper based on player's history/stats."""
-        # Check various conditions
+        """Get a whisper based on player's history/stats.
+
+        Checks various conditions in priority order:
+        1. High gold (500+)
+        2. High level (5+)
+        3. Low health (<30%)
+        4. Many kills (10+)
+
+        Args:
+            character: The player character
+
+        Returns:
+            A history-aware whisper string, or None if no conditions match
+        """
+        # Check various conditions in priority order
         if character.gold >= 500:
             return random.choice(PLAYER_HISTORY_WHISPERS["high_gold"])
         if character.level >= 5:
@@ -191,11 +163,24 @@ class WhisperService:
         return None
 
     def _generate_ai_whisper(self, category: Optional[str], theme: str) -> str:
-        """Generate an AI whisper (requires ai_service)."""
+        """Generate an AI whisper (requires ai_service).
+
+        Args:
+            category: Location category for context
+            theme: World theme for generation
+
+        Raises:
+            NotImplementedError: AI whisper generation not yet implemented
+        """
         # Simple prompt - can be enhanced later
-        prompt = f"Generate a single atmospheric whisper (one sentence) for a {category or 'mysterious'} location in a {theme} world. The whisper should be evocative and hint at hidden secrets or atmosphere. Return only the whisper text, no quotes."
-        # Use AI service's raw completion method if available
+        prompt = (
+            f"Generate a single atmospheric whisper (one sentence) for a "
+            f"{category or 'mysterious'} location in a {theme} world. "
+            f"The whisper should be evocative and hint at hidden secrets or atmosphere. "
+            f"Return only the whisper text, no quotes."
+        )
         # For now, fall back to template
+        # AI generation can be implemented when the AI service supports raw completion
         raise NotImplementedError("AI whisper generation not yet implemented")
 
 
@@ -206,50 +191,7 @@ def format_whisper(whisper_text: str) -> str:
         whisper_text: The whisper text
 
     Returns:
-        Formatted whisper with styling
+        Formatted whisper with styling and [Whisper]: prefix
     """
     from cli_rpg import colors
     return colors.colorize(f'[Whisper]: "{whisper_text}"', colors.MAGENTA)
-```
-
-### Step 2: Integrate into game_state.py move()
-**File**: `src/cli_rpg/game_state.py`
-
-Add whisper display after successful location entry:
-
-```python
-# Near imports
-from cli_rpg.whisper import WhisperService, format_whisper
-
-# In GameState.__init__:
-self.whisper_service = WhisperService(ai_service=ai_service)
-
-# In move() method, after message construction but before encounter check:
-# Check for whisper
-location = self.get_current_location()
-whisper = self.whisper_service.get_whisper(
-    location_category=location.category,
-    character=self.current_character,
-    theme=self.theme
-)
-if whisper:
-    message += f"\n\n{format_whisper(whisper)}"
-```
-
-### Step 3: Write tests
-**File**: `tests/test_whisper.py`
-
-Write all tests as specified in the Tests section above.
-
-## Verification
-
-```bash
-# Run whisper tests
-pytest tests/test_whisper.py -v
-
-# Run all tests to ensure no regressions
-pytest
-
-# Check coverage
-pytest --cov=src/cli_rpg tests/test_whisper.py
-```

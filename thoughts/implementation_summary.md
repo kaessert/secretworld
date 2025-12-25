@@ -1,82 +1,96 @@
-# Implementation Summary: Buff/Debuff Status Effects
+# Implementation Summary: Whisper System (MVP)
 
 ## What Was Implemented
 
-Added buff and debuff status effects to the combat system that modify attack power and defense.
+Added an ambient whisper system that displays random narrative hints when entering locations.
 
 ### Features
 
-**Buff Effects** (enhance stats):
-- **buff_attack**: Increases attack power by percentage (e.g., +25%)
-- **buff_defense**: Increases defense by percentage (e.g., +25%)
+**Core Behavior**:
+- 30% chance of whisper appearing when player enters a location
+- Whispers displayed in distinctive styled box with `[Whisper]: "..."` format
+- Whisper content based on location category (town, dungeon, wilderness, etc.)
+- No whispers during combat
 
-**Debuff Effects** (weaken targets):
-- **debuff_attack**: Reduces attack power by percentage (e.g., -25% for Weakness)
-- **debuff_defense**: Reduces defense by percentage (e.g., -25% for Vulnerability)
+**Whisper Types**:
+1. **Category-based whispers**: Atmospheric text based on location type
+   - town: Cobblestones, forge fires, rusty hinges
+   - dungeon: Darkness, dampness, ancient warnings
+   - wilderness: Wind whispers, nature reclamation
+   - ruins: Echoes, broken stones, centuries of dust
+   - cave: Dripping water, absolute darkness, ancient sleepers
+   - forest: Leaning trees, light shafts, forest memory
+   - default: Strange feelings, different air, not alone
 
-**Mechanics**:
-- Effects use `stat_modifier` field (percentage as decimal, e.g., 0.25 = 25%)
-- Multiple effects of the same type stack additively (two +25% buffs = +50%)
-- Duration-based (decrements each turn like existing DOT effects)
-- Buffs/debuffs are cleared at combat end
-- Fully serializable for save/load functionality
+2. **Player-history-aware whispers** (10% of whispers when conditions met):
+   - High gold (500+): Wealth-related warnings
+   - High level (5+): Recognition whispers
+   - Low health (<30%): Warning about pushing too far
+   - Many kills (10+): References to fallen enemies
+
+**Display Format**:
+```
+[Whisper]: "The stones here remember ancient sorrows..."
+```
+
+### Files Created
+
+1. **`src/cli_rpg/whisper.py`** - Self-contained whisper module
+   - `WhisperService` class with optional AI service support
+   - `get_whisper()` method with 30% trigger chance
+   - Template whispers by category (`CATEGORY_WHISPERS` dict)
+   - Player history whispers (`PLAYER_HISTORY_WHISPERS` dict)
+   - `format_whisper()` helper for styled output
+   - AI whisper generation stub (for future implementation)
+
+2. **`tests/test_whisper.py`** - Comprehensive test suite with 20 tests
+   - WhisperService creation tests (2 tests)
+   - get_whisper return type and probability tests (2 tests)
+   - Category-based whisper tests (5 tests)
+   - Player-history-aware whisper tests (5 tests)
+   - Format whisper tests (2 tests)
+   - GameState integration tests (4 tests)
 
 ### Files Modified
 
-1. **`src/cli_rpg/models/status_effect.py`**
-   - Added `stat_modifier: float = 0.0` field to StatusEffect dataclass
-   - Updated docstring with new effect types
-   - Updated `to_dict()` to include stat_modifier
-   - Updated `from_dict()` to restore stat_modifier (with backward compatibility)
-
-2. **`src/cli_rpg/models/character.py`**
-   - Added `_get_stat_modifier(buff_type, debuff_type)` helper method
-   - Modified `get_attack_power()` to apply buff_attack/debuff_attack modifiers
-   - Modified `get_defense()` to apply buff_defense/debuff_defense modifiers
-
-3. **`src/cli_rpg/models/enemy.py`**
-   - Added `_get_stat_modifier(buff_type, debuff_type)` helper method
-   - Modified `calculate_damage()` to apply buff_attack/debuff_attack modifiers
-   - Added `get_defense()` method to apply buff_defense/debuff_defense modifiers
-
-4. **`tests/test_status_effects.py`**
-   - Added 17 new tests for buff/debuff functionality:
-     - `TestBuffDebuffStatusEffect`: 5 tests for StatusEffect model
-     - `TestCharacterBuffDebuff`: 6 tests for Character buff/debuff
-     - `TestEnemyBuffDebuff`: 3 tests for Enemy buff/debuff
-     - `TestCombatBuffDebuff`: 3 tests for combat integration
-   - Updated existing serialization test to include stat_modifier
+1. **`src/cli_rpg/game_state.py`**
+   - Added import: `from cli_rpg.whisper import WhisperService, format_whisper`
+   - Added `self.whisper_service = WhisperService(ai_service=ai_service)` in `__init__`
+   - Added whisper check in `move()` method after exploration quest progress, before encounter
 
 ## Test Results
 
 ```
-pytest tests/test_status_effects.py -v
-============================== 75 passed ==============================
+pytest tests/test_whisper.py -v
+============================== 20 passed ==============================
 
 pytest
-============================== 1807 passed ==============================
+============================== 1827 passed ==============================
 ```
 
-All 17 new buff/debuff tests pass, and the full test suite (1807 tests) passes without regressions.
+All 20 new whisper tests pass, and the full test suite (1827 tests) passes without regressions.
 
 ## E2E Validation Suggestions
 
 To manually verify in-game:
-1. Create a game and enter combat
-2. Apply a strength buff to the player (would need a consumable or spell that applies it)
-3. Verify attack damage increases by the expected percentage
-4. Apply a weakness debuff to an enemy
-5. Verify enemy deals reduced damage
-
-Note: Currently there are no in-game sources that apply these effects. Future work could add:
-- Consumable items that grant buffs (e.g., "Strength Potion")
-- Enemy abilities that apply debuffs to the player
-- Spell effects that apply debuffs to enemies
+1. Start a new game or load an existing save
+2. Move between locations repeatedly (use `go north`, `go south`, etc.)
+3. About 30% of moves should display a whisper message
+4. Whispers should be themed based on location category:
+   - Towns: mentions of cobblestones, forge fires, etc.
+   - Forests/wilderness: nature themes
+   - Dungeons/caves: darkness, danger themes
+5. With high gold (500+), some whispers may mention wealth
+6. At low health, some whispers may warn about pushing too far
 
 ## Design Decisions
 
-1. **Additive Stacking**: Multiple buffs/debuffs stack additively rather than multiplicatively. Two +25% buffs result in +50%, not +56.25%. This is simpler to understand and balance.
+1. **Self-contained module**: The whisper system is fully encapsulated in `whisper.py` with no changes to core game mechanics. Integration is minimal - just service initialization and a check in `move()`.
 
-2. **Stat Modifier as Percentage**: The `stat_modifier` field represents the percentage change (0.25 = 25%). Buffs add this value, debuffs subtract it. This allows flexible modifier amounts.
+2. **Template-first approach**: Uses template whispers with optional AI enhancement. This ensures whispers work reliably even without AI service.
 
-3. **Backward Compatibility**: The `stat_modifier` field defaults to 0.0, and `from_dict()` uses `.get()` with a default, ensuring old save files without this field still load correctly.
+3. **No whispers during combat**: The system explicitly checks `is_in_combat()` to avoid distracting whispers during battle.
+
+4. **Player history priority**: When player history whispers trigger (10% chance), conditions are checked in priority order: gold > level > health > kills. This ensures the most relevant whisper appears.
+
+5. **Graceful AI fallback**: If AI service is provided but fails, the system silently falls back to templates without exposing errors to the player.

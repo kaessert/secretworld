@@ -2,7 +2,9 @@
   "permissions": {
     "allow": [
       "Bash(export:*)",
-      "Bash(python:*)"
+      "Bash(python:*)",
+      "Bash(source venv/bin/activate)",
+      "Bash(cli-rpg:*)"
     ]
   }
 }

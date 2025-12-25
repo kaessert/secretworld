@@ -16,6 +16,7 @@ from cli_rpg.combat import (
 )
 from cli_rpg.autosave import autosave
 from cli_rpg import colors
+from cli_rpg.whisper import WhisperService, format_whisper
 
 # Import AI components (with optional support)
 try:
@@ -174,6 +175,7 @@ class GameState:
         self.current_combat: Optional[CombatEncounter] = None
         self.current_shop: Optional[Shop] = None  # Active shop interaction
         self.current_npc: Optional[NPC] = None  # NPC being talked to (for accept command)
+        self.whisper_service = WhisperService(ai_service=ai_service)
 
     @property
     def is_in_conversation(self) -> bool:
@@ -414,6 +416,17 @@ class GameState:
         explore_messages = self.current_character.record_explore(self.current_location)
         for msg in explore_messages:
             message += f"\n{msg}"
+
+        # Check for ambient whisper (only when not in combat)
+        if not self.is_in_combat():
+            location = self.get_current_location()
+            whisper = self.whisper_service.get_whisper(
+                location_category=location.category,
+                character=self.current_character,
+                theme=self.theme
+            )
+            if whisper:
+                message += f"\n\n{format_whisper(whisper)}"
 
         # Check for random encounter
         encounter_message = self.trigger_encounter(self.current_location)

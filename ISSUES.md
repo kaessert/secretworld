@@ -9,6 +9,7 @@ These features would elevate the game from "good CLI RPG" to "unforgettable expe
 
 #### 1. THE WHISPER SYSTEM - Ambient Narrative Layer
 **Impact**: Creates atmosphere and wonder
+**Status**: MVP IMPLEMENTED
 
 The world *speaks* to observant players through subtle environmental cues:
 
@@ -23,10 +24,16 @@ You enter the Forgotten Chapel...
 [Whisper]: "The stones here remember a prayer never finished..."
 ```
 
-- **Ambient whispers** appear randomly based on location, time, player history
+**MVP Implemented**:
+- ✅ **Ambient whispers** appear randomly (30% chance) when entering locations
+- ✅ **Category-based whispers**: Themed text based on location type (town, dungeon, wilderness, ruins, cave, forest)
+- ✅ **Player-specific**: Whispers reference player history (high gold, high level, low health, many kills)
+- ✅ No whispers during combat
+
+**Future Enhancements**:
 - **Hidden lore fragments** revealed to players who `look` multiple times or `wait`
 - **Foreshadowing**: Whispers hint at dangers ahead, secrets nearby, or story beats
-- **Player-specific**: Whispers reference your past actions ("The shadows recognize a killer...")
+- **AI-generated whispers**: Dynamic whisper content via AI service (stub implemented)
 
 ---
 
