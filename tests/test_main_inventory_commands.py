@@ -141,3 +141,68 @@ class TestParseCommandInventory:
         cmd, args = parse_command("use health potion")
         assert cmd == "use"
         assert args == ["health", "potion"]
+
+    def test_parse_drop_command(self):
+        """Spec: 'drop' parses with item name as args."""
+        cmd, args = parse_command("drop iron sword")
+        assert cmd == "drop"
+        assert args == ["iron", "sword"]
+
+    def test_parse_drop_shorthand(self):
+        """Spec: 'dr' expands to 'drop'."""
+        cmd, args = parse_command("dr iron sword")
+        assert cmd == "drop"
+        assert args == ["iron", "sword"]
+
+
+class TestDropCommand:
+    """Tests for 'drop' command - Spec: Remove item from inventory permanently."""
+
+    def test_drop_item_success(self, game_state_with_items):
+        """Spec: 'drop <item name>' removes item from inventory."""
+        gs = game_state_with_items
+        # Verify item exists before dropping
+        potion = gs.current_character.inventory.find_item_by_name("Health Potion")
+        assert potion is not None
+
+        cont, msg = handle_exploration_command(gs, "drop", ["health", "potion"])
+        assert cont is True
+        assert "dropped" in msg.lower()
+        assert "Health Potion" in msg
+
+        # Verify item no longer in inventory
+        assert gs.current_character.inventory.find_item_by_name("Health Potion") is None
+
+    def test_drop_item_not_found(self, game_state_with_items):
+        """Spec: Error message when item doesn't exist in inventory."""
+        cont, msg = handle_exploration_command(game_state_with_items, "drop", ["nonexistent"])
+        assert cont is True
+        assert "don't have" in msg.lower() or "not found" in msg.lower()
+
+    def test_drop_no_args(self, game_state_with_items):
+        """Spec: Error when no item name specified."""
+        cont, msg = handle_exploration_command(game_state_with_items, "drop", [])
+        assert cont is True
+        assert "what" in msg.lower() or "specify" in msg.lower()
+
+    def test_drop_equipped_weapon(self, game_state_with_items):
+        """Spec: Cannot drop equipped weapon - must unequip first."""
+        gs = game_state_with_items
+        sword = gs.current_character.inventory.find_item_by_name("Iron Sword")
+        gs.current_character.inventory.equip(sword)
+
+        cont, msg = handle_exploration_command(gs, "drop", ["iron", "sword"])
+        assert cont is True
+        assert "equipped" in msg.lower()
+        assert "unequip" in msg.lower()
+
+    def test_drop_equipped_armor(self, game_state_with_items):
+        """Spec: Cannot drop equipped armor - must unequip first."""
+        gs = game_state_with_items
+        armor = gs.current_character.inventory.find_item_by_name("Leather Armor")
+        gs.current_character.inventory.equip(armor)
+
+        cont, msg = handle_exploration_command(gs, "drop", ["leather", "armor"])
+        assert cont is True
+        assert "equipped" in msg.lower()
+        assert "unequip" in msg.lower()

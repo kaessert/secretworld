@@ -28,6 +28,7 @@ def get_command_reference() -> str:
         "  equip (e) <item>   - Equip a weapon or armor from inventory",
         "  unequip <slot>     - Unequip weapon or armor (slot: weapon/armor)",
         "  use (u) <item>     - Use a consumable item",
+        "  drop (dr) <item>   - Drop an item from your inventory",
         "  talk (t) <npc>     - Talk to an NPC",
         "  accept <quest>     - Accept a quest from the current NPC",
         "  complete <quest>   - Turn in a completed quest to the current NPC",
@@ -573,6 +574,31 @@ def handle_exploration_command(game_state: GameState, command: str, args: list[s
         game_state.current_character.add_gold(sell_price)
         autosave(game_state)
         return (True, f"\nYou sold {item.name} for {sell_price} gold.")
+
+    elif command == "drop":
+        if not args:
+            return (True, "\nDrop what? Specify an item name.")
+        item_name = " ".join(args)
+        item = game_state.current_character.inventory.find_item_by_name(item_name)
+        if item is None:
+            # Check if item is equipped
+            inv = game_state.current_character.inventory
+            item_name_lower = item_name.lower()
+            if inv.equipped_weapon and inv.equipped_weapon.name.lower() == item_name_lower:
+                return (
+                    True,
+                    f"\nYou can't drop {inv.equipped_weapon.name} because it's equipped. "
+                    "Unequip it first with 'unequip weapon'.",
+                )
+            if inv.equipped_armor and inv.equipped_armor.name.lower() == item_name_lower:
+                return (
+                    True,
+                    f"\nYou can't drop {inv.equipped_armor.name} because it's equipped. "
+                    "Unequip it first with 'unequip armor'.",
+                )
+            return (True, f"\nYou don't have '{item_name}' in your inventory.")
+        game_state.current_character.inventory.remove_item(item)
+        return (True, f"\nYou dropped {item.name}.")
 
     elif command == "accept":
         # Accept a quest from the current NPC
