@@ -1,85 +1,132 @@
-# Implementation Plan: Critical Hits and Miss Chances
+# Implementation Plan: Unique Map Location Symbols
+
+## Problem
+The map command shows all non-current locations with the same `•` symbol, making it impossible to distinguish between locations in the legend and on the map grid.
+
+## Solution
+Assign unique letter symbols (A-Z) to each location in both the map grid and legend, preserving special markers for the current location (`@`) and blocked cells (`█`).
+
+---
 
 ## Spec
 
-Add critical hit and miss mechanics to combat based on player/enemy stats:
+1. **Symbol Assignment**: Non-current locations get unique letters A-Z in alphabetical order by name
+2. **Player Marker**: Current location remains `@` (cyan, bold)
+3. **Category Icons**: Category icons (🏠, 🌲, etc.) move to legend only, not displayed on map grid
+4. **Legend Format**: `A = 🏠 Town Square` (letter symbol, then category icon if present, then name)
+5. **Capacity**: Support 26 locations (A-Z); if exceeded, wrap to lowercase a-z (52 total)
 
-**Critical Hits (Player)**:
-- Base crit chance: 5%
-- DEX bonus: +1% per point (capped at +15% from DEX)
-- On crit: 1.5x damage with special message
-- Formula: `crit_chance = min(5 + player.dexterity, 20)`
+---
 
-**Miss Chance (Enemy attacks player)**:
-- Base miss chance: 5%
-- Player DEX bonus: +0.5% per point (capped at +10% from DEX)
-- On miss: 0 damage with dodge message
-- Formula: `dodge_chance = min(5 + player.dexterity // 2, 15)`
+## Tests (in `tests/test_map_renderer.py`)
 
-**Critical Hits (Enemy)**:
-- Flat 5% crit chance for enemies
-- On crit: 1.5x damage with special message
-
-## Tests First (TDD)
-
-Add to `tests/test_combat.py`:
-
-1. `TestCriticalHits` class:
-   - `test_player_attack_can_crit_with_high_dex` - DEX 20 player crits more often (statistical)
-   - `test_player_crit_deals_1_5x_damage` - Verify damage formula on crit
-   - `test_player_crit_message_includes_critical` - "critical" in message
-   - `test_player_cast_can_crit` - Magic attacks can also crit (INT-based crit for cast)
-
-2. `TestMissChance` class:
-   - `test_enemy_attack_can_miss_high_dex_player` - High DEX player dodges sometimes
-   - `test_enemy_miss_deals_zero_damage` - Verify no damage on miss
-   - `test_enemy_miss_message_includes_dodge_or_miss` - Appropriate message
-
-3. `TestEnemyCriticalHits` class:
-   - `test_enemy_attack_can_crit` - Enemy can deal critical damage
-   - `test_enemy_crit_deals_1_5x_damage` - Verify 1.5x multiplier
-
-## Implementation
-
-### File: `src/cli_rpg/combat.py`
-
-1. Add helper functions after line ~100 (after `strip_leading_name`):
+### New tests to add:
 
 ```python
-def calculate_crit_chance(dexterity: int) -> float:
-    """Calculate critical hit chance based on dexterity.
+class TestUniqueLocationSymbols:
+    """Tests for unique letter symbols per location."""
 
-    Formula: 5% base + 1% per DEX point, capped at 20%.
-    """
-    return min(5 + dexterity, 20) / 100.0
+    def test_unique_symbols_assigned_to_locations(self):
+        """Each non-current location gets a unique letter symbol A-Z."""
+        world = {
+            "Town": Location("Town", "A town", {}, coordinates=(0, 0)),
+            "Forest": Location("Forest", "A forest", {}, coordinates=(1, 0)),
+            "Cave": Location("Cave", "A cave", {}, coordinates=(2, 0)),
+        }
+        result = render_map(world, "Town")
+        # Cave and Forest get A/B in alphabetical order
+        assert "A = Cave" in result or "A =" in result and "Cave" in result
+        assert "B = Forest" in result or "B =" in result and "Forest" in result
 
-def calculate_dodge_chance(dexterity: int) -> float:
-    """Calculate dodge chance based on dexterity.
+    def test_legend_shows_category_icon_with_letter(self):
+        """Legend shows letter + category icon + name."""
+        world = {
+            "Town": Location("Town", "A town", {}, coordinates=(0, 0), category="town"),
+            "Forest": Location("Forest", "A forest", {}, coordinates=(1, 0), category="forest"),
+        }
+        result = render_map(world, "Town")
+        # Legend should show "A = 🌲 Forest"
+        assert "🌲" in result and "Forest" in result
 
-    Formula: 5% base + 0.5% per DEX point, capped at 15%.
-    """
-    return min(5 + dexterity // 2, 15) / 100.0
+    def test_map_grid_uses_letters_not_category_icons(self):
+        """Map grid shows letters, not category emoji icons."""
+        world = {
+            "Town": Location("Town", "A town", {}, coordinates=(0, 0), category="town"),
+            "Forest": Location("Forest", "A forest", {}, coordinates=(1, 0), category="forest"),
+        }
+        result = render_map(world, "Town")
+        grid_section = result.split("Legend:")[0]
+        # Grid should have letters, not emoji for non-current locations
+        assert "🌲" not in grid_section
+        assert "A" in grid_section
 
-ENEMY_CRIT_CHANCE = 0.05  # Flat 5% crit chance for enemies
-CRIT_MULTIPLIER = 1.5
+    def test_symbol_consistent_between_legend_and_grid(self):
+        """Same letter appears in both legend and grid for each location."""
+        world = {
+            "Alpha": Location("Alpha", "First", {}, coordinates=(0, 0)),
+            "Beta": Location("Beta", "Second", {}, coordinates=(0, 1)),
+        }
+        result = render_map(world, "Alpha")
+        grid_section = result.split("Legend:")[0]
+        # Beta should be A, and A should appear in grid
+        assert "A = Beta" in result
+        assert "A" in grid_section
 ```
 
-2. Modify `player_attack()` (~line 479):
-   - After calculating `dmg`, check for crit
-   - Roll random, if <= crit_chance, multiply damage by 1.5
-   - Modify message to include "CRITICAL HIT!"
+---
 
-3. Modify `player_cast()` (~line 610):
-   - Add crit check using INT instead of DEX
-   - Same crit multiplier and messaging
+## Implementation Steps
 
-4. Modify `enemy_turn()` (~line 706):
-   - Before applying damage, check for player dodge (based on player DEX)
-   - If dodge, set damage to 0 and show dodge message
-   - If not dodge, check for enemy crit (flat 5%)
-   - If crit, multiply damage by 1.5 and show crit message
+### Step 1: Modify `render_map()` in `src/cli_rpg/map_renderer.py`
+
+1. **Add symbol assignment after collecting locations** (~line 103):
+   ```python
+   # Assign unique letter symbols to non-current locations (alphabetical by name)
+   SYMBOLS = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz"
+   sorted_names = sorted(name for name, _ in locations_with_coords if name != current_location)
+   location_symbols = {name: SYMBOLS[i] for i, name in enumerate(sorted_names) if i < len(SYMBOLS)}
+   ```
+
+2. **Update legend generation** (~line 105-112):
+   ```python
+   for name, location in locations_with_coords:
+       if name == current_location:
+           legend_entries.append(f"  {colors.bold_colorize('@', colors.CYAN)} = You ({name})")
+       else:
+           symbol = location_symbols.get(name, "?")
+           category_icon = get_category_marker(location.category)
+           if category_icon and category_icon != "•":
+               legend_entries.append(f"  {symbol} = {category_icon} {name}")
+           else:
+               legend_entries.append(f"  {symbol} = {name}")
+   ```
+
+3. **Update coord_to_marker** (~line 116-122):
+   ```python
+   for name, location in locations_with_coords:
+       coords = location.coordinates
+       if name == current_location:
+           coord_to_marker[coords] = "@"
+       else:
+           coord_to_marker[coords] = location_symbols.get(name, "?")
+   ```
+
+### Step 2: Update existing tests
+
+Update tests that check for category icons in the map grid to expect letters instead:
+- `test_location_markers_show_category` → check legend has icons, grid has letters
+- `test_uncategorized_location_shows_default_marker` → expect letter, not `•`
+- `test_legend_shows_category_markers` → verify new format
+
+### Step 3: Run tests
+
+```bash
+pytest tests/test_map_renderer.py -v
+```
+
+---
 
 ## Files to Modify
 
-1. `tests/test_combat.py` - Add test classes for crit/miss mechanics
-2. `src/cli_rpg/combat.py` - Add crit/dodge logic to attack methods
+1. `src/cli_rpg/map_renderer.py` - Core changes to symbol assignment and legend
+2. `tests/test_map_renderer.py` - Add new tests, update existing tests

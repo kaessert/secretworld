@@ -275,21 +275,21 @@ class TestPlayerCenteredMap:
         ansi_escape = re.compile(r"\x1b\[[0-9;]*m")
         clean_row = ansi_escape.sub("", row_y0)
 
-        # In the clean row, @ and • (uncategorized marker) should be properly spaced
+        # In the clean row, @ and A (East's letter symbol) should be properly spaced
         # With cell_width=4, markers should be right-aligned in their cells
         # The pattern should be consistent spacing between markers
 
-        # Find positions of @ and • in the cleaned row
+        # Find positions of @ and A in the cleaned row
         at_pos = clean_row.find("@")
-        marker_pos = clean_row.find("•")
+        marker_pos = clean_row.find("A")
 
         assert at_pos >= 0, "@ marker should be in the row"
-        assert marker_pos >= 0, "• marker should be in the row"
+        assert marker_pos >= 0, "A marker should be in the row"
 
-        # • is at x=1 (one cell to the right of @)
-        # With cell_width=4, • should be exactly 4 characters after @
+        # A is at x=1 (one cell to the right of @)
+        # With cell_width=4, A should be exactly 4 characters after @
         assert marker_pos - at_pos == 4, (
-            f"• should be 4 characters after @, but gap is {marker_pos - at_pos}. "
+            f"A should be 4 characters after @, but gap is {marker_pos - at_pos}. "
             f"Row: '{clean_row}'"
         )
 
@@ -391,10 +391,11 @@ class TestMapVisualImprovements:
         assert "⚔" in result, "Dungeon should show ⚔ marker"
         assert "🌲" in result, "Forest should show 🌲 marker"
 
-    def test_uncategorized_location_shows_default_marker(self):
-        """Verify uncategorized locations show the default • marker.
+    def test_uncategorized_location_shows_letter_marker(self):
+        """Verify uncategorized locations show unique letter markers.
 
-        Spec: Locations without a category should show • instead of first letter
+        Spec: All non-current locations show letter symbols A-Z on the map grid,
+        with the legend showing just the letter and name for uncategorized locations.
         """
         world = {
             "Center": Location("Center", "Center location", {}, coordinates=(0, 0)),
@@ -404,8 +405,11 @@ class TestMapVisualImprovements:
         }
         result = render_map(world, "Center")
 
-        # The Nearby location should show • marker (not "N")
-        assert "•" in result, "Uncategorized location should show • marker"
+        # The Nearby location should show "A" marker on the map (letter symbol)
+        grid_section = result.split("Legend:")[0]
+        assert "A" in grid_section, "Uncategorized location should show letter marker"
+        # Legend should show "A = Nearby" (no category icon for uncategorized)
+        assert "A = Nearby" in result, "Legend should show letter = name for uncategorized"
 
     def test_legend_vertical_format(self):
         """Verify legend entries are displayed on separate lines.
@@ -450,9 +454,10 @@ class TestMapVisualImprovements:
         )
 
     def test_legend_shows_category_markers(self):
-        """Verify legend entries show category markers next to location names.
+        """Verify legend entries show letter + category markers next to location names.
 
-        Spec: Legend format should be "  🏠 Town Name" for categorized locations
+        Spec: Legend format should be "A = 🏪 Shop" for categorized locations
+        (letter symbol + category icon + name).
         """
         world = {
             "Town Square": Location(
@@ -467,9 +472,9 @@ class TestMapVisualImprovements:
         # Check that legend contains category markers
         # Current location (Town Square) shows with @ marker
         assert "@ = You (Town Square)" in result, "Legend should show player location with @"
-        # Other locations show their category markers
-        assert "🏪 = Shop" in result or "🏪  Shop" in result, (
-            "Legend should show shop with 🏪 marker"
+        # Other locations show letter + category icon + name
+        assert "A = 🏪 Shop" in result, (
+            "Legend should show letter + category icon + name"
         )
 
 
@@ -588,10 +593,11 @@ class TestEmojiAlignment:
         )
 
     def test_no_visual_overlap_between_cells(self):
-        """Verify adjacent emoji cells don't visually overlap.
+        """Verify adjacent letter cells don't visually overlap.
 
         Spec: Each cell should occupy exactly its allocated visual width
-        without overflowing into adjacent cells.
+        without overflowing into adjacent cells. Letter markers are used
+        instead of emoji in the grid.
         """
         import re
 
@@ -615,15 +621,16 @@ class TestEmojiAlignment:
         assert data_row is not None, "Data row y=0 should exist"
 
         # Verify both markers are present (not garbled/overlapping)
+        # @ for current location (Town), A for Forest (letter symbol)
         assert "@" in data_row, "@ marker should be visible"
-        assert "🌲" in data_row, "🌲 marker should be visible"
+        assert "A" in data_row, "A marker (for Forest) should be visible"
 
         # Verify there's at least one space between markers (no overlap)
         at_idx = data_row.find("@")
-        tree_idx = data_row.find("🌲")
-        between = data_row[at_idx + 1 : tree_idx]
+        a_idx = data_row.find("A")
+        between = data_row[at_idx + 1 : a_idx]
         assert " " in between, (
-            f"Should have space between @ and 🌲 but got: '{between}'"
+            f"Should have space between @ and A but got: '{between}'"
         )
 
 
@@ -772,3 +779,100 @@ class TestBlockedLocationMarkers:
         assert "Blocked" in result or "Wall" in result, (
             "Legend should explain blocked marker"
         )
+
+
+class TestUniqueLocationSymbols:
+    """Tests for unique letter symbols per location.
+
+    Spec: Non-current locations get unique letters A-Z in alphabetical order by name.
+    """
+
+    def test_unique_symbols_assigned_to_locations(self):
+        """Each non-current location gets a unique letter symbol A-Z.
+
+        Spec: Non-current locations get unique letters A-Z in alphabetical order by name.
+        """
+        world = {
+            "Town": Location("Town", "A town", {}, coordinates=(0, 0)),
+            "Forest": Location("Forest", "A forest", {}, coordinates=(1, 0)),
+            "Cave": Location("Cave", "A cave", {}, coordinates=(2, 0)),
+        }
+        result = render_map(world, "Town")
+        # Cave and Forest get A/B in alphabetical order
+        assert "A = Cave" in result or ("A =" in result and "Cave" in result)
+        assert "B = Forest" in result or ("B =" in result and "Forest" in result)
+
+    def test_legend_shows_category_icon_with_letter(self):
+        """Legend shows letter + category icon + name.
+
+        Spec: Legend format should be "A = 🌲 Forest" (letter + category icon + name).
+        """
+        world = {
+            "Town": Location("Town", "A town", {}, coordinates=(0, 0), category="town"),
+            "Forest": Location("Forest", "A forest", {}, coordinates=(1, 0), category="forest"),
+        }
+        result = render_map(world, "Town")
+        # Legend should show "A = 🌲 Forest"
+        assert "🌲" in result and "Forest" in result
+
+    def test_map_grid_uses_letters_not_category_icons(self):
+        """Map grid shows letters, not category emoji icons.
+
+        Spec: Category icons move to legend only, not displayed on map grid.
+        """
+        world = {
+            "Town": Location("Town", "A town", {}, coordinates=(0, 0), category="town"),
+            "Forest": Location("Forest", "A forest", {}, coordinates=(1, 0), category="forest"),
+        }
+        result = render_map(world, "Town")
+        grid_section = result.split("Legend:")[0]
+        # Grid should have letters, not emoji for non-current locations
+        assert "🌲" not in grid_section
+        assert "A" in grid_section
+
+    def test_symbol_consistent_between_legend_and_grid(self):
+        """Same letter appears in both legend and grid for each location.
+
+        Spec: Symbol assignment must be consistent between legend and grid display.
+        """
+        world = {
+            "Alpha": Location("Alpha", "First", {}, coordinates=(0, 0)),
+            "Beta": Location("Beta", "Second", {}, coordinates=(0, 1)),
+        }
+        result = render_map(world, "Alpha")
+        grid_section = result.split("Legend:")[0]
+        # Beta should be A, and A should appear in grid
+        assert "A = Beta" in result
+        assert "A" in grid_section
+
+    def test_current_location_still_uses_at_symbol(self):
+        """Player's current location uses @ marker, not a letter.
+
+        Spec: Player marker remains @ (cyan, bold).
+        """
+        world = {
+            "Town": Location("Town", "A town", {}, coordinates=(0, 0)),
+            "Forest": Location("Forest", "A forest", {}, coordinates=(1, 0)),
+        }
+        result = render_map(world, "Town")
+        # Town (current location) should have @ in legend
+        assert "@ = You (Town)" in result
+        # @ should be in the map grid
+        assert "@" in result.split("Legend:")[0]
+
+    def test_many_locations_alphabetical_order(self):
+        """Multiple locations are assigned letters in alphabetical order by name.
+
+        Spec: Non-current locations get unique letters A-Z in alphabetical order by name.
+        """
+        world = {
+            "Home": Location("Home", "Home base", {}, coordinates=(0, 0)),
+            "Zebra Zone": Location("Zebra Zone", "Z", {}, coordinates=(1, 0)),
+            "Apple Orchard": Location("Apple Orchard", "A", {}, coordinates=(2, 0)),
+            "Mountain": Location("Mountain", "M", {}, coordinates=(3, 0)),
+        }
+        result = render_map(world, "Home")
+        # Alphabetically: Apple Orchard (A), Mountain (B), Zebra Zone (C)
+        assert "A = Apple Orchard" in result or "A =" in result and "Apple Orchard" in result
+        assert "B = Mountain" in result or "B =" in result and "Mountain" in result
+        assert "C = Zebra Zone" in result or "C =" in result and "Zebra Zone" in result

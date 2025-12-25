@@ -511,62 +511,6 @@ class Location:
 - `src/cli_rpg/map_renderer.py`: Separate overworld and local map rendering
 - `src/cli_rpg/combat.py`: Check `is_safe_zone` before spawning encounters
 
-### Map locations all use same symbol - impossible to distinguish
-**Status**: ACTIVE (IMPORTANT)
-
-**Problem**: The map command shows all locations with the same bullet point symbol (`•`), making it impossible to tell which location is which:
-
-```
-  🏠 = Neon Nexus
-  • = Quantum Wasteland
-  • = Techno Tundra
-  @ = You (Neon Outpost)
-  • = Quantum Crossing
-  • = Data Canyons
-  • = Circuit Peak
-  • = Techno Plateau
-  █ = Blocked/Wall
-```
-
-Players cannot visually match legend entries to map positions when 5+ locations all share the same `•` symbol.
-
-**Required Fix**: Each location needs a UNIQUE symbol on the map:
-
-```
-  🏠 = Neon Nexus (starting town)
-  A = Quantum Wasteland
-  B = Techno Tundra
-  @ = You (Neon Outpost)
-  C = Quantum Crossing
-  D = Data Canyons
-  E = Circuit Peak
-  F = Techno Plateau
-  █ = Blocked/Wall
-```
-
-**Implementation Options**:
-
-1. **Letters (A-Z)**: Assign letters in order of discovery or alphabetically
-   - Pro: Simple, clear, 26 locations supported
-   - Con: May run out for very large worlds
-
-2. **Numbers (1-9, then letters)**: Use 1-9, then A-Z for 35 total symbols
-   - Pro: More capacity
-   - Con: Slightly less intuitive
-
-3. **Category-based symbols**: Different symbols per location type
-   - `⛺` = wilderness, `🏰` = dungeon, `🏠` = town, `🌲` = forest, `⛰` = mountain
-   - Pro: Thematic and informative
-   - Con: Still confusing if multiple locations share a category
-
-4. **Hybrid**: Category symbol + letter suffix in legend
-   - Map shows: `A`, `B`, `C`...
-   - Legend shows: `A = 🏰 Dark Dungeon`, `B = 🌲 Whispering Woods`
-
-**Files to modify**:
-- `src/cli_rpg/map_renderer.py`: Assign unique symbols to each location
-- Store symbol assignments in location or generate dynamically
-
 ### Non-interactive mode bugs
 **Status**: ACTIVE
 
@@ -741,17 +685,132 @@ Player decisions should have lasting impact on the world and story.
 - World state changes based on completed quests (e.g., saving a village makes it thrive, ignoring it leads to ruin)
 - Additional reputation types (e.g., heroic, wealthy)
 
-### Character skill and ability system
+### Character classes with unique playstyles
 **Status**: ACTIVE
 
-Combat lacks tactical depth - players just attack repeatedly. Need a skill/ability system.
+Currently all characters play the same - just different stat numbers. Need distinct classes.
 
-**Desired features**:
-- Learnable skills and abilities (e.g., Power Strike, Fireball, Heal, Stealth)
-- Skill trees or progression paths for different playstyles (warrior, mage, rogue)
-- Resource management (mana, stamina, cooldowns)
-- Passive abilities that modify gameplay
-- Skill synergies and combos
+**Classes to add**:
+- **Warrior**: High STR/CON, bonus melee damage, can `bash` to stun, unlocks heavy armor
+- **Mage**: High INT, mana pool for spells, learns `fireball`/`ice bolt`/`heal`, weak armor
+- **Rogue**: High DEX, can `sneak` past encounters, `backstab` for 3x damage from stealth, `picklock`
+- **Ranger**: Balanced, `track` enemies, bonus in wilderness, animal companion
+- **Cleric**: Healing spells, `bless` party buffs, `smite` undead, holy symbols
+
+**Implementation**: Choose class at character creation, unlocks class-specific commands and abilities.
+
+### Lockpicking & treasure chests
+**Status**: ACTIVE
+
+Locations should have locked chests/doors that reward skilled rogues.
+
+- `pick <target>` command to attempt lockpicking
+- Success based on DEX + lockpick tools + lock difficulty
+- Failure might: break lockpick, trigger trap, alert enemies, jam lock permanently
+- Chests contain gold, rare items, lore fragments
+- Some doors unlock shortcuts or secret areas
+- Lockpicks as consumable items (sold at shops, looted from rogues)
+
+### Charisma stat & social skills
+**Status**: ACTIVE
+
+Add meaningful social interactions beyond just talking.
+
+- **New stat: Charisma (CHA)** - affects prices, NPC reactions, dialogue options
+- `persuade <npc>` - convince NPCs to help (reduce prices, reveal secrets, avoid fights)
+- `intimidate <npc>` - threaten NPCs (works on weak-willed, backfires on strong)
+- `bribe <npc> <amount>` - gold solves problems (success based on amount + CHA)
+- High CHA unlocks special dialogue options marked with [CHA]
+- Some quests can be resolved through talking instead of fighting
+
+### Stealth & sneaking
+**Status**: ACTIVE
+
+Let players avoid combat through cunning.
+
+- `sneak` command to enter stealth mode (based on DEX, armor weight, light level)
+- While sneaking: reduced detection, can `backstab` for bonus damage
+- `hide` in combat to become untargetable for 1 turn (costs next action)
+- Enemies have perception stats - some are blind, some have keen senses
+- Heavy armor makes noise, light sources reveal you
+- Stealth kills grant bonus XP ("clean kill" bonus)
+
+### Perception & secret discovery
+**Status**: ACTIVE
+
+Reward observant players with hidden content.
+
+- **New stat: Perception (PER)** or use INT
+- Auto-detect secrets when entering rooms (if PER high enough)
+- `search` command to actively look for hidden things
+- Hidden doors, buried treasure, concealed switches, invisible text
+- Traps can be spotted before triggering (PER check)
+- Some NPC lies can be detected ("You sense they're not being truthful...")
+- Secret passages between locations (shortcuts)
+
+### Haggling at shops
+**Status**: ACTIVE
+
+Make shopping more interactive.
+
+- `haggle` command when buying/selling
+- Success lowers buy price or raises sell price by 10-30%
+- Based on CHA + merchant relationship + item type
+- Fail too hard = merchant refuses to trade temporarily
+- Critical success = merchant offers rare item not in normal inventory
+- Some merchants are stubborn (no haggling), others are pushovers
+- Reputation affects starting prices (hero = discount, villain = markup)
+
+### Luck stat affecting outcomes
+**Status**: ACTIVE
+
+Add controlled randomness that players can influence.
+
+- **New stat: Luck (LCK)** - subtle influence on RNG
+- Affects: crit chance, loot quality, trap avoidance, coin flip events
+- Lucky players find more gold, better drops, rarer encounters
+- Unlucky players face more traps, worse loot, harder fights
+- `pray` at temples to temporarily boost luck
+- Cursed items reduce luck, blessed items increase it
+- Some events are pure luck checks ("The bridge looks unstable...")
+
+### Camping & wilderness survival
+**Status**: ACTIVE
+
+Make long journeys more interesting than just `rest`.
+
+- `camp` command in wilderness to set up camp (uses supplies)
+- Camping: cook food (heal bonus), keep watch (avoid ambush), repair gear
+- `forage` to find food/herbs in wilderness (survival skill)
+- `hunt` to track and kill animals for meat/pelts
+- Hunger system (optional hardcore mode) - starving = stat penalties
+- Campfire reduces dread, attracts wandering NPCs (traders, storytellers)
+
+### Mana/stamina resource system
+**Status**: ACTIVE
+
+Special abilities should cost resources, not be free.
+
+- **Mana**: Powers spells (mages), regenerates on rest or potions
+- **Stamina**: Powers physical skills (warriors/rogues), regenerates each turn slowly
+- Powerful abilities cost more: `fireball` = 20 mana, `power strike` = 15 stamina
+- Running out = can only use basic attack
+- Items and food can restore resources mid-combat
+- Some enemies drain mana/stamina with attacks
+
+### Weapon proficiencies & fighting styles
+**Status**: ACTIVE
+
+Not all weapons should feel the same.
+
+- **Weapon types**: Swords, axes, maces, daggers, bows, staves
+- **Proficiency**: Using a weapon type increases skill with it
+- Higher proficiency = damage bonus, special moves, faster attacks
+- **Fighting styles** (choose one active):
+  - Aggressive: +20% damage, -10% defense
+  - Defensive: +20% defense, -10% damage
+  - Balanced: No modifier, +5% crit
+  - Berserker: Damage increases as HP drops
 
 ### Status effects and combat depth
 **Status**: ACTIVE (Partial)
@@ -902,6 +961,26 @@ Quests should be dynamically generated to keep gameplay fresh.
 - Quest chains that build on each other
 - Emergent storylines from completed quests
 
+### `cast` command gives wrong error message outside combat
+**Status**: ACTIVE
+
+**Description**: When a player uses the `cast` command (or its `c` shortcut) outside of combat, the game displays "Unknown command" instead of "Not in combat" like all other combat commands (`attack`/`a`, `defend`/`d`, `flee`/`f`).
+
+**Steps to reproduce**:
+1. Start the game
+2. When not in combat, enter `cast` or `c`
+3. Observe error message
+
+**Expected behavior**: "Not in combat." (matching other combat commands)
+
+**Actual behavior**: "Unknown command. Type 'help' for a list of commands."
+
+**Impact**: Confusing UX - users will think the `cast` command doesn't exist instead of understanding it's only available during combat. This is inconsistent with the behavior of other combat commands.
+
+**Related**: The `help` command correctly lists `cast (c)` as a combat command.
+
+---
+
 ## Resolved Issues
 
 ### `companion-quest` command missing from help output
@@ -961,4 +1040,11 @@ This check occurs before any coordinate-based movement or new location generatio
 **Description**: Players could get stuck in locations with no exits, unable to continue exploring.
 
 **Fix**: Fixed world generation to ensure all locations have at least one valid exit. Commit: 8d7f56f.
+
+### Map locations all use same symbol - impossible to distinguish
+**Status**: RESOLVED
+
+**Description**: The map command showed all locations with the same bullet point symbol (`•`), making it impossible to tell which location was which when 5+ locations all shared the same symbol.
+
+**Fix**: Each non-current location is now assigned a unique letter symbol (A-Z, then a-z for 27+ locations) in alphabetical order by name. The legend shows the letter with the category icon (if applicable), e.g., `A = 🌲 Forest`. The current player location still uses the `@` symbol. Implementation in `src/cli_rpg/map_renderer.py`.
 

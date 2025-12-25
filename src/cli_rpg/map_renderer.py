@@ -100,6 +100,11 @@ def render_map(world: dict[str, Location], current_location: str) -> str:
         assert coords is not None  # We already filtered for non-None coordinates
         coord_to_location[coords] = (name, location)
 
+    # Assign unique letter symbols to non-current locations (alphabetical by name)
+    SYMBOLS = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz"
+    sorted_names = sorted(name for name, _ in locations_with_coords if name != current_location)
+    location_symbols = {name: SYMBOLS[i] for i, name in enumerate(sorted_names) if i < len(SYMBOLS)}
+
     # Build the legend entries (vertical format)
     legend_entries = []
     for name, location in locations_with_coords:
@@ -107,9 +112,13 @@ def render_map(world: dict[str, Location], current_location: str) -> str:
             # Current location marked with @
             legend_entries.append(f"  {colors.bold_colorize('@', colors.CYAN)} = You ({name})")
         else:
-            # Use category marker
-            marker = get_category_marker(location.category)
-            legend_entries.append(f"  {marker} = {name}")
+            # Use letter symbol + category icon in legend
+            symbol = location_symbols.get(name, "?")
+            category_icon = get_category_marker(location.category)
+            if category_icon and category_icon != "•":
+                legend_entries.append(f"  {symbol} = {category_icon} {name}")
+            else:
+                legend_entries.append(f"  {symbol} = {name}")
 
     # Create marker map for coordinates (uncolored for alignment calculations)
     coord_to_marker: dict[tuple[int, int], str] = {}
@@ -119,7 +128,7 @@ def render_map(world: dict[str, Location], current_location: str) -> str:
         if name == current_location:
             coord_to_marker[coords] = "@"
         else:
-            coord_to_marker[coords] = get_category_marker(location.category)
+            coord_to_marker[coords] = location_symbols.get(name, "?")
 
     # Calculate column width for alignment (each cell needs space for marker + padding)
     # Use 4 to accommodate emoji markers which are typically 2 characters wide

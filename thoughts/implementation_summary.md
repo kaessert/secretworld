@@ -1,61 +1,81 @@
-# Implementation Summary: Critical Hits and Miss Chances
+# Implementation Summary: Unique Map Location Symbols
 
 ## What Was Implemented
 
-The critical hit and miss chance mechanics were already fully implemented in the codebase. The implementation includes:
+Added unique letter symbols (A-Z) for each non-current location on the map, making it possible to distinguish between locations in both the legend and the map grid.
 
-### Files Modified/Verified
-1. **`src/cli_rpg/combat.py`** - Contains all the core mechanics:
-   - `calculate_crit_chance(stat: int)` - Helper function for crit chance calculation
-   - `calculate_dodge_chance(dexterity: int)` - Helper function for dodge chance calculation
-   - `ENEMY_CRIT_CHANCE = 0.05` - Flat 5% crit chance for enemies
-   - `CRIT_MULTIPLIER = 1.5` - 1.5x damage multiplier on crit
+### Changes Made
 
-2. **`tests/test_combat.py`** - Contains comprehensive tests:
-   - `TestCriticalHits` class (4 tests)
-   - `TestMissChance` class (3 tests)
-   - `TestEnemyCriticalHits` class (3 tests)
-   - `TestCritDodgeHelperFunctions` class (6 tests)
+**File: `src/cli_rpg/map_renderer.py`**
 
-3. **`tests/test_combat_equipment.py`** - Fixed 4 tests that needed mocking:
-   - Added `from unittest.mock import patch` import
-   - Updated `test_damage_taken_without_armor` to mock random
-   - Updated `test_damage_taken_with_armor` to mock random
-   - Updated `test_high_armor_vs_low_attack` to mock random
-   - Updated `test_full_equipment_combat` to mock random
+1. Added symbol assignment logic that assigns unique letters A-Z (and a-z for 27+ locations) to non-current locations in alphabetical order by name:
+   ```python
+   SYMBOLS = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz"
+   sorted_names = sorted(name for name, _ in locations_with_coords if name != current_location)
+   location_symbols = {name: SYMBOLS[i] for i, name in enumerate(sorted_names) if i < len(SYMBOLS)}
+   ```
 
-### Mechanics Implemented
+2. Updated legend generation to show letter + category icon + name for categorized locations, and just letter + name for uncategorized:
+   - `A = 🌲 Forest` (categorized)
+   - `A = Cave` (uncategorized)
 
-**Player Critical Hits (Physical)**:
-- Formula: `crit_chance = min(5 + player.dexterity, 20) / 100.0`
-- Base 5% + 1% per DEX point, capped at 20%
-- 1.5x damage multiplier on crit
-- Message includes "CRITICAL HIT!"
+3. Updated grid markers to use letter symbols instead of category icons:
+   - Current location still uses `@` (cyan, bold)
+   - Other locations use assigned letter symbols (A, B, C, etc.)
 
-**Player Critical Hits (Magic/Cast)**:
-- Formula: `crit_chance = min(5 + player.intelligence, 20) / 100.0`
-- Uses INT instead of DEX for magic attacks
-- Same 1.5x multiplier and messaging
+**File: `tests/test_map_renderer.py`**
 
-**Player Dodge (Enemy Miss)**:
-- Formula: `dodge_chance = min(5 + player.dexterity // 2, 15) / 100.0`
-- Base 5% + 0.5% per DEX point (integer division), capped at 15%
-- On dodge: 0 damage, message includes "dodge"
+Added new test class `TestUniqueLocationSymbols` with 6 tests:
+- `test_unique_symbols_assigned_to_locations` - Verifies A-Z assignment
+- `test_legend_shows_category_icon_with_letter` - Verifies legend format
+- `test_map_grid_uses_letters_not_category_icons` - Verifies grid uses letters
+- `test_symbol_consistent_between_legend_and_grid` - Verifies consistency
+- `test_current_location_still_uses_at_symbol` - Verifies @ for player
+- `test_many_locations_alphabetical_order` - Verifies alphabetical ordering
 
-**Enemy Critical Hits**:
-- Flat 5% crit chance (ENEMY_CRIT_CHANCE = 0.05)
-- 1.5x damage multiplier
-- Message includes "CRITICAL HIT!"
+Updated 4 existing tests to match the new behavior:
+- `test_colored_marker_alignment` - Now checks for letter markers
+- `test_uncategorized_location_shows_letter_marker` - Renamed and updated
+- `test_legend_shows_category_markers` - Updated expected format
+- `test_no_visual_overlap_between_cells` - Now checks letter markers
 
 ## Test Results
 
-All 2379 tests pass:
-- 43 tests in `test_combat.py` (including 16 new crit/dodge tests)
-- 12 tests in `test_combat_equipment.py` (all fixed)
-- Full test suite: 2379 passed in ~40 seconds
+All 27 map renderer tests pass. Full test suite (2385 tests) passes.
 
-## Technical Notes
+## Example Output
 
-- Tests that check specific damage values now use `patch('cli_rpg.combat.random.random', return_value=0.50)` to prevent random crit/dodge from affecting assertions
-- The implementation correctly handles the order of operations: dodge check first, then crit check (if not dodged)
-- Companion bonuses are applied before crit multiplier
+Before:
+```
+  0                █   @   •   •   █
+Legend:
+  @ = You (Town)
+  • = Forest
+  • = Cave
+```
+
+After:
+```
+  0                █   @   A   B   █
+Legend:
+  @ = You (Town)
+  A = Cave
+  B = Forest
+```
+
+With categories:
+```
+  0                █   @   A   █
+Legend:
+  @ = You (Town)
+  A = 🌲 Forest
+```
+
+## E2E Validation
+
+To validate manually:
+1. Start the game and explore several locations
+2. Run the `map` command
+3. Verify each non-current location has a unique letter (A-Z)
+4. Verify the legend shows the letter with category icon (if applicable)
+5. Verify the player location shows `@` marker
