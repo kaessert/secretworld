@@ -298,7 +298,14 @@ def handle_combat_command(game_state: GameState, command: str, args: list[str], 
         output = f"\n{message}"
 
         if success:
-            # Fled successfully
+            # Fled successfully - record choice for each enemy fled from
+            for enemy in combat.enemies:
+                game_state.record_choice(
+                    choice_type="combat_flee",
+                    choice_id=f"flee_{enemy.name}",
+                    description=f"Fled from {enemy.name}",
+                    target=enemy.name
+                )
             game_state.current_combat = None
             combat.is_active = False
             # Autosave after successful flee

@@ -1,103 +1,67 @@
-# Day/Night Cycle Implementation Plan
+# Echo Choices Foundation Implementation Plan
 
 ## Overview
-Implement a basic day/night cycle that tracks game time and changes location descriptions, NPC availability, and whispers based on time of day.
+Add a minimal "choice tracking" foundation to record significant player decisions. This is the prerequisite data structure for all Phase 2 "Consequence" features (NPC reactions, world state changes, reputation effects).
 
 ## Spec
 
-**Time System:**
-- Game time tracked in `GameState` as `game_time: int` (hour 0-23)
-- Time advances on player actions: movement (+1 hour), rest (+4 hours), combat completion (+1 hour)
-- Two periods: Day (6:00-17:59) and Night (18:00-5:59)
-- `get_time_period() -> str` returns "day" or "night"
-- `get_time_display() -> str` returns formatted time like "14:00 (Day)"
+**Choice Data Structure:**
+- `choices: list[dict]` field added to `GameState`
+- Each choice dict contains:
+  - `choice_type: str` - category of choice (e.g., "combat_mercy", "dialogue", "quest")
+  - `choice_id: str` - unique identifier (e.g., "spare_bandit_001")
+  - `description: str` - human-readable description
+  - `timestamp: int` - game time (hour) when choice was made
+  - `location: str` - location name where choice occurred
+  - `target: Optional[str]` - NPC/enemy name involved (if applicable)
 
-**Time Effects:**
-1. Location descriptions append time-specific flavor text at night
-2. WhisperService uses time-aware whisper templates (eerie at night)
-3. NPCs may be unavailable at night (shops close)
-4. `status` command displays current time
+**Recording API:**
+```python
+def record_choice(self, choice_type: str, choice_id: str, description: str, target: Optional[str] = None) -> None
+def has_choice(self, choice_id: str) -> bool  # Check if specific choice was made
+def get_choices_by_type(self, choice_type: str) -> list[dict]  # Filter by type
+```
 
 **Persistence:**
-- `game_time` serialized in `GameState.to_dict()` and restored in `from_dict()`
+- `choices` serialized in `GameState.to_dict()` and restored in `from_dict()`
+- Backward compatible: old saves default to empty list
 
 ---
 
 ## Implementation Steps
 
-### 1. Create time model (`src/cli_rpg/models/game_time.py`)
-```python
-@dataclass
-class GameTime:
-    hour: int = 6  # Start at 6:00 AM
+### 1. Add choices field to GameState (`src/cli_rpg/game_state.py`)
+- Add `choices: list[dict] = []` in `__init__`
+- Implement `record_choice()`, `has_choice()`, `get_choices_by_type()` methods
+- Update `to_dict()` to include `"choices": self.choices`
+- Update `from_dict()` to restore `choices` with backward compat default `[]`
 
-    def advance(self, hours: int) -> None
-    def get_period(self) -> str  # "day" or "night"
-    def get_display(self) -> str  # "14:00 (Day)"
-    def is_night(self) -> bool
-    def to_dict() / from_dict()
-```
-
-### 2. Add `GameTime` to `GameState` (`src/cli_rpg/game_state.py`)
-- Add `game_time: GameTime` attribute in `__init__`
-- Advance time on: `move()` (+1), rest command (+4), combat end (+1)
-- Serialize/deserialize in `to_dict()`/`from_dict()`
-
-### 3. Update `status` command (`src/cli_rpg/main.py`)
-- Add time display to character status output: `"Time: 14:00 (Day)"`
-
-### 4. Add night whispers (`src/cli_rpg/whisper.py`)
-- Add `NIGHT_WHISPERS` templates
-- `get_whisper()` takes `is_night: bool` parameter
-- At night, blend night-specific whispers into pool
-
-### 5. Add night flavor to locations (`src/cli_rpg/models/location.py`)
-- Add `night_description: Optional[str]` field
-- `get_layered_description()` appends night flavor when `is_night=True`
-
-### 6. NPC night availability (`src/cli_rpg/models/npc.py`, `src/cli_rpg/main.py`)
-- Add `available_at_night: bool = True` field to NPC
-- `talk` command checks availability: "The merchant has gone home for the night."
-- `shop` command blocked at night for closed shops
+### 2. Add first choice point: flee from combat (`src/cli_rpg/main.py`)
+- When player flees combat, record choice: `game_state.record_choice("combat_flee", f"flee_{enemy_name}", f"Fled from {enemy_name}", enemy_name)`
+- This is a simple integration point to validate the system works
 
 ---
 
-## Test Plan (`tests/test_day_night.py`)
+## Test Plan (`tests/test_choices.py`)
 
-### GameTime Tests
-- `test_game_time_defaults_to_morning` - starts at 6:00
-- `test_game_time_advance_wraps_at_24` - 23 + 2 = 1
-- `test_game_time_is_night_returns_true_at_night` - 18-5 is night
-- `test_game_time_is_night_returns_false_during_day` - 6-17 is day
-- `test_game_time_get_period_day` - returns "day"
-- `test_game_time_get_period_night` - returns "night"
-- `test_game_time_serialization` - to_dict/from_dict roundtrip
+### GameState Choice Tracking
+- `test_record_choice_adds_to_list` - choice appears in choices list
+- `test_record_choice_includes_all_fields` - all fields populated correctly
+- `test_has_choice_returns_true_for_recorded` - returns True for existing choice
+- `test_has_choice_returns_false_for_missing` - returns False for non-existent
+- `test_get_choices_by_type_filters_correctly` - only returns matching type
+- `test_get_choices_by_type_empty_when_no_matches` - empty list if none match
 
-### GameState Time Integration
-- `test_move_advances_time` - moving increments hour by 1
-- `test_rest_advances_time_by_4` - resting increments by 4
-- `test_game_time_persists_in_save` - saved/loaded correctly
-- `test_game_time_backward_compatibility` - old saves default to 6:00
+### Persistence
+- `test_choices_persist_in_save` - save/load roundtrip preserves choices
+- `test_choices_backward_compatibility` - old saves load with empty choices list
 
-### Whisper Night Integration
-- `test_whisper_uses_night_templates_at_night` - night-specific whispers appear
-
-### NPC Night Availability
-- `test_npc_unavailable_at_night` - merchant not available at night
-- `test_talk_to_npc_at_night_blocked` - returns unavailable message
-- `test_shop_closed_at_night` - shop command returns closed message
-
-### Status Display
-- `test_status_shows_time` - character status includes time display
+### Integration
+- `test_flee_combat_records_choice` - fleeing combat records a choice
 
 ---
-
-## Files to Create
-- `src/cli_rpg/models/game_time.py` - new
 
 ## Files to Modify
-- `src/cli_rpg/game_state.py` - add game_time, advance on actions
-- `src/cli_rpg/main.py` - status display, NPC availability checks
-- `src/cli_rpg/whisper.py` - night whispers
-- `src/cli_rpg/models/npc.py` - available_at_night field
-- `tests/test_day_night.py` - new test file
+- `src/cli_rpg/game_state.py` - add choices field, methods, serialization
+- `src/cli_rpg/main.py` - record choice on flee
+- `tests/test_choices.py` - new test file

@@ -178,6 +178,7 @@ class GameState:
         self.current_npc: Optional[NPC] = None  # NPC being talked to (for accept command)
         self.whisper_service = WhisperService(ai_service=ai_service)
         self.game_time = GameTime()  # Day/night cycle tracking
+        self.choices: list[dict] = []  # Echo choices: tracking significant player decisions
 
     @property
     def is_in_conversation(self) -> bool:
@@ -453,12 +454,59 @@ class GameState:
             message += f"\n{encounter_message}"
 
         return (True, message)
-    
+
+    def record_choice(
+        self,
+        choice_type: str,
+        choice_id: str,
+        description: str,
+        target: Optional[str] = None
+    ) -> None:
+        """Record a significant player decision.
+
+        Args:
+            choice_type: Category of choice (e.g., "combat_mercy", "dialogue", "quest")
+            choice_id: Unique identifier for this choice (e.g., "spare_bandit_001")
+            description: Human-readable description of the choice
+            target: Optional NPC/enemy name involved (if applicable)
+        """
+        choice = {
+            "choice_type": choice_type,
+            "choice_id": choice_id,
+            "description": description,
+            "timestamp": self.game_time.hour,
+            "location": self.current_location,
+            "target": target,
+        }
+        self.choices.append(choice)
+
+    def has_choice(self, choice_id: str) -> bool:
+        """Check if a specific choice was made.
+
+        Args:
+            choice_id: The unique identifier of the choice to check
+
+        Returns:
+            True if the choice was recorded, False otherwise
+        """
+        return any(c["choice_id"] == choice_id for c in self.choices)
+
+    def get_choices_by_type(self, choice_type: str) -> list[dict]:
+        """Get all choices of a specific type.
+
+        Args:
+            choice_type: The category of choices to filter by
+
+        Returns:
+            List of choice dicts matching the specified type
+        """
+        return [c for c in self.choices if c["choice_type"] == choice_type]
+
     def to_dict(self) -> dict:
         """Serialize game state to dictionary.
 
         Returns:
-            Dictionary containing character, current_location, world data, theme, and game_time
+            Dictionary containing character, current_location, world data, theme, game_time, and choices
         """
         return {
             "character": self.current_character.to_dict(),
@@ -468,7 +516,8 @@ class GameState:
                 for name, location in self.world.items()
             },
             "theme": self.theme,
-            "game_time": self.game_time.to_dict()
+            "game_time": self.game_time.to_dict(),
+            "choices": self.choices,
         }
     
     @classmethod
@@ -508,5 +557,8 @@ class GameState:
         # Restore game_time if present (default to 6:00 for backward compatibility)
         if "game_time" in data:
             game_state.game_time = GameTime.from_dict(data["game_time"])
+
+        # Restore choices if present (default to empty list for backward compatibility)
+        game_state.choices = data.get("choices", [])
 
         return game_state
