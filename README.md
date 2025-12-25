@@ -84,6 +84,7 @@ Enemy stats (HP, attack, defense) and XP rewards all scale with distance, encour
 **Status Effects**: Some enemies can inflict status effects during combat:
 - **Poison**: Certain creatures (spiders, snakes, serpents, vipers) have a chance to poison you on attack. Poison deals damage each turn and wears off after a set duration.
 - **Burn**: Fire-based enemies (fire elementals, dragons, flame creatures) can inflict burn, dealing damage over time for 2 turns.
+- **Bleed**: Slashing enemies (wolves, bears, lions, claw/fang-based creatures) can cause bleeding wounds, dealing 3 damage per turn for 4 turns.
 - **Stun**: Heavy-hitting enemies (trolls, golems, giants, hammer-wielders) can stun you, causing you to skip your next action.
 - **Freeze**: Ice-themed enemies (yetis, frost creatures) can freeze you or themselves, reducing attack damage by 50% while frozen.
 

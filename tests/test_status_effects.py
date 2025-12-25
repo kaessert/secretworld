@@ -1104,3 +1104,171 @@ class TestCombatFreeze:
 
         # Enemy status effects should be cleared
         assert len(freeze_enemy.status_effects) == 0
+
+
+# ============================================================================
+# Bleed Status Effect Tests (Spec: Bleed - DOT effect from slashing attacks)
+# ============================================================================
+
+
+class TestBleedStatusEffect:
+    """Tests for the Bleed status effect."""
+
+    def test_bleed_effect_creation(self):
+        """Spec: Bleed is a DOT effect with damage per turn."""
+        effect = StatusEffect(
+            name="Bleed",
+            effect_type="dot",
+            damage_per_turn=3,
+            duration=4
+        )
+        assert effect.name == "Bleed"
+        assert effect.effect_type == "dot"
+        assert effect.damage_per_turn == 3
+        assert effect.duration == 4
+
+    def test_bleed_effect_tick_deals_damage(self):
+        """Spec: Bleed deals 3 damage per turn for 4 turns."""
+        effect = StatusEffect(
+            name="Bleed",
+            effect_type="dot",
+            damage_per_turn=3,
+            duration=4
+        )
+        damage, expired = effect.tick()
+
+        assert damage == 3  # Should deal its damage_per_turn
+        assert expired is False
+        assert effect.duration == 3
+
+    def test_bleed_effect_expires_correctly(self):
+        """Spec: Bleed duration is 4 turns."""
+        effect = StatusEffect(
+            name="Bleed",
+            effect_type="dot",
+            damage_per_turn=3,
+            duration=1  # Last turn
+        )
+        damage, expired = effect.tick()
+
+        assert damage == 3
+        assert expired is True
+        assert effect.duration == 0
+
+
+class TestEnemyBleed:
+    """Tests for enemy bleed capability."""
+
+    def test_enemy_with_bleed_fields(self):
+        """Spec: Enemies can have bleed_chance, bleed_damage, bleed_duration."""
+        enemy = Enemy(
+            name="Dire Wolf",
+            health=50,
+            max_health=50,
+            attack_power=10,
+            defense=2,
+            xp_reward=30,
+            bleed_chance=0.2,
+            bleed_damage=3,
+            bleed_duration=4
+        )
+
+        assert enemy.bleed_chance == 0.2
+        assert enemy.bleed_damage == 3
+        assert enemy.bleed_duration == 4
+
+    def test_enemy_default_no_bleed(self):
+        """Non-bleed enemies should have default values of 0."""
+        enemy = Enemy(
+            name="Skeleton",
+            health=50,
+            max_health=50,
+            attack_power=10,
+            defense=2,
+            xp_reward=30
+        )
+
+        assert enemy.bleed_chance == 0.0
+        assert enemy.bleed_damage == 0
+        assert enemy.bleed_duration == 0
+
+    def test_enemy_bleed_serialization(self):
+        """Spec: Bleed fields are serialized/deserialized for persistence."""
+        enemy = Enemy(
+            name="Dire Wolf",
+            health=50,
+            max_health=50,
+            attack_power=10,
+            defense=2,
+            xp_reward=30,
+            bleed_chance=0.2,
+            bleed_damage=3,
+            bleed_duration=4
+        )
+
+        data = enemy.to_dict()
+        assert data["bleed_chance"] == 0.2
+        assert data["bleed_damage"] == 3
+        assert data["bleed_duration"] == 4
+
+        restored = Enemy.from_dict(data)
+        assert restored.bleed_chance == 0.2
+        assert restored.bleed_damage == 3
+        assert restored.bleed_duration == 4
+
+
+class TestCombatBleed:
+    """Tests for bleed effects in combat."""
+
+    @pytest.fixture
+    def character(self):
+        """Create a test character."""
+        return Character(name="TestHero", strength=10, dexterity=10, intelligence=10)
+
+    @pytest.fixture
+    def bleed_enemy(self):
+        """Create a test enemy with bleed capability."""
+        return Enemy(
+            name="Dire Wolf",
+            health=50,
+            max_health=50,
+            attack_power=10,
+            defense=2,
+            xp_reward=30,
+            bleed_chance=1.0,  # Guaranteed for testing
+            bleed_damage=3,
+            bleed_duration=4
+        )
+
+    def test_bleed_applies_in_combat(self, character, bleed_enemy):
+        """Spec: Enemies with bleed can apply bleed to the player on attack."""
+        combat = CombatEncounter(player=character, enemy=bleed_enemy)
+        combat.start()
+
+        initial_effects = len(character.status_effects)
+        combat.enemy_turn()
+
+        # Character should now have bleed
+        assert len(character.status_effects) == initial_effects + 1
+        assert character.status_effects[0].name == "Bleed"
+
+    def test_bleed_ticks_during_enemy_turn(self, character, bleed_enemy):
+        """Spec: Bleed deals damage at the end of each combat turn."""
+        combat = CombatEncounter(player=character, enemy=bleed_enemy)
+        combat.start()
+
+        # Apply bleed directly for controlled test
+        bleed = StatusEffect(
+            name="Bleed",
+            effect_type="dot",
+            damage_per_turn=3,
+            duration=4
+        )
+        character.apply_status_effect(bleed)
+
+        initial_health = character.health
+        message = combat.enemy_turn()
+
+        # Health should be reduced by enemy attack + bleed tick
+        assert "Bleed" in message or "bleed" in message
+        assert character.health < initial_health

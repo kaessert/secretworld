@@ -225,9 +225,12 @@ class TestEnemySerialization:
             "stun_duration": 0,
             "freeze_chance": 0.0,
             "freeze_duration": 0,
+            "bleed_chance": 0.0,
+            "bleed_damage": 0,
+            "bleed_duration": 0,
             "status_effects": [],
         }
-    
+
     def test_from_dict_deserializes_enemy(self):
         """Spec: from_dict(data) should deserialize enemy from dictionary."""
         data = {

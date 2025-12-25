@@ -548,6 +548,20 @@ class CombatEncounter:
                     f"{colors.enemy(enemy.name)}'s attack {colors.damage('freezes')} you!"
                 )
 
+            # Check if enemy can apply bleed
+            if enemy.bleed_chance > 0 and random.random() < enemy.bleed_chance:
+                # Apply bleed effect to player
+                bleed = StatusEffect(
+                    name="Bleed",
+                    effect_type="dot",
+                    damage_per_turn=enemy.bleed_damage,
+                    duration=enemy.bleed_duration
+                )
+                self.player.apply_status_effect(bleed)
+                messages.append(
+                    f"{colors.enemy(enemy.name)}'s attack causes you to {colors.damage('bleed')}!"
+                )
+
             # Tick status effects on this enemy
             enemy_status_messages = enemy.tick_status_effects()
             messages.extend(enemy_status_messages)
@@ -868,6 +882,15 @@ def spawn_enemy(
         freeze_chance = 0.2
         freeze_duration = 2
 
+    # Wolves, bears, lions get 20% bleed chance, 3 damage, 4 turns
+    bleed_chance = 0.0
+    bleed_damage = 0
+    bleed_duration = 0
+    if any(term in enemy_name_lower for term in ["wolf", "bear", "lion", "cat", "claw", "blade", "razor", "fang"]):
+        bleed_chance = 0.2
+        bleed_damage = 3
+        bleed_duration = 4
+
     return Enemy(
         name=enemy_name,
         health=scaled_health,
@@ -887,6 +910,9 @@ def spawn_enemy(
         stun_duration=stun_duration,
         freeze_chance=freeze_chance,
         freeze_duration=freeze_duration,
+        bleed_chance=bleed_chance,
+        bleed_damage=bleed_damage,
+        bleed_duration=bleed_duration,
     )
 
 

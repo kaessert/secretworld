@@ -1,40 +1,65 @@
-# Shop Command Auto-Detect Merchant Fix - Implementation Summary
+# Implementation Summary: Bleed Status Effect
 
 ## What Was Implemented
 
-Modified the `shop` command handler in `main.py` to automatically detect and open a merchant's shop when the player is in a location with a merchant NPC, eliminating the need to first run `talk Merchant`.
+Added "Bleed" damage-over-time (DOT) effect following the established poison/burn pattern:
+- **Effect type**: DOT (uses existing StatusEffect infrastructure)
+- **Bleed chance**: 20% on attack
+- **Bleed damage**: 3 per turn
+- **Bleed duration**: 4 turns
+- **Thematic enemies**: Wolf, bear, lion, cat, claw, blade, razor, fang
 
-### Files Modified
+## Files Modified
 
-1. **`src/cli_rpg/main.py`** (lines 652-659)
-   - Changed the `shop` command to auto-detect merchants instead of requiring prior `talk` command
-   - When `current_shop` is None, searches location NPCs for first merchant with a shop
-   - Shows "There's no merchant here." if no merchant found
+### 1. `src/cli_rpg/models/enemy.py`
+- Added three new dataclass fields:
+  - `bleed_chance: float = 0.0`
+  - `bleed_damage: int = 0`
+  - `bleed_duration: int = 0`
+- Added bleed fields to `to_dict()` serialization
+- Added bleed fields to `from_dict()` deserialization
 
-2. **`tests/test_shop_commands.py`**
-   - Added `test_shop_auto_detects_merchant`: Verifies shop opens without talking to merchant first
-   - Added `test_shop_with_multiple_merchants_uses_first`: Verifies first merchant is used when multiple present
-   - Added `test_shop_no_merchant_shows_error`: Verifies error when no merchant in location
-   - Updated `test_talk_to_non_merchant_clears_shop_context`: Removed outdated assertion about shop failing after talking to non-merchant
+### 2. `src/cli_rpg/combat.py`
+- Added bleed application logic in `enemy_turn()` method (after freeze check, ~line 551-563)
+- Added bleed detection in `spawn_enemy()` function (~line 885-892)
+- Added bleed fields to Enemy constructor call in `spawn_enemy()` (~line 913-915)
+
+### 3. `tests/test_status_effects.py`
+- Added `TestBleedStatusEffect` class with 3 tests:
+  - `test_bleed_effect_creation` - Verifies Bleed DOT effect with expected values
+  - `test_bleed_effect_tick_deals_damage` - Verifies 3 damage per turn
+  - `test_bleed_effect_expires_correctly` - Verifies 4 turn duration
+
+- Added `TestEnemyBleed` class with 3 tests:
+  - `test_enemy_with_bleed_fields` - Verifies enemy can have bleed_chance, bleed_damage, bleed_duration
+  - `test_enemy_default_no_bleed` - Non-bleed enemies have 0 defaults
+  - `test_enemy_bleed_serialization` - Verifies to_dict/from_dict round-trip
+
+- Added `TestCombatBleed` class with 2 tests:
+  - `test_bleed_applies_in_combat` - Enemy with 100% bleed_chance applies Bleed
+  - `test_bleed_ticks_during_enemy_turn` - Bleed deals damage each turn
+
+### 4. `tests/test_enemy.py`
+- Updated `test_to_dict_serializes_enemy` to include bleed fields in expected dict
 
 ## Test Results
 
-- All 26 shop command tests pass
-- Full test suite: 1782 passed in 38.50s
+All 1790 tests pass, including 8 new bleed-specific tests.
 
-## Technical Details
+## Design Decisions
 
-The fix uses a generator expression with `next()` to find the first NPC that is both:
-- Marked as a merchant (`npc.is_merchant == True`)
-- Has an associated shop (`npc.shop is not None`)
-
-```python
-merchant = next((npc for npc in location.npcs if npc.is_merchant and npc.shop), None)
-```
+1. **Followed existing patterns**: Bleed implementation mirrors the poison/burn pattern exactly, ensuring consistency.
+2. **Thematic enemy selection**: Chose slashing/claw-based enemies (wolf, bear, lion, etc.) for bleed since they have natural claws/fangs that would cause bleeding wounds.
+3. **Balanced stats**:
+   - Lower damage (3) than burn (5) but higher than base
+   - Longer duration (4 turns) than burn (2) and poison (3)
+   - Same 20% chance as other DOT effects
 
 ## E2E Validation
 
 To validate manually:
-1. Start game and navigate to a location with a merchant
-2. Run `shop` command without first talking to the merchant
-3. Verify shop inventory is displayed
+1. Start a game and encounter a Wolf or Bear enemy
+2. Get attacked - there's a 20% chance to apply Bleed
+3. When Bleed is applied, you should see "causes you to bleed!" message
+4. Each turn, Bleed should deal 3 damage with "Bleed" in the status messages
+5. After 4 turns, Bleed expires with "worn off" message

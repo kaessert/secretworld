@@ -32,6 +32,9 @@ class Enemy:
     stun_duration: int = 0  # Duration of stun in turns
     freeze_chance: float = 0.0  # Chance (0.0-1.0) to apply freeze on attack
     freeze_duration: int = 0  # Duration of freeze in turns
+    bleed_chance: float = 0.0  # Chance (0.0-1.0) to apply bleed on attack
+    bleed_damage: int = 0  # Damage per turn if bleed is applied
+    bleed_duration: int = 0  # Duration of bleed in turns
     status_effects: List = field(default_factory=list)  # Active status effects on this enemy
 
     def __post_init__(self):
@@ -152,6 +155,9 @@ class Enemy:
             "stun_duration": self.stun_duration,
             "freeze_chance": self.freeze_chance,
             "freeze_duration": self.freeze_duration,
+            "bleed_chance": self.bleed_chance,
+            "bleed_damage": self.bleed_damage,
+            "bleed_duration": self.bleed_duration,
             "status_effects": [e.to_dict() for e in self.status_effects],
         }
     
@@ -195,5 +201,8 @@ class Enemy:
             stun_duration=data.get("stun_duration", 0),
             freeze_chance=data.get("freeze_chance", 0.0),
             freeze_duration=data.get("freeze_duration", 0),
+            bleed_chance=data.get("bleed_chance", 0.0),
+            bleed_damage=data.get("bleed_damage", 0),
+            bleed_duration=data.get("bleed_duration", 0),
             status_effects=status_effects,
         )
