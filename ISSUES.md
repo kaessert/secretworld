@@ -1,17 +1,17 @@
 ## Active Issues
 
+*No active issues*
+
+## Resolved Issues
+
 ### AI-generated content expansion
-**Status**: ACTIVE
+**Status**: RESOLVED
 
-Remaining AI-generated content to implement:
-- Lore and world history
-
-**Completed:**
+All AI-generated content features have been implemented:
 - ✅ NPC conversations (AI-generated dialogue that persists to NPC greetings)
 - ✅ Monsters/enemies (AI-generated with descriptions and attack flavor text)
 - ✅ Item catalogue (weapons, armor, consumables) - `AIService.generate_item()` method
-
-## Resolved Issues
+- ✅ Lore and world history - `AIService.generate_lore()` method
 
 ### Map misaligned and confusing
 **Status**: RESOLVED

@@ -118,6 +118,25 @@ Write 1-2 sentences that:
 Respond with ONLY the dialogue text, no quotes or formatting."""
 
 
+# Default prompt template for lore generation
+DEFAULT_LORE_GENERATION_PROMPT = """Generate a {lore_category} snippet for a {theme} RPG world.
+
+Location context: {location_name}
+
+Write a 50-500 character piece of world lore that:
+- Fits the {theme} setting
+- Is appropriate for the location context (if provided)
+- Provides immersive world-building content
+- Could be a {lore_category} about the world's past, legends, or secrets
+
+Types of lore:
+- history: Past events, fallen kingdoms, ancient wars, founding stories
+- legend: Myths, prophecies, tales of heroes or monsters
+- secret: Hidden knowledge, forbidden lore, mysterious occurrences
+
+Respond with ONLY the lore text, no quotes or formatting."""
+
+
 @dataclass
 class AIConfig:
     """Configuration for AI services.
@@ -148,6 +167,7 @@ class AIConfig:
     npc_dialogue_prompt: str = field(default=DEFAULT_NPC_DIALOGUE_PROMPT)
     enemy_generation_prompt: str = field(default=DEFAULT_ENEMY_GENERATION_PROMPT)
     item_generation_prompt: str = field(default=DEFAULT_ITEM_GENERATION_PROMPT)
+    lore_generation_prompt: str = field(default=DEFAULT_LORE_GENERATION_PROMPT)
     
     def __post_init__(self) -> None:
         """Validate configuration after initialization."""
@@ -270,7 +290,8 @@ class AIConfig:
             "location_generation_prompt": self.location_generation_prompt,
             "npc_dialogue_prompt": self.npc_dialogue_prompt,
             "enemy_generation_prompt": self.enemy_generation_prompt,
-            "item_generation_prompt": self.item_generation_prompt
+            "item_generation_prompt": self.item_generation_prompt,
+            "lore_generation_prompt": self.lore_generation_prompt
         }
     
     @classmethod
@@ -299,5 +320,6 @@ class AIConfig:
             location_generation_prompt=data.get("location_generation_prompt", DEFAULT_LOCATION_PROMPT),
             npc_dialogue_prompt=data.get("npc_dialogue_prompt", DEFAULT_NPC_DIALOGUE_PROMPT),
             enemy_generation_prompt=data.get("enemy_generation_prompt", DEFAULT_ENEMY_GENERATION_PROMPT),
-            item_generation_prompt=data.get("item_generation_prompt", DEFAULT_ITEM_GENERATION_PROMPT)
+            item_generation_prompt=data.get("item_generation_prompt", DEFAULT_ITEM_GENERATION_PROMPT),
+            lore_generation_prompt=data.get("lore_generation_prompt", DEFAULT_LORE_GENERATION_PROMPT)
         )

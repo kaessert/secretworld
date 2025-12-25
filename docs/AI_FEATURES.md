@@ -292,6 +292,16 @@ pytest tests/test_e2e_world_expansion.py -v
 - Validates generated items against game constraints (name length, stat ranges)
 - Graceful fallback when AI is unavailable
 
+### 9. AI-Generated Lore
+- `AIService.generate_lore()` creates immersive world history and lore snippets
+- Parameters: `theme`, `location_name` (optional), `lore_category` (history/legend/secret)
+- Generates 50-500 character snippets appropriate to the world context
+- Categories:
+  - **history**: Past events, kingdoms, wars
+  - **legend**: Myths, prophecies, heroes
+  - **secret**: Hidden knowledge, mysteries
+- Graceful handling of empty location names (uses "the world" as context)
+
 ### Future Enhancements
 - Local model support
 - Persistent cache (database/file)

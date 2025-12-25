@@ -1029,3 +1029,64 @@ Note: Use "EXISTING_WORLD" as placeholder for the connection back to the source 
             "heal_amount": int(data["heal_amount"]),
             "suggested_price": int(data["suggested_price"])
         }
+
+    def generate_lore(
+        self,
+        theme: str,
+        location_name: str = "",
+        lore_category: str = "history"
+    ) -> str:
+        """Generate contextual world lore/history snippet.
+
+        Args:
+            theme: World theme (e.g., "fantasy", "sci-fi")
+            location_name: Current location name for context (optional)
+            lore_category: Type of lore - "history", "legend", or "secret"
+
+        Returns:
+            Generated lore text string (50-500 chars)
+
+        Raises:
+            AIGenerationError: If generation fails or response is invalid
+            AIServiceError: If API call fails
+        """
+        prompt = self._build_lore_prompt(
+            theme=theme,
+            location_name=location_name,
+            lore_category=lore_category
+        )
+
+        response_text = self._call_llm(prompt)
+
+        # Clean and validate response
+        lore = response_text.strip().strip('"').strip("'")
+
+        if len(lore) < 50:
+            raise AIGenerationError("Generated lore too short (min 50 chars)")
+
+        if len(lore) > 500:
+            lore = lore[:497] + "..."
+
+        return lore
+
+    def _build_lore_prompt(
+        self,
+        theme: str,
+        location_name: str,
+        lore_category: str
+    ) -> str:
+        """Build prompt for lore generation.
+
+        Args:
+            theme: World theme
+            location_name: Current location name (or empty string)
+            lore_category: Type of lore (history, legend, secret)
+
+        Returns:
+            Formatted prompt string
+        """
+        return self.config.lore_generation_prompt.format(
+            theme=theme,
+            location_name=location_name or "the world",
+            lore_category=lore_category
+        )
