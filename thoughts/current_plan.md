@@ -1,34 +1,36 @@
-# Plan: Fix Ruff Linting Errors
+# Implementation Plan: Improve world.py Test Coverage to 98%+
 
-**Task**: Clean up 103 ruff linting errors in test files
+## Goal
+Cover lines 18-21 in `world.py` (the `except ImportError` block for AI components).
 
-## Issue Summary
-- 74 F401 (unused imports) - auto-fixable
-- 25 F841 (unused variables) - requires unsafe-fixes
-- 2 E402 (import not at top) - manual review needed
-- 2 F811 (redefined while unused) - auto-fixable
+## The Problem
+Lines 18-21 execute at module import time when AI imports fail:
+```python
+try:
+    from cli_rpg.ai_service import AIService
+    from cli_rpg.ai_world import create_ai_world
+    AI_AVAILABLE = True
+except ImportError:
+    AI_AVAILABLE = False      # Line 19
+    AIService = None          # Line 20
+    create_ai_world = None    # Line 21
+```
+
+Current test at line 320 patches `AI_AVAILABLE` at runtime, but this doesn't cover the except block.
 
 ## Implementation Steps
 
-1. **Auto-fix safe errors** (76 fixable):
-   ```bash
-   ruff check . --fix
-   ```
+### 1. Add test to cover ImportError branch (lines 18-21)
+- **File**: `tests/test_world.py`
+- **Strategy**: Use `importlib` and `sys.modules` manipulation to force re-import with mocked ImportError
+- **Test**: Create new test class `TestAIImportFallback` with a test that:
+  1. Remove `cli_rpg.world` and related modules from `sys.modules`
+  2. Mock `cli_rpg.ai_service` to raise `ImportError`
+  3. Re-import `cli_rpg.world`
+  4. Verify `AI_AVAILABLE=False`, `AIService=None`, `create_ai_world=None`
+  5. Clean up and restore original module
 
-2. **Review and fix F841 (unused variables)**:
-   - Run: `ruff check . --select F841` to list remaining
-   - Manually review each - some may be intentional (e.g., unpacking)
-   - Apply `--unsafe-fixes` if appropriate after review
-
-3. **Fix E402 (import order) manually**:
-   - Check which files have this issue
-   - Reorganize imports to top of file or add `# noqa` if intentional
-
-4. **Verify**:
-   ```bash
-   ruff check .
-   pytest -q
-   ```
-
-## Files Affected
-Primarily `tests/` directory based on error output.
+### 2. Run tests to verify coverage
+- Run `pytest tests/test_world.py --cov=cli_rpg.world --cov-report=term-missing`
+- Verify lines 18-21 are now covered
+- Verify world.py coverage is 98%+

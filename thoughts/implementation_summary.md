@@ -1,41 +1,52 @@
-# Implementation Summary: Fix Ruff Linting Errors
+# Implementation Summary: world.py Test Coverage to 100%
 
-## What Was Implemented
+## What was implemented
 
-Fixed all 103 ruff linting errors in the test files:
+### New test file: `tests/test_world_import_fallback.py`
 
-### Auto-fixed (76 errors)
-- **F401**: 74 unused imports removed
-- **F811**: 2 redefined-while-unused issues fixed
+Added a new test file specifically for testing the import fallback behavior (lines 18-21 in `world.py`). This test covers the `except ImportError` block that executes when AI components cannot be imported.
 
-### Manually Fixed (2 errors)
-- **E402**: Module-level imports not at top of file
-  - `tests/test_ai_world_generation.py`: Moved `expand_area` import to the top import section
-  - `tests/test_quest_commands.py`: Moved `NPC` import to the top import section
+The test uses a **subprocess with coverage tracking** approach:
+1. Creates a temporary Python file that mocks `builtins.__import__` to raise `ImportError` for `cli_rpg.ai_service` and `cli_rpg.ai_world`
+2. Runs this file via `coverage run` in a subprocess
+3. The subprocess imports `cli_rpg.world` with the mocked imports, triggering the except block
+4. Verifies that `AI_AVAILABLE=False`, `AIService=None`, and `create_ai_world=None`
 
-### Unsafe-fixes Applied (25 errors)
-- **F841**: 25 unused local variables removed
-  - These were variables like `result`, `messages`, `filepath` that were assigned but never used
-  - Typically in test code where we only care about side effects, not return values
+### Why subprocess was necessary
 
-## Files Modified
-- Multiple test files in `tests/` directory
-- Primary changes to:
-  - `tests/test_ai_world_generation.py`
-  - `tests/test_quest_commands.py`
-  - `tests/test_ai_conversations.py`
-  - `tests/test_ai_service.py`
-  - `tests/test_autosave.py`
-  - `tests/test_character_leveling.py`
-  - And several other test files
+Testing import-time behavior is challenging because:
+1. The code in the `try/except` block runs at module import time
+2. pytest-cov loads modules before tests run, so the module is already imported
+3. Manipulating `sys.modules` to re-import affects subsequent tests' mocking
 
-## Test Results
-- **1323 tests passed**
-- **1 test skipped**
-- All tests pass in 11.79s
+The subprocess approach solves this by:
+- Running in a clean Python environment where the module hasn't been imported yet
+- Using coverage's `--parallel-mode` to track coverage separately
+- pytest-cov automatically combines the subprocess coverage data
 
-## Verification Commands Used
-```bash
-ruff check .  # All checks passed!
-pytest -q     # 1323 passed, 1 skipped
-```
+## Test results
+
+- All 28 world tests pass (27 in `test_world.py`, 1 in `test_world_import_fallback.py`)
+- Full test suite: 1324 passed, 1 skipped
+
+## Coverage results
+
+- `world.py` coverage: **100%** (49 statements, 0 missing)
+- Previously: 92% with lines 18-21 missing
+
+## Files modified
+
+1. `tests/test_world.py` - Removed problematic in-process import fallback test
+2. `tests/test_world_import_fallback.py` - New file with subprocess-based import fallback test
+
+## Technical details
+
+The test uses:
+- `tempfile.NamedTemporaryFile` to create the test script
+- `subprocess.run` with `coverage run --parallel-mode`
+- Custom PYTHONPATH and COVERAGE_FILE environment variables
+- Cleanup in `finally` block to remove temp file
+
+## E2E validation
+
+No E2E tests needed - this is a unit test for import-time behavior that only affects whether AI components are available at runtime. The fallback behavior (AI_AVAILABLE=False) is already tested in other unit tests.
