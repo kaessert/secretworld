@@ -320,8 +320,14 @@ def get_active_events_display(game_state: "GameState") -> str:
             status = colors.warning(f"[INVASION]")
         elif event.event_type == "caravan":
             status = colors.heal(f"[CARAVAN]")
+        elif event.event_type == "festival":
+            status = colors.gold(f"[FESTIVAL]")
         else:
             status = f"[{event.event_type.upper()}]"
+
+        # Festivals affect all locations
+        if event.event_type == "festival":
+            location = "Everywhere"
 
         lines.append(
             f"{i}. {event.name} {status} - {location} ({time_remaining} hours remaining)"
