@@ -384,3 +384,16 @@ class TestItemStringRepresentation:
         str_repr = str(item)
         assert "Shield" in str_repr
         assert "armor" in str_repr.lower()
+
+    def test_item_str_consumable_with_heal(self):
+        """Test: String representation for consumable shows heal amount"""
+        item = Item(
+            name="Health Potion",
+            description="Restores health",
+            item_type=ItemType.CONSUMABLE,
+            heal_amount=25
+        )
+        str_repr = str(item)
+        assert "Health Potion" in str_repr
+        assert "consumable" in str_repr.lower()
+        assert "heals 25 HP" in str_repr
