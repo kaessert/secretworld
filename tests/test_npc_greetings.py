@@ -3,7 +3,6 @@
 Tests the NPC greetings field and get_greeting() method that allows
 NPCs to have varied greeting text for more immersive interactions.
 """
-import pytest
 from cli_rpg.models.npc import NPC
 
 

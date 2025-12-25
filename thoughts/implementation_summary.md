@@ -1,31 +1,41 @@
-# Implementation Summary: Improve Equip Command Error Message
+# Implementation Summary: Fix Ruff Linting Errors
 
 ## What Was Implemented
 
-Enhanced the error message when players try to equip non-equippable items (consumables/misc) to provide helpful guidance.
+Fixed all 103 ruff linting errors in the test files:
 
-### Changes Made
+### Auto-fixed (76 errors)
+- **F401**: 74 unused imports removed
+- **F811**: 2 redefined-while-unused issues fixed
 
-**File: `src/cli_rpg/main.py`**
-1. Added `ItemType` to the import statement (line 6)
-2. Updated the equip command error handling (lines 433-437):
-   - For consumable items: Returns message explaining only weapons/armor can be equipped AND suggests using the `use` command
-   - For other non-equippable items (misc): Returns message explaining only weapons/armor can be equipped
+### Manually Fixed (2 errors)
+- **E402**: Module-level imports not at top of file
+  - `tests/test_ai_world_generation.py`: Moved `expand_area` import to the top import section
+  - `tests/test_quest_commands.py`: Moved `NPC` import to the top import section
 
-**File: `tests/test_main_coverage.py`**
-1. Updated `test_equip_misc_item_fails` to verify the new error message mentions "weapon" or "armor"
-2. Added new test `test_equip_consumable_suggests_use_command` to verify consumables get a special message suggesting the `use` command
+### Unsafe-fixes Applied (25 errors)
+- **F841**: 25 unused local variables removed
+  - These were variables like `result`, `messages`, `filepath` that were assigned but never used
+  - Typically in test code where we only care about side effects, not return values
+
+## Files Modified
+- Multiple test files in `tests/` directory
+- Primary changes to:
+  - `tests/test_ai_world_generation.py`
+  - `tests/test_quest_commands.py`
+  - `tests/test_ai_conversations.py`
+  - `tests/test_ai_service.py`
+  - `tests/test_autosave.py`
+  - `tests/test_character_leveling.py`
+  - And several other test files
 
 ## Test Results
+- **1323 tests passed**
+- **1 test skipped**
+- All tests pass in 11.79s
 
-All tests passed:
-- `tests/test_main_coverage.py::TestEquipCannotEquip::test_equip_misc_item_fails` - PASSED
-- `tests/test_main_coverage.py::TestEquipCannotEquip::test_equip_consumable_suggests_use_command` - PASSED
-
-Full test suite verification: 88 tests passed (test_main_inventory_commands.py + test_main_coverage.py)
-
-## E2E Validation
-
-The following scenarios should work correctly:
-1. Player with a Health Potion in inventory types `equip Health Potion` → Gets message: "You can only equip weapons or armor. Use 'use Health Potion' for consumables."
-2. Player with a Key (misc item) in inventory types `equip Key` → Gets message: "You can only equip weapons or armor."
+## Verification Commands Used
+```bash
+ruff check .  # All checks passed!
+pytest -q     # 1323 passed, 1 skipped
+```

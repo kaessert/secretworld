@@ -7,7 +7,6 @@ Spec requirements tested:
 - Use consumable to heal
 - Inventory persists in save/load
 """
-import pytest
 from cli_rpg.models.character import Character
 from cli_rpg.models.item import Item, ItemType
 from cli_rpg.models.inventory import Inventory

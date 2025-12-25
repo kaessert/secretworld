@@ -11,7 +11,7 @@ from unittest.mock import Mock, patch
 from cli_rpg.models.enemy import Enemy
 from cli_rpg.ai_config import AIConfig, DEFAULT_ENEMY_GENERATION_PROMPT
 from cli_rpg.ai_service import AIService, AIServiceError, AIGenerationError
-from cli_rpg.combat import spawn_enemy, ai_spawn_enemy, CombatEncounter
+from cli_rpg.combat import ai_spawn_enemy, CombatEncounter
 from cli_rpg.models.character import Character
 
 

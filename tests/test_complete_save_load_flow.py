@@ -5,14 +5,12 @@ playing the game, saving game state, loading it back, and continuing gameplay.
 """
 
 import json
-import pytest
-from pathlib import Path
-from unittest.mock import patch, Mock
+from unittest.mock import patch
 
 from cli_rpg.models.character import Character
 from cli_rpg.game_state import GameState
 from cli_rpg.world import create_world
-from cli_rpg.persistence import save_game_state, save_character, detect_save_type
+from cli_rpg.persistence import detect_save_type
 from cli_rpg.main import select_and_load_character
 
 

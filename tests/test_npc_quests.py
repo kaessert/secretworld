@@ -3,7 +3,6 @@
 Tests the ability for players to acquire quests by talking to NPCs.
 Spec: Quest Acquisition from NPCs.
 """
-import pytest
 from cli_rpg.models.npc import NPC
 from cli_rpg.models.quest import Quest, QuestStatus, ObjectiveType
 from cli_rpg.models.character import Character

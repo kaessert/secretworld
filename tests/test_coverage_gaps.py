@@ -4,11 +4,9 @@ These tests target specific uncovered lines to increase overall test coverage.
 """
 
 import json
-import os
 import pytest
 import sys
-from unittest.mock import Mock, patch, MagicMock
-from pathlib import Path
+from unittest.mock import Mock, patch
 
 
 # ==============================================================================

@@ -16,10 +16,8 @@ def test_readme_character_creation_accuracy():
     # Find the character creation section
     creation_section = ""
     lines = readme_content.split("\n")
-    in_creation_section = False
     for i, line in enumerate(lines):
         if "### Character Creation" in line:
-            in_creation_section = True
             # Capture until next ### section or end
             for j in range(i, len(lines)):
                 if j > i and lines[j].startswith("###"):
@@ -116,10 +114,8 @@ def test_readme_features_section_accuracy():
     # Find the Features section
     features_section = ""
     lines = readme_content.split("\n")
-    in_features = False
     for i, line in enumerate(lines):
         if "## Features" in line:
-            in_features = True
             for j in range(i, len(lines)):
                 if j > i and lines[j].startswith("##"):
                     break

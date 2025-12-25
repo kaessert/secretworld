@@ -4,7 +4,6 @@ These tests verify the DROP objective type which requires both a specific enemy
 kill AND a specific item drop to progress the quest.
 """
 
-import pytest
 
 from cli_rpg.models.quest import Quest, QuestStatus, ObjectiveType
 from cli_rpg.models.character import Character
@@ -178,13 +177,13 @@ class TestRecordDrop:
         )
 
         # Different case combinations should all match
-        messages = character.record_drop("giant spider", "spider fang")
+        character.record_drop("giant spider", "spider fang")
         assert character.quests[0].current_count == 1
 
-        messages = character.record_drop("GIANT SPIDER", "SPIDER FANG")
+        character.record_drop("GIANT SPIDER", "SPIDER FANG")
         assert character.quests[0].current_count == 2
 
-        messages = character.record_drop("GiAnT sPiDeR", "SpIdEr FaNg")
+        character.record_drop("GiAnT sPiDeR", "SpIdEr FaNg")
         assert character.quests[0].current_count == 3
 
     # Spec: Only ACTIVE quests get progress
@@ -207,7 +206,7 @@ class TestRecordDrop:
     def test_record_drop_marks_ready_to_turn_in(self):
         """Completion sets READY_TO_TURN_IN status."""
         character = self._create_character_with_drop_quest(target_count=1)
-        messages = character.record_drop("Wolf", "Wolf Pelt")
+        character.record_drop("Wolf", "Wolf Pelt")
 
         assert character.quests[0].status == QuestStatus.READY_TO_TURN_IN
         assert character.quests[0].current_count == 1

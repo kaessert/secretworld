@@ -1,6 +1,5 @@
 """Tests for map command feature."""
 
-import pytest
 from cli_rpg.game_state import GameState, parse_command
 from cli_rpg.models.character import Character
 from cli_rpg.models.location import Location

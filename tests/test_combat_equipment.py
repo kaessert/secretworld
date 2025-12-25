@@ -5,7 +5,6 @@ Spec requirements tested:
 - Equipped armor affects damage reduction in combat
 - Item drops after combat victory
 """
-import pytest
 from cli_rpg.models.character import Character
 from cli_rpg.models.enemy import Enemy
 from cli_rpg.models.item import Item, ItemType
@@ -334,7 +333,7 @@ class TestCombatVictoryLoot:
         # Force enemy defeat
         enemy.take_damage(1000)
 
-        initial_item_count = len(player.inventory.items)
+        len(player.inventory.items)
         message = combat.end_combat(victory=True)
 
         # Message should mention victory

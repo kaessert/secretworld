@@ -1,61 +1,34 @@
-# Implementation Plan: Improve Equip Command Error Message
+# Plan: Fix Ruff Linting Errors
 
-**Task**: When a player tries to equip a non-equippable item (consumable/misc), provide a helpful error message explaining why and suggesting the `use` command for consumables.
+**Task**: Clean up 103 ruff linting errors in test files
 
-## 1. Update Test (TDD)
+## Issue Summary
+- 74 F401 (unused imports) - auto-fixable
+- 25 F841 (unused variables) - requires unsafe-fixes
+- 2 E402 (import not at top) - manual review needed
+- 2 F811 (redefined while unused) - auto-fixable
 
-**File**: `tests/test_main_coverage.py` - Update `TestEquipCannotEquip` class
+## Implementation Steps
 
-Add test for consumable item with improved error message:
-```python
-def test_equip_consumable_suggests_use_command(self):
-    """Spec: Equipping consumable explains why and suggests 'use' command."""
-    from cli_rpg.main import handle_exploration_command
+1. **Auto-fix safe errors** (76 fixable):
+   ```bash
+   ruff check . --fix
+   ```
 
-    character = Character(name="Hero", strength=10, dexterity=10, intelligence=10)
-    potion = Item(name="Health Potion", description="Heals", item_type=ItemType.CONSUMABLE, heal_amount=20)
-    character.inventory.add_item(potion)
-    world = {"Town": Location(name="Town", description="A town", connections={})}
-    game_state = GameState(character, world, starting_location="Town")
+2. **Review and fix F841 (unused variables)**:
+   - Run: `ruff check . --select F841` to list remaining
+   - Manually review each - some may be intentional (e.g., unpacking)
+   - Apply `--unsafe-fixes` if appropriate after review
 
-    continue_game, message = handle_exploration_command(game_state, "equip", ["Health", "Potion"])
+3. **Fix E402 (import order) manually**:
+   - Check which files have this issue
+   - Reorganize imports to top of file or add `# noqa` if intentional
 
-    assert continue_game is True
-    assert "weapon" in message.lower() or "armor" in message.lower()
-    assert "use" in message.lower()
-```
+4. **Verify**:
+   ```bash
+   ruff check .
+   pytest -q
+   ```
 
-Update existing `test_equip_misc_item_fails` to check for enhanced message:
-```python
-def test_equip_misc_item_fails(self):
-    """Spec: Cannot equip misc items - explains only weapons/armor can be equipped."""
-    # ... existing setup ...
-    assert "weapon" in message.lower() or "armor" in message.lower()
-```
-
-## 2. Implement Error Message Improvement
-
-**File**: `src/cli_rpg/main.py` - Line 434
-
-**Current code**:
-```python
-return (True, f"\nYou can't equip {item.name}.")
-```
-
-**Replace with**:
-```python
-if item.item_type == ItemType.CONSUMABLE:
-    return (True, f"\nYou can only equip weapons or armor. Use 'use {item.name}' for consumables.")
-else:
-    return (True, f"\nYou can only equip weapons or armor.")
-```
-
-**Note**: Will need to import `ItemType` at the top of main.py if not already imported.
-
-## 3. Verify
-
-Run tests:
-```bash
-pytest tests/test_main_coverage.py::TestEquipCannotEquip -v
-pytest tests/test_main_inventory_commands.py -v
-```
+## Files Affected
+Primarily `tests/` directory based on error output.

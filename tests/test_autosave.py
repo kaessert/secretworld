@@ -7,10 +7,7 @@ Tests verify the spec:
 4. Autosave preserves complete game state
 5. Autosave handles missing files gracefully
 """
-import pytest
-import json
 from pathlib import Path
-from unittest.mock import patch, MagicMock
 
 from cli_rpg.models.character import Character
 from cli_rpg.game_state import GameState
@@ -84,7 +81,7 @@ class TestAutosaveBasics:
         game_state.move("north")
         expected_location = game_state.current_location
 
-        filepath = autosave(game_state, save_dir=str(tmp_path))
+        autosave(game_state, save_dir=str(tmp_path))
         loaded_state = load_autosave("Hero", save_dir=str(tmp_path))
 
         assert loaded_state.current_location == expected_location

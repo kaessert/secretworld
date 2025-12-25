@@ -7,7 +7,6 @@ Spec requirements tested:
 - Methods: add_item(), remove_item(), equip(), unequip(), is_full()
 - Serialization with to_dict() / from_dict()
 """
-import pytest
 from cli_rpg.models.item import Item, ItemType
 from cli_rpg.models.inventory import Inventory
 

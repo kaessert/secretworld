@@ -7,6 +7,7 @@ from cli_rpg.main import handle_exploration_command, handle_combat_command
 from cli_rpg.models.character import Character
 from cli_rpg.models.location import Location
 from cli_rpg.models.quest import Quest, QuestStatus, ObjectiveType
+from cli_rpg.models.npc import NPC
 from cli_rpg.combat import CombatEncounter
 from cli_rpg.models.enemy import Enemy
 
@@ -230,8 +231,6 @@ def test_quest_detail_blocked_during_combat(game_state, active_quest):
 # ============================================================================
 # Tests for bug fix: accept command copies rewards
 # ============================================================================
-
-from cli_rpg.models.npc import NPC
 
 
 @pytest.fixture

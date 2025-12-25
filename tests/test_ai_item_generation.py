@@ -382,7 +382,7 @@ class TestAIServiceGenerateItem:
         mock_client.chat.completions.create.return_value = mock_response
 
         service = AIService(basic_config)
-        result = service.generate_item(
+        service.generate_item(
             theme="fantasy",
             location_name="Blacksmith",
             player_level=3,

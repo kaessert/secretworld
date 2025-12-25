@@ -14,7 +14,6 @@ import os
 import pytest
 import tempfile
 import time
-from pathlib import Path
 from unittest.mock import Mock, patch
 
 from cli_rpg.ai_config import AIConfig

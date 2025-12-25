@@ -9,7 +9,6 @@ from unittest.mock import Mock
 
 from cli_rpg.world import create_default_world, create_world
 from cli_rpg.ai_world import create_ai_world
-from cli_rpg.models.location import Location
 
 
 class TestDefaultWorldDeadEndPrevention:

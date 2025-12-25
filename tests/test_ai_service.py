@@ -2,7 +2,7 @@
 
 import json
 import pytest
-from unittest.mock import Mock, patch, MagicMock
+from unittest.mock import Mock, patch
 from cli_rpg.ai_config import AIConfig
 from cli_rpg.ai_service import (
     AIService,
@@ -1355,13 +1355,13 @@ def test_get_cached_expired_entry_deleted(mock_time, mock_openai_class, tmp_path
 
     # First call - time is 0, cache gets populated
     mock_time.time.return_value = 0
-    result1 = service.generate_location(theme="fantasy")
+    service.generate_location(theme="fantasy")
     assert mock_client.chat.completions.create.call_count == 1
 
     # Second call - time is beyond cache_ttl (4000 > 3600)
     # This should trigger the expired entry deletion (line 399)
     mock_time.time.return_value = 4000
-    result2 = service.generate_location(theme="fantasy")
+    service.generate_location(theme="fantasy")
 
     # API should be called again because cache was expired
     assert mock_client.chat.completions.create.call_count == 2
@@ -1404,7 +1404,7 @@ def test_get_cached_list_expired_entry_deleted(mock_time, mock_openai_class, tmp
 
     # First call - time is 0, cache gets populated
     mock_time.time.return_value = 0
-    result1 = service.generate_area(
+    service.generate_area(
         theme="fantasy",
         sub_theme_hint="forest",
         entry_direction="north",
@@ -1416,7 +1416,7 @@ def test_get_cached_list_expired_entry_deleted(mock_time, mock_openai_class, tmp
     # Second call - time is beyond cache_ttl (4000 > 3600)
     # This should trigger the expired entry deletion (line 741)
     mock_time.time.return_value = 4000
-    result2 = service.generate_area(
+    service.generate_area(
         theme="fantasy",
         sub_theme_hint="forest",
         entry_direction="north",

@@ -49,7 +49,7 @@ class TestIntegrationPersistence:
         char2 = Character(name="Wizard", strength=8, dexterity=10, intelligence=18)
         char3 = Character(name="Thief", strength=10, dexterity=18, intelligence=10)
         
-        file1 = save_character(char1, temp_save_dir)
+        save_character(char1, temp_save_dir)
         file2 = save_character(char2, temp_save_dir)
         file3 = save_character(char3, temp_save_dir)
         

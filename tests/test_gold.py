@@ -2,7 +2,6 @@
 
 Tests the Character gold attribute and add_gold/remove_gold methods.
 """
-import pytest
 from cli_rpg.models.character import Character
 
 

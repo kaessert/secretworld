@@ -1,7 +1,6 @@
 """Tests for main.py game loop state handling."""
 
-import pytest
-from unittest.mock import Mock, patch, MagicMock
+from unittest.mock import patch
 from cli_rpg.models.character import Character
 from cli_rpg.models.location import Location
 from cli_rpg.models.enemy import Enemy

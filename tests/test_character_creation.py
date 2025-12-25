@@ -1,6 +1,5 @@
 """Tests for character creation functionality."""
-import pytest
-from unittest.mock import patch, MagicMock
+from unittest.mock import patch
 from cli_rpg.character_creation import (
     get_valid_name,
     get_allocation_method,

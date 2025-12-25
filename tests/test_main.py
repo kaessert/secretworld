@@ -3,7 +3,6 @@
 import sys
 from io import StringIO
 
-import pytest
 
 
 def test_package_importable():
@@ -54,7 +53,7 @@ def test_main_function_callable():
         sys.stdout = StringIO()
         
         try:
-            result = main()
+            main()
             output = sys.stdout.getvalue()
         finally:
             sys.stdout = old_stdout

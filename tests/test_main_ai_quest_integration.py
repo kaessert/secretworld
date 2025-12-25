@@ -5,7 +5,7 @@ quest-giver NPCs who have no available quests.
 """
 
 import pytest
-from unittest.mock import Mock, patch
+from unittest.mock import Mock
 
 from cli_rpg.main import handle_exploration_command
 from cli_rpg.game_state import GameState

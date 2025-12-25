@@ -68,7 +68,7 @@ class TestRecordUse:
         character.quests.append(use_quest)
 
         # Test various case combinations
-        messages = character.record_use("health potion")
+        character.record_use("health potion")
         assert use_quest.current_count == 1
 
     def test_record_use_case_insensitive_uppercase(self, character):
@@ -83,7 +83,7 @@ class TestRecordUse:
         )
         character.quests.append(quest)
 
-        messages = character.record_use("Health Potion")
+        character.record_use("Health Potion")
         assert quest.current_count == 1
 
     def test_record_use_non_matching_item_no_progress(self, character, use_quest):
@@ -162,7 +162,7 @@ class TestRecordUse:
 
         character.quests.extend([kill_quest, collect_quest, use_quest])
 
-        messages = character.record_use("Health Potion")
+        character.record_use("Health Potion")
 
         assert kill_quest.current_count == 0
         assert collect_quest.current_count == 0

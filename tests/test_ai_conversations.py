@@ -8,7 +8,7 @@ Spec: When a player talks to an NPC:
 """
 
 import pytest
-from unittest.mock import Mock, patch, MagicMock
+from unittest.mock import patch
 
 from cli_rpg.ai_config import AIConfig, DEFAULT_NPC_DIALOGUE_PROMPT
 from cli_rpg.ai_service import AIService, AIGenerationError
@@ -250,7 +250,7 @@ class TestTalkCommandWithAI:
             coordinates=(0, 0),
             npcs=[sample_npc]
         )
-        game_state = GameState(
+        GameState(
             character=character,
             world={"Market": location},
             starting_location="Market",
@@ -422,7 +422,7 @@ class TestGenerateConversationResponse:
                 {"role": "player", "content": "I seek the ancient artifact."}
             ]
 
-            result = service.generate_conversation_response(
+            service.generate_conversation_response(
                 npc_name="Elder Sage",
                 npc_description="A wise old sage",
                 npc_role="quest_giver",
@@ -450,7 +450,7 @@ class TestGenerateConversationResponse:
             mock_call.return_value = "Welcome, stranger! How may I assist you?"
             service = AIService(mock_ai_config)
 
-            result = service.generate_conversation_response(
+            service.generate_conversation_response(
                 npc_name="Merchant",
                 npc_description="A friendly shopkeeper",
                 npc_role="merchant",

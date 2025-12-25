@@ -6,10 +6,8 @@ This test module verifies the specification in docs/save_file_detection_spec.md
 import json
 import os
 import pytest
-from pathlib import Path
 
 from cli_rpg.persistence import detect_save_type, load_character, load_game_state
-from cli_rpg.main import select_and_load_character
 from cli_rpg.models.character import Character
 from cli_rpg.game_state import GameState
 

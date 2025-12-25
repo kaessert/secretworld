@@ -3,7 +3,6 @@
 These tests verify that ISSUES.md accurately reflects the current state of known issues.
 Spec: Dead-end bug documented in ISSUES.md was fixed in commit 8d7f56f.
 """
-import os
 from pathlib import Path
 
 

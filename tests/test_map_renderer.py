@@ -4,7 +4,6 @@ These tests verify that render_map() displays a 5x5 grid centered on the player'
 current location, rather than calculating bounds from all explored locations.
 """
 
-import pytest
 from cli_rpg.map_renderer import render_map
 from cli_rpg.models.location import Location
 

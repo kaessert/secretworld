@@ -1,6 +1,5 @@
 """Tests for AI configuration module."""
 
-import os
 import pytest
 from cli_rpg.ai_config import AIConfig, AIConfigError
 

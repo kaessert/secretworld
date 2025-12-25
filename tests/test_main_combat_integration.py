@@ -1,13 +1,11 @@
 """Tests for main.py combat command integration."""
 
-import pytest
-from unittest.mock import Mock, patch, MagicMock
+from unittest.mock import patch
 from cli_rpg.models.character import Character
 from cli_rpg.models.location import Location
 from cli_rpg.models.enemy import Enemy
 from cli_rpg.game_state import GameState
 from cli_rpg.combat import CombatEncounter
-from cli_rpg.main import start_game
 
 
 class TestCombatCommandRouting:
@@ -410,7 +408,6 @@ class TestQuitCommandDuringCombat:
         # Test: Capture printed output
         from cli_rpg.main import handle_combat_command
         import io
-        import sys
         captured_output = io.StringIO()
         with patch('builtins.input', return_value='n'), patch('sys.stdout', captured_output):
             continue_game, message = handle_combat_command(game_state, "quit", [])

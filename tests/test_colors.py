@@ -1,6 +1,5 @@
 """Tests for the colors module."""
 import os
-import pytest
 from unittest.mock import patch
 
 from cli_rpg import colors

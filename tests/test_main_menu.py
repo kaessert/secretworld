@@ -1,5 +1,4 @@
 """Tests for main menu integration."""
-import pytest
 from unittest.mock import patch
 from cli_rpg.main import show_main_menu, main
 

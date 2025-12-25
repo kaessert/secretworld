@@ -1,6 +1,5 @@
 """Tests for Character leveling system."""
 
-import pytest
 from cli_rpg.models.character import Character
 
 
@@ -16,7 +15,7 @@ class TestGainXP:
             intelligence=10,
             level=1
         )
-        messages = character.gain_xp(50)
+        character.gain_xp(50)
         assert character.xp == 50
     
     def test_gain_xp_triggers_level_up_at_threshold(self):
@@ -77,7 +76,7 @@ class TestLevelUp:
             level=1
         )
         initial_level = character.level
-        message = character.level_up()
+        character.level_up()
         assert character.level == initial_level + 1
     
     def test_level_up_increases_stats(self):
@@ -111,7 +110,6 @@ class TestLevelUp:
         )
         # Damage the character
         character.take_damage(50)
-        damaged_health = character.health
         old_max_health = character.max_health
         
         character.level_up()

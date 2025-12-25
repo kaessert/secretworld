@@ -4,7 +4,6 @@ import json
 import os
 import pytest
 import tempfile
-from pathlib import Path
 
 from cli_rpg.persistence import save_game_state, load_game_state
 from cli_rpg.game_state import GameState

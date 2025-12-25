@@ -1,6 +1,5 @@
 """Tests for GameState combat integration."""
 
-import pytest
 from cli_rpg.models.character import Character
 from cli_rpg.models.location import Location
 from cli_rpg.game_state import GameState

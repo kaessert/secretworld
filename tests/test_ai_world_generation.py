@@ -1,14 +1,14 @@
 """Tests for AI-powered world generation."""
 
 import pytest
-from unittest.mock import Mock, patch
-from cli_rpg.ai_config import AIConfig
+from unittest.mock import Mock
 from cli_rpg.ai_service import AIService
 from cli_rpg.ai_world import (
     create_ai_world,
     expand_world,
     create_world_with_fallback,
-    get_opposite_direction
+    get_opposite_direction,
+    expand_area,
 )
 from cli_rpg.models.location import Location
 
@@ -584,8 +584,6 @@ def test_expand_world_assigns_coordinates(mock_ai_service):
 # ========================================================================
 # expand_area Tests (Coverage for lines 343-518)
 # ========================================================================
-
-from cli_rpg.ai_world import expand_area
 
 
 # Test: expand_area generates area cluster - spec: lines 343-372
@@ -1305,7 +1303,6 @@ def test_create_ai_world_logs_warning_for_non_grid_direction(mock_ai_service, ca
 
     Spec: Lines 150-151 - Non-grid directions like 'up'/'down' should be logged and skipped.
     """
-    import logging
 
     call_count = [0]
 

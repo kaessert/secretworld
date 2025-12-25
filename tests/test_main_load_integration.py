@@ -6,14 +6,11 @@ testing the complete flow of saving and loading both character-only and game sta
 
 import json
 import pytest
-from pathlib import Path
-from unittest.mock import Mock, patch, call
-from io import StringIO
+from unittest.mock import Mock, patch
 
-from cli_rpg.main import select_and_load_character, main, start_game, run_game_loop
+from cli_rpg.main import select_and_load_character, main
 from cli_rpg.models.character import Character
 from cli_rpg.game_state import GameState
-from cli_rpg.persistence import save_character, save_game_state
 from cli_rpg.world import create_world
 
 

@@ -3,7 +3,6 @@
 These tests target specific uncovered lines to increase overall test coverage.
 """
 
-import pytest
 from cli_rpg.models.character import Character
 from cli_rpg.models.item import Item, ItemType
 from cli_rpg.models.inventory import Inventory

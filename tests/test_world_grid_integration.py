@@ -1,6 +1,5 @@
 """Integration tests for grid-based world system."""
 
-import pytest
 from unittest.mock import Mock
 from cli_rpg.world import create_default_world
 from cli_rpg.world_grid import WorldGrid

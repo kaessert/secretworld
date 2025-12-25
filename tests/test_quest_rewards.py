@@ -11,7 +11,6 @@ import pytest
 
 from cli_rpg.models.quest import Quest, QuestStatus, ObjectiveType
 from cli_rpg.models.character import Character
-from cli_rpg.models.item import Item, ItemType
 
 
 @pytest.fixture
@@ -389,7 +388,7 @@ class TestRecordKillWithRewards:
 
         initial_gold = character.gold
         initial_xp = character.xp
-        messages = character.record_kill("Goblin")
+        character.record_kill("Goblin")
 
         # Quest should be ready to turn in (NOT completed)
         assert quest.status == QuestStatus.READY_TO_TURN_IN

@@ -5,11 +5,10 @@ These tests cover edge cases and error paths in main.py to improve coverage.
 
 import pytest
 import io
-import sys
 import tempfile
 import json
 import os
-from unittest.mock import Mock, patch, MagicMock
+from unittest.mock import Mock, patch
 from cli_rpg.models.character import Character
 from cli_rpg.models.location import Location
 from cli_rpg.models.enemy import Enemy
@@ -1010,7 +1009,6 @@ class TestAutosaveIOErrors:
         game_state.current_combat.is_active = True
 
         # Force successful flee by patching the combat's player_flee method directly
-        original_flee = game_state.current_combat.player_flee
         with patch.object(game_state.current_combat, 'player_flee', return_value=(True, "You flee!")):
             with patch('cli_rpg.main.autosave', side_effect=IOError("Disk full")):
                 continue_game, result = handle_combat_command(game_state, "flee", [])
@@ -1474,7 +1472,7 @@ class TestGameLoopConversationBreak:
 
     def test_game_loop_conversation_quit_breaks(self):
         """Line 968: Break from conversation when continue_game is False."""
-        from cli_rpg.main import run_game_loop, handle_conversation_input
+        from cli_rpg.main import run_game_loop
 
         character = Character(name="Hero", strength=10, dexterity=10, intelligence=10)
         npc = NPC(

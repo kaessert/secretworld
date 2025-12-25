@@ -1,6 +1,5 @@
 """Tests for Combat Encounter system."""
 
-import pytest
 from cli_rpg.models.character import Character
 from cli_rpg.models.enemy import Enemy
 from cli_rpg.combat import CombatEncounter, spawn_enemy

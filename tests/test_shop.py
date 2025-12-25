@@ -2,7 +2,6 @@
 
 Tests the Shop and ShopItem models including pricing and serialization.
 """
-import pytest
 from cli_rpg.models.shop import Shop, ShopItem
 from cli_rpg.models.item import Item, ItemType
 

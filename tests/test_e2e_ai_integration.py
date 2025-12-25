@@ -2,7 +2,7 @@
 
 import sys
 from io import StringIO
-from unittest.mock import Mock, patch, MagicMock
+from unittest.mock import Mock, patch
 
 import pytest
 
@@ -146,7 +146,7 @@ def test_theme_selection_flow_with_ai(mock_ai_config, mock_ai_service):
         
         try:
             result = main()
-            output = sys.stdout.getvalue()
+            sys.stdout.getvalue()
         finally:
             sys.stdout = old_stdout
         
@@ -168,7 +168,6 @@ def test_world_creation_with_ai_service(mock_ai_service):
     Tests: World creation with AI service requirement from spec.
     """
     from cli_rpg.main import start_game
-    from cli_rpg.world import create_world
     
     character = Character(name="TestHero", strength=10, dexterity=10, intelligence=10)
     
@@ -329,7 +328,6 @@ def test_theme_persistence_in_save_load(mock_ai_service):
     
     Tests: Theme persistence in save/load requirement from spec.
     """
-    from cli_rpg.game_state import GameState
     
     # Create game state with theme
     character = Character(name="TestHero", strength=10, dexterity=10, intelligence=10)
@@ -408,7 +406,6 @@ def test_backward_compatibility_with_existing_saves():
     
     Tests: Backward compatibility requirement from spec.
     """
-    from cli_rpg.game_state import GameState
     
     # Create old-style save data without theme
     character_data = {

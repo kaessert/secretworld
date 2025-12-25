@@ -1,13 +1,10 @@
 """Integration tests for gameplay loop."""
 
-import pytest
-import tempfile
 import os
 
 from cli_rpg.game_state import GameState
 from cli_rpg.world import create_default_world
 from cli_rpg.models.character import Character
-from cli_rpg.models.location import Location
 from cli_rpg.persistence import save_game_state, load_game_state
 
 
