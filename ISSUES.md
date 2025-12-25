@@ -350,10 +350,10 @@ Issues discovered while playtesting `--non-interactive` mode:
    - Validates all inputs immediately and returns errors for invalid input
    - Supports manual stat allocation (name, method "1", str, dex, int, confirmation) and random stats (name, method "2", confirmation)
 
-2. **Shop command requires prior NPC interaction**
-   - Running `shop` command without first doing `talk Merchant` fails with "You're not at a shop"
-   - This is counterintuitive when standing in Town Square with a Merchant NPC visible
-   - Suggestion: Allow `shop` command to work directly when a merchant NPC is present, or provide clearer guidance
+2. ~~**Shop command requires prior NPC interaction**~~ (RESOLVED)
+   - Fixed: `shop` command now auto-detects merchant NPCs in the current location
+   - No need to `talk Merchant` first - just use `shop` when a merchant is present
+   - If multiple merchants exist, uses the first one found
 
 3. ~~**NPC conversation responses are generic**~~ (RESOLVED with AI service)
    - When AI is enabled, NPCs respond intelligently to player input

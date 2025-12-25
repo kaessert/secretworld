@@ -79,9 +79,8 @@ class TestTalkCommand:
         handle_exploration_command(game_with_shop, "talk", ["guard"])
         assert game_with_shop.current_shop is None
 
-        # Shop command should now fail
-        cont, msg = handle_exploration_command(game_with_shop, "shop", [])
-        assert "not at a shop" in msg.lower() or "talk" in msg.lower()
+        # Note: Shop command will auto-detect merchant in location again
+        # This test verifies talking to non-merchant CLEARS the shop context
 
 
 class TestBuyCommand:
@@ -230,11 +229,54 @@ class TestShopCommand:
         assert "50" in msg  # Price
         assert "Iron Sword" in msg
 
-    def test_shop_not_at_shop(self, game_with_shop):
-        """Shop command shows error when not at a shop."""
+    def test_shop_auto_detects_merchant(self, game_with_shop):
+        """Shop command auto-detects merchant when not in active shop conversation.
+
+        Tests spec: Auto-detect merchant in current location when shop command used.
+        """
+        # Don't talk to merchant first - just use shop directly
         cont, msg = handle_exploration_command(game_with_shop, "shop", [])
         assert cont is True
-        assert "not at a shop" in msg.lower() or "talk" in msg.lower()
+        assert "Health Potion" in msg
+        assert "Iron Sword" in msg
+        # Verify shop context was set
+        assert game_with_shop.current_shop is not None
+
+    def test_shop_with_multiple_merchants_uses_first(self, game_with_shop):
+        """Shop command uses first available merchant when multiple present.
+
+        Tests spec: When multiple merchants present, use first one found.
+        """
+        # Add second merchant
+        potion2 = Item(name="Stamina Potion", description="Restores stamina", item_type=ItemType.CONSUMABLE)
+        shop2 = Shop(name="Alchemy Shop", inventory=[ShopItem(item=potion2, buy_price=60)])
+        merchant2 = NPC(
+            name="Alchemist",
+            description="A potion maker",
+            dialogue="Need potions?",
+            is_merchant=True,
+            shop=shop2
+        )
+        game_with_shop.get_current_location().npcs.append(merchant2)
+
+        cont, msg = handle_exploration_command(game_with_shop, "shop", [])
+        assert cont is True
+        # Should open first merchant's shop (General Store)
+        assert "General Store" in msg or "Health Potion" in msg
+
+    def test_shop_no_merchant_shows_error(self):
+        """Shop command shows error when no merchant in location.
+
+        Tests spec: Error message when no merchant is present.
+        """
+        char = Character(name="Hero", strength=10, dexterity=10, intelligence=10)
+        guard = NPC(name="Guard", description="A guard", dialogue="Move along", is_merchant=False)
+        town = Location(name="Barracks", description="Guard station", npcs=[guard])
+        game = GameState(char, {"Barracks": town}, starting_location="Barracks")
+
+        cont, msg = handle_exploration_command(game, "shop", [])
+        assert cont is True
+        assert "no merchant" in msg.lower() or "no shop" in msg.lower()
 
 
 class TestParseShopCommands:

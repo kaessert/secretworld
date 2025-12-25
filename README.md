@@ -125,10 +125,10 @@ Your inventory has a capacity of 20 items. Use `inventory` to view your items, `
 Merchants can be found throughout the world. Interact with them to buy and sell items:
 
 1. Use `look` to see NPCs in your location
-2. Use `talk <npc>` to interact with a merchant and open their shop
-3. Use `shop` to view available items and prices
-4. Use `buy <item>` to purchase items (requires sufficient gold)
-5. Use `sell <item>` to sell items from your inventory for gold
+2. Use `shop` to view available items and prices (auto-detects merchant in location)
+3. Use `buy <item>` to purchase items (requires sufficient gold)
+4. Use `sell <item>` to sell items from your inventory for gold
+5. Optionally use `talk <npc>` to chat with a merchant before shopping
 
 **Earning Gold**: Defeat enemies in combat to earn gold (5-15 × enemy level per victory).
 

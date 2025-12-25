@@ -651,7 +651,12 @@ def handle_exploration_command(game_state: GameState, command: str, args: list[s
 
     elif command == "shop":
         if game_state.current_shop is None:
-            return (True, "\nYou're not at a shop. Talk to a merchant first.")
+            # Auto-detect merchant in current location
+            location = game_state.get_current_location()
+            merchant = next((npc for npc in location.npcs if npc.is_merchant and npc.shop), None)
+            if merchant is None:
+                return (True, "\nThere's no merchant here.")
+            game_state.current_shop = merchant.shop
         shop = game_state.current_shop
         lines = [f"\n=== {shop.name} ===", f"Your gold: {game_state.current_character.gold}", ""]
         for si in shop.inventory:

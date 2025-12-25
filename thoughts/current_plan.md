@@ -1,69 +1,89 @@
-# Implementation Plan: Character Creation in Non-Interactive Mode
+# Shop Command Auto-Detect Merchant Fix
 
 ## Problem
-Non-interactive mode (`--non-interactive` and `--json`) completely bypasses character creation, hardcoding a default "Agent" character. Users expect to provide character creation inputs via stdin, but those inputs are treated as "Unknown command" because the game loop starts immediately.
+Running `shop` command without first doing `talk Merchant` fails with "You're not at a shop", even when standing in a location with a visible Merchant NPC.
 
-## Design Decision
-Add a `--skip-character-creation` flag (default: false) to control whether to use the quick default character or run the full character creation flow in non-interactive mode. This preserves backward compatibility while enabling character customization.
-
-## Spec
-1. **New CLI flag**: `--skip-character-creation` - When set, use default "Agent" character (current behavior). When not set, read character creation inputs from stdin.
-2. **Character creation inputs** in non-interactive mode (when not skipped):
-   - Line 1: Character name (string, 2-30 chars)
-   - Line 2: Stat allocation method ("1" or "2" / "manual" or "random")
-   - If manual: Lines 3-5: strength, dexterity, intelligence (integers 1-20)
-   - Final line: Confirmation ("yes" or "y")
-3. **Error handling**: Invalid inputs should print error and exit with code 1 (no retry loops in non-interactive mode)
-4. **JSON mode**: Same behavior, but errors emit JSON error objects
-
-## Tests (new file: tests/test_non_interactive_character_creation.py)
-
-1. `test_non_interactive_with_skip_flag_uses_default_character`: `--skip-character-creation` uses "Agent" (preserves current behavior)
-2. `test_non_interactive_character_creation_manual_stats`: Provide name, "1", str/dex/int, "yes" → custom character
-3. `test_non_interactive_character_creation_random_stats`: Provide name, "2", "yes" → custom character with random stats
-4. `test_non_interactive_character_creation_invalid_name_exits`: Invalid name (empty or too short) → exit code 1
-5. `test_non_interactive_character_creation_invalid_stat_exits`: Invalid stat value → exit code 1
-6. `test_json_mode_character_creation`: Same as above but verify JSON output format
-7. `test_json_mode_with_skip_flag`: `--json --skip-character-creation` works
+## Solution
+Modify the `shop` command handler in `main.py` to auto-detect a merchant NPC in the current location when `current_shop` is None.
 
 ## Implementation Steps
 
-### 1. Add CLI flag to main.py
-Location: `main()` function, argparse section (~line 1537)
+### 1. Write Tests
+**File:** `tests/test_shop_commands.py`
+
+Add test to `TestShopCommand` class:
 ```python
-parser.add_argument(
-    "--skip-character-creation",
-    action="store_true",
-    help="Skip character creation and use default character (non-interactive/JSON modes only)"
-)
+def test_shop_auto_detects_merchant(self, game_with_shop):
+    """Shop command auto-detects merchant when not in active shop conversation."""
+    # Don't talk to merchant first - just use shop directly
+    cont, msg = handle_exploration_command(game_with_shop, "shop", [])
+    assert cont is True
+    assert "Health Potion" in msg
+    assert "Iron Sword" in msg
+    # Verify shop context was set
+    assert game_with_shop.current_shop is not None
 ```
 
-### 2. Create `create_character_non_interactive()` in character_creation.py
-Add new function that reads from stdin without retry loops:
-- Read name, validate, print error and return None if invalid
-- Read allocation method, validate
-- If manual: read 3 stat values, validate each
-- Read confirmation
-- Return Character or None
-
-### 3. Update `run_non_interactive()` in main.py (~line 1397)
-Before creating the default character:
+Add test for multiple merchants (optional - clarifies behavior):
 ```python
-if not skip_character_creation:
-    character = create_character_non_interactive()
-    if character is None:
-        return 1  # Exit with error
-else:
-    character = Character(name="Agent", strength=10, dexterity=10, intelligence=10)
+def test_shop_with_multiple_merchants_uses_first(self, game_with_shop):
+    """Shop command uses first available merchant when multiple present."""
+    # Add second merchant
+    from cli_rpg.models.item import Item, ItemType
+    from cli_rpg.models.shop import Shop, ShopItem
+    potion2 = Item(name="Stamina Potion", description="Restores stamina", item_type=ItemType.CONSUMABLE)
+    shop2 = Shop(name="Alchemy Shop", inventory=[ShopItem(item=potion2, buy_price=60)])
+    merchant2 = NPC(name="Alchemist", description="A potion maker", dialogue="Need potions?", is_merchant=True, shop=shop2)
+    game_with_shop.get_current_location().npcs.append(merchant2)
+
+    cont, msg = handle_exploration_command(game_with_shop, "shop", [])
+    assert cont is True
+    # Should open first merchant's shop (General Store)
+    assert "General Store" in msg or "Health Potion" in msg
 ```
 
-### 4. Update `run_json_mode()` in main.py (~line 1208)
-Same logic as step 3, but emit JSON error on failure
+Add test for no merchant present:
+```python
+def test_shop_no_merchant_shows_error(self):
+    """Shop command shows error when no merchant in location."""
+    char = Character(name="Hero", strength=10, dexterity=10, intelligence=10)
+    guard = NPC(name="Guard", description="A guard", dialogue="Move along", is_merchant=False)
+    town = Location(name="Barracks", description="Guard station", npcs=[guard])
+    game = GameState(char, {"Barracks": town}, starting_location="Barracks")
 
-### 5. Pass flag through to run functions
-Update `run_non_interactive()` and `run_json_mode()` signatures to accept `skip_character_creation: bool` parameter
+    cont, msg = handle_exploration_command(game, "shop", [])
+    assert cont is True
+    assert "no merchant" in msg.lower() or "no shop" in msg.lower()
+```
 
-## Files to Modify
-1. `src/cli_rpg/character_creation.py` - Add `create_character_non_interactive()`
-2. `src/cli_rpg/main.py` - Add CLI flag, update `run_non_interactive()` and `run_json_mode()`
-3. `tests/test_non_interactive_character_creation.py` - New test file
+### 2. Implement Fix
+**File:** `src/cli_rpg/main.py` (line ~652)
+
+Replace:
+```python
+elif command == "shop":
+    if game_state.current_shop is None:
+        return (True, "\nYou're not at a shop. Talk to a merchant first.")
+```
+
+With:
+```python
+elif command == "shop":
+    if game_state.current_shop is None:
+        # Auto-detect merchant in current location
+        location = game_state.get_current_location()
+        merchant = next((npc for npc in location.npcs if npc.is_merchant and npc.shop), None)
+        if merchant is None:
+            return (True, "\nThere's no merchant here.")
+        game_state.current_shop = merchant.shop
+```
+
+### 3. Run Tests
+```bash
+pytest tests/test_shop_commands.py -v
+pytest --cov=src/cli_rpg tests/
+```
+
+## Files Changed
+- `src/cli_rpg/main.py` - Shop command handler (~3 lines added)
+- `tests/test_shop_commands.py` - New test cases (~20 lines)
