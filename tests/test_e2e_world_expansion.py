@@ -70,6 +70,8 @@ def mock_ai_service_success():
         }
     
     service.generate_location.side_effect = generate_location_side_effect
+    # Mock location ASCII art generation to return a string (fallback will be used)
+    service.generate_location_ascii_art.return_value = "  /\\\n / \\\n/___\\"
     return service
 
 

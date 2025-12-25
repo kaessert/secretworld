@@ -35,6 +35,7 @@ class Location:
     npcs: List["NPC"] = field(default_factory=list)
     coordinates: Optional[Tuple[int, int]] = None
     category: Optional[str] = None
+    ascii_art: str = ""
     
     def __post_init__(self) -> None:
         """Validate location attributes after initialization."""
@@ -170,6 +171,9 @@ class Location:
         # Only include category if present (backward compatibility)
         if self.category is not None:
             data["category"] = self.category
+        # Only include ascii_art if non-empty (backward compatibility)
+        if self.ascii_art:
+            data["ascii_art"] = self.ascii_art
         return data
     
     @classmethod
@@ -195,22 +199,31 @@ class Location:
             coordinates = (coords[0], coords[1])
         # Parse category if present (for backward compatibility)
         category = data.get("category")
+        # Parse ascii_art if present (for backward compatibility)
+        ascii_art = data.get("ascii_art", "")
         return cls(
             name=data["name"],
             description=data["description"],
             connections=data.get("connections", {}),
             npcs=npcs,
             coordinates=coordinates,
-            category=category
+            category=category,
+            ascii_art=ascii_art
         )
     
     def __str__(self) -> str:
         """Return a human-readable string representation of the location.
 
         Returns:
-            A formatted string with name, description, and exits
+            A formatted string with name, ASCII art (if present), description, and exits
         """
-        result = f"{colors.location(self.name)}\n{self.description}\n"
+        result = f"{colors.location(self.name)}\n"
+
+        # Add ASCII art if present (after name, before description)
+        if self.ascii_art:
+            result += self.ascii_art.strip() + "\n"
+
+        result += f"{self.description}\n"
 
         if self.npcs:
             npc_names = [colors.npc(npc.name) for npc in self.npcs]

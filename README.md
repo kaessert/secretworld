@@ -353,6 +353,7 @@ src/cli_rpg/
 ├── ai_world.py          # AI-powered world generation
 ├── ai_service.py        # AI service integration
 ├── ai_config.py         # AI configuration management
+├── location_art.py      # Fallback ASCII art for locations
 ├── autosave.py          # Automatic game saving
 ├── models/              # Data models
 │   ├── character.py

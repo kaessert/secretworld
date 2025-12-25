@@ -116,7 +116,7 @@ Map lacks visual feedback for inaccessible areas.
 ### More content 2
 **Status**: ACTIVE
 
-Users requesting ASCII art for things like locations and NPCs. ~~Monsters in combat~~ (DONE - enemies now display ASCII art when combat starts, with AI-generated or fallback template art)
+Users requesting ASCII art for things like ~~locations~~ (DONE - locations now display ASCII art when entering or looking, with AI-generated or fallback template art) and NPCs. ~~Monsters in combat~~ (DONE - enemies now display ASCII art when combat starts, with AI-generated or fallback template art)
 
 ### Meaningful choices and consequences
 **Status**: ACTIVE

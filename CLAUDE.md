@@ -33,6 +33,7 @@ src/cli_rpg/
 ├── ai_service.py        # AI integration for content generation
 ├── ai_world.py          # AI-powered world content
 ├── ai_config.py         # AI service configuration
+├── location_art.py      # Fallback ASCII art templates for locations
 ├── config.py            # General configuration
 ├── colors.py            # ANSI color output utilities
 ├── json_output.py       # JSON Lines output for --json mode

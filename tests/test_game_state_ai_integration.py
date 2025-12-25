@@ -44,6 +44,8 @@ def complete_world():
 def mock_ai_service():
     """Create a mock AI service."""
     service = Mock(spec=AIService)
+    # Mock location ASCII art generation to return a string
+    service.generate_location_ascii_art.return_value = "  /\\\n / \\\n/___\\"
     return service
 
 

@@ -8,10 +8,48 @@ from cli_rpg.models.npc import NPC
 from cli_rpg.models.shop import Shop, ShopItem
 from cli_rpg.models.item import Item, ItemType
 from cli_rpg.world_grid import WorldGrid, DIRECTION_OFFSETS
+from cli_rpg.location_art import get_fallback_location_ascii_art
 
 
 # Set up logging
 logger = logging.getLogger(__name__)
+
+
+def _generate_location_ascii_art(
+    ai_service: AIService,
+    location_name: str,
+    location_description: str,
+    location_category: Optional[str],
+    theme: str
+) -> str:
+    """Generate ASCII art for a location using AI with fallback.
+
+    Tries to generate ASCII art using the AI service. If that fails,
+    falls back to template-based art from location_art module.
+
+    Args:
+        ai_service: AIService instance
+        location_name: Name of the location
+        location_description: Description of the location
+        location_category: Category of the location (town, forest, etc.)
+        theme: World theme (e.g., "fantasy", "sci-fi")
+
+    Returns:
+        ASCII art string
+    """
+    try:
+        return ai_service.generate_location_ascii_art(
+            location_name=location_name,
+            location_description=location_description,
+            location_category=location_category,
+            theme=theme
+        )
+    except Exception as e:
+        logger.warning(f"AI location ASCII art generation failed, using fallback: {e}")
+        return get_fallback_location_ascii_art(
+            category=location_category,
+            location_name=location_name
+        )
 
 
 def get_opposite_direction(direction: str) -> str:
@@ -78,12 +116,22 @@ def create_ai_world(
         direction=None
     )
 
+    # Generate ASCII art for starting location
+    starting_ascii_art = _generate_location_ascii_art(
+        ai_service=ai_service,
+        location_name=starting_data["name"],
+        location_description=starting_data["description"],
+        location_category=starting_data.get("category"),
+        theme=theme
+    )
+
     # Create starting location at origin (0, 0)
     starting_location = Location(
         name=starting_data["name"],
         description=starting_data["description"],
         connections={},  # WorldGrid will add connections
-        category=starting_data.get("category")
+        category=starting_data.get("category"),
+        ascii_art=starting_ascii_art
     )
     grid.add_location(starting_location, 0, 0)
 
@@ -169,12 +217,22 @@ def create_ai_world(
                 direction=direction
             )
 
+            # Generate ASCII art for the new location
+            new_ascii_art = _generate_location_ascii_art(
+                ai_service=ai_service,
+                location_name=location_data["name"],
+                location_description=location_data["description"],
+                location_category=location_data.get("category"),
+                theme=theme
+            )
+
             # Create location
             new_location = Location(
                 name=location_data["name"],
                 description=location_data["description"],
                 connections={},
-                category=location_data.get("category")
+                category=location_data.get("category"),
+                ascii_art=new_ascii_art
             )
 
             # Add to grid if name is unique (WorldGrid handles connections)
@@ -265,6 +323,15 @@ def expand_world(
         direction=direction
     )
 
+    # Generate ASCII art for the new location
+    new_ascii_art = _generate_location_ascii_art(
+        ai_service=ai_service,
+        location_name=location_data["name"],
+        location_description=location_data["description"],
+        location_category=location_data.get("category"),
+        theme=theme
+    )
+
     # Determine coordinates for the new location
     source_loc = world[from_location]
     if target_coords is not None:
@@ -283,7 +350,8 @@ def expand_world(
         description=location_data["description"],
         connections={},
         coordinates=new_coordinates,
-        category=location_data.get("category")
+        category=location_data.get("category"),
+        ascii_art=new_ascii_art
     )
 
     # Add to world
@@ -421,13 +489,20 @@ def expand_area(
             logger.warning(f"Skipping duplicate location name: {loc_data['name']}")
             continue
 
+        # Generate ASCII art using fallback (to avoid extra API calls for area locations)
+        loc_ascii_art = get_fallback_location_ascii_art(
+            category=loc_data.get("category"),
+            location_name=loc_data["name"]
+        )
+
         # Create the location
         new_loc = Location(
             name=loc_data["name"],
             description=loc_data["description"],
             connections={},
             coordinates=(abs_x, abs_y),
-            category=loc_data.get("category")
+            category=loc_data.get("category"),
+            ascii_art=loc_ascii_art
         )
 
         placed_locations[loc_data["name"]] = {

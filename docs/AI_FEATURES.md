@@ -323,6 +323,16 @@ pytest tests/test_e2e_world_expansion.py -v
 - Graceful fallback to template-based enemies when AI is unavailable
 - Enemy stats are scaled to player level for balanced encounters
 
+### 7a. AI-Generated Location ASCII Art
+- Locations display ASCII art when players enter or look at them (3-10 lines, max 50 chars wide)
+- AI generates unique ASCII art for each location via `generate_location_ascii_art()`
+- Art reflects the location category and theme (forest, dungeon, town, etc.)
+- Fallback templates in `location_art.py` for common location categories:
+  - Town/city, village, forest, dungeon, cave, ruins, mountain, wilderness, settlement
+- Name-based matching: locations named "Dark Forest" use forest templates even without explicit category
+- Backward compatible: existing saves without ASCII art load correctly (empty string default)
+- ASCII art is persisted with location data and survives save/load cycles
+
 ### 8. AI-Generated Items
 - `AIService.generate_item()` creates contextual items based on theme, location, and player level
 - Supports all item types: weapons (damage_bonus), armor (defense_bonus), consumables (heal_amount), misc

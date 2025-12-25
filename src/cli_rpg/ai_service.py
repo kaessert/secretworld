@@ -1104,6 +1104,100 @@ Note: Use "EXISTING_WORLD" as placeholder for the connection back to the source 
 
         return "\n".join(cleaned_lines)
 
+    def generate_location_ascii_art(
+        self,
+        location_name: str,
+        location_description: str,
+        location_category: Optional[str],
+        theme: str
+    ) -> str:
+        """Generate ASCII art for a location.
+
+        Args:
+            location_name: Name of the location
+            location_description: Description of the location's appearance
+            location_category: Category of the location (town, forest, etc.)
+            theme: World theme (e.g., "fantasy", "sci-fi")
+
+        Returns:
+            ASCII art string (6-10 lines, max 50 chars wide)
+
+        Raises:
+            AIGenerationError: If generation fails or response is invalid
+            AIServiceError: If API call fails
+            AITimeoutError: If request times out
+        """
+        # Build prompt
+        prompt = self._build_location_ascii_art_prompt(
+            location_name=location_name,
+            location_description=location_description,
+            location_category=location_category,
+            theme=theme
+        )
+
+        # Call LLM
+        response_text = self._call_llm(prompt)
+
+        # Clean and validate response
+        art = self._parse_location_ascii_art_response(response_text)
+
+        return art
+
+    def _build_location_ascii_art_prompt(
+        self,
+        location_name: str,
+        location_description: str,
+        location_category: Optional[str],
+        theme: str
+    ) -> str:
+        """Build prompt for location ASCII art generation.
+
+        Args:
+            location_name: Name of the location
+            location_description: Description of the location
+            location_category: Category of the location
+            theme: World theme
+
+        Returns:
+            Formatted prompt string
+        """
+        return self.config.location_ascii_art_generation_prompt.format(
+            location_name=location_name,
+            location_description=location_description,
+            location_category=location_category or "unknown",
+            theme=theme
+        )
+
+    def _parse_location_ascii_art_response(self, response_text: str) -> str:
+        """Parse and validate LLM response for location ASCII art generation.
+
+        Args:
+            response_text: Raw response text from LLM
+
+        Returns:
+            Cleaned ASCII art string
+
+        Raises:
+            AIGenerationError: If validation fails
+        """
+        # Strip whitespace and clean up
+        art = response_text.strip()
+
+        # Validate minimum content
+        lines = art.splitlines()
+        if len(lines) < 3:
+            raise AIGenerationError("Location ASCII art too short (min 3 lines)")
+
+        # Truncate lines that are too long (max 50 chars for locations)
+        cleaned_lines = []
+        for line in lines[:10]:  # Max 10 lines for locations
+            if len(line) > 50:
+                cleaned_lines.append(line[:50])
+            else:
+                cleaned_lines.append(line)
+
+        return "\n".join(cleaned_lines)
+
     def generate_item(
         self,
         theme: str,

@@ -175,7 +175,7 @@ Rewards scaling guidelines (based on player level {player_level}):
 - xp_reward: 25 + (player_level * 12) with some variance"""
 
 
-# Default prompt template for ASCII art generation
+# Default prompt template for ASCII art generation (enemies)
 DEFAULT_ASCII_ART_GENERATION_PROMPT = """Generate ASCII art for a {theme} RPG enemy.
 
 Enemy Name: {enemy_name}
@@ -187,6 +187,23 @@ Requirements:
 3. Use only ASCII characters (letters, numbers, symbols)
 4. Make it visually represent the enemy's appearance
 5. Keep it simple but recognizable
+
+Respond with ONLY the ASCII art, no explanation or formatting."""
+
+
+# Default prompt template for location ASCII art generation
+DEFAULT_LOCATION_ASCII_ART_PROMPT = """Generate ASCII art for a {theme} RPG location.
+
+Location Name: {location_name}
+Category: {location_category}
+Description: {location_description}
+
+Requirements:
+1. Create ASCII art that is 6-10 lines tall
+2. Maximum 50 characters wide per line
+3. Use only ASCII characters (letters, numbers, symbols)
+4. Represent the location's key visual features
+5. Keep it simple but atmospheric
 
 Respond with ONLY the ASCII art, no explanation or formatting."""
 
@@ -252,6 +269,7 @@ class AIConfig:
     quest_generation_prompt: str = field(default=DEFAULT_QUEST_GENERATION_PROMPT)
     npc_conversation_prompt: str = field(default=DEFAULT_NPC_CONVERSATION_PROMPT)
     ascii_art_generation_prompt: str = field(default=DEFAULT_ASCII_ART_GENERATION_PROMPT)
+    location_ascii_art_generation_prompt: str = field(default=DEFAULT_LOCATION_ASCII_ART_PROMPT)
     
     def __post_init__(self) -> None:
         """Validate configuration after initialization."""
@@ -404,6 +422,7 @@ class AIConfig:
             "quest_generation_prompt": self.quest_generation_prompt,
             "npc_conversation_prompt": self.npc_conversation_prompt,
             "ascii_art_generation_prompt": self.ascii_art_generation_prompt,
+            "location_ascii_art_generation_prompt": self.location_ascii_art_generation_prompt,
         }
     
     @classmethod
@@ -440,5 +459,8 @@ class AIConfig:
             npc_conversation_prompt=data.get("npc_conversation_prompt", DEFAULT_NPC_CONVERSATION_PROMPT),
             ascii_art_generation_prompt=data.get(
                 "ascii_art_generation_prompt", DEFAULT_ASCII_ART_GENERATION_PROMPT
+            ),
+            location_ascii_art_generation_prompt=data.get(
+                "location_ascii_art_generation_prompt", DEFAULT_LOCATION_ASCII_ART_PROMPT
             ),
         )
