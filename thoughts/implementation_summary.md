@@ -1,70 +1,59 @@
-# Implementation Summary: Terminal Bell Sound Effects
+# Implementation Summary: Pause and Pacing for Dramatic Tension
 
 ## What Was Implemented
 
-Added terminal bell (`\a`) sound effects for important game events:
-- **Combat victory** - Player wins a fight
-- **Level up** - Player gains a level
-- **Player death** - Game over
-- **Quest completion** - Quest turned in for rewards
+### 1. New Pause Functions in `text_effects.py`
 
-## Files Created
+Added duration constants and four pause functions that integrate with the existing effects system:
 
-### `src/cli_rpg/sound_effects.py`
-New module with:
-- `set_sound_enabled(enabled: Optional[bool])` - global toggle for sounds
-- `sound_enabled() -> bool` - check if sounds are enabled (follows `color_enabled()` when None)
-- `bell(file)` - output `\a` if sounds are enabled
-- Semantic helpers: `sound_victory()`, `sound_level_up()`, `sound_death()`, `sound_quest_complete()`
+**Constants:**
+- `PAUSE_SHORT = 0.5` - 0.5s for minor dramatic beats
+- `PAUSE_MEDIUM = 1.0` - 1.0s for moderate drama
+- `PAUSE_LONG = 1.5` - 1.5s for major moments
 
-### `tests/test_sound_effects.py`
-Comprehensive tests for the sound_effects module:
-- Tests that `bell()` outputs `\a` when enabled
-- Tests that `bell()` outputs nothing when disabled
-- Tests that `sound_enabled()` follows `color_enabled()` when not explicitly set
-- Tests that explicit override works
-- Tests all semantic helpers
+**Functions:**
+- `dramatic_pause(duration: float)` - Core pause function, respects `effects_enabled()` toggle
+- `pause_short()` - Convenience wrapper for 0.5s pause
+- `pause_medium()` - Convenience wrapper for 1.0s pause
+- `pause_long()` - Convenience wrapper for 1.5s pause
+
+All pause functions:
+- Skip instantly when `effects_enabled() == False`
+- Follow the `color_enabled()` setting when effects not explicitly set
+- Can be overridden via `set_effects_enabled()`
+
+### 2. Integration into Combat (`combat.py`)
+
+Added pauses to three display functions:
+- `display_combat_start()` - Added `pause_short()` after combat intro
+- `display_combo()` - Added `pause_medium()` after combo announcements
+- `display_combat_end()` - Added `pause_long()` after combat resolution
+
+### 3. Integration into Dreams (`dreams.py`)
+
+- Added `pause_medium()` import
+- `display_dream()` now pauses after the dream ends for reflection
 
 ## Files Modified
 
-### `src/cli_rpg/main.py`
-- Added import for `set_sound_enabled`, `sound_death`, `sound_quest_complete`
-- In `run_json_mode()`: Added `set_sound_enabled(False)` to disable sounds in JSON mode
-- In `run_non_interactive()`: Added `set_sound_enabled(False)` to disable sounds in non-interactive mode
-- Added `sound_death()` calls in all 6 player death locations in `handle_combat_command()`
-- Added `sound_quest_complete()` call in quest completion handler
-
-### `src/cli_rpg/combat.py`
-- Added import for `sound_victory`
-- In `end_combat(victory=True)`: Added `sound_victory()` call at the start of victory handling
-
-### `src/cli_rpg/models/character.py`
-- Added import for `sound_level_up`
-- In `level_up()`: Added `sound_level_up()` call after level increment
+| File | Changes |
+|------|---------|
+| `src/cli_rpg/text_effects.py` | Added 3 constants, 4 functions (~25 lines) |
+| `src/cli_rpg/combat.py` | Updated 3 display functions with pause calls |
+| `src/cli_rpg/dreams.py` | Added import, updated `display_dream()` |
+| `tests/test_text_effects.py` | Added `TestDramaticPause` class with 6 tests |
 
 ## Test Results
 
 All tests pass:
-- `tests/test_sound_effects.py`: 11 tests passed
-- Full test suite: 2303 tests passed
+- 20 tests in `test_text_effects.py` (6 new pause tests)
+- 27 tests in `test_combat.py`
+- 23 tests in `test_dreams.py`
+- **2309 tests in full suite**
 
-## Design Decisions
+## Key Design Decisions
 
-1. **Pattern matching `text_effects.py`**: The sound_effects module follows the same pattern as text_effects.py, using a global override that defaults to following `color_enabled()`.
-
-2. **Sounds disabled in non-interactive modes**: Both `--json` and `--non-interactive` modes disable sounds, as these are designed for programmatic/automated use.
-
-3. **Semantic helpers**: Created specific functions for each event type (`sound_victory`, `sound_level_up`, etc.) for semantic clarity and future extensibility (e.g., different sounds per event).
-
-4. **Victory sound in combat.py**: Placed in `end_combat()` rather than `main.py` since this is the canonical location for victory handling and loot distribution.
-
-5. **Level-up sound in character.py**: Placed in `level_up()` method since this is where the level change happens, ensuring the sound plays regardless of how level-ups are triggered.
-
-## E2E Validation
-
-To validate the implementation:
-1. Run the game and defeat an enemy - should hear bell on victory
-2. Gain enough XP to level up - should hear bell on level up
-3. Complete a quest by talking to quest giver and using "complete" command - should hear bell
-4. Let character die in combat - should hear bell on game over
-5. Run with `--non-interactive` or `--json` flags - no bells should sound
+1. **Reuses existing effects toggle** - Pauses respect the same `effects_enabled()` toggle as typewriter effects, ensuring consistent behavior
+2. **Customizable constants** - Duration values are module-level constants that can be easily adjusted
+3. **Import locality** - Combat and dreams import pause functions locally to avoid circular dependencies
+4. **No breaking changes** - All existing behavior preserved; pauses are additive enhancement

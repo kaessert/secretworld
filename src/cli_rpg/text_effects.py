@@ -14,6 +14,11 @@ from cli_rpg.colors import color_enabled
 # Default delay between characters (in seconds)
 DEFAULT_TYPEWRITER_DELAY = 0.03
 
+# Pause duration constants (in seconds)
+PAUSE_SHORT = 0.5
+PAUSE_MEDIUM = 1.0
+PAUSE_LONG = 1.5
+
 # ANSI escape sequence pattern - matches sequences like \x1b[31m, \x1b[0m, etc.
 ANSI_ESCAPE_PATTERN = re.compile(r"\x1b\[[0-9;]*m")
 
@@ -123,3 +128,31 @@ def typewriter_print(
         file.write(remaining)
         file.write(end)
         file.flush()
+
+
+def dramatic_pause(duration: float = PAUSE_MEDIUM) -> None:
+    """Pause execution for dramatic effect.
+
+    If effects are disabled, returns immediately.
+
+    Args:
+        duration: Pause duration in seconds. Defaults to PAUSE_MEDIUM.
+    """
+    if not effects_enabled():
+        return
+    time.sleep(duration)
+
+
+def pause_short() -> None:
+    """Short pause (0.5s) for minor dramatic beats."""
+    dramatic_pause(PAUSE_SHORT)
+
+
+def pause_medium() -> None:
+    """Medium pause (1.0s) for moderate dramatic moments."""
+    dramatic_pause(PAUSE_MEDIUM)
+
+
+def pause_long() -> None:
+    """Long pause (1.5s) for major dramatic moments."""
+    dramatic_pause(PAUSE_LONG)

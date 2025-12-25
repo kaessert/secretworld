@@ -37,7 +37,7 @@ src/cli_rpg/
 ├── npc_art.py           # Fallback ASCII art templates for NPCs
 ├── config.py            # General configuration
 ├── colors.py            # ANSI color output utilities
-├── text_effects.py      # Typewriter text reveal effects
+├── text_effects.py      # Typewriter text reveal and dramatic pause effects
 ├── json_output.py       # JSON Lines output for --json mode
 ├── logging_service.py   # Gameplay logging for --log-file option
 ├── input_handler.py     # Readline-based input with command history

@@ -34,8 +34,9 @@ def display_combat_start(intro_text: str) -> None:
     Args:
         intro_text: The combat intro text to display with typewriter effect.
     """
-    from cli_rpg.text_effects import typewriter_print
+    from cli_rpg.text_effects import typewriter_print, pause_short
     typewriter_print(intro_text, delay=COMBAT_TYPEWRITER_DELAY)
+    pause_short()  # Brief pause after combat intro
 
 
 def display_combo(combo_text: str) -> None:
@@ -44,8 +45,9 @@ def display_combo(combo_text: str) -> None:
     Args:
         combo_text: The combo announcement text to display with typewriter effect.
     """
-    from cli_rpg.text_effects import typewriter_print
+    from cli_rpg.text_effects import typewriter_print, pause_medium
     typewriter_print(combo_text, delay=COMBAT_TYPEWRITER_DELAY)
+    pause_medium()  # Moderate pause after combo announcement
 
 
 def display_combat_end(result_text: str) -> None:
@@ -56,9 +58,10 @@ def display_combat_end(result_text: str) -> None:
     Args:
         result_text: The combat result text to display with typewriter effect.
     """
-    from cli_rpg.text_effects import typewriter_print
+    from cli_rpg.text_effects import typewriter_print, pause_long
     for line in result_text.split("\n"):
         typewriter_print(line, delay=COMBAT_TYPEWRITER_DELAY)
+    pause_long()  # Long pause after combat resolution
 
 
 def calculate_distance_from_origin(coordinates: Optional[Tuple[int, int]]) -> int:

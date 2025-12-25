@@ -254,3 +254,70 @@ class TestKeyboardInterrupt:
 
         # All text should still be output despite interrupt
         assert output.getvalue() == "ABCDE"
+
+
+class TestDramaticPause:
+    """Test: dramatic_pause() creates timed delays."""
+
+    def test_dramatic_pause_sleeps_when_enabled(self):
+        """dramatic_pause() should sleep for specified duration."""
+        _reset_effects_state()
+        text_effects.set_effects_enabled(True)
+
+        with patch("time.sleep") as mock_sleep:
+            text_effects.dramatic_pause(0.75)
+
+        mock_sleep.assert_called_once_with(0.75)
+
+    def test_dramatic_pause_skips_when_disabled(self):
+        """dramatic_pause() should skip sleep when effects disabled."""
+        _reset_effects_state()
+        text_effects.set_effects_enabled(False)
+
+        with patch("time.sleep") as mock_sleep:
+            text_effects.dramatic_pause(1.0)
+
+        mock_sleep.assert_not_called()
+
+    def test_pause_short_uses_correct_duration(self):
+        """pause_short() should use PAUSE_SHORT duration."""
+        _reset_effects_state()
+        text_effects.set_effects_enabled(True)
+
+        with patch("time.sleep") as mock_sleep:
+            text_effects.pause_short()
+
+        mock_sleep.assert_called_once_with(text_effects.PAUSE_SHORT)
+
+    def test_pause_medium_uses_correct_duration(self):
+        """pause_medium() should use PAUSE_MEDIUM duration."""
+        _reset_effects_state()
+        text_effects.set_effects_enabled(True)
+
+        with patch("time.sleep") as mock_sleep:
+            text_effects.pause_medium()
+
+        mock_sleep.assert_called_once_with(text_effects.PAUSE_MEDIUM)
+
+    def test_pause_long_uses_correct_duration(self):
+        """pause_long() should use PAUSE_LONG duration."""
+        _reset_effects_state()
+        text_effects.set_effects_enabled(True)
+
+        with patch("time.sleep") as mock_sleep:
+            text_effects.pause_long()
+
+        mock_sleep.assert_called_once_with(text_effects.PAUSE_LONG)
+
+    def test_pause_respects_color_disabled(self):
+        """Pause functions should skip when colors are disabled."""
+        _reset_effects_state()
+        colors.set_colors_enabled(False)
+        text_effects.set_effects_enabled(None)  # Follow color setting
+
+        with patch("time.sleep") as mock_sleep:
+            text_effects.pause_short()
+            text_effects.pause_medium()
+            text_effects.pause_long()
+
+        mock_sleep.assert_not_called()

@@ -718,7 +718,7 @@ Text output could be more atmospheric and engaging.
 **Remaining features**:
 - ✅ Color-coding for dialogue and narration - MVP IMPLEMENTED (semantic `dialogue()` and `narration()` helpers in `colors.py`; NPC dialogue displays with blue text, narration uses default terminal color)
 - ✅ Sound effects via terminal bell for important events - MVP IMPLEMENTED (terminal bell `\a` plays on combat victory, level up, player death, and quest completion; disabled in `--non-interactive` and `--json` modes)
-- Pause and pacing for dramatic tension
+- ✅ Pause and pacing for dramatic tension - MVP IMPLEMENTED (dramatic pause functions in `text_effects.py` with short/medium/long durations; integrated into combat start/combo/end and dream sequences; respects effects toggle)
 - Stylized borders and frames for different UI elements
 
 ### Procedural quest generation

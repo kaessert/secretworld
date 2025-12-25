@@ -8,7 +8,7 @@ import random
 from typing import Optional
 
 from cli_rpg import colors
-from cli_rpg.text_effects import typewriter_print
+from cli_rpg.text_effects import typewriter_print, pause_medium
 
 DREAM_CHANCE = 0.25  # 25% chance on rest
 NIGHTMARE_DREAD_THRESHOLD = 50
@@ -148,3 +148,4 @@ def display_dream(dream_text: str) -> None:
     # Print each line with typewriter effect for atmosphere
     for line in dream_text.split("\n"):
         typewriter_print(line, delay=DREAM_TYPEWRITER_DELAY)
+    pause_medium()  # Pause after dream ends for reflection
