@@ -445,6 +445,35 @@ def handle_exploration_command(game_state: GameState, command: str, args: list[s
                 output += f"\n  ★ {q.name}"
             output += "\n\nType 'complete <quest>' to turn in a quest and claim rewards."
 
+        # Generate AI quest if NPC is quest-giver with no available quests
+        if npc.is_quest_giver and game_state.ai_service:
+            available_quests = [
+                q for q in npc.offered_quests
+                if not game_state.current_character.has_quest(q.name)
+            ]
+            if not available_quests:
+                try:
+                    from cli_rpg.models.quest import Quest, ObjectiveType
+                    quest_data = game_state.ai_service.generate_quest(
+                        theme=game_state.theme,
+                        npc_name=npc.name,
+                        player_level=game_state.current_character.level,
+                        location_name=game_state.current_location
+                    )
+                    new_quest = Quest(
+                        name=quest_data["name"],
+                        description=quest_data["description"],
+                        objective_type=ObjectiveType(quest_data["objective_type"]),
+                        target=quest_data["target"],
+                        target_count=quest_data["target_count"],
+                        gold_reward=quest_data["gold_reward"],
+                        xp_reward=quest_data["xp_reward"],
+                        quest_giver=quest_data["quest_giver"]
+                    )
+                    npc.offered_quests.append(new_quest)
+                except Exception:
+                    pass  # Silent fallback - NPC just has no new quests
+
         # Show available quests if NPC is a quest giver
         if npc.is_quest_giver and npc.offered_quests:
             available = [

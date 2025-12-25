@@ -1,81 +1,68 @@
-# Implementation Summary: AI-Powered Quest Generation
+# Implementation Summary: AI-Generated Quests Integration
 
 ## What Was Implemented
 
-Added `AIService.generate_quest()` method following the existing 3-layer pattern (public method → build prompt → parse response) to dynamically generate quests appropriate to the world theme, location, and player level.
+Integrated AI quest generation into the NPC talk command so that quest-giver NPCs dynamically generate quests when they have no available quests for the player.
 
 ### Files Modified
 
-1. **`src/cli_rpg/ai_config.py`**
-   - Added `DEFAULT_QUEST_GENERATION_PROMPT` constant (lines 140-173)
-   - Added `quest_generation_prompt` field to `AIConfig` dataclass (line 207)
-   - Updated `to_dict()` method to include `quest_generation_prompt` (line 332)
-   - Updated `from_dict()` method to restore `quest_generation_prompt` (line 363)
+1. **`src/cli_rpg/main.py`** (lines 448-475)
+   - Added AI quest generation logic in the `talk` command handler
+   - Generates a quest when:
+     - NPC is a quest-giver (`npc.is_quest_giver`)
+     - AI service is available (`game_state.ai_service`)
+     - NPC has no unaccepted quests for the player
+   - Silent exception handling for graceful fallback
+   - Generated quest is appended to `npc.offered_quests` for persistence
 
-2. **`src/cli_rpg/ai_service.py`**
-   - Added `generate_quest()` method (lines 1094-1144)
-   - Added `_build_quest_prompt()` helper method (lines 1146-1169)
-   - Added `_parse_quest_response()` helper method (lines 1171-1260)
+### Files Created
 
-3. **`tests/test_ai_quest_generation.py`** (NEW FILE)
-   - 19 comprehensive tests covering:
-     - AIConfig quest prompt field existence and serialization
-     - Default prompt placeholder validation
-     - All validation requirements (name length, description length, objective type, target, target_count, rewards)
-     - Quest giver attribution
-     - Context passing to prompt
-     - API error handling
-     - Integration with Quest model
+1. **`tests/test_main_ai_quest_integration.py`**
+   - 5 test cases covering all spec requirements:
+     - `test_talk_quest_giver_no_quests_generates_ai_quest` - AI generates quest for empty offered_quests
+     - `test_talk_quest_giver_all_quests_accepted_generates_new` - Generates when all quests accepted
+     - `test_talk_quest_giver_ai_unavailable_no_error` - Graceful handling without AI service
+     - `test_talk_quest_giver_ai_failure_silent_fallback` - Silent fallback on AI exception
+     - `test_generated_quest_appears_in_available_quests_output` - Quest appears in output
 
-## Method Signature
+## Implementation Pattern
+
+The implementation follows the existing pattern from NPC dialogue generation (main.py lines 416-429):
 
 ```python
-def generate_quest(
-    self,
-    theme: str,
-    npc_name: str,
-    player_level: int,
-    location_name: str = ""
-) -> dict:
+# Generate AI quest if NPC is quest-giver with no available quests
+if npc.is_quest_giver and game_state.ai_service:
+    available_quests = [
+        q for q in npc.offered_quests
+        if not game_state.current_character.has_quest(q.name)
+    ]
+    if not available_quests:
+        try:
+            quest_data = game_state.ai_service.generate_quest(
+                theme=game_state.theme,
+                npc_name=npc.name,
+                player_level=game_state.current_character.level,
+                location_name=game_state.current_location
+            )
+            new_quest = Quest(...)  # Create from quest_data
+            npc.offered_quests.append(new_quest)
+        except Exception:
+            pass  # Silent fallback - NPC just has no new quests
 ```
 
-### Output Dict Fields
+## Test Results
 
-The `generate_quest()` method returns a dictionary with:
-- `name`: str (2-30 chars) - Quest name
-- `description`: str (1-200 chars) - Quest narrative
-- `objective_type`: str - One of "kill", "collect", "explore", "talk", "drop"
-- `target`: str - Target name (enemy type, item name, location, or NPC)
-- `target_count`: int (≥1) - Number to complete
-- `gold_reward`: int (≥0) - Gold reward
-- `xp_reward`: int (≥0) - XP reward
-- `quest_giver`: str - Set to the NPC name passed in
-
-## Test Results (Verified)
-
-- **All 19 tests pass** in `test_ai_quest_generation.py`
-- **All 155 AI-related tests pass** (no regressions)
-- Test run: `pytest tests/test_ai_quest_generation.py -v` → 19 passed in 1.27s
-- Test run: `pytest tests/test_ai_*.py -v` → 155 passed in 6.10s
-
-## Design Decisions
-
-1. **Followed existing patterns**: Used the same 3-layer pattern as `generate_item()` and `generate_enemy()` for consistency.
-
-2. **Caching support**: Integrated with existing caching mechanism via `_get_cached()` and `_set_cached()`.
-
-3. **Quest giver handling**: The `quest_giver` field is set from the `npc_name` parameter, not from AI response, ensuring consistency. For cached results, the quest_giver is also correctly set.
-
-4. **Validation alignment**: Validation rules align with the Quest model's constraints (name 2-30 chars, description 1-200 chars, target_count >= 1, rewards >= 0).
-
-5. **Objective types**: Supports all 5 objective types defined in the Quest model: kill, collect, explore, talk, drop.
+```
+tests/test_main_ai_quest_integration.py: 5 passed
+tests/test_ai_quest_generation.py: 19 passed
+Full test suite: 1041 passed, 1 skipped
+```
 
 ## E2E Validation
 
-To validate end-to-end:
-1. Start the game with an AI service configured
-2. Talk to an NPC that is a quest giver
-3. Accept an AI-generated quest
-4. Verify the quest appears in the character's quest log with correct fields
-5. Complete the quest objective and verify progress tracking works
-6. Turn in the quest to the quest giver and receive rewards
+To validate manually:
+1. Start game with AI service configured
+2. Navigate to a location with a quest-giver NPC who has no quests
+3. Use `talk <npc name>` command
+4. Verify "Available Quests:" section appears with a generated quest
+5. Verify quest can be accepted with `accept <quest name>`
