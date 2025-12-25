@@ -2,6 +2,22 @@
 
 _No active issues_
 
+### Better Map
+**Status**: ACTIVE
+
+Better map, can take up more screen space, should look beautiful and be more usable
+
+### More content
+**Status**: ACTIVE
+
+Multiple NPCs per location possible, multiple enemies for fights
+boss fights
+
+### More content 2
+**Status**: ACTIVE
+
+Users requesting ASCII art for things like locations, npcs, monsters in fights and similar
+
 ## Resolved Issues
 
 ### Misleading error message when trying to equip an already-equipped item

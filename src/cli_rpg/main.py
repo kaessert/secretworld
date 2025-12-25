@@ -5,7 +5,7 @@ from cli_rpg.character_creation import create_character, get_theme_selection
 from cli_rpg.models.character import Character
 from cli_rpg.models.item import Item, ItemType
 from cli_rpg.persistence import save_character, load_character, list_saves, save_game_state, load_game_state, detect_save_type
-from cli_rpg.game_state import GameState, parse_command
+from cli_rpg.game_state import GameState, parse_command, suggest_command, KNOWN_COMMANDS
 from cli_rpg.world import create_world
 from cli_rpg.config import load_ai_config, is_ai_strict_mode
 from cli_rpg.ai_service import AIService
@@ -397,6 +397,15 @@ def handle_combat_command(game_state: GameState, command: str, args: list[str]) 
             return (False, "")
         print("\nContinuing combat...")
         return (True, "")  # Cancel quit, continue combat
+
+    elif command == "unknown":
+        # Provide "did you mean?" suggestion during combat
+        combat_commands = {"attack", "defend", "cast", "flee", "use", "status", "help", "quit"}
+        if args and args[0]:
+            suggestion = suggest_command(args[0], combat_commands)
+            if suggestion:
+                return (True, f"\n✗ Unknown command '{args[0]}'. Did you mean '{suggestion}'?")
+        return (True, "\n✗ Can't do that during combat! Use: attack, defend, cast, flee, use, status, help, or quit")
 
     else:
         return (True, "\n✗ Can't do that during combat! Use: attack, defend, cast, flee, use, status, help, or quit")
@@ -963,6 +972,10 @@ def handle_exploration_command(game_state: GameState, command: str, args: list[s
         return (True, "\n✗ Not in combat.")
     
     elif command == "unknown":
+        if args and args[0]:
+            suggestion = suggest_command(args[0], KNOWN_COMMANDS)
+            if suggestion:
+                return (True, f"\n✗ Unknown command '{args[0]}'. Did you mean '{suggestion}'?")
         return (True, "\n✗ Unknown command. Type 'help' for a list of commands.")
 
     else:

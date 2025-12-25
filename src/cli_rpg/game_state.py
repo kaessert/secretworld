@@ -1,5 +1,6 @@
 """GameState class for managing game state and gameplay."""
 
+import difflib
 import logging
 import random
 from typing import Optional
@@ -24,27 +25,51 @@ except ImportError:
 
 logger = logging.getLogger(__name__)
 
+# All known commands that the game recognizes
+KNOWN_COMMANDS: set[str] = {
+    "look", "go", "save", "quit", "attack", "defend", "flee", "status", "cast",
+    "inventory", "equip", "unequip", "use", "drop", "talk", "buy", "sell", "shop",
+    "map", "help", "quests", "quest", "accept", "complete", "abandon", "lore", "rest",
+    "bestiary"
+}
+
+
+def suggest_command(unknown_cmd: str, known_commands: set[str]) -> Optional[str]:
+    """Suggest a similar command for typos using fuzzy matching.
+
+    Args:
+        unknown_cmd: The unrecognized command entered by the user
+        known_commands: Set of valid commands to match against
+
+    Returns:
+        The most similar command if similarity >= 60%, None otherwise
+    """
+    matches = difflib.get_close_matches(unknown_cmd, known_commands, n=1, cutoff=0.6)
+    return matches[0] if matches else None
+
 
 def parse_command(command_str: str) -> tuple[str, list[str]]:
     """Parse a command string into command and arguments.
-    
+
     Args:
         command_str: The command string to parse
-        
+
     Returns:
         Tuple of (command, args) where command is lowercase and args is a list
-        Returns ("unknown", []) for unrecognized commands
+        Returns ("unknown", [original_command]) for unrecognized commands
+        (original_command enables 'Did you mean?' suggestions)
     """
     # Strip and lowercase the input
     command_str = command_str.strip().lower()
-    
+
     # Split into parts
     parts = command_str.split()
-    
+
     if not parts:
         return ("unknown", [])
-    
+
     command = parts[0]
+    original_command = command  # Save for error messages
     args = parts[1:]
 
     # Expand shorthand aliases
@@ -62,15 +87,10 @@ def parse_command(command_str: str) -> tuple[str, list[str]]:
         direction_aliases = {"n": "north", "s": "south", "e": "east", "w": "west"}
         args[0] = direction_aliases.get(args[0], args[0])
 
-    # Validate known commands
-    known_commands = {"look", "go", "save", "quit", "attack", "defend", "flee", "status", "cast",
-                      "inventory", "equip", "unequip", "use", "drop", "talk", "buy", "sell", "shop",
-                      "map", "help", "quests", "quest", "accept", "complete", "abandon", "lore", "rest",
-                      "bestiary"}
-    
-    if command not in known_commands:
-        return ("unknown", [])
-    
+    # Validate against known commands (using module-level KNOWN_COMMANDS)
+    if command not in KNOWN_COMMANDS:
+        return ("unknown", [original_command])
+
     return (command, args)
 
 

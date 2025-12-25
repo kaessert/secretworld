@@ -47,12 +47,13 @@ class TestParseCommand:
     
     def test_parse_command_unknown(self):
         """Test parsing unknown command.
-        
-        Spec: Unknown commands should return ("unknown", [])
+
+        Spec: Unknown commands should return ("unknown", [original_command])
+        to enable 'Did you mean?' suggestions
         """
         cmd, args = parse_command("invalid")
         assert cmd == "unknown"
-        assert args == []
+        assert args == ["invalid"]
     
     def test_parse_command_case_insensitive(self):
         """Test that command parsing is case insensitive.
