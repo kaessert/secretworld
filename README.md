@@ -42,7 +42,7 @@ python -m cli_rpg.main
 - `look` (l) - Examine your current location
 - `go <direction>` (g) - Move in a direction (north/n, south/s, east/e, west/w)
 - `map` (m) - Display an ASCII map of explored locations with available exits
-- `status` (s) - View your character's stats and gold
+- `status` (s) - View your character's stats, gold, and XP progress
 - `inventory` (i) - View your inventory and equipped items
 - `equip <item name>` (e) - Equip a weapon or armor from your inventory
 - `unequip weapon|armor` - Unequip from the specified slot and return to inventory

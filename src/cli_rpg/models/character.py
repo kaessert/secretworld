@@ -583,10 +583,13 @@ class Character:
         else:
             health_str = colors.damage(f"{self.health}/{self.max_health}")
 
+        xp_str = colors.location(f"{self.xp}/{self.xp_to_next_level}")
+
         return (
             f"{self.name} (Level {self.level}) - {status}\n"
             f"{colors.stat_header('Health')}: {health_str} | "
-            f"{colors.stat_header('Gold')}: {gold_str}\n"
+            f"{colors.stat_header('Gold')}: {gold_str} | "
+            f"{colors.stat_header('XP')}: {xp_str}\n"
             f"{colors.stat_header('Strength')}: {self.strength} | "
             f"{colors.stat_header('Dexterity')}: {self.dexterity} | "
             f"{colors.stat_header('Intelligence')}: {self.intelligence}"

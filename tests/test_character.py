@@ -240,3 +240,6 @@ class TestCharacterSerialization:
         assert "Strength: 10" in str_repr
         assert "Dexterity: 12" in str_repr
         assert "Intelligence: 8" in str_repr
+        # Verify XP progress is displayed (spec: XP progress display)
+        assert "XP:" in str_repr
+        assert f"{character.xp}/{character.xp_to_next_level}" in str_repr
