@@ -28,6 +28,12 @@ from cli_rpg.models.location import Location
 # Valid directions for grid-based movement (subset of Location.VALID_DIRECTIONS)
 GRID_DIRECTIONS: set[str] = {"north", "south", "east", "west"}
 
+# Valid categories for location types
+VALID_LOCATION_CATEGORIES: set[str] = {
+    "town", "dungeon", "wilderness", "settlement",
+    "ruins", "cave", "forest", "mountain", "village"
+}
+
 logger = logging.getLogger(__name__)
 
 
@@ -390,11 +396,22 @@ class AIService:
                     f"Filtered non-grid direction '{direction}' from location '{name}'"
                 )
 
+        # Extract and validate category (optional field)
+        category = data.get("category")
+        if category is not None:
+            category = category.strip().lower() if isinstance(category, str) else None
+            if category not in VALID_LOCATION_CATEGORIES:
+                logger.warning(
+                    f"Invalid category '{category}' for location '{name}', defaulting to None"
+                )
+                category = None
+
         # Return validated data with filtered connections
         return {
             "name": name,
             "description": description,
-            "connections": filtered_connections
+            "connections": filtered_connections,
+            "category": category
         }
     
     def _get_cached(self, prompt: str) -> Optional[dict]:
@@ -610,6 +627,7 @@ Requirements:
 7. The entry location MUST have a "{back_direction}" exit (to connect back to the existing world)
 8. Valid directions: north, south, east, west (no up/down for this area)
 9. Ensure internal consistency: if A connects north to B, then B must connect south to A
+10. Include a category for each location (one of: town, dungeon, wilderness, settlement, ruins, cave, forest, mountain, village)
 
 Respond with valid JSON array (no additional text):
 [
@@ -617,13 +635,15 @@ Respond with valid JSON array (no additional text):
     "name": "Entry Location Name",
     "description": "Description of entry location",
     "relative_coords": [0, 0],
-    "connections": {{"{back_direction}": "EXISTING_WORLD", "north": "Next Location Name"}}
+    "connections": {{"{back_direction}": "EXISTING_WORLD", "north": "Next Location Name"}},
+    "category": "wilderness"
   }},
   {{
     "name": "Next Location Name",
     "description": "Description",
     "relative_coords": [0, 1],
-    "connections": {{"south": "Entry Location Name"}}
+    "connections": {{"south": "Entry Location Name"}},
+    "category": "forest"
   }}
 ]
 
@@ -732,11 +752,22 @@ Note: Use "EXISTING_WORLD" as placeholder for the connection back to the source 
                     f"Filtered non-grid direction '{direction}' from area location '{name}'"
                 )
 
+        # Extract and validate category (optional field)
+        category = loc.get("category")
+        if category is not None:
+            category = category.strip().lower() if isinstance(category, str) else None
+            if category not in VALID_LOCATION_CATEGORIES:
+                logger.warning(
+                    f"Invalid category '{category}' for area location '{name}', defaulting to None"
+                )
+                category = None
+
         return {
             "name": name,
             "description": description,
             "relative_coords": coords,
-            "connections": filtered_connections
+            "connections": filtered_connections,
+            "category": category
         }
 
     def _get_cached_list(self, prompt: str) -> Optional[list]:

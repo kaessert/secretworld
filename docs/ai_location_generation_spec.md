@@ -165,6 +165,7 @@ Coordinate-based world storage for spatial consistency.
 {
     "name": "Ancient Temple",  # 2-50 characters
     "description": "A weathered temple with...",  # 1-500 characters
+    "category": "ruins",  # Location type for gameplay mechanics (optional)
     "connections": {  # Suggested connections
         "south": "Town Square",  # Back to source
         "east": "Sacred Grove",  # Potential new location
@@ -381,12 +382,12 @@ The E2E test suite (`tests/test_e2e_world_expansion.py`) validates dynamic world
 
 ## 10. Future Enhancements
 
-- Support for multiple LLM providers (Anthropic, Cohere, local models)
 - Persistent cache (database or file-based)
-- Location categories/types (town, dungeon, wilderness)
-- NPC generation
-- Item generation
-- Quest generation
 - World consistency validation
 - Semantic similarity checks for location names
+- ~~Support for multiple LLM providers (Anthropic, Cohere, local models)~~ ✓ Implemented (OpenAI, Anthropic, Ollama)
 - ~~Graph-based world generation constraints~~ ✓ Implemented via WorldGrid coordinate system
+- ~~Location categories/types (town, dungeon, wilderness)~~ ✓ Implemented with 9 category types
+- ~~NPC generation~~ ✓ Implemented (AI-generated dialogue and conversations)
+- ~~Item generation~~ ✓ Implemented via `AIService.generate_item()`
+- ~~Quest generation~~ ✓ Implemented via `AIService.generate_quest()`

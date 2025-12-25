@@ -26,6 +26,7 @@ Requirements:
 4. If expanding from a location, include a connection back to {source_location} via the opposite direction
 5. Ensure the location fits the {theme} theme
 6. Make the location interesting and explorable
+7. Include a category for the location type (one of: town, dungeon, wilderness, settlement, ruins, cave, forest, mountain, village)
 
 Respond with valid JSON in this exact format (no additional text):
 {{
@@ -33,7 +34,8 @@ Respond with valid JSON in this exact format (no additional text):
   "description": "A detailed description of the location.",
   "connections": {{
     "direction": "location_name"
-  }}
+  }},
+  "category": "wilderness"
 }}"""
 
 

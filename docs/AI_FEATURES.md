@@ -33,6 +33,7 @@ The CLI RPG includes AI-powered dynamic location generation using OpenAI's GPT m
 - Bidirectional connections maintained
 - Validates against game constraints
 - **Grid-based coordinates**: AI-generated locations are placed on a spatial grid, ensuring geographic consistency (moving north then south returns to the same place)
+- **Location categories**: AI assigns a category to each location (town, dungeon, wilderness, settlement, ruins, cave, forest, mountain, village) which influences enemy spawning during combat encounters
 
 ### 5. Theme Persistence
 - Theme setting is saved with game state

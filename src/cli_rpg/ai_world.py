@@ -82,7 +82,8 @@ def create_ai_world(
     starting_location = Location(
         name=starting_data["name"],
         description=starting_data["description"],
-        connections={}  # WorldGrid will add connections
+        connections={},  # WorldGrid will add connections
+        category=starting_data.get("category")
     )
     grid.add_location(starting_location, 0, 0)
 
@@ -162,7 +163,8 @@ def create_ai_world(
             new_location = Location(
                 name=location_data["name"],
                 description=location_data["description"],
-                connections={}
+                connections={},
+                category=location_data.get("category")
             )
 
             # Add to grid if name is unique (WorldGrid handles connections)
@@ -270,7 +272,8 @@ def expand_world(
         name=location_data["name"],
         description=location_data["description"],
         connections={},
-        coordinates=new_coordinates
+        coordinates=new_coordinates,
+        category=location_data.get("category")
     )
 
     # Add to world
@@ -413,7 +416,8 @@ def expand_area(
             name=loc_data["name"],
             description=loc_data["description"],
             connections={},
-            coordinates=(abs_x, abs_y)
+            coordinates=(abs_x, abs_y),
+            category=loc_data.get("category")
         )
 
         placed_locations[loc_data["name"]] = {

@@ -1,6 +1,67 @@
 # Implementation Summary
 
-## Latest Implementation: Location Categories Feature
+## Latest Implementation: AI Location Category Generation
+
+Added support for the AI service to return `category` field when generating locations, completing the Location Categories feature for combat's `spawn_enemy()` to leverage location-appropriate enemies during AI-generated world exploration.
+
+### Valid Categories
+`town`, `dungeon`, `wilderness`, `settlement`, `ruins`, `cave`, `forest`, `mountain`, `village`
+
+### Files Modified
+
+1. **`src/cli_rpg/ai_config.py`**
+   - Updated `DEFAULT_LOCATION_PROMPT` to include category requirement (#7)
+   - Added category field to JSON response format example
+
+2. **`src/cli_rpg/ai_service.py`**
+   - Added `VALID_LOCATION_CATEGORIES` constant with 9 valid category values
+   - Updated `_parse_location_response()` to extract and validate category field
+   - Updated `_build_area_prompt()` to include category requirement (#10)
+   - Updated `_validate_area_location()` to extract and validate category field for area generation
+
+3. **`src/cli_rpg/ai_world.py`**
+   - Updated `create_ai_world()` to pass category to Location constructor (2 places)
+   - Updated `expand_world()` to pass category to Location constructor
+   - Updated `expand_area()` to pass category to Location constructor
+
+### New Test File
+
+**`tests/test_ai_location_category.py`** - 20 tests covering:
+- AI returns category field in generate_location
+- Valid category values accepted (parametrized test for all 9 categories)
+- Invalid/missing category defaults to None
+- Category passed to Location in create_ai_world
+- Category passed to Location in expand_world
+- Area generation includes category
+- Area generation missing category defaults to None
+- Location prompt includes category instruction
+- Location prompt lists valid categories
+- Area prompt includes category instruction
+- expand_area passes category to Location
+
+### Test Results
+
+- All 20 new tests pass
+- All 98 existing AI service/world generation tests pass
+- Full test suite: **1422 passed, 1 skipped**
+
+### Design Decisions
+
+1. **Category is optional**: If the AI doesn't return a category or returns an invalid one, it defaults to `None` (logged as warning, not error)
+2. **Case-insensitive validation**: Categories are normalized to lowercase before validation
+3. **Backward compatible**: The Location model already had the category field; we just needed the AI to populate it
+4. **Combat integration ready**: The existing `combat.py` (lines 298-348) already uses location category for enemy spawning
+
+### E2E Validation
+
+When playing the game with AI enabled:
+1. Navigate to different AI-generated locations
+2. Verify locations have categories by checking the Location object
+3. Engage in combat and verify enemies match the location type (e.g., forest locations spawn forest-themed enemies)
+
+---
+
+## Previous Implementation: Location Categories Feature
 
 Added a `category` field to the Location model enabling type-aware gameplay (enemy spawning, shop inventory, ambient text).
 

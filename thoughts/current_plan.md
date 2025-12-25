@@ -1,91 +1,117 @@
-# Project Health Assessment & Next Steps
+# Implementation Plan: AI Location Category Generation
 
-## Current Status: Excellent Health
+## Summary
+Update the AI service to include `category` field when generating locations, completing the Location Categories feature so combat's `spawn_enemy()` can leverage location-appropriate enemies during AI-generated world exploration.
 
-- **Test Coverage**: 100% (2925 statements, 0 missing)
-- **Tests**: 1385 passed, 1 skipped
-- **Active Issues**: None
-- **TODO/FIXME Comments**: None in source code
+## Spec
 
-## Remaining Future Enhancements (from spec)
+The AI location generation must return a `category` field alongside `name`, `description`, and `connections`. Valid categories are: `town`, `dungeon`, `wilderness`, `settlement`, `ruins`, `cave`, `forest`, `mountain`, `village`. The category should be contextually appropriate based on the location's name/description and world theme.
 
-From `docs/ai_location_generation_spec.md`, these items remain unimplemented:
+**Note:** The `Location` model already has the `category` field (line 37) and `combat.py` already uses it (lines 298-348). This plan focuses on having the AI populate this field.
 
-### 1. Location Categories/Types (Medium Priority)
-**Status**: Partially exists - `combat.py` uses ad-hoc location type detection (lines 309-328)
+## Test Plan (TDD)
 
-**Current Implementation**:
-- String matching in `get_random_enemy()` to detect "forest", "cave", "dungeon", etc.
-- No formal `LocationType` enum or category field on `Location` model
+### File: `tests/test_ai_location_category.py`
 
-**Potential Enhancement**:
-- Add `category: Optional[str]` field to `Location` dataclass
-- Enum: `town`, `dungeon`, `wilderness`, `settlement`, `ruins`
-- AI generates category when creating locations
-- Benefits: Better enemy selection, shop types, ambient descriptions
+1. **Test AI returns category field** - Verify `generate_location()` returns dict with `category` key
+2. **Test AI validates category values** - Valid categories accepted; invalid/missing defaults to `None`
+3. **Test category passed to Location in create_ai_world** - `ai_world.py` creates Location with category
+4. **Test category passed to Location in expand_world** - expansion preserves category from AI
+5. **Test area generation includes category** - `generate_area()` returns category for each location
+6. **Test prompt includes category instruction** - Verify prompt template asks for category field
 
-### 2. Semantic Similarity Checks (Low Priority)
-**Purpose**: Prevent AI from generating locations with duplicate/too-similar names
+## Implementation Steps
 
-**Potential Implementation**:
-- Simple fuzzy matching (Levenshtein distance) on location names
-- Reject generated locations with >80% similarity to existing names
-- Low value given current area-based generation already promotes variety
+### Step 1: Update `ai_config.py` - Modify Default Prompt Templates
 
-### 3. Advanced World Consistency Validation (Low Priority)
-**Purpose**: Beyond WorldGrid's border validation
+**File:** `src/cli_rpg/ai_config.py`
+**Location:** Lines 14-37 (`DEFAULT_LOCATION_PROMPT`)
 
-**Current State**: WorldGrid already provides:
-- `find_unreachable_exits()`
-- `validate_border_closure()`
-- `get_frontier_locations()`
+Add to requirements section:
+```
+7. Include a category for the location type (one of: town, dungeon, wilderness, settlement, ruins, cave, forest, mountain, village)
+```
 
-**Potential Additions**:
-- Theme consistency scoring across regions
-- NPC/shop distribution balance checks
+Update JSON response format:
+```json
+{
+  "name": "Location Name",
+  "description": "A detailed description...",
+  "connections": {"direction": "location_name"},
+  "category": "wilderness"
+}
+```
 
----
+### Step 2: Update `ai_service.py` - Parse and Validate Category
 
-## Recommended Next Priority
+**File:** `src/cli_rpg/ai_service.py`
 
-Given the project's maturity and 100% coverage, the most impactful enhancement would be **Location Categories** because:
+**2a. Update `_parse_location_response()` (lines 331-398)**
+- Extract `category` from response (optional field)
+- Define valid categories constant: `VALID_LOCATION_CATEGORIES`
+- Validate category is in allowed list, else set to `None`
+- Include `category` in returned dict
 
-1. It formalizes an existing ad-hoc pattern in `combat.py`
-2. It enables richer gameplay (location-appropriate enemies, NPCs, items)
-3. It's relatively low-risk with clear implementation path
+**2b. Update `_validate_area_location()` (lines 669-740)**
+- Apply same category extraction/validation for area generation
+- Include `category` in returned dict for each location
 
-### Implementation Plan for Location Categories
+### Step 3: Update Area Generation Prompt
 
-#### Spec
-Add a `category` field to locations enabling type-aware gameplay (enemy spawning, shop inventory, ambient text).
+**File:** `src/cli_rpg/ai_service.py`
+**Location:** `_build_area_prompt()` (lines 561-632)
 
-#### Tests First
-1. `tests/test_location_category.py`:
-   - Test `Location` with category field (default None for backward compat)
-   - Test serialization/deserialization with category
-   - Test AI generation includes category
-   - Test `combat.py` uses category field when available
+Add category requirement and update JSON format in the area generation prompt.
 
-#### Implementation Steps
-1. **Update `models/location.py`**:
-   - Add `category: Optional[str] = None` field
-   - Update `to_dict()` / `from_dict()` for serialization
+### Step 4: Update `ai_world.py` - Pass Category to Location
 
-2. **Update `ai_service.py`**:
-   - Modify location generation prompt to include category
-   - Parse and validate category from AI response
+**File:** `src/cli_rpg/ai_world.py`
 
-3. **Update `combat.py`**:
-   - Use `location.category` directly instead of string matching
-   - Keep string matching as fallback for locations without category
+**4a. Update `create_ai_world()` (around line 82-86)**
+```python
+starting_location = Location(
+    name=starting_data["name"],
+    description=starting_data["description"],
+    connections={},
+    category=starting_data.get("category")
+)
+```
 
-4. **Update persistence tests** to verify category round-trips
+**4b. Update `create_ai_world()` (around line 162-166)**
+Same for locations generated during initial world creation loop.
 
----
+**4c. Update `expand_world()` (around line 269-274)**
+```python
+new_location = Location(
+    name=location_data["name"],
+    description=location_data["description"],
+    connections={},
+    coordinates=new_coordinates,
+    category=location_data.get("category")
+)
+```
 
-## Alternative: Documentation Update
+**4d. Update `expand_area()` (around line 412-417)**
+```python
+new_loc = Location(
+    name=loc_data["name"],
+    description=loc_data["description"],
+    connections={},
+    coordinates=(abs_x, abs_y),
+    category=loc_data.get("category")
+)
+```
 
-If no code changes are desired, update `docs/ai_location_generation_spec.md` to:
-- Mark implemented items with checkmarks
-- Remove or archive obsolete future enhancements
-- Reflect current 100% coverage and healthy state
+## Validation
+
+```bash
+# Run new tests
+pytest tests/test_ai_location_category.py -v
+
+# Run existing AI tests to ensure no regression
+pytest tests/test_ai_service.py -v
+pytest tests/test_ai_world_generation.py -v
+
+# Full test suite
+pytest --cov=src/cli_rpg
+```
