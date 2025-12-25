@@ -325,6 +325,7 @@ pytest tests/test_e2e_world_expansion.py -v
 - Fallback templates for common enemy categories (beasts, undead, humanoids, creepy crawlies)
 - Graceful fallback to template-based enemies when AI is unavailable
 - Enemy stats are scaled to player level for balanced encounters
+- **Distance-based scaling**: Enemy stats scale with Manhattan distance from origin (0,0) using formula `base_stat * (1 + distance * 0.15)`, making exploration progressively more challenging
 
 ### 7a. AI-Generated Location ASCII Art
 - Locations display ASCII art when players enter or look at them (3-10 lines, max 50 chars wide)

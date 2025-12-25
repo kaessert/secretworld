@@ -14,6 +14,40 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
+def calculate_distance_from_origin(coordinates: Optional[Tuple[int, int]]) -> int:
+    """Calculate Manhattan distance from origin (0,0).
+
+    Args:
+        coordinates: (x, y) coordinate tuple, or None
+
+    Returns:
+        Manhattan distance (|x| + |y|), or 0 if coordinates is None
+    """
+    if coordinates is None:
+        return 0
+    return abs(coordinates[0]) + abs(coordinates[1])
+
+
+def get_distance_multiplier(distance: int) -> float:
+    """Get stat scaling multiplier based on distance from origin.
+
+    Formula: 1.0 + distance * 0.15
+
+    Distance tiers (for reference):
+    - Near (0-3): Easy (multiplier 1.0-1.45)
+    - Mid (4-7): Moderate (multiplier 1.6-2.05)
+    - Far (8-12): Challenging (multiplier 2.2-2.8)
+    - Deep (13+): Dangerous (multiplier 2.95+)
+
+    Args:
+        distance: Manhattan distance from origin
+
+    Returns:
+        Stat multiplier (1.0 or higher)
+    """
+    return 1.0 + distance * 0.15
+
+
 # Fallback ASCII art templates for different enemy categories
 _ASCII_ART_BEAST = r"""
     /\_/\
@@ -576,7 +610,8 @@ def generate_loot(enemy: Enemy, level: int) -> Optional[Item]:
 def spawn_enemy(
     location_name: str,
     level: int,
-    location_category: Optional[str] = None
+    location_category: Optional[str] = None,
+    distance: int = 0
 ) -> Enemy:
     """
     Spawn an enemy appropriate for the location and player level.
@@ -587,9 +622,10 @@ def spawn_enemy(
         location_category: Optional category from Location.category field.
                           When provided, takes precedence over location name matching.
                           Valid: town, dungeon, wilderness, settlement, ruins, cave, forest, mountain, village
+        distance: Manhattan distance from origin for difficulty scaling (default 0)
 
     Returns:
-        Enemy instance
+        Enemy instance with stats scaled by distance
     """
     # Enemy templates by location type
     enemy_templates = {
@@ -631,27 +667,34 @@ def spawn_enemy(
             if loc_type in location_lower:
                 location_type = loc_type
                 break
-    
+
     # Select random enemy from template
     enemy_list = enemy_templates.get(location_type, enemy_templates["default"])
     enemy_name = random.choice(enemy_list)
-    
-    # Scale stats based on level
+
+    # Calculate base stats from level
     base_health = 20 + (level * 10)
     base_attack = 3 + (level * 2)
     base_defense = 1 + level
     base_xp = 20 + (level * 10)
+
+    # Apply distance multiplier to scale difficulty
+    multiplier = get_distance_multiplier(distance)
+    scaled_health = int(base_health * multiplier)
+    scaled_attack = int(base_attack * multiplier)
+    scaled_defense = int(base_defense * multiplier)
+    scaled_xp = int(base_xp * multiplier)
 
     # Get fallback ASCII art based on enemy name
     ascii_art = get_fallback_ascii_art(enemy_name)
 
     return Enemy(
         name=enemy_name,
-        health=base_health,
-        max_health=base_health,
-        attack_power=base_attack,
-        defense=base_defense,
-        xp_reward=base_xp,
+        health=scaled_health,
+        max_health=scaled_health,
+        attack_power=scaled_attack,
+        defense=scaled_defense,
+        xp_reward=scaled_xp,
         level=level,
         ascii_art=ascii_art,
     )
@@ -824,7 +867,8 @@ def ai_spawn_enemy(
     location_name: str,
     player_level: int,
     ai_service: Optional["AIService"] = None,
-    theme: str = "fantasy"
+    theme: str = "fantasy",
+    distance: int = 0
 ) -> Enemy:
     """Spawn enemy using AI generation with fallback to templates.
 
@@ -833,9 +877,11 @@ def ai_spawn_enemy(
         player_level: Player level for scaling
         ai_service: Optional AIService for AI generation
         theme: World theme for AI generation (default: "fantasy")
+        distance: Manhattan distance from origin for difficulty scaling (default 0)
 
     Returns:
         Enemy instance (AI-generated if available, template otherwise)
+        Stats are scaled by distance multiplier.
     """
     if ai_service is not None:
         try:
@@ -856,13 +902,20 @@ def ai_spawn_enemy(
                 logger.warning(f"AI ASCII art generation failed, using fallback: {art_error}")
                 ascii_art = get_fallback_ascii_art(enemy_data["name"])
 
+            # Apply distance multiplier to AI-generated stats
+            multiplier = get_distance_multiplier(distance)
+            scaled_health = int(enemy_data["health"] * multiplier)
+            scaled_attack = int(enemy_data["attack_power"] * multiplier)
+            scaled_defense = int(enemy_data["defense"] * multiplier)
+            scaled_xp = int(enemy_data["xp_reward"] * multiplier)
+
             return Enemy(
                 name=enemy_data["name"],
-                health=enemy_data["health"],
-                max_health=enemy_data["health"],
-                attack_power=enemy_data["attack_power"],
-                defense=enemy_data["defense"],
-                xp_reward=enemy_data["xp_reward"],
+                health=scaled_health,
+                max_health=scaled_health,
+                attack_power=scaled_attack,
+                defense=scaled_defense,
+                xp_reward=scaled_xp,
                 level=enemy_data["level"],
                 description=enemy_data["description"],
                 attack_flavor=enemy_data["attack_flavor"],
@@ -872,15 +925,16 @@ def ai_spawn_enemy(
             logger.warning(f"AI enemy generation failed, using fallback: {e}")
             # Fall through to template-based generation
 
-    # Fallback to template-based spawn
-    return spawn_enemy(location_name, player_level)
+    # Fallback to template-based spawn (with distance scaling)
+    return spawn_enemy(location_name, player_level, distance=distance)
 
 
 def spawn_enemies(
     location_name: str,
     level: int,
     count: Optional[int] = None,
-    location_category: Optional[str] = None
+    location_category: Optional[str] = None,
+    distance: int = 0
 ) -> list[Enemy]:
     """
     Spawn multiple enemies appropriate for the location and player level.
@@ -891,9 +945,10 @@ def spawn_enemies(
         count: Optional explicit enemy count. If None, random 1-2 (level 1-3)
                or 1-3 (level 4+)
         location_category: Optional category from Location.category field
+        distance: Manhattan distance from origin for difficulty scaling (default 0)
 
     Returns:
-        List of Enemy instances
+        List of Enemy instances with stats scaled by distance
     """
     if count is None:
         # Determine count based on level
@@ -906,7 +961,7 @@ def spawn_enemies(
 
     enemies = []
     for _ in range(count):
-        enemy = spawn_enemy(location_name, level, location_category)
+        enemy = spawn_enemy(location_name, level, location_category, distance)
         enemies.append(enemy)
 
     return enemies

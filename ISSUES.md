@@ -1,77 +1,100 @@
 ## Active Issues
 
-### Constrained movement with guaranteed exploration frontier
-**Status**: ACTIVE
+### AI area generation fails with JSON truncation - NEVER use fallback
+**Status**: ACTIVE (CRITICAL)
 
-Players should NOT be able to move in any direction - only specific exits should exist. However, the world must always have at least one unexplored exit to ensure infinite exploration.
+**Problem**: AI area generation fails with error: `Failed to parse response as JSON: Unterminated string starting at: line 50 column 21 (char 1854)`. When this happens, the code silently falls back to template-based generation, which should NEVER happen.
 
-**Current problem**:
-- All 4 cardinal directions are always open (or should be)
-- Makes the world feel like an open grid rather than a structured map
-- No sense of geography, corridors, or natural barriers
+**Root Causes**:
 
-**Desired behavior**:
+1. **Insufficient max_tokens**: Default `max_tokens: 500` in `ai_config.py` is too low for area generation (5-7 locations with NPCs can require 1500-2000+ tokens). The LLM response gets truncated mid-JSON.
 
-1. **Limited exits per location**
-   - Each location has 1-4 exits, not always all 4
-   - AI generates appropriate connections based on location type
-   - Dungeons: corridors, not open plazas
-   - Forests: winding paths, not open grids
-   - Mountains: limited passable routes
+2. **Silent fallback in game_state.py**: Lines 320-343 catch AI exceptions and fall back to `generate_fallback_location()`. This masks failures instead of surfacing them.
 
-2. **Guaranteed exploration frontier**
+3. **Invalid connections**: Fallback locations add dangling "Unexplored X" connections pointing to non-existent locations, creating inconsistent world state.
+
+**Required Fixes**:
+
+1. **Increase max_tokens**:
+   - Change default from 500 to 2000 in `ai_config.py` (line 284)
+   - Update docstring (line 270) and env var default (line 406)
+
+2. **Remove silent fallback in game_state.py**:
+   - Lines 320-343: When `expand_area` fails, do NOT call `generate_fallback_location`
+   - Instead, re-raise the exception or return an error message to the player
+   - The player should be informed AI generation failed
+
+3. **Add JSON repair logic in ai_service.py** (optional enhancement):
+   - Extract JSON from markdown code blocks (AI sometimes wraps in ```json)
+   - Attempt to repair truncated arrays by closing brackets
+
+**Files to modify**:
+- `src/cli_rpg/ai_config.py`: Increase max_tokens default
+- `src/cli_rpg/game_state.py`: Remove fallback, propagate errors
+- `src/cli_rpg/ai_service.py`: Add JSON extraction/repair logic (optional)
+
+### CONNECTION SYSTEM REWORK - Players can go anywhere (BROKEN)
+**Status**: ACTIVE (CRITICAL)
+
+**The Core Bug**: Players can move in ANY direction, even when no connection/exit exists. The game generates new locations on-the-fly for any direction, completely bypassing the exit system.
+
+**Current broken behavior** in `game_state.py:257-344`:
+```python
+# Lines 299-300 - THE BUG:
+else:
+    # No location at target - generate one (AI or fallback)
+```
+
+The move() function:
+1. Calculates target coordinates for the direction
+2. If no location exists there, generates one (AI or fallback)
+3. **NEVER checks if `current.has_connection(direction)`**
+
+This means every location effectively has 4 exits (N/S/E/W) even when connections dict says otherwise.
+
+**Required Fix - Check connections BEFORE generating**:
+
+```python
+# In move(), BEFORE generating new locations:
+if not current.has_connection(direction):
+    return (False, "You can't go that way.")
+```
+
+**Complete Rework Needed**:
+
+1. **Enforce connection-based movement**:
+   - `game_state.py:285-344`: Add connection check before ANY location generation
+   - Only generate new location if `current.has_connection(direction)` returns True
+   - Return "You can't go that way" for directions without exits
+
+2. **Connections must be explicit**:
+   - Locations define their exits in `connections` dict
+   - No implicit "all 4 directions open" behavior
+   - AI generates 1-4 exits per location based on type:
+     - Dungeons: corridors (1-2 exits)
+     - Forests: winding paths (2-3 exits)
+     - Towns: open areas (3-4 exits)
+
+3. **Guaranteed exploration frontier**:
    - World must always have at least one unexplored exit somewhere
-   - When generating new locations, ensure at least one exit leads to unexplored territory
-   - "Dead ends" are OK for individual locations, but world as a whole must remain explorable
+   - Track "frontier exits" globally (exits pointing to non-existent locations)
+   - When generating a location, ensure at least one exit leads to unexplored territory
+   - Individual dead-ends are OK, but world must remain explorable
 
-3. **Blocked directions**
-   - Invalid directions return "You can't go that way" (not generate new area)
-   - Map shows blocked adjacent cells (already implemented with `█`)
-   - Creates natural boundaries and structure
+4. **Dangling connections for expansion**:
+   - Connections can point to locations that don't exist yet (e.g., "Unexplored North")
+   - When player follows such an exit, THEN generate the new location
+   - This is the ONLY way new locations should be created
 
-**Implementation**:
-- Track "frontier exits" globally (exits that lead to unexplored locations)
-- When generating a location, if it would close all frontiers, force an additional unexplored exit
-- AI prompt should specify that not all directions need exits
+5. **Map display**:
+   - Show blocked adjacent cells with `█` (already implemented)
+   - Only show exits that exist in connections dict
 
-### Distance-based enemy difficulty scaling
-**Status**: ACTIVE
-
-Enemies should get harder the further the player explores from the starting location.
-
-**Current problem**:
-- Enemy difficulty is flat or only based on player level
-- No incentive to stay near town early game
-- No sense of danger when venturing into the unknown
-
-**Desired behavior**:
-
-1. **Distance-based scaling**
-   - Calculate distance from starting location (Manhattan or path distance)
-   - Enemy stats scale with distance: HP, damage, defense
-   - Enemies at distance 10+ should be significantly harder than starting area
-
-2. **Zone difficulty tiers**
-   - Near spawn (0-3): Easy enemies, safe for new players
-   - Mid-range (4-7): Moderate difficulty, appropriate for leveled players
-   - Far reaches (8-12): Challenging encounters
-   - Deep wilderness (13+): Dangerous, high-risk high-reward
-
-3. **Rewards scale with difficulty**
-   - Harder enemies drop more gold
-   - Better loot tables at higher distances
-   - More XP from distant encounters
-
-4. **Visual/narrative hints**
-   - Location descriptions hint at danger level
-   - "The air grows thick with menace" as player ventures far
-   - NPCs warn about dangerous regions
-
-**Implementation**:
-- Store origin coordinates (0,0) as reference point
-- Pass distance to enemy generation in `ai_service.py`
-- Scale enemy stats: `base_stat * (1 + distance * 0.15)` or similar
-- Update AI prompts to generate appropriately threatening enemies
+**Files to modify**:
+- `src/cli_rpg/game_state.py`: Add connection check in move() before generation
+- `src/cli_rpg/ai_world.py`: Ensure AI generates limited exits per location
+- `src/cli_rpg/world.py`: Validate frontier exits exist in generated worlds
+- `src/cli_rpg/world_grid.py`: Add frontier tracking utilities
 
 ### Non-interactive mode enhancements
 **Status**: ACTIVE
@@ -326,6 +349,17 @@ Quests should be dynamically generated to keep gameplay fresh.
 - Emergent storylines from completed quests
 
 ## Resolved Issues
+
+### Distance-based enemy difficulty scaling
+**Status**: RESOLVED
+
+**Description**: Enemies now scale in difficulty based on Manhattan distance from the origin (0,0). The further players travel from the starting area, the more challenging encounters become.
+
+**Implementation**: Enemy stats (HP, attack, defense) and XP rewards scale using the formula `base_stat * (1 + distance * 0.15)`. Distance tiers:
+- Near (0-3): Easy encounters (multiplier 1.0-1.45)
+- Mid (4-7): Moderate encounters (multiplier 1.6-2.05)
+- Far (8-12): Challenging encounters (multiplier 2.2-2.8)
+- Deep (13+): Dangerous encounters (multiplier 2.95+)
 
 ### Shop context persists after switching to non-merchant NPC
 **Status**: RESOLVED

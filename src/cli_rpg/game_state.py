@@ -8,7 +8,12 @@ from cli_rpg.models.character import Character
 from cli_rpg.models.location import Location
 from cli_rpg.models.npc import NPC
 from cli_rpg.models.shop import Shop
-from cli_rpg.combat import CombatEncounter, ai_spawn_enemy, spawn_enemies
+from cli_rpg.combat import (
+    CombatEncounter,
+    ai_spawn_enemy,
+    spawn_enemies,
+    calculate_distance_from_origin,
+)
 from cli_rpg.autosave import autosave
 from cli_rpg import colors
 
@@ -225,6 +230,7 @@ class GameState:
 
         Uses AI-generated enemies when AIService is available, with fallback
         to template-based enemies. Can spawn 1-3 enemies depending on level.
+        Enemy stats are scaled by Manhattan distance from origin.
 
         Args:
             location_name: Name of the location for encounter
@@ -234,6 +240,11 @@ class GameState:
         """
         # 30% chance of encounter
         if random.random() < 0.3:
+            # Get current location's coordinates for distance calculation
+            location = self.world.get(location_name)
+            coords = location.coordinates if location else None
+            distance = calculate_distance_from_origin(coords)
+
             if self.ai_service is not None:
                 # AI-powered: use single ai_spawn_enemy for now
                 # (Multi-enemy AI spawning could be added later)
@@ -241,14 +252,16 @@ class GameState:
                     location_name=location_name,
                     player_level=self.current_character.level,
                     ai_service=self.ai_service,
-                    theme=self.theme
+                    theme=self.theme,
+                    distance=distance,
                 )
                 enemies = [enemy]
             else:
                 # Template-based: spawn multiple enemies
                 enemies = spawn_enemies(
                     location_name=location_name,
-                    level=self.current_character.level
+                    level=self.current_character.level,
+                    distance=distance,
                 )
             self.current_combat = CombatEncounter(self.current_character, enemies=enemies)
             return self.current_combat.start()

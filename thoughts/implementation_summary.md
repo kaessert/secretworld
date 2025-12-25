@@ -1,29 +1,67 @@
-# Implementation Summary
+# Distance-Based Enemy Difficulty Scaling - Implementation Summary
 
-## What was implemented
+## What Was Implemented
 
-Added a resolved issue entry to ISSUES.md for the "Dead-end navigation bug" that was fixed.
+### Core Feature
+Enemies now scale in difficulty based on Manhattan distance from the origin (0,0) in the game world. The further players travel from the starting area, the more challenging encounters become.
 
-### Files modified
-- `ISSUES.md`: Added new resolved issue entry at the end of the "Resolved Issues" section
+### Formula
+`scaled_stat = base_stat * (1 + distance * 0.15)`
 
-### Entry added
-```markdown
-### Dead-end navigation bug [RESOLVED]
-**Status**: RESOLVED
+### Distance Tiers
+- **Near (0-3)**: Easy encounters (multiplier 1.0-1.45)
+- **Mid (4-7)**: Moderate encounters (multiplier 1.6-2.05)
+- **Far (8-12)**: Challenging encounters (multiplier 2.2-2.8)
+- **Deep (13+)**: Dangerous encounters (multiplier 2.95+)
 
-**Description**: Players could get stuck in locations with no exits, unable to continue exploring.
+## Files Modified
 
-**Fix**: Fixed world generation to ensure all locations have at least one valid exit. Commit: 8d7f56f.
-```
+### 1. `src/cli_rpg/combat.py`
+- Added `calculate_distance_from_origin(coordinates)` - Calculates Manhattan distance from (0,0)
+- Added `get_distance_multiplier(distance)` - Returns stat multiplier based on distance
+- Updated `spawn_enemy()` - New `distance` parameter, applies multiplier to all stats
+- Updated `spawn_enemies()` - Accepts and passes `distance` to `spawn_enemy()`
+- Updated `ai_spawn_enemy()` - Accepts `distance`, applies multiplier to AI-generated enemy stats
 
-## Test results
+### 2. `src/cli_rpg/game_state.py`
+- Updated import to include `calculate_distance_from_origin`
+- Updated `trigger_encounter()` - Calculates distance from current location's coordinates and passes to spawn functions
 
-All tests in `tests/test_issues_documentation.py` pass:
-- `test_issues_file_exists` - PASSED
-- `test_resolved_issues_are_marked` - PASSED
-- `test_no_active_resolved_issues` - PASSED
+### 3. `tests/test_distance_scaling.py` (new file)
+- 23 comprehensive tests covering:
+  - Distance calculation utility functions
+  - Multiplier formula verification across all tiers
+  - Enemy stat scaling with distance
+  - Backward compatibility (default distance=0)
+  - GameState integration with location coordinates
+  - AI enemy stat scaling
 
-## Notes
+## Test Results
+- **New tests**: 23 passed
+- **Full suite**: 1708 passed
+- No regressions
 
-This was a documentation-only change to satisfy the test expectations in `test_resolved_issues_are_marked` which looks for a resolved dead-end navigation bug entry with "[RESOLVED]" tag and commit "8d7f56f".
+## Technical Details
+
+### Affected Stats
+All enemy combat stats are scaled by the distance multiplier:
+- `max_health` / `health`
+- `attack_power`
+- `defense`
+- `xp_reward` (rewards scale with difficulty)
+
+### Backward Compatibility
+- All functions default `distance=0` (no scaling)
+- Locations without coordinates (`None`) use distance 0
+- Legacy saves without coordinates continue to work
+
+### Integration Points
+- Template-based enemy spawning (`spawn_enemy`, `spawn_enemies`)
+- AI-generated enemies (`ai_spawn_enemy`)
+- Random encounters in `GameState.trigger_encounter()`
+
+## E2E Validation Suggestions
+1. Start a new game and verify enemies near origin have base stats
+2. Travel 10 tiles away (e.g., coordinates (5,5)) and verify enemies have ~2.5x stats
+3. Verify XP rewards increase proportionally with distance
+4. Test AI-generated enemies also scale correctly when AI service is enabled

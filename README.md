@@ -71,6 +71,14 @@ python -m cli_rpg.main
 ### Combat System
 Combat encounters occur randomly as you explore. You may face multiple enemies at once (1-2 enemies at lower levels, up to 3 at level 4+). Enemies display ASCII art when combat begins.
 
+**Distance-Based Difficulty**: Enemy difficulty scales based on how far you've traveled from the starting location (0,0). The further you explore, the stronger the enemies:
+- Near spawn (0-3 tiles): Easy encounters for new players
+- Mid-range (4-7 tiles): Moderate difficulty
+- Far reaches (8-12 tiles): Challenging encounters
+- Deep wilderness (13+ tiles): Dangerous, high-risk high-reward
+
+Enemy stats (HP, attack, defense) and XP rewards all scale with distance, encouraging strategic exploration and progression.
+
 **Boss Fights**: Occasionally, you'll encounter powerful boss enemies with enhanced stats (2x health, attack, and defense) and 4x XP rewards. Bosses are guaranteed to drop legendary loot with enhanced stats upon defeat. Boss types vary by location category (Lich Lords in dungeons, Ancient Guardians in ruins, Cave Troll Kings in caves, etc.).
 
 **Combat Commands:**
