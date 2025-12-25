@@ -1,67 +1,80 @@
-# Implementation Summary: AI-Generated Monsters/Enemies
+# AI-Generated Item Catalogue Implementation Summary
 
 ## What Was Implemented
 
-### 1. Enemy Model Extended (`src/cli_rpg/models/enemy.py`)
-- Added `description: str = ""` field for enemy appearance descriptions (e.g., "A snarling beast with glowing red eyes")
-- Added `attack_flavor: str = ""` field for combat attack flavor text (e.g., "lunges with razor-sharp claws")
-- Updated `to_dict()` to serialize both new fields
-- Updated `from_dict()` to deserialize both new fields (with backward compatibility defaults)
+### 1. New Prompt Template (`ai_config.py`)
+- Added `DEFAULT_ITEM_GENERATION_PROMPT` constant with placeholders for `{theme}`, `{location_name}`, `{player_level}`, and `{item_type_hint}`
+- The prompt instructs the LLM to generate items with appropriate stats based on type:
+  - Weapons: `damage_bonus` scaled to player level
+  - Armor: `defense_bonus` scaled to player level
+  - Consumables: `heal_amount` scaled to player level
+  - Misc: No stat bonuses
 
-### 2. AIConfig Updated (`src/cli_rpg/ai_config.py`)
-- Added `DEFAULT_ENEMY_GENERATION_PROMPT` constant with template for enemy generation
-- Added `enemy_generation_prompt: str` field to AIConfig dataclass
-- Updated `to_dict()` and `from_dict()` for serialization
+### 2. AIConfig Updates (`ai_config.py`)
+- Added `item_generation_prompt: str` field to the `AIConfig` dataclass
+- Updated `to_dict()` to include `item_generation_prompt` in serialization
+- Updated `from_dict()` to deserialize `item_generation_prompt` with fallback to default
 
-### 3. AIService.generate_enemy() (`src/cli_rpg/ai_service.py`)
-- Added `generate_enemy(theme, location_name, player_level)` method
-- Added `_build_enemy_prompt()` helper for prompt construction
-- Added `_parse_enemy_response()` with validation:
-  - Name: 2-30 characters
-  - Description: 10-150 characters
-  - Attack flavor: 10-100 characters
-  - Stats: must be positive integers
+### 3. AIService.generate_item() Method (`ai_service.py`)
+Added three new methods:
 
-### 4. ai_spawn_enemy() Function (`src/cli_rpg/combat.py`)
-- New function that wraps AI generation with template fallback
-- Gracefully handles AI failures by falling back to `spawn_enemy()`
-- Creates Enemy instances with AI-generated description and attack_flavor
+- **`generate_item(theme, location_name, player_level, item_type=None)`**
+  - Main public method for generating items
+  - Returns a dictionary with: `name`, `description`, `item_type`, `damage_bonus`, `defense_bonus`, `heal_amount`, `suggested_price`
+  - Optional `item_type` parameter constrains generation to specific type (WEAPON, ARMOR, CONSUMABLE, MISC)
 
-### 5. GameState Integration (`src/cli_rpg/game_state.py`)
-- Modified `trigger_encounter()` to use `ai_spawn_enemy()` instead of `spawn_enemy()`
-- Passes `ai_service` and `theme` to enable AI generation when available
+- **`_build_item_prompt()`**
+  - Helper method to construct the prompt with context
+  - Formats item type hint based on optional constraint
 
-### 6. Combat Messages (`src/cli_rpg/combat.py`)
-- Updated `enemy_turn()` to use `attack_flavor` in attack messages when available
-- Falls back to default "attacks you for X damage" when no flavor text
+- **`_parse_item_response()`**
+  - Parses and validates LLM JSON response
+  - Validates:
+    - Name length: 2-30 characters (matches `Item.MIN_NAME_LENGTH`, `Item.MAX_NAME_LENGTH`)
+    - Description length: 1-200 characters (matches `Item.MIN_DESC_LENGTH`, `Item.MAX_DESC_LENGTH`)
+    - Valid item_type enum value ("weapon", "armor", "consumable", "misc")
+    - Non-negative stat bonuses
+    - Positive suggested_price
+
+### 4. Test File (`tests/test_ai_item_generation.py`)
+Created comprehensive test suite with 18 tests:
+
+**AIConfig Tests:**
+- `test_ai_config_has_item_prompt()` - Field existence
+- `test_ai_config_item_prompt_serialization()` - to_dict/from_dict roundtrip
+- `test_default_item_prompt_contains_placeholders()` - Required placeholders
+
+**AIService.generate_item() Tests:**
+- `test_generate_item_returns_valid_structure()` - All fields present
+- `test_generate_item_validates_name_length_too_short()` - Rejects <2 chars
+- `test_generate_item_validates_name_length_too_long()` - Rejects >30 chars
+- `test_generate_item_validates_description_length_too_short()` - Rejects <1 char
+- `test_generate_item_validates_description_length_too_long()` - Rejects >200 chars
+- `test_generate_item_validates_item_type()` - Rejects invalid types
+- `test_generate_item_validates_non_negative_stats()` - Rejects negative bonuses
+- `test_generate_item_validates_positive_price()` - Rejects zero/negative price
+- `test_generate_item_respects_type_constraint()` - Type hint in prompt
+- `test_generate_item_uses_context()` - Theme, location, level in prompt
+- `test_generate_item_handles_api_error()` - Raises AIServiceError
+
+**Integration Tests:**
+- `test_generate_item_can_create_valid_item_instance()` - Result constructs Item model
+- `test_generate_item_weapon_has_damage_bonus()` - Weapons have damage
+- `test_generate_item_armor_has_defense_bonus()` - Armor has defense
+- `test_generate_item_consumable_has_heal_amount()` - Consumables heal
 
 ## Files Modified
-1. `src/cli_rpg/models/enemy.py` - Enemy model with new fields
-2. `src/cli_rpg/ai_config.py` - AI configuration with enemy prompt
-3. `src/cli_rpg/ai_service.py` - Enemy generation method
-4. `src/cli_rpg/combat.py` - ai_spawn_enemy() and attack_flavor in messages
-5. `src/cli_rpg/game_state.py` - Integration in trigger_encounter()
-6. `tests/test_ai_enemy_generation.py` - New test file with 23 tests
-7. `tests/test_enemy.py` - Updated existing test for new to_dict() fields
+1. `src/cli_rpg/ai_config.py` - Added prompt template and field
+2. `src/cli_rpg/ai_service.py` - Added generate_item() method and helpers
+
+## Files Created
+1. `tests/test_ai_item_generation.py` - New test file
 
 ## Test Results
-- 986 tests passed, 1 skipped
-- New test file: `tests/test_ai_enemy_generation.py` with 23 tests covering:
-  - Enemy model serialization with description/attack_flavor
-  - AIConfig enemy prompt field and serialization
-  - AIService.generate_enemy() validation and error handling
-  - ai_spawn_enemy() with AI service and fallback
-  - Combat attack_flavor usage in messages
-  - GameState encounter integration with and without AI
-
-## Design Decisions
-1. **Graceful Fallback**: All AI failures silently fall back to template-based enemies to ensure gameplay continuity
-2. **Backward Compatibility**: New Enemy fields default to empty strings, existing saves work without modification
-3. **Validation Constraints**: Match spec requirements (name 2-30 chars, description 10-150, attack_flavor 10-100)
-4. **Level Scaling**: Enemy level is set to player level for balance
+- All 18 new tests pass
+- Full test suite: 1004 passed, 1 skipped
 
 ## E2E Tests Should Validate
-- Enemy encounters work both with and without AI service configured
-- Attack flavor text appears in combat messages for AI-generated enemies
-- Fallback to template enemies when AI is unavailable or fails
-- Save/load preserves enemy description and attack_flavor fields
+- Generated items can be used in shop integration
+- Items can be added to player inventory
+- Item stats affect combat calculations properly

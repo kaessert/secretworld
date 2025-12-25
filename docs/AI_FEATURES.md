@@ -284,11 +284,18 @@ pytest tests/test_e2e_world_expansion.py -v
 - Graceful fallback to template-based enemies when AI is unavailable
 - Enemy stats are scaled to player level for balanced encounters
 
+### 8. AI-Generated Items
+- `AIService.generate_item()` creates contextual items based on theme, location, and player level
+- Supports all item types: weapons (damage_bonus), armor (defense_bonus), consumables (heal_amount), misc
+- Optional `item_type` parameter constrains generation to specific type
+- Returns item properties including name, description, stats, and suggested price
+- Validates generated items against game constraints (name length, stat ranges)
+- Graceful fallback when AI is unavailable
+
 ### Future Enhancements
 - Local model support
 - Persistent cache (database/file)
 - AI-powered NPC personalities and extended conversations
-- AI-powered item generation (basic loot and shop systems already implemented)
 - Quest generation
 - Advanced world consistency validation
 

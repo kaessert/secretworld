@@ -4,12 +4,12 @@
 **Status**: ACTIVE
 
 Remaining AI-generated content to implement:
-- Item catalogue (weapons, armor, consumables)
 - Lore and world history
 
 **Completed:**
 - ✅ NPC conversations (AI-generated dialogue that persists to NPC greetings)
 - ✅ Monsters/enemies (AI-generated with descriptions and attack flavor text)
+- ✅ Item catalogue (weapons, armor, consumables) - `AIService.generate_item()` method
 
 ## Resolved Issues
 

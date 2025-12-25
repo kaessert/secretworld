@@ -66,6 +66,42 @@ Stats scaling guidelines (based on player level {player_level}):
 - xp_reward: 20 + (player_level * 10) with some variance"""
 
 
+# Default prompt template for item generation
+DEFAULT_ITEM_GENERATION_PROMPT = """Generate an item for a {theme} RPG.
+Location: {location_name}
+Player Level: {player_level}
+Item Type Hint: {item_type_hint}
+
+Requirements:
+1. Create a unique item name (2-30 characters) that fits the theme and location
+2. Write a description (1-200 characters) of the item
+3. Set appropriate stats based on item type and player level
+4. Suggest a fair price for the item
+
+Item types: weapon, armor, consumable, misc
+- Weapons should have damage_bonus (scaled to level)
+- Armor should have defense_bonus (scaled to level)
+- Consumables should have heal_amount (scaled to level)
+- Misc items have no stat bonuses
+
+Respond with valid JSON in this exact format (no additional text):
+{{
+  "name": "Item Name",
+  "description": "A brief description of the item.",
+  "item_type": "weapon|armor|consumable|misc",
+  "damage_bonus": <number>,
+  "defense_bonus": <number>,
+  "heal_amount": <number>,
+  "suggested_price": <number>
+}}
+
+Stats scaling guidelines (based on player level {player_level}):
+- damage_bonus: 2 + (player_level * 1) for weapons
+- defense_bonus: 1 + (player_level * 1) for armor
+- heal_amount: 10 + (player_level * 5) for consumables
+- suggested_price: 20 + (player_level * 15) with variance"""
+
+
 # Default prompt template for NPC dialogue generation
 DEFAULT_NPC_DIALOGUE_PROMPT = """Generate a single conversational greeting for an NPC in a {theme} RPG.
 
@@ -111,6 +147,7 @@ class AIConfig:
     location_generation_prompt: str = field(default=DEFAULT_LOCATION_PROMPT)
     npc_dialogue_prompt: str = field(default=DEFAULT_NPC_DIALOGUE_PROMPT)
     enemy_generation_prompt: str = field(default=DEFAULT_ENEMY_GENERATION_PROMPT)
+    item_generation_prompt: str = field(default=DEFAULT_ITEM_GENERATION_PROMPT)
     
     def __post_init__(self) -> None:
         """Validate configuration after initialization."""
@@ -232,7 +269,8 @@ class AIConfig:
             "cache_ttl": self.cache_ttl,
             "location_generation_prompt": self.location_generation_prompt,
             "npc_dialogue_prompt": self.npc_dialogue_prompt,
-            "enemy_generation_prompt": self.enemy_generation_prompt
+            "enemy_generation_prompt": self.enemy_generation_prompt,
+            "item_generation_prompt": self.item_generation_prompt
         }
     
     @classmethod
@@ -260,5 +298,6 @@ class AIConfig:
             cache_ttl=data.get("cache_ttl", 3600),
             location_generation_prompt=data.get("location_generation_prompt", DEFAULT_LOCATION_PROMPT),
             npc_dialogue_prompt=data.get("npc_dialogue_prompt", DEFAULT_NPC_DIALOGUE_PROMPT),
-            enemy_generation_prompt=data.get("enemy_generation_prompt", DEFAULT_ENEMY_GENERATION_PROMPT)
+            enemy_generation_prompt=data.get("enemy_generation_prompt", DEFAULT_ENEMY_GENERATION_PROMPT),
+            item_generation_prompt=data.get("item_generation_prompt", DEFAULT_ITEM_GENERATION_PROMPT)
         )

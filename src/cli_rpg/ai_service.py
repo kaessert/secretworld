@@ -876,3 +876,156 @@ Note: Use "EXISTING_WORLD" as placeholder for the connection back to the source 
             "xp_reward": int(data["xp_reward"]),
             "level": player_level
         }
+
+    def generate_item(
+        self,
+        theme: str,
+        location_name: str,
+        player_level: int,
+        item_type: Optional["ItemType"] = None
+    ) -> dict:
+        """Generate an item with AI.
+
+        Args:
+            theme: World theme (e.g., "fantasy", "sci-fi")
+            location_name: Name of the current location
+            player_level: Player's current level for scaling
+            item_type: Optional item type constraint (WEAPON, ARMOR, CONSUMABLE, MISC)
+
+        Returns:
+            Dictionary with: name, description, item_type, damage_bonus,
+            defense_bonus, heal_amount, suggested_price
+
+        Raises:
+            AIGenerationError: If generation fails or response is invalid
+            AIServiceError: If API call fails
+            AITimeoutError: If request times out
+        """
+        # Build prompt
+        prompt = self._build_item_prompt(
+            theme=theme,
+            location_name=location_name,
+            player_level=player_level,
+            item_type=item_type
+        )
+
+        # Call LLM
+        response_text = self._call_llm(prompt)
+
+        # Parse and validate response
+        item_data = self._parse_item_response(response_text)
+
+        return item_data
+
+    def _build_item_prompt(
+        self,
+        theme: str,
+        location_name: str,
+        player_level: int,
+        item_type: Optional["ItemType"] = None
+    ) -> str:
+        """Build prompt for item generation.
+
+        Args:
+            theme: World theme
+            location_name: Current location name
+            player_level: Player's current level
+            item_type: Optional item type constraint
+
+        Returns:
+            Formatted prompt string
+        """
+        # Format item type hint
+        if item_type is not None:
+            item_type_hint = f"Generate a {item_type.value} item"
+        else:
+            item_type_hint = "Generate any type of item"
+
+        return self.config.item_generation_prompt.format(
+            theme=theme,
+            location_name=location_name,
+            player_level=player_level,
+            item_type_hint=item_type_hint
+        )
+
+    def _parse_item_response(self, response_text: str) -> dict:
+        """Parse and validate LLM response for item generation.
+
+        Args:
+            response_text: Raw response text from LLM
+
+        Returns:
+            Dictionary with validated item data
+
+        Raises:
+            AIGenerationError: If parsing fails or validation fails
+        """
+        # Import here to avoid circular import
+        from cli_rpg.models.item import Item, ItemType
+
+        # Try to parse JSON
+        try:
+            data = json.loads(response_text)
+        except json.JSONDecodeError as e:
+            raise AIGenerationError(f"Failed to parse response as JSON: {str(e)}") from e
+
+        # Validate required fields
+        required_fields = ["name", "description", "item_type", "damage_bonus",
+                          "defense_bonus", "heal_amount", "suggested_price"]
+        for field in required_fields:
+            if field not in data:
+                raise AIGenerationError(f"Response missing required field: {field}")
+
+        # Validate name length (2-30 chars)
+        name = data["name"].strip()
+        if len(name) < Item.MIN_NAME_LENGTH:
+            raise AIGenerationError(
+                f"Item name too short (min {Item.MIN_NAME_LENGTH} chars): {name}"
+            )
+        if len(name) > Item.MAX_NAME_LENGTH:
+            raise AIGenerationError(
+                f"Item name too long (max {Item.MAX_NAME_LENGTH} chars): {name}"
+            )
+
+        # Validate description length (1-200 chars)
+        description = data["description"].strip()
+        if len(description) < Item.MIN_DESC_LENGTH:
+            raise AIGenerationError(
+                f"Item description too short (min {Item.MIN_DESC_LENGTH} char)"
+            )
+        if len(description) > Item.MAX_DESC_LENGTH:
+            raise AIGenerationError(
+                f"Item description too long (max {Item.MAX_DESC_LENGTH} chars)"
+            )
+
+        # Validate item_type
+        item_type_str = data["item_type"].lower().strip()
+        valid_types = [t.value for t in ItemType]
+        if item_type_str not in valid_types:
+            raise AIGenerationError(
+                f"Invalid item_type '{item_type_str}'. Must be one of: {valid_types}"
+            )
+
+        # Validate non-negative stats
+        for stat in ["damage_bonus", "defense_bonus", "heal_amount"]:
+            if not isinstance(data[stat], (int, float)) or data[stat] < 0:
+                raise AIGenerationError(
+                    f"Stat '{stat}' must be a non-negative number"
+                )
+
+        # Validate positive price
+        if not isinstance(data["suggested_price"], (int, float)) or data["suggested_price"] <= 0:
+            raise AIGenerationError(
+                "suggested_price must be a positive number"
+            )
+
+        # Return validated data
+        return {
+            "name": name,
+            "description": description,
+            "item_type": item_type_str,
+            "damage_bonus": int(data["damage_bonus"]),
+            "defense_bonus": int(data["defense_bonus"]),
+            "heal_amount": int(data["heal_amount"]),
+            "suggested_price": int(data["suggested_price"])
+        }
