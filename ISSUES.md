@@ -630,7 +630,7 @@ The world feels static. Need ambient events and world dynamics.
 
 **Remaining features**:
 - ✅ Weather system affecting gameplay (clear, rain, storm, fog with dread modifiers and storm travel delays) - MVP IMPLEMENTED
-- Weather visibility effects (storms reduce visibility, fog obscures distant enemies)
+- ✅ Weather visibility effects (storms reduce visibility/truncate descriptions/hide details, fog obscures exits and NPC names, caves unaffected) - MVP IMPLEMENTED
 - Weather interactions (rain extinguishes fire, cold weather affects freeze effects)
 - Seasonal events and festivals
 

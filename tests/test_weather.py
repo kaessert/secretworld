@@ -352,3 +352,266 @@ class TestWeatherStatusDisplay:
         rain_indicators = ["rain", "mud", "wet", "patters", "drizzle"]
         has_weather_flavor = any(word.lower() in message.lower() for word in rain_indicators)
         assert has_weather_flavor, f"Expected weather flavor in message: {message}"
+
+
+class TestWeatherVisibility:
+    """Tests for weather visibility effects on location descriptions.
+
+    Spec: Weather affects what players can see when looking at locations:
+    - Fog: Hides some exits (50% chance each exit hidden), obscures NPC names with "???"
+    - Storm: Reduces description detail (truncates to first sentence), hides details/secrets layers
+    - Rain/Clear: No visibility effects
+    - Cave locations (underground) are unaffected by weather
+    """
+
+    # Spec: get_visibility_level returns "full" for clear weather
+    def test_weather_visibility_level_clear(self):
+        """Clear weather returns 'full' visibility."""
+        weather = Weather(condition="clear")
+        assert weather.get_visibility_level() == "full"
+
+    # Spec: get_visibility_level returns "full" for rain weather
+    def test_weather_visibility_level_rain(self):
+        """Rain weather returns 'full' visibility."""
+        weather = Weather(condition="rain")
+        assert weather.get_visibility_level() == "full"
+
+    # Spec: get_visibility_level returns "reduced" for storm weather
+    def test_weather_visibility_level_storm(self):
+        """Storm weather returns 'reduced' visibility."""
+        weather = Weather(condition="storm")
+        assert weather.get_visibility_level() == "reduced"
+
+    # Spec: get_visibility_level returns "obscured" for fog weather
+    def test_weather_visibility_level_fog(self):
+        """Fog weather returns 'obscured' visibility."""
+        weather = Weather(condition="fog")
+        assert weather.get_visibility_level() == "obscured"
+
+    # Spec: Caves always return "full" visibility regardless of weather
+    def test_weather_visibility_level_cave_always_full(self):
+        """Cave locations always return 'full' visibility."""
+        for condition in Weather.WEATHER_STATES:
+            weather = Weather(condition=condition)
+            assert weather.get_visibility_level("cave") == "full"
+
+
+class TestLocationVisibilityEffects:
+    """Tests for Location.get_layered_description visibility parameter."""
+
+    # Spec: Storm visibility truncates description to first sentence
+    def test_location_reduced_visibility_truncates_description(self):
+        """Reduced visibility (storm) truncates description to first sentence."""
+        from cli_rpg.models.location import Location
+
+        loc = Location(
+            name="Dark Forest",
+            description="The trees loom overhead. Strange sounds echo through the branches. A cold wind blows."
+        )
+
+        result = loc.get_layered_description(look_count=1, visibility="reduced")
+
+        # Should only contain first sentence
+        assert "The trees loom overhead." in result
+        assert "Strange sounds echo through the branches" not in result
+        assert "A cold wind blows" not in result
+
+    # Spec: Storm hides details and secrets layers
+    def test_location_reduced_visibility_hides_details_secrets(self):
+        """Reduced visibility (storm) hides details and secrets layers."""
+        from cli_rpg.models.location import Location
+
+        loc = Location(
+            name="Dark Forest",
+            description="The trees loom overhead.",
+            details="You notice scratch marks on the bark.",
+            secrets="A hidden path leads deeper into the woods."
+        )
+
+        # With full visibility, look_count 3 should show all layers
+        full_result = loc.get_layered_description(look_count=3, visibility="full")
+        assert "scratch marks" in full_result
+        assert "hidden path" in full_result
+
+        # With reduced visibility, even look_count 3 should not show details/secrets
+        reduced_result = loc.get_layered_description(look_count=3, visibility="reduced")
+        assert "scratch marks" not in reduced_result
+        assert "hidden path" not in reduced_result
+
+    # Spec: Fog hides ~50% of exits (seeded by location name for consistency)
+    def test_location_obscured_visibility_hides_some_exits(self):
+        """Obscured visibility (fog) hides some exits (deterministic based on location name)."""
+        from cli_rpg.models.location import Location
+
+        loc = Location(
+            name="Foggy Crossroads",
+            description="You stand at a crossroads.",
+            connections={"north": "Village", "south": "Forest", "east": "Mountains", "west": "Lake"}
+        )
+
+        # Run multiple times - should be consistent due to seeding by location name
+        result1 = loc.get_layered_description(look_count=1, visibility="obscured")
+        result2 = loc.get_layered_description(look_count=1, visibility="obscured")
+
+        # Results should be identical (deterministic)
+        assert result1 == result2
+
+        # Should have fewer than 4 exits showing (some hidden)
+        # Count direction mentions in Exits line
+        exits_line = [line for line in result1.split("\n") if line.startswith("Exits:")]
+        assert len(exits_line) == 1
+        exits_text = exits_line[0]
+
+        # At least one exit should remain visible
+        directions = ["north", "south", "east", "west"]
+        visible_count = sum(1 for d in directions if d in exits_text)
+        assert visible_count >= 1, "At least one exit should remain visible in fog"
+        # Some exits should be hidden (not all 4 visible)
+        assert visible_count < 4 or "???" in exits_text, "Fog should hide some exits"
+
+    # Spec: Fog obscures NPC names with "???"
+    def test_location_obscured_visibility_obscures_npc_names(self):
+        """Obscured visibility (fog) shows NPC names as '???'."""
+        from cli_rpg.models.location import Location
+        from cli_rpg.models.npc import NPC
+
+        loc = Location(
+            name="Misty Square",
+            description="A foggy town square."
+        )
+        loc.npcs = [
+            NPC(name="Marcus the Blacksmith", description="A burly blacksmith", dialogue="Hello!"),
+            NPC(name="Elena the Baker", description="A friendly baker", dialogue="Fresh bread!")
+        ]
+
+        result = loc.get_layered_description(look_count=1, visibility="obscured")
+
+        # NPC names should be hidden
+        assert "Marcus" not in result
+        assert "Elena" not in result
+        # Should show ??? for each NPC
+        assert "???" in result
+
+    # Spec: Full visibility shows everything normally
+    def test_location_full_visibility_unchanged(self):
+        """Full visibility shows everything normally."""
+        from cli_rpg.models.location import Location
+        from cli_rpg.models.npc import NPC
+
+        loc = Location(
+            name="Town Square",
+            description="A bustling town square.",
+            connections={"north": "Market", "south": "Inn"},
+            details="You notice the cobblestones are worn smooth.",
+            secrets="A secret door hides behind the fountain."
+        )
+        loc.npcs = [NPC(name="Guard Captain", description="A stern captain", dialogue="Halt!")]
+
+        result = loc.get_layered_description(look_count=3, visibility="full")
+
+        # All exits should be visible
+        assert "north" in result
+        assert "south" in result
+        # NPC names should be visible
+        assert "Guard Captain" in result
+        # Details and secrets should be visible at look_count 3
+        assert "cobblestones are worn smooth" in result
+        assert "secret door" in result
+
+
+class TestGameStateLookVisibility:
+    """Tests for GameState.look() visibility integration."""
+
+    # Spec: look in storm uses reduced visibility
+    def test_look_in_storm_reduces_visibility(self):
+        """look() in storm weather uses reduced visibility."""
+        from cli_rpg.game_state import GameState
+        from cli_rpg.models.character import Character
+        from cli_rpg.models.location import Location
+
+        char = Character(name="Test", strength=10, dexterity=10, intelligence=10)
+        loc = Location(
+            name="Stormy Plains",
+            description="A vast open plain. The grass sways in the wind. Lightning flashes overhead.",
+            coordinates=(0, 0),
+            category="wilderness",
+            details="You spot animal tracks in the mud."
+        )
+        world = {"Stormy Plains": loc}
+
+        game_state = GameState(char, world, starting_location="Stormy Plains")
+        game_state.weather.condition = "storm"
+
+        # Look twice to normally see details
+        game_state.look()  # First look
+        result = game_state.look()  # Second look (would normally show details)
+
+        # Storm should truncate description and hide details
+        assert "A vast open plain." in result
+        assert "The grass sways in the wind" not in result  # Truncated
+        assert "animal tracks" not in result  # Details hidden
+
+    # Spec: look in fog uses obscured visibility
+    def test_look_in_fog_obscures_visibility(self):
+        """look() in fog weather uses obscured visibility."""
+        from cli_rpg.game_state import GameState
+        from cli_rpg.models.character import Character
+        from cli_rpg.models.location import Location
+        from cli_rpg.models.npc import NPC
+
+        char = Character(name="Test", strength=10, dexterity=10, intelligence=10)
+        loc = Location(
+            name="Foggy Hamlet",
+            description="A small hamlet shrouded in mist.",
+            coordinates=(0, 0),
+            category="town"
+        )
+        loc.npcs = [NPC(name="Old Farmer", description="An elderly farmer", dialogue="Greetings!")]
+        world = {"Foggy Hamlet": loc}
+
+        game_state = GameState(char, world, starting_location="Foggy Hamlet")
+        game_state.weather.condition = "fog"
+
+        result = game_state.look()
+
+        # NPC names should be obscured
+        assert "Old Farmer" not in result
+        assert "???" in result
+
+    # Spec: Caves are unaffected by weather
+    def test_look_in_cave_unaffected_by_weather(self):
+        """look() in cave location always uses full visibility regardless of weather."""
+        from cli_rpg.game_state import GameState
+        from cli_rpg.models.character import Character
+        from cli_rpg.models.location import Location
+        from cli_rpg.models.npc import NPC
+
+        char = Character(name="Test", strength=10, dexterity=10, intelligence=10)
+        loc = Location(
+            name="Crystal Cave",
+            description="A cave filled with glowing crystals. Water drips from stalactites.",
+            coordinates=(0, 0),
+            category="cave",
+            details="The crystals hum with magical energy."
+        )
+        loc.npcs = [NPC(name="Cave Hermit", description="A mysterious hermit", dialogue="Who goes there?")]
+        world = {"Crystal Cave": loc}
+
+        game_state = GameState(char, world, starting_location="Crystal Cave")
+
+        # Test with both storm and fog
+        for condition in ["storm", "fog"]:
+            game_state.weather.condition = condition
+
+            # Reset look count for fresh test
+            char.look_counts.clear()
+            game_state.look()  # First look
+            result = game_state.look()  # Second look
+
+            # Full description should be shown (not truncated)
+            assert "glowing crystals" in result
+            assert "Water drips" in result
+            # NPC name should be visible (not obscured)
+            assert "Cave Hermit" in result
+            # Details should be visible at look_count 2
+            assert "magical energy" in result

@@ -47,6 +47,17 @@ WEATHER_DISPLAY = {
     "fog": "Fog 🌫",
 }
 
+# Visibility levels for each weather type
+# - "full": No visibility reduction (clear/rain)
+# - "reduced": Truncated descriptions, no details/secrets (storm)
+# - "obscured": Some exits hidden, NPC names obscured (fog)
+VISIBILITY_LEVELS = {
+    "clear": "full",
+    "rain": "full",
+    "storm": "reduced",
+    "fog": "obscured",
+}
+
 
 @dataclass
 class Weather:
@@ -128,6 +139,27 @@ class Weather:
         if location_category == "cave":
             return "clear"
         return self.condition
+
+    def get_visibility_level(self, location_category: Optional[str] = None) -> str:
+        """Get the visibility level for the current weather.
+
+        Visibility affects what players can see when looking at locations:
+        - "full": No visibility reduction (clear/rain)
+        - "reduced": Truncated descriptions, no details/secrets (storm)
+        - "obscured": Some exits hidden, NPC names obscured (fog)
+
+        Cave locations (underground) always have full visibility.
+
+        Args:
+            location_category: The category of the current location
+
+        Returns:
+            Visibility level string ("full", "reduced", or "obscured")
+        """
+        # Caves are underground - always full visibility
+        if location_category == "cave":
+            return "full"
+        return VISIBILITY_LEVELS.get(self.condition, "full")
 
     def transition(self) -> Optional[str]:
         """Potentially change weather state (10% chance per hour).

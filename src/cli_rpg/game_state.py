@@ -244,13 +244,20 @@ class GameState:
         - Second look: Environmental details
         - Third look: Hidden secrets
 
+        Weather affects visibility:
+        - Storm: Reduced visibility (truncated description, no details/secrets)
+        - Fog: Obscured visibility (some exits hidden, NPC names as "???")
+        - Cave locations are unaffected by weather visibility effects
+
         Returns:
             String description with appropriate detail layers based on look count
         """
         location = self.get_current_location()
         # Increment and get look count
         look_count = self.current_character.record_look(self.current_location)
-        return location.get_layered_description(look_count)
+        # Get visibility level from weather, accounting for location category
+        visibility = self.weather.get_visibility_level(location.category)
+        return location.get_layered_description(look_count, visibility=visibility)
     
     def is_in_combat(self) -> bool:
         """Check if combat is currently active.

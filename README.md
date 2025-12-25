@@ -23,7 +23,7 @@ python -m cli_rpg.main
 - **Gold Economy**: Earn gold from combat victories, spend it at shops
 - **Persistent Saves**: Save and load complete game progress including world state, location, and theme
 - **Day/Night Cycle**: Time advances as you explore (movement: +1 hour, rest: +4 hours). Night brings eerie whispers and some NPCs/shops may be unavailable
-- **Weather System**: Dynamic weather (clear, rain, storm, fog) affects gameplay with dread modifiers and storm travel delays. Underground locations are sheltered from weather.
+- **Weather System**: Dynamic weather (clear, rain, storm, fog) affects gameplay with dread modifiers, storm travel delays, and visibility effects. Storms reduce visibility (truncated descriptions, hidden details). Fog obscures information (some exits hidden, NPC names shown as "???"). Underground locations (caves) are sheltered from weather effects.
 - **Dread System**: Psychological horror element that tracks your fear level (0-100%). Dangerous areas build dread; high dread causes paranoid whispers and combat penalties. Reduce dread by resting, visiting towns, or talking to NPCs.
 - **Grid-Based World**: Navigate a spatially consistent world where directions are reliable (going north then south returns you to the same place)
 - **Experience System**: Level up by defeating enemies

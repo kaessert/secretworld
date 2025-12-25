@@ -1,5 +1,6 @@
 """Location model for the game world."""
 
+import hashlib
 from dataclasses import dataclass, field
 from typing import Any, ClassVar, List, Optional, Tuple, TYPE_CHECKING
 
@@ -155,11 +156,15 @@ class Location:
                 return npc
         return None
 
-    def get_layered_description(self, look_count: int = 1) -> str:
-        """Get description with appropriate layers based on look count.
+    def get_layered_description(self, look_count: int = 1, visibility: str = "full") -> str:
+        """Get description with appropriate layers based on look count and visibility.
 
         Args:
             look_count: Number of times player has looked at this location
+            visibility: Visibility level affecting what's shown:
+                - "full": Everything shown normally
+                - "reduced": Description truncated to first sentence, no details/secrets
+                - "obscured": Some exits hidden (50% each), NPC names shown as "???"
 
         Returns:
             Formatted string with name, description, and appropriate detail layers
@@ -170,27 +175,77 @@ class Location:
         if self.ascii_art:
             result += self.ascii_art.strip() + "\n"
 
-        result += f"{self.description}\n"
+        # Handle description based on visibility
+        description = self.description
+        if visibility == "reduced":
+            # Truncate to first sentence
+            for delimiter in [". ", "! ", "? "]:
+                if delimiter in description:
+                    description = description.split(delimiter)[0] + delimiter[0]
+                    break
+        result += f"{description}\n"
 
+        # Handle NPCs based on visibility
         if self.npcs:
-            npc_names = [colors.npc(npc.name) for npc in self.npcs]
-            result += f"NPCs: {', '.join(npc_names)}\n"
+            if visibility == "obscured":
+                # Show "???" for each NPC instead of their names
+                obscured_names = [colors.npc("???") for _ in self.npcs]
+                result += f"NPCs: {', '.join(obscured_names)}\n"
+            else:
+                npc_names = [colors.npc(npc.name) for npc in self.npcs]
+                result += f"NPCs: {', '.join(npc_names)}\n"
 
+        # Handle exits based on visibility
         if self.connections:
             directions = self.get_available_directions()
+            if visibility == "obscured":
+                # Hide ~50% of exits, seeded by location name for consistency
+                directions = self._filter_exits_for_fog(directions)
             result += f"Exits: {', '.join(directions)}"
         else:
             result += "Exits: None"
 
-        # Add details layer (look_count >= 2)
-        if look_count >= 2 and self.details:
+        # Add details layer (look_count >= 2) - hidden in reduced visibility
+        if visibility != "reduced" and look_count >= 2 and self.details:
             result += f"\n\nUpon closer inspection, you notice:\n{self.details}"
 
-        # Add secrets layer (look_count >= 3)
-        if look_count >= 3 and self.secrets:
+        # Add secrets layer (look_count >= 3) - hidden in reduced visibility
+        if visibility != "reduced" and look_count >= 3 and self.secrets:
             result += f"\n\nHidden secrets reveal themselves:\n{self.secrets}"
 
         return result
+
+    def _filter_exits_for_fog(self, directions: list[str]) -> list[str]:
+        """Filter exits for fog visibility, hiding ~50% of them.
+
+        Uses location name as seed for deterministic, consistent results.
+        Always keeps at least one exit visible.
+
+        Args:
+            directions: List of available direction names
+
+        Returns:
+            Filtered list of visible directions
+        """
+        if len(directions) <= 1:
+            return directions
+
+        # Use location name hash for deterministic seeding
+        seed = int(hashlib.md5(self.name.encode()).hexdigest(), 16)
+
+        # Determine which exits to show (~50% hidden)
+        visible = []
+        for i, direction in enumerate(directions):
+            # Use seed + index to determine if exit is visible
+            if (seed + i) % 2 == 0:
+                visible.append(direction)
+
+        # Ensure at least one exit is always visible
+        if not visible:
+            # Show the first exit if all were hidden
+            visible = [directions[0]]
+
+        return visible
 
     def to_dict(self) -> dict[str, Any]:
         """Serialize the location to a dictionary.
