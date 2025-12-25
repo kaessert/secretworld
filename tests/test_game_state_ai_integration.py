@@ -112,7 +112,7 @@ def test_game_state_move_triggers_expansion(test_character, basic_world, mock_ai
 
 # Test: GameState move without AI service handles missing destination
 def test_game_state_move_without_ai_service_missing_destination(test_character):
-    """Test move to missing destination fails gracefully without AI service."""
+    """Test move to missing destination shows friendly barrier message without AI service."""
     # Create world with connection but AI service to allow incomplete connections
     town = Location(
         name="Town Square",
@@ -120,7 +120,7 @@ def test_game_state_move_without_ai_service_missing_destination(test_character):
     )
     town.connections = {"north": "Forest"}  # Forest doesn't exist
     world = {"Town Square": town}
-    
+
     # Create with AI service first to allow incomplete connections
     game_state = GameState(
         character=test_character,
@@ -128,26 +128,26 @@ def test_game_state_move_without_ai_service_missing_destination(test_character):
         starting_location="Town Square",
         ai_service=Mock(spec=AIService)  # Has AI service initially
     )
-    
+
     # Remove AI service to simulate no AI available
     game_state.ai_service = None
-    
+
     # Try to move north (connection exists but destination doesn't, no AI to generate)
     success, message = game_state.move("north")
-    
-    # Should fail
+
+    # Should fail with friendly message (no technical errors exposed)
     assert success is False
-    assert "destination" in message.lower() or "not found" in message.lower()
+    assert "impassable barrier" in message.lower()
 
 
 # Test: GameState AI generation failure handling
 def test_game_state_ai_generation_failure_handling(test_character, basic_world, mock_ai_service):
-    """Test GameState handles AI generation failures gracefully."""
+    """Test GameState handles AI generation failures gracefully with friendly message."""
     from cli_rpg.ai_service import AIGenerationError
-    
+
     # Mock AI service to fail
     mock_ai_service.generate_location.side_effect = AIGenerationError("Generation failed")
-    
+
     game_state = GameState(
         character=test_character,
         world=basic_world,
@@ -155,13 +155,15 @@ def test_game_state_ai_generation_failure_handling(test_character, basic_world, 
         ai_service=mock_ai_service,
         theme="fantasy"
     )
-    
-    # Try to move north (should fail due to generation error)
+
+    # Try to move north (should fail due to generation error but show friendly message)
     success, message = game_state.move("north")
-    
-    # Should fail gracefully
+
+    # Should fail with friendly message (no technical errors exposed)
     assert success is False
-    assert "failed" in message.lower() or "error" in message.lower()
+    assert "impassable barrier" in message.lower()
+    # Should NOT expose internal error details
+    assert "generation failed" not in message.lower()
 
 
 # Test: GameState AI world persistence (serialization)
@@ -361,8 +363,8 @@ def test_move_triggers_coordinate_based_ai_expansion(test_character, coord_world
         assert call_kwargs["target_coords"] == (0, 1)
 
 
-def test_move_coordinate_expansion_returns_failure_on_error(test_character, coord_world, mock_ai_service):
-    """Test move returns failure when expand_area raises AIServiceError (lines 273-275)."""
+def test_move_coordinate_expansion_falls_back_on_error(test_character, coord_world, mock_ai_service):
+    """Test move uses fallback when expand_area raises AIServiceError."""
     from unittest.mock import patch
     from cli_rpg.ai_service import AIServiceError
 
@@ -377,15 +379,17 @@ def test_move_coordinate_expansion_returns_failure_on_error(test_character, coor
 
         success, msg = game.move("north")
 
-        assert success is False
-        assert "Failed to generate destination" in msg
-        assert "API failed" in msg
+        # Should succeed using fallback generation (not fail with error)
+        assert success is True
+        # Should NOT expose internal error details
+        assert "API failed" not in msg
+        assert "Failed to generate" not in msg
 
 
-def test_move_coordinate_expansion_fails_when_location_not_created(
+def test_move_coordinate_expansion_uses_fallback_when_ai_creates_nothing(
     test_character, coord_world, mock_ai_service
 ):
-    """Test move fails when expand_area runs but doesn't create location (lines 271-272)."""
+    """Test move uses fallback when expand_area runs but doesn't create location."""
     from unittest.mock import patch
 
     def mock_expand_area_no_create(world, ai_service, from_location, direction, theme, target_coords):
@@ -403,8 +407,9 @@ def test_move_coordinate_expansion_fails_when_location_not_created(
 
         success, msg = game.move("north")
 
-        assert success is False
-        assert msg == "Failed to generate destination."
+        # Should succeed using fallback generation
+        assert success is True
+        assert game.current_location != "Town"
 
 
 # ===== Test for autosave IOError silent failure (lines 311-312) =====

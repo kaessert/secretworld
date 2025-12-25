@@ -1,3 +1,85 @@
+# Implementation Summary: AI Generation Failure Graceful Fallback
+
+## What Was Implemented
+
+### Problem Solved
+When AI location generation failed (JSON parse errors, API failures, etc.), raw technical errors like "Failed to parse response as JSON: Expecting value: line 52 column 19" were exposed to players, breaking immersion.
+
+### Solution
+Implemented graceful fallback handling in `move()` method that:
+1. Catches all AI errors silently
+2. Falls back to `generate_fallback_location()` when AI fails
+3. Shows friendly "The path is blocked by an impassable barrier." message when even fallback fails
+4. Logs errors for debugging without exposing them to players
+
+### Files Modified
+
+#### `src/cli_rpg/game_state.py`
+- **Lines 300-344**: Refactored coordinate-based AI generation to use fallback pattern
+  - Added `ai_succeeded` flag to track AI success
+  - Changed exception handling from `AIServiceError` to generic `Exception`
+  - Changed log level from `error` to `warning` for AI failures
+  - Added fallback generation try/except block with friendly error message
+
+- **Lines 367-372**: Updated legacy movement error handling
+  - Changed log level from `error` to `warning`
+  - Replaced technical error message with friendly barrier message
+  - Replaced "destination not found" with barrier message for consistency
+
+### Test Files Created/Modified
+
+#### New: `tests/test_ai_failure_fallback.py`
+New test file with 5 tests verifying the graceful fallback behavior:
+- `test_ai_json_parse_error_uses_fallback` - JSON parse errors use fallback
+- `test_ai_service_error_uses_fallback` - AIServiceError uses fallback
+- `test_ai_generation_error_uses_fallback` - AIGenerationError uses fallback
+- `test_fallback_failure_shows_friendly_message` - Ultimate fallback shows barrier message
+- `test_error_logged_but_not_shown` - Errors logged but not shown to player
+
+#### Updated: `tests/test_game_state_ai_integration.py`
+- `test_game_state_move_without_ai_service_missing_destination` - Now expects friendly barrier message
+- `test_game_state_ai_generation_failure_handling` - Now expects friendly barrier message
+- `test_move_coordinate_expansion_falls_back_on_error` (renamed) - Now expects success with fallback
+- `test_move_coordinate_expansion_uses_fallback_when_ai_creates_nothing` (renamed) - Now expects success with fallback
+
+#### Updated: `tests/test_e2e_world_expansion.py`
+- `test_expansion_failure_handling` - Now expects friendly barrier message
+- `test_no_ai_service_fallback` - Now expects friendly barrier message
+
+## Test Results
+
+All 1682 tests pass, including:
+- 5 new AI failure fallback tests
+- 77 game state tests
+- Full test suite
+
+## Technical Details
+
+### Error Handling Flow (Coordinate-based Movement)
+```
+1. Try AI generation via expand_area()
+2. If AI succeeds and creates location -> move there (ai_succeeded = True)
+3. If AI fails (any exception) -> log warning, fall through to fallback
+4. If ai_succeeded is False -> try generate_fallback_location()
+5. If fallback succeeds -> move to new location
+6. If fallback fails -> return friendly barrier message
+```
+
+### Error Handling Flow (Legacy Movement)
+```
+1. Check if destination exists in world
+2. If missing and AI available -> try expand_world()
+3. If AI fails -> log warning, return friendly barrier message
+4. If no AI available -> return friendly barrier message
+```
+
+## E2E Tests That Should Validate
+- Move command with AI failure should show friendly message
+- Move command without AI service should show friendly message
+- No technical error strings should appear in player-facing messages
+
+---
+
 # Implementation Summary: Boss Fights
 
 ## What Was Implemented

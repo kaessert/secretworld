@@ -1,33 +1,30 @@
 ## Active Issues
 
-### AI generation failure exposes raw errors to player
+### `quit` command crashes in non-interactive mode
 **Status**: ACTIVE
 
-When AI location generation fails to parse JSON, the raw error is shown to the player instead of gracefully falling back.
+**Description**: When using the `quit` command in non-interactive mode (`--non-interactive` or `--json`), the game crashes with an `EOFError` because it attempts to prompt the user "Save before quitting? (y/n):" using `input()`, but stdin is already exhausted.
 
-**Reproduction**:
-```
-> gw
-Failed to generate area: Failed to parse response as JSON: Expecting value: line 52 column 19 (char 1833)
-
-Failed to generate destination: Failed to parse response as JSON: Expecting value: line 52 column 19 (char 1833)
+**Steps to reproduce**:
+```bash
+echo "quit" | cli-rpg --non-interactive
 ```
 
-**Expected behavior**:
-- Fallback location generation should trigger silently
-- Player sees the new location, not error messages
-- Errors logged to debug/log file for developers
+**Expected behavior**: The game should either:
+1. Skip the save prompt entirely in non-interactive mode (since there's no user to respond)
+2. Default to not saving and exit gracefully
+3. Or check if stdin has more input available before prompting
 
-**Issues**:
-1. Raw JSON parse errors exposed to player - breaks immersion
-2. Fallback generation not triggering when AI fails
-3. Error messages are technical, not player-friendly
+**Actual behavior**:
+```
+Save before quitting? (y/n): Traceback (most recent call last):
+  ...
+  File "/Users/tkaesser/up/secretworld/src/cli_rpg/main.py", line 967, in handle_exploration_command
+    response = input("Save before quitting? (y/n): ").strip().lower()
+EOFError: EOF when reading a line
+```
 
-**Fix**:
-- Ensure fallback templates always generate on any AI failure
-- Suppress technical errors from player output
-- Log failures for debugging but show player a seamless experience
-- If fallback also fails, show friendly message like "The path is blocked by an impassable barrier"
+**Impact**: AI agents and automated testing scripts that include `quit` in their command sequence will crash instead of exiting cleanly. This breaks the documented use case for non-interactive mode.
 
 ### Constrained movement with guaranteed exploration frontier
 **Status**: ACTIVE
@@ -626,3 +623,14 @@ All "more content" features have been implemented:
 - ~~Multiple NPCs per location~~ (DONE - locations support multiple NPCs with improved talk command UX)
 - ~~Multiple enemies for fights~~ (DONE - combat now spawns 1-3 enemies with target-based attacks)
 - ~~Boss fights~~ (DONE - bosses spawn with 2x stats, 4x XP, guaranteed legendary loot drops, unique ASCII art)
+
+### AI generation failure exposes raw errors to player
+**Status**: RESOLVED
+
+**Description**: When AI location generation failed (JSON parse errors, API failures, etc.), raw technical errors like "Failed to parse response as JSON: Expecting value: line 52 column 19" were exposed to players, breaking immersion.
+
+**Fix**: Implemented graceful fallback handling in the `move()` method in `game_state.py`:
+1. Catches all AI errors silently and falls back to `generate_fallback_location()`
+2. Shows friendly "The path is blocked by an impassable barrier." message when even fallback fails
+3. Errors are logged at warning level for debugging without being exposed to players
+4. Added 5 new tests in `tests/test_ai_failure_fallback.py` to verify graceful fallback behavior

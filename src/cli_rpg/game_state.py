@@ -298,6 +298,7 @@ class GameState:
                     current.add_connection(direction, target_location.name)
             else:
                 # No location at target - generate one (AI or fallback)
+                ai_succeeded = False
                 if self.ai_service is not None and AI_AVAILABLE and expand_area is not None:
                     try:
                         logger.info(
@@ -315,27 +316,32 @@ class GameState:
                         target_location = self._get_location_by_coordinates(target_coords)
                         if target_location:
                             self.current_location = target_location.name
-                        else:
-                            return (False, "Failed to generate destination.")
-                    except (AIServiceError, Exception) as e:
-                        logger.error(f"Failed to generate area: {e}")
-                        return (False, f"Failed to generate destination: {str(e)}")
-                else:
-                    # Use fallback generation when AI is unavailable
-                    logger.info(
-                        f"Generating fallback location at {target_coords} from {current.name}"
-                    )
-                    new_location = generate_fallback_location(
-                        direction=direction,
-                        source_location=current,
-                        target_coords=target_coords
-                    )
-                    # Add to world
-                    self.world[new_location.name] = new_location
-                    # Add bidirectional connection from source
-                    current.add_connection(direction, new_location.name)
-                    # Move to new location
-                    self.current_location = new_location.name
+                            ai_succeeded = True
+                    except Exception as e:
+                        # Log error for debugging but don't expose to player
+                        logger.warning(f"AI area generation failed, using fallback: {e}")
+                        # Fall through to fallback generation below
+
+                # Use fallback generation when AI failed or is unavailable
+                if not ai_succeeded:
+                    try:
+                        logger.info(
+                            f"Generating fallback location at {target_coords} from {current.name}"
+                        )
+                        new_location = generate_fallback_location(
+                            direction=direction,
+                            source_location=current,
+                            target_coords=target_coords
+                        )
+                        # Add to world
+                        self.world[new_location.name] = new_location
+                        # Add bidirectional connection from source
+                        current.add_connection(direction, new_location.name)
+                        # Move to new location
+                        self.current_location = new_location.name
+                    except Exception as e:
+                        logger.error(f"Fallback location generation also failed: {e}")
+                        return (False, "The path is blocked by an impassable barrier.")
         else:
             # Legacy fallback: use connection-based movement
             if not current.has_connection(direction):
@@ -358,11 +364,12 @@ class GameState:
                         # Re-read destination name after expansion (may have changed)
                         current = self.get_current_location()
                         destination_name = current.get_connection(direction)
-                    except (AIServiceError, Exception) as e:
-                        logger.error(f"Failed to generate location: {e}")
-                        return (False, f"Failed to generate destination: {str(e)}")
+                    except Exception as e:
+                        # Log error for debugging but don't expose to player
+                        logger.warning(f"AI location generation failed: {e}")
+                        return (False, "The path is blocked by an impassable barrier.")
                 else:
-                    return (False, f"Destination '{destination_name}' not found in world.")
+                    return (False, "The path is blocked by an impassable barrier.")
 
             if destination_name is None:
                 return (False, "Failed to determine destination.")

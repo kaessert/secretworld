@@ -430,9 +430,9 @@ def test_expansion_after_movement_through_existing_world(
 
 def test_expansion_failure_handling(basic_character, simple_world_with_dangling, mock_ai_service_failure):
     """Test: Expansion Failure Handling
-    
+
     Spec: Verifies graceful handling when AI generation fails
-    - Move fails with appropriate error message
+    - Move fails with friendly barrier message (no technical errors exposed)
     - Current location unchanged
     - World state unchanged (no partial location added)
     """
@@ -443,23 +443,23 @@ def test_expansion_failure_handling(basic_character, simple_world_with_dangling,
         ai_service=mock_ai_service_failure,
         theme="fantasy"
     )
-    
+
     initial_world_size = len(game_state.world)
-    
+
     # Attempt move that triggers failed expansion
     success, message = game_state.move("north")
-    
-    # Spec: Move fails
+
+    # Spec: Move fails with friendly message
     assert success is False, "Move should fail when AI generation fails"
-    
-    # Spec: Error message contains failure indication
-    assert "failed" in message.lower() or "error" in message.lower(), \
-        f"Error message should indicate failure, got: {message}"
-    
+
+    # Spec: Friendly barrier message instead of technical errors
+    assert "impassable barrier" in message.lower(), \
+        f"Error message should be friendly, got: {message}"
+
     # Spec: Current location unchanged
     assert game_state.current_location == "Town Square", \
         "Current location should not change on failed expansion"
-    
+
     # Spec: World state unchanged
     assert len(game_state.world) == initial_world_size, \
         "No partial locations should be added on failure"
@@ -469,12 +469,12 @@ def test_expansion_failure_handling(basic_character, simple_world_with_dangling,
 
 def test_no_ai_service_fallback(basic_character):
     """Test: No AI Service Fallback
-    
+
     Spec: Verifies behavior without AI service
-    - Move to missing destination fails
-    - Clear error message provided
+    - Move to missing destination fails with friendly barrier message
+    - No technical errors exposed to player
     - No crashes or exceptions
-    
+
     Note: GameState doesn't allow creating worlds with dangling connections
     when there's no AI service. This test creates a valid world with AI service,
     then removes it and adds a dangling connection to simulate runtime scenario.
@@ -486,7 +486,7 @@ def test_no_ai_service_fallback(basic_character):
         connections={}
     )
     world = {"Town Square": town}
-    
+
     # Create GameState with AI service initially to pass validation
     mock_ai_service = Mock(spec=AIService)
     game_state = GameState(
@@ -496,23 +496,23 @@ def test_no_ai_service_fallback(basic_character):
         ai_service=mock_ai_service,
         theme="fantasy"
     )
-    
+
     # Add dangling connection after creation (simulates dynamic scenario)
     game_state.world["Town Square"].connections["north"] = "Forest"
-    
+
     # Remove AI service to test fallback behavior
     game_state.ai_service = None
-    
+
     # Attempt move to missing destination
     success, message = game_state.move("north")
-    
-    # Spec: Move fails
+
+    # Spec: Move fails with friendly message
     assert success is False, "Move should fail without AI service"
-    
-    # Spec: Clear error message
-    assert "destination" in message.lower() or "not found" in message.lower(), \
-        f"Error message should be clear, got: {message}"
-    
+
+    # Spec: Friendly barrier message instead of technical errors
+    assert "impassable barrier" in message.lower(), \
+        f"Error message should be friendly, got: {message}"
+
     # Spec: Current location unchanged
     assert game_state.current_location == "Town Square"
 

@@ -1,51 +1,10 @@
-# Implementation Plan: AI Generation Failure Graceful Fallback
+"""Tests for AI failure graceful fallback.
 
-## Problem
-When AI location generation fails (JSON parse errors, API failures, etc.), raw technical errors like "Failed to parse response as JSON: Expecting value: line 52 column 19" are exposed to players, breaking immersion.
+Spec: When AI location generation fails, fall back gracefully without exposing
+technical errors to the player.
+"""
 
-## Spec
-1. **Silent fallback**: On ANY AI failure during `move()`, fall back to `generate_fallback_location()`
-2. **No technical errors to player**: Log errors for debugging, show seamless location to player
-3. **Last resort message**: If fallback also fails, show friendly "The path is blocked by an impassable barrier."
-
-## Files to Modify
-- `src/cli_rpg/game_state.py` - `move()` method (lines 300-363)
-
-## Implementation Steps
-
-### 1. Update `move()` AI error handling (game_state.py:300-322)
-Replace the current error-exposing pattern:
-```python
-except (AIServiceError, Exception) as e:
-    logger.error(f"Failed to generate area: {e}")
-    return (False, f"Failed to generate destination: {str(e)}")
-```
-
-With fallback pattern:
-```python
-except Exception as e:
-    logger.warning(f"AI area generation failed, using fallback: {e}")
-    # Fall through to fallback generation below
-```
-
-Then add fallback generation after the try/except block instead of returning error.
-
-### 2. Apply same pattern to legacy movement (game_state.py:348-363)
-The `expand_world()` call also exposes errors. Apply the same fallback pattern.
-
-### 3. Add ultimate fallback message
-If even `generate_fallback_location()` fails, return friendly message:
-```python
-return (False, "The path is blocked by an impassable barrier.")
-```
-
-## Test Plan
-
-### New test file: `tests/test_ai_failure_fallback.py`
-
-```python
-"""Tests for AI failure graceful fallback."""
-
+import logging
 import pytest
 from unittest.mock import Mock, patch
 from cli_rpg.game_state import GameState
@@ -71,10 +30,17 @@ def world_with_coords():
 
 
 class TestAIFailureFallback:
-    """Test that AI failures fall back gracefully."""
+    """Test that AI failures fall back gracefully.
+
+    Spec requirement: On ANY AI failure during move(), fall back to
+    generate_fallback_location() without showing technical errors.
+    """
 
     def test_ai_json_parse_error_uses_fallback(self, character, world_with_coords):
-        """AI JSON parse errors should silently use fallback location."""
+        """AI JSON parse errors should silently use fallback location.
+
+        Spec: Silent fallback on ANY AI failure.
+        """
         mock_ai = Mock()
         mock_ai.generate_area.side_effect = Exception(
             "Failed to parse response as JSON: Expecting value: line 52"
@@ -95,7 +61,10 @@ class TestAIFailureFallback:
         assert gs.current_location != "Town"
 
     def test_ai_service_error_uses_fallback(self, character, world_with_coords):
-        """AIServiceError should silently use fallback location."""
+        """AIServiceError should silently use fallback location.
+
+        Spec: Silent fallback on ANY AI failure.
+        """
         mock_ai = Mock()
         mock_ai.generate_area.side_effect = AIServiceError("API timeout")
 
@@ -112,7 +81,10 @@ class TestAIFailureFallback:
         assert "API timeout" not in message
 
     def test_ai_generation_error_uses_fallback(self, character, world_with_coords):
-        """AIGenerationError should silently use fallback location."""
+        """AIGenerationError should silently use fallback location.
+
+        Spec: Silent fallback on ANY AI failure.
+        """
         mock_ai = Mock()
         mock_ai.generate_area.side_effect = AIGenerationError("Invalid JSON")
 
@@ -129,7 +101,10 @@ class TestAIFailureFallback:
         assert "Invalid JSON" not in message
 
     def test_fallback_failure_shows_friendly_message(self, character, world_with_coords):
-        """If fallback also fails, show friendly barrier message."""
+        """If fallback also fails, show friendly barrier message.
+
+        Spec: Last resort message "The path is blocked by an impassable barrier."
+        """
         mock_ai = Mock()
         mock_ai.generate_area.side_effect = Exception("AI failed")
 
@@ -149,7 +124,10 @@ class TestAIFailureFallback:
             assert "impassable barrier" in message.lower()
 
     def test_error_logged_but_not_shown(self, character, world_with_coords, caplog):
-        """Errors should be logged for debugging but not shown to player."""
+        """Errors should be logged for debugging but not shown to player.
+
+        Spec: Log errors for debugging, show seamless location to player.
+        """
         mock_ai = Mock()
         mock_ai.generate_area.side_effect = Exception("Detailed internal error XYZ123")
 
@@ -160,7 +138,6 @@ class TestAIFailureFallback:
             ai_service=mock_ai
         )
 
-        import logging
         with caplog.at_level(logging.WARNING):
             success, message = gs.move("south")
 
@@ -169,9 +146,3 @@ class TestAIFailureFallback:
         # But not in player message
         assert "XYZ123" not in message
         assert "Detailed internal error" not in message
-```
-
-## Verification
-1. Run existing tests: `pytest tests/test_game_state*.py -v`
-2. Run new tests: `pytest tests/test_ai_failure_fallback.py -v`
-3. Run full suite: `pytest`
