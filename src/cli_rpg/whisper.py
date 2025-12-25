@@ -15,6 +15,7 @@ if TYPE_CHECKING:
 WHISPER_CHANCE = 0.30  # 30% chance of whisper on location entry
 PLAYER_HISTORY_CHANCE = 0.10  # 10% of whispers are player-history-aware
 NIGHT_WHISPER_CHANCE = 0.40  # 40% chance of night whisper when it's night
+WHISPER_TYPEWRITER_DELAY = 0.03  # Slightly faster than dreams' 0.04
 
 # Night-specific whispers (eerie atmosphere)
 NIGHT_WHISPERS = [
@@ -238,3 +239,19 @@ def format_whisper(whisper_text: str) -> str:
     """
     from cli_rpg import colors
     return colors.colorize(f'[Whisper]: "{whisper_text}"', colors.MAGENTA)
+
+
+def display_whisper(whisper_text: str) -> None:
+    """Display a whisper with typewriter effect.
+
+    The whisper is formatted with styling and displayed character-by-character
+    for enhanced atmosphere. The effect is skippable via Ctrl+C and respects
+    the global effects toggle.
+
+    Args:
+        whisper_text: The whisper text to display
+    """
+    from cli_rpg.text_effects import typewriter_print
+
+    formatted = format_whisper(whisper_text)
+    typewriter_print(formatted, delay=WHISPER_TYPEWRITER_DELAY)

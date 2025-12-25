@@ -19,7 +19,7 @@ from cli_rpg.combat import (
 )
 from cli_rpg.autosave import autosave
 from cli_rpg import colors
-from cli_rpg.whisper import WhisperService, format_whisper
+from cli_rpg.whisper import WhisperService, display_whisper
 from cli_rpg.companion_banter import CompanionBanterService, format_banter
 from cli_rpg.random_encounters import check_for_random_encounter
 from cli_rpg.shadow_creature import check_and_trigger_shadow_attack
@@ -521,7 +521,9 @@ class GameState:
                 dread=self.current_character.dread_meter.dread
             )
             if whisper:
-                message += f"\n\n{format_whisper(whisper)}"
+                # Display whisper with typewriter effect (immediate output)
+                print()  # Blank line for spacing before whisper
+                display_whisper(whisper)
 
         # Check for companion banter (only when not in combat and companions present)
         if not self.is_in_combat() and self.companions:

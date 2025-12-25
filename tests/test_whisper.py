@@ -15,7 +15,9 @@ from cli_rpg.whisper import (
     PLAYER_HISTORY_WHISPERS,
     PLAYER_HISTORY_CHANCE,
     WHISPER_CHANCE,
+    WHISPER_TYPEWRITER_DELAY,
     WhisperService,
+    display_whisper,
     format_whisper,
 )
 
@@ -290,22 +292,23 @@ class TestWhisperIntegration:
         assert isinstance(gs.whisper_service, WhisperService)
 
     def test_whisper_displayed_on_location_entry(self):
-        """Spec: Whisper appears after move (when triggered)."""
+        """Spec: Whisper triggers display_whisper after move (when triggered)."""
         from cli_rpg.game_state import GameState
 
         char = Character(name="TestHero", strength=10, dexterity=10, intelligence=10)
         world = self._create_test_world()
         gs = GameState(char, world)
 
-        # Mock whisper to always return a value
+        # Mock whisper to always return a value and patch display_whisper
         with patch.object(gs.whisper_service, "get_whisper", return_value="Test whisper"):
-            # Also need to prevent combat encounters
-            with patch.object(gs, "trigger_encounter", return_value=None):
-                success, message = gs.move("north")
+            with patch("cli_rpg.game_state.display_whisper") as mock_display:
+                # Also need to prevent combat encounters
+                with patch.object(gs, "trigger_encounter", return_value=None):
+                    success, message = gs.move("north")
 
-        assert success
-        assert "[Whisper]:" in message
-        assert "Test whisper" in message
+                assert success
+                # Verify display_whisper was called with the whisper text
+                mock_display.assert_called_once_with("Test whisper")
 
     def test_no_whisper_when_none_returned(self):
         """Spec: No whisper displayed when get_whisper returns None."""
@@ -316,11 +319,13 @@ class TestWhisperIntegration:
         gs = GameState(char, world)
 
         with patch.object(gs.whisper_service, "get_whisper", return_value=None):
-            with patch.object(gs, "trigger_encounter", return_value=None):
-                success, message = gs.move("north")
+            with patch("cli_rpg.game_state.display_whisper") as mock_display:
+                with patch.object(gs, "trigger_encounter", return_value=None):
+                    success, message = gs.move("north")
 
-        assert success
-        assert "[Whisper]:" not in message
+                assert success
+                # Verify display_whisper was NOT called
+                mock_display.assert_not_called()
 
     def test_no_whisper_during_combat(self):
         """Spec: Whispers disabled during combat.
@@ -345,9 +350,43 @@ class TestWhisperIntegration:
         # During combat, move should be blocked (combat blocks movement)
         # So whispers won't appear since move fails
         # This test verifies the system doesn't crash when combat is active
-        success, message = gs.move("north")
-        # Movement during combat may be blocked by game logic
-        # The key is that no whisper appears
-        if "[Whisper]:" in message:
-            # Whispers should not appear during combat
-            pytest.fail("Whisper appeared during combat")
+        with patch("cli_rpg.game_state.display_whisper") as mock_display:
+            success, message = gs.move("north")
+            # Movement during combat may be blocked by game logic
+            # The key is that display_whisper should not be called during combat
+            mock_display.assert_not_called()
+
+
+class TestDisplayWhisper:
+    """Tests for display_whisper function with typewriter effect.
+
+    Spec: Whispers display with typewriter effect for enhanced atmosphere
+    """
+
+    def test_display_whisper_calls_typewriter_print(self):
+        """Spec: display_whisper uses typewriter_print for text output."""
+        whisper_text = "The darkness whispers secrets..."
+
+        with patch("cli_rpg.text_effects.typewriter_print") as mock_typewriter:
+            display_whisper(whisper_text)
+
+            mock_typewriter.assert_called_once()
+            # The call should include the formatted whisper text
+            call_args = mock_typewriter.call_args
+            assert "[Whisper]:" in call_args[0][0]
+            assert whisper_text in call_args[0][0]
+
+    def test_display_whisper_uses_correct_delay(self):
+        """Spec: display_whisper uses WHISPER_TYPEWRITER_DELAY constant."""
+        whisper_text = "Something stirs in the shadows..."
+
+        with patch("cli_rpg.text_effects.typewriter_print") as mock_typewriter:
+            display_whisper(whisper_text)
+
+            mock_typewriter.assert_called_once()
+            call_kwargs = mock_typewriter.call_args[1]
+            assert call_kwargs.get("delay") == WHISPER_TYPEWRITER_DELAY
+
+    def test_whisper_typewriter_delay_value(self):
+        """Spec: WHISPER_TYPEWRITER_DELAY is 0.03 (slightly faster than dreams)."""
+        assert WHISPER_TYPEWRITER_DELAY == 0.03

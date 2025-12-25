@@ -121,8 +121,9 @@ class TestBanterOnMove:
                 assert "[Companion]" not in message
 
     def test_banter_and_whisper_can_coexist(self):
-        """Test that both banter and whisper can appear in same move."""
+        """Test that both banter and whisper can trigger in same move."""
         # Spec: Both may appear in same move
+        # Note: Whispers now display immediately via display_whisper() and aren't in message
         world = create_test_world()
         character = create_test_character()
         game_state = GameState(character, world, "Town Square")
@@ -140,12 +141,14 @@ class TestBanterOnMove:
         found_both = False
         with patch("cli_rpg.companion_banter.random.random", return_value=0.1):  # Force banter
             with patch("cli_rpg.whisper.random.random", return_value=0.1):  # Force whisper
-                for _ in range(20):
-                    game_state.current_location = "Town Square"
-                    success, message = game_state.move("north")
-                    if "[Companion]" in message and "[Whisper]" in message:
-                        found_both = True
-                        break
+                with patch("cli_rpg.game_state.display_whisper") as mock_display:
+                    for _ in range(20):
+                        game_state.current_location = "Town Square"
+                        success, message = game_state.move("north")
+                        # Banter still in message, but whisper is displayed via display_whisper
+                        if "[Companion]" in message and mock_display.called:
+                            found_both = True
+                            break
 
         assert found_both, "Banter and whisper should be able to coexist in same move"
 
