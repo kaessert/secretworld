@@ -1,27 +1,19 @@
 ## Active Issues
 
-### Unclear error message when trying to equip non-equippable items
-**Status**: ACTIVE
-
-**Description**: When a user tries to equip a consumable item (like "Life Draught" or "Healing Elixir"), the error message is simply "You can't equip Life Draught." This message doesn't explain *why* the item can't be equipped, leaving users confused about whether the item is broken, the command syntax is wrong, or something else is happening.
-
-**Steps to Reproduce**:
-1. Load a game with a consumable item in inventory (e.g., Health Potion, Life Draught)
-2. Type `equip Life Draught` (or any consumable name)
-3. Observe error message: "You can't equip Life Draught."
-
-**Expected Behavior**: The error message should explain that only weapons and armor can be equipped, and suggest using the `use` command for consumables. For example: "You can only equip weapons or armor. Use 'use Life Draught' for consumables."
-
-**Actual Behavior**: Generic "You can't equip [item name]." message with no explanation.
-
-**Comparison**: Other error messages in the game are more helpful:
-- `complete` without NPC → "You need to talk to an NPC first to turn in a quest."
-- `unequip helmet` → "You can only unequip 'weapon' or 'armor'."
-- `use` without args → "Use what? Specify an item name."
-
-The `equip` error message is inconsistent with these more detailed messages.
+*No active issues at this time.*
 
 ## Resolved Issues
+
+### Unclear error message when trying to equip non-equippable items
+**Status**: RESOLVED
+
+**Description**: When a user tries to equip a consumable item (like "Life Draught" or "Healing Elixir"), the error message was simply "You can't equip Life Draught." This message didn't explain *why* the item couldn't be equipped.
+
+**Fix**: Enhanced error messages to be more helpful:
+- For consumables: "You can only equip weapons or armor. Use 'use <item>' for consumables."
+- For misc items: "You can only equip weapons or armor."
+
+This is now consistent with other helpful error messages in the game.
 
 ### TALK quest objective type
 **Status**: RESOLVED

@@ -1,24 +1,31 @@
-# Implementation Summary: Cover Item.__str__ heal_amount branch
+# Implementation Summary: Improve Equip Command Error Message
 
 ## What Was Implemented
 
-Added a single test case to `tests/test_item.py` in the `TestItemStringRepresentation` class:
+Enhanced the error message when players try to equip non-equippable items (consumables/misc) to provide helpful guidance.
 
-- **New test**: `test_item_str_consumable_with_heal()`
-  - Creates a consumable item with `heal_amount=25`
-  - Verifies that `str(item)` contains "heals 25 HP"
-  - Covers line 114 of `src/cli_rpg/models/item.py`
+### Changes Made
 
-## Files Modified
+**File: `src/cli_rpg/main.py`**
+1. Added `ItemType` to the import statement (line 6)
+2. Updated the equip command error handling (lines 433-437):
+   - For consumable items: Returns message explaining only weapons/armor can be equipped AND suggests using the `use` command
+   - For other non-equippable items (misc): Returns message explaining only weapons/armor can be equipped
 
-- `tests/test_item.py`: Added new test method (lines 388-399)
+**File: `tests/test_main_coverage.py`**
+1. Updated `test_equip_misc_item_fails` to verify the new error message mentions "weapon" or "armor"
+2. Added new test `test_equip_consumable_suggests_use_command` to verify consumables get a special message suggesting the `use` command
 
 ## Test Results
 
-- All 1322 tests pass (1 skipped)
-- `cli_rpg.models.item` coverage increased to 98%
-- Line 114 (the `heal_amount > 0` branch in `__str__`) is now covered
+All tests passed:
+- `tests/test_main_coverage.py::TestEquipCannotEquip::test_equip_misc_item_fails` - PASSED
+- `tests/test_main_coverage.py::TestEquipCannotEquip::test_equip_consumable_suggests_use_command` - PASSED
 
-## Technical Details
+Full test suite verification: 88 tests passed (test_main_inventory_commands.py + test_main_coverage.py)
 
-The `Item.__str__()` method builds a stats string that includes heal amount for consumables. The new test exercises this branch by creating a Health Potion with `heal_amount=25` and asserting "heals 25 HP" appears in the string representation.
+## E2E Validation
+
+The following scenarios should work correctly:
+1. Player with a Health Potion in inventory types `equip Health Potion` → Gets message: "You can only equip weapons or armor. Use 'use Health Potion' for consumables."
+2. Player with a Key (misc item) in inventory types `equip Key` → Gets message: "You can only equip weapons or armor."
