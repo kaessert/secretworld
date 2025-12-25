@@ -46,7 +46,10 @@ def init_readline() -> None:
         history_path = get_history_path()
 
         if history_path.exists():
-            readline.read_history_file(str(history_path))
+            try:
+                readline.read_history_file(str(history_path))
+            except PermissionError:
+                pass  # Gracefully handle sandboxed environments
 
         readline.set_history_length(HISTORY_SIZE)
         atexit.register(cleanup_readline)
@@ -65,7 +68,10 @@ def cleanup_readline() -> None:
     if _readline_available:
         import readline
 
-        readline.write_history_file(str(get_history_path()))
+        try:
+            readline.write_history_file(str(get_history_path()))
+        except PermissionError:
+            pass  # Gracefully handle sandboxed environments
 
 
 def get_input(prompt: str = "") -> str:

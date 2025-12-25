@@ -60,20 +60,14 @@ Once non-interactive mode is fully implemented, set up periodic long-running sim
 
 **Depends on**: Non-interactive mode enhancements (structured output, logging)
 
-### Terminal-like input with history and auto-complete
+### Tab auto-completion
 **Status**: ACTIVE
 
-The game uses basic `input()` which lacks the conveniences of a modern terminal. Players expect shell-like behavior.
+Command history has been implemented (see Resolved Issues). Tab auto-completion remains to be done.
 
 **Requirements**:
 
-1. **Command history (arrow keys)**
-   - Up arrow scrolls back through previous commands
-   - Down arrow scrolls forward
-   - History persists across sessions (save to file)
-   - Configurable history size
-
-2. **Tab auto-completion**
+1. **Tab auto-completion**
    - Complete command names: `ta<tab>` → `talk`
    - Complete arguments contextually:
      - `talk <tab>` → shows available NPCs at current location
@@ -85,16 +79,10 @@ The game uses basic `input()` which lacks the conveniences of a modern terminal.
    - Cycle through multiple matches with repeated tab
    - Show all options on double-tab when ambiguous
 
-3. **Input editing**
-   - Left/right arrow to move cursor
-   - Backspace and delete
-   - Home/end to jump to start/end of line
-   - Ctrl+C to cancel current input
-
 **Implementation notes**:
-- Use `readline` module (GNU readline bindings) or `prompt_toolkit` for rich features
+- Use readline's `set_completer()` with custom completer functions
 - Register custom completers per command type
-- Fallback to basic input if readline unavailable (e.g., Windows without pyreadline)
+- Need access to GameState context for contextual completions
 
 
 ### Map alignment and blocked location markers
@@ -258,6 +246,21 @@ Quests should be dynamically generated to keep gameplay fresh.
 - Emergent storylines from completed quests
 
 ## Resolved Issues
+
+### Command history with arrow keys
+**Status**: RESOLVED
+
+**Description**: Added readline integration for command history navigation using up/down arrow keys.
+
+**Features implemented**:
+- Up arrow scrolls back through previous commands
+- Down arrow scrolls forward through history
+- History persists across sessions (saved to `~/.cli_rpg_history`)
+- Configurable history size (500 commands)
+- Fallback to basic input if readline unavailable (e.g., Windows without pyreadline3)
+- Input editing with left/right arrow, backspace, delete, home/end keys
+
+**Implementation**: New `input_handler.py` module with `init_readline()` and `get_input()` functions.
 
 ### Ultra-short movement commands
 **Status**: RESOLVED

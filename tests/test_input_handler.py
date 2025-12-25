@@ -84,6 +84,24 @@ class TestInitReadline:
                     mock_atexit.assert_called_once()
                     assert mock_atexit.call_args[0][0] == ih.cleanup_readline
 
+    def test_init_readline_handles_permission_error(self):
+        """Verify PermissionError is caught gracefully in sandboxed environments."""
+        mock_readline = MagicMock()
+        mock_readline.read_history_file.side_effect = PermissionError("Access denied")
+
+        with patch.dict("sys.modules", {"readline": mock_readline}):
+            with patch("cli_rpg.input_handler.get_history_path") as mock_path:
+                mock_path_obj = MagicMock()
+                mock_path_obj.exists.return_value = True
+                mock_path.return_value = mock_path_obj
+
+                import cli_rpg.input_handler as ih
+                ih._readline_available = False
+                ih.init_readline()  # Should not raise
+
+                # Verify readline was still configured despite permission error
+                mock_readline.set_history_length.assert_called_once_with(500)
+
 
 class TestFallbackBehavior:
     """Tests for fallback when readline unavailable - Spec requirement 5."""
@@ -133,6 +151,18 @@ class TestCleanupReadline:
 
         # Should not raise or do anything
         ih.cleanup_readline()  # Just verify no exception
+
+    def test_cleanup_handles_permission_error(self):
+        """Verify PermissionError is caught gracefully when writing history."""
+        mock_readline = MagicMock()
+        mock_readline.write_history_file.side_effect = PermissionError("Access denied")
+
+        with patch.dict("sys.modules", {"readline": mock_readline}):
+            import cli_rpg.input_handler as ih
+            ih._readline_available = True
+
+            # Should not raise
+            ih.cleanup_readline()
 
 
 class TestGetInput:
