@@ -38,6 +38,7 @@ src/cli_rpg/
 ├── json_output.py       # JSON Lines output for --json mode
 ├── logging_service.py   # Gameplay logging for --log-file option
 ├── input_handler.py     # Readline-based input with command history
+├── completer.py         # Tab auto-completion for commands and arguments
 └── models/
     ├── character.py     # Player character model
     ├── enemy.py         # Enemy/monster model

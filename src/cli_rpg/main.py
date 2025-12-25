@@ -11,7 +11,7 @@ from cli_rpg.config import load_ai_config, is_ai_strict_mode
 from cli_rpg.ai_service import AIService
 from cli_rpg.autosave import autosave
 from cli_rpg.map_renderer import render_map
-from cli_rpg.input_handler import init_readline, get_input
+from cli_rpg.input_handler import init_readline, get_input, set_completer_context
 
 
 def get_command_reference() -> str:
@@ -1002,60 +1002,67 @@ def run_game_loop(game_state: GameState) -> None:
     Args:
         game_state: The game state to run the loop for
     """
-    # Main gameplay loop
-    while True:
-        # Check if player is alive (game over condition)
-        if not game_state.current_character.is_alive():
-            print("\n" + "=" * 50)
-            print("GAME OVER - You have fallen in battle.")
-            print("=" * 50)
-            response = input("\nReturn to main menu? (y/n): ").strip().lower()
-            if response == 'y':
-                break
+    # Set up completer context for tab completion
+    set_completer_context(game_state)
+
+    try:
+        # Main gameplay loop
+        while True:
+            # Check if player is alive (game over condition)
+            if not game_state.current_character.is_alive():
+                print("\n" + "=" * 50)
+                print("GAME OVER - You have fallen in battle.")
+                print("=" * 50)
+                response = input("\nReturn to main menu? (y/n): ").strip().lower()
+                if response == 'y':
+                    break
+                else:
+                    # Allow continue even after death (for testing/fun)
+                    game_state.current_character.health = game_state.current_character.max_health
+                    print("\n✓ Health restored. Returning to town square...")
+                    game_state.current_location = "Town Square"
+                    game_state.current_combat = None
+
+            # Show conversation prompt if in conversation
+            if game_state.is_in_conversation and game_state.current_npc is not None:
+                print(f"\n[Talking to {game_state.current_npc.name}]")
+
+            print()
+            command_input = get_input("> ")
+
+            if not command_input:
+                continue
+
+            # Parse command
+            command, args = parse_command(command_input)
+
+            # Route command based on combat state
+            if game_state.is_in_combat():
+                continue_game, message = handle_combat_command(game_state, command, args)
+                print(message)
+
+                if not continue_game:
+                    break
+
+                # Show combat status after each action if still in combat
+                if game_state.is_in_combat() and game_state.current_combat is not None:
+                    print("\n" + game_state.current_combat.get_status())
+            elif game_state.is_in_conversation and command == "unknown":
+                # In conversation mode - route to conversation handler
+                continue_game, message = handle_conversation_input(game_state, command_input)
+                print(message)
+
+                if not continue_game:
+                    break
             else:
-                # Allow continue even after death (for testing/fun)
-                game_state.current_character.health = game_state.current_character.max_health
-                print("\n✓ Health restored. Returning to town square...")
-                game_state.current_location = "Town Square"
-                game_state.current_combat = None
+                continue_game, message = handle_exploration_command(game_state, command, args)
+                print(message)
 
-        # Show conversation prompt if in conversation
-        if game_state.is_in_conversation and game_state.current_npc is not None:
-            print(f"\n[Talking to {game_state.current_npc.name}]")
-
-        print()
-        command_input = get_input("> ")
-
-        if not command_input:
-            continue
-
-        # Parse command
-        command, args = parse_command(command_input)
-
-        # Route command based on combat state
-        if game_state.is_in_combat():
-            continue_game, message = handle_combat_command(game_state, command, args)
-            print(message)
-
-            if not continue_game:
-                break
-
-            # Show combat status after each action if still in combat
-            if game_state.is_in_combat() and game_state.current_combat is not None:
-                print("\n" + game_state.current_combat.get_status())
-        elif game_state.is_in_conversation and command == "unknown":
-            # In conversation mode - route to conversation handler
-            continue_game, message = handle_conversation_input(game_state, command_input)
-            print(message)
-
-            if not continue_game:
-                break
-        else:
-            continue_game, message = handle_exploration_command(game_state, command, args)
-            print(message)
-
-            if not continue_game:
-                break
+                if not continue_game:
+                    break
+    finally:
+        # Clear completer context when exiting the game loop
+        set_completer_context(None)
 
 
 def start_game(

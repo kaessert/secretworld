@@ -1,70 +1,101 @@
-# Implementation Plan: Configurable Delays/Timeouts for Automation
+# Tab Auto-completion Implementation
 
-## Feature Spec
+## Spec (from ISSUES.md lines 63-86)
 
-Add `--delay <ms>` CLI option to control pacing between commands in automated (non-interactive/JSON) runs. This is the final item under "Additional automation features" in ISSUES.md.
+1. Complete command names: `ta<tab>` -> `talk`
+2. Complete arguments contextually:
+   - `talk <tab>` -> shows NPCs at current location
+   - `go <tab>` -> shows available directions
+   - `equip <tab>` -> shows equippable items (WEAPON/ARMOR) in inventory
+   - `use <tab>` -> shows usable items (CONSUMABLE) in inventory
+   - `buy <tab>` -> shows shop items (when in shop)
+3. Cycle through multiple matches with repeated tab
+4. Show all options on double-tab when ambiguous
 
-**Behavior**:
-- `--delay 500` - Wait 500ms after each command response before processing the next command
-- Only applies to `--non-interactive` and `--json` modes
-- Default: 0 (no delay, current behavior)
-- Valid range: 0-60000ms (0 to 60 seconds)
+## Implementation
 
-## Tests First (TDD)
+### 1. Create `src/cli_rpg/completer.py`
 
-Create `tests/test_delay_option.py`:
-
-1. `test_delay_flag_accepted` - `--delay 100` is accepted without error
-2. `test_delay_requires_integer` - `--delay notanumber` fails with argparse error
-3. `test_delay_requires_non_interactive` - `--delay` only meaningful with `--non-interactive` or `--json` (should warn if used alone in interactive mode, but not fail)
-4. `test_delay_slows_execution` - Run with `--delay 200` on 2 commands takes ~400ms longer than without
-5. `test_delay_works_with_json_mode` - `--json --delay 100` works correctly
-6. `test_delay_zero_is_default` - No delay when not specified
-
-## Implementation Steps
-
-### 1. Add CLI argument in `main.py`
-
-Location: `main()` function, after `--seed` argument (~line 1479)
+New module with:
 
 ```python
-parser.add_argument(
-    "--delay",
-    type=int,
-    default=0,
-    metavar="MS",
-    help="Delay in milliseconds between commands (non-interactive/JSON modes)"
-)
+class CommandCompleter:
+    """Readline-compatible completer for game commands."""
+
+    def __init__(self):
+        self._game_state: Optional[GameState] = None
+
+    def set_game_state(self, game_state: Optional[GameState]) -> None:
+        """Set current game state for contextual completions."""
+
+    def complete(self, text: str, state: int) -> Optional[str]:
+        """Readline completer callback."""
 ```
 
-### 2. Add delay logic to `run_non_interactive()`
+**Complete method logic:**
+- Parse readline buffer to get current line
+- If completing first word: complete command names from `KNOWN_COMMANDS`
+- If completing argument: dispatch to command-specific completers
 
-Location: `run_non_interactive()` (~line 1332)
+**Command-specific completers:**
+- `_complete_go()`: return `location.get_available_directions()`
+- `_complete_talk()`: return `[npc.name for npc in location.npcs]`
+- `_complete_equip()`: return equippable items (WEAPON/ARMOR) from inventory
+- `_complete_use()`: return consumable items from inventory
+- `_complete_buy()`: return shop item names (if `current_shop` set)
 
-- Add `delay_ms: int = 0` parameter
-- After processing each command (after `print(message)`), add:
-  ```python
-  if delay_ms > 0:
-      import time
-      time.sleep(delay_ms / 1000.0)
-  ```
+### 2. Update `src/cli_rpg/input_handler.py`
 
-### 3. Add delay logic to `run_json_mode()`
+Add to `init_readline()`:
+```python
+from cli_rpg.completer import completer  # module-level instance
+readline.set_completer(completer.complete)
+readline.parse_and_bind("tab: complete")
+```
 
-Location: `run_json_mode()` (~line 1158)
+Add function to set game state:
+```python
+def set_completer_context(game_state: Optional[GameState]) -> None:
+    """Update completer with current game state."""
+    completer.set_game_state(game_state)
+```
 
-- Add `delay_ms: int = 0` parameter
-- After emitting response JSON, add same delay logic
+### 3. Update `src/cli_rpg/main.py`
 
-### 4. Pass delay from `main()` to mode functions
+In `run_game_loop()`, after game state is created and before loop:
+```python
+from cli_rpg.input_handler import set_completer_context
+set_completer_context(game_state)
+```
 
-Update calls to `run_non_interactive()` and `run_json_mode()` to pass `parsed_args.delay`.
+Also call `set_completer_context(None)` when exiting game loop.
 
-## Files to Modify
+## Tests - `tests/test_completer.py`
 
-1. `src/cli_rpg/main.py` - Add argument and delay logic
-2. `tests/test_delay_option.py` - New test file
+### Command completion tests
+- `test_complete_command_prefix()`: "lo" -> "look"
+- `test_complete_command_multiple_matches()`: "s" -> ["save", "sell", "shop", "status"]
+- `test_complete_command_exact_match()`: "look" -> "look " (with trailing space)
+- `test_complete_unknown_prefix()`: "xyz" -> None
+
+### Contextual argument tests
+- `test_complete_go_directions()`: "go n" -> "go north"
+- `test_complete_talk_npc_names()`: "talk T" -> "talk Town Merchant"
+- `test_complete_equip_weapon_armor()`: shows only WEAPON/ARMOR items
+- `test_complete_use_consumables()`: shows only CONSUMABLE items
+- `test_complete_buy_shop_items()`: shows shop inventory items
+
+### Edge cases
+- `test_complete_without_game_state()`: returns only commands, no args
+- `test_complete_empty_location_npcs()`: "talk " -> no completions
+- `test_complete_not_in_shop()`: "buy " -> no completions
 
 ## Verification
 
-Run: `pytest tests/test_delay_option.py -v`
+```bash
+pytest tests/test_completer.py -v
+pytest tests/test_input_handler.py -v
+pytest  # Full suite
+```
+
+Manual test: Run game, type partial commands with tab.

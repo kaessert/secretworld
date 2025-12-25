@@ -25,6 +25,8 @@ python -m cli_rpg.main
 - **Grid-Based World**: Navigate a spatially consistent world where directions are reliable (going north then south returns you to the same place)
 - **Experience System**: Level up by defeating enemies
 - **Colorized Output**: Color-coded terminal output for improved readability (enemies in red, locations in cyan, items in green, etc.)
+- **Tab Completion**: Auto-complete commands and contextual arguments (directions, NPCs, items) with Tab key
+- **Command History**: Navigate previous commands with up/down arrow keys (persists across sessions)
 
 ## Gameplay
 

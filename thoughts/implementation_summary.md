@@ -1,65 +1,63 @@
-# Implementation Summary: --delay CLI Option
+# Tab Auto-completion Implementation Summary
 
 ## What Was Implemented
 
-Added `--delay <ms>` CLI option for controlling pacing between commands in non-interactive and JSON automation modes.
+### New Module: `src/cli_rpg/completer.py`
+- **CommandCompleter class**: Readline-compatible completer implementing the `complete(text, state)` interface
+- **Command completion**: Completes partial command names (e.g., `lo<tab>` → `look`)
+- **Contextual argument completion** based on game state:
+  - `go <tab>` → shows available exit directions from current location
+  - `talk <tab>` → shows NPCs at current location
+  - `equip <tab>` → shows only WEAPON/ARMOR items in inventory
+  - `use <tab>` → shows only CONSUMABLE items in inventory
+  - `buy <tab>` → shows shop items (when in a shop)
+- **Module-level singleton**: `completer` instance for use by input_handler
 
-### Features:
-- **CLI Argument**: `--delay MS` - accepts integer milliseconds (e.g., `--delay 500`)
-- **Default**: 0 (no delay, preserves existing behavior)
-- **Range Clamping**: Values are automatically clamped to 0-60000ms range
-- **Applies to**: `--non-interactive` and `--json` modes only
+### Updated: `src/cli_rpg/input_handler.py`
+- Added imports for completer module and TYPE_CHECKING
+- Updated `init_readline()` to:
+  - Set the completer function with `readline.set_completer(completer.complete)`
+  - Enable tab completion with `readline.parse_and_bind("tab: complete")`
+  - Configure word delimiters with `readline.set_completer_delims(" \t\n")`
+- Added `set_completer_context(game_state)` function to update completer's game state
 
-### Files Modified:
+### Updated: `src/cli_rpg/main.py`
+- Added import of `set_completer_context` from input_handler
+- Modified `run_game_loop()` to:
+  - Set completer context at start with `set_completer_context(game_state)`
+  - Clear completer context in `finally` block with `set_completer_context(None)`
 
-1. **src/cli_rpg/main.py**:
-   - Added `--delay` argument to argparse (lines 1480-1486)
-   - Added delay clamping logic before mode dispatch (lines 1493-1494)
-   - Updated `run_json_mode()` signature to accept `delay_ms` parameter
-   - Updated `run_non_interactive()` signature to accept `delay_ms` parameter
-   - Added `time.sleep()` calls after command processing in both modes
-
-2. **tests/test_delay_option.py** (new file):
-   - `test_delay_flag_accepted` - verifies flag is parsed without error
-   - `test_delay_requires_integer` - verifies non-integer values are rejected
-   - `test_delay_parsed_with_non_interactive` - verifies flag works with --non-interactive
-   - `test_delay_slows_execution` - verifies measurable delay in execution time
-   - `test_delay_works_with_json_mode` - verifies flag works with --json
-   - `test_delay_zero_is_default` - verifies default behavior (no delay)
-   - `test_delay_negative_value_handled` - verifies negative values are handled (clamped)
+### New Test File: `tests/test_completer.py`
+18 tests covering:
+- Command completion (prefix, multiple matches, exact match, unknown prefix)
+- Contextual completions (go directions, talk NPCs, equip items, use consumables, buy shop items)
+- Edge cases (no game state, empty locations, not in shop)
+- Integration with input_handler (set_completer_context function, init_readline setup)
 
 ## Test Results
+- All 18 new tests pass
+- Full test suite: **1534 tests pass**
 
-- **New tests**: 7 passed
-- **Full test suite**: 1500 passed
+## Technical Details
 
-## Usage Examples
+### Readline Integration
+The completer follows the standard readline interface:
+1. On state=0, computes all matching completions and caches them in `_matches`
+2. Returns the state-th match for subsequent calls
+3. Returns None when all matches are exhausted
 
-```bash
-# 500ms delay between commands in non-interactive mode
-cli-rpg --non-interactive --delay 500 < commands.txt
+### Contextual Completion Logic
+- Uses `readline.get_line_buffer()` to read the full command line
+- Uses `readline.get_begidx()` to determine if completing first word (command) or argument
+- Dispatches to command-specific completers based on parsed command
 
-# 200ms delay in JSON mode
-cli-rpg --json --delay 200 < commands.txt
+### Graceful Fallback
+- If readline is unavailable (Windows without pyreadline), completion is disabled
+- If no game state is set, only command names are completed (no contextual arguments)
 
-# Combine with other options
-cli-rpg --non-interactive --seed 42 --delay 100 --log-file session.log < commands.txt
-```
-
-## Technical Notes
-
-- Delay is applied AFTER each command's output is emitted, before reading the next command
-- Delay does not apply after commands that exit the game (quit with death, etc.)
-- Value is clamped to 0-60000ms to prevent unreasonably long delays
-- Uses `time.sleep()` for the delay implementation
-
-## E2E Validation
-
-To validate end-to-end:
-```bash
-# Run with delay, observe pacing
-echo -e "status\nlook\nstatus" | cli-rpg --non-interactive --delay 500
-
-# Verify delay is measurable (should take ~1 second with 500ms delay x 2 commands)
-time (echo -e "status\nlook" | cli-rpg --non-interactive --delay 500)
-```
+## Manual Testing Verification
+To verify manually:
+1. Run `cli-rpg`
+2. Type partial commands and press Tab (e.g., `lo<tab>` → `look`)
+3. After starting a game, type `go <tab>` to see available directions
+4. Type `talk <tab>` to see NPCs at current location

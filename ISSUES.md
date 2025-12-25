@@ -60,31 +60,6 @@ Once non-interactive mode is fully implemented, set up periodic long-running sim
 
 **Depends on**: Non-interactive mode enhancements (structured output, logging)
 
-### Tab auto-completion
-**Status**: ACTIVE
-
-Command history has been implemented (see Resolved Issues). Tab auto-completion remains to be done.
-
-**Requirements**:
-
-1. **Tab auto-completion**
-   - Complete command names: `ta<tab>` → `talk`
-   - Complete arguments contextually:
-     - `talk <tab>` → shows available NPCs at current location
-     - `talk T<tab>` → completes to `talk Town Merchant`
-     - `go <tab>` → shows available directions
-     - `equip <tab>` → shows equippable items in inventory
-     - `use <tab>` → shows usable items
-     - `buy <tab>` → shows shop items (when in shop)
-   - Cycle through multiple matches with repeated tab
-   - Show all options on double-tab when ambiguous
-
-**Implementation notes**:
-- Use readline's `set_completer()` with custom completer functions
-- Register custom completers per command type
-- Need access to GameState context for contextual completions
-
-
 ### Map alignment and blocked location markers
 **Status**: ACTIVE
 
@@ -246,6 +221,24 @@ Quests should be dynamically generated to keep gameplay fresh.
 - Emergent storylines from completed quests
 
 ## Resolved Issues
+
+### Tab auto-completion
+**Status**: RESOLVED
+
+**Description**: Added tab auto-completion for commands and contextual arguments using readline integration.
+
+**Features implemented**:
+- Command name completion: `ta<tab>` → `talk`
+- Contextual argument completion based on game state:
+  - `go <tab>` → shows available exit directions from current location
+  - `talk <tab>` → shows NPCs at current location
+  - `equip <tab>` → shows only WEAPON/ARMOR items in inventory
+  - `use <tab>` → shows only CONSUMABLE items in inventory
+  - `buy <tab>` → shows shop items (when in shop)
+- Cycle through multiple matches with repeated tab
+- Graceful fallback if readline unavailable (Windows without pyreadline3)
+
+**Implementation**: New `completer.py` module with `CommandCompleter` class integrated into `input_handler.py`.
 
 ### Command history with arrow keys
 **Status**: RESOLVED

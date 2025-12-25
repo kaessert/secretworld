@@ -1,7 +1,7 @@
-"""Input handler with readline integration for command history.
+"""Input handler with readline integration for command history and tab completion.
 
-Provides enhanced input with up/down arrow history navigation
-and persistent history across sessions.
+Provides enhanced input with up/down arrow history navigation,
+persistent history across sessions, and tab auto-completion.
 
 Spec requirements:
 1. Up arrow scrolls back through previous commands
@@ -9,9 +9,16 @@ Spec requirements:
 3. History persists across sessions (saved to file)
 4. Configurable history size (default: 500 commands)
 5. Fallback to basic input if readline unavailable
+6. Tab completion for commands and contextual arguments
 """
 import atexit
 from pathlib import Path
+from typing import TYPE_CHECKING, Optional
+
+from cli_rpg.completer import completer
+
+if TYPE_CHECKING:
+    from cli_rpg.game_state import GameState
 
 # Configurable history size - Spec requirement 4
 HISTORY_SIZE = 500
@@ -30,13 +37,15 @@ def get_history_path() -> Path:
 
 
 def init_readline() -> None:
-    """Initialize readline with history support.
+    """Initialize readline with history support and tab completion.
 
     Loads existing history from file if it exists,
-    sets history length, and registers cleanup handler.
+    sets history length, configures tab completion,
+    and registers cleanup handler.
 
     Spec requirements 1, 2, 3: Enable arrow key navigation
     and persistent history.
+    Spec requirement 6: Enable tab completion.
     """
     global _readline_available
     try:
@@ -52,6 +61,13 @@ def init_readline() -> None:
                 pass  # Gracefully handle sandboxed environments
 
         readline.set_history_length(HISTORY_SIZE)
+
+        # Set up tab completion - Spec requirement 6
+        readline.set_completer(completer.complete)
+        readline.parse_and_bind("tab: complete")
+        # Set word delimiters for proper completion of multi-word arguments
+        readline.set_completer_delims(" \t\n")
+
         atexit.register(cleanup_readline)
     except ImportError:
         # Spec requirement 5: Fallback to basic input on Windows
@@ -87,3 +103,15 @@ def get_input(prompt: str = "") -> str:
         Stripped user input
     """
     return input(prompt).strip()
+
+
+def set_completer_context(game_state: Optional["GameState"]) -> None:
+    """Update completer with current game state for contextual completions.
+
+    Call this when game state is created or changes, and with None
+    when exiting the game loop.
+
+    Args:
+        game_state: The current GameState, or None to disable contextual completion
+    """
+    completer.set_game_state(game_state)
