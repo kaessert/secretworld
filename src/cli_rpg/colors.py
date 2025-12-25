@@ -6,6 +6,7 @@ terminal output. Colors can be disabled via CLI_RPG_NO_COLOR environment variabl
 
 import os
 from functools import lru_cache
+from typing import Optional
 
 # ANSI color codes
 RESET = "\x1b[0m"
@@ -17,19 +18,47 @@ MAGENTA = "\x1b[35m"
 CYAN = "\x1b[36m"
 BOLD = "\x1b[1m"
 
+# Global override for programmatic color control (None means use env var)
+_colors_enabled_override: Optional[bool] = None
+
+
+def set_colors_enabled(enabled: Optional[bool]) -> None:
+    """Enable or disable ANSI color output globally.
+
+    This provides programmatic control over color output, useful for
+    non-interactive mode or testing.
+
+    Args:
+        enabled: Whether to enable colors. Pass None to reset to env-based behavior.
+    """
+    global _colors_enabled_override
+    _colors_enabled_override = enabled
+
 
 @lru_cache(maxsize=1)
+def _check_env_color() -> bool:
+    """Check environment variable for color setting.
+
+    Returns:
+        True if colors should be enabled based on env var.
+    """
+    value = os.environ.get("CLI_RPG_NO_COLOR", "").lower()
+    return value not in ("true", "1")
+
+
 def color_enabled() -> bool:
     """Check if colors are enabled.
 
-    Colors are disabled when CLI_RPG_NO_COLOR environment variable is set
-    to 'true' or '1'.
+    Colors are disabled when:
+    - set_colors_enabled(False) was called, OR
+    - CLI_RPG_NO_COLOR environment variable is set to 'true' or '1'.
 
     Returns:
         True if colors are enabled, False otherwise.
     """
-    value = os.environ.get("CLI_RPG_NO_COLOR", "").lower()
-    return value not in ("true", "1")
+    if _colors_enabled_override is not None:
+        return _colors_enabled_override
+    return _check_env_color()
 
 
 def colorize(text: str, color: str) -> str:

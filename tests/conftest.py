@@ -15,24 +15,24 @@ def disable_colors():
     # Clear the color_enabled cache before setting env var
     try:
         from cli_rpg import colors
-        colors.color_enabled.cache_clear()
-    except ImportError:
+        colors._check_env_color.cache_clear()
+    except (ImportError, AttributeError):
         pass
 
     with patch.dict(os.environ, {"CLI_RPG_NO_COLOR": "true"}):
         # Clear cache again after setting env var
         try:
             from cli_rpg import colors
-            colors.color_enabled.cache_clear()
-        except ImportError:
+            colors._check_env_color.cache_clear()
+        except (ImportError, AttributeError):
             pass
         yield
 
     # Clear cache after test to restore default behavior
     try:
         from cli_rpg import colors
-        colors.color_enabled.cache_clear()
-    except ImportError:
+        colors._check_env_color.cache_clear()
+    except (ImportError, AttributeError):
         pass
 
 

@@ -213,6 +213,28 @@ Or add to your `.env` file:
 CLI_RPG_NO_COLOR=true
 ```
 
+### Non-Interactive Mode
+
+For automated testing and AI agent playtesting, use the `--non-interactive` flag to read commands from stdin:
+
+```bash
+# Single command
+echo "look" | cli-rpg --non-interactive
+
+# Multiple commands
+echo -e "look\nstatus\ninventory" | cli-rpg --non-interactive
+
+# From file
+cli-rpg --non-interactive < commands.txt
+```
+
+**Features:**
+- Reads commands from stdin line-by-line
+- Exits with code 0 when stdin is exhausted (EOF)
+- ANSI colors automatically disabled for machine-readable output
+- Uses a default character ("Agent") with balanced stats (10/10/10)
+- Runs without AI service for deterministic behavior
+
 ## Development
 
 ### Running Tests

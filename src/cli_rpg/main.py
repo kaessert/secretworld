@@ -1134,7 +1134,7 @@ def start_game(
 
 def show_main_menu() -> str:
     """Display main menu and get user choice.
-    
+
     Returns:
         User's choice as a string
     """
@@ -1149,16 +1149,94 @@ def show_main_menu() -> str:
     return choice
 
 
+def run_non_interactive() -> int:
+    """Run game in non-interactive mode, reading commands from stdin.
+
+    This mode is designed for automated testing and AI agent playtesting.
+    It creates a default character and world, then processes commands from stdin
+    until EOF is reached.
+
+    Returns:
+        Exit code (0 for success, 1 for error)
+    """
+    from cli_rpg.colors import set_colors_enabled
+    from cli_rpg.models.character import Character
+
+    # Disable ANSI colors for machine-readable output
+    set_colors_enabled(False)
+
+    # Create a default character and world for non-interactive mode
+    # Use balanced stats (10 each) for a generic character
+    character = Character(name="Agent", strength=10, dexterity=10, intelligence=10)
+    world, starting_location = create_world(ai_service=None, theme="fantasy", strict=False)
+
+    game_state = GameState(
+        character,
+        world,
+        starting_location=starting_location,
+        ai_service=None,
+        theme="fantasy"
+    )
+
+    # Show starting location
+    print(game_state.look())
+
+    # Read commands from stdin until EOF
+    for line in sys.stdin:
+        command_input = line.strip()
+        if not command_input:
+            continue
+
+        # Parse and execute command
+        command, args = parse_command(command_input)
+
+        if game_state.is_in_combat():
+            continue_game, message = handle_combat_command(game_state, command, args)
+        elif game_state.is_in_conversation and command == "unknown":
+            continue_game, message = handle_conversation_input(game_state, command_input)
+        else:
+            continue_game, message = handle_exploration_command(game_state, command, args)
+
+        print(message)
+
+        # Show combat status if in combat
+        if game_state.is_in_combat() and game_state.current_combat is not None:
+            print(game_state.current_combat.get_status())
+
+        if not continue_game:
+            break
+
+        # Check if player died
+        if not game_state.current_character.is_alive():
+            print("GAME OVER - You have fallen in battle.")
+            break
+
+    return 0
+
+
 def main() -> int:
     """Main function to start the CLI RPG game.
-    
+
     Returns:
         Exit code (0 for success)
     """
+    import argparse
+
+    parser = argparse.ArgumentParser(description="CLI RPG - A command-line role-playing game")
+    parser.add_argument(
+        "--non-interactive",
+        action="store_true",
+        help="Run in non-interactive mode, reading commands from stdin"
+    )
+    args = parser.parse_args()
+
+    if args.non_interactive:
+        return run_non_interactive()
+
     print("\n" + "=" * 50)
     print("Welcome to CLI RPG!")
     print("=" * 50)
-    
+
     # Load AI configuration at startup
     ai_config = load_ai_config()
     ai_service = None

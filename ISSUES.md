@@ -1,53 +1,107 @@
 ## Active Issues
 
-### Non-interactive mode for AI agent playtesting
-**Status**: CRITICAL
+### Non-interactive mode enhancements
+**Status**: ACTIVE
 
-Enable automated playtesting via AI agents to validate game mechanics, find bugs, and stress-test content generation. The game currently requires interactive terminal input, making automated testing impossible.
+The basic `--non-interactive` mode has been implemented. The following enhancements would improve automated playtesting further:
 
-**Requirements**:
-
-1. **Non-interactive input mode**
-   - Accept commands from stdin pipe, file, or programmatic API
-   - Run without blocking on `input()` calls
-   - Support command-line flag (e.g., `--non-interactive` or `--batch`)
-   - Graceful handling when input stream ends
-
-2. **Structured output for AI parsing**
+1. **Structured output for AI parsing**
    - Machine-readable output format (JSON lines or similar)
    - Clear separation of game state, narrative text, and available actions
    - Emit current valid commands after each action
    - Error messages with codes, not just human text
 
-3. **Comprehensive gameplay logging**
+2. **Comprehensive gameplay logging**
    - Full session transcript with timestamps
    - Log file output (e.g., `--log-file gameplay.log`)
    - Record: commands issued, game responses, state changes, errors
    - Include RNG seeds for reproducibility
    - Log AI-generated content for review
 
-4. **Session state export**
+3. **Session state export**
    - Dump full game state as JSON on demand or at intervals
    - Include: player stats, inventory, location, quest progress, world state
    - Enable session replay from logged state
 
-5. **Automation-friendly features**
+4. **Additional automation features**
    - Configurable delays/timeouts
    - Deterministic mode option (fixed RNG seed)
-   - Headless operation (no ANSI colors/formatting when piped)
-   - Exit codes reflecting game outcomes
 
-**Use cases**:
-- AI agent explores the world and reports issues
-- Automated regression testing of game mechanics
-- Stress testing AI content generation
-- Fuzzing command parser for edge cases
-- Generating gameplay datasets for analysis
+### Terminal-like input with history and auto-complete
+**Status**: ACTIVE
+
+The game uses basic `input()` which lacks the conveniences of a modern terminal. Players expect shell-like behavior.
+
+**Requirements**:
+
+1. **Command history (arrow keys)**
+   - Up arrow scrolls back through previous commands
+   - Down arrow scrolls forward
+   - History persists across sessions (save to file)
+   - Configurable history size
+
+2. **Tab auto-completion**
+   - Complete command names: `ta<tab>` → `talk`
+   - Complete arguments contextually:
+     - `talk <tab>` → shows available NPCs at current location
+     - `talk T<tab>` → completes to `talk Town Merchant`
+     - `go <tab>` → shows available directions
+     - `equip <tab>` → shows equippable items in inventory
+     - `use <tab>` → shows usable items
+     - `buy <tab>` → shows shop items (when in shop)
+   - Cycle through multiple matches with repeated tab
+   - Show all options on double-tab when ambiguous
+
+3. **Input editing**
+   - Left/right arrow to move cursor
+   - Backspace and delete
+   - Home/end to jump to start/end of line
+   - Ctrl+C to cancel current input
 
 **Implementation notes**:
-- Detect `sys.stdin.isatty()` for automatic mode switching
-- Consider separate `GameSession` class wrapping `GameState` for programmatic use
-- Logging should use Python's `logging` module with configurable levels
+- Use `readline` module (GNU readline bindings) or `prompt_toolkit` for rich features
+- Register custom completers per command type
+- Fallback to basic input if readline unavailable (e.g., Windows without pyreadline)
+
+### Ultra-short movement commands
+**Status**: ACTIVE
+
+Navigation is too verbose. Players should be able to move quickly with minimal typing.
+
+**Desired shortcuts**:
+- `gn` / `n` → go north
+- `gs` / `s` → go south
+- `ge` / `e` → go east
+- `gw` / `w` → go west
+
+Single-letter commands (`n`, `s`, `e`, `w`) are ideal if they don't conflict with other commands.
+
+### Map alignment and blocked location markers
+**Status**: ACTIVE
+
+Map display has alignment issues and lacks visual feedback for inaccessible areas.
+
+**Issues**:
+
+1. **Grid misalignment**
+   - Emoji markers (🏠, ⚔, 🌲, etc.) have inconsistent display widths across terminals
+   - Columns shift when mixing emoji and ASCII characters
+   - Example of broken alignment:
+   ```
+   │  2                        ⚔            │
+   │  1                    🕳   🏠            │
+   │  0                    @   •   🌲        │
+   ```
+
+2. **No indication of blocked/inaccessible locations**
+   - Players can't see which adjacent cells are impassable
+   - Should mark cells with no valid path (walls, barriers, unexplorable)
+
+**Fix**:
+- Use fixed-width placeholders or padding to normalize emoji width (some terminals render emoji as 2 chars, some as 1)
+- Consider using ASCII fallback markers (D for dungeon, T for town, etc.) with a `--ascii` flag
+- Add distinct marker for blocked/wall cells (e.g., `█` or `#`)
+- Test alignment across common terminals (iTerm2, Terminal.app, Windows Terminal, etc.)
 
 ### More content
 **Status**: ACTIVE
@@ -183,6 +237,33 @@ Quests should be dynamically generated to keep gameplay fresh.
 - Emergent storylines from completed quests
 
 ## Resolved Issues
+
+### Non-interactive mode for AI agent playtesting (basic)
+**Status**: RESOLVED
+
+**Description**: Implemented basic non-interactive mode to enable automated playtesting via stdin.
+
+**Features implemented**:
+- `--non-interactive` CLI flag
+- Reads commands from stdin line-by-line
+- Graceful exit (code 0) when stdin is exhausted (EOF)
+- ANSI colors automatically disabled for machine-readable output
+- Creates default character ("Agent") with balanced stats (10/10/10)
+- No AI service (deterministic behavior)
+
+**Usage**:
+```bash
+# Single command
+echo "look" | cli-rpg --non-interactive
+
+# Multiple commands
+echo -e "look\nstatus\ninventory" | cli-rpg --non-interactive
+
+# From file
+cli-rpg --non-interactive < commands.txt
+```
+
+See "Non-interactive mode enhancements" in Active Issues for future improvements.
 
 ### Invalid "up"/"down" directions shown as movement options
 **Status**: RESOLVED

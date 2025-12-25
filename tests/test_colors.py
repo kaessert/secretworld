@@ -5,6 +5,12 @@ from unittest.mock import patch
 from cli_rpg import colors
 
 
+def _clear_color_cache():
+    """Helper to clear color cache and reset override."""
+    colors._check_env_color.cache_clear()
+    colors.set_colors_enabled(None)  # Reset to env-based behavior
+
+
 class TestColorEnabled:
     """Tests for color_enabled function."""
 
@@ -14,31 +20,31 @@ class TestColorEnabled:
             # Remove CLI_RPG_NO_COLOR if it exists
             os.environ.pop("CLI_RPG_NO_COLOR", None)
             # Clear the cache to force re-evaluation
-            colors.color_enabled.cache_clear()
+            _clear_color_cache()
             assert colors.color_enabled() is True
 
     def test_color_disabled_via_env_true(self):
         """Colors should be disabled when CLI_RPG_NO_COLOR=true."""
         with patch.dict(os.environ, {"CLI_RPG_NO_COLOR": "true"}):
-            colors.color_enabled.cache_clear()
+            _clear_color_cache()
             assert colors.color_enabled() is False
 
     def test_color_disabled_via_env_one(self):
         """Colors should be disabled when CLI_RPG_NO_COLOR=1."""
         with patch.dict(os.environ, {"CLI_RPG_NO_COLOR": "1"}):
-            colors.color_enabled.cache_clear()
+            _clear_color_cache()
             assert colors.color_enabled() is False
 
     def test_color_enabled_with_empty_env(self):
         """Colors should be enabled when CLI_RPG_NO_COLOR is empty."""
         with patch.dict(os.environ, {"CLI_RPG_NO_COLOR": ""}):
-            colors.color_enabled.cache_clear()
+            _clear_color_cache()
             assert colors.color_enabled() is True
 
     def test_color_enabled_with_false_env(self):
         """Colors should be enabled when CLI_RPG_NO_COLOR=false."""
         with patch.dict(os.environ, {"CLI_RPG_NO_COLOR": "false"}):
-            colors.color_enabled.cache_clear()
+            _clear_color_cache()
             assert colors.color_enabled() is True
 
 
@@ -49,7 +55,7 @@ class TestColorize:
         """Verify ANSI codes are present when colors enabled."""
         with patch.dict(os.environ, {}, clear=True):
             os.environ.pop("CLI_RPG_NO_COLOR", None)
-            colors.color_enabled.cache_clear()
+            _clear_color_cache()
             result = colors.colorize("test", colors.RED)
             assert result.startswith(colors.RED)
             assert result.endswith(colors.RESET)
@@ -58,7 +64,7 @@ class TestColorize:
     def test_colorize_returns_plain_when_disabled(self):
         """Verify no ANSI codes when colors disabled."""
         with patch.dict(os.environ, {"CLI_RPG_NO_COLOR": "true"}):
-            colors.color_enabled.cache_clear()
+            _clear_color_cache()
             result = colors.colorize("test", colors.RED)
             assert result == "test"
             assert "\x1b" not in result  # No escape sequences
@@ -67,7 +73,7 @@ class TestColorize:
         """Ensure RESET code terminates colored text."""
         with patch.dict(os.environ, {}, clear=True):
             os.environ.pop("CLI_RPG_NO_COLOR", None)
-            colors.color_enabled.cache_clear()
+            _clear_color_cache()
             result = colors.colorize("test", colors.CYAN)
             assert result.endswith(colors.RESET)
 
@@ -78,13 +84,13 @@ class TestSemanticHelpers:
     def setup_method(self):
         """Enable colors for each test."""
         os.environ.pop("CLI_RPG_NO_COLOR", None)
-        colors.color_enabled.cache_clear()
+        _clear_color_cache()
 
     def test_enemy_uses_red(self):
         """enemy() should use red color."""
         with patch.dict(os.environ, {}, clear=True):
             os.environ.pop("CLI_RPG_NO_COLOR", None)
-            colors.color_enabled.cache_clear()
+            _clear_color_cache()
             result = colors.enemy("Goblin")
             assert colors.RED in result
             assert "Goblin" in result
@@ -93,7 +99,7 @@ class TestSemanticHelpers:
         """location() should use cyan color."""
         with patch.dict(os.environ, {}, clear=True):
             os.environ.pop("CLI_RPG_NO_COLOR", None)
-            colors.color_enabled.cache_clear()
+            _clear_color_cache()
             result = colors.location("Town Square")
             assert colors.CYAN in result
             assert "Town Square" in result
@@ -102,7 +108,7 @@ class TestSemanticHelpers:
         """npc() should use yellow color."""
         with patch.dict(os.environ, {}, clear=True):
             os.environ.pop("CLI_RPG_NO_COLOR", None)
-            colors.color_enabled.cache_clear()
+            _clear_color_cache()
             result = colors.npc("Merchant")
             assert colors.YELLOW in result
             assert "Merchant" in result
@@ -111,7 +117,7 @@ class TestSemanticHelpers:
         """item() should use green color."""
         with patch.dict(os.environ, {}, clear=True):
             os.environ.pop("CLI_RPG_NO_COLOR", None)
-            colors.color_enabled.cache_clear()
+            _clear_color_cache()
             result = colors.item("Sword")
             assert colors.GREEN in result
             assert "Sword" in result
@@ -120,7 +126,7 @@ class TestSemanticHelpers:
         """gold() should use yellow color."""
         with patch.dict(os.environ, {}, clear=True):
             os.environ.pop("CLI_RPG_NO_COLOR", None)
-            colors.color_enabled.cache_clear()
+            _clear_color_cache()
             result = colors.gold("100 gold")
             assert colors.YELLOW in result
             assert "100 gold" in result
@@ -129,7 +135,7 @@ class TestSemanticHelpers:
         """damage() should use red color."""
         with patch.dict(os.environ, {}, clear=True):
             os.environ.pop("CLI_RPG_NO_COLOR", None)
-            colors.color_enabled.cache_clear()
+            _clear_color_cache()
             result = colors.damage("10 damage")
             assert colors.RED in result
             assert "10 damage" in result
@@ -138,7 +144,7 @@ class TestSemanticHelpers:
         """heal() should use green color."""
         with patch.dict(os.environ, {}, clear=True):
             os.environ.pop("CLI_RPG_NO_COLOR", None)
-            colors.color_enabled.cache_clear()
+            _clear_color_cache()
             result = colors.heal("15 HP")
             assert colors.GREEN in result
             assert "15 HP" in result
@@ -147,7 +153,7 @@ class TestSemanticHelpers:
         """stat_header() should use magenta color."""
         with patch.dict(os.environ, {}, clear=True):
             os.environ.pop("CLI_RPG_NO_COLOR", None)
-            colors.color_enabled.cache_clear()
+            _clear_color_cache()
             result = colors.stat_header("Health")
             assert colors.MAGENTA in result
             assert "Health" in result
@@ -175,7 +181,7 @@ class TestBoldColorize:
         """bold_colorize() should include BOLD code."""
         with patch.dict(os.environ, {}, clear=True):
             os.environ.pop("CLI_RPG_NO_COLOR", None)
-            colors.color_enabled.cache_clear()
+            _clear_color_cache()
             result = colors.bold_colorize("Player", colors.CYAN)
             assert colors.BOLD in result
             assert colors.CYAN in result
@@ -184,7 +190,7 @@ class TestBoldColorize:
     def test_bold_colorize_plain_when_disabled(self):
         """bold_colorize() returns plain text when colors disabled."""
         with patch.dict(os.environ, {"CLI_RPG_NO_COLOR": "true"}):
-            colors.color_enabled.cache_clear()
+            _clear_color_cache()
             result = colors.bold_colorize("Player", colors.CYAN)
             assert result == "Player"
             assert "\x1b" not in result

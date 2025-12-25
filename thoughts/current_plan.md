@@ -1,162 +1,234 @@
-# Implementation Plan: Multiple NPCs per Location (Enhanced UX)
+# Implementation Plan: Non-Interactive Mode for AI Agent Playtesting (Increment 1)
 
 ## Summary
-The Location model already supports `npcs: List[NPC]`. This plan enhances UX and world generation to make better use of this capability.
+Add `--non-interactive` flag that reads commands from stdin when not connected to a terminal, exiting gracefully when stdin is exhausted.
 
 ## Spec
-- When `talk` is called with no arguments at a location with 1 NPC, auto-start conversation
-- When `talk` is called with no arguments at a location with 2+ NPCs, list available NPCs
-- World generation adds multiple NPCs (2) to Town Square for testing the feature
+- Add `--non-interactive` CLI flag via argparse
+- When flag is set, game reads commands from stdin line-by-line instead of blocking on `input()`
+- When stdin is exhausted (EOF), game exits gracefully with exit code 0
+- Disable ANSI colors when in non-interactive mode (use `colors.py` existing infrastructure)
+- Works with piped input: `echo "look" | cli-rpg --non-interactive`
 
 ## Tests
 
-### File: `tests/test_multiple_npcs.py`
+### File: `tests/test_non_interactive.py`
 
 ```python
-"""Tests for multiple NPCs per location feature."""
+"""Tests for non-interactive mode."""
 import pytest
-from cli_rpg.models.location import Location
-from cli_rpg.models.npc import NPC
-from cli_rpg.game_state import GameState
-from cli_rpg.models.character import Character
+import subprocess
+import sys
 
 
-class TestTalkCommandMultipleNPCs:
-    """Test talk command with multiple NPCs."""
+class TestNonInteractiveMode:
+    """Test non-interactive mode functionality."""
 
-    def test_talk_no_args_single_npc_auto_starts(self):
-        """talk with no args at single-NPC location starts conversation directly."""
-        npc = NPC(name="Merchant", description="Sells goods", dialogue="Welcome!")
-        location = Location(
-            name="Town Square",
-            description="A busy square.",
-            npcs=[npc],
-            coordinates=(0, 0)
+    def test_non_interactive_flag_accepted(self):
+        """--non-interactive flag is accepted without error."""
+        result = subprocess.run(
+            [sys.executable, "-m", "cli_rpg.main", "--non-interactive"],
+            input="",
+            capture_output=True,
+            text=True,
+            timeout=5
         )
-        character = Character(name="Hero", character_class="warrior")
-        game_state = GameState(character, {"Town Square": location}, "Town Square")
+        # Should exit cleanly (0) when stdin is empty
+        assert result.returncode == 0
 
-        from cli_rpg.main import handle_exploration_command
-        _, msg = handle_exploration_command(game_state, "talk", [])
-        assert "Welcome!" in msg
-        assert game_state.current_npc == npc
-
-    def test_talk_no_args_multiple_npcs_lists_all(self):
-        """talk with no args at multi-NPC location lists available NPCs."""
-        npc1 = NPC(name="Merchant", description="Sells goods", dialogue="Hello!")
-        npc2 = NPC(name="Guard", description="Watches gate", dialogue="Move along.")
-        location = Location(
-            name="Town Square",
-            description="A busy square.",
-            npcs=[npc1, npc2],
-            coordinates=(0, 0)
+    def test_non_interactive_reads_stdin(self):
+        """Non-interactive mode reads commands from stdin."""
+        result = subprocess.run(
+            [sys.executable, "-m", "cli_rpg.main", "--non-interactive"],
+            input="look\n",
+            capture_output=True,
+            text=True,
+            timeout=10
         )
-        character = Character(name="Hero", character_class="warrior")
-        game_state = GameState(character, {"Town Square": location}, "Town Square")
+        assert result.returncode == 0
+        # Should show location description from "look" command
+        assert "Town Square" in result.stdout or "location" in result.stdout.lower()
 
-        from cli_rpg.main import handle_exploration_command
-        _, msg = handle_exploration_command(game_state, "talk", [])
-        assert "Merchant" in msg
-        assert "Guard" in msg
-        assert game_state.current_npc is None  # No conversation started
-
-    def test_talk_with_name_selects_specific_npc(self):
-        """talk <name> talks to the named NPC among multiple."""
-        npc1 = NPC(name="Merchant", description="Sells goods", dialogue="Buy something!")
-        npc2 = NPC(name="Guard", description="Watches gate", dialogue="Move along.")
-        location = Location(
-            name="Town Square",
-            description="A busy square.",
-            npcs=[npc1, npc2],
-            coordinates=(0, 0)
+    def test_non_interactive_exits_on_eof(self):
+        """Non-interactive mode exits gracefully when stdin is exhausted."""
+        result = subprocess.run(
+            [sys.executable, "-m", "cli_rpg.main", "--non-interactive"],
+            input="look\nstatus\n",
+            capture_output=True,
+            text=True,
+            timeout=10
         )
-        character = Character(name="Hero", character_class="warrior")
-        game_state = GameState(character, {"Town Square": location}, "Town Square")
+        assert result.returncode == 0
 
-        from cli_rpg.main import handle_exploration_command
-        _, msg = handle_exploration_command(game_state, "talk", ["Guard"])
-        assert "Move along." in msg
-        assert game_state.current_npc == npc2
+    def test_non_interactive_no_ansi_codes(self):
+        """Non-interactive mode disables ANSI color codes."""
+        result = subprocess.run(
+            [sys.executable, "-m", "cli_rpg.main", "--non-interactive"],
+            input="look\n",
+            capture_output=True,
+            text=True,
+            timeout=10
+        )
+        # ANSI escape codes start with \x1b[
+        assert "\x1b[" not in result.stdout
+
+    def test_non_interactive_multiple_commands(self):
+        """Non-interactive mode processes multiple commands."""
+        result = subprocess.run(
+            [sys.executable, "-m", "cli_rpg.main", "--non-interactive"],
+            input="look\nstatus\ninventory\nhelp\n",
+            capture_output=True,
+            text=True,
+            timeout=15
+        )
+        assert result.returncode == 0
+        # Should have processed help command
+        assert "help" in result.stdout.lower() or "command" in result.stdout.lower()
 ```
 
 ## Implementation Steps
 
-### 1. Update `talk` command in `src/cli_rpg/main.py` (lines 505-515)
+### 1. Add argparse to `main()` in `src/cli_rpg/main.py`
 
-**Current code:**
+At the top of `main()` function (line 1152), add argument parsing:
+
 ```python
-elif command == "talk":
-    if not args:
-        location = game_state.world.get(game_state.current_location)
-        if location is None or not location.npcs:
-            return (True, "\nThere are no NPCs here to talk to.")
-        return (True, "\nTalk to whom? Specify an NPC name.")
-    npc_name = " ".join(args)
-    location = game_state.world.get(game_state.current_location)
-    npc = location.find_npc_by_name(npc_name) if location else None
+def main() -> int:
+    """Main function to start the CLI RPG game.
+
+    Returns:
+        Exit code (0 for success)
+    """
+    import argparse
+
+    parser = argparse.ArgumentParser(description="CLI RPG - A command-line role-playing game")
+    parser.add_argument(
+        "--non-interactive",
+        action="store_true",
+        help="Run in non-interactive mode, reading commands from stdin"
+    )
+    args = parser.parse_args()
+
+    if args.non_interactive:
+        return run_non_interactive()
+
+    # ... existing main menu code ...
 ```
 
-**New code:**
-```python
-elif command == "talk":
-    location = game_state.world.get(game_state.current_location)
-    if location is None or not location.npcs:
-        return (True, "\nThere are no NPCs here to talk to.")
+### 2. Create `run_non_interactive()` function in `src/cli_rpg/main.py`
 
-    if not args:
-        if len(location.npcs) == 1:
-            # Auto-select the single NPC
-            npc = location.npcs[0]
+Add after `run_game_loop()` function (around line 1050):
+
+```python
+def run_non_interactive() -> int:
+    """Run game in non-interactive mode, reading commands from stdin.
+
+    Returns:
+        Exit code (0 for success, 1 for error)
+    """
+    import sys
+    from cli_rpg.colors import set_colors_enabled
+
+    # Disable ANSI colors for machine-readable output
+    set_colors_enabled(False)
+
+    # Create a default character and world for non-interactive mode
+    from cli_rpg.models.character import Character
+    from cli_rpg.world import create_world
+
+    character = Character(name="Agent", character_class="warrior")
+    world, starting_location = create_world(ai_service=None, theme="fantasy", strict=False)
+
+    game_state = GameState(
+        character,
+        world,
+        starting_location=starting_location,
+        ai_service=None,
+        theme="fantasy"
+    )
+
+    # Show starting location
+    print(game_state.look())
+
+    # Read commands from stdin until EOF
+    for line in sys.stdin:
+        command_input = line.strip()
+        if not command_input:
+            continue
+
+        # Parse and execute command
+        command, args = parse_command(command_input)
+
+        if game_state.is_in_combat():
+            continue_game, message = handle_combat_command(game_state, command, args)
+        elif game_state.is_in_conversation and command == "unknown":
+            continue_game, message = handle_conversation_input(game_state, command_input)
         else:
-            # Multiple NPCs - list them
-            npc_names = [n.name for n in location.npcs]
-            return (True, f"\nTalk to whom? Available: {', '.join(npc_names)}")
-    else:
-        npc_name = " ".join(args)
-        npc = location.find_npc_by_name(npc_name)
-        if npc is None:
-            return (True, f"\nYou don't see '{npc_name}' here.")
+            continue_game, message = handle_exploration_command(game_state, command, args)
+
+        print(message)
+
+        # Show combat status if in combat
+        if game_state.is_in_combat() and game_state.current_combat is not None:
+            print(game_state.current_combat.get_status())
+
+        if not continue_game:
+            break
+
+        # Check if player died
+        if not game_state.current_character.is_alive():
+            print("GAME OVER - You have fallen in battle.")
+            break
+
+    return 0
 ```
 
-### 2. Add Guard NPC to default world in `src/cli_rpg/world.py` (after line 104)
+### 3. Add `set_colors_enabled()` to `src/cli_rpg/colors.py`
+
+Check if colors.py has a way to disable colors globally. If not, add:
 
 ```python
-# Create Guard NPC for Town Square
-guard = NPC(
-    name="Guard",
-    description="A vigilant town guard keeping watch over the square",
-    dialogue="Stay out of trouble, adventurer.",
-    greetings=[
-        "Stay out of trouble, adventurer.",
-        "The roads have been dangerous lately.",
-        "Keep your weapons sheathed in town.",
-    ]
-)
-town_square.npcs.append(guard)
+_colors_enabled = True
+
+def set_colors_enabled(enabled: bool) -> None:
+    """Enable or disable ANSI color output globally."""
+    global _colors_enabled
+    _colors_enabled = enabled
+
+def colors_enabled() -> bool:
+    """Check if colors are enabled."""
+    return _colors_enabled
 ```
 
-### 3. Add quest-giver NPC to AI world in `src/cli_rpg/ai_world.py` (after line 122)
+Then update all color functions to check this flag before emitting ANSI codes.
+
+### 4. Update `__main__.py` if needed
+
+Ensure `python -m cli_rpg.main` works by checking/creating `src/cli_rpg/__main__.py`:
 
 ```python
-# Add quest giver NPC to starting location
-quest_giver = NPC(
-    name="Town Elder",
-    description="A wise figure who knows of many adventures",
-    dialogue="Ah, a new adventurer! I may have tasks for you.",
-    is_quest_giver=True,
-    offered_quests=[]
-)
-starting_location.npcs.append(quest_giver)
+"""Allow running as python -m cli_rpg.main"""
+from cli_rpg.main import main
+
+if __name__ == "__main__":
+    exit(main())
 ```
 
 ## Verification
 ```bash
-pytest tests/test_multiple_npcs.py -v
-pytest tests/test_world.py tests/test_location.py -v
+# Run tests
+pytest tests/test_non_interactive.py -v
+
+# Manual verification
+echo "look" | python -m cli_rpg.main --non-interactive
+echo -e "look\nstatus\ninventory" | python -m cli_rpg.main --non-interactive
+
+# Verify no ANSI codes in output
+echo "look" | python -m cli_rpg.main --non-interactive | cat -v
 ```
 
 ## Files Modified
-1. `src/cli_rpg/main.py` - Update talk command logic
-2. `src/cli_rpg/world.py` - Add Guard NPC to default world
-3. `src/cli_rpg/ai_world.py` - Add quest-giver NPC
-4. `tests/test_multiple_npcs.py` - New test file (create)
+1. `src/cli_rpg/main.py` - Add argparse, `run_non_interactive()` function
+2. `src/cli_rpg/colors.py` - Add `set_colors_enabled()` function
+3. `src/cli_rpg/__main__.py` - Create if needed for `-m` invocation
+4. `tests/test_non_interactive.py` - New test file

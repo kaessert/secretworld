@@ -1,47 +1,73 @@
-# Implementation Summary: Multiple NPCs per Location (Enhanced UX)
+# Implementation Summary: Non-Interactive Mode for AI Agent Playtesting
 
 ## What Was Implemented
 
-### 1. Enhanced Talk Command (`src/cli_rpg/main.py`)
-- Modified the `talk` command handler to improve UX when dealing with NPCs
-- **New behavior**:
-  - `talk` with no args at a location with **1 NPC**: Auto-starts conversation with that NPC
-  - `talk` with no args at a location with **2+ NPCs**: Lists available NPCs ("Talk to whom? Available: NPC1, NPC2")
-  - `talk <name>`: Works as before, selects specific NPC
+Added `--non-interactive` CLI flag that enables automated playtesting by reading commands from stdin instead of interactive input.
 
-### 2. Guard NPC Added to Default World (`src/cli_rpg/world.py`)
-- Added a Guard NPC to Town Square in the default (non-AI) world
-- Guard has multiple greetings for variety:
-  - "Stay out of trouble, adventurer."
-  - "The roads have been dangerous lately."
-  - "Keep your weapons sheathed in town."
+### Features
+- `--non-interactive` flag via argparse
+- Reads commands from stdin line-by-line
+- Exits gracefully with code 0 when stdin is exhausted (EOF)
+- ANSI colors automatically disabled for machine-readable output
+- Creates default character ("Agent") with balanced stats (10/10/10)
 
-### 3. Town Elder NPC Added to AI World (`src/cli_rpg/ai_world.py`)
-- Added a quest-giver NPC ("Town Elder") to the AI-generated starting location
-- Configured as `is_quest_giver=True` to enable quest offering functionality
+### Files Modified
 
-## Files Modified
-1. `src/cli_rpg/main.py` - Updated talk command logic (lines 505-522)
-2. `src/cli_rpg/world.py` - Added Guard NPC (lines 106-117)
-3. `src/cli_rpg/ai_world.py` - Added Town Elder NPC (lines 124-132)
-4. `tests/test_multiple_npcs.py` - New test file (3 tests)
-5. `tests/test_shop_commands.py` - Updated existing test to match new behavior
+1. **`src/cli_rpg/main.py`**
+   - Added argparse argument parsing in `main()` function
+   - Added new `run_non_interactive()` function (~60 lines)
+   - Function creates default character/world and processes stdin commands
+
+2. **`src/cli_rpg/colors.py`**
+   - Added `set_colors_enabled(enabled: Optional[bool])` function for programmatic color control
+   - Refactored `color_enabled()` to check global override before environment variable
+   - Added private `_check_env_color()` function with `@lru_cache` for env var check
+
+3. **`tests/conftest.py`**
+   - Updated to use `_check_env_color.cache_clear()` instead of `color_enabled.cache_clear()`
+
+4. **`tests/test_colors.py`**
+   - Added `_clear_color_cache()` helper function
+   - Updated all tests to use new cache clearing approach
+
+5. **`tests/test_non_interactive.py`** (NEW)
+   - 5 test cases covering spec requirements:
+     - Flag acceptance
+     - Reading from stdin
+     - EOF graceful exit
+     - No ANSI codes in output
+     - Multiple command processing
 
 ## Test Results
-- **All 1453 tests pass**
-- New tests in `tests/test_multiple_npcs.py`:
-  - `test_talk_no_args_single_npc_auto_starts` - Verifies auto-start conversation
-  - `test_talk_no_args_multiple_npcs_lists_all` - Verifies NPC listing behavior
-  - `test_talk_with_name_selects_specific_npc` - Verifies explicit NPC selection still works
+
+All 1458 tests pass, including:
+- 5 new non-interactive mode tests
+- 18 color module tests (updated for new API)
+- All existing tests unchanged
 
 ## Design Decisions
-- The Location model already supported `npcs: List[NPC]`, so no model changes were needed
-- Kept backward compatibility: existing `talk <name>` behavior unchanged
-- Auto-conversation for single NPC reduces friction for most common case
 
-## E2E Validation
-To manually verify:
-1. Start game with default world - Town Square should have 2 NPCs (Merchant, Guard)
-2. Type `talk` - should see "Talk to whom? Available: Merchant, Guard"
-3. Type `talk guard` - should start conversation with Guard
-4. Navigate to a location with only 1 NPC and type `talk` - should auto-start conversation
+1. **Color Control**: Added programmatic override (`set_colors_enabled`) rather than modifying env var, providing cleaner API for non-interactive mode
+2. **Default Character**: Uses balanced stats (10/10/10) for "Agent" character, suitable for automated testing
+3. **No AI Service**: Non-interactive mode runs without AI service to ensure deterministic behavior
+4. **Exit Code**: Returns 0 on EOF (success) to indicate clean completion for CI/automation
+
+## Usage
+
+```bash
+# Single command
+echo "look" | cli-rpg --non-interactive
+
+# Multiple commands
+echo -e "look\nstatus\ninventory" | cli-rpg --non-interactive
+
+# From file
+cli-rpg --non-interactive < commands.txt
+```
+
+## E2E Test Validation
+
+The implementation should be validated by:
+1. Piping commands and verifying output contains expected text
+2. Checking exit code is 0 after all commands processed
+3. Verifying no ANSI escape sequences in output (grep for `\x1b[`)
