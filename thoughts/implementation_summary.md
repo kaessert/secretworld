@@ -1,3 +1,47 @@
+# Implementation Summary: Fix `quit` Command Crash in Non-Interactive Mode
+
+## What Was Implemented
+
+Fixed the `quit` command crash in non-interactive and JSON modes. The crash was caused by the `input()` call prompting "Save before quitting?" when stdin was exhausted.
+
+### Files Modified
+
+1. **`src/cli_rpg/main.py`**
+   - Added `non_interactive: bool = False` parameter to `handle_exploration_command()` (line 424)
+   - Added `non_interactive: bool = False` parameter to `handle_combat_command()` (line 222)
+   - Updated exploration quit handler (line 965-968) to skip save prompt in non-interactive mode
+   - Updated combat quit handler (line 399-402) to skip confirmation in non-interactive mode
+   - Updated `run_non_interactive()` call sites (lines 1460, 1464) to pass `non_interactive=True`
+   - Updated `run_json_mode()` call sites (lines 1322, 1326) to pass `non_interactive=True`
+
+2. **`tests/test_non_interactive.py`**
+   - Added `test_quit_command_exits_cleanly_non_interactive()` test
+   - Added `test_quit_command_exits_cleanly_json_mode()` test
+
+### Design Decision
+
+When `non_interactive=True`, the quit handlers now return immediately with `(False, "\nExiting game...")` without calling `input()`. This prevents the `EOFError` crash while maintaining clean exit behavior.
+
+## Test Results
+
+- All 1684 tests pass
+- Specific quit tests verify:
+  - Exit code is 0
+  - No `EOFError` in stderr
+  - No `Traceback` in stderr
+
+## E2E Validation
+
+Can be manually verified with:
+```bash
+echo "quit" | cli-rpg --non-interactive
+echo "quit" | cli-rpg --json
+```
+
+Both should exit cleanly without errors.
+
+---
+
 # Implementation Summary: AI Generation Failure Graceful Fallback
 
 ## What Was Implemented

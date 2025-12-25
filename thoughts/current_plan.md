@@ -1,177 +1,84 @@
-# Implementation Plan: AI Generation Failure Graceful Fallback
+# Implementation Plan: Fix `quit` Command Crash in Non-Interactive Mode
 
 ## Problem
-When AI location generation fails (JSON parse errors, API failures, etc.), raw technical errors like "Failed to parse response as JSON: Expecting value: line 52 column 19" are exposed to players, breaking immersion.
+When using `--non-interactive` or `--json` mode, the `quit` command crashes with `EOFError` because it calls `input()` to prompt "Save before quitting?" when stdin is already exhausted.
 
 ## Spec
-1. **Silent fallback**: On ANY AI failure during `move()`, fall back to `generate_fallback_location()`
-2. **No technical errors to player**: Log errors for debugging, show seamless location to player
-3. **Last resort message**: If fallback also fails, show friendly "The path is blocked by an impassable barrier."
+1. **Detect non-interactive mode** in quit handlers
+2. **Skip save prompt** in non-interactive mode (default to not saving)
+3. **Apply to both handlers**: exploration quit (line 967) and combat quit (line 404)
 
 ## Files to Modify
-- `src/cli_rpg/game_state.py` - `move()` method (lines 300-363)
+- `src/cli_rpg/main.py` - `handle_exploration_command()` (line 965-977) and `handle_combat_command()` (line 399-409)
 
 ## Implementation Steps
 
-### 1. Update `move()` AI error handling (game_state.py:300-322)
-Replace the current error-exposing pattern:
+### 1. Add `non_interactive` parameter to command handlers
+
+Both `handle_exploration_command()` and `handle_combat_command()` need a `non_interactive: bool = False` parameter.
+
+### 2. Update exploration quit handler (line 965-977)
+
 ```python
-except (AIServiceError, Exception) as e:
-    logger.error(f"Failed to generate area: {e}")
-    return (False, f"Failed to generate destination: {str(e)}")
+elif command == "quit":
+    if non_interactive:
+        # In non-interactive mode, skip save prompt and exit directly
+        return (False, "\nExiting game...")
+    print("\n" + "=" * 50)
+    response = input("Save before quitting? (y/n): ").strip().lower()
+    # ... rest unchanged
 ```
 
-With fallback pattern:
+### 3. Update combat quit handler (line 399-409)
+
 ```python
-except Exception as e:
-    logger.warning(f"AI area generation failed, using fallback: {e}")
-    # Fall through to fallback generation below
+elif command == "quit":
+    if non_interactive:
+        # In non-interactive mode, skip confirmation and exit directly
+        return (False, "\nExiting game...")
+    print("\n" + "=" * 50)
+    print("Warning: You are in combat! Saving is disabled during combat.")
+    # ... rest unchanged
 ```
 
-Then add fallback generation after the try/except block instead of returning error.
+### 4. Update call sites
 
-### 2. Apply same pattern to legacy movement (game_state.py:348-363)
-The `expand_world()` call also exposes errors. Apply the same fallback pattern.
-
-### 3. Add ultimate fallback message
-If even `generate_fallback_location()` fails, return friendly message:
-```python
-return (False, "The path is blocked by an impassable barrier.")
-```
+- `run_non_interactive()` (line 1454, 1458): Pass `non_interactive=True`
+- `run_json_mode()` (similar location): Pass `non_interactive=True`
+- `run_game_loop()`: Leave as `non_interactive=False` (default)
 
 ## Test Plan
 
-### New test file: `tests/test_ai_failure_fallback.py`
+### New tests in `tests/test_non_interactive.py`
 
 ```python
-"""Tests for AI failure graceful fallback."""
-
-import pytest
-from unittest.mock import Mock, patch
-from cli_rpg.game_state import GameState
-from cli_rpg.models.character import Character
-from cli_rpg.models.location import Location
-from cli_rpg.ai_service import AIServiceError, AIGenerationError
-
-
-@pytest.fixture
-def character():
-    return Character(name="Hero", strength=10, dexterity=10, intelligence=10)
-
-
-@pytest.fixture
-def world_with_coords():
-    """World with coordinate-based location."""
-    loc = Location(
-        name="Town",
-        description="A town.",
-        coordinates=(0, 0)
+def test_quit_command_exits_cleanly_non_interactive(self):
+    """Quit command should exit without EOFError in non-interactive mode."""
+    result = subprocess.run(
+        [sys.executable, "-m", "cli_rpg.main", "--non-interactive"],
+        input="quit\n",
+        capture_output=True,
+        text=True,
+        timeout=10
     )
-    return {"Town": loc}
+    assert result.returncode == 0
+    assert "EOFError" not in result.stderr
+    assert "Traceback" not in result.stderr
 
-
-class TestAIFailureFallback:
-    """Test that AI failures fall back gracefully."""
-
-    def test_ai_json_parse_error_uses_fallback(self, character, world_with_coords):
-        """AI JSON parse errors should silently use fallback location."""
-        mock_ai = Mock()
-        mock_ai.generate_area.side_effect = Exception(
-            "Failed to parse response as JSON: Expecting value: line 52"
-        )
-
-        gs = GameState(
-            character=character,
-            world=world_with_coords,
-            starting_location="Town",
-            ai_service=mock_ai
-        )
-
-        success, message = gs.move("north")
-
-        # Should succeed with fallback location
-        assert success is True
-        assert "Failed to parse" not in message
-        assert gs.current_location != "Town"
-
-    def test_ai_service_error_uses_fallback(self, character, world_with_coords):
-        """AIServiceError should silently use fallback location."""
-        mock_ai = Mock()
-        mock_ai.generate_area.side_effect = AIServiceError("API timeout")
-
-        gs = GameState(
-            character=character,
-            world=world_with_coords,
-            starting_location="Town",
-            ai_service=mock_ai
-        )
-
-        success, message = gs.move("north")
-
-        assert success is True
-        assert "API timeout" not in message
-
-    def test_ai_generation_error_uses_fallback(self, character, world_with_coords):
-        """AIGenerationError should silently use fallback location."""
-        mock_ai = Mock()
-        mock_ai.generate_area.side_effect = AIGenerationError("Invalid JSON")
-
-        gs = GameState(
-            character=character,
-            world=world_with_coords,
-            starting_location="Town",
-            ai_service=mock_ai
-        )
-
-        success, message = gs.move("east")
-
-        assert success is True
-        assert "Invalid JSON" not in message
-
-    def test_fallback_failure_shows_friendly_message(self, character, world_with_coords):
-        """If fallback also fails, show friendly barrier message."""
-        mock_ai = Mock()
-        mock_ai.generate_area.side_effect = Exception("AI failed")
-
-        gs = GameState(
-            character=character,
-            world=world_with_coords,
-            starting_location="Town",
-            ai_service=mock_ai
-        )
-
-        with patch('cli_rpg.game_state.generate_fallback_location') as mock_fallback:
-            mock_fallback.side_effect = Exception("Fallback also failed")
-
-            success, message = gs.move("west")
-
-            assert success is False
-            assert "impassable barrier" in message.lower()
-
-    def test_error_logged_but_not_shown(self, character, world_with_coords, caplog):
-        """Errors should be logged for debugging but not shown to player."""
-        mock_ai = Mock()
-        mock_ai.generate_area.side_effect = Exception("Detailed internal error XYZ123")
-
-        gs = GameState(
-            character=character,
-            world=world_with_coords,
-            starting_location="Town",
-            ai_service=mock_ai
-        )
-
-        import logging
-        with caplog.at_level(logging.WARNING):
-            success, message = gs.move("south")
-
-        # Error should be in logs
-        assert "XYZ123" in caplog.text or "Detailed internal error" in caplog.text
-        # But not in player message
-        assert "XYZ123" not in message
-        assert "Detailed internal error" not in message
+def test_quit_command_exits_cleanly_json_mode(self):
+    """Quit command should exit without EOFError in JSON mode."""
+    result = subprocess.run(
+        [sys.executable, "-m", "cli_rpg.main", "--json"],
+        input="quit\n",
+        capture_output=True,
+        text=True,
+        timeout=10
+    )
+    assert result.returncode == 0
+    assert "EOFError" not in result.stderr
 ```
 
 ## Verification
-1. Run existing tests: `pytest tests/test_game_state*.py -v`
-2. Run new tests: `pytest tests/test_ai_failure_fallback.py -v`
-3. Run full suite: `pytest`
+1. Run new tests: `pytest tests/test_non_interactive.py -v -k quit`
+2. Run full suite: `pytest`
+3. Manual verification: `echo "quit" | cli-rpg --non-interactive`

@@ -1,30 +1,31 @@
 ## Active Issues
 
-### `quit` command crashes in non-interactive mode
+### Shop context persists after switching to non-merchant NPC
 **Status**: ACTIVE
 
-**Description**: When using the `quit` command in non-interactive mode (`--non-interactive` or `--json`), the game crashes with an `EOFError` because it attempts to prompt the user "Save before quitting? (y/n):" using `input()`, but stdin is already exhausted.
+**Description**: When a player talks to a Merchant NPC and opens their shop, then talks to a different non-merchant NPC (like a Guard), the shop context from the Merchant remains active. This allows the player to execute `shop`, `buy`, and `sell` commands while appearing to be in conversation with the non-merchant NPC.
 
 **Steps to reproduce**:
-```bash
-echo "quit" | cli-rpg --non-interactive
-```
+1. Go to Town Square (or any location with a Merchant and another NPC)
+2. `talk Merchant` - opens shop dialogue
+3. `shop` - shows Merchant's items (working correctly)
+4. `talk Guard` - switches to Guard conversation
+5. `shop` - still shows Merchant's items (BUG)
+6. `buy <item>` - attempts to purchase from Merchant (BUG)
 
-**Expected behavior**: The game should either:
-1. Skip the save prompt entirely in non-interactive mode (since there's no user to respond)
-2. Default to not saving and exit gracefully
-3. Or check if stdin has more input available before prompting
+**Expected behavior**:
+- After `talk Guard`, the shop context should be cleared
+- `shop` command should return "You're not at a shop. Talk to a merchant first."
+- `buy` command should return "You're not at a shop. Talk to a merchant first."
 
 **Actual behavior**:
-```
-Save before quitting? (y/n): Traceback (most recent call last):
-  ...
-  File "/Users/tkaesser/up/secretworld/src/cli_rpg/main.py", line 967, in handle_exploration_command
-    response = input("Save before quitting? (y/n): ").strip().lower()
-EOFError: EOF when reading a line
-```
+- Shop context remains active from the previous Merchant interaction
+- `shop` shows the Merchant's inventory despite talking to Guard
+- `buy` attempts the purchase (only fails if insufficient gold)
 
-**Impact**: AI agents and automated testing scripts that include `quit` in their command sequence will crash instead of exiting cleanly. This breaks the documented use case for non-interactive mode.
+**User impact**: Confusing UX where users may not realize they're still transacting with the Merchant while the dialogue suggests they're talking to a different NPC.
+
+**Suggested fix**: Clear the shop context (`current_shop`) when starting a conversation with a non-merchant NPC in the `talk` command handler.
 
 ### Constrained movement with guaranteed exploration frontier
 **Status**: ACTIVE
@@ -634,3 +635,12 @@ All "more content" features have been implemented:
 2. Shows friendly "The path is blocked by an impassable barrier." message when even fallback fails
 3. Errors are logged at warning level for debugging without being exposed to players
 4. Added 5 new tests in `tests/test_ai_failure_fallback.py` to verify graceful fallback behavior
+
+### `quit` command crashes in non-interactive mode
+**Status**: RESOLVED
+
+**Description**: When using the `quit` command in non-interactive mode (`--non-interactive` or `--json`), the game crashed with an `EOFError` because it attempted to prompt the user "Save before quitting? (y/n):" using `input()`, but stdin was already exhausted.
+
+**Fix**: Updated `handle_exploration_command()` and `handle_combat_command()` in `main.py` to accept a `non_interactive` parameter. When `non_interactive=True`, quit handlers now return immediately with `(False, "\nExiting game...")` without calling `input()`. This prevents the `EOFError` crash while maintaining clean exit behavior.
+
+Both `run_non_interactive()` and `run_json_mode()` now pass `non_interactive=True` to the command handlers. Added tests in `tests/test_non_interactive.py` to verify quit exits cleanly in both modes.

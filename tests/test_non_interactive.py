@@ -86,3 +86,37 @@ class TestNonInteractiveMode:
         assert result.returncode == 0
         # Should have processed help command
         assert "help" in result.stdout.lower() or "command" in result.stdout.lower()
+
+    def test_quit_command_exits_cleanly_non_interactive(self):
+        """Quit command should exit without EOFError in non-interactive mode.
+
+        Spec: When quit command is issued in non-interactive mode, skip save prompt
+        and exit directly without calling input() (which would cause EOFError).
+        """
+        result = subprocess.run(
+            [sys.executable, "-m", "cli_rpg.main", "--non-interactive"],
+            input="quit\n",
+            capture_output=True,
+            text=True,
+            timeout=10
+        )
+        assert result.returncode == 0
+        assert "EOFError" not in result.stderr
+        assert "Traceback" not in result.stderr
+
+    def test_quit_command_exits_cleanly_json_mode(self):
+        """Quit command should exit without EOFError in JSON mode.
+
+        Spec: When quit command is issued in JSON mode, skip save prompt
+        and exit directly without calling input() (which would cause EOFError).
+        """
+        result = subprocess.run(
+            [sys.executable, "-m", "cli_rpg.main", "--json"],
+            input="quit\n",
+            capture_output=True,
+            text=True,
+            timeout=10
+        )
+        assert result.returncode == 0
+        assert "EOFError" not in result.stderr
+        assert "Traceback" not in result.stderr

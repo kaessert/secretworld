@@ -219,7 +219,7 @@ def handle_conversation_input(game_state: GameState, user_input: str) -> tuple[b
     return (True, f"\n{npc.name} nods thoughtfully.")
 
 
-def handle_combat_command(game_state: GameState, command: str, args: list[str]) -> tuple[bool, str]:
+def handle_combat_command(game_state: GameState, command: str, args: list[str], non_interactive: bool = False) -> tuple[bool, str]:
     """Handle commands during combat.
 
     Args:
@@ -397,6 +397,9 @@ def handle_combat_command(game_state: GameState, command: str, args: list[str]) 
         return (True, "\n" + get_command_reference())
 
     elif command == "quit":
+        if non_interactive:
+            # In non-interactive mode, skip confirmation and exit directly
+            return (False, "\nExiting game...")
         print("\n" + "=" * 50)
         print("⚠️  Warning: You are in combat! Saving is disabled during combat.")
         print("If you quit now, your combat progress will be lost.")
@@ -421,7 +424,7 @@ def handle_combat_command(game_state: GameState, command: str, args: list[str]) 
         return (True, "\n✗ Can't do that during combat! Use: attack, defend, cast, flee, use, status, help, or quit")
 
 
-def handle_exploration_command(game_state: GameState, command: str, args: list[str]) -> tuple[bool, str]:
+def handle_exploration_command(game_state: GameState, command: str, args: list[str], non_interactive: bool = False) -> tuple[bool, str]:
     """Handle commands during exploration.
     
     Args:
@@ -963,6 +966,9 @@ def handle_exploration_command(game_state: GameState, command: str, args: list[s
             return (True, f"\n✗ Failed to save game: {e}")
     
     elif command == "quit":
+        if non_interactive:
+            # In non-interactive mode, skip save prompt and exit directly
+            return (False, "\nExiting game...")
         print("\n" + "=" * 50)
         response = input("Save before quitting? (y/n): ").strip().lower()
         if response == 'y':
@@ -972,7 +978,7 @@ def handle_exploration_command(game_state: GameState, command: str, args: list[s
                 print(f"  Save location: {filepath}")
             except IOError as e:
                 print(f"\n✗ Failed to save game: {e}")
-        
+
         print("\nReturning to main menu...")
         return (False, "")
 
@@ -1313,11 +1319,11 @@ def run_json_mode(log_file: Optional[str] = None, delay_ms: int = 0) -> int:
         command, args = parse_command(command_input)
 
         if game_state.is_in_combat():
-            continue_game, message = handle_combat_command(game_state, command, args)
+            continue_game, message = handle_combat_command(game_state, command, args, non_interactive=True)
         elif game_state.is_in_conversation and command == "unknown":
             continue_game, message = handle_conversation_input(game_state, command_input)
         else:
-            continue_game, message = handle_exploration_command(game_state, command, args)
+            continue_game, message = handle_exploration_command(game_state, command, args, non_interactive=True)
 
         # Clean up message (remove leading newlines)
         message = message.strip()
@@ -1451,11 +1457,11 @@ def run_non_interactive(log_file: Optional[str] = None, delay_ms: int = 0) -> in
         command, args = parse_command(command_input)
 
         if game_state.is_in_combat():
-            continue_game, message = handle_combat_command(game_state, command, args)
+            continue_game, message = handle_combat_command(game_state, command, args, non_interactive=True)
         elif game_state.is_in_conversation and command == "unknown":
             continue_game, message = handle_conversation_input(game_state, command_input)
         else:
-            continue_game, message = handle_exploration_command(game_state, command, args)
+            continue_game, message = handle_exploration_command(game_state, command, args, non_interactive=True)
 
         print(message)
 
