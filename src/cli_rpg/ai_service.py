@@ -269,7 +269,7 @@ class AIService:
                 raise AIServiceError(f"API call failed: {str(e)}") from e
 
         # Should not reach here, but just in case
-        raise AIServiceError(f"API call failed after retries: {str(last_error)}") from last_error
+        raise AIServiceError(f"API call failed after retries: {str(last_error)}") from last_error  # pragma: no cover
 
     def _call_anthropic(self, prompt: str) -> str:
         """Call Anthropic API with retry logic.
@@ -326,8 +326,8 @@ class AIService:
                 raise AIServiceError(f"API call failed: {str(e)}") from e
 
         # Should not reach here, but just in case
-        raise AIServiceError(f"API call failed after retries: {str(last_error)}") from last_error
-    
+        raise AIServiceError(f"API call failed after retries: {str(last_error)}") from last_error  # pragma: no cover
+
     def _parse_location_response(self, response_text: str) -> dict:
         """Parse and validate LLM response.
         

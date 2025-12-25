@@ -1490,3 +1490,64 @@ def test_save_cache_no_cache_file_configured(mock_openai_class):
 
     # Verify result is correct
     assert result["name"] == "Test Location"
+
+
+# ========================================================================
+# OpenAI RateLimitError Tests (Coverage for lines 253-257)
+# ========================================================================
+
+
+@patch('cli_rpg.ai_service.OpenAI')
+def test_openai_rate_limit_error_retries_and_fails(mock_openai_class, basic_config):
+    """Test OpenAI rate limit error retries and raises AIServiceError when exhausted.
+
+    Spec: When OpenAI API returns rate limit error (lines 251-257), retry with
+    exponential backoff and raise AIServiceError if all retries exhausted.
+    """
+    mock_client = Mock()
+    mock_openai_class.return_value = mock_client
+
+    # Simulate rate limit on all attempts
+    import openai
+    mock_client.chat.completions.create.side_effect = openai.RateLimitError(
+        message="Rate limit exceeded",
+        response=Mock(),
+        body=None
+    )
+
+    service = AIService(basic_config)
+
+    with pytest.raises(AIServiceError, match="API call failed"):
+        service.generate_location(theme="fantasy")
+
+    # Should have retried (initial + max_retries attempts)
+    assert mock_client.chat.completions.create.call_count == basic_config.max_retries + 1
+
+
+@patch('cli_rpg.ai_service.OpenAI')
+def test_openai_rate_limit_error_retries_then_succeeds(mock_openai_class, basic_config, mock_openai_response):
+    """Test OpenAI rate limit error retries and succeeds on subsequent attempt.
+
+    Spec: When OpenAI API returns rate limit error initially (lines 251-256), retry
+    with exponential backoff and succeed when the API recovers.
+    """
+    mock_client = Mock()
+    mock_openai_class.return_value = mock_client
+
+    import openai
+    mock_response = Mock()
+    mock_response.choices = [Mock()]
+    mock_response.choices[0].message.content = json.dumps(mock_openai_response)
+
+    # First call rate limited, second succeeds
+    mock_client.chat.completions.create.side_effect = [
+        openai.RateLimitError(message="Rate limit", response=Mock(), body=None),
+        mock_response
+    ]
+
+    service = AIService(basic_config)
+    result = service.generate_location(theme="fantasy")
+
+    assert result is not None
+    assert result["name"] == "Ancient Temple"
+    assert mock_client.chat.completions.create.call_count == 2
