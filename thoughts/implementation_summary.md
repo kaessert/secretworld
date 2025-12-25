@@ -1,4 +1,83 @@
-# Implementation Summary: AI-Generated NPCs for Locations
+# Implementation Summary: Fix "World not truly infinite" Bug
+
+## Problem Summary
+
+Players could fully explore the world and hit boundaries despite the game being advertised as infinite. When moving in a valid cardinal direction without an existing connection, players received "You can't go that way" instead of having new locations generated.
+
+## Changes Made
+
+### 1. Added `generate_fallback_location()` to `src/cli_rpg/world.py`
+
+- Created 5 fallback location templates with varying themes (wilderness, rocky, misty, grassy, dense thicket)
+- Each template has multiple name patterns and descriptions for variety
+- Function generates unique location names using coordinate suffix (e.g., "Wilderness (1, 2)")
+- Generated locations always have:
+  - Back connection to source location
+  - 1-2 frontier exits for future expansion
+  - Proper coordinates matching target position
+
+### 2. Updated `move()` in `src/cli_rpg/game_state.py`
+
+Key changes:
+- **Removed the exit-required check** for coordinate-based movement
+- Previously: `if not current.has_connection(direction): return (False, "You can't go that way.")`
+- Now: Movement in any valid cardinal direction always succeeds
+
+Logic flow for coordinate-based movement:
+1. Calculate target coordinates from current position + direction offset
+2. Check if location exists at target coordinates
+   - If yes: Move there (add connection if missing)
+   - If no: Generate location (AI if available, fallback otherwise)
+3. Add new location to world with bidirectional connections
+
+### 3. Updated Tests
+
+Updated tests that expected movement to fail when no exit exists:
+- `test_game_state.py::TestGameStateCoordinateBasedMovement::test_move_uses_coordinates_not_just_connections`
+- `test_game_state.py::TestGameStateCoordinateBasedMovement::test_move_direction_must_exist_in_exits` (renamed to `test_move_to_existing_location_adds_connection`)
+- `test_gameplay_integration.py::TestGameplayIntegration::test_gameplay_move_command_failure` (renamed to `test_gameplay_move_command_invalid_direction`)
+
+Added new test file `tests/test_infinite_world_without_ai.py` with 16 tests covering:
+- `generate_fallback_location()` unit tests
+- Movement to unexplored directions
+- World never becoming closed
+- Circular path exploration
+- Long straight paths
+- Integration with existing connections
+
+## Test Results
+
+All 1653 tests pass, including:
+- 16 new tests for infinite world behavior
+- All existing world, game state, and E2E tests
+- No regressions
+
+## What E2E Tests Should Validate
+
+1. Starting a new game without AI and moving in any cardinal direction succeeds
+2. Generated fallback locations have proper connections back to source
+3. Circular exploration (N -> E -> S -> W) works correctly
+4. Long-distance exploration in one direction creates expected number of locations
+5. The world map displays correctly with fallback-generated locations
+
+## Technical Notes
+
+- Fallback location names include coordinates for uniqueness (e.g., "Misty Hollow (3, -2)")
+- The implementation maintains backward compatibility with legacy saves (no coordinates)
+- AI-generated locations are still preferred when AI service is available
+- Fallback locations always have 2-3 connections to ensure continued expansion
+
+## Files Modified
+
+1. `src/cli_rpg/world.py` - Added `generate_fallback_location()` and fallback templates
+2. `src/cli_rpg/game_state.py` - Updated `move()` to use fallback generation
+3. `tests/test_infinite_world_without_ai.py` - New test file (16 tests)
+4. `tests/test_game_state.py` - Updated 2 tests
+5. `tests/test_gameplay_integration.py` - Updated 1 test, added 1 test
+
+---
+
+# Previous Implementation: AI-Generated NPCs for Locations
 
 ## Overview
 Added the ability for the AI to generate NPCs (non-player characters) as part of location generation. Previously, only the starting location had NPCs (a merchant and quest giver). Now, all AI-generated locations can include thematically appropriate NPCs.

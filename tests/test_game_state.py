@@ -515,7 +515,9 @@ class TestGameStateCoordinateBasedMovement:
 
         Spec: When a location has a misleading connection that would violate
         coordinate consistency, the move should use coordinates to find the
-        correct destination or fail if no location exists at target coords.
+        correct destination. With infinite world, a new location is generated
+        if no location exists at target coords - but it should NOT follow a
+        bad connection that points to the wrong coordinates.
         """
         # Disable autosave for this test
         monkeypatch.setattr("cli_rpg.game_state.autosave", lambda gs: None)
@@ -538,12 +540,14 @@ class TestGameStateCoordinateBasedMovement:
         assert game_state.current_location == "West1"
 
         # Move west from West1 - should NOT go to Origin (that's at 0,0, not -2,0)
-        # Without AI, this should fail with "You can't go that way."
+        # With infinite world, a new fallback location is generated at (-2,0)
         success, msg = game_state.move("west")
-        # If AI not available, move fails because coordinate (-2,0) is empty
-        # The key is it should NOT follow the incorrect "west": "Origin" connection
-        assert success is False
-        assert "can't go that way" in msg.lower()
+        assert success is True
+        # Key: we should NOT have gone back to Origin (which is at 0,0, not -2,0)
+        assert game_state.current_location != "Origin"
+        # We should be at the new location at (-2, 0)
+        current_loc = game_state.get_current_location()
+        assert current_loc.coordinates == (-2, 0)
 
     def test_move_with_coordinates_goes_to_correct_location(self, tmp_path, monkeypatch):
         """Movement should follow coordinates even if connection name differs.
@@ -608,20 +612,20 @@ class TestGameStateCoordinateBasedMovement:
         assert success
         assert game_state.current_location == "West1"
 
-    def test_move_direction_must_exist_in_exits(self, monkeypatch):
-        """Movement should fail if direction doesn't exist in location exits.
+    def test_move_to_existing_location_adds_connection(self, monkeypatch):
+        """Movement to existing location should succeed and add missing connection.
 
-        Spec: Even with coordinate-based movement, you can only move in directions
-        that exist as exits in the current location. The key test case is when
-        a location EXISTS at the target coordinates but there's no exit in that
-        direction - the move should still fail.
+        Spec: With infinite world, movement in any valid cardinal direction should
+        succeed. If a location exists at the target coordinates, we move there
+        and add the bidirectional connection. This supports the "infinite world"
+        principle where players can explore in any direction.
         """
         monkeypatch.setattr("cli_rpg.game_state.autosave", lambda gs: None)
 
         character = Character("Hero", strength=10, dexterity=10, intelligence=10)
 
         # Location at (0,0) with only north, south, west exits - NO EAST
-        # BUT there's a location at (1,0) - the bug allows reaching it without an exit
+        # But there's a location at (1,0) - movement should succeed and add connection
         loc_a = Location(
             "Origin", "Location A", {"north": "North", "south": "South", "west": "West"},
             coordinates=(0, 0)
@@ -629,7 +633,7 @@ class TestGameStateCoordinateBasedMovement:
         loc_north = Location("North", "North location", {"south": "Origin"}, coordinates=(0, 1))
         loc_south = Location("South", "South location", {"north": "Origin"}, coordinates=(0, -1))
         loc_west = Location("West", "West location", {"east": "Origin"}, coordinates=(-1, 0))
-        # East location exists at coords (1,0) but there's NO east exit from Origin!
+        # East location exists at coords (1,0) - should be reachable
         loc_east = Location("East", "East location", {"west": "Origin"}, coordinates=(1, 0))
 
         world = {
@@ -638,11 +642,13 @@ class TestGameStateCoordinateBasedMovement:
         }
         game_state = GameState(character, world, "Origin")
 
-        # Moving east should fail - no east exit even though a location exists there
+        # Moving east should succeed - location exists at target coordinates
         success, message = game_state.move("east")
-        assert success is False, f"Expected failure but got success with message: {message}"
-        assert "can't go that way" in message.lower()
-        assert game_state.current_location == "Origin"  # Should not have moved
+        assert success is True, f"Expected success but got failure with message: {message}"
+        assert game_state.current_location == "East"
+        # The connection should now exist
+        assert game_state.world["Origin"].has_connection("east")
+        assert game_state.world["Origin"].get_connection("east") == "East"
 
 
 class TestGameStateSerialization:

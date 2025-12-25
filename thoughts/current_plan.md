@@ -1,80 +1,110 @@
-# Implementation Plan: NPCs in AI-Generated Locations
+# Implementation Plan: Fix "World not truly infinite" bug
 
-## Problem
-Currently, NPCs only exist in the starting location. When AI generates new locations via `generate_location()`, `expand_world()`, or `expand_area()`, the locations are created without any NPCs, making exploration feel empty.
+## Problem Summary
 
-## Solution Overview
-1. Extend AI prompts to request NPC generation alongside location generation
-2. Parse NPC data from AI responses and create NPC objects
-3. Attach NPCs to newly generated locations
+Players can fully explore the world and hit boundaries despite it being advertised as infinite. The core issue is that:
+1. When a player moves in a direction with no connection, they get "You can't go that way"
+2. All connections lead to existing locations (especially without AI)
+3. No new locations are generated on demand when exploring unexplored directions
 
-## Implementation Steps
+## Root Cause Analysis
 
-### Step 1: Add NPC Generation Prompt to Location Prompts
+Looking at `game_state.py` `move()` method (lines 254-373):
+- Line 284: If no connection exists in a direction, returns "You can't go that way"
+- Line 298-322: If connection exists but target coordinates are empty, only tries expansion with AI service
+- Line 321-322: Without AI service, returns "You can't go that way"
 
-**File: `src/cli_rpg/ai_config.py`**
+The issue: The world only expands when there's already a dangling connection AND AI is available. Without AI, or when all connections are resolved, the world becomes closed.
 
-Update `DEFAULT_LOCATION_PROMPT` to include NPC generation:
-- Add requirement for 0-2 NPCs appropriate to the location
-- Specify NPC fields: name, description, dialogue, role (villager/merchant/quest_giver)
-- Add "npcs" key to the expected JSON response format
+## Solution
 
-### Step 2: Update AI Service to Parse NPCs
+### Core Fix
+Modify the movement logic to:
+1. **Always allow movement in valid cardinal directions** (north/south/east/west)
+2. **Generate new locations on-demand** when moving to unexplored coordinates
+3. **Provide fallback generation** when AI is unavailable
 
-**File: `src/cli_rpg/ai_service.py`**
+### Implementation Steps
 
-Update `_parse_location_response()`:
-- Add parsing for optional "npcs" field in response
-- Validate NPC data (name 2-30 chars, description 1-200 chars)
-- Handle missing or empty npcs field gracefully (default to empty list)
-- Return npcs list in the location data dict
+#### Step 1: Add fallback location generation to `world.py`
 
-Update `_validate_area_location()`:
-- Same NPC parsing logic for area generation responses
+Add a new function `generate_fallback_location()` that creates template-based locations without AI:
 
-### Step 3: Update AI World Module to Create NPC Objects
+```python
+def generate_fallback_location(
+    direction: str,
+    source_location: Location,
+    target_coords: tuple[int, int]
+) -> Location:
+    """Generate a fallback location when AI is unavailable."""
+    # Use direction and source context to pick appropriate template
+    # Similar to how spawn_enemies works without AI
+```
 
-**File: `src/cli_rpg/ai_world.py`**
+#### Step 2: Update `game_state.py` `move()` method
 
-Update `create_ai_world()`:
-- After creating Location from AI data, create NPC objects from npcs list
-- Add NPCs to the location's npcs attribute
-- Keep existing merchant/quest_giver in starting location (they're special)
+Modify the coordinate-based movement logic (lines 282-322):
 
-Update `expand_world()`:
-- Same NPC creation logic for expanded locations
+1. **Remove the exit-required check** (line 284-285) for cardinal directions
+2. **Always calculate target coordinates** for valid directions
+3. **If target location doesn't exist**: Generate one (AI or fallback)
+4. **Add the new location** to the world with proper bidirectional connections
 
-Update `expand_area()`:
-- Same NPC creation logic for area locations
+Key changes:
+- Line 284: Remove `if not current.has_connection(direction)` check for cardinal directions
+- Line 298-322: Expand to include fallback generation when AI unavailable
 
-### Step 4: Add Tests
+#### Step 3: Ensure new locations have frontier exits
 
-**File: `tests/test_ai_service.py`**
+When generating new locations (in `ai_world.py` or fallback):
+- Always add at least one dangling connection pointing to unexplored territory
+- This is already partially implemented in `expand_world()` lines 420-429
 
-Add tests:
-- `test_generate_location_parses_npcs`: Verify NPC data is parsed from response
-- `test_generate_location_handles_empty_npcs`: Verify empty/missing npcs field returns empty list
-- `test_generate_location_validates_npc_name_length`: Invalid NPC data is handled
-- `test_generate_area_parses_npcs`: Same for area generation
+### Files to Modify
 
-**File: `tests/test_ai_world_generation.py`**
+1. **`src/cli_rpg/world.py`**: Add `generate_fallback_location()` function
+2. **`src/cli_rpg/game_state.py`**: Update `move()` to always allow expansion in valid directions
+3. **`src/cli_rpg/world_grid.py`**: No changes needed (already has `ensure_expansion_possible()`)
 
-Add tests:
-- `test_expand_world_creates_npcs`: Verify NPCs are attached to expanded locations
-- `test_expand_area_creates_npcs`: Verify NPCs are attached to area locations
-- `test_ai_generated_locations_have_npcs`: Integration test
+### Test Plan
 
-## Key Design Decisions
+#### New Tests to Add
 
-1. **NPCs are optional** - If AI doesn't return NPCs, location is still valid (empty list)
-2. **Validation is lenient** - Invalid NPC data is logged and skipped, not fatal
-3. **Role mapping** - Map "villager" to default NPC, "merchant" gets is_merchant=True, "quest_giver" gets is_quest_giver=True
-4. **No shops/quests for AI NPCs** - Only flags are set; shops/quests can be added separately later
+1. **`test_infinite_world_without_ai.py`**:
+   - Test that moving in any cardinal direction always succeeds (creates location if needed)
+   - Test that newly created locations have frontier exits
+   - Test that returning to previous locations works correctly
+   - Test that the world never becomes "closed" (always has expansion options)
 
-## Files to Modify
+2. **Update existing tests**:
+   - `test_initial_world_dead_end_prevention.py`: Verify starting location behavior
+   - `test_e2e_world_expansion.py`: Add test for fallback generation
 
-1. `src/cli_rpg/ai_config.py` - Update prompts
-2. `src/cli_rpg/ai_service.py` - Parse NPC data
-3. `src/cli_rpg/ai_world.py` - Create NPC objects
-4. `tests/test_ai_service.py` - New tests
-5. `tests/test_ai_world_generation.py` - New tests
+#### Test Cases
+
+```python
+def test_move_to_unexplored_direction_creates_location():
+    """Moving in a valid direction with no exit creates a new location."""
+    # Create minimal world with no exits in some directions
+    # Move in an unexplored direction
+    # Assert: move succeeds and new location exists
+
+def test_world_never_becomes_closed():
+    """World always has at least one frontier exit after expansion."""
+    # Create world, explore multiple times
+    # After each move, verify has_expansion_exits() returns True
+
+def test_fallback_location_has_proper_connections():
+    """Fallback-generated locations have bidirectional connections."""
+    # Create world without AI
+    # Move to create fallback location
+    # Assert: proper connections in both directions
+```
+
+### Implementation Order
+
+1. Add `generate_fallback_location()` to `world.py`
+2. Write tests for the new function
+3. Update `move()` in `game_state.py` to use fallback
+4. Write integration tests
+5. Run full test suite to ensure no regressions

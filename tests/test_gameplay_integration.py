@@ -55,20 +55,41 @@ class TestGameplayIntegration:
         assert game_state.current_location == "Forest"
         assert isinstance(message, str)
     
-    def test_gameplay_move_command_failure(self):
-        """Test that move command to invalid direction shows error.
-        
-        Spec: Move to invalid direction should fail with error message
+    def test_gameplay_move_command_invalid_direction(self):
+        """Test that move command to truly invalid direction shows error.
+
+        Spec: Move to invalid (non-cardinal) direction should fail with error message.
+        Note: With infinite world, valid cardinal directions (n/s/e/w) always succeed
+        by generating new locations. Invalid directions like "up" or "northwest" fail.
         """
         character = Character("Hero", strength=10, dexterity=10, intelligence=10)
         world, starting_location = create_default_world()
         game_state = GameState(character, world, starting_location)
-        
-        success, message = game_state.move("west")  # No west exit from Town Square
-        
+
+        success, message = game_state.move("up")  # Invalid direction (not n/s/e/w)
+
         assert success is False
         assert isinstance(message, str)
+        assert "invalid" in message.lower() or "use:" in message.lower()
         assert game_state.current_location == "Town Square"
+
+    def test_gameplay_move_to_unexplored_creates_location(self):
+        """Test that move to unexplored direction creates new location.
+
+        Spec: With infinite world, moving in any valid cardinal direction should
+        succeed, creating a new location if one doesn't exist at target coordinates.
+        """
+        character = Character("Hero", strength=10, dexterity=10, intelligence=10)
+        world, starting_location = create_default_world()
+        initial_world_size = len(world)
+        game_state = GameState(character, world, starting_location)
+
+        success, message = game_state.move("west")  # No west exit from Town Square initially
+
+        assert success is True
+        assert isinstance(message, str)
+        assert game_state.current_location != "Town Square"
+        assert len(game_state.world) == initial_world_size + 1  # New location added
     
     def test_gameplay_navigation_sequence(self):
         """Test that multiple moves in sequence work correctly.

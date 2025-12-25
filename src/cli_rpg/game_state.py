@@ -23,6 +23,9 @@ except ImportError:
     AIServiceError = Exception  # type: ignore[misc, assignment]
     expand_area = None  # type: ignore[assignment]
 
+# Import fallback generation
+from cli_rpg.world import generate_fallback_location
+
 logger = logging.getLogger(__name__)
 
 # All known commands that the game recognizes
@@ -280,11 +283,7 @@ class GameState:
 
         # Use coordinate-based movement if current location has coordinates
         if current.coordinates is not None:
-            # Validate that the direction exists as an exit
-            if not current.has_connection(direction):
-                return (False, "You can't go that way.")
-
-            # Calculate target coordinates
+            # Calculate target coordinates for valid cardinal directions
             dx, dy = DIRECTION_OFFSETS[direction]
             target_coords = (current.coordinates[0] + dx, current.coordinates[1] + dy)
 
@@ -294,8 +293,11 @@ class GameState:
             if target_location is not None:
                 # Location exists at target coordinates - move there
                 self.current_location = target_location.name
+                # Ensure bidirectional connection exists
+                if not current.has_connection(direction):
+                    current.add_connection(direction, target_location.name)
             else:
-                # No location at target - try AI area generation or fail
+                # No location at target - generate one (AI or fallback)
                 if self.ai_service is not None and AI_AVAILABLE and expand_area is not None:
                     try:
                         logger.info(
@@ -319,7 +321,21 @@ class GameState:
                         logger.error(f"Failed to generate area: {e}")
                         return (False, f"Failed to generate destination: {str(e)}")
                 else:
-                    return (False, "You can't go that way.")
+                    # Use fallback generation when AI is unavailable
+                    logger.info(
+                        f"Generating fallback location at {target_coords} from {current.name}"
+                    )
+                    new_location = generate_fallback_location(
+                        direction=direction,
+                        source_location=current,
+                        target_coords=target_coords
+                    )
+                    # Add to world
+                    self.world[new_location.name] = new_location
+                    # Add bidirectional connection from source
+                    current.add_connection(direction, new_location.name)
+                    # Move to new location
+                    self.current_location = new_location.name
         else:
             # Legacy fallback: use connection-based movement
             if not current.has_connection(direction):

@@ -23,8 +23,10 @@ The CLI RPG includes AI-powered dynamic location generation using OpenAI's GPT m
 - Significant cost savings for repeated scenarios and across sessions
 
 ### 3. Graceful Fallbacks
-- Game works without API key (uses default world)
-- Falls back to default world if AI generation fails
+- Game works without API key (uses fallback location templates)
+- Falls back to template-based location generation if AI fails
+- Fallback locations include 5 terrain themes (wilderness, rocky, misty, grassy, dense thicket)
+- The world is truly infinite even without AI - fallback locations always have frontier exits
 - No crashes or data loss
 
 ### 4. Context-Aware Generation

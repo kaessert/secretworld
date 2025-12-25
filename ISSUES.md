@@ -60,25 +60,6 @@ Once non-interactive mode is fully implemented, set up periodic long-running sim
 
 **Depends on**: Non-interactive mode enhancements (structured output, logging)
 
-### World not truly infinite
-**Status**: ACTIVE
-
-Players report the world can be fully explored despite being advertised as infinite.
-
-**Issues**:
-
-1. **World stops expanding**
-   - Players can explore all locations and hit a boundary
-   - No new locations generate when moving to unexplored exits
-   - World feels small and finite rather than infinite
-
-**Expected behavior**:
-- Every unexplored exit should generate a new location on demand
-- World should truly be infinite - always have at least one unexplored direction available
-
-**Fix areas**:
-- `world.py` / `world_grid.py`: Ensure location generation triggers on unexplored exits
-
 ### NPC persistence issues (PARTIALLY RESOLVED)
 **Status**: PARTIALLY RESOLVED
 
@@ -307,6 +288,19 @@ Quests should be dynamically generated to keep gameplay fresh.
 - Emergent storylines from completed quests
 
 ## Resolved Issues
+
+### World not truly infinite
+**Status**: RESOLVED
+
+**Description**: Players could fully explore the world and hit boundaries despite it being advertised as infinite. Moving in a valid cardinal direction without an existing connection returned "You can't go that way" instead of generating new locations.
+
+**Fix**:
+1. Added `generate_fallback_location()` in `world.py` with 5 fallback location templates (wilderness, rocky, misty, grassy, dense thicket) for when AI is unavailable
+2. Updated `move()` in `game_state.py` to remove the exit-required check for coordinate-based movement
+3. Movement in any valid cardinal direction now always succeeds - either moves to an existing location or generates a new one (AI if available, fallback templates otherwise)
+4. Generated locations always include a back connection to the source and 1-2 frontier exits for future expansion
+
+The world is now truly infinite - players can explore in any cardinal direction indefinitely.
 
 ### Map emoji alignment
 **Status**: RESOLVED
