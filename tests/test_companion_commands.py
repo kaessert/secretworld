@@ -406,3 +406,200 @@ class TestCompanionsInKnownCommands:
         """Test that 'dismiss' is a recognized command."""
         from cli_rpg.game_state import KNOWN_COMMANDS
         assert "dismiss" in KNOWN_COMMANDS
+
+    def test_companion_quest_in_known_commands(self):
+        """Test that 'companion-quest' is a recognized command."""
+        # Spec: companion-quest must be a known command
+        from cli_rpg.game_state import KNOWN_COMMANDS
+        assert "companion-quest" in KNOWN_COMMANDS
+
+
+class TestCompanionQuestCommand:
+    """Tests for the 'companion-quest' command."""
+
+    def test_companion_quest_no_name_specified(self):
+        """Test companion-quest command without name shows usage message.
+
+        Spec: Show usage message when no companion name provided
+        """
+        game_state = create_test_game_state()
+
+        success, message = handle_exploration_command(game_state, "companion-quest", [])
+
+        assert success is True
+        assert "companion-quest <name>" in message.lower() or "companion-quest" in message
+
+    def test_companion_quest_companion_not_in_party(self):
+        """Test companion-quest with nonexistent companion shows error.
+
+        Spec: Show error when companion not in party
+        """
+        game_state = create_test_game_state()
+        game_state.companions = []
+
+        success, message = handle_exploration_command(
+            game_state, "companion-quest", ["Elara"]
+        )
+
+        assert success is True
+        assert "no companion" in message.lower() or "not" in message.lower()
+
+    def test_companion_quest_no_personal_quest(self):
+        """Test companion-quest for companion without quest shows error.
+
+        Spec: Show error when companion has no personal quest
+        """
+        companion = Companion(
+            name="Elara",
+            description="A wandering minstrel",
+            recruited_at="Town Square",
+            bond_points=60,  # TRUSTED level
+            personal_quest=None,
+        )
+        game_state = create_test_game_state(companions=[companion])
+
+        success, message = handle_exploration_command(
+            game_state, "companion-quest", ["Elara"]
+        )
+
+        assert success is True
+        assert "no personal quest" in message.lower()
+
+    def test_companion_quest_bond_too_low(self):
+        """Test companion-quest when bond level insufficient shows error with info.
+
+        Spec: Show error with bond info when quest not available (bond too low)
+        """
+        from cli_rpg.models.quest import Quest, ObjectiveType
+
+        personal_quest = Quest(
+            name="Find Elara's Lute",
+            description="Locate Elara's missing lute",
+            objective_type=ObjectiveType.EXPLORE,
+            target="Lost Cave",
+        )
+        companion = Companion(
+            name="Elara",
+            description="A wandering minstrel",
+            recruited_at="Town Square",
+            bond_points=30,  # ACQUAINTANCE level, need TRUSTED
+            personal_quest=personal_quest,
+        )
+        game_state = create_test_game_state(companions=[companion])
+
+        success, message = handle_exploration_command(
+            game_state, "companion-quest", ["Elara"]
+        )
+
+        assert success is True
+        assert "not yet available" in message.lower() or "not available" in message.lower()
+        # Should mention current and required bond level
+        assert "trusted" in message.lower() or "Trusted" in message
+
+    def test_companion_quest_already_have_quest(self):
+        """Test companion-quest when player already has the quest shows error.
+
+        Spec: Show error when player already has the quest
+        """
+        from cli_rpg.models.quest import Quest, ObjectiveType, QuestStatus
+
+        personal_quest = Quest(
+            name="Find Elara's Lute",
+            description="Locate Elara's missing lute",
+            objective_type=ObjectiveType.EXPLORE,
+            target="Lost Cave",
+        )
+        # Create an active copy of the quest for the player
+        player_quest = Quest(
+            name="Find Elara's Lute",
+            description="Locate Elara's missing lute",
+            objective_type=ObjectiveType.EXPLORE,
+            target="Lost Cave",
+            status=QuestStatus.ACTIVE,
+        )
+        companion = Companion(
+            name="Elara",
+            description="A wandering minstrel",
+            recruited_at="Town Square",
+            bond_points=60,  # TRUSTED level
+            personal_quest=personal_quest,
+        )
+        game_state = create_test_game_state(companions=[companion])
+        game_state.current_character.quests.append(player_quest)
+
+        success, message = handle_exploration_command(
+            game_state, "companion-quest", ["Elara"]
+        )
+
+        assert success is True
+        assert "already have" in message.lower()
+
+    def test_companion_quest_success_adds_quest(self):
+        """Test successful companion-quest adds quest to player's quest log.
+
+        Spec: Accept quest and add to player's quest log on success
+        """
+        from cli_rpg.models.quest import Quest, ObjectiveType, QuestStatus
+
+        personal_quest = Quest(
+            name="Find Elara's Lute",
+            description="Locate Elara's missing lute",
+            objective_type=ObjectiveType.EXPLORE,
+            target="Lost Cave",
+        )
+        companion = Companion(
+            name="Elara",
+            description="A wandering minstrel",
+            recruited_at="Town Square",
+            bond_points=60,  # TRUSTED level
+            personal_quest=personal_quest,
+        )
+        game_state = create_test_game_state(companions=[companion])
+        initial_quest_count = len(game_state.current_character.quests)
+
+        success, message = handle_exploration_command(
+            game_state, "companion-quest", ["Elara"]
+        )
+
+        assert success is True
+        assert len(game_state.current_character.quests) == initial_quest_count + 1
+
+        # Find the added quest
+        added_quest = game_state.current_character.quests[-1]
+        assert added_quest.name == "Find Elara's Lute"
+        assert added_quest.status == QuestStatus.ACTIVE
+        assert added_quest.quest_giver == "Elara"
+
+        # Message should confirm acceptance
+        assert "accepted" in message.lower() or "quest" in message.lower()
+
+    def test_companion_quest_case_insensitive(self):
+        """Test companion-quest matches companion name case-insensitively.
+
+        Spec: Matches companion name case-insensitively
+        """
+        from cli_rpg.models.quest import Quest, ObjectiveType
+
+        personal_quest = Quest(
+            name="Find Elara's Lute",
+            description="Locate Elara's missing lute",
+            objective_type=ObjectiveType.EXPLORE,
+            target="Lost Cave",
+        )
+        companion = Companion(
+            name="Elara",
+            description="A wandering minstrel",
+            recruited_at="Town Square",
+            bond_points=60,  # TRUSTED level
+            personal_quest=personal_quest,
+        )
+        game_state = create_test_game_state(companions=[companion])
+
+        # Use lowercase name
+        success, message = handle_exploration_command(
+            game_state, "companion-quest", ["elara"]
+        )
+
+        assert success is True
+        assert len(game_state.current_character.quests) == 1
+        assert game_state.current_character.quests[0].name == "Find Elara's Lute"
