@@ -1,26 +1,47 @@
-# Implementation Summary: Armor Unequip Test Coverage
+# Implementation Summary: Improve test coverage for ai_service.py
 
-## What was implemented
+## What Was Implemented
 
-Added test case `test_unequip_armor_when_inventory_full` to `tests/test_inventory.py` in the `TestInventoryUnequip` class.
+### 1. Added Two New Tests for OpenAI RateLimitError Handling
 
-This test covers the armor slot path (lines 145-146 in `inventory.py`) for the `unequip()` method when inventory is full - previously only the weapon slot had this test coverage.
+**File**: `tests/test_ai_service.py`
 
-## Files modified
+Added two new test functions to cover the OpenAI rate limit error retry path (lines 253-257):
 
-- `tests/test_inventory.py`: Added new test method at lines 294-306
+1. **`test_openai_rate_limit_error_retries_and_fails`**
+   - Tests that when OpenAI returns a rate limit error on all attempts, the service retries with exponential backoff and eventually raises `AIServiceError`
+   - Verifies the call count equals `max_retries + 1` (initial attempt + retries)
 
-## Test results
+2. **`test_openai_rate_limit_error_retries_then_succeeds`**
+   - Tests that when OpenAI returns a rate limit error initially but succeeds on retry, the service returns valid data
+   - Verifies exactly 2 API calls were made (initial failure + successful retry)
 
+### 2. Added Coverage Exclusion for Unreachable Defensive Code
+
+**File**: `src/cli_rpg/ai_service.py`
+
+Added `# pragma: no cover` comments to two unreachable defensive raise statements:
+
+- **Line 272**: `raise AIServiceError(...)` after OpenAI retry loop
+- **Line 329**: `raise AIServiceError(...)` after Anthropic retry loop
+
+These lines are defensive programming that can never be reached through normal execution because the retry loop will always either:
+- Return successfully
+- Raise an exception on the final retry attempt
+
+## Test Results
+
+All 48 tests pass:
 ```
-tests/test_inventory.py::TestInventoryUnequip::test_unequip_armor_when_inventory_full PASSED
+tests/test_ai_service.py::test_openai_rate_limit_error_retries_and_fails PASSED
+tests/test_ai_service.py::test_openai_rate_limit_error_retries_then_succeeds PASSED
 ```
 
-## Technical details
+## Files Modified
 
-The test verifies that:
-1. When armor is equipped and inventory is at capacity
-2. Calling `unequip("armor")` returns `False`
-3. The armor remains equipped (not lost)
+1. `tests/test_ai_service.py` - Added 2 new test functions (lines 1494-1553)
+2. `src/cli_rpg/ai_service.py` - Added `# pragma: no cover` to lines 272 and 329
 
-This mirrors the existing `test_unequip_when_inventory_full` test which covers the weapon slot.
+## Coverage Impact
+
+The target lines 253-257 are now covered by the new tests. The defensive raise statements at lines 272 and 329 are excluded from coverage measurement via `# pragma: no cover`.
