@@ -43,6 +43,19 @@ KNOWN_COMMANDS: set[str] = {
     "bestiary", "dump-state"
 }
 
+# Dread increases by location category (darker areas = more dread)
+DREAD_BY_CATEGORY: dict[str, int] = {
+    "dungeon": 15,
+    "cave": 12,
+    "ruins": 10,
+    "wilderness": 5,
+    "forest": 3,
+    "town": 0,  # Towns don't add dread
+}
+DREAD_NIGHT_BONUS = 5  # Extra dread when moving at night
+DREAD_TOWN_REDUCTION = 15  # Dread reduced when entering town
+DREAD_COMBAT_INCREASE = 10  # Dread increase when combat starts
+
 
 def suggest_command(unknown_cmd: str, known_commands: set[str]) -> Optional[str]:
     """Suggest a similar command for typos using fuzzy matching.
@@ -276,7 +289,15 @@ class GameState:
                     distance=distance,
                 )
             self.current_combat = CombatEncounter(self.current_character, enemies=enemies)
-            return self.current_combat.start()
+
+            # Combat increases dread
+            dread_message = self.current_character.dread_meter.add_dread(DREAD_COMBAT_INCREASE)
+            combat_message = self.current_combat.start()
+
+            if dread_message:
+                combat_message += f"\n{dread_message}"
+
+            return combat_message
         return None
     
     def move(self, direction: str) -> tuple[bool, str]:
@@ -431,6 +452,12 @@ class GameState:
             )
             message += f"\n{fallback_notice}"
 
+        # Update dread based on destination
+        location = self.get_current_location()
+        dread_message = self._update_dread_on_move(location)
+        if dread_message:
+            message += f"\n{dread_message}"
+
         # Check for exploration quest progress
         explore_messages = self.current_character.record_explore(self.current_location)
         for msg in explore_messages:
@@ -438,12 +465,12 @@ class GameState:
 
         # Check for ambient whisper (only when not in combat)
         if not self.is_in_combat():
-            location = self.get_current_location()
             whisper = self.whisper_service.get_whisper(
                 location_category=location.category,
                 character=self.current_character,
                 theme=self.theme,
-                is_night=self.game_time.is_night()
+                is_night=self.game_time.is_night(),
+                dread=self.current_character.dread_meter.dread
             )
             if whisper:
                 message += f"\n\n{format_whisper(whisper)}"
@@ -454,6 +481,38 @@ class GameState:
             message += f"\n{encounter_message}"
 
         return (True, message)
+
+    def _update_dread_on_move(self, location: Location) -> Optional[str]:
+        """Update dread level when moving to a new location.
+
+        Args:
+            location: The destination location
+
+        Returns:
+            Milestone message if a dread threshold was crossed, None otherwise
+        """
+        category = location.category or "default"
+        dread_meter = self.current_character.dread_meter
+
+        # Towns reduce dread
+        if category == "town":
+            if dread_meter.dread > 0:
+                dread_meter.reduce_dread(DREAD_TOWN_REDUCTION)
+            return None
+
+        # Calculate dread increase based on category and time of day
+        dread_increase = DREAD_BY_CATEGORY.get(category, 5)  # Default 5 for unknown
+
+        # Night adds extra dread
+        if self.game_time.is_night():
+            dread_increase += DREAD_NIGHT_BONUS
+
+        # Low health adds dread (<30% health)
+        if self.current_character.health < self.current_character.max_health * 0.3:
+            dread_increase += 5
+
+        # Add dread and return any milestone message
+        return dread_meter.add_dread(dread_increase)
 
     def record_choice(
         self,

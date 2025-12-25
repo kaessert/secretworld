@@ -23,6 +23,7 @@ python -m cli_rpg.main
 - **Gold Economy**: Earn gold from combat victories, spend it at shops
 - **Persistent Saves**: Save and load complete game progress including world state, location, and theme
 - **Day/Night Cycle**: Time advances as you explore (movement: +1 hour, rest: +4 hours). Night brings eerie whispers and some NPCs/shops may be unavailable
+- **Dread System**: Psychological horror element that tracks your fear level (0-100%). Dangerous areas build dread; high dread causes paranoid whispers and combat penalties. Reduce dread by resting, visiting towns, or talking to NPCs.
 - **Grid-Based World**: Navigate a spatially consistent world where directions are reliable (going north then south returns you to the same place)
 - **Experience System**: Level up by defeating enemies
 - **Colorized Output**: Color-coded terminal output for improved readability (enemies in red, locations in cyan, items in green, etc.)

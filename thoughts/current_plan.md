@@ -1,120 +1,118 @@
-# Implementation Plan: Add "Aggressive" Reputation Type
+# Darkness Meter - Implementation Plan
 
-## Spec
+## Feature Spec
 
-Add a new "aggressive" reputation type that NPCs recognize when players kill enemies frequently (10+ kills). This extends the existing reputation system that currently only tracks "cautious" (fleeing 3+ times).
+The Darkness Meter is a psychological horror element that tracks **Dread** (0-100%). Dread builds in dangerous areas and has gameplay consequences at high levels.
 
-**Trigger**: Player has 10+ `combat_kill` choices recorded
-**Effect**: NPCs acknowledge the player's violent tendencies with unique greetings
-**Priority**: Cautious (flee) checked before Aggressive (kill), so chronic fleers are recognized as cowards even if they also kill a lot
+### Core Mechanics
+- **Dread value**: Integer 0-100 stored on Character
+- **Dread builds from**:
+  - Entering dungeon/cave/ruins locations (+5-15 based on category)
+  - Combat encounters (+10 per combat)
+  - Being at night (+5 per movement at night)
+  - Low health (<30%) (+5 per action while injured)
+- **Dread reduces from**:
+  - Entering town locations (-15)
+  - Resting (-20)
+  - Talking to NPCs (-5 per conversation)
+- **High dread effects** (threshold-based):
+  - 50%+: Paranoid whispers appear (special dread whisper pool)
+  - 75%+: -10% attack penalty (debuff applied in combat)
+  - 100%: Shadow creature attack triggered OR random health damage
 
----
-
-## Tests (tests/test_npc.py)
-
-Add after existing reputation tests around line 138:
-
-```python
-def test_get_greeting_aggressive_reputation(self):
-    """get_greeting() returns aggressive greeting when player has 10+ kills."""
-    npc = NPC(name="Guard", description="A town guard", dialogue="Hello")
-    choices = [{"choice_type": "combat_kill"} for _ in range(10)]
-    with patch("cli_rpg.models.npc.random.choice") as mock_choice:
-        mock_choice.return_value = "I've heard tales of your... efficiency in combat."
-        result = npc.get_greeting(choices=choices)
-        # Should call _get_reputation_greeting which uses random.choice on templates
-        assert "efficiency" in result or mock_choice.called
-
-def test_get_greeting_no_aggressive_below_threshold(self):
-    """get_greeting() returns normal greeting when kills < 10."""
-    npc = NPC(name="Guard", description="A town guard", dialogue="Hello")
-    choices = [{"choice_type": "combat_kill"} for _ in range(9)]
-    result = npc.get_greeting(choices=choices)
-    assert result == "Hello"  # Falls back to dialogue
-
-def test_get_greeting_cautious_priority_over_aggressive(self):
-    """cautious reputation (flee) takes priority over aggressive (kill)."""
-    npc = NPC(name="Guard", description="A town guard", dialogue="Hello")
-    choices = (
-        [{"choice_type": "combat_flee"} for _ in range(3)] +
-        [{"choice_type": "combat_kill"} for _ in range(10)]
-    )
-    with patch("cli_rpg.models.npc.random.choice") as mock_choice:
-        mock_choice.return_value = "Word travels fast. They say you're... careful."
-        result = npc.get_greeting(choices=choices)
-        # Should get cautious greeting (flee checked first)
-        assert "careful" in result.lower() or "run" in result.lower() or "coward" in result.lower() or "survivor" in result.lower()
-```
+### Display
+- Show dread bar in `status` command: `DREAD: ████████░░░░░░░░ 53%`
+- Atmospheric messages on dread milestones (crossing 25%, 50%, 75%, 100%)
 
 ---
 
 ## Implementation Steps
 
-### Step 1: Add aggressive templates to NPC._get_reputation_greeting()
-
-**File**: `src/cli_rpg/models/npc.py` (line ~78)
-
-Add "aggressive" key to templates dict:
+### 1. Create DreadMeter model
+**File**: `src/cli_rpg/models/dread.py`
 
 ```python
-templates = {
-    "cautious": [
-        "Ah, I've heard of you... one who knows when to run. Smart.",
-        "Word travels fast. They say you're... careful. I respect that.",
-        "A survivor, they call you. Some might say coward, but you're alive.",
-    ],
-    "aggressive": [
-        "I've heard tales of your... efficiency in combat. Many have fallen.",
-        "The blood of your enemies precedes you. What brings such a warrior here?",
-        "A killer walks among us. I hope we remain on friendly terms.",
-    ]
-}
+@dataclass
+class DreadMeter:
+    dread: int = 0  # 0-100
+
+    def add_dread(self, amount: int) -> str | None  # Returns milestone message
+    def reduce_dread(self, amount: int) -> None
+    def get_display(self) -> str  # Bar display
+    def get_penalty(self) -> float  # Attack modifier (1.0 or 0.9)
+    def is_critical(self) -> bool  # 100%
+    def to_dict() / from_dict()  # Persistence
 ```
 
-### Step 2: Add aggressive check in NPC.get_greeting()
+### 2. Add dread to Character model
+**File**: `src/cli_rpg/models/character.py`
 
-**File**: `src/cli_rpg/models/npc.py` (line ~62, after cautious check)
+- Add `dread_meter: DreadMeter` field
+- Serialize/deserialize in `to_dict()` / `from_dict()`
+- Modify `get_attack_power()` to apply dread penalty when >= 75
 
-```python
-# Check for aggressive reputation (10+ kills)
-kill_count = sum(1 for c in choices if c.get("choice_type") == "combat_kill")
-if kill_count >= 10:
-    return self._get_reputation_greeting("aggressive")
-```
+### 3. Integrate dread into gameplay
+**File**: `src/cli_rpg/game_state.py`
 
-### Step 3: Record kills as choices in main.py
+- In `move()`: Add dread based on location category and time of day
+- In `move()` to town: Reduce dread
+- In `trigger_encounter()`: Add dread after combat starts
 
+### 4. Integrate dread into main.py commands
 **File**: `src/cli_rpg/main.py`
 
-**Location 1** (~line 254, after attack victory):
-```python
-# After: quest_messages = game_state.current_character.record_kill(enemy.name)
-# Add:
-game_state.record_choice(
-    choice_type="combat_kill",
-    choice_id=f"kill_{enemy.name}_{game_state.game_time.hour}",
-    description=f"Killed {enemy.name}",
-    target=enemy.name
-)
-```
+- In `handle_exploration_command("status")`: Display dread meter
+- In `handle_exploration_command("talk")`: Reduce dread
+- In `handle_exploration_command("rest")`: Reduce dread
+- In combat victory handler: Check for 100% dread shadow attack
 
-**Location 2** (~line 344, after cast victory):
-```python
-# Same addition after record_kill call
-game_state.record_choice(
-    choice_type="combat_kill",
-    choice_id=f"kill_{enemy.name}_{game_state.game_time.hour}",
-    description=f"Killed {enemy.name}",
-    target=enemy.name
-)
-```
+### 5. Add dread-aware whispers
+**File**: `src/cli_rpg/whisper.py`
+
+- Add `DREAD_WHISPERS` list for high-dread paranoid whispers
+- Modify `get_whisper()` to use dread whispers when dread >= 50
+
+### 6. Persistence compatibility
+**File**: `src/cli_rpg/game_state.py`
+
+- Dread is already on Character which serializes - just need from_dict backward compat
 
 ---
 
-## Verification
+## Tests
 
-```bash
-pytest tests/test_npc.py -v
-pytest tests/test_game_state.py -v
-pytest --cov=src/cli_rpg
-```
+### Unit Tests: `tests/test_dread.py`
+1. `test_dread_meter_initialization` - starts at 0
+2. `test_add_dread_clamps_to_100` - adding dread caps at 100
+3. `test_reduce_dread_clamps_to_0` - reducing dread can't go negative
+4. `test_dread_milestone_messages` - crossing thresholds returns messages
+5. `test_dread_display_bar` - correct visual bar generation
+6. `test_dread_attack_penalty_below_75` - no penalty below 75
+7. `test_dread_attack_penalty_at_75` - 10% penalty at/above 75
+8. `test_dread_serialization` - to_dict/from_dict roundtrip
+9. `test_backward_compatibility_no_dread` - Character.from_dict handles missing dread
+
+### Integration Tests: `tests/test_dread_integration.py`
+10. `test_move_to_dungeon_increases_dread`
+11. `test_move_to_town_decreases_dread`
+12. `test_move_at_night_adds_extra_dread`
+13. `test_combat_increases_dread`
+14. `test_rest_decreases_dread`
+15. `test_talk_decreases_dread`
+16. `test_status_shows_dread_meter`
+17. `test_high_dread_whispers_appear`
+18. `test_critical_dread_triggers_event`
+
+---
+
+## Files to Create/Modify
+
+| File | Action |
+|------|--------|
+| `src/cli_rpg/models/dread.py` | CREATE |
+| `src/cli_rpg/models/character.py` | MODIFY |
+| `src/cli_rpg/game_state.py` | MODIFY |
+| `src/cli_rpg/main.py` | MODIFY |
+| `src/cli_rpg/whisper.py` | MODIFY |
+| `tests/test_dread.py` | CREATE |
+| `tests/test_dread_integration.py` | CREATE |

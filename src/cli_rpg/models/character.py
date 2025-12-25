@@ -4,6 +4,8 @@ from typing import ClassVar, Dict, List, Tuple, TYPE_CHECKING
 
 from cli_rpg import colors
 
+from cli_rpg.models.dread import DreadMeter
+
 if TYPE_CHECKING:
     from cli_rpg.models.item import Item
     from cli_rpg.models.inventory import Inventory
@@ -52,6 +54,7 @@ class Character:
     bestiary: Dict[str, dict] = field(default_factory=dict)
     status_effects: List["StatusEffect"] = field(default_factory=list)
     look_counts: Dict[str, int] = field(default_factory=dict)
+    dread_meter: DreadMeter = field(default_factory=DreadMeter)
 
     def __post_init__(self):
         """Validate attributes and calculate derived stats."""
@@ -165,11 +168,13 @@ class Character:
         """Get total attack power including equipped weapon bonus and buffs/debuffs.
 
         Returns:
-            Strength plus weapon damage bonus, modified by attack buffs/debuffs
+            Strength plus weapon damage bonus, modified by attack buffs/debuffs and dread
         """
         base_attack = self.strength + self.inventory.get_damage_bonus()
         modifier = self._get_stat_modifier("buff_attack", "debuff_attack")
-        return int(base_attack * modifier)
+        # Apply dread penalty (0.9 at 75%+ dread)
+        dread_penalty = self.dread_meter.get_penalty()
+        return int(base_attack * modifier * dread_penalty)
 
     def get_defense(self) -> int:
         """Get total defense including equipped armor bonus and buffs/debuffs.
@@ -729,6 +734,7 @@ class Character:
             "bestiary": self.bestiary,
             "status_effects": [effect.to_dict() for effect in self.status_effects],
             "look_counts": self.look_counts,
+            "dread_meter": self.dread_meter.to_dict(),
         }
     
     @classmethod
@@ -793,6 +799,11 @@ class Character:
             ]
         # Restore look counts (with backward compatibility, defaults to empty dict)
         character.look_counts = data.get("look_counts", {})
+        # Restore dread meter (with backward compatibility, defaults to 0)
+        if "dread_meter" in data:
+            character.dread_meter = DreadMeter.from_dict(data["dread_meter"])
+        else:
+            character.dread_meter = DreadMeter()
         return character
     
     def __str__(self) -> str:

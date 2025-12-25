@@ -28,6 +28,21 @@ NIGHT_WHISPERS = [
     "Night creatures stir in their hidden lairs.",
 ]
 
+# Dread-induced paranoid whispers (triggered when dread >= 50%)
+DREAD_WHISPERS = [
+    "They're watching you. They've always been watching.",
+    "That shadow moved. You're certain it moved.",
+    "You hear your name whispered, but there's no one there.",
+    "Something is following you. Don't look back.",
+    "The walls have eyes. The darkness has teeth.",
+    "Your heartbeat sounds like footsteps behind you.",
+    "Trust no one. Not even yourself.",
+    "The silence is screaming at you.",
+    "Is that your reflection, or something else wearing your face?",
+    "They want you to keep going. Into the dark. Forever.",
+]
+DREAD_WHISPER_CHANCE = 0.50  # 50% chance of dread whisper when dread >= 50
+
 # Template whispers by location category
 CATEGORY_WHISPERS = {
     "town": [
@@ -104,7 +119,8 @@ class WhisperService:
         location_category: Optional[str],
         character: Optional["Character"] = None,
         theme: str = "fantasy",
-        is_night: bool = False
+        is_night: bool = False,
+        dread: int = 0
     ) -> Optional[str]:
         """Get a whisper for the current location, if one triggers.
 
@@ -113,6 +129,7 @@ class WhisperService:
             character: Optional player character for history-aware whispers
             theme: World theme for AI generation
             is_night: Whether it's currently night time
+            dread: Current dread level (0-100) for paranoid whispers
 
         Returns:
             Whisper text or None if no whisper triggers
@@ -120,6 +137,10 @@ class WhisperService:
         # Check if whisper triggers (30% chance)
         if random.random() > WHISPER_CHANCE:
             return None
+
+        # High dread (50%+) triggers paranoid whispers
+        if dread >= 50 and random.random() < DREAD_WHISPER_CHANCE:
+            return random.choice(DREAD_WHISPERS)
 
         # Check for player-history-aware whisper (10% of whispers)
         if character and random.random() < PLAYER_HISTORY_CHANCE:

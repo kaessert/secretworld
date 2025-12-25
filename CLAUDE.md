@@ -44,6 +44,7 @@ src/cli_rpg/
 ├── whisper.py           # Ambient whisper system for atmosphere
 └── models/
     ├── character.py     # Player character model
+    ├── dread.py         # Dread meter for psychological horror
     ├── enemy.py         # Enemy/monster model
     ├── game_time.py     # Day/night cycle and time tracking
     ├── item.py          # Item definitions

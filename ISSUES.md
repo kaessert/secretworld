@@ -68,6 +68,7 @@ Your choice will echo...
 
 #### 3. THE DARKNESS METER - Psychological Horror Element
 **Impact**: Tension, resource management, atmosphere
+**Status**: MVP IMPLEMENTED
 
 Exploring dangerous areas builds **Dread**:
 
@@ -80,11 +81,20 @@ Exploring dangerous areas builds **Dread**:
 ═══════════════════════════════════════
 ```
 
-- **Dread builds** in dark places, after combat, when alone, at night
-- **High dread effects**: Hallucinations (fake enemies), paranoid whispers, stat penalties
-- **At 100%**: Something terrible happens (shadow creature attack, madness event)
-- **Reduce dread**: Rest at campfires, talk to companions, visit towns, use light sources
-- **Brave players rewarded**: High-dread areas contain the best secrets
+**MVP Implemented**:
+- ✅ **DreadMeter model** with 0-100% tracking and visual bar display
+- ✅ **Dread triggers**: Dungeons (+15), caves (+12), ruins (+10), wilderness (+5), forest (+3), night movement (+5 bonus), low health (+5), combat (+10)
+- ✅ **Dread reduction**: Towns (-15), resting (-20), talking to NPCs (-5)
+- ✅ **Milestone messages**: At 25%, 50%, 75%, and 100% thresholds
+- ✅ **High dread effects**: Paranoid whispers at 50%+, -10% attack penalty at 75%+
+- ✅ **Status display**: Dread meter shown in `status` command
+- ✅ **Persistence**: Dread saved/loaded with game state (backward compatible)
+
+**Future Enhancements**:
+- **At 100%**: Shadow creature attacks, madness events
+- **Hallucinations**: Fake enemies at high dread
+- **Light sources**: Items that reduce dread buildup
+- **Brave player rewards**: Best secrets in high-dread areas
 
 ---
 
@@ -353,7 +363,7 @@ Your vision fades... but this is not the end.
 **Phase 3 - Depth** (Mastery and investment):
 7. Combo Combat - Satisfying combat loop
 8. Bond System - Emotional investment
-9. Darkness Meter - Psychological tension
+9. ~~Darkness Meter~~ ✅ MVP IMPLEMENTED - Psychological tension
 
 **Phase 4 - Transcendence** (Truly unique):
 10. Dream Sequences - Surreal storytelling

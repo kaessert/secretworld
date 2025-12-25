@@ -476,7 +476,8 @@ def handle_exploration_command(game_state: GameState, command: str, args: list[s
     elif command == "status":
         status_output = str(game_state.current_character)
         time_display = game_state.game_time.get_display()
-        return (True, f"\n{status_output}\nTime: {time_display}")
+        dread_display = game_state.current_character.dread_meter.get_display()
+        return (True, f"\n{status_output}\nTime: {time_display}\n{dread_display}")
 
     elif command == "inventory":
         return (True, "\n" + str(game_state.current_character.inventory))
@@ -620,6 +621,10 @@ def handle_exploration_command(game_state: GameState, command: str, args: list[s
         talk_messages = game_state.current_character.record_talk(npc.name)
         if talk_messages:
             output += "\n\n" + "\n".join(talk_messages)
+
+        # Talking to NPCs reduces dread by 5
+        if game_state.current_character.dread_meter.dread > 0:
+            game_state.current_character.dread_meter.reduce_dread(5)
 
         if npc.is_merchant and npc.shop:
             game_state.current_shop = npc.shop
@@ -1052,24 +1057,35 @@ def handle_exploration_command(game_state: GameState, command: str, args: list[s
             return (True, "\n=== Ancient Lore ===\nThe mysteries of this place remain hidden...")
 
     elif command == "rest":
-        # Check if already at full health
+        # Check if already at full health and dread
         char = game_state.current_character
-        if char.health >= char.max_health:
-            return (True, "\nYou're already at full health!")
+        at_full_health = char.health >= char.max_health
+        no_dread = char.dread_meter.dread == 0
+
+        if at_full_health and no_dread:
+            return (True, "\nYou're already at full health and feeling calm!")
+
+        messages = []
 
         # Calculate heal amount: 25% of max HP, minimum 1
-        heal_amount = max(1, char.max_health // 4)
+        if not at_full_health:
+            heal_amount = max(1, char.max_health // 4)
+            actual_heal = min(heal_amount, char.max_health - char.health)
+            char.heal(actual_heal)
+            messages.append(f"You rest and recover {actual_heal} health.")
 
-        # Cap healing at what's actually needed
-        actual_heal = min(heal_amount, char.max_health - char.health)
-
-        # Apply healing
-        char.heal(actual_heal)
+        # Reduce dread by 20
+        if not no_dread:
+            old_dread = char.dread_meter.dread
+            char.dread_meter.reduce_dread(20)
+            dread_reduced = old_dread - char.dread_meter.dread
+            if dread_reduced > 0:
+                messages.append(f"The peaceful rest eases your mind (Dread -{dread_reduced}%).")
 
         # Advance time by 4 hours for rest
         game_state.game_time.advance(4)
 
-        return (True, f"\nYou rest and recover {actual_heal} health.")
+        return (True, "\n" + " ".join(messages))
 
     elif command in ["attack", "defend", "flee", "rest"]:
         return (True, "\n✗ Not in combat.")
