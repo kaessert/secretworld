@@ -208,6 +208,23 @@ Requirements:
 Respond with ONLY the ASCII art, no explanation or formatting."""
 
 
+# Default prompt template for NPC ASCII art generation
+DEFAULT_NPC_ASCII_ART_PROMPT = """Generate ASCII art for a {theme} RPG character.
+
+NPC Name: {npc_name}
+Role: {npc_role}
+Description: {npc_description}
+
+Requirements:
+1. Create ASCII art that is 5-7 lines tall
+2. Maximum 40 characters wide per line
+3. Use only ASCII characters (letters, numbers, symbols)
+4. Make it visually represent the character's appearance and role
+5. Keep it simple but recognizable
+
+Respond with ONLY the ASCII art, no explanation or formatting."""
+
+
 # Default prompt template for NPC conversation responses
 DEFAULT_NPC_CONVERSATION_PROMPT = """You are roleplaying as {npc_name} in a {theme} RPG.
 
@@ -270,6 +287,7 @@ class AIConfig:
     npc_conversation_prompt: str = field(default=DEFAULT_NPC_CONVERSATION_PROMPT)
     ascii_art_generation_prompt: str = field(default=DEFAULT_ASCII_ART_GENERATION_PROMPT)
     location_ascii_art_generation_prompt: str = field(default=DEFAULT_LOCATION_ASCII_ART_PROMPT)
+    npc_ascii_art_generation_prompt: str = field(default=DEFAULT_NPC_ASCII_ART_PROMPT)
     
     def __post_init__(self) -> None:
         """Validate configuration after initialization."""
@@ -423,6 +441,7 @@ class AIConfig:
             "npc_conversation_prompt": self.npc_conversation_prompt,
             "ascii_art_generation_prompt": self.ascii_art_generation_prompt,
             "location_ascii_art_generation_prompt": self.location_ascii_art_generation_prompt,
+            "npc_ascii_art_generation_prompt": self.npc_ascii_art_generation_prompt,
         }
     
     @classmethod
@@ -462,5 +481,8 @@ class AIConfig:
             ),
             location_ascii_art_generation_prompt=data.get(
                 "location_ascii_art_generation_prompt", DEFAULT_LOCATION_ASCII_ART_PROMPT
+            ),
+            npc_ascii_art_generation_prompt=data.get(
+                "npc_ascii_art_generation_prompt", DEFAULT_NPC_ASCII_ART_PROMPT
             ),
         )

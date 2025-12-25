@@ -32,6 +32,7 @@ class NPC:
     offered_quests: List["Quest"] = field(default_factory=list)
     greetings: List[str] = field(default_factory=list)
     conversation_history: List[dict] = field(default_factory=list)
+    ascii_art: str = ""  # ASCII art representation of the NPC
 
     def __post_init__(self):
         """Validate NPC attributes."""
@@ -70,7 +71,7 @@ class NPC:
         Returns:
             Dictionary containing all NPC attributes
         """
-        return {
+        result = {
             "name": self.name,
             "description": self.description,
             "dialogue": self.dialogue,
@@ -81,6 +82,10 @@ class NPC:
             "greetings": self.greetings,
             "conversation_history": self.conversation_history
         }
+        # Only include ascii_art if it's not empty
+        if self.ascii_art:
+            result["ascii_art"] = self.ascii_art
+        return result
 
     @classmethod
     def from_dict(cls, data: dict) -> "NPC":
@@ -108,5 +113,6 @@ class NPC:
             is_quest_giver=data.get("is_quest_giver", False),
             offered_quests=offered_quests,
             greetings=data.get("greetings", []),
-            conversation_history=data.get("conversation_history", [])
+            conversation_history=data.get("conversation_history", []),
+            ascii_art=data.get("ascii_art", "")
         )

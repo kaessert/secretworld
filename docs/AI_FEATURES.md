@@ -333,6 +333,17 @@ pytest tests/test_e2e_world_expansion.py -v
 - Backward compatible: existing saves without ASCII art load correctly (empty string default)
 - ASCII art is persisted with location data and survives save/load cycles
 
+### 7b. AI-Generated NPC ASCII Art
+- NPCs display ASCII art when players talk to them (5-7 lines, max 40 chars wide)
+- AI generates unique ASCII art for each NPC via `generate_npc_ascii_art()`
+- Art reflects the NPC's role and name (merchant, quest_giver, guard, etc.)
+- Fallback templates in `npc_art.py` for common NPC roles:
+  - Merchant, quest_giver, villager, guard, elder, blacksmith, innkeeper
+- Role-based and name-based detection: NPCs named "Town Merchant" use merchant templates
+- ASCII art appears above the greeting dialogue when talking
+- Backward compatible: existing saves without ASCII art load correctly (empty string default)
+- ASCII art is persisted with NPC data and survives save/load cycles
+
 ### 8. AI-Generated Items
 - `AIService.generate_item()` creates contextual items based on theme, location, and player level
 - Supports all item types: weapons (damage_bonus), armor (defense_bonus), consumables (heal_amount), misc

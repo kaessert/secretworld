@@ -1678,3 +1678,97 @@ Note: Use "EXISTING_WORLD" as placeholder for the connection back to the source 
             conversation_history=formatted_history,
             player_input=player_input
         )
+
+    def generate_npc_ascii_art(
+        self,
+        npc_name: str,
+        npc_description: str,
+        npc_role: str,
+        theme: str
+    ) -> str:
+        """Generate ASCII art for an NPC.
+
+        Args:
+            npc_name: Name of the NPC
+            npc_description: Description of the NPC's appearance
+            npc_role: Role of the NPC (merchant, quest_giver, villager, etc.)
+            theme: World theme (e.g., "fantasy", "sci-fi")
+
+        Returns:
+            ASCII art string (5-7 lines, max 40 chars wide)
+
+        Raises:
+            AIGenerationError: If generation fails or response is invalid
+            AIServiceError: If API call fails
+            AITimeoutError: If request times out
+        """
+        # Build prompt
+        prompt = self._build_npc_ascii_art_prompt(
+            npc_name=npc_name,
+            npc_description=npc_description,
+            npc_role=npc_role,
+            theme=theme
+        )
+
+        # Call LLM
+        response_text = self._call_llm(prompt)
+
+        # Clean and validate response
+        art = self._parse_npc_ascii_art_response(response_text)
+
+        return art
+
+    def _build_npc_ascii_art_prompt(
+        self,
+        npc_name: str,
+        npc_description: str,
+        npc_role: str,
+        theme: str
+    ) -> str:
+        """Build prompt for NPC ASCII art generation.
+
+        Args:
+            npc_name: Name of the NPC
+            npc_description: Description of the NPC
+            npc_role: Role of the NPC
+            theme: World theme
+
+        Returns:
+            Formatted prompt string
+        """
+        return self.config.npc_ascii_art_generation_prompt.format(
+            npc_name=npc_name,
+            npc_description=npc_description,
+            npc_role=npc_role,
+            theme=theme
+        )
+
+    def _parse_npc_ascii_art_response(self, response_text: str) -> str:
+        """Parse and validate LLM response for NPC ASCII art generation.
+
+        Args:
+            response_text: Raw response text from LLM
+
+        Returns:
+            Cleaned ASCII art string
+
+        Raises:
+            AIGenerationError: If validation fails
+        """
+        # Strip whitespace and clean up
+        art = response_text.strip()
+
+        # Validate minimum content
+        lines = art.splitlines()
+        if len(lines) < 3:
+            raise AIGenerationError("NPC ASCII art too short (min 3 lines)")
+
+        # Truncate lines that are too long (max 40 chars for NPCs)
+        cleaned_lines = []
+        for line in lines[:7]:  # Max 7 lines for NPCs
+            if len(line) > 40:
+                cleaned_lines.append(line[:40])
+            else:
+                cleaned_lines.append(line)
+
+        return "\n".join(cleaned_lines)

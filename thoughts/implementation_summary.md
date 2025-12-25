@@ -1,4 +1,61 @@
-# Implementation Summary: ASCII Art for Locations
+# Implementation Summary: ASCII Art for NPCs
+
+## Overview
+Added ASCII art display when talking to NPCs, following the established pattern for locations and combat monsters.
+
+## What Was Implemented
+
+### Files Modified
+
+1. **`src/cli_rpg/models/npc.py`**
+   - Added `ascii_art: str = ""` field to NPC dataclass
+   - Updated `to_dict()` to include ascii_art only when non-empty
+   - Updated `from_dict()` to load ascii_art with fallback to empty string
+
+2. **`src/cli_rpg/ai_config.py`**
+   - Added `DEFAULT_NPC_ASCII_ART_PROMPT` template for AI generation
+   - Added `npc_ascii_art_generation_prompt` field to `AIConfig` dataclass
+   - Updated `to_dict()` and `from_dict()` methods to include new field
+
+3. **`src/cli_rpg/ai_service.py`**
+   - Added `generate_npc_ascii_art()` method for AI-powered art generation
+   - Added `_build_npc_ascii_art_prompt()` helper method
+   - Added `_parse_npc_ascii_art_response()` validation method (5-7 lines, max 40 chars wide)
+
+4. **`src/cli_rpg/main.py`**
+   - Updated talk command handler to generate/get NPC ASCII art
+   - Display ASCII art above greeting dialogue
+   - Falls back to template-based art if AI fails or is unavailable
+
+### New Files Created
+
+1. **`src/cli_rpg/npc_art.py`**
+   - Fallback ASCII art templates for NPC roles: merchant, quest_giver, villager, guard, elder, blacksmith, innkeeper, default
+   - `get_fallback_npc_ascii_art(role, npc_name)` function with role-based and name-based detection
+
+2. **`tests/test_npc_ascii_art.py`**
+   - 24 comprehensive tests covering:
+     - NPC model ascii_art field (storage, serialization, deserialization)
+     - Fallback ASCII art templates for all NPC roles
+     - Talk command displaying ASCII art
+     - AI-generated NPC ASCII art (mocked)
+     - AI integration with fallback behavior
+
+## Test Results
+
+All 24 new tests pass. Full test suite verification: **1623 tests passed** (no regressions)
+
+## E2E Validation Suggestions
+
+1. Start the game and find an NPC at the starting location
+2. Use `talk <npc_name>` command
+3. Verify ASCII art appears above the greeting dialogue
+4. Verify art persists after saving/loading the game
+5. Test with different NPC types (merchant, quest giver, villager)
+
+---
+
+# Previous Implementation Summary: ASCII Art for Locations
 
 ## Overview
 The ASCII art feature for locations has been fully implemented, allowing players to see visual representations of locations when entering or looking at them.

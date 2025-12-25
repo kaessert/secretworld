@@ -108,15 +108,79 @@ Map lacks visual feedback for inaccessible areas.
 - Add distinct marker for blocked/wall cells (e.g., `█` or `#`)
 - Consider using ASCII fallback markers (D for dungeon, T for town, etc.) with a `--ascii` flag
 
+### Overworld map with cities and sub-locations
+**Status**: ACTIVE
+
+Players want a more sophisticated map system with hierarchical locations - an overworld containing cities, dungeons, and other points of interest that can be entered to explore sub-locations.
+
+**Desired structure**:
+
+1. **Overworld layer**
+   - Large-scale map showing major landmarks (cities, forests, mountains, dungeons)
+   - Travel between landmarks (possibly with travel time or random encounters)
+   - Each landmark is an entry point to a sub-location
+
+2. **Sub-location layer**
+   - Cities contain: market district, tavern, castle, slums, etc.
+   - Dungeons contain: multiple floors/rooms to explore
+   - Forests contain: clearings, caves, ruins
+   - Each sub-location has its own local map
+
+3. **Navigation**
+   - `enter <location>` to go into a city/dungeon
+   - `exit` or `leave` to return to overworld
+   - Local movement within sub-locations (current n/s/e/w system)
+   - Fast travel between discovered overworld locations
+
+4. **Map display**
+   - Overworld map showing discovered landmarks
+   - Local map when inside a sub-location
+   - `map` command shows current layer, `worldmap` shows overworld
+
+**Benefits**:
+- More organized world structure
+- Logical grouping of related areas
+- Clearer sense of scale and progression
+- Natural quest hubs (cities) vs adventure zones (dungeons/wilderness)
+
 ### More content
 **Status**: ACTIVE
 
 ~~Multiple NPCs per location~~ (DONE - locations support multiple NPCs with improved talk command UX), ~~multiple enemies for fights~~ (DONE - combat now spawns 1-3 enemies with target-based attacks), boss fights
 
-### More content 2
+### Unique AI-generated ASCII art per entity
 **Status**: ACTIVE
 
-Users requesting ASCII art for things like ~~locations~~ (DONE - locations now display ASCII art when entering or looking, with AI-generated or fallback template art) and NPCs. ~~Monsters in combat~~ (DONE - enemies now display ASCII art when combat starts, with AI-generated or fallback template art)
+ASCII art should be unique and AI-generated for each distinct monster type, NPC, and location - not reused templates.
+
+**Current problem**:
+- Fallback template art is used when AI generation fails
+- Same monster type (e.g., "Goblin") may get different art each encounter
+- Art is not persisted, regenerated each time
+
+**Requirements**:
+
+1. **Unique per entity type**
+   - Each monster kind gets ONE consistent ASCII art (all Goblins look the same)
+   - Each NPC gets unique art matching their description
+   - Each location gets unique art matching its theme
+
+2. **AI-generated, not templates**
+   - All art should be AI-generated based on entity name/description
+   - Fallback templates only as last resort (API failure)
+   - Art should reflect entity characteristics (menacing monsters, friendly merchants, etc.)
+
+3. **Persistence**
+   - Generated art stored with entity data
+   - Art saved/loaded with game state
+   - Monster art stored in a bestiary/cache by monster name
+   - NPC art stored with NPC data in location
+
+4. **Art cache/bestiary**
+   - Global cache of monster art by monster name
+   - First encounter generates and caches art
+   - Subsequent encounters reuse cached art
+   - `bestiary` command to view discovered monster art?
 
 ### Meaningful choices and consequences
 **Status**: ACTIVE
@@ -456,4 +520,15 @@ echo -e "look\ngo north\nstatus" | cli-rpg --json
 {"type": "actions", "exits": ["north", "east"], "npcs": ["Town Merchant"], "commands": ["look", "go", ...]}
 ```
 
+### ASCII art for entities
+**Status**: RESOLVED
+
+Users requesting ASCII art for things like locations, NPCs, and monsters in combat.
+
+**Implementation**:
+- **Locations**: Display ASCII art when entering or looking (3-10 lines, max 50 chars wide). AI-generated via `generate_location_ascii_art()` with fallback templates in `location_art.py`
+- **NPCs**: Display ASCII art when talking to them (5-7 lines, max 40 chars wide). AI-generated via `generate_npc_ascii_art()` with fallback templates in `npc_art.py`
+- **Enemies**: Display ASCII art when combat starts (5-7 lines, max 40 chars wide). AI-generated via `generate_ascii_art()` with fallback templates by category
+
+All ASCII art is persisted with entity data and survives save/load cycles.
 

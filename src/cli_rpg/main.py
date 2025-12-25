@@ -534,6 +534,28 @@ def handle_exploration_command(game_state: GameState, command: str, args: list[s
         # Store current NPC for accept command context
         game_state.current_npc = npc
 
+        # Generate or get NPC ASCII art
+        if not npc.ascii_art:
+            # Determine NPC role for art generation
+            role = "merchant" if npc.is_merchant else ("quest_giver" if npc.is_quest_giver else "villager")
+
+            if game_state.ai_service:
+                try:
+                    npc.ascii_art = game_state.ai_service.generate_npc_ascii_art(
+                        npc_name=npc.name,
+                        npc_description=npc.description,
+                        npc_role=role,
+                        theme=game_state.theme
+                    )
+                except Exception:
+                    # Fall back to template-based art
+                    from cli_rpg.npc_art import get_fallback_npc_ascii_art
+                    npc.ascii_art = get_fallback_npc_ascii_art(role, npc.name)
+            else:
+                # No AI available, use fallback
+                from cli_rpg.npc_art import get_fallback_npc_ascii_art
+                npc.ascii_art = get_fallback_npc_ascii_art(role, npc.name)
+
         # Generate AI dialogue if available and NPC needs more greetings
         if game_state.ai_service and len(npc.greetings) < 3:
             try:
@@ -549,7 +571,11 @@ def handle_exploration_command(game_state: GameState, command: str, args: list[s
             except Exception:
                 pass  # Silent fallback to existing greetings
 
-        output = f"\n{npc.name}: \"{npc.get_greeting()}\""
+        # Build output with ASCII art first
+        output = ""
+        if npc.ascii_art:
+            output = f"\n{npc.ascii_art}\n"
+        output += f"\n{npc.name}: \"{npc.get_greeting()}\""
 
         # Record talk for TALK quest progress tracking
         talk_messages = game_state.current_character.record_talk(npc.name)

@@ -1,117 +1,71 @@
-# Implementation Plan: ASCII Art for Locations
+# Implementation Plan: Add ASCII Art for NPCs
 
 ## Summary
-Add ASCII art display for locations when players enter/look, following the established pattern from monster ASCII art (commit 74b71f2).
+Add ASCII art display when talking to NPCs, following the established pattern for locations and combat monsters.
 
-## Files to Modify/Create
+## Spec
+When a player talks to an NPC, display ASCII art of the NPC above or alongside the greeting dialogue. ASCII art should be:
+- AI-generated when AI service is available
+- Template-based fallback when AI fails or is unavailable
+- 5-7 lines tall, max 40 chars wide (similar to enemy art)
+- Based on NPC role: merchant, quest_giver, villager, guard, etc.
 
-### 1. Model: `src/cli_rpg/models/location.py`
-- Add `ascii_art: str = ""` field to `Location` dataclass (after `category` field)
-- Add `ascii_art` to `to_dict()` serialization (only when non-empty, for backward compatibility)
-- Add `ascii_art` to `from_dict()` with `.get("ascii_art", "")` fallback
-- Update `__str__()` to display ASCII art after name, before description
+## Files to Modify
 
-### 2. Fallback Templates: `src/cli_rpg/location_art.py` (new file)
-Create category-based fallback templates (similar to combat.py enemy art):
-```python
-# Templates for each location category:
-# - town: buildings/houses
-# - village: small settlement
-# - forest: trees
-# - dungeon: dark entrance/walls
-# - cave: cavern opening
-# - ruins: crumbling structures
-# - mountain: peaks
-# - wilderness: open landscape
-# - settlement: mixed buildings
+### 1. `src/cli_rpg/models/npc.py`
+- Add `ascii_art: str = ""` field to NPC dataclass
+- Update `to_dict()` to include ascii_art (only when non-empty)
+- Update `from_dict()` to load ascii_art with fallback
 
-def get_fallback_location_ascii_art(category: Optional[str], location_name: str) -> str
-```
-- 5-10 lines tall, max 50 chars wide (slightly larger than enemy art)
-- Match on category first, then fall back to name-based detection
+### 2. `src/cli_rpg/npc_art.py` (NEW)
+- Create fallback ASCII art templates for NPC roles:
+  - merchant, quest_giver, villager, guard, elder, blacksmith, innkeeper, default
+- Create `get_fallback_npc_ascii_art(role: Optional[str], npc_name: str) -> str`
 
-### 3. AI Config: `src/cli_rpg/ai_config.py`
-Add prompt template:
-```python
-DEFAULT_LOCATION_ASCII_ART_PROMPT = """Generate ASCII art for a {theme} RPG location.
+### 3. `src/cli_rpg/ai_config.py`
+- Add `DEFAULT_NPC_ASCII_ART_PROMPT` template
+- Add `npc_ascii_art_generation_prompt` field to `AIConfig`
 
-Location Name: {location_name}
-Category: {location_category}
-Description: {location_description}
+### 4. `src/cli_rpg/ai_service.py`
+- Add `generate_npc_ascii_art()` method (similar to enemy/location art)
+- Add `_build_npc_ascii_art_prompt()` helper
+- Add `_parse_npc_ascii_art_response()` validation
 
-Requirements:
-1. Create ASCII art that is 6-10 lines tall
-2. Maximum 50 characters wide per line
-3. Use only ASCII characters
-4. Represent the location's key visual features
-5. Keep it simple but atmospheric
+### 5. `src/cli_rpg/main.py`
+- In `handle_exploration_command()` talk command handler:
+  - Generate/get NPC ASCII art if not already set
+  - Display ASCII art above greeting dialogue
 
-Respond with ONLY the ASCII art, no explanation."""
-```
+## Tests to Write
 
-### 4. AI Service: `src/cli_rpg/ai_service.py`
-Add method:
-```python
-def generate_location_ascii_art(
-    self,
-    location_name: str,
-    location_description: str,
-    location_category: Optional[str],
-    theme: str
-) -> str:
-```
-- Similar implementation to `generate_ascii_art()` for enemies
-- Use `_parse_location_ascii_art_response()` with validation (min 3 lines, max 10 lines, max 50 chars width)
+### `tests/test_npc_ascii_art.py` (NEW)
+1. **TestNPCModelAsciiArt**
+   - test_npc_model_has_ascii_art_field
+   - test_npc_to_dict_includes_ascii_art
+   - test_npc_from_dict_loads_ascii_art
+   - test_npc_default_ascii_art_is_empty
 
-### 5. AI World: `src/cli_rpg/ai_world.py`
-Modify location creation to generate ASCII art:
-- In `create_ai_world()`: After creating location, call AI to generate art (or fallback)
-- In `expand_world()`: Same pattern
-- In `expand_area()`: Same pattern for each location
+2. **TestFallbackNPCAsciiArt**
+   - test_get_fallback_art_merchant
+   - test_get_fallback_art_quest_giver
+   - test_get_fallback_art_villager
+   - test_get_fallback_art_guard
+   - test_get_fallback_art_default
 
-Import `get_fallback_location_ascii_art` for fallback when AI unavailable.
+3. **TestTalkCommandAsciiArt**
+   - test_talk_displays_ascii_art_when_present
+   - test_talk_generates_art_with_ai
+   - test_talk_uses_fallback_without_ai
 
-### 6. Tests: `tests/test_location_ascii_art.py` (new file)
-Mirror test structure from `tests/test_ascii_art.py`:
-- `TestLocationModelAsciiArt`: field storage, to_dict, from_dict, default value
-- `TestFallbackLocationAsciiArt`: each category produces valid art
-- `TestLocationDisplayAsciiArt`: `__str__()` includes art when present
-- `TestAILocationAsciiArtGeneration`: mocked AI generation
+4. **TestAINPCAsciiArtGeneration**
+   - test_ai_npc_ascii_art_generation
+   - test_ai_npc_ascii_art_prompt_formatting
 
 ## Implementation Order
 
-1. **Tests first** (`tests/test_location_ascii_art.py`):
-   - Write tests for Location model `ascii_art` field
-   - Write tests for fallback art function
-   - Write tests for display in `__str__()`
-   - Write tests for AI generation (mocked)
-
-2. **Location model** (`src/cli_rpg/models/location.py`):
-   - Add `ascii_art` field
-   - Update serialization
-   - Update `__str__()` display
-
-3. **Fallback templates** (`src/cli_rpg/location_art.py`):
-   - Create 9 category templates
-   - Implement `get_fallback_location_ascii_art()`
-
-4. **AI config** (`src/cli_rpg/ai_config.py`):
-   - Add `DEFAULT_LOCATION_ASCII_ART_PROMPT`
-
-5. **AI service** (`src/cli_rpg/ai_service.py`):
-   - Add `generate_location_ascii_art()` method
-   - Add `_parse_location_ascii_art_response()` helper
-
-6. **AI world integration** (`src/cli_rpg/ai_world.py`):
-   - Add ASCII art generation to location creation
-   - Add fallback handling
-
-7. **Run all tests** to verify nothing breaks
-
-## Key Patterns to Follow
-
-- Use empty string default for backward compatibility with existing saves
-- Only serialize when non-empty (like coordinates/category)
-- AI generation with graceful fallback to templates
-- Templates matched by category first, then name keywords
-- Validation: min 3 lines, max 10 lines, max 50 chars width
+1. Add ascii_art field to NPC model
+2. Create npc_art.py with fallback templates
+3. Add prompt template to ai_config.py
+4. Add generate_npc_ascii_art() to ai_service.py
+5. Update talk command to display art
+6. Write and run tests
