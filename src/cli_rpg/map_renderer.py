@@ -1,7 +1,32 @@
 """Map renderer for displaying an ASCII map of explored locations."""
 
+from typing import Optional
+
 from cli_rpg.models.location import Location
 from cli_rpg import colors
+
+# Category to marker mapping for location icons
+CATEGORY_MARKERS = {
+    "town": "🏠",
+    "shop": "🏪",
+    "dungeon": "⚔",
+    "forest": "🌲",
+    "cave": "🕳",
+    "water": "🌊",
+    None: "•",  # default for uncategorized
+}
+
+
+def get_category_marker(category: Optional[str]) -> str:
+    """Get the marker icon for a location category.
+
+    Args:
+        category: The location category or None
+
+    Returns:
+        The corresponding marker character/emoji
+    """
+    return CATEGORY_MARKERS.get(category, "•")
 
 
 def render_map(world: dict[str, Location], current_location: str) -> str:
@@ -19,10 +44,10 @@ def render_map(world: dict[str, Location], current_location: str) -> str:
     if current_loc is None or current_loc.coordinates is None:
         return "No map available - current location does not have coordinates."
 
-    # Calculate 5x5 viewport centered on player (2 tiles in each direction)
+    # Calculate 9x9 viewport centered on player (4 tiles in each direction)
     player_x, player_y = current_loc.coordinates
-    min_x, max_x = player_x - 2, player_x + 2
-    min_y, max_y = player_y - 2, player_y + 2
+    min_x, max_x = player_x - 4, player_x + 4
+    min_y, max_y = player_y - 4, player_y + 4
 
     # Extract locations with coordinates that are within the viewport
     locations_with_coords = []
@@ -41,17 +66,16 @@ def render_map(world: dict[str, Location], current_location: str) -> str:
         assert coords is not None  # We already filtered for non-None coordinates
         coord_to_location[coords] = (name, location)
 
-    # Build the legend entries
+    # Build the legend entries (vertical format)
     legend_entries = []
     for name, location in locations_with_coords:
         if name == current_location:
             # Current location marked with @
-            marker = "@"
-            legend_entries.append(f"{colors.bold_colorize('@', colors.CYAN)} = You ({name})")
+            legend_entries.append(f"  {colors.bold_colorize('@', colors.CYAN)} = You ({name})")
         else:
-            # Use first letter of location name as marker
-            marker = name[0].upper()
-            legend_entries.append(f"{marker} = {name}")
+            # Use category marker
+            marker = get_category_marker(location.category)
+            legend_entries.append(f"  {marker} = {name}")
 
     # Create marker map for coordinates (uncolored for alignment calculations)
     coord_to_marker: dict[tuple[int, int], str] = {}
@@ -61,21 +85,25 @@ def render_map(world: dict[str, Location], current_location: str) -> str:
         if name == current_location:
             coord_to_marker[coords] = "@"
         else:
-            coord_to_marker[coords] = name[0].upper()
+            coord_to_marker[coords] = get_category_marker(location.category)
 
     # Calculate column width for alignment (each cell needs space for marker + padding)
-    cell_width = 3
+    # Use 4 to accommodate emoji markers which are typically 2 characters wide
+    cell_width = 4
 
     # Build header with x-coordinates
-    header_parts = ["   "]  # Space for y-axis label
+    header_parts = ["    "]  # Space for y-axis label (adjusted for larger coords)
     for x in range(min_x, max_x + 1):
         header_parts.append(f"{x:>{cell_width}}")
     header = "".join(header_parts)
 
+    # Calculate total content width (for box border)
+    content_width = len(header)
+
     # Build map rows (y-axis inverted so higher y is at the top)
     map_rows = []
     for y in range(max_y, min_y - 1, -1):
-        row_parts = [f"{y:>2} "]  # Y-axis label
+        row_parts = [f"{y:>3} "]  # Y-axis label
         for x in range(min_x, max_x + 1):
             coord = (x, y)
             if coord in coord_to_marker:
@@ -97,14 +125,34 @@ def render_map(world: dict[str, Location], current_location: str) -> str:
     else:
         exits_line = "Exits: None"
 
-    # Assemble the full output
+    # Build box border
+    border_width = content_width
+    top_border = "┌" + "─" * border_width + "┐"
+    bottom_border = "└" + "─" * border_width + "┘"
+
+    # Pad header and rows to fit in box
+    def pad_to_width(line: str, width: int) -> str:
+        # Account for ANSI codes when calculating visible length
+        import re
+        ansi_escape = re.compile(r"\x1b\[[0-9;]*m")
+        visible_len = len(ansi_escape.sub("", line))
+        padding = width - visible_len
+        return line + " " * max(0, padding)
+
+    # Assemble the full output with box border
     lines = [
         "=== MAP ===",
-        header,
-        *map_rows,
-        "",
-        "Legend: " + ", ".join(legend_entries),
-        exits_line,
+        top_border,
+        "│" + pad_to_width(header, border_width) + "│",
     ]
+
+    for row in map_rows:
+        lines.append("│" + pad_to_width(row, border_width) + "│")
+
+    lines.append(bottom_border)
+    lines.append("")
+    lines.append("Legend:")
+    lines.extend(legend_entries)
+    lines.append(exits_line)
 
     return "\n".join(lines)

@@ -2,10 +2,26 @@
 
 _No active issues_
 
-### Better Map
+### Invalid "up"/"down" directions shown as movement options
 **Status**: ACTIVE
 
-Better map, can take up more screen space, should look beautiful and be more usable
+The game displays "up" and "down" as possible movement directions, but the world uses a 2D grid where only cardinal directions (north, south, east, west) make sense.
+
+**Root cause**: Multiple locations define "up" and "down" as valid directions:
+- `models/location.py:30`: `VALID_DIRECTIONS` includes "up" and "down"
+- `world_grid.py:22-23`: `OPPOSITE_DIRECTIONS` includes "up" and "down"
+- `ai_config.py:25`: AI prompt suggests "up" and "down" as valid directions
+
+**Consequences**:
+- Players see "up" or "down" as available exits but cannot actually move in those directions
+- If a location only has "up" or "down" connections (no cardinal directions), the player could get stuck with no valid exits
+- The world should always have at least one open cardinal direction to explore so players can continue expanding the world
+
+**Fix**:
+1. Remove "up" and "down" from `VALID_DIRECTIONS` in `models/location.py`
+2. Remove "up" and "down" from `OPPOSITE_DIRECTIONS` in `world_grid.py`
+3. Update AI prompt in `ai_config.py` to only use cardinal directions
+4. Ensure the map always has at least one unexplored cardinal direction available for world expansion
 
 ### More content
 **Status**: ACTIVE
@@ -94,5 +110,15 @@ All AI-generated content features have been implemented:
 **Status**: RESOLVED
 
 The map alignment issue with colored markers has been fixed. The player's `@` marker now aligns correctly with column headers and other location markers. Additionally, available exits are now displayed below the map legend (e.g., "Exits: east, north").
+
+### Better Map
+**Status**: RESOLVED
+
+Enhanced the map renderer with:
+- Expanded 9x9 viewport (sees 4 tiles in each direction instead of 2)
+- Decorative box-drawing border using Unicode characters
+- Category-based location markers with emoji icons (🏠 town, 🏪 shop, ⚔ dungeon, 🌲 forest, etc.)
+- Vertical legend format for better readability
+- Increased cell width to accommodate emoji markers
 
 

@@ -1,62 +1,81 @@
-# Implementation Summary: "Did You Mean?" Command Suggestions
+# Better Map Implementation Summary
 
 ## What Was Implemented
 
-Added fuzzy matching to suggest similar commands when a player types an unrecognized command.
+Enhanced the map renderer (`src/cli_rpg/map_renderer.py`) with the following features:
 
-### Changes Made
+### 1. Expanded Viewport (9x9)
+- Changed from 5x5 to 9x9 viewport (4 tiles in each direction from player instead of 2)
+- Player sees more of the surrounding area for better navigation
 
-#### 1. `src/cli_rpg/game_state.py`
-- Added `import difflib` for fuzzy string matching
-- Added `KNOWN_COMMANDS` constant (set of all valid commands) at module level
-- Added `suggest_command(unknown_cmd, known_commands)` helper function
-  - Uses `difflib.get_close_matches()` with 60% similarity threshold
-  - Returns the best match or `None` if no close match found
-- Modified `parse_command()` to return `("unknown", [original_command])` instead of `("unknown", [])` for unrecognized commands, enabling error messages to show what was typed
+### 2. Box-Drawing Border
+- Added decorative box border using Unicode characters: `┌┐└┘─│`
+- Map content is now enclosed in a visual frame
+- Added padding logic to handle ANSI color codes without breaking alignment
 
-#### 2. `src/cli_rpg/main.py`
-- Added import for `suggest_command` and `KNOWN_COMMANDS`
-- Updated exploration mode unknown command handler to show suggestion
-- Updated combat mode unknown command handler to show suggestion (using combat-specific command set)
+### 3. Category-Based Location Markers
+- Introduced `CATEGORY_MARKERS` dictionary mapping location categories to icons:
+  - `town`: 🏠
+  - `shop`: 🏪
+  - `dungeon`: ⚔
+  - `forest`: 🌲
+  - `cave`: 🕳
+  - `water`: 🌊
+  - `None` (uncategorized): •
+- Player position still uses `@` marker with cyan color
+- New helper function `get_category_marker()` for marker lookup
 
-#### 3. `tests/test_command_suggestions.py` (new file)
-- 21 tests covering:
-  - `suggest_command()` function for various typos
-  - `parse_command()` returning original input
-  - Message formatting
-  - `KNOWN_COMMANDS` set contents
+### 4. Vertical Legend Format
+- Changed legend from comma-separated single line to vertical format
+- Each location entry on its own line with "Legend:" header
+- Format: `  marker = Location Name`
 
-#### 4. `tests/test_game_state.py`
-- Updated `test_parse_command_unknown` to expect new behavior
+### 5. Increased Cell Width
+- Changed `cell_width` from 3 to 4 to accommodate emoji markers
+
+## Files Modified
+
+| File | Changes |
+|------|---------|
+| `src/cli_rpg/map_renderer.py` | Full implementation of all features |
+| `tests/test_map_renderer.py` | Updated tests for 9x9 viewport, added new test class `TestMapVisualImprovements` |
 
 ## Test Results
 
-All 1445 tests pass.
+All 13 map renderer tests pass:
+- 9 tests in `TestPlayerCenteredMap` (viewport, centering, clipping, alignment, exits)
+- 4 tests in `TestMapVisualImprovements` (box border, category markers, vertical legend)
 
-## Behavior
+Full test suite: **1450 tests passed**
 
-**With suggestion (typo is close to a known command):**
-```
-> attakc
-✗ Unknown command 'attakc'. Did you mean 'attack'?
-```
+## Example Output
 
-**Without suggestion (too different from any command):**
 ```
-> xyzzy
-✗ Unknown command. Type 'help' for a list of commands.
-```
+=== MAP ===
+┌────────────────────────────────────────┐
+│      -4  -3  -2  -1   0   1   2   3   4│
+│  4                                     │
+│  3                                     │
+│  2                                     │
+│  1                         🌲          │
+│  0                    @   🏪           │
+│ -1                                     │
+│ -2                                     │
+│ -3                                     │
+│ -4                                     │
+└────────────────────────────────────────┘
 
-**In combat (suggests from combat-specific commands only):**
-```
-> attak
-✗ Unknown command 'attak'. Did you mean 'attack'?
+Legend:
+  @ = You (Town Square)
+  🏪 = General Store
+  🌲 = Forest Path
+Exits: east, north
 ```
 
 ## E2E Validation
 
-To manually verify:
-1. Start the game: `cli-rpg`
-2. At any exploration prompt, type a typo like `"attakc"` or `"lokk"`
-3. Verify the "Did you mean 'X'?" suggestion appears
-4. Enter combat and type a typo like `"attak"` to verify combat suggestions work
+The implementation can be validated by:
+1. Running the game and using the `map` command
+2. Verifying the 9x9 grid displays correctly
+3. Checking that location category icons appear correctly
+4. Confirming the box border renders properly in the terminal

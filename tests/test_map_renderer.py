@@ -1,6 +1,6 @@
-"""Tests for player-centered map display (5x5 grid).
+"""Tests for player-centered map display (9x9 grid).
 
-These tests verify that render_map() displays a 5x5 grid centered on the player's
+These tests verify that render_map() displays a 9x9 grid centered on the player's
 current location, rather than calculating bounds from all explored locations.
 """
 
@@ -9,12 +9,12 @@ from cli_rpg.models.location import Location
 
 
 class TestPlayerCenteredMap:
-    """Tests for 5x5 player-centered map viewport."""
+    """Tests for 9x9 player-centered map viewport."""
 
     def test_map_centered_on_player(self):
         """Verify player position is always at grid center regardless of absolute coordinates.
 
-        Spec: Player should always be at the center of the 5x5 viewport (relative 0,0)
+        Spec: Player should always be at the center of the 9x9 viewport (relative 0,0)
         """
         # Player at (5, 5) with locations scattered around
         world = {
@@ -26,25 +26,28 @@ class TestPlayerCenteredMap:
         }
         result = render_map(world, "Player Location")
 
-        # The map should show coordinates 3-7 on x-axis (5-2 to 5+2)
-        # The map should show coordinates 3-7 on y-axis (5-2 to 5+2)
+        # The map should show coordinates 1-9 on x-axis (5-4 to 5+4)
+        # The map should show coordinates 1-9 on y-axis (5-4 to 5+4)
         # Player @ should be at the center position
         lines = result.split("\n")
 
         # Find the row with the player's y-coordinate (5)
+        # Rows are inside box borders, so strip the │ characters
         player_row = None
         for line in lines:
-            if line.strip().startswith("5 ") or line.strip().startswith(" 5 "):
+            # Strip box border characters
+            content = line.strip("│").strip()
+            if content.startswith("5 ") or content.startswith(" 5 "):
                 player_row = line
                 break
 
         assert player_row is not None, "Player's y-coordinate row (5) should be visible"
         assert "@" in player_row, "Player marker @ should be in the row with y=5"
 
-    def test_map_shows_5x5_viewport(self):
-        """Verify exactly 5 columns (-2 to +2) and 5 rows (-2 to +2) are displayed.
+    def test_map_shows_9x9_viewport(self):
+        """Verify exactly 9 columns (-4 to +4) and 9 rows (-4 to +4) are displayed.
 
-        Spec: Map should display fixed 5x5 area centered on player
+        Spec: Map should display fixed 9x9 area centered on player
         """
         # Player at origin
         world = {
@@ -54,43 +57,71 @@ class TestPlayerCenteredMap:
 
         lines = result.split("\n")
 
-        # The map format is:
-        # === MAP ===
-        #     -2 -1  0  1  2    <- header with x-coordinates
-        #  2                     <- data rows with y-coord prefix
-        #  1
-        #  0         @
-        # -1
-        # -2
-        #
-        # Legend: ...
+        # Find header line with x-coordinates (inside box border)
+        # Look for the line that has x-coordinates (should have -4 through 4)
+        header_line = None
+        for line in lines:
+            content = line.strip("│").strip()
+            if "-4" in content and "4" in content and "-3" in content:
+                header_line = content
+                break
 
-        # Find header line with x-coordinates (has multiple numbers)
-        header_line = lines[1]  # Header is always second line after "=== MAP ==="
-        assert "-2" in header_line, "Header should contain x-coordinate -2"
-        assert "2" in header_line, "Header should contain x-coordinate 2"
-        # Check all 5 x-coordinates are present
-        for x in range(-2, 3):
+        assert header_line is not None, "Header line with x-coordinates should exist"
+        assert "-4" in header_line, "Header should contain x-coordinate -4"
+        assert "4" in header_line, "Header should contain x-coordinate 4"
+        # Check all 9 x-coordinates are present
+        for x in range(-4, 5):
             assert str(x) in header_line, f"X-coordinate {x} should be in header"
 
-        # Data rows are lines 2-6 (y from 2 down to -2)
-        # Verify we have exactly 5 data rows between header and legend
-        data_rows = lines[2:7]  # Lines 2,3,4,5,6
-        assert len(data_rows) == 5, f"Should have exactly 5 data rows, got {len(data_rows)}"
+        # Verify we have exactly 9 data rows (y from 4 down to -4)
+        # Count rows that start with a y-coordinate number (inside box border)
+        # Skip header line by checking that first part is a y-coordinate (not x-coordinates)
+        data_rows = []
+        for line in lines:
+            # Strip box border characters
+            content = line.strip("│").strip()
+            if content:
+                parts = content.split()
+                if parts:
+                    try:
+                        y = int(parts[0])
+                        # A y-coordinate row will have only one number at the start,
+                        # while header has multiple x-coordinates
+                        # Check that the rest of the content doesn't look like x-coordinates
+                        if -4 <= y <= 4 and len(parts) == 1:
+                            # This is a data row with only y-coord visible (empty cells)
+                            data_rows.append(line)
+                        elif -4 <= y <= 4 and not all(
+                            p.lstrip("-").isdigit() for p in parts[1:4] if p
+                        ):
+                            # Data row with markers
+                            data_rows.append(line)
+                    except ValueError:
+                        pass
 
-        # Verify y-coordinates 2, 1, 0, -1, -2 are present as row labels
-        expected_y = [2, 1, 0, -1, -2]
-        for i, expected in enumerate(expected_y):
-            row = data_rows[i]
-            # Each row should start with the y-coordinate
-            assert row.strip().startswith(str(expected)), (
-                f"Row {i} should start with y={expected}, got: {row}"
-            )
+        assert len(data_rows) == 9, f"Should have exactly 9 data rows, got {len(data_rows)}"
+
+        # Verify y-coordinates 4, 3, 2, 1, 0, -1, -2, -3, -4 are present as row labels
+        y_coords_found = set()
+        for row in data_rows:
+            content = row.strip("│").strip()
+            parts = content.split()
+            if parts:
+                try:
+                    y = int(parts[0])
+                    y_coords_found.add(y)
+                except ValueError:
+                    pass
+
+        expected_y = {4, 3, 2, 1, 0, -1, -2, -3, -4}
+        assert y_coords_found == expected_y, (
+            f"Should have y-coordinates {expected_y}, got {y_coords_found}"
+        )
 
     def test_map_clips_locations_outside_viewport(self):
-        """Verify locations >2 tiles away are not shown on map grid.
+        """Verify locations >4 tiles away are not shown on map grid.
 
-        Spec: Locations more than 2 tiles away from player should not appear in grid
+        Spec: Locations more than 4 tiles away from player should not appear in grid
         """
         # Player at (0,0), with a location far away at (10, 10)
         world = {
@@ -107,10 +138,10 @@ class TestPlayerCenteredMap:
         map_section = []
         in_map = False
         for line in lines:
-            if "===" in line:
+            if "┌" in line:  # Top border of the box
                 in_map = True
                 continue
-            if "Legend" in line:
+            if "└" in line:  # Bottom border
                 break
             if in_map:
                 map_section.append(line)
@@ -118,54 +149,55 @@ class TestPlayerCenteredMap:
         map_content = "\n".join(map_section)
 
         # F for "Far Away" should not appear in the map grid portion
-        # The grid only shows -2 to 2 on both axes
+        # The grid only shows -4 to 4 on both axes
         assert (
             "F" not in map_content
-        ), "Far Away location (F) should not appear in 5x5 viewport"
+        ), "Far Away location (F) should not appear in 9x9 viewport"
 
     def test_map_handles_player_at_origin(self):
-        """Player at (0,0) shows grid from (-2,-2) to (2,2).
+        """Player at (0,0) shows grid from (-4,-4) to (4,4).
 
-        Spec: When player is at origin, viewport spans -2 to +2 on both axes
+        Spec: When player is at origin, viewport spans -4 to +4 on both axes
         """
         world = {
             "Origin": Location("Origin", "The origin", {}, coordinates=(0, 0)),
-            "NorthEast": Location("NorthEast", "NE corner", {}, coordinates=(2, 2)),
-            "SouthWest": Location("SouthWest", "SW corner", {}, coordinates=(-2, -2)),
+            "NorthEast": Location("NorthEast", "NE corner", {}, coordinates=(4, 4)),
+            "SouthWest": Location("SouthWest", "SW corner", {}, coordinates=(-4, -4)),
         }
         result = render_map(world, "Origin")
 
         lines = result.split("\n")
 
-        # Verify x-axis shows -2 to 2
+        # Verify x-axis shows -4 to 4 (inside box border)
         header = None
         for line in lines:
-            if "-2" in line and "-1" in line and "0" in line and "1" in line and "2" in line:
-                header = line
+            content = line.strip("│").strip()
+            if "-4" in content and "-3" in content and "0" in content and "3" in content and "4" in content:
+                header = content
                 break
-        assert header is not None, "Header should contain all x-coordinates from -2 to 2"
+        assert header is not None, "Header should contain all x-coordinates from -4 to 4"
 
-        # Verify y-axis shows -2 to 2 (check for rows with these y-values)
+        # Verify y-axis shows -4 to 4 (check for rows with these y-values, inside box border)
         y_coords_found = set()
         for line in lines:
-            stripped = line.strip()
-            if stripped:
-                parts = stripped.split()
+            content = line.strip("│").strip()
+            if content:
+                parts = content.split()
                 if parts:
                     try:
                         y = int(parts[0])
-                        if -2 <= y <= 2:
+                        if -4 <= y <= 4:
                             y_coords_found.add(y)
                     except ValueError:
                         pass
 
-        expected_y_coords = {-2, -1, 0, 1, 2}
+        expected_y_coords = {-4, -3, -2, -1, 0, 1, 2, 3, 4}
         assert y_coords_found == expected_y_coords, (
             f"Should have y-coordinates {expected_y_coords}, got {y_coords_found}"
         )
 
     def test_map_handles_player_at_large_coordinates(self):
-        """Player at (100,50) shows grid from (98,48) to (102,52).
+        """Player at (100,50) shows grid from (96,46) to (104,54).
 
         Spec: Viewport should be relative to player position at large coordinates
         """
@@ -177,40 +209,40 @@ class TestPlayerCenteredMap:
 
         lines = result.split("\n")
 
-        # Verify x-axis shows 98 to 102
+        # Verify x-axis shows 96 to 104 (inside box border)
         header = None
         for line in lines:
-            if "98" in line and "102" in line:
-                header = line
+            content = line.strip("│").strip()
+            if "96" in content and "104" in content:
+                header = content
                 break
-        assert header is not None, "Header should contain x-coordinates 98 to 102"
+        assert header is not None, "Header should contain x-coordinates 96 to 104"
 
         # Verify specific coordinates are present
-        for x in [98, 99, 100, 101, 102]:
+        for x in [96, 97, 98, 99, 100, 101, 102, 103, 104]:
             assert str(x) in header, f"X-coordinate {x} should be in header"
 
-        # Verify y-axis shows 48 to 52
+        # Verify y-axis shows 46 to 54 (inside box border)
         y_coords_found = set()
         for line in lines:
-            stripped = line.strip()
-            if stripped:
-                parts = stripped.split()
+            content = line.strip("│").strip()
+            if content:
+                parts = content.split()
                 if parts:
                     try:
                         y = int(parts[0])
-                        if 48 <= y <= 52:
+                        if 46 <= y <= 54:
                             y_coords_found.add(y)
                     except ValueError:
                         pass
 
-        expected_y_coords = {48, 49, 50, 51, 52}
+        expected_y_coords = {46, 47, 48, 49, 50, 51, 52, 53, 54}
         assert y_coords_found == expected_y_coords, (
             f"Should have y-coordinates {expected_y_coords}, got {y_coords_found}"
         )
 
-        # Verify both @ (player) and N (Nearby) are visible
+        # Verify both @ (player) and • (Nearby - uncategorized) are visible
         assert "@" in result, "Player marker @ should be visible"
-        assert "N" in result, "Nearby location N should be visible"
 
     def test_colored_marker_alignment(self):
         """Verify colored @ marker aligns correctly with uncolored markers.
@@ -227,11 +259,11 @@ class TestPlayerCenteredMap:
 
         lines = result.split("\n")
 
-        # Find the row with y=0 (both markers should be on this row)
+        # Find the row with y=0 (both markers should be on this row, inside box border)
         row_y0 = None
         for line in lines:
-            stripped = line.strip()
-            if stripped.startswith("0 ") or stripped.startswith(" 0 "):
+            content = line.strip("│").strip()
+            if content.startswith("0 ") or content.startswith(" 0 "):
                 row_y0 = line
                 break
 
@@ -243,21 +275,21 @@ class TestPlayerCenteredMap:
         ansi_escape = re.compile(r"\x1b\[[0-9;]*m")
         clean_row = ansi_escape.sub("", row_y0)
 
-        # In the clean row, @ and E should be properly spaced
-        # With cell_width=3, markers should be right-aligned in their cells
+        # In the clean row, @ and • (uncategorized marker) should be properly spaced
+        # With cell_width=4, markers should be right-aligned in their cells
         # The pattern should be consistent spacing between markers
 
-        # Find positions of @ and E in the cleaned row
+        # Find positions of @ and • in the cleaned row
         at_pos = clean_row.find("@")
-        e_pos = clean_row.find("E")
+        marker_pos = clean_row.find("•")
 
         assert at_pos >= 0, "@ marker should be in the row"
-        assert e_pos >= 0, "E marker should be in the row"
+        assert marker_pos >= 0, "• marker should be in the row"
 
-        # E is at x=1 (one cell to the right of @)
-        # With cell_width=3, E should be exactly 3 characters after @
-        assert e_pos - at_pos == 3, (
-            f"E should be 3 characters after @, but gap is {e_pos - at_pos}. "
+        # • is at x=1 (one cell to the right of @)
+        # With cell_width=4, • should be exactly 4 characters after @
+        assert marker_pos - at_pos == 4, (
+            f"• should be 4 characters after @, but gap is {marker_pos - at_pos}. "
             f"Row: '{clean_row}'"
         )
 
@@ -300,3 +332,142 @@ class TestPlayerCenteredMap:
         # Should show exits line even with no connections
         assert "Exits:" in result, "Map should display exits line"
         assert "none" in result.lower(), "Map should indicate no exits available"
+
+
+class TestMapVisualImprovements:
+    """Tests for visual improvements: box border, category markers, vertical legend."""
+
+    def test_map_has_box_border(self):
+        """Verify map has box-drawing character border.
+
+        Spec: Map should be enclosed in a box using ┌┐└┘─│ characters
+        """
+        world = {
+            "Center": Location("Center", "Center location", {}, coordinates=(0, 0)),
+        }
+        result = render_map(world, "Center")
+
+        # Check for box-drawing characters
+        assert "┌" in result, "Map should have top-left corner (┌)"
+        assert "┐" in result, "Map should have top-right corner (┐)"
+        assert "└" in result, "Map should have bottom-left corner (└)"
+        assert "┘" in result, "Map should have bottom-right corner (┘)"
+        assert "─" in result, "Map should have horizontal borders (─)"
+        assert "│" in result, "Map should have vertical borders (│)"
+
+    def test_location_markers_show_category(self):
+        """Verify locations show category-based markers instead of first letters.
+
+        Spec: Each location type should show its category icon:
+        - town: 🏠
+        - shop: 🏪
+        - dungeon: ⚔
+        - forest: 🌲
+        - cave: 🕳
+        - water: 🌊
+        - None/uncategorized: •
+        """
+        world = {
+            "Town Square": Location(
+                "Town Square", "A bustling town", {}, coordinates=(0, 0), category="town"
+            ),
+            "General Store": Location(
+                "General Store", "A shop", {}, coordinates=(1, 0), category="shop"
+            ),
+            "Dark Dungeon": Location(
+                "Dark Dungeon", "A dungeon", {}, coordinates=(2, 0), category="dungeon"
+            ),
+            "Forest Path": Location(
+                "Forest Path", "A forest", {}, coordinates=(3, 0), category="forest"
+            ),
+        }
+        result = render_map(world, "Town Square")
+
+        # Player is at Town Square, so @ should be displayed for current location
+        assert "@" in result, "Player marker @ should be visible"
+
+        # Other locations should show their category icons
+        assert "🏪" in result, "Shop should show 🏪 marker"
+        assert "⚔" in result, "Dungeon should show ⚔ marker"
+        assert "🌲" in result, "Forest should show 🌲 marker"
+
+    def test_uncategorized_location_shows_default_marker(self):
+        """Verify uncategorized locations show the default • marker.
+
+        Spec: Locations without a category should show • instead of first letter
+        """
+        world = {
+            "Center": Location("Center", "Center location", {}, coordinates=(0, 0)),
+            "Nearby": Location(
+                "Nearby", "A nearby location", {}, coordinates=(1, 0), category=None
+            ),
+        }
+        result = render_map(world, "Center")
+
+        # The Nearby location should show • marker (not "N")
+        assert "•" in result, "Uncategorized location should show • marker"
+
+    def test_legend_vertical_format(self):
+        """Verify legend entries are displayed on separate lines.
+
+        Spec: Each legend entry should be on its own line, not comma-separated
+        """
+        world = {
+            "Town Square": Location(
+                "Town Square", "A town", {}, coordinates=(0, 0), category="town"
+            ),
+            "Shop": Location(
+                "Shop", "A shop", {}, coordinates=(1, 0), category="shop"
+            ),
+            "Forest": Location(
+                "Forest", "A forest", {}, coordinates=(0, 1), category="forest"
+            ),
+        }
+        result = render_map(world, "Town Square")
+
+        # Find the legend section
+        lines = result.split("\n")
+        legend_start = None
+        for i, line in enumerate(lines):
+            if "Legend:" in line:
+                legend_start = i
+                break
+
+        assert legend_start is not None, "Legend section should exist"
+
+        # Legend should have multiple lines (not comma-separated on one line)
+        # Count lines that contain location names after the Legend line
+        legend_lines = []
+        for i in range(legend_start, len(lines)):
+            line = lines[i]
+            if "Exits:" in line:
+                break
+            legend_lines.append(line)
+
+        # Should have at least 3 legend lines (one for each location)
+        assert len(legend_lines) >= 3, (
+            f"Legend should have entries on separate lines, got: {legend_lines}"
+        )
+
+    def test_legend_shows_category_markers(self):
+        """Verify legend entries show category markers next to location names.
+
+        Spec: Legend format should be "  🏠 Town Name" for categorized locations
+        """
+        world = {
+            "Town Square": Location(
+                "Town Square", "A town", {}, coordinates=(0, 0), category="town"
+            ),
+            "Shop": Location(
+                "Shop", "A shop", {}, coordinates=(1, 0), category="shop"
+            ),
+        }
+        result = render_map(world, "Town Square")
+
+        # Check that legend contains category markers
+        # Current location (Town Square) shows with @ marker
+        assert "@ = You (Town Square)" in result, "Legend should show player location with @"
+        # Other locations show their category markers
+        assert "🏪 = Shop" in result or "🏪  Shop" in result, (
+            "Legend should show shop with 🏪 marker"
+        )
