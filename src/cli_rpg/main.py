@@ -1121,8 +1121,29 @@ def handle_exploration_command(game_state: GameState, command: str, args: list[s
             return (True, f"\nNo companion named '{' '.join(args)}' in your party.")
 
         companion = matching[0]
-        game_state.companions.remove(companion)
-        return (True, f"\n{companion.name} has left your party.")
+
+        # Skip confirmation in non-interactive mode
+        if non_interactive:
+            game_state.companions.remove(companion)
+            return (True, f"\n{companion.name} has left your party.")
+
+        # Show confirmation with bond info
+        from cli_rpg.models.companion import BondLevel
+        bond_level = companion.get_bond_level()
+        if bond_level in (BondLevel.TRUSTED, BondLevel.DEVOTED):
+            print(f"\n⚠️  {companion.name} is {bond_level.value} ({companion.bond_points}% bond).")
+            print("Dismissing will reduce their bond significantly if you meet again.")
+        else:
+            print(f"\n{companion.name} ({bond_level.value}, {companion.bond_points}% bond)")
+
+        sys.stdout.flush()
+        response = input(f"Dismiss {companion.name}? (y/n): ").strip().lower()
+
+        if response == 'y':
+            game_state.companions.remove(companion)
+            return (True, f"\n{companion.name} has left your party.")
+        else:
+            return (True, f"\n{companion.name} remains in your party.")
 
     elif command == "companion-quest":
         # View/accept a companion's personal quest

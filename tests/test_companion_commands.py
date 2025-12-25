@@ -218,7 +218,7 @@ class TestDismissCommand:
         game_state = create_test_game_state()
         game_state.companions = []
 
-        success, message = handle_exploration_command(game_state, "dismiss", [])
+        success, message = handle_exploration_command(game_state, "dismiss", [], non_interactive=True)
 
         assert success is True
         assert "dismiss" in message.lower() or "specify" in message.lower()
@@ -228,7 +228,7 @@ class TestDismissCommand:
         game_state = create_test_game_state()
         game_state.companions = []
 
-        success, message = handle_exploration_command(game_state, "dismiss", ["Elara"])
+        success, message = handle_exploration_command(game_state, "dismiss", ["Elara"], non_interactive=True)
 
         assert success is True
         assert "no companion" in message.lower() or "not" in message.lower()
@@ -243,7 +243,7 @@ class TestDismissCommand:
         )
         game_state = create_test_game_state(companions=[companion])
 
-        success, message = handle_exploration_command(game_state, "dismiss", ["Elara"])
+        success, message = handle_exploration_command(game_state, "dismiss", ["Elara"], non_interactive=True)
 
         assert success is True
         assert len(game_state.companions) == 0
@@ -258,10 +258,135 @@ class TestDismissCommand:
         )
         game_state = create_test_game_state(companions=[companion])
 
-        success, message = handle_exploration_command(game_state, "dismiss", ["elara"])
+        success, message = handle_exploration_command(game_state, "dismiss", ["elara"], non_interactive=True)
 
         assert success is True
         assert len(game_state.companions) == 0
+
+
+class TestDismissConfirmation:
+    """Tests for dismiss confirmation dialog."""
+
+    def test_dismiss_high_bond_requires_confirmation(self, monkeypatch, capsys):
+        """Test dismissing trusted companion shows warning and requires confirmation.
+
+        Spec: For high-bond companions (TRUSTED/DEVOTED), emphasize the bond investment being lost
+        """
+        companion = Companion(
+            name="Elara",
+            description="A wandering minstrel",
+            recruited_at="Town Square",
+            bond_points=60  # TRUSTED level
+        )
+        game_state = create_test_game_state(companions=[companion])
+
+        # Simulate user typing 'y'
+        monkeypatch.setattr('builtins.input', lambda _: 'y')
+
+        success, message = handle_exploration_command(game_state, "dismiss", ["Elara"])
+
+        assert success is True
+        assert len(game_state.companions) == 0
+        assert "left" in message.lower()
+
+        # Verify warning was shown for high-bond companion
+        captured = capsys.readouterr()
+        assert "Trusted" in captured.out or "⚠️" in captured.out
+
+    def test_dismiss_low_bond_shows_basic_confirmation(self, monkeypatch, capsys):
+        """Test dismissing low-bond companion shows basic confirmation prompt.
+
+        Spec: When player runs `dismiss <name>`, show confirmation prompt with companion's name and bond level
+        """
+        companion = Companion(
+            name="Elara",
+            description="A wandering minstrel",
+            recruited_at="Town Square",
+            bond_points=10  # STRANGER level
+        )
+        game_state = create_test_game_state(companions=[companion])
+
+        # Simulate user typing 'y'
+        monkeypatch.setattr('builtins.input', lambda _: 'y')
+
+        success, message = handle_exploration_command(game_state, "dismiss", ["Elara"])
+
+        assert success is True
+        assert len(game_state.companions) == 0
+        assert "left" in message.lower()
+
+        # Verify companion info was shown
+        captured = capsys.readouterr()
+        assert "Elara" in captured.out
+
+    def test_dismiss_cancelled_on_no(self, monkeypatch):
+        """Test dismissing companion cancelled when user types 'n'.
+
+        Spec: Confirm with y/n input; only proceed with dismissal on 'y'
+        """
+        companion = Companion(
+            name="Elara",
+            description="A wandering minstrel",
+            recruited_at="Town Square",
+            bond_points=30
+        )
+        game_state = create_test_game_state(companions=[companion])
+
+        # Simulate user typing 'n'
+        monkeypatch.setattr('builtins.input', lambda _: 'n')
+
+        success, message = handle_exploration_command(game_state, "dismiss", ["Elara"])
+
+        assert success is True
+        assert len(game_state.companions) == 1
+        assert "remains" in message.lower()
+
+    def test_dismiss_non_interactive_skips_confirmation(self):
+        """Test dismiss in non-interactive mode skips confirmation.
+
+        Spec: In non-interactive mode, skip confirmation and dismiss immediately
+        """
+        companion = Companion(
+            name="Elara",
+            description="A wandering minstrel",
+            recruited_at="Town Square",
+            bond_points=75  # DEVOTED level
+        )
+        game_state = create_test_game_state(companions=[companion])
+
+        # non_interactive=True should skip confirmation
+        success, message = handle_exploration_command(
+            game_state, "dismiss", ["Elara"], non_interactive=True
+        )
+
+        assert success is True
+        assert len(game_state.companions) == 0
+        assert "left" in message.lower()
+
+    def test_dismiss_devoted_shows_strong_warning(self, monkeypatch, capsys):
+        """Test dismissing DEVOTED companion shows strong warning.
+
+        Spec: For high-bond companions (TRUSTED/DEVOTED), emphasize the bond investment being lost
+        """
+        companion = Companion(
+            name="Elara",
+            description="A wandering minstrel",
+            recruited_at="Town Square",
+            bond_points=90  # DEVOTED level
+        )
+        game_state = create_test_game_state(companions=[companion])
+
+        # Simulate user typing 'y'
+        monkeypatch.setattr('builtins.input', lambda _: 'y')
+
+        success, message = handle_exploration_command(game_state, "dismiss", ["Elara"])
+
+        assert success is True
+        assert len(game_state.companions) == 0
+
+        # Verify warning about bond investment
+        captured = capsys.readouterr()
+        assert "Devoted" in captured.out or "90" in captured.out
 
 
 class TestCompanionsInKnownCommands:

@@ -733,6 +733,8 @@ Text output could be more atmospheric and engaging.
 - Mountains: Eagle, Goat, Mountain Lion, Yeti
 - Towns/villages: Bandit, Thief, Ruffian, Outlaw
 
+**Note**: Players must be in the correct location type to encounter matching enemies. A quest for "Wolf" (forest enemy) won't progress while fighting in mountains (which spawn Eagle, Mountain Lion, Yeti). Players should explore forest areas to find wolves.
+
 ### Procedural quest generation
 **Status**: ACTIVE
 
