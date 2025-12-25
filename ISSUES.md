@@ -200,6 +200,7 @@ KIRA THE SCOUT
 
 #### 8. ENVIRONMENTAL STORYTELLING - The World as Narrator
 **Impact**: Discovery, atmosphere, lore depth
+**Status**: MVP IMPLEMENTED
 
 Locations tell stories through details:
 
@@ -222,7 +223,7 @@ Upon closer inspection, you notice:
    The entry ends mid-word. The pen is still here.
 ```
 
-- **Multi-layered examination**: Look once = surface. Look again = details. Look three times = secrets
+- **Multi-layered examination**: Look once = surface. Look again = details. Look three times = secrets ✅ IMPLEMENTED
 - **Collectible lore**: Journals, letters, inscriptions that piece together larger stories
 - **Environmental puzzles**: "The painting's eyes follow the candlestick..."
 - **Tragic histories**: Every ruin was once alive. Find out what happened.

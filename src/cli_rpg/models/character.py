@@ -51,6 +51,7 @@ class Character:
     quests: List["Quest"] = field(default_factory=list)
     bestiary: Dict[str, dict] = field(default_factory=dict)
     status_effects: List["StatusEffect"] = field(default_factory=list)
+    look_counts: Dict[str, int] = field(default_factory=dict)
 
     def __post_init__(self):
         """Validate attributes and calculate derived stats."""
@@ -555,6 +556,37 @@ class Character:
         """
         self.status_effects.clear()
 
+    def record_look(self, location_name: str) -> int:
+        """Record a look at a location and return the new count.
+
+        Args:
+            location_name: Name of the location being looked at
+
+        Returns:
+            The new look count for that location
+        """
+        self.look_counts[location_name] = self.look_counts.get(location_name, 0) + 1
+        return self.look_counts[location_name]
+
+    def get_look_count(self, location_name: str) -> int:
+        """Get the number of times player has looked at a location.
+
+        Args:
+            location_name: Name of the location
+
+        Returns:
+            Number of looks at that location (0 if never looked)
+        """
+        return self.look_counts.get(location_name, 0)
+
+    def reset_look_count(self, location_name: str) -> None:
+        """Reset the look count for a location.
+
+        Args:
+            location_name: Name of the location to reset
+        """
+        self.look_counts.pop(location_name, None)
+
     def record_enemy_defeat(self, enemy: "Enemy") -> None:
         """Record a defeated enemy in the bestiary.
 
@@ -696,6 +728,7 @@ class Character:
             "quests": [quest.to_dict() for quest in self.quests],
             "bestiary": self.bestiary,
             "status_effects": [effect.to_dict() for effect in self.status_effects],
+            "look_counts": self.look_counts,
         }
     
     @classmethod
@@ -758,6 +791,8 @@ class Character:
             character.status_effects = [
                 StatusEffect.from_dict(e) for e in data["status_effects"]
             ]
+        # Restore look counts (with backward compatibility, defaults to empty dict)
+        character.look_counts = data.get("look_counts", {})
         return character
     
     def __str__(self) -> str:

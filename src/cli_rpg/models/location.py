@@ -36,6 +36,8 @@ class Location:
     coordinates: Optional[Tuple[int, int]] = None
     category: Optional[str] = None
     ascii_art: str = ""
+    details: Optional[str] = None  # Second-look environmental details
+    secrets: Optional[str] = None  # Third-look hidden secrets
     
     def __post_init__(self) -> None:
         """Validate location attributes after initialization."""
@@ -153,6 +155,43 @@ class Location:
                 return npc
         return None
 
+    def get_layered_description(self, look_count: int = 1) -> str:
+        """Get description with appropriate layers based on look count.
+
+        Args:
+            look_count: Number of times player has looked at this location
+
+        Returns:
+            Formatted string with name, description, and appropriate detail layers
+        """
+        result = f"{colors.location(self.name)}\n"
+
+        # Add ASCII art if present (after name, before description)
+        if self.ascii_art:
+            result += self.ascii_art.strip() + "\n"
+
+        result += f"{self.description}\n"
+
+        if self.npcs:
+            npc_names = [colors.npc(npc.name) for npc in self.npcs]
+            result += f"NPCs: {', '.join(npc_names)}\n"
+
+        if self.connections:
+            directions = self.get_available_directions()
+            result += f"Exits: {', '.join(directions)}"
+        else:
+            result += "Exits: None"
+
+        # Add details layer (look_count >= 2)
+        if look_count >= 2 and self.details:
+            result += f"\n\nUpon closer inspection, you notice:\n{self.details}"
+
+        # Add secrets layer (look_count >= 3)
+        if look_count >= 3 and self.secrets:
+            result += f"\n\nHidden secrets reveal themselves:\n{self.secrets}"
+
+        return result
+
     def to_dict(self) -> dict[str, Any]:
         """Serialize the location to a dictionary.
 
@@ -174,6 +213,12 @@ class Location:
         # Only include ascii_art if non-empty (backward compatibility)
         if self.ascii_art:
             data["ascii_art"] = self.ascii_art
+        # Only include details if present (backward compatibility)
+        if self.details is not None:
+            data["details"] = self.details
+        # Only include secrets if present (backward compatibility)
+        if self.secrets is not None:
+            data["secrets"] = self.secrets
         return data
     
     @classmethod
@@ -201,6 +246,10 @@ class Location:
         category = data.get("category")
         # Parse ascii_art if present (for backward compatibility)
         ascii_art = data.get("ascii_art", "")
+        # Parse details if present (for backward compatibility)
+        details = data.get("details")
+        # Parse secrets if present (for backward compatibility)
+        secrets = data.get("secrets")
         return cls(
             name=data["name"],
             description=data["description"],
@@ -208,7 +257,9 @@ class Location:
             npcs=npcs,
             coordinates=coordinates,
             category=category,
-            ascii_art=ascii_art
+            ascii_art=ascii_art,
+            details=details,
+            secrets=secrets
         )
     
     def __str__(self) -> str:

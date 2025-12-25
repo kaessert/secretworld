@@ -1,96 +1,97 @@
-# Implementation Summary: Whisper System (MVP)
+# Implementation Summary: Multi-Layered Examination (Environmental Storytelling MVP)
 
 ## What Was Implemented
 
-Added an ambient whisper system that displays random narrative hints when entering locations.
+### Feature Overview
+The multi-layered examination system allows players to reveal progressively more details about a location by using the `look` command multiple times:
 
-### Features
+1. **First look**: Standard surface description (existing behavior)
+2. **Second look**: Reveals environmental details
+3. **Third look**: Reveals hidden secrets or lore hints
 
-**Core Behavior**:
-- 30% chance of whisper appearing when player enters a location
-- Whispers displayed in distinctive styled box with `[Whisper]: "..."` format
-- Whisper content based on location category (town, dungeon, wilderness, etc.)
-- No whispers during combat
-
-**Whisper Types**:
-1. **Category-based whispers**: Atmospheric text based on location type
-   - town: Cobblestones, forge fires, rusty hinges
-   - dungeon: Darkness, dampness, ancient warnings
-   - wilderness: Wind whispers, nature reclamation
-   - ruins: Echoes, broken stones, centuries of dust
-   - cave: Dripping water, absolute darkness, ancient sleepers
-   - forest: Leaning trees, light shafts, forest memory
-   - default: Strange feelings, different air, not alone
-
-2. **Player-history-aware whispers** (10% of whispers when conditions met):
-   - High gold (500+): Wealth-related warnings
-   - High level (5+): Recognition whispers
-   - Low health (<30%): Warning about pushing too far
-   - Many kills (10+): References to fallen enemies
-
-**Display Format**:
-```
-[Whisper]: "The stones here remember ancient sorrows..."
-```
-
-### Files Created
-
-1. **`src/cli_rpg/whisper.py`** - Self-contained whisper module
-   - `WhisperService` class with optional AI service support
-   - `get_whisper()` method with 30% trigger chance
-   - Template whispers by category (`CATEGORY_WHISPERS` dict)
-   - Player history whispers (`PLAYER_HISTORY_WHISPERS` dict)
-   - `format_whisper()` helper for styled output
-   - AI whisper generation stub (for future implementation)
-
-2. **`tests/test_whisper.py`** - Comprehensive test suite with 20 tests
-   - WhisperService creation tests (2 tests)
-   - get_whisper return type and probability tests (2 tests)
-   - Category-based whisper tests (5 tests)
-   - Player-history-aware whisper tests (5 tests)
-   - Format whisper tests (2 tests)
-   - GameState integration tests (4 tests)
+Moving to a new location resets the look counter for the previous location, so returning to a location starts fresh.
 
 ### Files Modified
 
-1. **`src/cli_rpg/game_state.py`**
-   - Added import: `from cli_rpg.whisper import WhisperService, format_whisper`
-   - Added `self.whisper_service = WhisperService(ai_service=ai_service)` in `__init__`
-   - Added whisper check in `move()` method after exploration quest progress, before encounter
+#### 1. `src/cli_rpg/models/character.py`
+- Added `look_counts: Dict[str, int]` field to track looks per location
+- Added three new methods:
+  - `record_look(location_name) -> int`: Increment and return look count
+  - `get_look_count(location_name) -> int`: Get current look count (0 if never looked)
+  - `reset_look_count(location_name) -> None`: Clear look count for a location
+- Updated `to_dict()` to include look_counts in serialization
+- Updated `from_dict()` to restore look_counts (with backward compatibility)
+
+#### 2. `src/cli_rpg/models/location.py`
+- Added two new optional fields:
+  - `details: Optional[str]` - Environmental details (shown on second look)
+  - `secrets: Optional[str]` - Hidden secrets (shown on third look)
+- Added `get_layered_description(look_count) -> str` method that builds the description with appropriate layers
+- Updated `to_dict()` to include details/secrets in serialization
+- Updated `from_dict()` to restore details/secrets (with backward compatibility)
+
+#### 3. `src/cli_rpg/game_state.py`
+- Modified `look()` method to:
+  - Increment character's look count for current location
+  - Return layered description based on look count
+- Modified `move()` method to:
+  - Track previous location before movement
+  - Reset look count for previous location after successful movement
+
+### Files Created
+
+#### `tests/test_examination.py`
+25 tests covering:
+- Character look tracking (7 tests)
+- Location layer fields (6 tests)
+- Location layered description method (6 tests)
+- GameState integration (6 tests)
 
 ## Test Results
 
 ```
-pytest tests/test_whisper.py -v
-============================== 20 passed ==============================
-
-pytest
-============================== 1827 passed ==============================
+tests/test_examination.py: 25 passed
+Full test suite: 1852 passed
 ```
 
-All 20 new whisper tests pass, and the full test suite (1827 tests) passes without regressions.
+No regressions introduced.
 
-## E2E Validation Suggestions
+## Display Format
 
-To manually verify in-game:
-1. Start a new game or load an existing save
-2. Move between locations repeatedly (use `go north`, `go south`, etc.)
-3. About 30% of moves should display a whisper message
-4. Whispers should be themed based on location category:
-   - Towns: mentions of cobblestones, forge fires, etc.
-   - Forests/wilderness: nature themes
-   - Dungeons/caves: darkness, danger themes
-5. With high gold (500+), some whispers may mention wealth
-6. At low health, some whispers may warn about pushing too far
+When details/secrets are available:
+
+```
+Town Square
+A bustling town square with a fountain in the center.
+Exits: north, south
+
+Upon closer inspection, you notice:
+  - Worn grooves in the cobblestones from years of cart traffic
+  - A faded notice board with curling papers
+  - The fountain's basin has coins glinting at the bottom
+
+Hidden secrets reveal themselves:
+  - Behind the notice board, someone has scratched initials: "R.K. + M.T."
+  - One cobblestone near the fountain is loose, as if frequently moved
+```
 
 ## Design Decisions
 
-1. **Self-contained module**: The whisper system is fully encapsulated in `whisper.py` with no changes to core game mechanics. Integration is minimal - just service initialization and a check in `move()`.
+1. **Backward Compatibility**: All new fields are optional with defaults that preserve existing behavior
+2. **Look Counter Reset**: Counter resets when leaving a location, not when returning. This ensures fresh exploration each visit.
+3. **Serialization**: Look counts are persisted in save files (useful for game continuity)
+4. **Layer Content Format**: Details and secrets are stored as raw strings, allowing flexibility for formatting (e.g., bullet points with "  - " prefix)
 
-2. **Template-first approach**: Uses template whispers with optional AI enhancement. This ensures whispers work reliably even without AI service.
+## E2E Testing Notes
 
-3. **No whispers during combat**: The system explicitly checks `is_in_combat()` to avoid distracting whispers during battle.
+To manually verify:
+1. Start a new game
+2. Use `look` command 3 times in starting location
+3. Move to another location
+4. Return to starting location
+5. Verify `look` shows only surface description (counter was reset)
 
-4. **Player history priority**: When player history whispers trigger (10% chance), conditions are checked in priority order: gold > level > health > kills. This ensures the most relevant whisper appears.
-
-5. **Graceful AI fallback**: If AI service is provided but fails, the system silently falls back to templates without exposing errors to the player.
+**Note**: The feature requires locations to have `details` and `secrets` fields populated to see the effect. Currently, this can be added:
+- By AI generation (when AI service is available)
+- By manually adding to template locations in `world.py`
+- In save files directly

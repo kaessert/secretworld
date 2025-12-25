@@ -211,13 +211,20 @@ class GameState:
         return None
     
     def look(self) -> str:
-        """Get a formatted description of the current location.
-        
+        """Get a formatted description of the current location with progressive detail.
+
+        Each look in the same location reveals more:
+        - First look: Surface description (standard)
+        - Second look: Environmental details
+        - Third look: Hidden secrets
+
         Returns:
-            String description of current location with name, description, and exits
+            String description with appropriate detail layers based on look count
         """
         location = self.get_current_location()
-        return str(location)
+        # Increment and get look count
+        look_count = self.current_character.record_look(self.current_location)
+        return location.get_layered_description(look_count)
     
     def is_in_combat(self) -> bool:
         """Check if combat is currently active.
@@ -288,6 +295,9 @@ class GameState:
             return (False, "You're in a conversation. Say 'bye' to leave first.")
 
         from cli_rpg.world_grid import DIRECTION_OFFSETS
+
+        # Track previous location for look count reset
+        previous_location = self.current_location
 
         current = self.get_current_location()
 
@@ -402,6 +412,9 @@ class GameState:
             autosave(self)
         except IOError:
             pass  # Silent failure - don't interrupt gameplay
+
+        # Reset look count for previous location (fresh start on return)
+        self.current_character.reset_look_count(previous_location)
 
         message = f"You head {direction} to {colors.location(self.current_location)}."
 

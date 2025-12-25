@@ -41,7 +41,7 @@ python -m cli_rpg.main
 **Note:** Constitution is automatically derived from your Strength stat and is used to reduce incoming damage during combat.
 
 ### Exploration Commands
-- `look` (l) - Examine your current location
+- `look` (l) - Examine your current location (use multiple times to reveal environmental details and hidden secrets)
 - `go <direction>` (g) - Move in a direction (north/n, south/s, east/e, west/w)
   - Quick shortcuts: `n`, `gn` (north), `w`, `gw` (west), `gs` (south), `ge` (east)
 - `map` (m) - Display an ASCII map of explored locations with available exits
