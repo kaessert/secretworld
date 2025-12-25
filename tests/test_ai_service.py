@@ -488,7 +488,7 @@ def test_generate_location_with_anthropic(mock_anthropic_class, tmp_path):
     mock_client.messages.create.assert_called_once()
     call_kwargs = mock_client.messages.create.call_args[1]
     assert call_kwargs["model"] == "claude-3-5-sonnet-latest"
-    assert call_kwargs["max_tokens"] == 500
+    assert call_kwargs["max_tokens"] == 2000
     assert len(call_kwargs["messages"]) == 1
     assert call_kwargs["messages"][0]["role"] == "user"
 
