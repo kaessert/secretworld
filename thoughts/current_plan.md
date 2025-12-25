@@ -1,97 +1,130 @@
-# Implementation Plan: Increase Test Coverage Beyond 95.01%
+# Implementation Plan: Increase main.py Test Coverage (94% -> 98%+)
 
 ## Objective
-Increase test coverage from 95.01% to ~96%+ by adding targeted tests for uncovered lines in the lowest-coverage modules.
+Improve test coverage for `src/cli_rpg/main.py` from 94% to 98%+ by adding targeted tests for the 38 uncovered lines.
 
-## Coverage Gap Analysis (by impact)
+## Uncovered Lines Analysis
 
-| Module | Current | Missing Lines | Priority |
-|--------|---------|---------------|----------|
-| ai_service.py | 92% | 34 lines | HIGH |
-| world.py | 92% | 4 lines | HIGH |
-| persistence.py | 93% | 8 lines | HIGH |
-| ai_config.py | 93% | 6 lines | MEDIUM |
-| ai_world.py | 94% | 11 lines | MEDIUM |
-| main.py | 94% | 38 lines | MEDIUM |
+| Lines | Function | Description | Test Strategy |
+|-------|----------|-------------|---------------|
+| 157-159 | `select_and_load_character()` | Generic Exception catch-all handler | Raise Exception from unexpected source after save type detection |
+| 189 | `handle_conversation_input()` | NPC role = "quest_giver" | Test with is_quest_giver=True, is_merchant=False |
+| 245 | `handle_combat_command()` | Quest progress messages after attack | Attack victory with active KILL quest |
+| 250-251 | `handle_combat_command()` | IOError during autosave after attack | Mock autosave to raise IOError |
+| 294-295 | `handle_combat_command()` | IOError during autosave after flee | Mock autosave to raise IOError on successful flee |
+| 327-328 | `handle_combat_command()` | IOError during autosave after cast | Mock autosave to raise IOError |
+| 490-491 | `handle_exploration_command()` | AI dialogue exception fallback | Mock generate_npc_dialogue to raise |
+| 498 | `handle_exploration_command()` | Talk shows quest progress | Character with TALK quest for NPC |
+| 593 | `handle_exploration_command()` | Buy with full inventory | Fill inventory before buy |
+| 610 | `handle_exploration_command()` | Buy triggers collect quest | Buy with active COLLECT quest |
+| 617 | `handle_exploration_command()` | Sell without args | Call sell command with no args |
+| 683 | `handle_exploration_command()` | Accept from non-quest-giver | NPC with is_quest_giver=False |
+| 805 | `handle_exploration_command()` | Quests in AVAILABLE/FAILED state | Character with AVAILABLE status quest |
+| 857-858 | `handle_exploration_command()` | Quit save success prints | Mock save_game_state to succeed |
+| 909 | `handle_exploration_command()` | "unknown" command literal | Pass "unknown" as command |
+| 953-961 | `run_game_loop()` | Combat status display | Full loop test with combat |
+| 964-968 | `run_game_loop()` | Conversation mode routing | Full loop test in conversation |
+| 1028 | `start_game()` | Empty world validation | Mock create_world to return empty dict |
+| 1032 | `start_game()` | Invalid starting location | Mock create_world with bad start location |
+| 1097-1100 | `main()` | AI fallback mode + init exception | Test with non-strict mode and AI init failure |
+
+---
 
 ## Implementation Steps
 
-### 1. Create `tests/test_coverage_gaps.py`
+### Step 1: Add tests to `tests/test_main_coverage.py`
 
-#### ai_service.py gaps
-- Test Anthropic import fallback when package unavailable (lines 18-21)
-- Test authentication error handling in `_call_openai` (line 241)
-- Test fallback error after retries exhausted (line 252)
-- Test JSON decode error in `_parse_enemy_response` (lines 892-893)
-- Test missing required field in enemy response (line 900)
-- Test description too long validation (line 920)
-- Test attack_flavor too short/long validation (lines 927, 931)
-- Test JSON decode error in `_parse_item_response` (lines 1043-1044)
-- Test missing required field in item response (line 1051)
-- Test cache hit path for quest generation (lines 1202-1206, 1216)
-- Test JSON decode error in `_parse_quest_response` (lines 1261-1262)
-- Test missing required field in quest response (line 1269)
-- Test xp_reward validation (line 1320)
+Add the following test classes/methods:
 
-#### world.py gaps (lines 18-21)
-- Test AI import fallback when ai_service unavailable
+```python
+class TestGenericLoadException:
+    def test_load_handles_unexpected_exception():
+        """Lines 157-159: Generic Exception after save detection."""
 
-#### persistence.py gaps (lines 9, 33, 162-163, 233, 267-268, 310)
-- Test filename truncation for long names (line 33)
-- Test fallback filename format parsing (lines 162-163)
-- Test delete_save FileNotFoundError path (line 233)
-- Test save_game_state OSError/PermissionError (lines 267-268)
-- Test load_game_state ValueError re-raise (line 310)
+class TestQuestGiverConversation:
+    def test_conversation_with_quest_giver_role():
+        """Line 189: NPC role is 'quest_giver'."""
 
-#### ai_config.py gaps (lines 296-299, 302, 306)
-- Test AI_PROVIDER=anthropic with missing ANTHROPIC_API_KEY
-- Test AI_PROVIDER=openai with missing OPENAI_API_KEY
-- Test invalid AI_PROVIDER value
+class TestAttackVictoryQuestProgress:
+    def test_attack_victory_quest_messages():
+        """Line 245: Quest progress messages on attack victory."""
 
-#### ai_world.py gaps (lines 39, 146, 150-151, 292-294, 434, 436-437, 469)
-- Test invalid direction to get_opposite_direction (line 39)
-- Test skipping duplicate location names (line 146)
-- Test skipping non-grid directions (lines 150-151)
+    def test_attack_victory_autosave_io_error():
+        """Lines 250-251: IOError silently caught."""
 
-### 2. Create `tests/test_main_additional_coverage.py`
+class TestFleeAutosaveIOError:
+    def test_flee_success_autosave_io_error():
+        """Lines 294-295: IOError silently caught."""
 
-#### main.py gaps (lines 157-159, 250-251, 294-295, 327-328, 490-491, 609-610, 617, 805, 857-858, 909, 959-961, 964-968, 1028, 1032, 1097-1100)
-- Test load failure exception handling (lines 157-159)
-- Test autosave IOError during combat victory (lines 250-251)
-- Test autosave IOError during flee (lines 294-295)
-- Test autosave IOError during cast victory (lines 327-328)
-- Test AI dialogue generation exception fallback (lines 490-491)
-- Test buy command with quest progress messages (lines 609-610)
-- Test sell command without args (line 617)
-- Test quests command edge case - no active quests message (line 805)
-- Test quit command save flow (lines 857-858)
-- Test rest command outside combat (line 909)
-- Test game loop combat status display (lines 959-961)
-- Test game loop conversation mode routing (lines 964-968)
-- Test start_game empty world validation (line 1028)
-- Test start_game missing starting location validation (line 1032)
-- Test AI initialization exception fallback (lines 1097-1100)
+class TestCastVictoryAutosave:
+    def test_cast_victory_autosave_io_error():
+        """Lines 327-328: IOError silently caught."""
 
-### 3. Create `tests/test_model_coverage_gaps.py`
+class TestTalkAIDialogueFallback:
+    def test_talk_ai_dialogue_exception():
+        """Lines 490-491: AI failure uses existing greetings."""
 
-#### character.py gaps (lines 204-210, 665-668)
-- Test use_item on generic consumable without heal (lines 204-210)
-- Test display colored health at different thresholds (lines 665-668)
+class TestTalkQuestProgress:
+    def test_talk_triggers_quest_progress():
+        """Line 498: TALK quest progress on NPC conversation."""
 
-#### inventory.py gaps (lines 143-146, 151, 246)
-- Test unequip armor when inventory is full (lines 143-146)
-- Test unequip invalid slot returns False (line 151)
-- Test display with equipped armor (line 246)
+class TestBuyEdgeCases:
+    def test_buy_inventory_full():
+        """Line 593: Inventory full error."""
 
-#### world_grid.py gaps (lines 137, 218, 226, 318, 330)
-- Test get_neighbor with invalid direction (line 137)
-- Test __iter__ method (line 218)
-- Test values() method (line 226)
-- Test ensure_dangling_exits with no coordinates (line 318)
-- Test ensure_dangling_exits returns False when no candidates (line 330)
+    def test_buy_collect_quest_progress():
+        """Line 610: COLLECT quest progress."""
 
-## Verification
-```bash
-source venv/bin/activate && pytest --cov=src/cli_rpg --cov-report=term-missing
-# Target: Coverage should increase from 95.01% to 96%+
+class TestAcceptNonQuestGiver:
+    def test_accept_from_non_quest_giver():
+        """Line 683: Accept from NPC without quests."""
+
+class TestQuestsEdgeCase:
+    def test_quests_available_status():
+        """Line 805: Quests in AVAILABLE state."""
+
+class TestQuitSaveSuccess:
+    def test_quit_save_success_output():
+        """Lines 857-858: Save success message."""
+
+class TestUnknownCommandLiteral:
+    def test_unknown_command_literal():
+        """Line 909: Explicit 'unknown' command."""
+
+class TestGameLoopCombat:
+    def test_game_loop_shows_combat_status():
+        """Lines 953-961: Combat status after action."""
+
+class TestGameLoopConversation:
+    def test_game_loop_conversation_routing():
+        """Lines 964-968: Conversation mode routing."""
+
+class TestStartGameValidation:
+    def test_start_game_empty_world():
+        """Line 1028: Empty world raises ValueError."""
+
+    def test_start_game_invalid_starting_location():
+        """Line 1032: Bad starting location raises ValueError."""
+
+class TestMainAIInit:
+    def test_main_fallback_mode_message():
+        """Line 1097: Fallback mode message."""
+
+    def test_main_ai_init_exception():
+        """Lines 1098-1100: AI init exception handling."""
 ```
+
+### Step 2: Run tests to verify
+
+```bash
+source venv/bin/activate && pytest tests/test_main_coverage.py -v
+source venv/bin/activate && pytest --cov=src/cli_rpg/main --cov-report=term-missing
+```
+
+---
+
+## Expected Coverage Improvement
+
+- **Before**: 94% (38 missing lines)
+- **Target**: 98%+ (< 10 missing lines)
+- **Lines to cover**: 20 distinct code paths
