@@ -1,89 +1,65 @@
-# Implementation Summary: `--log-file` CLI Option
+# Implementation Summary: dump-state Command
 
 ## What Was Implemented
 
-Added the `--log-file <path>` CLI argument for comprehensive gameplay logging with timestamps, commands, responses, and state changes in JSON Lines format.
+Added a `dump-state` command that exports the complete game state as JSON for programmatic inspection.
 
-### New Files Created
+### Files Modified
 
-1. **`src/cli_rpg/logging_service.py`** - New module containing the `GameplayLogger` class with methods:
-   - `log_session_start(character_name, location, theme)` - Logs session initialization
-   - `log_command(command)` - Logs player commands
-   - `log_response(message)` - Logs game responses
-   - `log_state(location, health, max_health, gold, level)` - Logs game state snapshots
-   - `log_session_end(reason)` - Logs session termination with reason (eof/quit/death)
-   - `close()` - Closes the log file
+1. **src/cli_rpg/game_state.py** (line 33)
+   - Added `"dump-state"` to `KNOWN_COMMANDS` set
 
-2. **`tests/test_log_file.py`** - 11 comprehensive tests covering:
-   - Flag parsing (`test_log_file_flag_accepted`)
-   - File creation (`test_log_file_creates_file`)
-   - JSON Lines format validation (`test_log_file_json_lines_format`)
-   - ISO 8601 timestamps (`test_log_file_has_timestamp`)
-   - Command logging (`test_log_file_logs_commands`)
-   - Response logging (`test_log_file_logs_responses`)
-   - State change logging (`test_log_file_logs_state_changes`)
-   - Compatibility with `--non-interactive` (`test_log_file_works_with_non_interactive`)
-   - Compatibility with `--json` (`test_log_file_works_with_json`)
-   - Session start entry (`test_log_file_session_start_entry`)
-   - Session end entry (`test_log_file_session_end_entry`)
+2. **src/cli_rpg/json_output.py** (lines 103-109)
+   - Added `emit_dump_state(game_state_dict: dict)` function for JSON mode output
 
-### Modified Files
+3. **src/cli_rpg/main.py** (multiple locations)
+   - Added help text for dump-state command (line 46)
+   - Added command handler in `handle_exploration_command` (lines 917-920)
+   - Added special JSON mode handling in `run_json_mode` (lines 1281-1285)
 
-1. **`src/cli_rpg/main.py`**:
-   - Added `--log-file` CLI argument (line ~1360)
-   - Updated `run_non_interactive()` to accept `log_file` parameter and integrate logging
-   - Updated `run_json_mode()` to accept `log_file` parameter and integrate logging
-   - Updated `main()` to pass `log_file` argument to both functions
+### New Test File
 
-## Log File Format
-
-Each log entry is a JSON object on a single line (JSON Lines format):
-
-```json
-{"timestamp": "2025-01-15T12:00:00.000000+00:00", "type": "session_start", "character": "Agent", "location": "Town Square", "theme": "fantasy"}
-{"timestamp": "2025-01-15T12:00:01.000000+00:00", "type": "command", "input": "look"}
-{"timestamp": "2025-01-15T12:00:01.100000+00:00", "type": "response", "text": "=== Town Square ===\n..."}
-{"timestamp": "2025-01-15T12:00:01.100000+00:00", "type": "state", "location": "Town Square", "health": 100, "max_health": 100, "gold": 50, "level": 1}
-{"timestamp": "2025-01-15T12:00:02.000000+00:00", "type": "session_end", "reason": "eof"}
-```
-
-## Entry Types
-
-| Type | Description | Fields |
-|------|-------------|--------|
-| `session_start` | Session initialization | `character`, `location`, `theme` |
-| `command` | Player input | `input` |
-| `response` | Game output | `text` |
-| `state` | Game state snapshot | `location`, `health`, `max_health`, `gold`, `level` |
-| `session_end` | Session termination | `reason` (eof/quit/death) |
+- **tests/test_dump_state.py** - 6 tests covering:
+  - Command recognition in KNOWN_COMMANDS
+  - Valid JSON output in non-interactive mode
+  - Character data presence (name, stats, inventory, quests)
+  - World data presence (locations, current_location)
+  - Theme presence
+  - Proper JSON mode output with `dump_state` type
 
 ## Test Results
 
-All 11 new tests pass:
+- All 6 new tests pass
+- Full test suite: 1488 tests pass
+
+## Feature Behavior
+
+### Normal Mode (--non-interactive)
 ```
-tests/test_log_file.py ...........  [100%]
+> dump-state
+{
+  "character": { ... },
+  "current_location": "Town Square",
+  "world": { ... },
+  "theme": "fantasy"
+}
 ```
 
-Full test suite: **1482 tests passed** (no regressions)
-
-## Usage Examples
-
-```bash
-# Basic usage with non-interactive mode
-cli-rpg --non-interactive --log-file session.log < commands.txt
-
-# Combined with JSON mode (log file separate from stdout)
-cli-rpg --json --log-file transcript.log < commands.txt
+### JSON Mode (--json)
+Emits a JSON Lines message with `type: "dump_state"`:
+```json
+{"type": "dump_state", "character": {...}, "current_location": "...", "world": {...}, "theme": "..."}
 ```
 
 ## E2E Validation
 
-E2E tests should verify:
-1. Log file is created at the specified path
-2. Log entries are valid JSON Lines
-3. Session start entry appears first with correct character/location/theme
-4. Commands are logged in order of input
-5. Responses match stdout output
-6. State entries reflect actual game state changes
-7. Session end entry appears last with correct reason
-8. Log file works independently from stdout (both `--json` and regular output unaffected)
+The implementation can be validated with:
+```bash
+# Non-interactive mode
+echo "dump-state" | cli-rpg --non-interactive
+
+# JSON mode
+echo "dump-state" | cli-rpg --json
+```
+
+Both should output valid JSON containing the full game state with character stats, inventory, location, quests, and world data.

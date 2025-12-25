@@ -60,6 +60,7 @@ python -m cli_rpg.main
 - `abandon <quest>` - Abandon an active quest from your journal
 - `lore` - Discover AI-generated lore snippets about your current location
 - `bestiary` (b) - View all defeated enemies with kill counts and stats
+- `dump-state` - Export complete game state as JSON for programmatic inspection
 - `rest` (r) - Rest to recover health (restores 25% of max HP, not available during combat)
 - `save` - Save complete game state including world, location, and theme (not available during combat)
 - `help` (h) - Display the full command reference

@@ -1,47 +1,3 @@
-# Session State Export (dump-state command) - Implementation Plan
-
-## Feature Spec
-Add a `dump-state` command that outputs the complete game state as JSON, enabling programmatic inspection of player stats, inventory, location, quest progress, and world state. This supports AI simulation test suites and debugging.
-
-**Output format**: Single JSON object with all game state data, same structure as `GameState.to_dict()`.
-
-**Availability**: Works in both normal gameplay and JSON mode (`--json`).
-
-## Implementation Steps
-
-### 1. Add `dump-state` to KNOWN_COMMANDS (game_state.py)
-- File: `src/cli_rpg/game_state.py`, line 29
-- Add `"dump-state"` to the `KNOWN_COMMANDS` set
-
-### 2. Add `emit_dump_state` function (json_output.py)
-- File: `src/cli_rpg/json_output.py`
-- Add function to emit full game state dump:
-```python
-def emit_dump_state(game_state_dict: dict) -> None:
-    """Emit full game state as JSON for dump-state command."""
-    print(json.dumps({"type": "dump_state", **game_state_dict}))
-```
-
-### 3. Add command handler in `handle_exploration_command` (main.py)
-- File: `src/cli_rpg/main.py`, around line 914 (after `help` command)
-- Add handler:
-```python
-elif command == "dump-state":
-    import json
-    state_dict = game_state.to_dict()
-    return (True, f"\n{json.dumps(state_dict, indent=2)}")
-```
-
-### 4. Add command to help reference (main.py)
-- File: `src/cli_rpg/main.py`, function `get_command_reference()`
-- Add under Exploration Commands:
-  - `dump-state        - Export full game state as JSON`
-
-## Test Plan
-
-### Test file: `tests/test_dump_state.py`
-
-```python
 """Tests for dump-state command.
 
 Spec: dump-state outputs complete game state as valid JSON including
@@ -61,10 +17,12 @@ class TestDumpStateCommand:
 
     def test_dump_state_in_known_commands(self):
         """dump-state should be a recognized command."""
+        # Spec: dump-state is a valid exploration command
         assert "dump-state" in KNOWN_COMMANDS
 
     def test_dump_state_outputs_valid_json(self):
         """dump-state should output valid JSON."""
+        # Spec: dump-state outputs complete game state as valid JSON
         result = subprocess.run(
             [sys.executable, "-m", "cli_rpg.main", "--non-interactive"],
             input="dump-state\n",
@@ -89,6 +47,7 @@ class TestDumpStateCommand:
 
     def test_dump_state_contains_character(self):
         """dump-state should include character data."""
+        # Spec: dump-state includes player stats, inventory
         result = subprocess.run(
             [sys.executable, "-m", "cli_rpg.main", "--non-interactive"],
             input="dump-state\n",
@@ -113,6 +72,7 @@ class TestDumpStateCommand:
 
     def test_dump_state_contains_world(self):
         """dump-state should include world data."""
+        # Spec: dump-state includes location and world state
         result = subprocess.run(
             [sys.executable, "-m", "cli_rpg.main", "--non-interactive"],
             input="dump-state\n",
@@ -131,6 +91,7 @@ class TestDumpStateCommand:
 
     def test_dump_state_contains_theme(self):
         """dump-state should include theme."""
+        # Spec: dump-state includes complete game state (theme is part of it)
         result = subprocess.run(
             [sys.executable, "-m", "cli_rpg.main", "--non-interactive"],
             input="dump-state\n",
@@ -150,6 +111,7 @@ class TestDumpStateJsonMode:
 
     def test_dump_state_json_mode_emits_dump_state_type(self):
         """In JSON mode, dump-state should emit dump_state type message."""
+        # Spec: dump-state works in JSON mode (--json) with proper type field
         result = subprocess.run(
             [sys.executable, "-m", "cli_rpg.main", "--json"],
             input="dump-state\n",
@@ -169,13 +131,3 @@ class TestDumpStateJsonMode:
         assert "character" in dump
         assert "world" in dump
         assert "current_location" in dump
-```
-
-## Order of Implementation
-1. Add `"dump-state"` to `KNOWN_COMMANDS` in game_state.py
-2. Add `emit_dump_state` function in json_output.py
-3. Add command handler in main.py `handle_exploration_command`
-4. Update help text in main.py `get_command_reference`
-5. Create test file tests/test_dump_state.py
-6. Run tests: `pytest tests/test_dump_state.py -v`
-7. Run full test suite: `pytest`

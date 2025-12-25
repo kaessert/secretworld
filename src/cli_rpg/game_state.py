@@ -30,7 +30,7 @@ KNOWN_COMMANDS: set[str] = {
     "look", "go", "save", "quit", "attack", "defend", "flee", "status", "cast",
     "inventory", "equip", "unequip", "use", "drop", "talk", "buy", "sell", "shop",
     "map", "help", "quests", "quest", "accept", "complete", "abandon", "lore", "rest",
-    "bestiary"
+    "bestiary", "dump-state"
 }
 
 

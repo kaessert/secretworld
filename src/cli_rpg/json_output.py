@@ -100,6 +100,15 @@ def emit_combat(enemy: str, enemy_health: int, player_health: int) -> None:
     }))
 
 
+def emit_dump_state(game_state_dict: dict) -> None:
+    """Emit full game state as JSON for dump-state command.
+
+    Args:
+        game_state_dict: Complete game state dictionary from GameState.to_dict()
+    """
+    print(json.dumps({"type": "dump_state", **game_state_dict}))
+
+
 def classify_output(message: str) -> tuple[str, Optional[str]]:
     """Classify command output as error or narrative.
 

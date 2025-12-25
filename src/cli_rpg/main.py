@@ -43,6 +43,7 @@ def get_command_reference() -> str:
         "  quest <name>       - View details of a specific quest",
         "  bestiary (b)       - View defeated enemies",
         "  help (h)           - Display this command reference",
+        "  dump-state         - Export full game state as JSON",
         "  save               - Save your game (not available during combat)",
         "  quit               - Return to main menu",
         "",
@@ -914,6 +915,11 @@ def handle_exploration_command(game_state: GameState, command: str, args: list[s
     elif command == "help":
         return (True, "\n" + get_command_reference())
 
+    elif command == "dump-state":
+        import json
+        state_dict = game_state.to_dict()
+        return (True, f"\n{json.dumps(state_dict, indent=2)}")
+
     elif command == "save":
         try:
             filepath = save_game_state(game_state)
@@ -1272,8 +1278,13 @@ def run_json_mode(log_file: Optional[str] = None) -> int:
         # Clean up message (remove leading newlines)
         message = message.strip()
 
+        # Special handling for dump-state command in JSON mode
+        if command == "dump-state":
+            from cli_rpg.json_output import emit_dump_state
+            state_dict = game_state.to_dict()
+            emit_dump_state(state_dict)
         # Classify and emit output
-        if message:
+        elif message:
             msg_type, error_code = classify_output(message)
             if msg_type == "error" and error_code:
                 emit_error(code=error_code, message=message)

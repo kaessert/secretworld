@@ -14,10 +14,10 @@ The basic `--non-interactive` mode has been implemented. The following enhanceme
    - Future: Include RNG seeds for reproducibility
    - Future: Log AI-generated content for review
 
-3. **Session state export**
-   - Dump full game state as JSON on demand or at intervals
-   - Include: player stats, inventory, location, quest progress, world state
-   - Enable session replay from logged state
+3. ~~**Session state export**~~ (DONE - `dump-state` command implemented)
+   - ~~Dump full game state as JSON on demand or at intervals~~
+   - ~~Include: player stats, inventory, location, quest progress, world state~~
+   - Future: Enable session replay from logged state
 
 4. **Additional automation features**
    - Configurable delays/timeouts
