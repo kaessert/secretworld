@@ -23,7 +23,7 @@ def get_command_reference() -> str:
         "Exploration Commands:",
         "  look (l)           - Look around at your surroundings",
         "  go (g) <direction> - Move in a direction (north, south, east, west)",
-        "  status (s)         - View your character status",
+        "  status (s, stats)  - View your character status",
         "  inventory (i)      - View your inventory and equipped items",
         "  equip (e) <item>   - Equip a weapon or armor from inventory",
         "  unequip <slot>     - Unequip weapon or armor (slot: weapon/armor)",
@@ -51,7 +51,7 @@ def get_command_reference() -> str:
         "  cast (c)      - Cast a magic attack (intelligence-based)",
         "  flee (f)      - Attempt to flee from combat",
         "  use (u) <item> - Use a consumable item",
-        "  status (s)    - View combat status",
+        "  status (s, stats) - View combat status",
     ]
     return "\n".join(lines)
 

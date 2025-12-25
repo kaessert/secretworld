@@ -1,6 +1,22 @@
 ## Active Issues
 
-*No active issues at this time.*
+### Misleading error message when trying to 'use' an equipped item
+**Status**: ACTIVE
+
+**Description**: When a user tries to use the `use` command on an item that is currently equipped (e.g., `use Steel Spear` when Steel Spear is equipped as their weapon), the game shows the error message "You don't have 'steel spear' in your inventory." This message is misleading because the user DOES have the item - it's equipped, not missing.
+
+**Steps to Reproduce**:
+1. Load a character with a weapon (e.g., Steel Spear) in their inventory
+2. Use `equip Steel Spear` to equip the weapon
+3. Verify with `i` (inventory) that the weapon is shown as `[Weapon] Steel Spear`
+4. Try `use Steel Spear`
+5. Observe the message: "You don't have 'steel spear' in your inventory."
+
+**Expected Behavior**: The error message should indicate that the item is equipped, not missing. For example: "Steel Spear is currently equipped as your weapon and cannot be used." or "You can't use Steel Spear - it's equipped as your weapon. Use 'unequip weapon' first."
+
+**Actual Behavior**: The message "You don't have 'steel spear' in your inventory." implies the item doesn't exist, when it's actually just equipped.
+
+**Impact**: Minor UX issue. Could confuse users who know they have the item but see a message suggesting it's missing.
 
 ## Resolved Issues
 

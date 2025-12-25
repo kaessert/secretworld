@@ -52,6 +52,12 @@ class TestShorthandCommands:
         assert cmd == "status"
         assert args == []
 
+    # Spec: stats → status (word alias, not single-letter)
+    def test_stats_expands_to_status(self):
+        cmd, args = parse_command("stats")
+        assert cmd == "status"
+        assert args == []
+
     # Spec: i → inventory
     def test_i_expands_to_inventory(self):
         cmd, args = parse_command("i")

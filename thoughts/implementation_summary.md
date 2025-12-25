@@ -1,47 +1,16 @@
-# Implementation Summary: world.py Test Coverage to 100%
+# Implementation Summary: Add "stats" Alias for Status Command
 
-## Status
+## What was implemented
+Added "stats" as a word alias for the "status" command, improving discoverability for players who naturally try "stats" instead of "status".
 
-**Already complete.** The test coverage for `world.py` is already at 100%, including lines 18-21 (the `except ImportError` block for AI components).
-
-## Existing Implementation
-
-### Test file: `tests/test_world_import_fallback.py`
-
-This test file (already existed) specifically tests the import fallback behavior (lines 18-21 in `world.py`) using a **subprocess with coverage tracking** approach:
-
-1. Creates a temporary Python file that mocks `builtins.__import__` to raise `ImportError` for `cli_rpg.ai_service` and `cli_rpg.ai_world`
-2. Runs this file via `coverage run` in a subprocess
-3. The subprocess imports `cli_rpg.world` with the mocked imports, triggering the except block
-4. Verifies that `AI_AVAILABLE=False`, `AIService=None`, and `create_ai_world=None`
-
-### Why subprocess is necessary
-
-Testing import-time behavior is challenging because:
-1. The code in the `try/except` block runs at module import time
-2. pytest-cov loads modules before tests run, so the module is already imported
-3. Manipulating `sys.modules` to re-import affects subsequent tests' mocking
-
-The subprocess approach solves this by:
-- Running in a clean Python environment where the module hasn't been imported yet
-- Using coverage's `--parallel-mode` to track coverage separately
-- pytest-cov automatically combines the subprocess coverage data
+## Files modified
+1. **src/cli_rpg/game_state.py** - Added `"stats": "status"` to the aliases dict in `parse_command()`
+2. **src/cli_rpg/main.py** - Updated help text for both exploration and combat sections to show "(s, stats)" instead of "(s)"
+3. **tests/test_shorthand_commands.py** - Added test `test_stats_expands_to_status` verifying the alias works
 
 ## Test results
+- All 22 shorthand command tests pass
+- Full test suite: 1325 passed, 1 skipped
 
-- All 28 world tests pass (27 in `test_world.py`, 1 in `test_world_import_fallback.py`)
-- Full test suite: 1324 passed, 1 skipped
-
-## Coverage results
-
-- `world.py` coverage: **100%** (49 statements, 0 missing)
-- Lines 18-21 are covered by `test_world_import_fallback.py`
-
-## Files
-
-- `tests/test_world.py` - Main world tests (27 tests)
-- `tests/test_world_import_fallback.py` - Subprocess-based import fallback test (1 test)
-
-## E2E validation
-
-No E2E tests needed - this is a unit test for import-time behavior that only affects whether AI components are available at runtime. The fallback behavior (AI_AVAILABLE=False) is already tested in other unit tests.
+## Technical details
+The alias is implemented in the same `aliases` dict that handles single-letter shortcuts. The change follows the existing pattern - when a user types "stats", `parse_command()` translates it to "status" before command validation.

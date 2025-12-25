@@ -42,7 +42,7 @@ python -m cli_rpg.main
 - `look` (l) - Examine your current location
 - `go <direction>` (g) - Move in a direction (north/n, south/s, east/e, west/w)
 - `map` (m) - Display an ASCII map of explored locations with available exits
-- `status` (s) - View your character's stats, gold, and XP progress
+- `status` (s, stats) - View your character's stats, gold, and XP progress
 - `inventory` (i) - View your inventory and equipped items
 - `equip <item name>` (e) - Equip a weapon or armor from your inventory
 - `unequip weapon|armor` - Unequip from the specified slot and return to inventory
@@ -71,7 +71,7 @@ Combat encounters occur randomly as you explore. When in combat:
 - `flee` (f) - Attempt to escape (chance based on dexterity)
 - `cast` (c) - Cast a magic attack (damage based on intelligence)
 - `use <item>` (u) - Use a consumable item (e.g., health potion) - counts as your turn
-- `status` (s) - View combat status (HP of both combatants)
+- `status` (s, stats) - View combat status (HP of both combatants)
 - `help` (h) - Display the full command reference
 - `quit` - Exit to main menu (no save during combat - combat progress will be lost)
 

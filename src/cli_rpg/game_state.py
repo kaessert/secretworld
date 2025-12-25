@@ -52,7 +52,7 @@ def parse_command(command_str: str) -> tuple[str, list[str]]:
         "g": "go", "l": "look", "a": "attack", "c": "cast",
         "d": "defend", "f": "flee", "s": "status", "i": "inventory",
         "m": "map", "h": "help", "t": "talk", "u": "use", "e": "equip",
-        "q": "quests", "dr": "drop", "r": "rest"
+        "q": "quests", "dr": "drop", "r": "rest", "stats": "status"
     }
     command = aliases.get(command, command)
 
