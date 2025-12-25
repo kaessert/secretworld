@@ -5,11 +5,11 @@
 
 Remaining AI-generated content to implement:
 - Item catalogue (weapons, armor, consumables)
-- Monsters/enemies
 - Lore and world history
 
 **Completed:**
 - ✅ NPC conversations (AI-generated dialogue that persists to NPC greetings)
+- ✅ Monsters/enemies (AI-generated with descriptions and attack flavor text)
 
 ## Resolved Issues
 

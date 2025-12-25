@@ -1,11 +1,17 @@
 """Combat encounter system for CLI RPG."""
 
+import logging
 import random
-from typing import Optional, Tuple
+from typing import Optional, Tuple, TYPE_CHECKING
 from cli_rpg.models.character import Character
 from cli_rpg.models.enemy import Enemy
 from cli_rpg.models.item import Item, ItemType
 from cli_rpg import colors
+
+if TYPE_CHECKING:
+    from cli_rpg.ai_service import AIService
+
+logger = logging.getLogger(__name__)
 
 
 class CombatEncounter:
@@ -133,7 +139,14 @@ class CombatEncounter:
             self.defending = False  # Reset defensive stance
         else:
             dmg = base_damage
-            message = f"{colors.enemy(self.enemy.name)} attacks you for {colors.damage(str(dmg))} damage!"
+            # Use attack_flavor if available for more immersive combat
+            if self.enemy.attack_flavor:
+                message = (
+                    f"{colors.enemy(self.enemy.name)} {self.enemy.attack_flavor}! "
+                    f"You take {colors.damage(str(dmg))} damage!"
+                )
+            else:
+                message = f"{colors.enemy(self.enemy.name)} attacks you for {colors.damage(str(dmg))} damage!"
 
         self.player.take_damage(dmg)
         message += f"\nYou have {self.player.health}/{self.player.max_health} HP remaining."
@@ -330,3 +343,46 @@ def spawn_enemy(location_name: str, level: int) -> Enemy:
         xp_reward=base_xp,
         level=level
     )
+
+
+def ai_spawn_enemy(
+    location_name: str,
+    player_level: int,
+    ai_service: Optional["AIService"] = None,
+    theme: str = "fantasy"
+) -> Enemy:
+    """Spawn enemy using AI generation with fallback to templates.
+
+    Args:
+        location_name: Name of the location for context
+        player_level: Player level for scaling
+        ai_service: Optional AIService for AI generation
+        theme: World theme for AI generation (default: "fantasy")
+
+    Returns:
+        Enemy instance (AI-generated if available, template otherwise)
+    """
+    if ai_service is not None:
+        try:
+            enemy_data = ai_service.generate_enemy(
+                theme=theme,
+                location_name=location_name,
+                player_level=player_level
+            )
+            return Enemy(
+                name=enemy_data["name"],
+                health=enemy_data["health"],
+                max_health=enemy_data["health"],
+                attack_power=enemy_data["attack_power"],
+                defense=enemy_data["defense"],
+                xp_reward=enemy_data["xp_reward"],
+                level=enemy_data["level"],
+                description=enemy_data["description"],
+                attack_flavor=enemy_data["attack_flavor"]
+            )
+        except Exception as e:
+            logger.warning(f"AI enemy generation failed, using fallback: {e}")
+            # Fall through to template-based generation
+
+    # Fallback to template-based spawn
+    return spawn_enemy(location_name, player_level)

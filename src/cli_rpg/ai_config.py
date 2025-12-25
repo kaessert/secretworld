@@ -37,6 +37,35 @@ Respond with valid JSON in this exact format (no additional text):
 }}"""
 
 
+# Default prompt template for enemy generation
+DEFAULT_ENEMY_GENERATION_PROMPT = """Generate an enemy for a {theme} RPG.
+Location: {location_name}
+Player Level: {player_level}
+
+Requirements:
+1. Create a unique enemy name (2-30 characters) that fits the theme and location
+2. Write a vivid description (10-150 characters) of the enemy's appearance
+3. Create attack flavor text (10-100 characters) describing how it attacks
+4. Generate balanced stats scaled to the player level
+
+Respond with valid JSON in this exact format (no additional text):
+{{
+  "name": "Enemy Name",
+  "description": "A brief description of the enemy's appearance.",
+  "attack_flavor": "describes the attack action",
+  "health": <number>,
+  "attack_power": <number>,
+  "defense": <number>,
+  "xp_reward": <number>
+}}
+
+Stats scaling guidelines (based on player level {player_level}):
+- health: 20 + (player_level * 10) with some variance
+- attack_power: 3 + (player_level * 2) with some variance
+- defense: 1 + player_level with some variance
+- xp_reward: 20 + (player_level * 10) with some variance"""
+
+
 # Default prompt template for NPC dialogue generation
 DEFAULT_NPC_DIALOGUE_PROMPT = """Generate a single conversational greeting for an NPC in a {theme} RPG.
 
@@ -81,6 +110,7 @@ class AIConfig:
     cache_ttl: int = 3600
     location_generation_prompt: str = field(default=DEFAULT_LOCATION_PROMPT)
     npc_dialogue_prompt: str = field(default=DEFAULT_NPC_DIALOGUE_PROMPT)
+    enemy_generation_prompt: str = field(default=DEFAULT_ENEMY_GENERATION_PROMPT)
     
     def __post_init__(self) -> None:
         """Validate configuration after initialization."""
@@ -201,7 +231,8 @@ class AIConfig:
             "enable_caching": self.enable_caching,
             "cache_ttl": self.cache_ttl,
             "location_generation_prompt": self.location_generation_prompt,
-            "npc_dialogue_prompt": self.npc_dialogue_prompt
+            "npc_dialogue_prompt": self.npc_dialogue_prompt,
+            "enemy_generation_prompt": self.enemy_generation_prompt
         }
     
     @classmethod
@@ -228,5 +259,6 @@ class AIConfig:
             enable_caching=data.get("enable_caching", True),
             cache_ttl=data.get("cache_ttl", 3600),
             location_generation_prompt=data.get("location_generation_prompt", DEFAULT_LOCATION_PROMPT),
-            npc_dialogue_prompt=data.get("npc_dialogue_prompt", DEFAULT_NPC_DIALOGUE_PROMPT)
+            npc_dialogue_prompt=data.get("npc_dialogue_prompt", DEFAULT_NPC_DIALOGUE_PROMPT),
+            enemy_generation_prompt=data.get("enemy_generation_prompt", DEFAULT_ENEMY_GENERATION_PROMPT)
         )

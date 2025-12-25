@@ -277,6 +277,13 @@ pytest tests/test_e2e_world_expansion.py -v
 2. No location categories/types
 3. Basic prompt templates
 
+### 7. AI-Generated Enemies
+- Combat encounters feature AI-generated enemies with unique names and stats
+- Enemies include descriptions (appearance text) and attack flavor text
+- Attack flavor text appears during combat for immersive combat messages
+- Graceful fallback to template-based enemies when AI is unavailable
+- Enemy stats are scaled to player level for balanced encounters
+
 ### Future Enhancements
 - Local model support
 - Persistent cache (database/file)

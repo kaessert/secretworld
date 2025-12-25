@@ -7,7 +7,7 @@ from cli_rpg.models.character import Character
 from cli_rpg.models.location import Location
 from cli_rpg.models.npc import NPC
 from cli_rpg.models.shop import Shop
-from cli_rpg.combat import CombatEncounter, spawn_enemy
+from cli_rpg.combat import CombatEncounter, spawn_enemy, ai_spawn_enemy
 from cli_rpg.autosave import autosave
 from cli_rpg import colors
 
@@ -175,16 +175,24 @@ class GameState:
     
     def trigger_encounter(self, location_name: str) -> Optional[str]:
         """Potentially spawn an enemy based on location.
-        
+
+        Uses AI-generated enemies when AIService is available, with fallback
+        to template-based enemies.
+
         Args:
             location_name: Name of the location for encounter
-            
+
         Returns:
             Message about encounter if triggered, None otherwise
         """
         # 30% chance of encounter
         if random.random() < 0.3:
-            enemy = spawn_enemy(location_name, self.current_character.level)
+            enemy = ai_spawn_enemy(
+                location_name=location_name,
+                player_level=self.current_character.level,
+                ai_service=self.ai_service,
+                theme=self.theme
+            )
             self.current_combat = CombatEncounter(self.current_character, enemy)
             return self.current_combat.start()
         return None

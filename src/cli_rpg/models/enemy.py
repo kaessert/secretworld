@@ -15,6 +15,8 @@ class Enemy:
     defense: int
     xp_reward: int
     level: int = 1
+    description: str = ""  # e.g., "A snarling beast with glowing red eyes"
+    attack_flavor: str = ""  # e.g., "lunges with razor-sharp claws"
     
     def __post_init__(self):
         """Validate enemy attributes."""
@@ -61,7 +63,7 @@ class Enemy:
     def to_dict(self) -> Dict:
         """
         Serialize enemy to dictionary.
-        
+
         Returns:
             Dictionary representation of enemy
         """
@@ -72,17 +74,19 @@ class Enemy:
             "attack_power": self.attack_power,
             "defense": self.defense,
             "xp_reward": self.xp_reward,
-            "level": self.level
+            "level": self.level,
+            "description": self.description,
+            "attack_flavor": self.attack_flavor
         }
     
     @staticmethod
     def from_dict(data: Dict) -> 'Enemy':
         """
         Deserialize enemy from dictionary.
-        
+
         Args:
             data: Dictionary containing enemy data
-            
+
         Returns:
             Enemy instance
         """
@@ -93,5 +97,7 @@ class Enemy:
             attack_power=data["attack_power"],
             defense=data["defense"],
             xp_reward=data["xp_reward"],
-            level=data.get("level", 1)
+            level=data.get("level", 1),
+            description=data.get("description", ""),
+            attack_flavor=data.get("attack_flavor", "")
         )

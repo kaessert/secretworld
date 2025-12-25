@@ -739,3 +739,140 @@ Note: Use "EXISTING_WORLD" as placeholder for the connection back to the source 
             theme=theme,
             location_name=location_name or "unknown location"
         )
+
+    def generate_enemy(
+        self,
+        theme: str,
+        location_name: str,
+        player_level: int
+    ) -> dict:
+        """Generate an enemy with AI.
+
+        Args:
+            theme: World theme (e.g., "fantasy", "sci-fi")
+            location_name: Name of the current location
+            player_level: Player's current level for scaling
+
+        Returns:
+            Dictionary with: name, description, attack_flavor, health,
+            attack_power, defense, xp_reward, level
+
+        Raises:
+            AIGenerationError: If generation fails or response is invalid
+            AIServiceError: If API call fails
+            AITimeoutError: If request times out
+        """
+        # Build prompt
+        prompt = self._build_enemy_prompt(
+            theme=theme,
+            location_name=location_name,
+            player_level=player_level
+        )
+
+        # Call LLM
+        response_text = self._call_llm(prompt)
+
+        # Parse and validate response
+        enemy_data = self._parse_enemy_response(response_text, player_level)
+
+        return enemy_data
+
+    def _build_enemy_prompt(
+        self,
+        theme: str,
+        location_name: str,
+        player_level: int
+    ) -> str:
+        """Build prompt for enemy generation.
+
+        Args:
+            theme: World theme
+            location_name: Current location name
+            player_level: Player's current level
+
+        Returns:
+            Formatted prompt string
+        """
+        return self.config.enemy_generation_prompt.format(
+            theme=theme,
+            location_name=location_name,
+            player_level=player_level
+        )
+
+    def _parse_enemy_response(self, response_text: str, player_level: int) -> dict:
+        """Parse and validate LLM response for enemy generation.
+
+        Args:
+            response_text: Raw response text from LLM
+            player_level: Player's current level (used for setting enemy level)
+
+        Returns:
+            Dictionary with validated enemy data
+
+        Raises:
+            AIGenerationError: If parsing fails or validation fails
+        """
+        # Try to parse JSON
+        try:
+            data = json.loads(response_text)
+        except json.JSONDecodeError as e:
+            raise AIGenerationError(f"Failed to parse response as JSON: {str(e)}") from e
+
+        # Validate required fields
+        required_fields = ["name", "description", "attack_flavor", "health",
+                          "attack_power", "defense", "xp_reward"]
+        for field in required_fields:
+            if field not in data:
+                raise AIGenerationError(f"Response missing required field: {field}")
+
+        # Validate name length (2-30 chars)
+        name = data["name"].strip()
+        if len(name) < 2:
+            raise AIGenerationError(
+                f"Enemy name too short (min 2 chars): {name}"
+            )
+        if len(name) > 30:
+            raise AIGenerationError(
+                f"Enemy name too long (max 30 chars): {name}"
+            )
+
+        # Validate description length (10-150 chars)
+        description = data["description"].strip()
+        if len(description) < 10:
+            raise AIGenerationError(
+                f"Enemy description too short (min 10 chars)"
+            )
+        if len(description) > 150:
+            raise AIGenerationError(
+                f"Enemy description too long (max 150 chars)"
+            )
+
+        # Validate attack_flavor length (10-100 chars)
+        attack_flavor = data["attack_flavor"].strip()
+        if len(attack_flavor) < 10:
+            raise AIGenerationError(
+                f"Attack flavor too short (min 10 chars)"
+            )
+        if len(attack_flavor) > 100:
+            raise AIGenerationError(
+                f"Attack flavor too long (max 100 chars)"
+            )
+
+        # Validate positive stats
+        for stat in ["health", "attack_power", "defense", "xp_reward"]:
+            if not isinstance(data[stat], (int, float)) or data[stat] <= 0:
+                raise AIGenerationError(
+                    f"Stat '{stat}' must be a positive number"
+                )
+
+        # Return validated data with level
+        return {
+            "name": name,
+            "description": description,
+            "attack_flavor": attack_flavor,
+            "health": int(data["health"]),
+            "attack_power": int(data["attack_power"]),
+            "defense": int(data["defense"]),
+            "xp_reward": int(data["xp_reward"]),
+            "level": player_level
+        }
