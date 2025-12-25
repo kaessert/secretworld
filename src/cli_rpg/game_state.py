@@ -8,7 +8,7 @@ from cli_rpg.models.character import Character
 from cli_rpg.models.location import Location
 from cli_rpg.models.npc import NPC
 from cli_rpg.models.shop import Shop
-from cli_rpg.combat import CombatEncounter, ai_spawn_enemy
+from cli_rpg.combat import CombatEncounter, ai_spawn_enemy, spawn_enemies
 from cli_rpg.autosave import autosave
 from cli_rpg import colors
 
@@ -218,10 +218,10 @@ class GameState:
         return self.current_combat is not None and self.current_combat.is_active
     
     def trigger_encounter(self, location_name: str) -> Optional[str]:
-        """Potentially spawn an enemy based on location.
+        """Potentially spawn enemies based on location.
 
         Uses AI-generated enemies when AIService is available, with fallback
-        to template-based enemies.
+        to template-based enemies. Can spawn 1-3 enemies depending on level.
 
         Args:
             location_name: Name of the location for encounter
@@ -231,13 +231,23 @@ class GameState:
         """
         # 30% chance of encounter
         if random.random() < 0.3:
-            enemy = ai_spawn_enemy(
-                location_name=location_name,
-                player_level=self.current_character.level,
-                ai_service=self.ai_service,
-                theme=self.theme
-            )
-            self.current_combat = CombatEncounter(self.current_character, enemy)
+            if self.ai_service is not None:
+                # AI-powered: use single ai_spawn_enemy for now
+                # (Multi-enemy AI spawning could be added later)
+                enemy = ai_spawn_enemy(
+                    location_name=location_name,
+                    player_level=self.current_character.level,
+                    ai_service=self.ai_service,
+                    theme=self.theme
+                )
+                enemies = [enemy]
+            else:
+                # Template-based: spawn multiple enemies
+                enemies = spawn_enemies(
+                    location_name=location_name,
+                    level=self.current_character.level
+                )
+            self.current_combat = CombatEncounter(self.current_character, enemies=enemies)
             return self.current_combat.start()
         return None
     

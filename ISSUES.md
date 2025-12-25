@@ -90,7 +90,7 @@ Map display has alignment issues and lacks visual feedback for inaccessible area
 ### More content
 **Status**: ACTIVE
 
-~~Multiple NPCs per location~~ (DONE - locations support multiple NPCs with improved talk command UX), multiple enemies for fights, boss fights
+~~Multiple NPCs per location~~ (DONE - locations support multiple NPCs with improved talk command UX), ~~multiple enemies for fights~~ (DONE - combat now spawns 1-3 enemies with target-based attacks), boss fights
 
 ### More content 2
 **Status**: ACTIVE

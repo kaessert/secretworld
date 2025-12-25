@@ -1,63 +1,70 @@
-# Tab Auto-completion Implementation Summary
+# Multi-Enemy Combat Implementation Summary
 
 ## What Was Implemented
 
-### New Module: `src/cli_rpg/completer.py`
-- **CommandCompleter class**: Readline-compatible completer implementing the `complete(text, state)` interface
-- **Command completion**: Completes partial command names (e.g., `lo<tab>` → `look`)
-- **Contextual argument completion** based on game state:
-  - `go <tab>` → shows available exit directions from current location
-  - `talk <tab>` → shows NPCs at current location
-  - `equip <tab>` → shows only WEAPON/ARMOR items in inventory
-  - `use <tab>` → shows only CONSUMABLE items in inventory
-  - `buy <tab>` → shows shop items (when in a shop)
-- **Module-level singleton**: `completer` instance for use by input_handler
+### Core Features
+- **Multi-enemy encounters**: Combat can now spawn and handle 1-3 enemies per encounter
+- **Target-based attacks**: Players can target specific enemies with `attack [enemy]` or `cast [enemy]`
+- **Default targeting**: When no target specified, attacks/spells hit the first living enemy
+- **All enemies attack**: Each living enemy attacks the player on the enemy turn
+- **Victory condition**: Combat ends only when ALL enemies are defeated
+- **Multi-enemy rewards**: XP is summed from all enemies, loot rolls for each enemy
 
-### Updated: `src/cli_rpg/input_handler.py`
-- Added imports for completer module and TYPE_CHECKING
-- Updated `init_readline()` to:
-  - Set the completer function with `readline.set_completer(completer.complete)`
-  - Enable tab completion with `readline.parse_and_bind("tab: complete")`
-  - Configure word delimiters with `readline.set_completer_delims(" \t\n")`
-- Added `set_completer_context(game_state)` function to update completer's game state
+### Files Modified
 
-### Updated: `src/cli_rpg/main.py`
-- Added import of `set_completer_context` from input_handler
-- Modified `run_game_loop()` to:
-  - Set completer context at start with `set_completer_context(game_state)`
-  - Clear completer context in `finally` block with `set_completer_context(None)`
+1. **src/cli_rpg/combat.py**
+   - `CombatEncounter.__init__()`: Now accepts `enemies: list[Enemy]` or single `enemy: Enemy` (backward compatible)
+   - `CombatEncounter.enemy` property: Returns first enemy for backward compatibility
+   - `CombatEncounter.get_living_enemies()`: New method returning alive enemies
+   - `CombatEncounter.find_enemy_by_name()`: New method for partial/full name matching (case-insensitive)
+   - `CombatEncounter._get_target()`: Private method for target resolution with error messaging
+   - `CombatEncounter.player_attack(target="")`: Updated to accept target parameter
+   - `CombatEncounter.player_cast(target="")`: Updated to accept target parameter
+   - `CombatEncounter.enemy_turn()`: Now loops through all living enemies, each attacks
+   - `CombatEncounter.start()`: Announces all enemies when multiple
+   - `CombatEncounter.end_combat()`: Sums XP from all enemies, rolls loot for each
+   - `CombatEncounter.get_status()`: Shows all enemies with HP status
+   - `spawn_enemies()`: New function spawning 1-2 enemies (level 1-3) or 1-3 (level 4+)
 
-### New Test File: `tests/test_completer.py`
-18 tests covering:
-- Command completion (prefix, multiple matches, exact match, unknown prefix)
-- Contextual completions (go directions, talk NPCs, equip items, use consumables, buy shop items)
-- Edge cases (no game state, empty locations, not in shop)
-- Integration with input_handler (set_completer_context function, init_readline setup)
+2. **src/cli_rpg/game_state.py**
+   - `trigger_encounter()`: Uses `spawn_enemies()` for non-AI spawns, wraps AI enemy in list
+
+3. **src/cli_rpg/main.py**
+   - `handle_combat_command()`: Passes target arg from `attack [target]` and `cast [target]`
+   - Records bestiary kills and quest progress for each enemy on victory
+   - Help text updated to show `[target]` argument
+
+4. **tests/test_multi_enemy_combat.py** (New file, 24 tests)
+   - Tests for multi-enemy initialization
+   - Tests for attack/cast targeting (default, by name, partial name, invalid target)
+   - Tests for all-enemies-attack behavior
+   - Tests for victory requiring all enemies dead
+   - Tests for status display showing all enemies
+   - Tests for spawn_enemies function
 
 ## Test Results
-- All 18 new tests pass
-- Full test suite: **1534 tests pass**
+- All 1558 tests pass
+- 24 new tests added for multi-enemy combat
+- 22 existing combat tests pass (backward compatibility verified)
 
-## Technical Details
+## Design Decisions
 
-### Readline Integration
-The completer follows the standard readline interface:
-1. On state=0, computes all matching completions and caches them in `_matches`
-2. Returns the state-th match for subsequent calls
-3. Returns None when all matches are exhausted
+1. **Backward Compatibility**: Legacy code using `CombatEncounter(player, enemy)` continues to work. The constructor detects if a single Enemy is passed and wraps it in a list.
 
-### Contextual Completion Logic
-- Uses `readline.get_line_buffer()` to read the full command line
-- Uses `readline.get_begidx()` to determine if completing first word (command) or argument
-- Dispatches to command-specific completers based on parsed command
+2. **Target Matching**: Uses case-insensitive partial name matching. `attack gob` targets "Goblin".
 
-### Graceful Fallback
-- If readline is unavailable (Windows without pyreadline), completion is disabled
-- If no game state is set, only command names are completed (no contextual arguments)
+3. **Invalid Target Handling**: Returns helpful error message listing valid targets, doesn't consume the player's turn.
 
-## Manual Testing Verification
-To verify manually:
-1. Run `cli-rpg`
-2. Type partial commands and press Tab (e.g., `lo<tab>` → `look`)
-3. After starting a game, type `go <tab>` to see available directions
-4. Type `talk <tab>` to see NPCs at current location
+4. **AI Integration**: When AI service is available, currently spawns single AI enemy (wrapped in list). Multi-AI spawning could be added later.
+
+5. **Defensive Stance**: Applies damage reduction to ALL enemy attacks in the turn, then resets.
+
+## E2E Test Validation Points
+
+- Entering combat with multiple enemies shows all enemy names
+- `attack orc` targets specific enemy when multiple present
+- `attack` with no target hits first living enemy
+- `status` shows all enemies with their HP
+- Defeating one enemy doesn't end combat until all are dead
+- Victory message shows all defeated enemies
+- XP reward is sum of all enemy rewards

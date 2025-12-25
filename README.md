@@ -69,21 +69,24 @@ python -m cli_rpg.main
 - `quit` - Exit to main menu
 
 ### Combat System
-Combat encounters occur randomly as you explore. When in combat:
+Combat encounters occur randomly as you explore. You may face multiple enemies at once (1-2 enemies at lower levels, up to 3 at level 4+).
 
-- `attack` (a) - Attack the enemy (damage based on your strength vs enemy defense)
-- `defend` (d) - Take a defensive stance, reducing incoming damage by 50%
+**Combat Commands:**
+- `attack [target]` (a) - Attack an enemy (damage based on your strength vs enemy defense). Specify a target name when facing multiple enemies, or attacks the first living enemy.
+- `defend` (d) - Take a defensive stance, reducing incoming damage by 50% from all enemies
 - `flee` (f) - Attempt to escape (chance based on dexterity)
-- `cast` (c) - Cast a magic attack (damage based on intelligence)
+- `cast [target]` (c) - Cast a magic attack at an enemy (damage based on intelligence). Targeting works like `attack`.
 - `use <item>` (u) - Use a consumable item (e.g., health potion) - counts as your turn
-- `status` (s, stats) - View combat status (HP of both combatants)
+- `status` (s, stats) - View combat status (HP of you and all enemies)
 - `help` (h) - Display the full command reference
 - `quit` - Exit to main menu (no save during combat - combat progress will be lost)
 
+**Targeting:** When facing multiple enemies, you can target specific enemies by name (e.g., `attack goblin` or `cast orc`). Partial, case-insensitive matching is supported. If no target is specified, attacks hit the first living enemy.
+
 **Combat Flow:**
-1. You attack or defend
-2. Enemy attacks (unless you fled successfully)
-3. Combat continues until victory, defeat, or successful flee
+1. You attack, defend, or cast
+2. All living enemies attack (unless you fled successfully)
+3. Combat continues until all enemies are defeated, you are defeated, or you successfully flee
 
 **Victory**: Gain XP and gold, potentially level up, and may receive loot drops
 **Defeat**: Game over (can restore health for testing)

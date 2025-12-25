@@ -2,7 +2,7 @@
 
 import logging
 import random
-from typing import Optional, Tuple, TYPE_CHECKING
+from typing import Optional, Tuple, Union, TYPE_CHECKING
 from cli_rpg.models.character import Character
 from cli_rpg.models.enemy import Enemy
 from cli_rpg.models.item import Item, ItemType
@@ -15,21 +15,99 @@ logger = logging.getLogger(__name__)
 
 
 class CombatEncounter:
-    """Manages a combat encounter between player and enemy."""
-    
-    def __init__(self, player: Character, enemy: Enemy):
+    """Manages a combat encounter between player and one or more enemies."""
+
+    def __init__(
+        self,
+        player: Character,
+        enemies: Optional[Union[list[Enemy], Enemy]] = None,
+        enemy: Optional[Enemy] = None
+    ):
         """
         Initialize combat encounter.
-        
+
         Args:
             player: Player character
-            enemy: Enemy to fight
+            enemies: List of enemies to fight (or single Enemy for backward compat)
+            enemy: Single enemy to fight (backward compatibility keyword arg)
+
+        Note: Either enemies or enemy must be provided. If both are provided,
+        enemies takes precedence. If enemy is provided, it's wrapped in a list.
+        Backward compatibility: CombatEncounter(player, enemy) works as before.
         """
         self.player = player
-        self.enemy = enemy
+
+        # Handle backward compatibility
+        if enemies is not None:
+            # Check if enemies is a single Enemy (legacy positional arg)
+            if isinstance(enemies, Enemy):
+                self.enemies = [enemies]
+            else:
+                self.enemies = enemies
+        elif enemy is not None:
+            self.enemies = [enemy]
+        else:
+            raise ValueError("Either enemies or enemy must be provided")
+
         self.turn_count = 0
         self.is_active = False
         self.defending = False
+
+    @property
+    def enemy(self) -> Enemy:
+        """Backward compatibility: return first enemy."""
+        return self.enemies[0]
+
+    def get_living_enemies(self) -> list[Enemy]:
+        """Get list of enemies that are still alive.
+
+        Returns:
+            List of living enemies
+        """
+        return [e for e in self.enemies if e.is_alive()]
+
+    def find_enemy_by_name(self, name: str) -> Optional[Enemy]:
+        """Find a living enemy by partial or full name match.
+
+        Args:
+            name: Name or partial name to search for (case-insensitive)
+
+        Returns:
+            Matching enemy if found, None otherwise
+        """
+        name_lower = name.lower()
+        for enemy in self.get_living_enemies():
+            if name_lower in enemy.name.lower():
+                return enemy
+        return None
+
+    def _get_target(self, target: str = "") -> Tuple[Optional[Enemy], Optional[str]]:
+        """Get target enemy for an attack/cast.
+
+        Args:
+            target: Target name or empty string for default target
+
+        Returns:
+            Tuple of (enemy, error_message). If enemy is None, error_message
+            explains why and lists valid targets.
+        """
+        living = self.get_living_enemies()
+
+        if not living:
+            return None, "No living enemies to target!"
+
+        if not target:
+            # Default to first living enemy
+            return living[0], None
+
+        # Try to find by name
+        enemy = self.find_enemy_by_name(target)
+        if enemy:
+            return enemy, None
+
+        # Not found - build error message with valid targets
+        valid_names = [e.name for e in living]
+        return None, f"Target '{target}' not found. Valid targets: {', '.join(valid_names)}"
     
     def start(self) -> str:
         """
@@ -39,28 +117,47 @@ class CombatEncounter:
             Intro message describing the encounter
         """
         self.is_active = True
-        return f"A wild {colors.enemy(self.enemy.name)} appears! Combat has begun!"
+
+        if len(self.enemies) == 1:
+            return f"A wild {colors.enemy(self.enemies[0].name)} appears! Combat has begun!"
+        else:
+            enemy_names = [colors.enemy(e.name) for e in self.enemies]
+            return f"Enemies appear: {', '.join(enemy_names)}! Combat has begun!"
     
-    def player_attack(self) -> Tuple[bool, str]:
+    def player_attack(self, target: str = "") -> Tuple[bool, str]:
         """
-        Player attacks enemy.
+        Player attacks an enemy.
+
+        Args:
+            target: Target enemy name (partial match). Empty = first living enemy.
 
         Returns:
             Tuple of (victory, message)
-            - victory: True if enemy defeated, False otherwise
+            - victory: True if ALL enemies defeated, False otherwise
             - message: Description of the attack
         """
+        # Get target enemy
+        enemy, error = self._get_target(target)
+        if enemy is None:
+            return False, error or "No target found."
+
         # Calculate damage: player attack power (strength + weapon bonus) - enemy defense, minimum 1
-        dmg = max(1, self.player.get_attack_power() - self.enemy.defense)
-        self.enemy.take_damage(dmg)
+        dmg = max(1, self.player.get_attack_power() - enemy.defense)
+        enemy.take_damage(dmg)
 
-        message = f"You attack {colors.enemy(self.enemy.name)} for {colors.damage(str(dmg))} damage!"
+        message = f"You attack {colors.enemy(enemy.name)} for {colors.damage(str(dmg))} damage!"
 
-        if not self.enemy.is_alive():
-            message += f"\n{colors.enemy(self.enemy.name)} has been defeated! {colors.heal('Victory!')}"
+        if not enemy.is_alive():
+            message += f"\n{colors.enemy(enemy.name)} has been defeated!"
+
+        # Check if all enemies are dead
+        if not self.get_living_enemies():
+            message += f" {colors.heal('Victory!')}"
             return True, message
 
-        message += f"\n{colors.enemy(self.enemy.name)} has {self.enemy.health}/{self.enemy.max_health} HP remaining."
+        if enemy.is_alive():
+            message += f"\n{colors.enemy(enemy.name)} has {enemy.health}/{enemy.max_health} HP remaining."
+
         return False, message
     
     def player_defend(self) -> Tuple[bool, str]:
@@ -76,29 +173,43 @@ class CombatEncounter:
         message = "You brace yourself for the enemy's attack, taking a defensive stance!"
         return False, message
 
-    def player_cast(self) -> Tuple[bool, str]:
+    def player_cast(self, target: str = "") -> Tuple[bool, str]:
         """
         Player casts a magic attack.
 
         Magic damage is based on intelligence and ignores enemy defense.
         Formula: intelligence * 1.5 (minimum 1)
 
+        Args:
+            target: Target enemy name (partial match). Empty = first living enemy.
+
         Returns:
             Tuple of (victory, message)
-            - victory: True if enemy defeated, False otherwise
+            - victory: True if ALL enemies defeated, False otherwise
             - message: Description of the spell cast
         """
+        # Get target enemy
+        enemy, error = self._get_target(target)
+        if enemy is None:
+            return False, error or "No target found."
+
         # Calculate magic damage: intelligence * 1.5, ignores defense
         dmg = max(1, int(self.player.intelligence * 1.5))
-        self.enemy.take_damage(dmg)
+        enemy.take_damage(dmg)
 
-        message = f"You cast a spell at {colors.enemy(self.enemy.name)} for {colors.damage(str(dmg))} magic damage!"
+        message = f"You cast a spell at {colors.enemy(enemy.name)} for {colors.damage(str(dmg))} magic damage!"
 
-        if not self.enemy.is_alive():
-            message += f"\n{colors.enemy(self.enemy.name)} has been defeated! {colors.heal('Victory!')}"
+        if not enemy.is_alive():
+            message += f"\n{colors.enemy(enemy.name)} has been defeated!"
+
+        # Check if all enemies are dead
+        if not self.get_living_enemies():
+            message += f" {colors.heal('Victory!')}"
             return True, message
 
-        message += f"\n{colors.enemy(self.enemy.name)} has {self.enemy.health}/{self.enemy.max_health} HP remaining."
+        if enemy.is_alive():
+            message += f"\n{colors.enemy(enemy.name)} has {enemy.health}/{enemy.max_health} HP remaining."
+
         return False, message
 
     def player_flee(self) -> Tuple[bool, str]:
@@ -121,41 +232,59 @@ class CombatEncounter:
     
     def enemy_turn(self) -> str:
         """
-        Enemy attacks player.
+        All living enemies attack player.
 
         Returns:
-            Message describing the enemy's action
+            Message describing the enemies' actions
         """
-        # Calculate damage: enemy attack - player defense (constitution + armor bonus), minimum 1
-        base_damage = max(1, self.enemy.calculate_damage() - self.player.get_defense())
+        living = self.get_living_enemies()
 
-        # Apply defense reduction if player is defending
-        if self.defending:
-            dmg = max(1, base_damage // 2)  # Half damage when defending
-            message = (
-                f"{colors.enemy(self.enemy.name)} attacks! You block some of the damage, "
-                f"taking {colors.damage(str(dmg))} damage!"
-            )
-            self.defending = False  # Reset defensive stance
-        else:
-            dmg = base_damage
-            # Use attack_flavor if available for more immersive combat
-            if self.enemy.attack_flavor:
-                message = (
-                    f"{colors.enemy(self.enemy.name)} {self.enemy.attack_flavor}! "
-                    f"You take {colors.damage(str(dmg))} damage!"
+        if not living:
+            return "No enemies remain to attack."
+
+        messages = []
+        total_damage = 0
+
+        for enemy in living:
+            # Calculate damage: enemy attack - player defense (constitution + armor bonus), minimum 1
+            base_damage = max(1, enemy.calculate_damage() - self.player.get_defense())
+
+            # Apply defense reduction if player is defending (applies to all attacks this turn)
+            if self.defending:
+                dmg = max(1, base_damage // 2)  # Half damage when defending
+                msg = (
+                    f"{colors.enemy(enemy.name)} attacks! You block some of the damage, "
+                    f"taking {colors.damage(str(dmg))} damage!"
                 )
             else:
-                message = f"{colors.enemy(self.enemy.name)} attacks you for {colors.damage(str(dmg))} damage!"
+                dmg = base_damage
+                # Use attack_flavor if available for more immersive combat
+                if enemy.attack_flavor:
+                    msg = (
+                        f"{colors.enemy(enemy.name)} {enemy.attack_flavor}! "
+                        f"You take {colors.damage(str(dmg))} damage!"
+                    )
+                else:
+                    msg = f"{colors.enemy(enemy.name)} attacks you for {colors.damage(str(dmg))} damage!"
 
-        self.player.take_damage(dmg)
-        message += f"\nYou have {self.player.health}/{self.player.max_health} HP remaining."
+            self.player.take_damage(dmg)
+            total_damage += dmg
+            messages.append(msg)
 
-        return message
+        # Reset defensive stance after all attacks
+        self.defending = False
+
+        # Combine messages
+        result = "\n".join(messages)
+        result += f"\nYou have {self.player.health}/{self.player.max_health} HP remaining."
+
+        return result
     
     def end_combat(self, victory: bool) -> str:
         """
         Resolve combat and award XP and loot on victory.
+
+        XP is summed from all enemies. Loot is generated from each enemy.
 
         Args:
             victory: True if player won, False if player lost
@@ -166,45 +295,63 @@ class CombatEncounter:
         self.is_active = False
 
         if victory:
-            messages = [f"{colors.heal('Victory!')} You defeated {colors.enemy(self.enemy.name)}!"]
-            xp_messages = self.player.gain_xp(self.enemy.xp_reward)
+            # Build victory message based on number of enemies
+            if len(self.enemies) == 1:
+                messages = [f"{colors.heal('Victory!')} You defeated {colors.enemy(self.enemies[0].name)}!"]
+            else:
+                enemy_names = [colors.enemy(e.name) for e in self.enemies]
+                messages = [f"{colors.heal('Victory!')} You defeated {', '.join(enemy_names)}!"]
+
+            # Sum XP from all enemies
+            total_xp = sum(e.xp_reward for e in self.enemies)
+            xp_messages = self.player.gain_xp(total_xp)
             messages.extend(xp_messages)
 
-            # Award gold based on enemy level
-            gold_reward = random.randint(5, 15) * self.enemy.level
+            # Award gold based on sum of enemy levels
+            total_level = sum(e.level for e in self.enemies)
+            gold_reward = random.randint(5, 15) * total_level
             self.player.add_gold(gold_reward)
             messages.append(f"You earned {colors.gold(str(gold_reward) + ' gold')}!")
 
-            # Generate and award loot
-            loot = generate_loot(self.enemy, self.player.level)
-            if loot is not None:
-                if self.player.inventory.add_item(loot):
-                    messages.append(f"You found: {colors.item(loot.name)}!")
-                    # Track quest progress for collect objectives
-                    quest_messages = self.player.record_collection(loot.name)
-                    messages.extend(quest_messages)
-                    # Track quest progress for drop objectives (enemy + item)
-                    drop_messages = self.player.record_drop(self.enemy.name, loot.name)
-                    messages.extend(drop_messages)
-                else:
-                    messages.append(f"You found {colors.item(loot.name)} but your inventory is full!")
+            # Generate and award loot from each enemy
+            for enemy in self.enemies:
+                loot = generate_loot(enemy, self.player.level)
+                if loot is not None:
+                    if self.player.inventory.add_item(loot):
+                        messages.append(f"You found: {colors.item(loot.name)}!")
+                        # Track quest progress for collect objectives
+                        quest_messages = self.player.record_collection(loot.name)
+                        messages.extend(quest_messages)
+                        # Track quest progress for drop objectives (enemy + item)
+                        drop_messages = self.player.record_drop(enemy.name, loot.name)
+                        messages.extend(drop_messages)
+                    else:
+                        messages.append(f"You found {colors.item(loot.name)} but your inventory is full!")
 
             return "\n".join(messages)
         else:
-            return f"{colors.damage('You have been defeated')} by {colors.enemy(self.enemy.name)}..."
+            if len(self.enemies) == 1:
+                return f"{colors.damage('You have been defeated')} by {colors.enemy(self.enemies[0].name)}..."
+            else:
+                return f"{colors.damage('You have been defeated')} by the enemies..."
     
     def get_status(self) -> str:
         """
         Display current combat status.
 
         Returns:
-            Status string showing health of both combatants
+            Status string showing health of player and all enemies
         """
-        return (
-            f"=== {colors.stat_header('COMBAT')} ===\n"
-            f"Player: {self.player.name} - {self.player.health}/{self.player.max_health} HP\n"
-            f"Enemy: {colors.enemy(self.enemy.name)} - {self.enemy.health}/{self.enemy.max_health} HP"
-        )
+        lines = [
+            f"=== {colors.stat_header('COMBAT')} ===",
+            f"Player: {self.player.name} - {self.player.health}/{self.player.max_health} HP",
+        ]
+
+        for enemy in self.enemies:
+            status = "DEAD" if not enemy.is_alive() else f"{enemy.health}/{enemy.max_health} HP"
+            lines.append(f"Enemy: {colors.enemy(enemy.name)} - {status}")
+
+        return "\n".join(lines)
 
 
 def generate_loot(enemy: Enemy, level: int) -> Optional[Item]:
@@ -416,3 +563,39 @@ def ai_spawn_enemy(
 
     # Fallback to template-based spawn
     return spawn_enemy(location_name, player_level)
+
+
+def spawn_enemies(
+    location_name: str,
+    level: int,
+    count: Optional[int] = None,
+    location_category: Optional[str] = None
+) -> list[Enemy]:
+    """
+    Spawn multiple enemies appropriate for the location and player level.
+
+    Args:
+        location_name: Name of the location
+        level: Player level for scaling
+        count: Optional explicit enemy count. If None, random 1-2 (level 1-3)
+               or 1-3 (level 4+)
+        location_category: Optional category from Location.category field
+
+    Returns:
+        List of Enemy instances
+    """
+    if count is None:
+        # Determine count based on level
+        if level < 4:
+            # Lower levels: 1-2 enemies
+            count = random.randint(1, 2)
+        else:
+            # Higher levels: 1-3 enemies
+            count = random.randint(1, 3)
+
+    enemies = []
+    for _ in range(count):
+        enemy = spawn_enemy(location_name, level, location_category)
+        enemies.append(enemy)
+
+    return enemies

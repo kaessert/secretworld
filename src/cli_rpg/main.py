@@ -49,9 +49,9 @@ def get_command_reference() -> str:
         "  quit               - Return to main menu",
         "",
         "Combat Commands:",
-        "  attack (a)    - Attack the enemy",
+        "  attack (a) [target] - Attack an enemy (default: first living enemy)",
         "  defend (d)    - Take a defensive stance",
-        "  cast (c)      - Cast a magic attack (intelligence-based)",
+        "  cast (c) [target]  - Cast a magic spell (default: first living enemy)",
         "  flee (f)      - Attempt to flee from combat",
         "  use (u) <item> - Use a consumable item",
         "  status (s, stats) - View combat status",
@@ -238,20 +238,22 @@ def handle_combat_command(game_state: GameState, command: str, args: list[str]) 
         return (True, "\n✗ Not in combat.")
 
     if command == "attack":
-        victory, message = combat.player_attack()
+        # Parse target from args (e.g., "attack goblin")
+        target = " ".join(args) if args else ""
+        victory, message = combat.player_attack(target=target)
         output = f"\n{message}"
 
         if victory:
-            # Enemy defeated
-            enemy_name = combat.enemy.name
-            # Record in bestiary before end_combat (preserves enemy reference)
-            game_state.current_character.record_enemy_defeat(combat.enemy)
+            # All enemies defeated - record each in bestiary
+            for enemy in combat.enemies:
+                game_state.current_character.record_enemy_defeat(enemy)
             end_message = combat.end_combat(victory=True)
             output += f"\n{end_message}"
-            # Track quest progress for kill objectives
-            quest_messages = game_state.current_character.record_kill(enemy_name)
-            for msg in quest_messages:
-                output += f"\n{msg}"
+            # Track quest progress for kill objectives (for each enemy)
+            for enemy in combat.enemies:
+                quest_messages = game_state.current_character.record_kill(enemy.name)
+                for msg in quest_messages:
+                    output += f"\n{msg}"
             game_state.current_combat = None
             # Autosave after combat victory
             try:
@@ -259,16 +261,18 @@ def handle_combat_command(game_state: GameState, command: str, args: list[str]) 
             except IOError:
                 pass  # Silent failure
         else:
-            # Enemy still alive, enemy attacks
-            enemy_message = combat.enemy_turn()
-            output += f"\n{enemy_message}"
+            # Not all enemies dead - check if attack was valid
+            if "not found" not in message.lower():
+                # Valid attack - enemies attack back
+                enemy_message = combat.enemy_turn()
+                output += f"\n{enemy_message}"
 
-            # Check if player died
-            if not game_state.current_character.is_alive():
-                death_message = combat.end_combat(victory=False)
-                output += f"\n{death_message}"
-                output += "\n\n=== GAME OVER ==="
-                game_state.current_combat = None
+                # Check if player died
+                if not game_state.current_character.is_alive():
+                    death_message = combat.end_combat(victory=False)
+                    output += f"\n{death_message}"
+                    output += "\n\n=== GAME OVER ==="
+                    game_state.current_combat = None
 
         return (True, output)
 
@@ -317,20 +321,22 @@ def handle_combat_command(game_state: GameState, command: str, args: list[str]) 
         return (True, output)
 
     elif command == "cast":
-        victory, message = combat.player_cast()
+        # Parse target from args (e.g., "cast goblin")
+        target = " ".join(args) if args else ""
+        victory, message = combat.player_cast(target=target)
         output = f"\n{message}"
 
         if victory:
-            # Enemy defeated
-            enemy_name = combat.enemy.name
-            # Record in bestiary before end_combat (preserves enemy reference)
-            game_state.current_character.record_enemy_defeat(combat.enemy)
+            # All enemies defeated - record each in bestiary
+            for enemy in combat.enemies:
+                game_state.current_character.record_enemy_defeat(enemy)
             end_message = combat.end_combat(victory=True)
             output += f"\n{end_message}"
-            # Track quest progress for kill objectives
-            quest_messages = game_state.current_character.record_kill(enemy_name)
-            for msg in quest_messages:
-                output += f"\n{msg}"
+            # Track quest progress for kill objectives (for each enemy)
+            for enemy in combat.enemies:
+                quest_messages = game_state.current_character.record_kill(enemy.name)
+                for msg in quest_messages:
+                    output += f"\n{msg}"
             game_state.current_combat = None
             # Autosave after combat victory
             try:
@@ -338,16 +344,18 @@ def handle_combat_command(game_state: GameState, command: str, args: list[str]) 
             except IOError:
                 pass  # Silent failure
         else:
-            # Enemy still alive, enemy attacks
-            enemy_message = combat.enemy_turn()
-            output += f"\n{enemy_message}"
+            # Not all enemies dead - check if cast was valid
+            if "not found" not in message.lower():
+                # Valid cast - enemies attack back
+                enemy_message = combat.enemy_turn()
+                output += f"\n{enemy_message}"
 
-            # Check if player died
-            if not game_state.current_character.is_alive():
-                death_message = combat.end_combat(victory=False)
-                output += f"\n{death_message}"
-                output += "\n\n=== GAME OVER ==="
-                game_state.current_combat = None
+                # Check if player died
+                if not game_state.current_character.is_alive():
+                    death_message = combat.end_combat(victory=False)
+                    output += f"\n{death_message}"
+                    output += "\n\n=== GAME OVER ==="
+                    game_state.current_combat = None
 
         return (True, output)
 
