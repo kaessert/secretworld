@@ -1,72 +1,65 @@
-# Companion Reactions to Player Choices - Implementation Summary
+# Companion-Specific Quests and Storylines - Implementation Summary
 
 ## What Was Implemented
 
-### 1. Companion Model Updates (`src/cli_rpg/models/companion.py`)
+### New Feature: Personal Quests for Companions
+Companions can now have personal quests that unlock at higher bond levels. This adds deeper relationship mechanics to the companion system.
 
-**New field:**
-- `personality: str = "pragmatic"` - Personality type affecting reactions (warrior, pacifist, pragmatic)
+### Files Modified
 
-**New method:**
-- `reduce_bond(amount: int)` - Reduces bond points by the specified amount, clamped to 0 minimum
+1. **`src/cli_rpg/models/companion.py`**
+   - Added `personal_quest: Optional["Quest"]` field to `Companion` dataclass
+   - Updated `to_dict()` to serialize personal_quest
+   - Updated `from_dict()` to deserialize personal_quest
 
-**Updated serialization:**
-- `to_dict()` and `from_dict()` now include the `personality` field with "pragmatic" as default for backwards compatibility
+2. **`src/cli_rpg/companion_quests.py`** (New file)
+   - `QUEST_COMPLETION_BOND_BONUS = 15` - Bond points for completing personal quest
+   - `is_quest_available(companion)` - Checks if quest is unlocked (requires TRUSTED/DEVOTED)
+   - `accept_companion_quest(companion)` - Creates an ACTIVE quest copy for the player
+   - `check_companion_quest_completion(companion, quest_name)` - Awards bond bonus on completion
 
-### 2. New Module (`src/cli_rpg/companion_reactions.py`)
+3. **`src/cli_rpg/game_state.py`**
+   - Added `"companion-quest"` to `KNOWN_COMMANDS`
 
-**Constants:**
-- `APPROVAL_BOND_CHANGE = 3` - Bond points gained on approval
-- `DISAPPROVAL_BOND_CHANGE = -3` - Bond points lost on disapproval
+4. **`src/cli_rpg/main.py`**
+   - Added `companion-quest <name>` command handler (~line 1071-1114)
+   - Integrated companion quest completion bonus in `complete` command (~line 917-921)
 
-**Personality Reaction Map:**
-- `warrior`: approves kills, disapproves fleeing
-- `pacifist`: disapproves kills, approves fleeing
-- `pragmatic`: neutral to all choices
-
-**Functions:**
-- `get_companion_reaction(companion, choice_type)` - Returns "approval", "disapproval", or "neutral"
-- `process_companion_reactions(companions, choice_type)` - Processes all companions, adjusts bond, returns flavor messages
-
-**Flavor Messages:**
-- Warrior approval: "{name} nods approvingly. \"Well fought.\""
-- Warrior disapproval: "{name} scowls. \"We should have stood and fought.\""
-- Pacifist approval: "{name} sighs with relief. \"I'm glad we avoided bloodshed.\""
-- Pacifist disapproval: "{name} looks away. \"Was that truly necessary?\""
-
-### 3. Main Game Integration (`src/cli_rpg/main.py`)
-
-Added companion reaction processing after:
-- `attack` command victory → `combat_kill` reaction
-- `cast` command victory → `combat_kill` reaction
-- `flee` command success → `combat_flee` reaction
-
-### 4. Test Suite (`tests/test_companion_reactions.py`)
-
-14 tests covering:
-- `TestCompanionPersonality` - personality field existence and defaults
-- `TestReduceBond` - bond reduction mechanics
-- `TestGetCompanionReaction` - personality-based reaction logic
-- `TestProcessCompanionReactions` - bond changes and message generation
+### Test File Created
+- **`tests/test_companion_quests.py`** - 16 tests covering:
+  - Personal quest field on Companion model
+  - Quest availability at different bond levels
+  - Accepting companion quests
+  - Quest completion bonus mechanics
+  - Serialization/deserialization roundtrip
 
 ## Test Results
 
 ```
-tests/test_companion_reactions.py: 14 passed
-Full test suite: 2208 passed in 40.81s
+tests/test_companion_quests.py - 16 passed
+Full test suite - 2224 passed
 ```
 
-## E2E Validation Points
+## Key Design Decisions
 
-1. **Recruit a companion** with warrior personality and win a combat → should see approval message and +3 bond
-2. **Recruit a companion** with warrior personality and flee from combat → should see disapproval message and -3 bond
-3. **Recruit a companion** with pacifist personality → opposite reactions
-4. **Save/load** game with companion with personality → personality should persist
-5. **Multiple companions** with different personalities in combat → each reacts independently
+1. **Quest unlocks at TRUSTED level (50+ points)** - Requires meaningful relationship investment
+2. **Completion grants +15 bond points** - Significant boost that can trigger level-ups
+3. **Quest is copied, not moved** - Original stays on companion, player gets ACTIVE copy
+4. **Quest giver set to companion name** - Enables completion with any NPC (matches quest_giver check)
 
-## Design Decisions
+## Usage
 
-- Default personality is "pragmatic" for backwards compatibility with existing saves
-- Reaction messages use `colors.companion()` for consistent styling
-- Bond reduction uses `reduce_bond()` to cleanly handle the floor at 0
-- Bond level-up messages from `add_bond()` are included after approval messages
+```
+# Accept a companion's personal quest (requires TRUSTED bond)
+companion-quest kira
+
+# Complete the quest (when ready) to earn bond bonus
+complete kira's honor
+```
+
+## E2E Tests Should Validate
+- Creating a companion with a personal quest
+- Bond level requirements block accepting quest at STRANGER/ACQUAINTANCE
+- Quest acceptance at TRUSTED/DEVOTED bond levels
+- Quest completion granting bond bonus
+- Save/load preserving companion personal quests

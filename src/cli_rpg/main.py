@@ -913,6 +913,13 @@ def handle_exploration_command(game_state: GameState, command: str, args: list[s
 
         output_lines = [f"\nQuest completed: {matching_quest.name}!"]
         output_lines.extend(reward_messages)
+
+        # Check for companion quest bonus
+        from cli_rpg.companion_quests import check_companion_quest_completion
+        for companion in game_state.companions:
+            bonus_messages = check_companion_quest_completion(companion, matching_quest.name)
+            output_lines.extend(bonus_messages)
+
         return (True, "\n".join(output_lines))
 
     elif command == "abandon":
@@ -1067,6 +1074,51 @@ def handle_exploration_command(game_state: GameState, command: str, args: list[s
         game_state.companions.append(companion)
 
         return (True, f"\n{npc.name} has joined your party!")
+
+    elif command == "companion-quest":
+        # View/accept a companion's personal quest
+        if not args:
+            return (True, "\nWhich companion? Use: companion-quest <name>")
+
+        companion_name = " ".join(args).lower()
+        matching = [c for c in game_state.companions if c.name.lower() == companion_name]
+
+        if not matching:
+            return (True, f"\nNo companion named '{' '.join(args)}' in your party.")
+
+        companion = matching[0]
+
+        from cli_rpg.companion_quests import is_quest_available, accept_companion_quest
+
+        if companion.personal_quest is None:
+            return (True, f"\n{companion.name} has no personal quest.")
+
+        if not is_quest_available(companion):
+            bond_level = companion.get_bond_level().value
+            return (
+                True,
+                f"\n{companion.name}'s personal quest is not yet available.\n"
+                f"Build more trust. (Current: {bond_level}, Need: Trusted)"
+            )
+
+        # Check if already have quest
+        if game_state.current_character.has_quest(companion.personal_quest.name):
+            return (
+                True,
+                f"\nYou already have {companion.name}'s quest: {companion.personal_quest.name}"
+            )
+
+        # Accept quest
+        new_quest = accept_companion_quest(companion)
+        if new_quest is None:
+            return (True, f"\nFailed to accept {companion.name}'s quest.")
+
+        game_state.current_character.quests.append(new_quest)
+
+        return (
+            True,
+            f"\n{companion.name}'s Quest Accepted: {new_quest.name}\n{new_quest.description}"
+        )
 
     elif command == "help":
         return (True, "\n" + get_command_reference())

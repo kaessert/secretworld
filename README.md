@@ -68,6 +68,7 @@ python -m cli_rpg.main
 - `bestiary` (b) - View all defeated enemies with kill counts and stats
 - `companions` - View your party members with bond levels
 - `recruit <npc>` - Recruit a willing NPC to join your party
+- `companion-quest <name>` - Accept a companion's personal quest (requires TRUSTED bond level)
 - `dump-state` - Export complete game state as JSON for programmatic inspection
 - `rest` (r) - Rest to recover health (restores 25% of max HP, advances time by 4 hours, reduces dread, may trigger dreams; not available during combat)
 - `events` - View active world events and their status
@@ -140,6 +141,11 @@ The combat status shows your last actions (e.g., "Last actions: [Attack] → [De
 - DEVOTED (75-100 points): +10% attack damage
 
 Multiple companions stack their bonuses additively. The bonus appears in combat status when greater than 0%.
+
+**Companion Personal Quests:** Companions with high bond levels may have personal quests you can undertake:
+- Use `companion-quest <name>` to accept a companion's personal quest (requires TRUSTED or DEVOTED bond)
+- Complete the quest objectives as normal
+- Turn in the quest with `complete <quest>` to earn standard rewards plus a +15 bond bonus
 
 **Companion Reactions:** Companions react to your combat choices based on their personality:
 - **Warrior** companions approve of killing enemies (+3 bond) but disapprove of fleeing (-3 bond)
@@ -433,6 +439,7 @@ src/cli_rpg/
 ├── dreams.py            # Dream sequences triggered on rest
 ├── companion_banter.py  # Context-aware companion travel comments
 ├── companion_reactions.py # Companion reactions to player combat choices
+├── companion_quests.py  # Companion personal quest system
 ├── models/              # Data models
 │   ├── character.py
 │   ├── location.py

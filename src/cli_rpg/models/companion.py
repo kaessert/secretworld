@@ -9,9 +9,12 @@ The bond system tracks the player's relationship with companions:
 
 from dataclasses import dataclass
 from enum import Enum
-from typing import Optional
+from typing import Optional, TYPE_CHECKING
 
 from cli_rpg import colors
+
+if TYPE_CHECKING:
+    from cli_rpg.models.quest import Quest
 
 
 class BondLevel(Enum):
@@ -71,6 +74,7 @@ class Companion:
     recruited_at: str
     bond_points: int = 0
     personality: str = "pragmatic"
+    personal_quest: Optional["Quest"] = None
 
     def get_bond_level(self) -> BondLevel:
         """Compute the bond level from current bond points.
@@ -158,13 +162,18 @@ class Companion:
         Returns:
             Dictionary containing all companion attributes
         """
-        return {
+        data = {
             "name": self.name,
             "description": self.description,
             "recruited_at": self.recruited_at,
             "bond_points": self.bond_points,
             "personality": self.personality,
         }
+        if self.personal_quest is not None:
+            data["personal_quest"] = self.personal_quest.to_dict()
+        else:
+            data["personal_quest"] = None
+        return data
 
     @classmethod
     def from_dict(cls, data: dict) -> "Companion":
@@ -176,10 +185,17 @@ class Companion:
         Returns:
             Companion instance
         """
+        from cli_rpg.models.quest import Quest
+
+        personal_quest = None
+        if data.get("personal_quest") is not None:
+            personal_quest = Quest.from_dict(data["personal_quest"])
+
         return cls(
             name=data["name"],
             description=data["description"],
             recruited_at=data["recruited_at"],
             bond_points=data.get("bond_points", 0),
             personality=data.get("personality", "pragmatic"),
+            personal_quest=personal_quest,
         )

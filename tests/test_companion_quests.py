@@ -1,34 +1,9 @@
-# Companion-Specific Quests and Storylines - Implementation Plan
+"""Tests for companion-specific quests and storylines.
 
-## Spec
-
-Add personal quests for companions that unlock at higher bond levels. Each companion can have a personal quest that becomes available when their bond reaches TRUSTED (50+ points). Completing the quest provides bond points and unique rewards.
-
-**Core Mechanics:**
-- Companions can have a `personal_quest` field (optional Quest)
-- Quest unlocks at TRUSTED bond level (50+ points)
-- New command `companion-quest <name>` to view/accept companion personal quests
-- Quest completion grants +15 bond points (significant relationship boost)
-- Personal quests use existing Quest model and objective types
-
-**Integration Points:**
-- Uses existing `Quest` model with `ObjectiveType` enum
-- Uses existing quest progress tracking (record_kill, record_collection, etc.)
-- Uses existing `Companion.add_bond()` for completion rewards
-
-## Files to Modify
-
-1. `src/cli_rpg/models/companion.py` - Add `personal_quest` field, `is_quest_available()`, `get_quest_completion_bonus()`
-2. `src/cli_rpg/companion_quests.py` - New service for companion quest logic
-3. `src/cli_rpg/main.py` - Add `companion-quest` command, integrate quest completion with bond
-4. `src/cli_rpg/game_state.py` - Add `companion-quest` to KNOWN_COMMANDS
-
-## Tests (TDD)
-
-### tests/test_companion_quests.py
-
-```python
-"""Tests for companion-specific quests and storylines."""
+These tests verify the implementation of personal quests for companions that unlock
+at higher bond levels. Each companion can have a personal quest that becomes available
+when their bond reaches TRUSTED (50+ points).
+"""
 import pytest
 from cli_rpg.models.companion import Companion, BondLevel
 from cli_rpg.models.quest import Quest, QuestStatus, ObjectiveType
@@ -43,6 +18,7 @@ from cli_rpg.companion_quests import (
 class TestCompanionPersonalQuest:
     """Test companion personal_quest field."""
 
+    # Spec: Companions can have a `personal_quest` field (optional Quest)
     def test_companion_has_personal_quest_field(self):
         """Companions can have an optional personal_quest."""
         quest = Quest(
@@ -73,7 +49,10 @@ class TestCompanionPersonalQuest:
 
 
 class TestQuestAvailability:
-    """Test when companion quests become available."""
+    """Test when companion quests become available.
+
+    Spec: Quest unlocks at TRUSTED bond level (50+ points)
+    """
 
     def test_quest_not_available_at_stranger(self):
         """Personal quest unavailable at STRANGER bond level."""
@@ -208,15 +187,25 @@ class TestAcceptCompanionQuest:
 
 
 class TestCompanionQuestCompletion:
-    """Test companion quest completion bonuses."""
+    """Test companion quest completion bonuses.
+
+    Spec: Quest completion grants +15 bond points (significant relationship boost)
+    """
 
     def test_completing_companion_quest_grants_bond_bonus(self):
         """Completing personal quest gives QUEST_COMPLETION_BOND_BONUS."""
+        quest = Quest(
+            name="Kira's Honor",
+            description="Help Kira reclaim her family sword.",
+            objective_type=ObjectiveType.COLLECT,
+            target="Family Sword",
+        )
         companion = Companion(
             name="Kira",
             description="A warrior",
             recruited_at="Arena",
             bond_points=50,
+            personal_quest=quest,
         )
         initial_bond = companion.bond_points
         messages = check_companion_quest_completion(companion, "Kira's Honor")
@@ -224,11 +213,18 @@ class TestCompanionQuestCompletion:
 
     def test_completion_returns_message(self):
         """Completion returns flavor message about strengthened bond."""
+        quest = Quest(
+            name="Kira's Honor",
+            description="Help Kira reclaim her family sword.",
+            objective_type=ObjectiveType.COLLECT,
+            target="Family Sword",
+        )
         companion = Companion(
             name="Kira",
             description="A warrior",
             recruited_at="Arena",
             bond_points=50,
+            personal_quest=quest,
         )
         messages = check_companion_quest_completion(companion, "Kira's Honor")
         assert len(messages) > 0
@@ -255,7 +251,10 @@ class TestCompanionQuestCompletion:
 
 
 class TestCompanionQuestSerialization:
-    """Test serialization of companions with personal quests."""
+    """Test serialization of companions with personal quests.
+
+    Spec: Uses existing Quest model serialization for personal_quest field
+    """
 
     def test_companion_with_quest_to_dict(self):
         """Companion with personal_quest serializes correctly."""
@@ -312,126 +311,3 @@ class TestCompanionQuestSerialization:
         data = companion.to_dict()
         restored = Companion.from_dict(data)
         assert restored.personal_quest is None
-```
-
-## Implementation Steps
-
-1. **Add `personal_quest` field to Companion** (`src/cli_rpg/models/companion.py`):
-   ```python
-   from typing import Optional, TYPE_CHECKING
-   if TYPE_CHECKING:
-       from cli_rpg.models.quest import Quest
-
-   @dataclass
-   class Companion:
-       # ... existing fields ...
-       personal_quest: Optional["Quest"] = None
-   ```
-   - Update `to_dict()`: Add `personal_quest` serialization
-   - Update `from_dict()`: Add `personal_quest` deserialization
-
-2. **Create `src/cli_rpg/companion_quests.py`**:
-   ```python
-   """Companion quest management."""
-   from typing import Optional
-   from cli_rpg.models.companion import Companion, BondLevel
-   from cli_rpg.models.quest import Quest, QuestStatus
-   from cli_rpg import colors
-
-   QUEST_COMPLETION_BOND_BONUS = 15
-   QUEST_UNLOCK_LEVEL = BondLevel.TRUSTED
-
-   def is_quest_available(companion: Companion) -> bool:
-       """Check if companion's personal quest is available."""
-       if companion.personal_quest is None:
-           return False
-       bond_level = companion.get_bond_level()
-       return bond_level in (BondLevel.TRUSTED, BondLevel.DEVOTED)
-
-   def accept_companion_quest(companion: Companion) -> Optional[Quest]:
-       """Accept a companion's personal quest, returning an ACTIVE copy."""
-       if not is_quest_available(companion):
-           return None
-       quest = companion.personal_quest
-       return Quest(
-           name=quest.name,
-           description=quest.description,
-           objective_type=quest.objective_type,
-           target=quest.target,
-           target_count=quest.target_count,
-           status=QuestStatus.ACTIVE,
-           gold_reward=quest.gold_reward,
-           xp_reward=quest.xp_reward,
-           item_rewards=quest.item_rewards.copy(),
-           quest_giver=companion.name,
-       )
-
-   def check_companion_quest_completion(
-       companion: Companion,
-       completed_quest_name: str
-   ) -> list[str]:
-       """Check if completed quest matches companion's personal quest."""
-       messages = []
-       if companion.personal_quest is None:
-           return messages
-       if companion.personal_quest.name != completed_quest_name:
-           return messages
-
-       level_msg = companion.add_bond(QUEST_COMPLETION_BOND_BONUS)
-       messages.append(colors.companion(
-           f"{companion.name}'s trust in you deepens. \"I won't forget what you've done for me.\""
-       ))
-       if level_msg:
-           messages.append(level_msg)
-       return messages
-   ```
-
-3. **Add command to `game_state.py`**:
-   - Add `"companion-quest"` to `KNOWN_COMMANDS`
-
-4. **Add command handler in `main.py`**:
-   ```python
-   elif command == "companion-quest":
-       if not args:
-           return (True, "\nWhich companion? Use: companion-quest <name>")
-
-       companion_name = " ".join(args).lower()
-       matching = [c for c in game_state.companions if c.name.lower() == companion_name]
-
-       if not matching:
-           return (True, f"\nNo companion named '{' '.join(args)}' in your party.")
-
-       companion = matching[0]
-
-       from cli_rpg.companion_quests import is_quest_available, accept_companion_quest
-
-       if companion.personal_quest is None:
-           return (True, f"\n{companion.name} has no personal quest.")
-
-       if not is_quest_available(companion):
-           bond_level = companion.get_bond_level().value
-           return (True, f"\n{companion.name}'s personal quest is not yet available.\nBuild more trust. (Current: {bond_level}, Need: Trusted)")
-
-       # Check if already have quest
-       if game_state.current_character.has_quest(companion.personal_quest.name):
-           return (True, f"\nYou already have {companion.name}'s quest: {companion.personal_quest.name}")
-
-       # Accept quest
-       new_quest = accept_companion_quest(companion)
-       game_state.current_character.quests.append(new_quest)
-
-       return (True, f"\n{companion.name}'s Quest Accepted: {new_quest.name}\n{new_quest.description}")
-   ```
-
-5. **Integrate completion bonus in `main.py` complete handler** (~line 910):
-   ```python
-   # After marking quest completed, check for companion quest bonus
-   from cli_rpg.companion_quests import check_companion_quest_completion
-   for companion in game_state.companions:
-       bonus_messages = check_companion_quest_completion(companion, matching_quest.name)
-       output_lines.extend(bonus_messages)
-   ```
-
-6. **Run tests**: `pytest tests/test_companion_quests.py -v`
-
-7. **Run full test suite**: `pytest`
