@@ -52,7 +52,7 @@ def mock_collect_quest_response():
         "name": "Herb Gathering",
         "description": "Collect medicinal herbs for the healer.",
         "objective_type": "collect",
-        "target": "Healing Herb",
+        "target": "Herbs",  # Must be a valid obtainable item
         "target_count": 3,
         "gold_reward": 50,
         "xp_reward": 40

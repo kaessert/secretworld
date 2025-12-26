@@ -125,16 +125,20 @@ class TestKillQuestValidation:
         assert result["objective_type"] == "explore"
 
     # Tests spec: COLLECT quest targets should not be validated against enemy list
-    def test_collect_quest_target_not_validated(self):
-        """COLLECT quest targets should not be validated against enemy types."""
+    def test_collect_quest_target_not_validated_against_enemies(self):
+        """COLLECT quest targets should not be validated against enemy types.
+
+        Note: COLLECT quests are validated against OBTAINABLE_ITEMS instead,
+        so this test uses a valid obtainable item (Herbs).
+        """
         response = (
             '{"name":"Gather Herbs","description":"Collect healing herbs",'
-            '"objective_type":"collect","target":"Healing Herb","target_count":5,'
+            '"objective_type":"collect","target":"Herbs","target_count":5,'
             '"gold_reward":30,"xp_reward":60}'
         )
         service = AIService.__new__(AIService)
         result = service._parse_quest_response(response, "Test NPC")
-        assert result["target"] == "Healing Herb"
+        assert result["target"] == "Herbs"
         assert result["objective_type"] == "collect"
 
     # Tests spec: TALK quest targets should not be validated against enemy list

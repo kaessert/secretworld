@@ -38,6 +38,55 @@ VALID_LOCATION_CATEGORIES: set[str] = {
 
 logger = logging.getLogger(__name__)
 
+# Valid obtainable items for COLLECT quest validation
+# Includes: shop items, loot drops, forage/hunt/gather items, crafted items
+OBTAINABLE_ITEMS: frozenset[str] = frozenset({
+    # Shop items (static shops)
+    "health potion", "antidote", "travel rations", "iron sword", "leather armor",
+    "torch", "lockpick", "camping supplies", "stamina potion", "steel sword",
+    "chainmail", "iron helmet", "greater health potion", "fine steel sword",
+    "plate armor",
+    # Caravan event items
+    "exotic spices", "traveler's map", "foreign elixir", "rare gemstone",
+    # Loot drops - weapons (prefix + name combinations)
+    "rusty sword", "rusty dagger", "rusty axe", "rusty mace", "rusty spear",
+    "iron dagger", "iron axe", "iron mace", "iron spear",
+    "steel dagger", "steel axe", "steel mace", "steel spear",
+    "sharp sword", "sharp dagger", "sharp axe", "sharp mace", "sharp spear",
+    "worn sword", "worn dagger", "worn axe", "worn mace", "worn spear",
+    "old sword", "old dagger", "old axe", "old mace", "old spear",
+    # Loot drops - armor (prefix + name combinations)
+    "worn armor", "worn shield", "worn helmet", "worn gauntlets", "worn boots",
+    "sturdy armor", "sturdy shield", "sturdy helmet", "sturdy gauntlets", "sturdy boots",
+    "leather shield", "leather helmet", "leather gauntlets", "leather boots",
+    "chain armor", "chain shield", "chain helmet", "chain gauntlets", "chain boots",
+    "old armor", "old shield", "old helmet", "old gauntlets", "old boots",
+    # Loot drops - consumables
+    "healing elixir", "life draught",
+    "cure vial", "purification elixir",
+    # Loot drops - misc
+    "gold coin", "strange key", "monster fang", "gem stone",
+    # Wandering merchant items (prefix + name combinations)
+    "sturdy blade", "sturdy dagger", "sturdy mace", "sturdy staff",
+    "sharp blade", "sharp dagger", "sharp mace", "sharp staff",
+    "fine blade", "fine dagger", "fine mace", "fine staff",
+    "tempered blade", "tempered dagger", "tempered mace", "tempered staff",
+    "padded vest", "padded guard", "padded helm", "padded gloves",
+    "leather vest", "leather guard", "leather helm", "leather gloves",
+    "chain vest", "chain guard", "chain helm", "chain gloves",
+    "reinforced vest", "reinforced guard", "reinforced helm", "reinforced gloves",
+    "healing tonic", "restoration brew",
+    # Forage items
+    "herbs", "wild berries", "medicinal root", "moonpetal flower",
+    # Hunt items
+    "raw meat", "animal pelt", "cooked meat",
+    # Gather items (resources)
+    "wood", "fiber", "stone", "iron ore",
+    # Crafted items
+    "rope", "stone hammer", "healing salve", "bandage", "wooden shield",
+    "iron armor",  # crafted version (same name as loot)
+})
+
 
 class AIServiceError(Exception):
     """Base exception for AI service errors."""
@@ -1891,6 +1940,13 @@ Note: Use "EXISTING_WORLD" as placeholder for the connection back to the source 
             if target.lower() not in valid_locations:
                 raise AIGenerationError(
                     f"Invalid EXPLORE quest target '{target}'. Must be an existing location."
+                )
+
+        # Validate COLLECT quest targets against obtainable items
+        if objective_type == "collect":
+            if target.lower() not in OBTAINABLE_ITEMS:
+                raise AIGenerationError(
+                    f"Invalid COLLECT quest target '{target}'. Must be an obtainable item."
                 )
 
         # Validate target_count >= 1

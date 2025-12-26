@@ -90,19 +90,23 @@ class TestExploreQuestValidation:
 
     # Tests spec: COLLECT quests not validated against locations
     def test_collect_quest_unchanged(self):
-        """COLLECT quests not validated against locations."""
+        """COLLECT quests not validated against locations.
+
+        Note: COLLECT quests are validated against OBTAINABLE_ITEMS instead,
+        so this test uses a valid obtainable item (Herbs).
+        """
         response = (
             '{"name":"Gather Herbs","description":"Collect healing herbs",'
-            '"objective_type":"collect","target":"Healing Herb","target_count":5,'
+            '"objective_type":"collect","target":"Herbs","target_count":5,'
             '"gold_reward":30,"xp_reward":60}'
         )
         valid_locations = {"hidden cave", "town square"}
         service = AIService.__new__(AIService)
-        # Should pass - COLLECT targets don't need to match locations
+        # Should pass - COLLECT targets validated against OBTAINABLE_ITEMS, not locations
         result = service._parse_quest_response(
             response, "Test NPC", valid_locations=valid_locations
         )
-        assert result["target"] == "Healing Herb"
+        assert result["target"] == "Herbs"
         assert result["objective_type"] == "collect"
 
 

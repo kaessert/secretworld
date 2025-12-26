@@ -702,25 +702,27 @@ Result: IMPOSSIBLE - "Elder Mage Aldous" doesn't exist
 
 #### Issue 4: COLLECT Quest Targets Don't Match Obtainable Items
 
-**Severity**: CRITICAL (most common failure)
+**Severity**: ✅ RESOLVED (2025-12-26)
 
+**Solution Implemented**:
+- Added `OBTAINABLE_ITEMS` frozenset in `ai_service.py` containing 100+ obtainable item names from shops, loot drops, foraging, hunting, gathering, and crafting
+- Added validation in `ai_service.py:_parse_quest_response()` that rejects COLLECT quests with invalid targets
+- When target is invalid, raises `AIGenerationError` forcing quest regeneration with valid target
+- Case-insensitive matching (lowercases target before checking)
+- 16 new tests in `tests/test_collect_quest_validation.py`
+
+**Original Problem**:
 ```
 Quest: "Collect 3 Dragon Scales"
 Obtainable Items: Health Potion, Iron Sword, Leather Armor (shops + drops)
 Result: IMPOSSIBLE - "Dragon Scales" can't be obtained
 ```
 
-**How it fails**:
-- AI generates arbitrary item name in `target` field
-- Items only come from: hardcoded shops, template enemy drops
-- **No AI item generation exists** in the codebase
-- Quest items are pure fiction with no way to obtain them
-
 #### Risk Assessment
 
 | Objective Type | Impossible Quest Risk | Reason |
 |----------------|----------------------|--------|
-| COLLECT | 70% | Items are hardcoded, no AI item generation |
+| COLLECT | ✅ 0% | Validated against `OBTAINABLE_ITEMS` (fixed 2025-12-26) |
 | KILL | ✅ 0% | Validated against `VALID_ENEMY_TYPES` (fixed 2025-12-26) |
 | TALK | 50% | NPCs generated separately from quests |
 | EXPLORE | ✅ 0% | Validated against known locations (fixed 2025-12-26) |
@@ -797,7 +799,7 @@ When AI generates a quest target, ensure it gets created:
 
 1. ~~**Immediate**: Add `VALID_ENEMY_TYPES` constant and validate KILL quests (most common type)~~ ✅ DONE (2025-12-26)
 2. ~~**Immediate**: Validate EXPLORE quests against known location names~~ ✅ DONE (2025-12-26)
-3. **Short-term**: Pass obtainable items list to quest generation for COLLECT quests
+3. ~~**Short-term**: Pass obtainable items list to quest generation for COLLECT quests~~ ✅ DONE (2025-12-26) - Validation via `OBTAINABLE_ITEMS` frozenset
 4. **Medium-term**: Implement context-aware generation with all world state
 5. **Long-term**: World-creating quests that guarantee completability
 
