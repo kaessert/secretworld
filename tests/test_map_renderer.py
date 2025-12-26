@@ -876,3 +876,242 @@ class TestUniqueLocationSymbols:
         assert "A = Apple Orchard" in result or "A =" in result and "Apple Orchard" in result
         assert "B = Mountain" in result or "B =" in result and "Mountain" in result
         assert "C = Zebra Zone" in result or "C =" in result and "Zebra Zone" in result
+
+
+class TestSubGridMapRendering:
+    """Tests for interior map rendering when inside a SubGrid.
+
+    Spec: When render_map() is called with a sub_grid parameter, display a bounded
+    interior map with exit point markers instead of the infinite overworld view.
+    """
+
+    def _create_test_subgrid(self, parent_name: str = "Ancient Temple") -> "SubGrid":
+        """Create a test SubGrid with locations for testing."""
+        from cli_rpg.world_grid import SubGrid
+
+        sub_grid = SubGrid(parent_name=parent_name, bounds=(-1, 1, -1, 1))
+
+        # Entry at (0, 0)
+        entry = Location("Temple Hall", "Main hall of the temple", {})
+        sub_grid.add_location(entry, 0, 0)
+
+        # Altar to the north at (0, 1)
+        altar = Location("Altar Room", "A sacred altar room", {})
+        sub_grid.add_location(altar, 0, 1)
+
+        # Exit room to the east at (1, 0)
+        exit_room = Location("Exit Chamber", "Chamber near the exit", {}, is_exit_point=True)
+        sub_grid.add_location(exit_room, 1, 0)
+
+        return sub_grid
+
+    def test_render_map_with_sub_grid_shows_interior_header(self):
+        """When sub_grid is provided, header should say 'INTERIOR MAP'.
+
+        Spec: Display header '=== INTERIOR MAP ===' (vs '=== MAP ===' for overworld)
+        """
+        sub_grid = self._create_test_subgrid()
+        world = {}  # Empty world - we're using sub_grid
+
+        result = render_map(world, "Temple Hall", sub_grid=sub_grid)
+
+        assert "=== INTERIOR MAP ===" in result, (
+            f"Interior map should have 'INTERIOR MAP' header. Got:\n{result}"
+        )
+
+    def test_render_sub_grid_shows_parent_context(self):
+        """Interior map should mention parent location for context.
+
+        Spec: Header should include parent location name (e.g., 'Inside: Ancient Temple')
+        """
+        sub_grid = self._create_test_subgrid(parent_name="Ancient Temple")
+        world = {}
+
+        result = render_map(world, "Temple Hall", sub_grid=sub_grid)
+
+        assert "Ancient Temple" in result, (
+            f"Interior map should mention parent location. Got:\n{result}"
+        )
+
+    def test_render_sub_grid_uses_bounds_not_viewport(self):
+        """Interior map shows full bounded grid, not 9x9 viewport.
+
+        Spec: Map should show exactly the coordinates within sub_grid.bounds
+        """
+        from cli_rpg.world_grid import SubGrid
+
+        # Create a 3x3 grid (-1 to 1)
+        sub_grid = SubGrid(parent_name="Small Room", bounds=(-1, 1, -1, 1))
+        entry = Location("Center", "Center of room", {})
+        sub_grid.add_location(entry, 0, 0)
+
+        result = render_map({}, "Center", sub_grid=sub_grid)
+
+        lines = result.split("\n")
+
+        # Find header line with x-coordinates
+        header_line = None
+        for line in lines:
+            if "-1" in line and "0" in line and "1" in line:
+                # Should have coordinates -1, 0, 1 but NOT -4 or 4 (like overworld)
+                if "-4" not in line and "4" not in line:
+                    header_line = line
+                    break
+
+        assert header_line is not None, (
+            f"Header should contain x-coordinates -1, 0, 1 (bounded). Got:\n{result}"
+        )
+
+    def test_render_sub_grid_shows_exit_markers(self):
+        """Locations with is_exit_point=True get special marker in legend.
+
+        Spec: Legend should show '[EXIT]' for exit point locations
+        """
+        sub_grid = self._create_test_subgrid()
+        world = {}
+
+        result = render_map(world, "Temple Hall", sub_grid=sub_grid)
+
+        # Exit Chamber has is_exit_point=True
+        assert "[EXIT]" in result, (
+            f"Exit points should be marked with [EXIT] in legend. Got:\n{result}"
+        )
+        assert "Exit Chamber" in result and "[EXIT]" in result, (
+            f"Exit Chamber should have [EXIT] marker. Got:\n{result}"
+        )
+
+    def test_render_sub_grid_shows_current_location_at_symbol(self):
+        """Current location inside sub-grid uses @ marker.
+
+        Spec: Same as overworld - @ for current position
+        """
+        sub_grid = self._create_test_subgrid()
+        world = {}
+
+        result = render_map(world, "Temple Hall", sub_grid=sub_grid)
+
+        grid_section = result.split("Legend:")[0]
+
+        assert "@" in grid_section, (
+            f"Current location should show @ marker. Got:\n{result}"
+        )
+
+    def test_render_sub_grid_shows_blocked_at_bounds(self):
+        """Cells inside bounds but without locations show as blocked (█).
+
+        Spec: Empty cells within the bounded grid show wall markers
+        """
+        from cli_rpg.world_grid import SubGrid
+
+        # Create grid with only center location - all adjacent cells are empty
+        sub_grid = SubGrid(parent_name="Sparse Room", bounds=(-1, 1, -1, 1))
+        entry = Location("Center", "Center of room", {})
+        sub_grid.add_location(entry, 0, 0)
+
+        result = render_map({}, "Center", sub_grid=sub_grid)
+
+        # The blocked marker should appear for empty cells within bounds
+        assert "█" in result, (
+            f"Empty cells within bounds should show blocked marker. Got:\n{result}"
+        )
+
+    def test_render_sub_grid_legend_shows_wall_explanation(self):
+        """Legend includes wall/boundary marker explanation.
+
+        Spec: Legend should explain the █ marker as Wall/Boundary
+        """
+        sub_grid = self._create_test_subgrid()
+        world = {}
+
+        result = render_map(world, "Temple Hall", sub_grid=sub_grid)
+
+        assert "█" in result, "Legend should contain wall marker"
+        assert "Wall" in result or "Boundary" in result, (
+            f"Legend should explain wall/boundary marker. Got:\n{result}"
+        )
+
+    def test_render_sub_grid_no_exit_point_no_marker(self):
+        """Locations without is_exit_point=True should not have [EXIT] marker.
+
+        Spec: Only is_exit_point=True locations get the [EXIT] indicator
+        """
+        sub_grid = self._create_test_subgrid()
+        world = {}
+
+        result = render_map(world, "Temple Hall", sub_grid=sub_grid)
+
+        # Temple Hall and Altar Room are NOT exit points
+        lines = result.split("\n")
+        for line in lines:
+            if "Temple Hall" in line:
+                # Current location is marked with @, not letter
+                assert "[EXIT]" not in line or "@ = You" in line, (
+                    f"Temple Hall (current) should not have [EXIT]. Line: {line}"
+                )
+            if "Altar Room" in line and "@ = You" not in line:
+                assert "[EXIT]" not in line, (
+                    f"Altar Room should not have [EXIT] marker. Line: {line}"
+                )
+
+    def test_render_sub_grid_shows_exits_from_current_location(self):
+        """Interior map shows available exits from current location.
+
+        Spec: Exits line shows cardinal directions available from current position
+        """
+        sub_grid = self._create_test_subgrid()
+        world = {}
+
+        result = render_map(world, "Temple Hall", sub_grid=sub_grid)
+
+        # Temple Hall at (0,0) should have connections to Altar Room (north)
+        # and Exit Chamber (east)
+        assert "Exits:" in result, "Map should display exits line"
+        # At least some exits should be shown
+        assert "north" in result.lower() or "east" in result.lower(), (
+            f"Exits should show available directions. Got:\n{result}"
+        )
+
+    def test_render_sub_grid_location_not_found_returns_message(self):
+        """If current location not in sub_grid, return error message.
+
+        Spec: Graceful handling when current_location is not in sub_grid
+        """
+        sub_grid = self._create_test_subgrid()
+        world = {}
+
+        result = render_map(world, "Nonexistent Room", sub_grid=sub_grid)
+
+        assert "No interior map available" in result, (
+            f"Should return error for missing location. Got:\n{result}"
+        )
+
+    def test_render_sub_grid_box_border(self):
+        """Interior map has box-drawing character border.
+
+        Spec: Same visual style as overworld map with box border
+        """
+        sub_grid = self._create_test_subgrid()
+        world = {}
+
+        result = render_map(world, "Temple Hall", sub_grid=sub_grid)
+
+        assert "┌" in result, "Map should have top-left corner (┌)"
+        assert "┐" in result, "Map should have top-right corner (┐)"
+        assert "└" in result, "Map should have bottom-left corner (└)"
+        assert "┘" in result, "Map should have bottom-right corner (┘)"
+
+    def test_render_sub_grid_letter_symbols_for_locations(self):
+        """Non-current locations get letter symbols A-Z.
+
+        Spec: Same as overworld - letter symbols for non-current locations
+        """
+        sub_grid = self._create_test_subgrid()
+        world = {}
+
+        result = render_map(world, "Temple Hall", sub_grid=sub_grid)
+
+        # Altar Room and Exit Chamber should get letter symbols
+        # In alphabetical order: Altar Room -> A, Exit Chamber -> B
+        assert "A = " in result or "B = " in result, (
+            f"Non-current locations should have letter symbols. Got:\n{result}"
+        )

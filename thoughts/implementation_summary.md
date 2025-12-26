@@ -1,75 +1,91 @@
-# Implementation Summary: GameState Sub-Location Navigation (Phase 1, Step 3)
+# Implementation Summary: SubGrid Interior Map Rendering (Phase 1, Step 4)
 
 ## What Was Implemented
 
-The implementation wires up GameState to use the SubGrid system for sub-location navigation. All functionality was already correctly implemented in the codebase.
+Added interior map rendering to `map_renderer.py` so players can visualize their position inside sub-grids. When inside a SubGrid, the `map` command now displays a bounded interior map with exit point markers.
 
-### Features Verified
+### Features Implemented
 
-1. **GameState fields** (`game_state.py` lines 273-274):
-   - `in_sub_location: bool = False` - Tracks when player is inside a sub-grid
-   - `current_sub_grid: Optional["SubGrid"] = None` - Active sub-grid reference
+1. **Interior Map Header**: Displays `=== INTERIOR MAP === (Inside: <parent_name>)` instead of `=== MAP ===`
+2. **Bounded Grid**: Shows the exact grid based on `sub_grid.bounds` (not the 9x9 overworld viewport)
+3. **Exit Point Markers**: Locations with `is_exit_point=True` display `[EXIT]` in the legend
+4. **Letter Symbols**: Non-current locations get unique A-Z letters in alphabetical order
+5. **Current Position**: Player location marked with `@` (cyan, bold) same as overworld
+6. **Wall Markers**: Empty cells within bounds show `█` as wall/boundary
+7. **Box Border**: Same visual styling as overworld map with `┌┐└┘─│` characters
+8. **Exits Display**: Shows available cardinal directions from current position
 
-2. **`get_current_location()` method** (lines 285-298):
-   - When `in_sub_location` is True, resolves location from `current_sub_grid`
-   - Otherwise returns location from overworld `world` dict
+### Files Modified
 
-3. **`enter()` method** (lines 716-801):
-   - Detects when entering a location with `sub_grid`
-   - Sets `in_sub_location = True` and `current_sub_grid` reference
-   - Moves player to matched sub-location within the grid
+| File | Changes |
+|------|---------|
+| `src/cli_rpg/map_renderer.py` | Added `sub_grid` parameter to `render_map()`, created `_render_sub_grid_map()` function, added TYPE_CHECKING import for SubGrid |
+| `tests/test_map_renderer.py` | Added `TestSubGridMapRendering` class with 12 comprehensive tests |
 
-4. **`_move_in_sub_grid()` method** (lines 681-714):
-   - Handles movement within sub-grid using connection-based navigation
-   - Validates direction and connection existence
-   - Advances game time (1 hour per move)
+### Code Changes
 
-5. **`exit_location()` method** (lines 803-841):
-   - Checks `is_exit_point` flag when `in_sub_location` is True
-   - Only allows exit from marked exit points
-   - Clears `in_sub_location` and `current_sub_grid` on successful exit
-   - Returns player to parent overworld location
+#### map_renderer.py
 
-6. **Persistence** (`to_dict`/`from_dict`):
-   - `to_dict()` includes `in_sub_location` (line 973)
-   - `from_dict()` restores `in_sub_location` and finds `current_sub_grid` from parent location (lines 1001-1029)
+1. Added TYPE_CHECKING import for SubGrid type hint
+2. Updated `render_map()` signature to accept optional `sub_grid: Optional["SubGrid"]` parameter
+3. Added delegation logic: when `sub_grid` is provided, calls `_render_sub_grid_map()`
+4. Created `_render_sub_grid_map()` function (~115 lines) that:
+   - Uses SubGrid bounds for grid dimensions
+   - Builds coordinate-to-location mapping
+   - Assigns alphabetical letter symbols to non-current locations
+   - Marks exit points with `[EXIT]` indicator
+   - Renders wall markers for empty cells within bounds
+   - Shows box border with header and legend
 
 ## Test Results
 
-All 21 tests in `tests/test_subgrid_navigation.py` pass:
+- **12 new tests** added in `TestSubGridMapRendering` class
+- **All 39 map_renderer tests pass**
+- **Full test suite: 3242 tests pass**
 
-| Test Class | Tests | Status |
-|------------|-------|--------|
-| TestGameStateSubLocationFields | 2 | ✅ PASS |
-| TestEnterWithSubGrid | 4 | ✅ PASS |
-| TestMoveInsideSubGrid | 4 | ✅ PASS |
-| TestExitWithExitPoint | 5 | ✅ PASS |
-| TestGetCurrentLocationWithSubGrid | 2 | ✅ PASS |
-| TestSubLocationPersistence | 4 | ✅ PASS |
+### Tests Added
 
-### Related Tests Verified
+1. `test_render_map_with_sub_grid_shows_interior_header` - Interior header displayed
+2. `test_render_sub_grid_shows_parent_context` - Parent location mentioned
+3. `test_render_sub_grid_uses_bounds_not_viewport` - Bounded grid not 9x9
+4. `test_render_sub_grid_shows_exit_markers` - Exit points marked with [EXIT]
+5. `test_render_sub_grid_shows_current_location_at_symbol` - @ marker for current position
+6. `test_render_sub_grid_shows_blocked_at_bounds` - Empty cells show █
+7. `test_render_sub_grid_legend_shows_wall_explanation` - Legend explains wall marker
+8. `test_render_sub_grid_no_exit_point_no_marker` - Non-exit points don't have marker
+9. `test_render_sub_grid_shows_exits_from_current_location` - Exits line displayed
+10. `test_render_sub_grid_location_not_found_returns_message` - Graceful error handling
+11. `test_render_sub_grid_box_border` - Box border characters present
+12. `test_render_sub_grid_letter_symbols_for_locations` - Letter symbols assigned
 
-- `tests/test_sub_grid.py` - 23 tests pass
-- `tests/test_exit_points.py` - 16 tests pass
-- `tests/test_game_state.py` - 53 tests pass
-- `tests/test_location.py` - 46 tests pass
-- `tests/test_world_grid.py` - 29 tests pass
+## Example Output
 
-**Total: 211 related tests pass**
+```
+=== INTERIOR MAP === (Inside: Ancient Temple)
+┌────────────────┐
+│      -1   0   1│
+│   1   █   A   █│
+│   0   █   @   B│
+│  -1   █   █   █│
+└────────────────┘
 
-## Files Involved
+Legend:
+  @ = You (Temple Hall)
+  A = Altar Room
+  B = Exit Chamber [EXIT]
+  █ = Wall/Boundary
+Exits: east, north
+```
 
-| File | Status |
-|------|--------|
-| `src/cli_rpg/game_state.py` | Already complete |
-| `tests/test_subgrid_navigation.py` | Already complete |
+## E2E Test Validation
 
-## E2E Validation
-
-The following scenarios should work correctly:
-
-1. **Enter a landmark with sub_grid**: Player at overworld location can `enter <name>` to enter interior grid
-2. **Move within interior**: Cardinal movement (n/s/e/w) uses sub-grid connections, not overworld coordinates
-3. **Exit constraint**: `exit` only works from rooms marked `is_exit_point=True`
-4. **State persistence**: Save/load cycle preserves sub-location state correctly
-5. **Location resolution**: `look` and other commands resolve from sub-grid when inside one
+To validate the implementation end-to-end:
+1. Start the game and navigate to a location with a sub_grid
+2. Use `enter` command to enter the sub-location
+3. Run `map` command to see the interior map
+4. Verify the map shows:
+   - "INTERIOR MAP" header with parent location
+   - Bounded grid (not 9x9 viewport)
+   - Exit points marked with [EXIT]
+   - Wall markers for empty cells
+   - @ for current position
