@@ -31,7 +31,8 @@ class TestWeaponAffectsCombatDamage:
         combat.start()
 
         initial_health = enemy.health
-        combat.player_attack()
+        with patch('cli_rpg.combat.random.random', return_value=0.50):
+            combat.player_attack()
 
         # Damage should be player attack power (10) - enemy defense (0) = 10
         expected_damage = 10

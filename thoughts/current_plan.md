@@ -1,87 +1,33 @@
-# Fix E2E Test Failures After Character Class System Addition
+# Fix Flaky Combat Tests Due to Random Critical Hits
 
 ## Problem
-Two E2E tests in `test_e2e_ai_integration.py` are failing because they're missing the class selection input that was added to the character creation flow in commit ba1b3bc.
+Two tests fail intermittently because they don't mock `random.random()`, causing unexpected 1.5x damage when a crit occurs:
+- `test_combat.py::TestPlayerCast::test_player_cast_damages_enemy_based_on_intelligence`
+- `test_combat_equipment.py::TestWeaponAffectsCombatDamage::test_attack_damage_without_weapon`
 
-The character creation flow now requires an additional input for class selection (after name, before stat allocation method).
+## Fix Pattern
+Wrap attack calls with `with patch('cli_rpg.combat.random.random', return_value=0.50):` (same pattern used in fixed tests from commits a4ecd9b and e88e8b4).
 
-## Failing Tests
-1. `test_theme_selection_flow_with_ai` - runs out of inputs (StopIteration on mock)
-2. `test_complete_e2e_flow_with_mocked_ai` - runs out of inputs (StopIteration on mock)
+## Implementation Steps
 
-## Fix
-
-### 1. Update `test_theme_selection_flow_with_ai` (lines 118-127)
-
-**Current inputs:**
+### 1. Fix `tests/test_combat.py` (line 163)
+- Add `from unittest.mock import patch` at top of `test_player_cast_damages_enemy_based_on_intelligence` method
+- Wrap `combat.player_cast()` call with the random mock:
 ```python
-inputs = [
-    "1",           # Create new character
-    "TestHero",    # Character name
-    "2",           # Random stats  <- WRONG: this is now class selection
-    "yes",         # Confirm character
-    "2",           # Select sci-fi theme
-    "quit",        # Quit game
-    "n",           # Don't save
-    "3"            # Exit main menu
-]
+with patch('cli_rpg.combat.random.random', return_value=0.50):
+    victory, message = combat.player_cast()
 ```
 
-**Fixed inputs:**
+### 2. Fix `tests/test_combat_equipment.py` (line 34)
+- `from unittest.mock import patch` already imported at file top (line 8)
+- Wrap `combat.player_attack()` call with the random mock:
 ```python
-inputs = [
-    "1",           # Create new character
-    "TestHero",    # Character name
-    "1",           # Select Warrior class (NEW)
-    "2",           # Random stats
-    "yes",         # Confirm character
-    "2",           # Select sci-fi theme
-    "quit",        # Quit game
-    "n",           # Don't save
-    "3"            # Exit main menu
-]
-```
-
-### 2. Update `test_complete_e2e_flow_with_mocked_ai` (lines 271-284)
-
-**Current inputs:**
-```python
-inputs = [
-    "1",           # Create new character
-    "Hero",        # Character name
-    "1",           # Manual stats  <- WRONG: this is now class selection
-    "12",          # Strength
-    "10",          # Dexterity
-    "14",          # Intelligence
-    "yes",         # Confirm character
-    "3",           # Select cyberpunk theme
-    "look",        # Look around
-    "quit",        # Quit game
-    "n",           # Don't save
-    "3"            # Exit main menu
-]
-```
-
-**Fixed inputs:**
-```python
-inputs = [
-    "1",           # Create new character
-    "Hero",        # Character name
-    "1",           # Select Warrior class (NEW)
-    "1",           # Manual stats
-    "12",          # Strength
-    "10",          # Dexterity
-    "14",          # Intelligence
-    "yes",         # Confirm character
-    "3",           # Select cyberpunk theme
-    "look",        # Look around
-    "quit",        # Quit game
-    "n",           # Don't save
-    "3"            # Exit main menu
-]
+with patch('cli_rpg.combat.random.random', return_value=0.50):
+    combat.player_attack()
 ```
 
 ## Verification
-Run: `pytest tests/test_e2e_ai_integration.py -v`
-
-All tests should pass after adding the class selection input to both test cases.
+Run the specific tests multiple times to confirm they no longer flake:
+```bash
+pytest tests/test_combat.py::TestPlayerCast::test_player_cast_damages_enemy_based_on_intelligence tests/test_combat_equipment.py::TestWeaponAffectsCombatDamage::test_attack_damage_without_weapon -v --count=20
+```

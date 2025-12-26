@@ -1,5 +1,7 @@
 """Tests for Combat Encounter system."""
 
+from unittest.mock import patch
+
 from cli_rpg.models.character import Character
 from cli_rpg.models.enemy import Enemy
 from cli_rpg.combat import CombatEncounter, spawn_enemy
@@ -160,7 +162,8 @@ class TestPlayerCast:
         combat.start()
 
         initial_health = enemy.health
-        victory, message = combat.player_cast()
+        with patch('cli_rpg.combat.random.random', return_value=0.50):
+            victory, message = combat.player_cast()
 
         # Magic damage ignores defense, scales with intelligence
         # Formula: intelligence * 1.5 (minimum 1)
