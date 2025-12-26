@@ -2,7 +2,7 @@
 
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Dict, List, TYPE_CHECKING
+from typing import Dict, List, Optional, TYPE_CHECKING
 
 if TYPE_CHECKING:
     from cli_rpg.models.status_effect import StatusEffect
@@ -54,6 +54,7 @@ class Enemy:
     is_hallucination: bool = False  # True if this is a dread-induced hallucination
     element_type: ElementType = ElementType.PHYSICAL  # Elemental affinity for damage modifiers
     status_effects: List = field(default_factory=list)  # Active status effects on this enemy
+    faction_affiliation: Optional[str] = None  # Faction this enemy belongs to (for reputation effects)
 
     def __post_init__(self):
         """Validate enemy attributes."""
@@ -208,6 +209,7 @@ class Enemy:
             "is_hallucination": self.is_hallucination,
             "element_type": self.element_type.value,
             "status_effects": [e.to_dict() for e in self.status_effects],
+            "faction_affiliation": self.faction_affiliation,
         }
     
     @staticmethod
@@ -260,4 +262,5 @@ class Enemy:
             is_hallucination=data.get("is_hallucination", False),
             element_type=element_type,
             status_effects=status_effects,
+            faction_affiliation=data.get("faction_affiliation"),
         )

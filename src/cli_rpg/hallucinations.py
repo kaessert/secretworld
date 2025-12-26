@@ -107,6 +107,7 @@ def check_for_hallucination(game_state: "GameState") -> Optional[str]:
         enemies=[hallucination],
         companions=game_state.companions,
         location_category=location.category if location else None,
+        game_state=game_state,
     )
 
     # Build eerie message

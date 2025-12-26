@@ -94,6 +94,7 @@ def check_and_trigger_shadow_attack(game_state: "GameState") -> Optional[str]:
         enemies=[shadow],
         companions=game_state.companions,
         location_category=location.category if location else None,
+        game_state=game_state,
     )
 
     # Build dramatic message

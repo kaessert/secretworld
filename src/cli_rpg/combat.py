@@ -14,6 +14,7 @@ from cli_rpg.sound_effects import sound_victory
 
 if TYPE_CHECKING:
     from cli_rpg.ai_service import AIService
+    from cli_rpg.game_state import GameState
 
 logger = logging.getLogger(__name__)
 
@@ -314,7 +315,8 @@ class CombatEncounter:
         enemy: Optional[Enemy] = None,
         weather: Optional[Weather] = None,
         companions: Optional[list[Companion]] = None,
-        location_category: Optional[str] = None
+        location_category: Optional[str] = None,
+        game_state: Optional["GameState"] = None,
     ):
         """
         Initialize combat encounter.
@@ -326,6 +328,7 @@ class CombatEncounter:
             weather: Optional weather for weather-combat interactions
             companions: Optional list of companions providing combat bonuses
             location_category: Optional location category for class bonuses (e.g., "forest")
+            game_state: Optional GameState for faction reputation changes
 
         Note: Either enemies or enemy must be provided. If both are provided,
         enemies takes precedence. If enemy is provided, it's wrapped in a list.
@@ -335,6 +338,7 @@ class CombatEncounter:
         self.weather = weather
         self.companions = companions or []
         self.location_category = location_category
+        self.game_state = game_state
 
         # Handle backward compatibility
         if enemies is not None:
@@ -1801,6 +1805,14 @@ class CombatEncounter:
                         messages.extend(drop_messages)
                     else:
                         messages.append(f"You found {colors.item(loot.name)} but your inventory is full!")
+
+            # Apply faction reputation changes
+            if self.game_state and self.game_state.factions:
+                from cli_rpg.faction_combat import apply_combat_reputation
+                rep_messages = apply_combat_reputation(
+                    self.game_state.factions, self.enemies
+                )
+                messages.extend(rep_messages)
 
             return "\n".join(messages)
         else:

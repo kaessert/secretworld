@@ -410,6 +410,7 @@ class GameState:
                 weather=self.weather,
                 companions=self.companions,
                 location_category=location.category if location else None,
+                game_state=self,
             )
 
             # Combat increases dread
@@ -724,6 +725,7 @@ class GameState:
                 weather=self.weather,
                 companions=self.companions,
                 location_category=sub_location.category,
+                game_state=self,
             )
             message += f"\n\n{self.current_combat.start()}"
 

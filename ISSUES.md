@@ -985,11 +985,15 @@ NPCs and towns should react to player's reputation and allegiances.
 - ✅ **GameState integration**: `factions` list field with backward-compatible persistence
 - ✅ **`reputation` command** (alias: `rep`) to view all faction standings with visual bars
 - ✅ **Default factions**: Town Guard, Merchant Guild, Thieves Guild (all start at Neutral)
+- ✅ **Combat reputation consequences** (`src/cli_rpg/faction_combat.py`):
+  - Enemy faction affiliation via pattern matching (bandit/thief → Thieves Guild, guard/soldier → Town Guard)
+  - Killing affiliated enemies: -5 reputation with that faction
+  - Killing affiliated enemies: +3 reputation with opposing faction (faction rivalries)
+  - Reputation change messages displayed after combat victory
 
 **Remaining features**:
-- Actions affect reputation (helping vs. harming, quest choices)
 - Reputation unlocks or blocks content (shops, quests, areas)
-- Faction conflicts where siding with one alienates another
+- Additional faction conflicts and quest-based reputation changes
 - Titles and recognition based on achievements
 
 ### Crafting and gathering system

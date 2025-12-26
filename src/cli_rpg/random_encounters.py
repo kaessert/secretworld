@@ -290,6 +290,7 @@ def _handle_hostile_encounter(game_state: "GameState") -> str:
         enemies=[enemy],
         companions=game_state.companions,
         location_category=location.category if location else None,
+        game_state=game_state,
     )
 
     # Build message

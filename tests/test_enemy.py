@@ -231,6 +231,7 @@ class TestEnemySerialization:
             "is_hallucination": False,
             "element_type": "physical",
             "status_effects": [],
+            "faction_affiliation": None,
         }
 
     def test_from_dict_deserializes_enemy(self):

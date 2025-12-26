@@ -245,6 +245,11 @@ Companion reactions appear as flavor text after combat resolution.
 **Defeat**: Game over (can restore health for testing)
 **Flee**: Escape without gaining XP, gold, or loot
 
+**Faction Reputation:** Defeating certain enemies affects your standing with factions:
+- **Bandit-type enemies** (bandits, thieves, ruffians, outlaws): -5 reputation with Thieves Guild, +3 with Town Guard
+- **Guard-type enemies** (guards, soldiers, knights, captains): -5 reputation with Town Guard, +3 with Thieves Guild
+- Reputation changes are shown after combat victory
+
 ### Inventory & Equipment
 
 Defeated enemies have a chance to drop loot. Items include:

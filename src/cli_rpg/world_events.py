@@ -518,6 +518,7 @@ def _resolve_invasion(
         weather=game_state.weather,
         companions=game_state.companions,
         location_category=location.category if location else None,
+        game_state=game_state,
     )
     # Mark the invasion event ID for post-combat resolution
     game_state._pending_invasion_event = event.event_id
