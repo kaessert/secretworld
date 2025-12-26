@@ -137,7 +137,7 @@ Instead of one monolithic prompt, use a hierarchical generation system:
 **Quick Wins (do first)**:
 1. ~~Increase `max_tokens` for location generation (current: 2000, try: 3000)~~ ✓ Completed (2025-12-26) - Default increased to 3000
 2. ~~Add JSON extraction from markdown code blocks~~ ✓ Completed (2025-12-26) - Added `_extract_json_from_response()` to extract JSON from ```json...``` or ```...``` blocks in all 5 parse methods
-3. Add try/except with JSON repair for truncated responses
+3. ~~Add try/except with JSON repair for truncated responses~~ ✓ Completed (2025-12-26) - Added `_repair_truncated_json()` method that closes unclosed strings/brackets; integrated into all 5 parse methods
 4. Log full AI responses on parse failure for debugging
 
 ---
@@ -434,6 +434,51 @@ This means players see dreams almost every other rest, which:
 - `src/cli_rpg/dreams.py`: Add cooldown logic, reduce rates
 - `src/cli_rpg/game_state.py`: Track `last_dream_time`
 - `src/cli_rpg/camping.py`: Reduce dream rate during camp
+
+---
+
+### Class-specific combat abilities show "Unknown command" outside combat
+**Status**: ACTIVE
+**Date Discovered**: 2025-12-26
+
+**Problem**: When a player uses class-specific combat abilities (fireball, ice_bolt, heal, bash, bless, smite) outside of combat, they receive "Unknown command. Type 'help' for a list of commands." instead of the clearer "Not in combat." message that basic combat commands give.
+
+**Reproduction Steps**:
+1. Start game with any class
+2. Outside of combat, type `fireball`, `bash`, `bless`, or other class-specific abilities
+3. Observe error message
+
+**Current behavior**:
+```
+> fireball
+✗ Unknown command. Type 'help' for a list of commands.
+```
+
+**Expected behavior**:
+```
+> fireball
+✗ Not in combat.
+```
+
+Or even better, a class-aware message:
+```
+> fireball
+✗ Can't cast fireball outside of combat.
+```
+
+**Inconsistency**: Basic combat commands (`attack`, `defend`, `block`, `parry`, `flee`, `cast`) correctly show "Not in combat." but class-specific abilities do not.
+
+**Impact**: Users may think:
+- They made a typo
+- The feature is broken or not implemented
+- Their class doesn't have the ability
+
+**Root Cause**: Class-specific combat commands are only registered in the command parser when in combat mode, whereas basic combat commands are registered globally with a combat check.
+
+**Proposed Fix**: Register class-specific abilities as global commands with combat state checks, similar to how basic combat commands work.
+
+**Files to investigate**:
+- `src/cli_rpg/main.py`: Command parsing and routing logic
 
 ---
 

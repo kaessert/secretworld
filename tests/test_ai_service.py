@@ -2041,3 +2041,161 @@ Hope this helps!'''
     assert result["description"] == "A mystical grove where ancient trees whisper secrets."
     assert result["connections"]["north"] == "Forest Path"
     assert result["connections"]["east"] == "River Bank"
+
+
+# ========================================================================
+# JSON Repair for Truncated AI Responses Tests
+# Spec: Attempt to repair truncated JSON by closing unclosed brackets
+# ========================================================================
+
+
+@patch('cli_rpg.ai_service.OpenAI')
+def test_repair_truncated_json_unclosed_object(mock_openai_class, basic_config):
+    """Test _repair_truncated_json repairs unclosed object braces.
+
+    Spec: When JSON has unclosed `{`, append matching `}` to fix it.
+    """
+    mock_client = Mock()
+    mock_openai_class.return_value = mock_client
+
+    service = AIService(basic_config)
+
+    # Truncated JSON with unclosed object
+    truncated = '{"name": "Test"'
+    repaired = service._repair_truncated_json(truncated)
+
+    # Verify it can be parsed as valid JSON
+    data = json.loads(repaired)
+    assert data["name"] == "Test"
+
+
+@patch('cli_rpg.ai_service.OpenAI')
+def test_repair_truncated_json_unclosed_array(mock_openai_class, basic_config):
+    """Test _repair_truncated_json repairs unclosed arrays.
+
+    Spec: When JSON has unclosed `[`, append matching `]` to fix it.
+    """
+    mock_client = Mock()
+    mock_openai_class.return_value = mock_client
+
+    service = AIService(basic_config)
+
+    # Truncated JSON with unclosed array
+    truncated = '[{"name": "A"}'
+    repaired = service._repair_truncated_json(truncated)
+
+    # Verify it can be parsed as valid JSON
+    data = json.loads(repaired)
+    assert len(data) == 1
+    assert data[0]["name"] == "A"
+
+
+@patch('cli_rpg.ai_service.OpenAI')
+def test_repair_truncated_json_nested_brackets(mock_openai_class, basic_config):
+    """Test _repair_truncated_json repairs nested unclosed brackets.
+
+    Spec: When JSON has multiple unclosed brackets, close them in correct order.
+    """
+    mock_client = Mock()
+    mock_openai_class.return_value = mock_client
+
+    service = AIService(basic_config)
+
+    # Truncated JSON with nested unclosed brackets
+    truncated = '{"items": [{"a": 1}'
+    repaired = service._repair_truncated_json(truncated)
+
+    # Verify it can be parsed as valid JSON
+    data = json.loads(repaired)
+    assert data["items"][0]["a"] == 1
+
+
+@patch('cli_rpg.ai_service.OpenAI')
+def test_repair_truncated_string_value(mock_openai_class, basic_config):
+    """Test _repair_truncated_json repairs truncated string values.
+
+    Spec: When JSON has unclosed string (odd number of unescaped quotes),
+    close the string before closing brackets.
+    """
+    mock_client = Mock()
+    mock_openai_class.return_value = mock_client
+
+    service = AIService(basic_config)
+
+    # Truncated JSON with unclosed string
+    truncated = '{"name": "Trunc'
+    repaired = service._repair_truncated_json(truncated)
+
+    # Verify it can be parsed as valid JSON
+    data = json.loads(repaired)
+    assert data["name"] == "Trunc"
+
+
+@patch('cli_rpg.ai_service.OpenAI')
+def test_repair_json_fails_gracefully(mock_openai_class, basic_config):
+    """Test unrepairable JSON still raises AIGenerationError.
+
+    Spec: When JSON cannot be repaired (e.g., completely invalid syntax),
+    the original JSONDecodeError should be wrapped in AIGenerationError.
+    """
+    mock_client = Mock()
+    mock_openai_class.return_value = mock_client
+
+    # Return completely invalid JSON that can't be repaired
+    mock_response = Mock()
+    mock_response.choices = [Mock()]
+    mock_response.choices[0].message.content = "This is {not} valid JSON: at all"
+    mock_client.chat.completions.create.return_value = mock_response
+
+    service = AIService(basic_config)
+
+    with pytest.raises(AIGenerationError, match="parse"):
+        service.generate_location(theme="fantasy")
+
+
+@patch('cli_rpg.ai_service.OpenAI')
+def test_generate_location_with_truncated_response(mock_openai_class, basic_config):
+    """Test generate_location handles truncated JSON responses via repair.
+
+    Spec: When AI returns truncated JSON (e.g., due to max_tokens limit),
+    the repair mechanism should fix it and return valid location data.
+    This is an integration test for the full flow from truncated API response
+    to successfully parsed location.
+    """
+    mock_client = Mock()
+    mock_openai_class.return_value = mock_client
+
+    # Simulating a truncated response (missing closing braces)
+    truncated_response = '{"name": "Mystic Cave", "description": "A dark and mysterious cave with ancient runes.", "connections": {"north": "Forest Path"}'
+
+    mock_response = Mock()
+    mock_response.choices = [Mock()]
+    mock_response.choices[0].message.content = truncated_response
+    mock_client.chat.completions.create.return_value = mock_response
+
+    service = AIService(basic_config)
+    result = service.generate_location(theme="fantasy")
+
+    # Verify the location was parsed correctly after repair
+    assert result["name"] == "Mystic Cave"
+    assert result["description"] == "A dark and mysterious cave with ancient runes."
+    assert result["connections"]["north"] == "Forest Path"
+
+
+@patch('cli_rpg.ai_service.OpenAI')
+def test_repair_truncated_json_returns_original_when_balanced(mock_openai_class, basic_config):
+    """Test _repair_truncated_json returns original text when brackets are balanced.
+
+    Spec: When JSON already has balanced brackets, return it unchanged.
+    """
+    mock_client = Mock()
+    mock_openai_class.return_value = mock_client
+
+    service = AIService(basic_config)
+
+    # Already valid JSON
+    valid = '{"name": "Test"}'
+    repaired = service._repair_truncated_json(valid)
+
+    # Should be unchanged
+    assert repaired == valid

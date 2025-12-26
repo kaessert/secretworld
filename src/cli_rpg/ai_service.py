@@ -363,6 +363,60 @@ class AIService:
             return match.group(1).strip()
         return response_text.strip()
 
+    def _repair_truncated_json(self, json_text: str) -> str:
+        """Attempt to repair truncated JSON by closing unclosed brackets.
+
+        Args:
+            json_text: Potentially truncated JSON string
+
+        Returns:
+            Repaired JSON string, or original if repair not possible
+        """
+        repaired = json_text.rstrip()
+
+        # Check for unclosed string (track in_string state)
+        in_string = False
+        escaped = False
+        for char in repaired:
+            if escaped:
+                escaped = False
+            elif char == '\\':
+                escaped = True
+            elif char == '"':
+                in_string = not in_string
+
+        # If we're in an unclosed string, close it
+        if in_string:
+            repaired += '"'
+
+        # Track opening brackets to close in correct order
+        closers: list[str] = []
+        in_string = False
+        escaped = False
+        for char in repaired:
+            if escaped:
+                escaped = False
+            elif char == '\\':
+                escaped = True
+            elif char == '"':
+                in_string = not in_string
+            elif not in_string:
+                if char == '{':
+                    closers.append('}')
+                elif char == '[':
+                    closers.append(']')
+                elif char in '}]' and closers and closers[-1] == char:
+                    closers.pop()
+
+        # If no unclosed brackets, return original
+        if not closers:
+            return json_text
+
+        # Append closing brackets in reverse order
+        repaired += ''.join(reversed(closers))
+        logger.warning("Repaired truncated JSON response")
+        return repaired
+
     def _parse_location_response(self, response_text: str) -> dict:
         """Parse and validate LLM response.
         
@@ -378,11 +432,19 @@ class AIService:
         # Extract JSON from markdown code blocks if present
         json_text = self._extract_json_from_response(response_text)
 
-        # Try to parse JSON
+        # Try to parse JSON, attempting repair if truncated
         try:
             data = json.loads(json_text)
         except json.JSONDecodeError as e:
-            raise AIGenerationError(f"Failed to parse response as JSON: {str(e)}") from e
+            # Attempt to repair truncated JSON
+            repaired = self._repair_truncated_json(json_text)
+            if repaired != json_text:
+                try:
+                    data = json.loads(repaired)
+                except json.JSONDecodeError:
+                    raise AIGenerationError(f"Failed to parse response as JSON: {str(e)}") from e
+            else:
+                raise AIGenerationError(f"Failed to parse response as JSON: {str(e)}") from e
 
         # Validate required fields
         required_fields = ["name", "description", "connections"]
@@ -778,11 +840,19 @@ Note: Use "EXISTING_WORLD" as placeholder for the connection back to the source 
         # Extract JSON from markdown code blocks if present
         json_text = self._extract_json_from_response(response_text)
 
-        # Try to parse JSON
+        # Try to parse JSON, attempting repair if truncated
         try:
             data = json.loads(json_text)
         except json.JSONDecodeError as e:
-            raise AIGenerationError(f"Failed to parse response as JSON: {str(e)}") from e
+            # Attempt to repair truncated JSON
+            repaired = self._repair_truncated_json(json_text)
+            if repaired != json_text:
+                try:
+                    data = json.loads(repaired)
+                except json.JSONDecodeError:
+                    raise AIGenerationError(f"Failed to parse response as JSON: {str(e)}") from e
+            else:
+                raise AIGenerationError(f"Failed to parse response as JSON: {str(e)}") from e
 
         # Validate it's a list
         if not isinstance(data, list):
@@ -1059,11 +1129,19 @@ Note: Use "EXISTING_WORLD" as placeholder for the connection back to the source 
         # Extract JSON from markdown code blocks if present
         json_text = self._extract_json_from_response(response_text)
 
-        # Try to parse JSON
+        # Try to parse JSON, attempting repair if truncated
         try:
             data = json.loads(json_text)
         except json.JSONDecodeError as e:
-            raise AIGenerationError(f"Failed to parse response as JSON: {str(e)}") from e
+            # Attempt to repair truncated JSON
+            repaired = self._repair_truncated_json(json_text)
+            if repaired != json_text:
+                try:
+                    data = json.loads(repaired)
+                except json.JSONDecodeError:
+                    raise AIGenerationError(f"Failed to parse response as JSON: {str(e)}") from e
+            else:
+                raise AIGenerationError(f"Failed to parse response as JSON: {str(e)}") from e
 
         # Validate required fields
         required_fields = ["name", "description", "attack_flavor", "health",
@@ -1401,11 +1479,19 @@ Note: Use "EXISTING_WORLD" as placeholder for the connection back to the source 
         # Extract JSON from markdown code blocks if present
         json_text = self._extract_json_from_response(response_text)
 
-        # Try to parse JSON
+        # Try to parse JSON, attempting repair if truncated
         try:
             data = json.loads(json_text)
         except json.JSONDecodeError as e:
-            raise AIGenerationError(f"Failed to parse response as JSON: {str(e)}") from e
+            # Attempt to repair truncated JSON
+            repaired = self._repair_truncated_json(json_text)
+            if repaired != json_text:
+                try:
+                    data = json.loads(repaired)
+                except json.JSONDecodeError:
+                    raise AIGenerationError(f"Failed to parse response as JSON: {str(e)}") from e
+            else:
+                raise AIGenerationError(f"Failed to parse response as JSON: {str(e)}") from e
 
         # Validate required fields
         required_fields = ["name", "description", "item_type", "damage_bonus",
@@ -1622,11 +1708,19 @@ Note: Use "EXISTING_WORLD" as placeholder for the connection back to the source 
         # Extract JSON from markdown code blocks if present
         json_text = self._extract_json_from_response(response_text)
 
-        # Try to parse JSON
+        # Try to parse JSON, attempting repair if truncated
         try:
             data = json.loads(json_text)
         except json.JSONDecodeError as e:
-            raise AIGenerationError(f"Failed to parse response as JSON: {str(e)}") from e
+            # Attempt to repair truncated JSON
+            repaired = self._repair_truncated_json(json_text)
+            if repaired != json_text:
+                try:
+                    data = json.loads(repaired)
+                except json.JSONDecodeError:
+                    raise AIGenerationError(f"Failed to parse response as JSON: {str(e)}") from e
+            else:
+                raise AIGenerationError(f"Failed to parse response as JSON: {str(e)}") from e
 
         # Validate required fields
         required_fields = ["name", "description", "objective_type", "target",
