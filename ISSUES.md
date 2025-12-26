@@ -126,18 +126,27 @@ Transform the world generation system to support infinite procedural terrain as 
 - `cli-rpg` - Starts with WFC terrain (default)
 - `cli-rpg --no-wfc` - Disables WFC, uses fixed world
 
-#### 2. Named vs Unnamed Location System
+#### 2. Named vs Unnamed Location System ✅ CORE COMPLETE
+
+**Completed 2025-12-26:**
+- ✅ Added `is_named: bool = False` field to Location model with serialization support
+- ✅ Added `UNNAMED_LOCATION_TEMPLATES` in `world_tiles.py` with templates for all 9 terrain types
+- ✅ Added `get_unnamed_location_template(terrain)` function with fallback to plains
+- ✅ Added `NAMED_LOCATION_CONFIG` with base interval (15 tiles) and terrain modifiers
+- ✅ Added `should_generate_named_location(tiles_since_named, terrain, rng)` trigger function
+- ✅ Updated `generate_fallback_location()` to set `is_named=False`
+- ✅ 21 new tests passing (12 in `test_named_locations.py`, 9 in `test_unnamed_templates.py`)
 
 **Concept:**
 - **Unnamed locations**: Generic terrain tiles (forest, plains, road, hills) - cheap/instant generation via templates
 - **Named locations**: Story-important POIs (towns, dungeons, temples) - full AI generation with context
 
-**Ratio Target:** ~1 named location per 10-20 unnamed tiles
+**Ratio Target:** ~1 named location per 10-20 unnamed tiles (achieved via linear probability curve)
 
-**Implementation:**
-- Add `is_named` and `terrain_type` fields to Location model
-- Create unnamed location templates in `world_tiles.py`
-- Named location triggers: every N tiles, terrain combinations, region landmarks
+**Remaining Integration:**
+- Wire `should_generate_named_location()` into world expansion flow
+- Track `tiles_since_named` counter in GameState
+- Use `get_unnamed_location_template()` for unnamed tiles instead of AI calls
 
 #### 3. Variable SubGrid Sizes
 

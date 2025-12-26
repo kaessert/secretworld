@@ -165,3 +165,118 @@ class TileRegistry:
 
 # Global default registry
 DEFAULT_TILE_REGISTRY = TileRegistry()
+
+
+# Unnamed location templates by terrain type
+# Each terrain has a list of (name_template, description_template) tuples
+UNNAMED_LOCATION_TEMPLATES: Dict[str, List[tuple]] = {
+    "forest": [
+        ("Dense Woods", "Tall trees crowd together, their canopy blocking most sunlight."),
+        ("Wooded Trail", "A narrow path winds through towering oaks and elms."),
+        ("Forest Clearing", "A small gap in the trees lets dappled light through."),
+    ],
+    "mountain": [
+        ("Rocky Pass", "Jagged peaks rise on either side of this narrow mountain trail."),
+        ("Steep Cliffs", "The path hugs a sheer rock face, wind howling past."),
+        ("Alpine Meadow", "A grassy plateau offers respite between stone peaks."),
+    ],
+    "plains": [
+        ("Open Grassland", "Tall grass sways in the wind under an open sky."),
+        ("Rolling Hills", "Gentle slopes covered in wildflowers stretch to the horizon."),
+        ("Dusty Road", "A well-worn path cuts through the flat landscape."),
+    ],
+    "water": [
+        ("Riverbank", "The sound of rushing water fills the air."),
+    ],
+    "desert": [
+        ("Sand Dunes", "Endless waves of golden sand shimmer in the heat."),
+        ("Rocky Desert", "Cracked earth and scattered boulders dot the wasteland."),
+        ("Desert Trail", "A faint path marks where others have crossed before."),
+    ],
+    "swamp": [
+        ("Murky Bog", "Dark water pools between twisted, moss-covered trees."),
+        ("Fetid Marsh", "The air hangs thick with moisture and decay."),
+        ("Swamp Trail", "Rotting planks form a rickety path over the mire."),
+    ],
+    "hills": [
+        ("Grassy Knoll", "A gentle slope offers a view of the surrounding land."),
+        ("Hilltop Path", "The trail winds up and down rolling terrain."),
+        ("Valley Floor", "You walk between two grass-covered rises."),
+    ],
+    "beach": [
+        ("Sandy Shore", "Waves lap at the golden sand beneath your feet."),
+        ("Rocky Beach", "Tide pools dot the coast between weathered stones."),
+        ("Coastal Path", "A trail follows the line where land meets sea."),
+    ],
+    "foothills": [
+        ("Mountain Base", "The terrain rises sharply toward distant peaks."),
+        ("Foothill Trail", "A winding path leads up from the lowlands."),
+        ("Rocky Slope", "Scattered boulders mark the transition to mountains."),
+    ],
+}
+
+
+def get_unnamed_location_template(terrain: str) -> tuple:
+    """Get a random unnamed location template for a terrain type.
+
+    Args:
+        terrain: Terrain type (forest, plains, mountain, etc.)
+
+    Returns:
+        Tuple of (name, description) for the unnamed location
+    """
+    import random
+    templates = UNNAMED_LOCATION_TEMPLATES.get(terrain, UNNAMED_LOCATION_TEMPLATES["plains"])
+    return random.choice(templates)
+
+
+# Configuration for named location generation
+NAMED_LOCATION_CONFIG = {
+    "base_interval": 15,  # Generate named location every N tiles on average
+    "terrain_modifiers": {
+        # Terrain types more likely to have POIs
+        "mountain": 0.6,  # 60% of base interval → more POIs
+        "swamp": 0.7,
+        "foothills": 0.8,
+        "forest": 1.0,  # Normal
+        "plains": 1.2,  # Slightly fewer POIs
+        "hills": 1.0,
+        "beach": 0.8,
+        "desert": 0.9,
+        "water": 999.0,  # Never (impassable)
+    },
+}
+
+
+def should_generate_named_location(
+    tiles_since_named: int,
+    terrain: str,
+    rng: Optional["random.Random"] = None
+) -> bool:
+    """Determine if a named location should be generated.
+
+    Uses a probability curve that increases with tiles since last named.
+    Terrain type modifies the effective interval.
+
+    Args:
+        tiles_since_named: Number of tiles traveled since last named location
+        terrain: Current terrain type
+        rng: Optional random number generator for determinism
+
+    Returns:
+        True if a named location should be generated
+    """
+    import random as random_module
+
+    if rng is None:
+        rng = random_module.Random()
+
+    base_interval = NAMED_LOCATION_CONFIG["base_interval"]
+    modifier = NAMED_LOCATION_CONFIG["terrain_modifiers"].get(terrain, 1.0)
+    effective_interval = base_interval * modifier
+
+    # Probability increases linearly from 0 at tile 0 to 100% at 2x interval
+    # At interval, probability is 50%
+    probability = min(1.0, tiles_since_named / (effective_interval * 2))
+
+    return rng.random() < probability

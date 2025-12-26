@@ -54,6 +54,7 @@ class Location:
     is_exit_point: bool = False  # Only these rooms allow 'exit' command
     sub_grid: Optional["SubGrid"] = None  # Interior grid for landmarks (overworld only)
     terrain: Optional[str] = None  # WFC terrain type (forest, plains, etc.)
+    is_named: bool = False  # True for story-important POIs, False for terrain filler
 
     def __post_init__(self) -> None:
         """Validate location attributes after initialization."""
@@ -373,6 +374,8 @@ class Location:
             data["sub_grid"] = self.sub_grid.to_dict()
         if self.terrain is not None:
             data["terrain"] = self.terrain
+        if self.is_named:
+            data["is_named"] = self.is_named
         return data
     
     @classmethod
@@ -426,6 +429,8 @@ class Location:
             sub_grid = SubGrid.from_dict(data["sub_grid"])
         # Parse terrain if present (backward compatibility)
         terrain = data.get("terrain")
+        # Parse is_named if present (backward compatibility)
+        is_named = data.get("is_named", False)
         return cls(
             name=data["name"],
             description=data["description"],
@@ -448,6 +453,7 @@ class Location:
             is_exit_point=is_exit_point,
             sub_grid=sub_grid,
             terrain=terrain,
+            is_named=is_named,
         )
     
     def __str__(self) -> str:

@@ -196,7 +196,7 @@ def generate_fallback_location(
     # Determine category from terrain template or use default
     category = template.get("category", None)
 
-    # Create the new location
+    # Create the new location (unnamed by default for fallback/template locations)
     new_location = Location(
         name=location_name,
         description=description,
@@ -204,6 +204,7 @@ def generate_fallback_location(
         coordinates=target_coords,
         category=category,
         terrain=terrain,
+        is_named=False,  # Fallback locations are always unnamed terrain filler
     )
 
     # Add at least one frontier exit for future expansion
