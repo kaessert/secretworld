@@ -2208,7 +2208,7 @@ def handle_exploration_command(game_state: GameState, command: str, args: list[s
             # Print rest message first, then display dream with typewriter effect
             print(result_message)
             display_dream(dream)
-            return (True, "")  # Empty message since we already printed
+            return (True, result_message)  # Return message for test assertions
 
         return (True, result_message)
 

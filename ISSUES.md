@@ -1143,3 +1143,78 @@ Result: Locations feel random, not part of a cohesive world.
 - **SubGrid Architecture** - Bounded interiors for dungeons/buildings separate from overworld
 - **Multi-provider AI** (`ai_service.py`) - Supports OpenAI, Anthropic, Ollama with graceful fallback
 
+---
+
+### Playtest Report: Quest Target Spawn Mismatch (2025-12-26)
+**Status**: CRITICAL
+**Reproducible**: Yes (seed 999)
+**Related To**: "CRITICAL: Quest System World Integration Failures" (above)
+
+#### Executive Summary
+
+Extensive playtesting with `--wfc --non-interactive` mode confirmed the "impossible quest" bug documented above. AI-generated quests can specify enemy targets that **never spawn** in the game world, making quests uncompletable.
+
+#### Concrete Evidence
+
+**Test Case**: Seed 999
+```
+Quest: "Whispering Willow Woes"
+Description: "Clear out the Giant Spiders infesting Whispering Willow Grove"
+Target: Giant Spider x3
+```
+
+**Track Command Results** (searched all reachable locations):
+```
+Misty Hollows: 1 Wild Boar detected
+Whispering Woods: 1 Wolf detected
+Enchanted Grove: 2 Wild Boar detected
+Glimmering Falls: 2 Wild Boar detected
+Frostbite Peaks: 1 Eagle detected
+Howling Wind Pass: 1 Eagle, 1 Mountain Lion detected
+```
+
+**Result**: **Zero Giant Spiders detected anywhere**. Quest is impossible to complete.
+
+#### Root Cause Confirmation
+
+The AI quest prompt (`ai_config.py:172-177`) lists valid enemy types:
+```
+IMPORTANT for KILL quests - use ONLY these enemy types as targets:
+- Wolf, Bear, Wild Boar, Giant Spider (for forest/wilderness)
+- Bat, Goblin, Troll, Cave Dweller (for caves)
+...
+```
+
+However:
+1. This is **guidance only** - no validation enforces it
+2. Random encounter spawning uses a **different** enemy selection algorithm
+3. The specific enemy types that spawn depend on location category and RNG
+4. "Giant Spider" is listed as valid but may not appear in random encounter tables
+
+#### Additional Findings
+
+| Quest Type | Target | Actual Spawns | Completable? |
+|------------|--------|---------------|--------------|
+| KILL x3 | Giant Spider | Wolf, Wild Boar, Eagle, Mountain Lion | **NO** |
+| KILL x5 | Goblin | Wolf, Wild Boar, Eagle, Troll | **NO** (caves required) |
+| KILL x3 | Wolf | Wolf (in forest areas) | **YES** |
+
+#### Features Confirmed Working
+
+| Feature | Status |
+|---------|--------|
+| Quest acceptance | Working |
+| Quest progress tracking | Working (when target matches) |
+| Combat system | Working |
+| Ranger Track ability | Working |
+| Random encounters | Working (just wrong enemies) |
+| Dread/Hallucinations | Working |
+| Weather system | Working |
+| Save/Load | Working |
+
+#### Recommended Fix Priority
+
+1. **Immediate**: Validate KILL quest targets against actually spawnable enemy types
+2. **Short-term**: Pass enemy spawn tables to quest generation prompt
+3. **Long-term**: Quest acceptance should guarantee target can spawn (either by validation or by adding target to spawn tables)
+
