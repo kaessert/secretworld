@@ -64,10 +64,11 @@ class TestMapRenderer:
 
         Spec: All locations should be shown on the map with identifiers
         """
+        # Connections needed so adjacent locations show as reachable (not blocked)
         world = {
-            "Town Square": Location("Town Square", "A town square", {}, coordinates=(0, 0)),
-            "Forest": Location("Forest", "A dark forest", {}, coordinates=(0, 1)),
-            "Cave": Location("Cave", "A dark cave", {}, coordinates=(1, 0)),
+            "Town Square": Location("Town Square", "A town square", {"north": "Forest", "east": "Cave"}, coordinates=(0, 0)),
+            "Forest": Location("Forest", "A dark forest", {"south": "Town Square"}, coordinates=(0, 1)),
+            "Cave": Location("Cave", "A dark cave", {"west": "Town Square"}, coordinates=(1, 0)),
         }
         result = render_map(world, "Town Square")
 
