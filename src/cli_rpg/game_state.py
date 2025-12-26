@@ -50,7 +50,7 @@ logger = logging.getLogger(__name__)
 
 # All known commands that the game recognizes
 KNOWN_COMMANDS: set[str] = {
-    "look", "go", "save", "quit", "attack", "defend", "flee", "status", "cast", "sneak",
+    "look", "go", "save", "quit", "attack", "defend", "block", "flee", "status", "cast", "sneak",
     "inventory", "equip", "unequip", "use", "drop", "talk", "buy", "sell", "shop",
     "map", "worldmap", "help", "quests", "quest", "accept", "complete", "abandon", "lore", "rest",
     "bestiary", "dump-state", "events", "companions", "recruit", "dismiss", "companion-quest",
@@ -115,7 +115,7 @@ def parse_command(command_str: str) -> tuple[str, list[str]]:
     # Expand shorthand aliases
     aliases = {
         "g": "go", "l": "look", "a": "attack", "c": "cast",
-        "d": "defend", "f": "flee", "s": "status", "i": "inventory",
+        "d": "defend", "bl": "block", "f": "flee", "s": "status", "i": "inventory",
         "m": "map", "wm": "worldmap", "h": "help", "t": "talk", "u": "use", "e": "equip",
         "q": "quests", "dr": "drop", "r": "rest", "stats": "status",
         "b": "bestiary", "sn": "sneak", "lp": "pick", "o": "open", "sr": "search",

@@ -167,6 +167,7 @@ Status effects are cleared when combat ends.
 **Combat Commands:**
 - `attack [target]` (a) - Attack an enemy (damage based on your strength vs enemy defense). Specify a target name when facing multiple enemies, or attacks the first living enemy.
 - `defend` (d) - Take a defensive stance, reducing incoming damage by 50% from all enemies
+- `block` (bl) - Take a blocking stance for stronger defense (costs 5 stamina, reduces incoming damage by 75%)
 - `flee` (f) - Attempt to escape (chance based on dexterity)
 - `cast [target]` (c) - Cast a magic attack at an enemy (costs 10 mana, damage based on intelligence). Targeting works like `attack`.
 - `sneak` (sn) - **Rogue only**: Enter stealth mode for 1 turn (costs 10 stamina). Next attack deals 1.5x backstab damage. Higher DEX increases dodge chance while stealthed (DEX × 5%, capped at 75%). Stealth breaks if you take damage.

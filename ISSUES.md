@@ -935,7 +935,8 @@ Combat is too simple - attack until enemy dies. Core status effect system has be
 
 **Remaining features**:
 - Elemental strengths and weaknesses
-- Defensive options: block, parry
+- ✅ Defensive options: `block` command - MVP IMPLEMENTED (costs 5 stamina, 75% damage reduction vs defend's 50%)
+- Defensive options: parry (not yet implemented)
 - Enemy attack patterns and telegraphed special moves
 - ✅ Critical hits and miss chances based on stats - MVP IMPLEMENTED (Player crits: 5% + 1% per DEX/INT capped at 20%, 1.5x damage; Player dodge: 5% + 0.5% per DEX capped at 15%; Enemy crits: flat 5%, 1.5x damage)
 - Combat stances or modes

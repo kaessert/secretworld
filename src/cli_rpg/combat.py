@@ -348,6 +348,7 @@ class CombatEncounter:
         self.turn_count = 0
         self.is_active = False
         self.defending = False
+        self.blocking = False
 
         # Combo system state
         self.action_history: list[str] = []
@@ -699,6 +700,33 @@ class CombatEncounter:
         message = "You brace yourself for the enemy's attack, taking a defensive stance!"
         return False, message
 
+    def player_block(self) -> Tuple[bool, str]:
+        """
+        Player actively blocks incoming attacks.
+
+        Costs 5 stamina. Reduces incoming damage by 75% (vs defend's 50%).
+
+        Returns:
+            Tuple of (victory, message)
+            - victory: Always False (combat continues)
+            - message: Description of block action or error
+        """
+        # Check if player is stunned
+        stun_msg = self._check_and_consume_stun()
+        if stun_msg:
+            return False, stun_msg
+
+        # Check stamina cost (5 stamina)
+        if not self.player.use_stamina(5):
+            return False, f"Not enough stamina to block! ({self.player.stamina}/{self.player.max_stamina})"
+
+        # Record action for combo tracking
+        self._record_action("block")
+
+        self.blocking = True
+        message = "You raise your guard, bracing to block the enemy's attack!"
+        return False, message
+
     def player_sneak(self) -> Tuple[bool, str]:
         """
         Rogue enters stealth mode for backstab opportunity.
@@ -918,8 +946,23 @@ class CombatEncounter:
             if is_crit:
                 base_damage = int(base_damage * CRIT_MULTIPLIER)
 
-            # Apply defense reduction if player is defending (applies to all attacks this turn)
-            if self.defending:
+            # Apply block reduction (75%) if player is blocking
+            if self.blocking:
+                dmg = max(1, base_damage // 4)  # 75% reduction
+                # Track for Revenge combo
+                self.damage_taken_while_defending += dmg
+                if is_crit:
+                    msg = (
+                        f"{colors.damage('CRITICAL HIT!')} {colors.enemy(enemy.name)} attacks! "
+                        f"You block the blow, taking only {colors.damage(str(dmg))} damage!"
+                    )
+                else:
+                    msg = (
+                        f"{colors.enemy(enemy.name)} attacks! You block the blow, "
+                        f"taking only {colors.damage(str(dmg))} damage!"
+                    )
+            # Apply defense reduction if player is defending (50%)
+            elif self.defending:
                 dmg = max(1, base_damage // 2)  # Half damage when defending
                 # Track damage taken while defending for Revenge combo
                 self.damage_taken_while_defending += dmg
@@ -1042,6 +1085,7 @@ class CombatEncounter:
 
         # Reset defensive stance after all attacks
         self.defending = False
+        self.blocking = False
 
         # Regenerate stamina (1 per enemy turn)
         self.player.regen_stamina(1)

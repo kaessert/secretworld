@@ -122,7 +122,7 @@ class TestPlayerAttack:
 
 class TestPlayerDefend:
     """Test player_defend() method."""
-    
+
     def test_player_defend_sets_defensive_stance(self):
         """Spec: player_defend() should set defensive stance (reduced damage next turn)."""
         player = Character(name="Hero", strength=10, dexterity=10, intelligence=10, level=1)
@@ -136,12 +136,159 @@ class TestPlayerDefend:
         )
         combat = CombatEncounter(player=player, enemy=enemy)
         combat.start()
-        
+
         victory, message = combat.player_defend()
-        
+
         assert victory is False
         assert combat.defending is True
         assert "defend" in message.lower() or "defensive" in message.lower()
+
+
+class TestPlayerBlock:
+    """Test player_block() method."""
+
+    def test_player_block_sets_blocking_stance(self):
+        """Spec: player_block() should set blocking stance for 75% damage reduction."""
+        player = Character(name="Hero", strength=10, dexterity=10, intelligence=10, level=1)
+        player.stamina = 20  # Ensure enough stamina
+        enemy = Enemy(
+            name="Goblin",
+            health=30,
+            max_health=30,
+            attack_power=5,
+            defense=2,
+            xp_reward=25
+        )
+        combat = CombatEncounter(player=player, enemy=enemy)
+        combat.start()
+
+        victory, message = combat.player_block()
+
+        assert victory is False
+        assert combat.blocking is True
+        assert "block" in message.lower()
+
+    def test_player_block_costs_5_stamina(self):
+        """Spec: player_block() should cost 5 stamina."""
+        player = Character(name="Hero", strength=10, dexterity=10, intelligence=10, level=1)
+        player.stamina = 20
+        initial_stamina = player.stamina
+        enemy = Enemy(
+            name="Goblin",
+            health=30,
+            max_health=30,
+            attack_power=5,
+            defense=2,
+            xp_reward=25
+        )
+        combat = CombatEncounter(player=player, enemy=enemy)
+        combat.start()
+
+        combat.player_block()
+
+        assert player.stamina == initial_stamina - 5
+
+    def test_player_block_fails_without_stamina(self):
+        """Spec: player_block() should fail if player has < 5 stamina."""
+        player = Character(name="Hero", strength=10, dexterity=10, intelligence=10, level=1)
+        player.stamina = 3  # Less than 5 stamina
+        initial_stamina = player.stamina
+        enemy = Enemy(
+            name="Goblin",
+            health=30,
+            max_health=30,
+            attack_power=5,
+            defense=2,
+            xp_reward=25
+        )
+        combat = CombatEncounter(player=player, enemy=enemy)
+        combat.start()
+
+        victory, message = combat.player_block()
+
+        assert victory is False
+        assert combat.blocking is False
+        assert player.stamina == initial_stamina  # Unchanged
+        assert "stamina" in message.lower()
+
+    def test_block_reduces_damage_by_75_percent(self):
+        """Spec: Blocking should reduce incoming damage by 75%."""
+        player = Character(name="Hero", strength=10, dexterity=10, intelligence=10, level=1)
+        player.stamina = 20
+        # Player has 0 defense base, constitution-based defense
+        player.constitution = 0  # No defense from CON
+        enemy = Enemy(
+            name="Goblin",
+            health=30,
+            max_health=30,
+            attack_power=20,  # 20 attack - should do 20 base damage
+            defense=2,
+            xp_reward=25
+        )
+        combat = CombatEncounter(player=player, enemy=enemy)
+        combat.start()
+
+        # Set blocking state
+        combat.blocking = True
+        initial_health = player.health
+
+        # Mock random to prevent crits and dodges
+        with patch('cli_rpg.combat.random.random', return_value=0.99):
+            combat.enemy_turn()
+
+        # Expected: 20 base damage // 4 = 5 damage (75% reduction)
+        expected_damage = max(1, 20 // 4)
+        assert player.health == initial_health - expected_damage
+
+    def test_block_resets_after_enemy_turn(self):
+        """Spec: Blocking stance should reset after enemy turn."""
+        player = Character(name="Hero", strength=10, dexterity=10, intelligence=10, level=1)
+        player.stamina = 20
+        enemy = Enemy(
+            name="Goblin",
+            health=30,
+            max_health=30,
+            attack_power=5,
+            defense=2,
+            xp_reward=25
+        )
+        combat = CombatEncounter(player=player, enemy=enemy)
+        combat.start()
+
+        combat.blocking = True
+        assert combat.blocking is True
+
+        with patch('cli_rpg.combat.random.random', return_value=0.99):
+            combat.enemy_turn()
+
+        assert combat.blocking is False
+
+    def test_player_block_fails_when_stunned(self):
+        """Spec: player_block() should fail if player is stunned."""
+        from cli_rpg.models.status_effect import StatusEffect
+
+        player = Character(name="Hero", strength=10, dexterity=10, intelligence=10, level=1)
+        player.stamina = 20
+        enemy = Enemy(
+            name="Goblin",
+            health=30,
+            max_health=30,
+            attack_power=5,
+            defense=2,
+            xp_reward=25
+        )
+        combat = CombatEncounter(player=player, enemy=enemy)
+        combat.start()
+
+        # Apply stun effect
+        stun = StatusEffect(name="Stun", effect_type="stun", damage_per_turn=0, duration=1)
+        player.apply_status_effect(stun)
+
+        victory, message = combat.player_block()
+
+        assert victory is False
+        assert combat.blocking is False
+        assert "stunned" in message.lower()
 
 
 class TestPlayerCast:
