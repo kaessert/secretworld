@@ -1,114 +1,83 @@
-# Implementation Plan: AI Generation Retry Before Fallback
+# Fix Fallback Location Names Including Coordinates
 
-## Problem Summary
-When AI location generation fails, the game silently falls back to template generation, showing "[AI world generation temporarily unavailable. Using template generation.]". This creates inconsistent world feel when AI locations mix with template locations.
+**Issue**: WFC Playtesting Issues #4 - HIGH PRIORITY
+**Problem**: Location names like "Vast Prairie (-1, 0)" expose internal coordinates to players, breaking immersion.
 
-**Current behavior:**
-1. `game_state.py:518-543` calls `expand_area()` once
-2. On exception, sets `ai_fallback_used = True` and immediately uses `generate_fallback_location()`
-3. `ai_service.py:230-285` already has retry logic at the LLM API call level (`_call_openai`/`_call_anthropic`), but...
-4. High-level generation functions (`generate_location`, `generate_area`) catch exceptions and bubble them up as single failures
+## Spec
 
-**Problem**: The retry logic in `ai_service.py` only handles transient API errors (timeout, rate limit). It does NOT retry on:
-- JSON parsing failures (`AIGenerationError`)
-- Validation failures (name too short, missing fields)
-- Truncated responses that can't be repaired
+When AI generation fails and fallback location generation is used, location names should be immersive (not include coordinates). Names must still be unique within the world to avoid collisions.
 
-## Solution Design
+**Approach**: Use direction-based suffixes for uniqueness instead of coordinates:
+- First location: "Vast Prairie"
+- Same base name at different location: "Vast Prairie East", "Vast Prairie North", etc.
+- If direction suffix already used: "Vast Prairie Far East", "Vast Prairie Northern", etc.
 
-Add retry logic at the **location generation level** (not API call level), with configurable retry count. This allows:
-1. Second attempt with the same prompt (may succeed if first was unlucky truncation)
-2. Different AI response on each retry (probabilistic success)
-3. User visibility into retry attempts
+## Changes
 
-## Implementation Steps
+### 1. Add test for coordinate-free names
+**File**: `tests/test_infinite_world_without_ai.py`
 
-### 1. Add retry configuration to AIConfig (`ai_config.py`)
-- Add `generation_max_retries: int = 2` field (separate from API `max_retries`)
-- This controls retries at generation level, not API call level
-- Default: 2 retries = 3 total attempts before fallback
-
-### 2. Add retry wrapper to AIService (`ai_service.py`)
-- Create `_generate_with_retry()` method that wraps generation methods
-- On `AIGenerationError` (parse/validation), retry up to `generation_max_retries`
-- Log each retry attempt at DEBUG level
-- Return final exception if all retries fail
-
-### 3. Update location generation methods to use retry wrapper
-- `generate_location()` → wrap LLM call + parse in retry logic
-- `generate_area()` → wrap LLM call + parse in retry logic
-- `generate_location_with_context()` → wrap LLM call + parse in retry logic
-
-### 4. Update game_state.py move() to retry AI generation
-- Before setting `ai_fallback_used = True`, retry `expand_area()` call
-- Use `AIConfig.generation_max_retries` for retry count
-- Log retry attempts and final failure reason
-
-### 5. Add tests for retry behavior
-- Test that generation retries on `AIGenerationError`
-- Test that retries are limited to `generation_max_retries`
-- Test that API-level retries still work for transient errors
-- Test that fallback still works after all retries exhausted
-
-## Files to Modify
-
-1. `src/cli_rpg/ai_config.py`:
-   - Add `generation_max_retries: int = 2` field
-   - Add to `to_dict()` / `from_dict()` serialization
-
-2. `src/cli_rpg/ai_service.py`:
-   - Add `_generate_with_retry()` wrapper method
-   - Update `generate_location()`, `generate_area()`, `generate_location_with_context()` to use retry wrapper
-
-3. `src/cli_rpg/game_state.py`:
-   - No changes needed - retries happen inside AIService
-
-4. `tests/test_ai_service.py`:
-   - Add test for retry on AIGenerationError
-   - Add test for retry count limit
-   - Add test for successful retry after initial failure
-
-## Test Plan
-
+Add test to `TestGenerateFallbackLocation`:
 ```python
-# Test: Retry on parse failure
-def test_generate_location_retries_on_parse_failure(mock_ai_service):
-    """First call returns invalid JSON, second returns valid."""
-    mock_ai_service.client.chat.completions.create.side_effect = [
-        Mock(choices=[Mock(message=Mock(content="invalid json"))]),
-        Mock(choices=[Mock(message=Mock(content='{"name": "Test", ...}'))])
-    ]
-    result = mock_ai_service.generate_location(theme="fantasy")
-    assert result["name"] == "Test"
-    assert mock_ai_service.client.chat.completions.create.call_count == 2
+def test_fallback_location_name_excludes_coordinates(self):
+    """Fallback names should NOT include coordinates (immersion).
 
-# Test: Retry limit respected
-def test_generate_location_respects_retry_limit(mock_ai_service):
-    """All retries fail, should raise AIGenerationError."""
-    mock_ai_service.config.generation_max_retries = 2
-    mock_ai_service.client.chat.completions.create.return_value = Mock(
-        choices=[Mock(message=Mock(content="invalid json"))]
+    Spec: Location names must not expose internal grid coordinates.
+    """
+    source = Location(
+        name="Town Square",
+        description="A town square.",
+        coordinates=(0, 0)
     )
-    with pytest.raises(AIGenerationError):
-        mock_ai_service.generate_location(theme="fantasy")
-    assert mock_ai_service.client.chat.completions.create.call_count == 3  # 1 + 2 retries
+
+    new_location = generate_fallback_location(
+        direction="north",
+        source_location=source,
+        target_coords=(0, 1)
+    )
+
+    # Name should not contain coordinate patterns like "(0, 1)" or "(-1, 2)"
+    import re
+    coord_pattern = r'\(-?\d+,\s*-?\d+\)'
+    assert not re.search(coord_pattern, new_location.name), \
+        f"Location name '{new_location.name}' should not include coordinates"
 ```
 
-## Implementation Notes
+### 2. Modify generate_fallback_location in world.py
+**File**: `src/cli_rpg/world.py`
 
-- Retry only on `AIGenerationError` (parse/validation failures)
-- Do NOT retry on `AIServiceError` (API failures) - those already have API-level retries
-- Add exponential backoff between retries (0.5s, 1s) to avoid rate limiting
-- Log full response on final failure for debugging
+Replace lines 165-168:
+```python
+# Generate unique name with coordinate suffix to ensure uniqueness
+base_name = random.choice(template["name_patterns"])
+# Add coordinate suffix for uniqueness (e.g., "Wilderness (1, 2)")
+location_name = f"{base_name} ({target_coords[0]}, {target_coords[1]})"
+```
 
-## Scope Boundaries
+With direction-based naming:
+```python
+# Generate name with direction suffix for uniqueness (no coordinates)
+base_name = random.choice(template["name_patterns"])
 
-**In scope:**
-- Retry logic for location/area generation parse failures
-- Configuration for retry count
-- Logging of retry attempts
+# Direction suffixes for uniqueness without exposing coordinates
+DIRECTION_SUFFIXES = {
+    "north": " North",
+    "south": " South",
+    "east": " East",
+    "west": " West",
+    "northeast": " Northeast",
+    "northwest": " Northwest",
+    "southeast": " Southeast",
+    "southwest": " Southwest",
+}
 
-**Out of scope:**
-- Changing the fallback behavior (still falls back after all retries)
-- User prompting on failure (would break non-interactive mode)
-- Retry for other generation types (enemies, items, quests) - can add later
+# Use direction as suffix if provided, otherwise just use base name
+suffix = DIRECTION_SUFFIXES.get(direction, "")
+location_name = f"{base_name}{suffix}"
+```
+
+## Test Command
+
+```bash
+pytest tests/test_infinite_world_without_ai.py::TestGenerateFallbackLocation -v
+```

@@ -162,10 +162,24 @@ def generate_fallback_location(
     else:
         template = random.choice(FALLBACK_LOCATION_TEMPLATES)
 
-    # Generate unique name with coordinate suffix to ensure uniqueness
+    # Generate name with direction suffix for uniqueness (no coordinates)
     base_name = random.choice(template["name_patterns"])
-    # Add coordinate suffix for uniqueness (e.g., "Wilderness (1, 2)")
-    location_name = f"{base_name} ({target_coords[0]}, {target_coords[1]})"
+
+    # Direction suffixes for uniqueness without exposing coordinates
+    DIRECTION_SUFFIXES = {
+        "north": " North",
+        "south": " South",
+        "east": " East",
+        "west": " West",
+        "northeast": " Northeast",
+        "northwest": " Northwest",
+        "southeast": " Southeast",
+        "southwest": " Southwest",
+    }
+
+    # Use direction as suffix if provided, otherwise just use base name
+    suffix = DIRECTION_SUFFIXES.get(direction, "")
+    location_name = f"{base_name}{suffix}"
 
     # Select random description
     description = random.choice(template["descriptions"])

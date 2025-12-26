@@ -933,14 +933,14 @@ class TestSubGridMapRendering:
             f"Interior map should mention parent location. Got:\n{result}"
         )
 
-    def test_render_sub_grid_uses_bounds_not_viewport(self):
-        """Interior map shows full bounded grid, not 9x9 viewport.
+    def test_render_sub_grid_centers_on_player(self):
+        """Interior map centers on player position like overworld.
 
-        Spec: Map should show exactly the coordinates within sub_grid.bounds
+        Spec: Map should show 9x9 viewport centered on player's position
         """
         from cli_rpg.world_grid import SubGrid
 
-        # Create a 3x3 grid (-1 to 1)
+        # Create a 3x3 grid (-1 to 1) with player at center
         sub_grid = SubGrid(parent_name="Small Room", bounds=(-1, 1, -1, 1))
         entry = Location("Center", "Center of room", {})
         sub_grid.add_location(entry, 0, 0)
@@ -949,18 +949,20 @@ class TestSubGridMapRendering:
 
         lines = result.split("\n")
 
-        # Find header line with x-coordinates
+        # Find header line with x-coordinates - should be viewport centered on (0,0)
+        # Viewport is 9x9 so from -4 to 4
         header_line = None
         for line in lines:
-            if "-1" in line and "0" in line and "1" in line:
-                # Should have coordinates -1, 0, 1 but NOT -4 or 4 (like overworld)
-                if "-4" not in line and "4" not in line:
-                    header_line = line
-                    break
+            if "-4" in line and "4" in line:
+                header_line = line
+                break
 
         assert header_line is not None, (
-            f"Header should contain x-coordinates -1, 0, 1 (bounded). Got:\n{result}"
+            f"Header should contain 9x9 viewport centered on player. Got:\n{result}"
         )
+
+        # Player's @ marker should be at center of viewport
+        assert "@" in result, "Player marker @ should be in map"
 
     def test_render_sub_grid_shows_exit_markers(self):
         """Locations with is_exit_point=True get special marker in legend.

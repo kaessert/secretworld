@@ -174,8 +174,10 @@ def render_map(
                 row_parts.append(padded)
             else:
                 # Check if this empty cell is adjacent to an explored location
-                # If adjacent but no connection exists TO this cell, mark as blocked
-                is_blocked = False
+                # Mark as blocked only if adjacent to explored location(s) AND
+                # none of those locations have a connection to this cell
+                is_adjacent_to_explored = False
+                is_reachable = False
                 for name, location in locations_with_coords:
                     if location.coordinates is None:
                         continue
@@ -183,14 +185,17 @@ def render_map(
                     # Check if coord is adjacent to this location
                     for direction, (dx, dy) in DIRECTION_DELTAS.items():
                         if (lx + dx, ly + dy) == coord:
-                            # coord is adjacent - check if connection exists
-                            if direction not in location.connections:
-                                is_blocked = True
+                            # coord is adjacent to this explored location
+                            is_adjacent_to_explored = True
+                            # Check if this location has a connection to the cell
+                            if direction in location.connections:
+                                is_reachable = True
                                 break
-                    if is_blocked:
-                        break
+                    if is_reachable:
+                        break  # Found a path, no need to check more
 
-                if is_blocked:
+                # Blocked = adjacent to explored area but no path leads there
+                if is_adjacent_to_explored and not is_reachable:
                     row_parts.append(pad_marker(BLOCKED_MARKER, cell_width))
                 else:
                     row_parts.append(" " * cell_width)
@@ -238,7 +243,7 @@ def render_map(
 
 
 def _render_sub_grid_map(sub_grid: "SubGrid", current_location: str) -> str:
-    """Render a bounded interior map with exit markers.
+    """Render a player-centered interior map with exit markers.
 
     Args:
         sub_grid: The SubGrid to render
@@ -247,13 +252,21 @@ def _render_sub_grid_map(sub_grid: "SubGrid", current_location: str) -> str:
     Returns:
         ASCII string representation of the interior map
     """
-    # Get bounds
-    min_x, max_x, min_y, max_y = sub_grid.bounds
+    # Get SubGrid bounds
+    bound_min_x, bound_max_x, bound_min_y, bound_max_y = sub_grid.bounds
 
     # Get current location for positioning
     current_loc = sub_grid.get_by_name(current_location)
     if current_loc is None or current_loc.coordinates is None:
         return "No interior map available."
+
+    # Center viewport on player (same 9x9 as overworld)
+    player_x, player_y = current_loc.coordinates
+    viewport_radius = 4
+    view_min_x = player_x - viewport_radius
+    view_max_x = player_x + viewport_radius
+    view_min_y = player_y - viewport_radius
+    view_max_y = player_y + viewport_radius
 
     # Build coordinate to location mapping
     coord_to_location: dict[tuple[int, int], Location] = {}
@@ -273,9 +286,18 @@ def _render_sub_grid_map(sub_grid: "SubGrid", current_location: str) -> str:
         if i < len(SYMBOLS)
     }
 
-    # Build legend entries
+    # Build legend entries (only for locations in viewport)
     legend_entries = []
+    locations_in_viewport = set()
+    for y in range(view_max_y, view_min_y - 1, -1):
+        for x in range(view_min_x, view_max_x + 1):
+            coord = (x, y)
+            if coord in coord_to_location:
+                locations_in_viewport.add(coord_to_location[coord].name)
+
     for name, loc in sub_grid._by_name.items():
+        if name not in locations_in_viewport:
+            continue
         if name == current_location:
             legend_entries.append(f"  {colors.bold_colorize('@', colors.CYAN)} = You ({name})")
         else:
@@ -287,22 +309,26 @@ def _render_sub_grid_map(sub_grid: "SubGrid", current_location: str) -> str:
             else:
                 legend_entries.append(f"  {symbol} = {name}{exit_indicator}")
 
-    # Build map grid with fixed bounds
+    # Build map grid centered on player
     cell_width = 4
 
     # Header with x-coordinates
     header_parts = ["    "]
-    for x in range(min_x, max_x + 1):
+    for x in range(view_min_x, view_max_x + 1):
         header_parts.append(f"{x:>{cell_width}}")
     header = "".join(header_parts)
     content_width = len(header)
 
     # Build rows (y descending for north=up)
     map_rows = []
-    for y in range(max_y, min_y - 1, -1):
+    for y in range(view_max_y, view_min_y - 1, -1):
         row_parts = [f"{y:>3} "]
-        for x in range(min_x, max_x + 1):
+        for x in range(view_min_x, view_max_x + 1):
             coord = (x, y)
+            # Check if coordinate is within SubGrid bounds
+            in_bounds = (bound_min_x <= x <= bound_max_x and
+                         bound_min_y <= y <= bound_max_y)
+
             if coord in coord_to_location:
                 loc = coord_to_location[coord]
                 if loc.name == current_location:
@@ -311,9 +337,12 @@ def _render_sub_grid_map(sub_grid: "SubGrid", current_location: str) -> str:
                     marker = location_symbols.get(loc.name, "?")
                     padded = pad_marker(marker, cell_width)
                 row_parts.append(padded)
-            else:
+            elif in_bounds:
                 # Inside bounds but no location = blocked/wall
                 row_parts.append(pad_marker(BLOCKED_MARKER, cell_width))
+            else:
+                # Outside SubGrid bounds = empty (beyond the interior)
+                row_parts.append(" " * cell_width)
         map_rows.append("".join(row_parts))
 
     # Get exits from current location

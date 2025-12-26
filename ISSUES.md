@@ -486,10 +486,10 @@ Issues discovered during `--wfc` mode playtesting (updated 2025-12-26):
    - Applied to all 3 ASCII art parsing methods: location, enemy, and NPC art
    - Test coverage added in `tests/test_ascii_art.py`
 
-4. **Fallback location names include coordinates**
-   - When fallback occurs, names like "Vast Prairie (-1, 0)" or "Vast Prairie (1, 1)" are used
-   - Coordinates in names break immersion
-   - **Fix**: If fallback is kept, generate unique suffixes without coordinates
+4. ~~**Fallback location names include coordinates**~~ (RESOLVED 2025-12-26)
+   - ~~When fallback occurs, names like "Vast Prairie (-1, 0)" or "Vast Prairie (1, 1)" are used~~
+   - ~~Coordinates in names break immersion~~
+   - **Solution**: Replaced coordinate-based naming with direction-based suffixes (e.g., "Stone Ridge North", "Dark Forest East"). Supports all 8 cardinal/ordinal directions. Test added in `test_infinite_world_without_ai.py`.
 
 3. **NPCs shown as "???" in fog weather**
    - When fog reduces visibility, NPC names display as "???" even at the player's location
@@ -514,6 +514,38 @@ Issues discovered during `--wfc` mode playtesting (updated 2025-12-26):
    - Error message: "You can't afford Health Potion (48 gold). You have 9 gold."
    - The prices don't match (50 vs 48) - confusing for players
    - Related to faction price modifiers showing in error but not shop listing
+
+8. **ASCII art first line loses leading whitespace**
+   - First row of ASCII art displays without leading spaces, breaking alignment
+   - Example (wrong):
+     ```
+     /\    /\
+        /  \  /  \
+       |    ||    |
+     ```
+   - Expected:
+     ```
+         /\    /\
+        /  \  /  \
+       |    ||    |
+     ```
+   - **Cause**: Likely string stripping or split/join operation removing leading spaces from first line
+   - **Files to investigate**: `ai_service.py` (ASCII art parsing), `location_art.py` (fallback templates)
+
+9. **Shop command doesn't work with AI-generated merchants in SubGrid locations**
+   - Location shows "NPCs: Tech Merchant" but `shop` command says "There's no merchant here."
+   - Reproduction:
+     1. Enter a SubGrid location (e.g., `enter Rusty Outpost`)
+     2. Navigate to a location with a merchant NPC (e.g., "Silent Bazaar" with "Tech Merchant")
+     3. Run `shop` command → "There's no merchant here."
+   - **Cause**: Shop command likely checks for:
+     - A `Shop` object attached to the location, OR
+     - NPC with specific `role="merchant"` attribute
+   - AI-generated NPCs with "Merchant" in name may not have proper role/shop setup
+   - **Files to investigate**:
+     - `src/cli_rpg/main.py`: `shop` command handler
+     - `src/cli_rpg/ai_world.py`: NPC generation for SubGrid locations
+     - `src/cli_rpg/models/npc.py`: NPC role field
 
 #### MEDIUM PRIORITY BUGS
 

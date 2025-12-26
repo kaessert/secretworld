@@ -180,6 +180,30 @@ class TestGenerateFallbackLocation:
         assert len(new_location.connections) >= 2, \
             "Fallback location must have at least 2 exits (back + frontier)"
 
+    def test_fallback_location_name_excludes_coordinates(self):
+        """Fallback names should NOT include coordinates (immersion).
+
+        Spec: Location names must not expose internal grid coordinates.
+        """
+        import re
+
+        source = Location(
+            name="Town Square",
+            description="A town square.",
+            coordinates=(0, 0)
+        )
+
+        new_location = generate_fallback_location(
+            direction="north",
+            source_location=source,
+            target_coords=(0, 1)
+        )
+
+        # Name should not contain coordinate patterns like "(0, 1)" or "(-1, 2)"
+        coord_pattern = r'\(-?\d+,\s*-?\d+\)'
+        assert not re.search(coord_pattern, new_location.name), \
+            f"Location name '{new_location.name}' should not include coordinates"
+
 
 # ============================================================================
 # Test: Movement to unexplored directions creates location
