@@ -482,16 +482,25 @@ class GameState:
             self.is_sneaking = False  # Clear sneaking mode on any move attempt
             return (False, "Invalid direction. Use: north, south, east, or west.")
 
-        # Block movement if no connection exists in that direction
-        if not current.has_connection(direction):
-            self.is_sneaking = False  # Clear sneaking mode on any move attempt
-            return (False, "You can't go that way.")
-
         # Track if AI generation was attempted but failed (to inform player)
         ai_fallback_used = False
 
         # Use coordinate-based movement if current location has coordinates
         if current.coordinates is not None:
+            # Check WFC terrain passability FIRST (when chunk_manager available)
+            if self.chunk_manager is not None:
+                from cli_rpg.world_tiles import DIRECTION_OFFSETS as WFC_OFFSETS, is_passable
+                dx, dy = WFC_OFFSETS[direction]
+                target_coords = (current.coordinates[0] + dx, current.coordinates[1] + dy)
+                terrain = self.chunk_manager.get_tile_at(*target_coords)
+                if not is_passable(terrain):
+                    self.is_sneaking = False
+                    return (False, f"The {terrain} ahead is impassable.")
+            else:
+                # No WFC: Require connection for movement (backward compatibility)
+                if not current.has_connection(direction):
+                    self.is_sneaking = False
+                    return (False, "You can't go that way.")
             # Calculate target coordinates for valid cardinal directions
             dx, dy = DIRECTION_OFFSETS[direction]
             target_coords = (current.coordinates[0] + dx, current.coordinates[1] + dy)
@@ -506,16 +515,12 @@ class GameState:
                 if not current.has_connection(direction):
                     current.add_connection(direction, target_location.name)
             else:
-                # No location at target - check WFC terrain and generate
+                # No location at target - generate new location
+                # Note: Terrain passability already checked at start of coordinate block
                 terrain = None
                 if self.chunk_manager is not None:
-                    # Get terrain from WFC
+                    # Get terrain from WFC for location generation
                     terrain = self.chunk_manager.get_tile_at(*target_coords)
-                    # Check if terrain is passable
-                    from cli_rpg.world_tiles import TERRAIN_PASSABLE
-                    if not TERRAIN_PASSABLE.get(terrain, True):
-                        self.is_sneaking = False
-                        return (False, f"The {terrain} ahead is impassable.")
 
                 ai_succeeded = False
                 if self.ai_service is not None and AI_AVAILABLE and expand_area is not None:

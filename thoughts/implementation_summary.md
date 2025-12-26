@@ -1,47 +1,68 @@
-# Implementation Summary: Remove Terrain Logic from AI Location Generation
+# Implementation Summary: Terrain-Based Movement Validation (Step 3)
 
 ## What Was Implemented
 
-The implementation removed AI-suggested connections from location generation, making WFC (Wave Function Collapse) the single source of truth for terrain structure. However, upon investigation, **most of this work was already done** in the codebase. The implementation was already in the correct state:
+Updated the `move()` method in `game_state.py` to use WFC terrain passability as the **primary** validation for movement, replacing the previous connection-based approach when WFC is enabled.
 
-### Already Correct (No Changes Needed)
-1. **`ai_config.py`**: Both `DEFAULT_LOCATION_PROMPT` and `DEFAULT_LOCATION_PROMPT_MINIMAL` already had no references to `connections` in their expected JSON output
-2. **`ai_service.py`**: `_parse_location_response()` already didn't require connections and returned only `{name, description, category, npcs}`
-3. **`ai_world.py`**: Already used grid-based expansion with all cardinal directions queued from each location (lines 295-299)
+### Key Changes
 
-### Changes Made
-Updated 5 obsolete tests in `tests/test_ai_world_generation.py` that were still testing the OLD behavior where AI suggestions drove connections:
+**File: `src/cli_rpg/game_state.py`**
 
-| Old Test | New Test | Purpose |
-|----------|----------|---------|
-| `test_expand_world_preserves_ai_suggested_dangling_connections` | `test_expand_world_adds_dangling_connections` | Tests that new locations get dangling exits for future expansion |
-| `test_create_ai_world_queues_suggested_connections` | `test_create_ai_world_queues_cardinal_directions` | Tests that all cardinal directions are queued for expansion |
-| `test_expand_world_adds_bidirectional_connection_to_existing_target` | `test_expand_world_adds_bidirectional_connection` | Tests bidirectional connection between source and new location |
-| `test_expand_world_preserves_existing_reverse_connection` | `test_expand_world_preserves_source_existing_connections` | Tests that source's existing connections are preserved |
-| `test_create_ai_world_skips_suggested_name_already_in_grid` | `test_create_ai_world_skips_occupied_positions` | Tests that occupied grid positions are skipped |
+1. **Added WFC terrain passability check BEFORE movement** (lines 491-498):
+   - When `chunk_manager` is available and location has coordinates, the terrain at target coordinates is checked first
+   - Uses `is_passable()` from `world_tiles.py` for consistent passability validation
+   - Returns "The {terrain} ahead is impassable." if terrain blocks movement (e.g., water)
+
+2. **Backward compatibility for legacy mode** (lines 499-503):
+   - When `chunk_manager` is None but location has coordinates, falls back to connection-based movement
+   - Returns "You can't go that way." if no connection exists
+
+3. **Removed redundant terrain check** (former lines 520-527):
+   - The old terrain check inside the location generation block was removed
+   - This was redundant since terrain is now checked at the start of the coordinate-based movement block
+
+**File: `tests/test_terrain_movement.py` (NEW)**
+- 5 new test cases validating terrain-based movement
+
+### Movement Flow Now
+
+**WFC Mode (chunk_manager present):**
+1. Check terrain passability at target coordinates → block if impassable
+2. Find or generate location at target
+3. Move to location (connections managed automatically)
+
+**Legacy Mode (chunk_manager=None):**
+1. Check connection exists in direction → block if no connection
+2. Move to connected location (old behavior preserved)
 
 ## Test Results
 
-- **All 11 terrain content separation tests pass**: Verify AI prompts have no connection references, parsing ignores connections, and returned data has no connections key
-- **All 54 AI world generation tests pass**: Including the 5 updated tests
-- **Full test suite: 3573 tests pass**
+**New Tests Created: `tests/test_terrain_movement.py`**
+- `test_move_to_passable_terrain_without_connection` - PASS
+- `test_move_to_impassable_terrain_blocked` - PASS
+- `test_move_without_chunk_manager_uses_connections` - PASS
+- `test_move_blocked_no_terrain_no_connection` - PASS
+- `test_all_directions_check_terrain` - PASS
 
-## Technical Details
+**Related Tests:**
+- `tests/test_terrain_passability.py` - 18 tests PASS
+- `tests/test_wfc_exit_display.py` - 8 tests PASS
 
-The key architectural insight is:
-- **AI's role**: Generate content only (name, description, category, NPCs)
-- **WFC's role**: Handle terrain structure (exits, connections, passability)
-- **WorldGrid**: Manages coordinates and bidirectional connections
+**Full Test Suite:**
+- 3596 tests PASS
 
-The `expand_world()` function now:
-1. Gets AI-generated content (no connections)
-2. Adds bidirectional connection between source and new location
-3. Adds a random dangling connection for future expansion
-4. Never uses AI suggestions for connections
+## Success Criteria Met
 
-## E2E Tests Should Validate
+- [x] `go <direction>` checks `is_passable()` before connection dict (when WFC active)
+- [x] Movement to water returns "The water ahead is impassable."
+- [x] Movement to passable terrain works even without explicit connection
+- [x] Legacy saves and non-WFC mode work unchanged
+- [x] All existing 3591 tests still pass (now 3596 total with 5 new tests)
+- [x] 5 new terrain movement tests pass
 
-1. Moving between AI-generated locations works correctly
-2. New locations have at least one exit for expansion
-3. Bidirectional connections are properly established
-4. Location content (names, descriptions) are coherent with terrain type
+## E2E Validation Points
+
+1. **New game with WFC**: Player should be able to move to any passable terrain (forest, plains, hills, etc.) regardless of connection status
+2. **Water blocking**: Player should see "The water ahead is impassable." when attempting to move into water
+3. **Legacy saves**: Loading a save without chunk_manager should use connection-based movement
+4. **SubGrid interiors**: Movement inside buildings/dungeons should still use connection-based navigation (unchanged)

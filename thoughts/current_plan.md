@@ -1,202 +1,149 @@
-# Implementation Plan: Remove Terrain Logic from AI Location Generation
+# Implementation Plan: Step 3 - Update `go` Command to Use Terrain Passability
 
 ## Summary
-Remove connections/exits generation from AI prompts and parsing. AI should only generate content (name, description, NPCs, category), while WFC is the single source of truth for terrain structure (exits/connections).
+Update the movement system to use WFC terrain passability (`is_passable()` from `world_tiles.py`) as the **primary** validation for movement, replacing `connections` dict checks. This enables implicit movement based on terrain rather than explicit connection management.
 
-## Spec
+---
 
-**Current State (Incorrect):**
-- AI prompts ask for `connections: {direction: location_name}`
-- AI decides which exits exist
-- `_parse_location_response()` validates and filters connections
-- `expand_world()` uses AI-generated connections to determine navigation
+## Specification
 
-**Target State (Correct):**
-- AI prompts have NO reference to exits, directions, or connections
-- AI receives terrain type as INPUT (from WFC)
-- AI returns ONLY: `{name, description, category, npcs}`
-- All exits determined by WFC terrain adjacency in ChunkManager
+### Current Behavior
+Movement validation in `game_state.py:move()` follows this flow:
+1. Check `current.has_connection(direction)` - **blocks if no explicit connection**
+2. Use coordinates to find target location OR generate new location
+3. Check WFC terrain passability only for **newly generated** locations
 
-## Test Plan (TDD)
+### Target Behavior
+Movement validation should follow this flow:
+1. Check WFC terrain passability **first** - blocks if impassable terrain
+2. Find or generate location at target coordinates
+3. `connections` dict used only for legacy saves (backward compatibility)
 
-**File: `tests/test_terrain_content_separation.py`**
+### Key Principles
+- **Terrain is truth**: `ChunkManager.get_tile(x, y)` determines passability
+- **Passability is binary**: Each terrain type is passable or impassable
+- **Movement is implicit**: Player can always move to adjacent passable terrain
+- **Backward compatible**: Non-WFC worlds and legacy saves still work
 
-| Test | Description |
-|------|-------------|
-| `test_minimal_location_prompt_no_connections` | Minimal prompt has no `connections` field in example JSON |
-| `test_minimal_location_prompt_no_exits` | Minimal prompt contains no word "exit" or "direction" |
-| `test_parse_location_response_no_connections_required` | Parsing succeeds without `connections` in response |
-| `test_parse_location_response_ignores_connections` | If AI includes connections, they are ignored |
-| `test_location_data_has_no_connections_key` | Returned dict has no `connections` key |
-| `test_generate_location_with_context_no_connections` | Full generation returns no connections |
+---
+
+## Test Cases (TDD)
+
+Create `tests/test_terrain_movement.py`:
+
+### Test 1: Movement to passable terrain succeeds (no connection required)
+```python
+def test_move_to_passable_terrain_without_connection():
+    """Player can move to passable terrain even without explicit connection."""
+    # Setup: Location at (0,0), no connection north, but forest at (0,1)
+    # Expected: Move succeeds, new location created/found
+```
+
+### Test 2: Movement to impassable terrain blocked (even with connection)
+```python
+def test_move_to_impassable_terrain_blocked():
+    """Player cannot move to impassable terrain (water) even with connection."""
+    # Setup: Location at (0,0), connection north, but water at (0,1)
+    # Expected: Move fails with "The water ahead is impassable."
+```
+
+### Test 3: Movement without ChunkManager uses connections (legacy)
+```python
+def test_move_without_chunk_manager_uses_connections():
+    """Without WFC, movement uses traditional connection-based logic."""
+    # Setup: GameState without chunk_manager
+    # Expected: Old behavior preserved
+```
+
+### Test 4: Movement blocked when terrain and connection both missing
+```python
+def test_move_blocked_no_terrain_no_connection():
+    """Movement fails when no WFC terrain and no connection."""
+    # Setup: No chunk_manager, no connection in direction
+    # Expected: "You can't go that way."
+```
+
+### Test 5: All cardinal directions validated against terrain
+```python
+def test_all_directions_check_terrain():
+    """All four directions check terrain passability."""
+    # Test north, south, east, west with various terrain configurations
+```
+
+---
 
 ## Implementation Steps
 
-### Step 1: Update AI Prompts (ai_config.py)
+### Step 1: Create test file `tests/test_terrain_movement.py`
+- Add 5 test cases above
+- Import `is_passable`, `get_valid_moves` from `world_tiles`
+- Mock `ChunkManager` for controlled terrain returns
 
-**Modify `DEFAULT_LOCATION_PROMPT` (line 14-49):**
-Remove requirements #3, #4 about connections. Remove `connections` from JSON example.
+### Step 2: Modify `game_state.py:move()` method
+**Location**: Lines 450-707
 
+**Change 1**: Add WFC terrain check BEFORE connection check (around line 485-488)
 ```python
-DEFAULT_LOCATION_PROMPT = """You are a creative game world designer. Generate a new location for a {theme} RPG game.
-
-Context:
-- World Theme: {theme}
-- Existing Locations: {context_locations}
-- Terrain Type: {terrain_type}
-
-Requirements:
-1. Create a unique location name (2-50 characters) appropriate for {terrain_type} terrain
-2. Write a vivid description (1-500 characters) that reflects the terrain and theme
-3. Include a category for the location type (one of: town, dungeon, wilderness, settlement, ruins, cave, forest, mountain, village)
-4. Generate 0-2 NPCs appropriate for this location (optional)
-   - Each NPC needs: name (2-30 chars), description (1-200 chars), dialogue (a greeting), role (villager, merchant, or quest_giver)
-
-Respond with valid JSON in this exact format (no additional text):
-{{
-  "name": "Location Name",
-  "description": "A detailed description of the location.",
-  "category": "wilderness",
-  "npcs": [
-    {{
-      "name": "NPC Name",
-      "description": "Brief description of the NPC.",
-      "dialogue": "What the NPC says when greeted.",
-      "role": "villager"
-    }}
-  ]
-}}"""
+# NEW: Check WFC terrain passability first
+if self.chunk_manager is not None and current.coordinates is not None:
+    from cli_rpg.world_tiles import DIRECTION_OFFSETS, is_passable
+    dx, dy = DIRECTION_OFFSETS.get(direction, (0, 0))
+    target_coords = (current.coordinates[0] + dx, current.coordinates[1] + dy)
+    terrain = self.chunk_manager.get_tile_at(*target_coords)
+    if not is_passable(terrain):
+        self.is_sneaking = False
+        return (False, f"The {terrain} ahead is impassable.")
 ```
 
-**Modify `DEFAULT_LOCATION_PROMPT_MINIMAL` (line 306-335):**
-Remove requirements about connections and back-connection to source.
+**Change 2**: Remove connection check for WFC mode (line 486-488)
+- Current: `if not current.has_connection(direction):`
+- New: Only check connections when `chunk_manager is None`
 
-```python
-DEFAULT_LOCATION_PROMPT_MINIMAL = """Generate a location for a {theme} RPG.
+**Change 3**: Keep connection check for legacy mode (lines 571-606)
+- This path already works, no changes needed
 
-World Context:
-- Theme Essence: {theme_essence}
+### Step 3: Update `_move_in_sub_grid()` method (lines 709-761)
+- SubGrid movement should continue using connections (bounded interior spaces)
+- No changes needed - SubGrids don't use WFC terrain
 
-Region Context:
-- Region Name: {region_name}
-- Region Theme: {region_theme}
-- Terrain: {terrain_type}
+### Step 4: Ensure exit display matches movement capability
+**Already done**: `get_filtered_directions()` in `location.py` filters exits by WFC passability
 
-Requirements:
-1. Create a unique location name (2-50 characters) that fits the region theme and terrain
-2. Write a vivid description (1-500 characters) that reflects the {terrain_type} terrain
-3. Assign a category (town, dungeon, wilderness, settlement, ruins, cave, forest, mountain, village)
-4. Ensure the location makes sense for {terrain_type} terrain (e.g., oasis for desert, clearing for forest)
-
-Respond with valid JSON in this exact format (no additional text):
-{{
-  "name": "Location Name",
-  "description": "A detailed description of the location.",
-  "category": "wilderness"
-}}"""
+### Step 5: Run tests and verify
+```bash
+pytest tests/test_terrain_movement.py -v
+pytest tests/test_terrain_passability.py -v
+pytest tests/test_wfc_exit_display.py -v
+pytest -x  # Full test suite
 ```
 
-### Step 2: Update Parsing (ai_service.py)
-
-**Modify `_parse_location_response()` (around line 586-650):**
-- Remove `connections` from required_fields
-- Remove connection validation/filtering logic
-- Return dict without `connections` key
-
-```python
-def _parse_location_response(self, response_text: str) -> dict:
-    # ... JSON parsing logic unchanged ...
-
-    # Validate required fields (NO connections)
-    required_fields = ["name", "description"]
-    for field in required_fields:
-        if field not in data:
-            raise AIGenerationError(f"Response missing required field: {field}")
-
-    # ... name/description validation unchanged ...
-
-    # Extract and validate category (optional field)
-    category = data.get("category")
-    # ... category validation unchanged ...
-
-    # Parse NPCs (optional field)
-    npcs = self._parse_npcs(data.get("npcs", []), name)
-
-    # Return validated data WITHOUT connections
-    return {
-        "name": name,
-        "description": description,
-        "category": category,
-        "npcs": npcs
-    }
-```
-
-**Modify `generate_location()` return type docstring (line 168-169):**
-Update to reflect no connections.
-
-```python
-Returns:
-    Dictionary with keys: name, description, category, npcs
-```
-
-### Step 3: Update ai_world.py to Not Use AI Connections
-
-**Modify `create_ai_world()` (line 184-399):**
-- Remove code that queues AI-generated connections (lines 295-299)
-- Remove code that uses `location_data["connections"]` (line 369)
-- All expansion now driven by WFC terrain, not AI suggestions
-
-Key change at line 296:
-```python
-# OLD: for direction, target_name in starting_data["connections"].items():
-# NEW: Queue ALL cardinal directions for exploration (WFC will filter passability)
-for direction in DIRECTION_OFFSETS:
-    dx, dy = DIRECTION_OFFSETS[direction]
-    coord_queue.append((starting_location.name, 0 + dx, 0 + dy, direction, None))
-```
-
-**Modify `expand_world()` (around line 520-545):**
-- Remove code at lines 525-533 that adds AI-suggested connections
-- Bidirectional connection at lines 520-523 stays (this is terrain-based, not AI)
-
-Remove this block:
-```python
-# OLD: Add suggested dangling connections (keep them even if targets don't exist)
-# for new_dir, target_name in location_data["connections"].items():
-#     ...
-```
-
-### Step 4: Update Area Generation Prompts (ai_service.py)
-
-**Modify `_build_area_prompt()` (around line 913-963):**
-- Remove requirement #9 about valid directions
-- Remove requirement #10 about internal consistency of connections
-- Remove `connections` from JSON example
-- Change focus to generating themed locations with relative positions
-
-This is more complex since areas have internal connectivity. However, for areas:
-- Use `relative_coords` to establish spatial layout
-- Derive connections FROM coordinates, not AI
-
-**Modify `_parse_area_response()` and `_validate_area_location()` (lines 1028-1099):**
-- Remove `connections` from required_fields
-- Remove connection filtering logic
-- Derive connections from relative_coords in caller (ai_world.py)
+---
 
 ## Files to Modify
 
 | File | Changes |
 |------|---------|
-| `tests/test_terrain_content_separation.py` | NEW - Tests for content-only AI generation |
-| `src/cli_rpg/ai_config.py` | Remove connections from prompts (lines 14-49, 306-335) |
-| `src/cli_rpg/ai_service.py` | Remove connections from parsing (lines 586-650, 1028-1099) |
-| `src/cli_rpg/ai_world.py` | Stop using AI connections (lines 295-299, 369, 525-533) |
+| `tests/test_terrain_movement.py` | **NEW** - 5 test cases for terrain-based movement |
+| `src/cli_rpg/game_state.py` | Modify `move()` to check terrain passability before connections |
+
+---
+
+## Backward Compatibility
+
+| Scenario | Behavior |
+|----------|----------|
+| WFC mode (chunk_manager present) | Terrain passability is primary, connections secondary |
+| Non-WFC mode (chunk_manager=None) | Connections-based movement preserved |
+| Legacy saves | Load without chunk_manager, use connection logic |
+| SubGrid interior movement | Always uses connections (no WFC in interiors) |
+
+---
 
 ## Success Criteria
 
-- [ ] AI prompts contain zero references to exits, directions, or connections
-- [ ] `_parse_location_response()` does not require or return `connections`
-- [ ] `create_ai_world()` expands based on grid positions, not AI suggestions
-- [ ] `expand_world()` adds only bidirectional terrain connections
-- [ ] All existing tests pass
-- [ ] New tests verify content-only generation
+- [ ] `go <direction>` checks `is_passable()` before connection dict (when WFC active)
+- [ ] Movement to water returns "The water ahead is impassable."
+- [ ] Movement to passable terrain works even without explicit connection
+- [ ] Legacy saves and non-WFC mode work unchanged
+- [ ] All existing 3591 tests still pass
+- [ ] 5 new terrain movement tests pass

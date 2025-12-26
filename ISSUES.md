@@ -104,10 +104,13 @@ def get_valid_moves(chunk_manager: ChunkManager, x: int, y: int) -> list[str]:
    - Remove all connection management code
    - Remove bidirectional connection logic
 
-2. **Add passability to world_tiles.py**
-   - Define `PASSABLE_TERRAIN` and `IMPASSABLE_TERRAIN` sets
-   - Add `is_passable(terrain)` function
-   - Add `get_valid_moves(chunk_manager, x, y)` function
+2. ~~**Add passability to world_tiles.py**~~ ✅ COMPLETE (2025-12-26)
+   - ✅ `PASSABLE_TERRAIN` frozenset (8 types: forest, plains, hills, desert, swamp, beach, foothills, mountain)
+   - ✅ `IMPASSABLE_TERRAIN` frozenset (water)
+   - ✅ `DIRECTION_OFFSETS` dict (north, south, east, west)
+   - ✅ `is_passable(terrain)` function with safe default for unknown terrain
+   - ✅ `get_valid_moves(chunk_manager, x, y)` function returning sorted valid directions
+   - ✅ 18 tests in `tests/test_terrain_passability.py`
 
 3. **Update movement in game_state.py / main.py**
    - Replace connection lookup with terrain passability check
@@ -128,10 +131,11 @@ def get_valid_moves(chunk_manager: ChunkManager, x: int, y: int) -> list[str]:
 
 **Success Criteria**:
 - [ ] `Location.connections` field removed entirely
-- [ ] `PASSABLE_TERRAIN` and `IMPASSABLE_TERRAIN` defined in world_tiles.py
-- [ ] `go <direction>` checks terrain passability, not connection dict
-- [ ] Map shows valid exits based on adjacent terrain types
-- [ ] No code references "connections" for movement logic
+- [x] `PASSABLE_TERRAIN` and `IMPASSABLE_TERRAIN` defined in world_tiles.py ✅
+- [x] `is_passable()` and `get_valid_moves()` functions implemented ✅
+- [x] `go <direction>` checks terrain passability, not connection dict ✅ (2025-12-26 - Step 3 complete)
+- [x] Map shows valid exits based on adjacent terrain types ✅ (resolved per WFC exit display fix)
+- [ ] No code references "connections" for movement logic (connections still exist for legacy/SubGrid support)
 
 ---
 
@@ -1262,6 +1266,64 @@ Result: Locations feel random, not part of a cohesive world.
 - **WorldGrid** (`world_grid.py`) - Clean coordinate-based placement with automatic bidirectional connections
 - **SubGrid Architecture** - Bounded interiors for dungeons/buildings separate from overworld
 - **Multi-provider AI** (`ai_service.py`) - Supports OpenAI, Anthropic, Ollama with graceful fallback
+
+---
+
+### UX Bug: `enter` command without argument silently enters first location
+**Status**: ACTIVE
+**Date Added**: 2025-12-26
+**Severity**: LOW (UX inconsistency)
+
+#### Problem
+
+The `enter` command without an argument silently enters the first available sub-location instead of prompting the user to specify which location they want to enter.
+
+#### Steps to Reproduce
+
+1. Start the game: `cli-rpg --non-interactive --skip-character-creation`
+2. Type `enter` (without any argument)
+3. Observe: The game automatically enters "Market District" without asking
+
+#### Expected Behavior
+
+The game should display an error message like:
+```
+Enter where? Specify a location: Market District, Guard Post, Town Well
+```
+
+This is consistent with how other commands handle missing arguments:
+- `go` → "Go where? Specify a direction (north, south, east, west)"
+- `equip` → "Equip what? Specify an item name."
+- `use` → "Use what? Specify an item name."
+- `drop` → "Drop what? Specify an item name."
+- `craft` → "Craft what? Use 'recipes' to see available recipes."
+
+#### Actual Behavior
+
+```
+Town Square
+Exits: east, north, south, west
+Enter: Market District, Guard Post, Town Well
+
+> enter
+You enter Market District.
+```
+
+The user may not realize they've entered a sub-location they didn't intend to, which could be confusing.
+
+#### Suggested Fix
+
+In the `enter` command handler, check if the location argument is provided. If not, display an error with available options:
+
+```python
+if not args:
+    locations = get_enterable_locations(current_location)
+    if locations:
+        print(f"Enter where? Specify a location: {', '.join(locations)}")
+    else:
+        print("There are no locations to enter here.")
+    return
+```
 
 ---
 
