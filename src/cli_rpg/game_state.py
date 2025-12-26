@@ -52,7 +52,8 @@ KNOWN_COMMANDS: set[str] = {
     "look", "go", "save", "quit", "attack", "defend", "flee", "status", "cast",
     "inventory", "equip", "unequip", "use", "drop", "talk", "buy", "sell", "shop",
     "map", "help", "quests", "quest", "accept", "complete", "abandon", "lore", "rest",
-    "bestiary", "dump-state", "events", "companions", "recruit", "dismiss", "companion-quest"
+    "bestiary", "dump-state", "events", "companions", "recruit", "dismiss", "companion-quest",
+    "enter", "exit", "leave"
 }
 
 # Dread increases by location category (darker areas = more dread)
@@ -576,6 +577,83 @@ class GameState:
         for msg in event_progress_messages:
             message += f"\n{msg}"
 
+        return (True, message)
+
+    def enter(self, target_name: Optional[str] = None) -> tuple[bool, str]:
+        """Enter a sub-location within the current overworld landmark.
+
+        Args:
+            target_name: Name of sub-location to enter (partial match, case-insensitive).
+                         If None, uses entry_point of current location.
+
+        Returns:
+            Tuple of (success, message) where:
+            - success is True if entry was successful, False otherwise
+            - message describes the result including look() at new location on success
+        """
+        # Block during conversation
+        if self.is_in_conversation:
+            return (False, "You're in a conversation. Say 'bye' to leave first.")
+
+        current = self.get_current_location()
+
+        # Must be at an overworld location
+        if not current.is_overworld:
+            return (False, "You're not at an overworld location.")
+
+        # If no target specified, use entry_point
+        if target_name is None:
+            if current.entry_point is None:
+                return (False, "Enter where? Specify a location name.")
+            target_name = current.entry_point
+
+        # Find matching sub-location (case-insensitive partial match)
+        target_lower = target_name.lower()
+        matched_location: Optional[str] = None
+
+        for sub_name in current.sub_locations:
+            if sub_name.lower().startswith(target_lower) or target_lower in sub_name.lower():
+                if sub_name in self.world:
+                    matched_location = sub_name
+                    break
+
+        if matched_location is None:
+            return (False, f"No such location: {target_name}")
+
+        # Move to sub-location
+        self.current_location = matched_location
+
+        # Build success message with look at new location
+        message = f"You enter {colors.location(matched_location)}.\n\n{self.look()}"
+        return (True, message)
+
+    def exit_location(self) -> tuple[bool, str]:
+        """Exit from a sub-location back to the parent overworld landmark.
+
+        Returns:
+            Tuple of (success, message) where:
+            - success is True if exit was successful, False otherwise
+            - message describes the result including look() at parent on success
+        """
+        # Block during conversation
+        if self.is_in_conversation:
+            return (False, "You're in a conversation. Say 'bye' to leave first.")
+
+        current = self.get_current_location()
+
+        # Must have a parent location
+        if current.parent_location is None:
+            return (False, "You're not inside a landmark.")
+
+        # Verify parent exists in world
+        if current.parent_location not in self.world:
+            return (False, f"Cannot find parent location: {current.parent_location}")
+
+        # Move to parent location
+        self.current_location = current.parent_location
+
+        # Build success message with look at parent location
+        message = f"You exit to {colors.location(self.current_location)}.\n\n{self.look()}"
         return (True, message)
 
     def _update_dread_on_move(self, location: Location) -> Optional[str]:

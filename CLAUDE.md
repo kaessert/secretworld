@@ -76,7 +76,7 @@ src/cli_rpg/
 ## Key Architectural Patterns
 
 - **Grid-based world** (`world_grid.py`): Spatial consistency with coordinate-based navigation
-- **Location model**: Each location has coordinates, connections to adjacent locations, and NPCs
+- **Location model**: Each location has coordinates, connections to adjacent locations, NPCs, and hierarchical navigation (overworld/sub-location relationships via `enter`/`exit` commands)
 - **GameState**: Central manager for character, world, combat, and shop state
 - **AI service**: Optional integration with graceful fallback when unavailable
 - **Dataclasses**: Used extensively for models (Character, Item, Location, etc.)

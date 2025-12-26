@@ -28,6 +28,8 @@ def get_command_reference() -> str:
         "Exploration Commands:",
         "  look (l)           - Look around at your surroundings",
         "  go (g) <direction> - Move in a direction (north, south, east, west)",
+        "  enter <location>   - Enter a landmark (city, dungeon, etc.)",
+        "  exit / leave       - Exit back to the overworld",
         "  status (s, stats)  - View your character status",
         "  inventory (i)      - View your inventory and equipped items",
         "  equip (e) <item>   - Equip a weapon or armor from inventory",
@@ -510,17 +512,26 @@ def handle_exploration_command(game_state: GameState, command: str, args: list[s
     elif command == "go":
         if not args:
             return (True, "\nGo where? Specify a direction (north, south, east, west)")
-        
+
         direction = args[0]
         success, message = game_state.move(direction)
         output = f"\n{message}"
-        
+
         if success:
             # Show new location
             output += "\n\n" + game_state.look()
-        
+
         return (True, output)
-    
+
+    elif command == "enter":
+        target_name = " ".join(args) if args else None
+        success, message = game_state.enter(target_name)
+        return (True, f"\n{message}")
+
+    elif command in ("exit", "leave"):
+        success, message = game_state.exit_location()
+        return (True, f"\n{message}")
+
     elif command == "status":
         status_output = str(game_state.current_character)
         time_display = game_state.game_time.get_display()

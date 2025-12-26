@@ -484,12 +484,18 @@ OVERWORLD (macro map)
    - Roads between landmarks (overworld travel)
 
 5. **Navigation**:
-   - `enter <landmark>` - Enter a city/dungeon from overworld
-   - `exit` / `leave` - Return to overworld
+   - ✅ `enter <landmark>` - Enter a city/dungeon from overworld - IMPLEMENTED
+   - ✅ `exit` / `leave` - Return to overworld - IMPLEMENTED
    - `n/s/e/w` - Move within current sub-location
    - `travel <landmark>` - Fast travel on overworld (if discovered)
 
 **Location Model Changes**: ✅ IMPLEMENTED (see Progress section above)
+
+**Enter/Exit Commands**: ✅ IMPLEMENTED
+- `enter <location>` supports partial, case-insensitive matching for sub-location names
+- Uses `entry_point` as default when no argument provided
+- Both commands blocked during NPC conversation
+- 11 comprehensive tests in `tests/test_game_state.py`
 
 **Backwards Compatibility**: Implemented with full backward compatibility - old saves load correctly with default values.
 

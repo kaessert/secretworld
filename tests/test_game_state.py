@@ -830,3 +830,313 @@ class TestGameStateSerialization:
         assert "Start" in restored.world
         assert "End" in restored.world
         assert restored.world["Start"].get_connection("north") == "End"
+
+
+class TestEnterExitCommands:
+    """Tests for enter/exit hierarchical navigation commands.
+
+    Spec: `enter <location>` navigates from overworld to sub-locations.
+          `exit`/`leave` returns from sub-location to parent overworld.
+    """
+
+    def test_enter_sublocation_from_overworld(self, monkeypatch):
+        """Test entering a valid sub-location from overworld succeeds.
+
+        Spec: When at an overworld location with sub-locations, 'enter <name>'
+        moves player to that sub-location.
+        """
+        monkeypatch.setattr("cli_rpg.game_state.autosave", lambda gs: None)
+
+        character = Character("Hero", strength=10, dexterity=10, intelligence=10)
+
+        # Create overworld location with sub-locations
+        overworld = Location(
+            "Shadowmere City",
+            "A sprawling dark city",
+            is_overworld=True,
+            sub_locations=["Tavern", "Blacksmith"],
+        )
+        tavern = Location(
+            "Tavern",
+            "A cozy tavern with roaring fire",
+            parent_location="Shadowmere City",
+        )
+        blacksmith = Location(
+            "Blacksmith",
+            "Sparks fly from the forge",
+            parent_location="Shadowmere City",
+        )
+
+        world = {"Shadowmere City": overworld, "Tavern": tavern, "Blacksmith": blacksmith}
+        game_state = GameState(character, world, "Shadowmere City")
+
+        success, message = game_state.enter("Tavern")
+
+        assert success is True
+        assert game_state.current_location == "Tavern"
+        assert "Tavern" in message
+
+    def test_enter_uses_entry_point_default(self, monkeypatch):
+        """Test that enter with no argument uses entry_point.
+
+        Spec: When overworld has entry_point set, 'enter' without argument
+        goes to that default sub-location.
+        """
+        monkeypatch.setattr("cli_rpg.game_state.autosave", lambda gs: None)
+
+        character = Character("Hero", strength=10, dexterity=10, intelligence=10)
+
+        overworld = Location(
+            "Shadowmere City",
+            "A sprawling dark city",
+            is_overworld=True,
+            sub_locations=["Tavern", "Blacksmith"],
+            entry_point="Tavern",
+        )
+        tavern = Location(
+            "Tavern",
+            "A cozy tavern",
+            parent_location="Shadowmere City",
+        )
+        blacksmith = Location(
+            "Blacksmith",
+            "A forge",
+            parent_location="Shadowmere City",
+        )
+
+        world = {"Shadowmere City": overworld, "Tavern": tavern, "Blacksmith": blacksmith}
+        game_state = GameState(character, world, "Shadowmere City")
+
+        success, message = game_state.enter()  # No argument
+
+        assert success is True
+        assert game_state.current_location == "Tavern"
+
+    def test_enter_partial_match(self, monkeypatch):
+        """Test that enter supports partial name matching (case-insensitive).
+
+        Spec: 'enter tav' should match 'Tavern' case-insensitively.
+        """
+        monkeypatch.setattr("cli_rpg.game_state.autosave", lambda gs: None)
+
+        character = Character("Hero", strength=10, dexterity=10, intelligence=10)
+
+        overworld = Location(
+            "Shadowmere City",
+            "A city",
+            is_overworld=True,
+            sub_locations=["Tavern", "Blacksmith"],
+        )
+        tavern = Location("Tavern", "A tavern", parent_location="Shadowmere City")
+        blacksmith = Location("Blacksmith", "A forge", parent_location="Shadowmere City")
+
+        world = {"Shadowmere City": overworld, "Tavern": tavern, "Blacksmith": blacksmith}
+        game_state = GameState(character, world, "Shadowmere City")
+
+        # Test partial match with different case
+        success, _ = game_state.enter("tav")
+        assert success is True
+        assert game_state.current_location == "Tavern"
+
+    def test_enter_fails_when_not_overworld(self, monkeypatch):
+        """Test enter fails when not at an overworld location.
+
+        Spec: 'enter' returns error "You're not at an overworld location"
+        when current location is not an overworld.
+        """
+        monkeypatch.setattr("cli_rpg.game_state.autosave", lambda gs: None)
+
+        character = Character("Hero", strength=10, dexterity=10, intelligence=10)
+
+        # Regular location (not overworld)
+        regular = Location("Forest", "A dark forest", is_overworld=False)
+
+        world = {"Forest": regular}
+        game_state = GameState(character, world, "Forest")
+
+        success, message = game_state.enter("Anywhere")
+
+        assert success is False
+        assert "not at an overworld location" in message.lower()
+
+    def test_enter_fails_sublocation_not_found(self, monkeypatch):
+        """Test enter fails when target sub-location doesn't exist.
+
+        Spec: 'enter <nonexistent>' returns "No such location: <name>".
+        """
+        monkeypatch.setattr("cli_rpg.game_state.autosave", lambda gs: None)
+
+        character = Character("Hero", strength=10, dexterity=10, intelligence=10)
+
+        overworld = Location(
+            "City",
+            "A city",
+            is_overworld=True,
+            sub_locations=["Tavern"],
+        )
+        tavern = Location("Tavern", "A tavern", parent_location="City")
+
+        world = {"City": overworld, "Tavern": tavern}
+        game_state = GameState(character, world, "City")
+
+        success, message = game_state.enter("Nonexistent")
+
+        assert success is False
+        assert "no such location" in message.lower()
+
+    def test_enter_fails_no_arg_no_entrypoint(self, monkeypatch):
+        """Test enter fails with no argument and no entry_point set.
+
+        Spec: 'enter' with no argument and no entry_point returns "Enter where?".
+        """
+        monkeypatch.setattr("cli_rpg.game_state.autosave", lambda gs: None)
+
+        character = Character("Hero", strength=10, dexterity=10, intelligence=10)
+
+        overworld = Location(
+            "City",
+            "A city",
+            is_overworld=True,
+            sub_locations=["Tavern"],
+            entry_point=None,  # No default entry point
+        )
+        tavern = Location("Tavern", "A tavern", parent_location="City")
+
+        world = {"City": overworld, "Tavern": tavern}
+        game_state = GameState(character, world, "City")
+
+        success, message = game_state.enter()  # No argument
+
+        assert success is False
+        assert "enter where" in message.lower()
+
+    def test_enter_blocked_during_conversation(self, monkeypatch):
+        """Test enter is blocked when in conversation with NPC.
+
+        Spec: 'enter' returns conversation warning when current_npc is set.
+        """
+        from cli_rpg.models.npc import NPC
+        monkeypatch.setattr("cli_rpg.game_state.autosave", lambda gs: None)
+
+        character = Character("Hero", strength=10, dexterity=10, intelligence=10)
+
+        overworld = Location(
+            "City",
+            "A city",
+            is_overworld=True,
+            sub_locations=["Tavern"],
+        )
+        tavern = Location("Tavern", "A tavern", parent_location="City")
+
+        world = {"City": overworld, "Tavern": tavern}
+        game_state = GameState(character, world, "City")
+
+        # Set current NPC to simulate conversation
+        game_state.current_npc = NPC("Bartender", "A friendly bartender", "What can I get you?")
+
+        success, message = game_state.enter("Tavern")
+
+        assert success is False
+        assert "conversation" in message.lower()
+
+    def test_exit_from_sublocation(self, monkeypatch):
+        """Test exiting from sub-location returns to parent.
+
+        Spec: 'exit' from a sub-location moves player to parent_location.
+        """
+        monkeypatch.setattr("cli_rpg.game_state.autosave", lambda gs: None)
+
+        character = Character("Hero", strength=10, dexterity=10, intelligence=10)
+
+        overworld = Location(
+            "Shadowmere City",
+            "A city",
+            is_overworld=True,
+            sub_locations=["Tavern"],
+        )
+        tavern = Location(
+            "Tavern",
+            "A tavern",
+            parent_location="Shadowmere City",
+        )
+
+        world = {"Shadowmere City": overworld, "Tavern": tavern}
+        game_state = GameState(character, world, "Tavern")  # Start inside
+
+        success, message = game_state.exit_location()
+
+        assert success is True
+        assert game_state.current_location == "Shadowmere City"
+        assert "Shadowmere City" in message
+
+    def test_exit_fails_when_no_parent(self, monkeypatch):
+        """Test exit fails when not in a sub-location.
+
+        Spec: 'exit' returns "You're not inside a landmark" when no parent.
+        """
+        monkeypatch.setattr("cli_rpg.game_state.autosave", lambda gs: None)
+
+        character = Character("Hero", strength=10, dexterity=10, intelligence=10)
+
+        # Overworld location (no parent)
+        overworld = Location(
+            "City",
+            "A city",
+            is_overworld=True,
+            parent_location=None,
+        )
+
+        world = {"City": overworld}
+        game_state = GameState(character, world, "City")
+
+        success, message = game_state.exit_location()
+
+        assert success is False
+        assert "not inside a landmark" in message.lower()
+
+    def test_exit_blocked_during_conversation(self, monkeypatch):
+        """Test exit is blocked when in conversation with NPC.
+
+        Spec: 'exit' returns conversation warning when current_npc is set.
+        """
+        from cli_rpg.models.npc import NPC
+        monkeypatch.setattr("cli_rpg.game_state.autosave", lambda gs: None)
+
+        character = Character("Hero", strength=10, dexterity=10, intelligence=10)
+
+        overworld = Location("City", "A city", is_overworld=True)
+        tavern = Location("Tavern", "A tavern", parent_location="City")
+
+        world = {"City": overworld, "Tavern": tavern}
+        game_state = GameState(character, world, "Tavern")
+
+        # Set current NPC to simulate conversation
+        game_state.current_npc = NPC("Bartender", "A friendly bartender", "What can I get you?")
+
+        success, message = game_state.exit_location()
+
+        assert success is False
+        assert "conversation" in message.lower()
+
+    def test_leave_alias_works(self, monkeypatch):
+        """Test 'leave' command works same as 'exit'.
+
+        Spec: 'leave' is an alias for 'exit', both call exit_location().
+        Note: The alias is handled in main.py command handling, but we test
+        that exit_location() works for both command paths.
+        """
+        monkeypatch.setattr("cli_rpg.game_state.autosave", lambda gs: None)
+
+        character = Character("Hero", strength=10, dexterity=10, intelligence=10)
+
+        overworld = Location("City", "A city", is_overworld=True)
+        tavern = Location("Tavern", "A tavern", parent_location="City")
+
+        world = {"City": overworld, "Tavern": tavern}
+        game_state = GameState(character, world, "Tavern")
+
+        # exit_location() should work regardless of which alias calls it
+        success, _ = game_state.exit_location()
+
+        assert success is True
+        assert game_state.current_location == "City"
