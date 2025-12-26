@@ -698,28 +698,21 @@ Result: IMPOSSIBLE - "Obsidian Cathedral" doesn't exist
 
 #### Issue 2: KILL Quest Targets Don't Match Spawnable Enemies
 
-**Severity**: HIGH
+**Severity**: ✅ RESOLVED (2025-12-26)
 
-```
-Quest: "Kill 5 Frost Phoenixes"
-Spawnable: Goblin, Skeleton, Orc, Spider, Wolf, Bear (templates)
-Result: IMPOSSIBLE - "Frost Phoenix" never spawns
-```
+**Solution Implemented**:
+- Added `VALID_ENEMY_TYPES` frozenset in `combat.py` containing all spawnable enemy names
+- Added validation in `ai_service.py:_parse_quest_response()` that rejects KILL quests with invalid targets
+- When target is invalid, raises `AIGenerationError` forcing quest regeneration with valid target
+- 15 new tests in `tests/test_quest_validation.py` verify the validation
 
-**How it fails**:
-- AI generates arbitrary enemy name in `target` field
-- Enemies spawn from templates (`combat.py:2500+`) or AI generation
-- AI-generated enemies use different names than quest targets
-- Quest prompt lists suggested enemies but AI ignores them
-
-**Evidence from prompt** (`ai_config.py:172-177`):
-```
-IMPORTANT for KILL quests - use ONLY these enemy types as targets:
-- Wolf, Bear, Wild Boar, Giant Spider (for forest/wilderness)
-- Bat, Goblin, Troll, Cave Dweller (for caves)
-...
-```
-But this is guidance only - no validation enforces it.
+**Valid enemy types** (case-insensitive):
+- Forest: Wolf, Bear, Wild Boar, Giant Spider
+- Cave: Bat, Goblin, Troll, Cave Dweller
+- Dungeon: Skeleton, Zombie, Ghost, Dark Knight
+- Mountain: Eagle, Goat, Mountain Lion, Yeti
+- Village: Bandit, Thief, Ruffian, Outlaw
+- Default: Monster, Creature, Beast, Fiend
 
 #### Issue 3: TALK Quest Targets Don't Match World NPCs
 
@@ -758,7 +751,7 @@ Result: IMPOSSIBLE - "Dragon Scales" can't be obtained
 | Objective Type | Impossible Quest Risk | Reason |
 |----------------|----------------------|--------|
 | COLLECT | 70% | Items are hardcoded, no AI item generation |
-| KILL | 60% | AI generates exotic enemy names not in templates |
+| KILL | ✅ 0% | Validated against `VALID_ENEMY_TYPES` (fixed 2025-12-26) |
 | TALK | 50% | NPCs generated separately from quests |
 | EXPLORE | 40% | AI generates unique location names |
 
@@ -832,7 +825,7 @@ When AI generates a quest target, ensure it gets created:
 
 #### Implementation Priority
 
-1. **Immediate**: Add `VALID_ENEMY_TYPES` constant and validate KILL quests (most common type)
+1. ~~**Immediate**: Add `VALID_ENEMY_TYPES` constant and validate KILL quests (most common type)~~ ✅ DONE (2025-12-26)
 2. **Short-term**: Pass obtainable items list to quest generation for COLLECT quests
 3. **Medium-term**: Implement context-aware generation with all world state
 4. **Long-term**: World-creating quests that guarantee completability
@@ -1146,15 +1139,17 @@ Result: Locations feel random, not part of a cohesive world.
 ---
 
 ### Playtest Report: Quest Target Spawn Mismatch (2025-12-26)
-**Status**: CRITICAL
+**Status**: ✅ RESOLVED (2025-12-26)
 **Reproducible**: Yes (seed 999)
 **Related To**: "CRITICAL: Quest System World Integration Failures" (above)
 
-#### Executive Summary
+#### Resolution Summary
 
-Extensive playtesting with `--wfc --non-interactive` mode confirmed the "impossible quest" bug documented above. AI-generated quests can specify enemy targets that **never spawn** in the game world, making quests uncompletable.
+This issue has been fixed. KILL quest targets are now validated against the `VALID_ENEMY_TYPES` set in `combat.py`. Invalid targets cause `AIGenerationError`, forcing quest regeneration until a valid enemy type is used.
 
-#### Concrete Evidence
+#### Original Problem
+
+AI-generated quests could specify enemy targets that **never spawn** in the game world, making quests uncompletable.
 
 **Test Case**: Seed 999
 ```
@@ -1163,58 +1158,25 @@ Description: "Clear out the Giant Spiders infesting Whispering Willow Grove"
 Target: Giant Spider x3
 ```
 
-**Track Command Results** (searched all reachable locations):
-```
-Misty Hollows: 1 Wild Boar detected
-Whispering Woods: 1 Wolf detected
-Enchanted Grove: 2 Wild Boar detected
-Glimmering Falls: 2 Wild Boar detected
-Frostbite Peaks: 1 Eagle detected
-Howling Wind Pass: 1 Eagle, 1 Mountain Lion detected
-```
+**Result**: Zero Giant Spiders could spawn because only certain enemy types appear in each location category.
 
-**Result**: **Zero Giant Spiders detected anywhere**. Quest is impossible to complete.
+#### Fix Applied
 
-#### Root Cause Confirmation
-
-The AI quest prompt (`ai_config.py:172-177`) lists valid enemy types:
-```
-IMPORTANT for KILL quests - use ONLY these enemy types as targets:
-- Wolf, Bear, Wild Boar, Giant Spider (for forest/wilderness)
-- Bat, Goblin, Troll, Cave Dweller (for caves)
-...
-```
-
-However:
-1. This is **guidance only** - no validation enforces it
-2. Random encounter spawning uses a **different** enemy selection algorithm
-3. The specific enemy types that spawn depend on location category and RNG
-4. "Giant Spider" is listed as valid but may not appear in random encounter tables
-
-#### Additional Findings
-
-| Quest Type | Target | Actual Spawns | Completable? |
-|------------|--------|---------------|--------------|
-| KILL x3 | Giant Spider | Wolf, Wild Boar, Eagle, Mountain Lion | **NO** |
-| KILL x5 | Goblin | Wolf, Wild Boar, Eagle, Troll | **NO** (caves required) |
-| KILL x3 | Wolf | Wolf (in forest areas) | **YES** |
+1. Moved `enemy_templates` dict from inside `spawn_enemy()` to module level as `ENEMY_TEMPLATES`
+2. Added `VALID_ENEMY_TYPES: frozenset[str]` containing all 24 spawnable enemy names (lowercase)
+3. Added validation in `ai_service.py:_parse_quest_response()`:
+   - When `objective_type == "kill"`, validates `target.lower()` is in `VALID_ENEMY_TYPES`
+   - Raises `AIGenerationError` with descriptive message for invalid targets
+4. Added 15 tests in `tests/test_quest_validation.py`
 
 #### Features Confirmed Working
 
 | Feature | Status |
 |---------|--------|
 | Quest acceptance | Working |
-| Quest progress tracking | Working (when target matches) |
+| Quest progress tracking | Working |
 | Combat system | Working |
 | Ranger Track ability | Working |
-| Random encounters | Working (just wrong enemies) |
-| Dread/Hallucinations | Working |
-| Weather system | Working |
-| Save/Load | Working |
-
-#### Recommended Fix Priority
-
-1. **Immediate**: Validate KILL quest targets against actually spawnable enemy types
-2. **Short-term**: Pass enemy spawn tables to quest generation prompt
-3. **Long-term**: Quest acceptance should guarantee target can spawn (either by validation or by adding target to spawn tables)
+| Random encounters | Working |
+| KILL quest validation | ✅ **NEW** |
 

@@ -28,6 +28,24 @@ COMBOS = {
 # Faster delay for combat (action-paced)
 COMBAT_TYPEWRITER_DELAY = 0.025
 
+# Enemy templates by location type - module-level for export
+# Used by spawn_enemy() and exported as VALID_ENEMY_TYPES for quest validation
+ENEMY_TEMPLATES = {
+    "forest": ["Wolf", "Bear", "Wild Boar", "Giant Spider"],
+    "cave": ["Bat", "Goblin", "Troll", "Cave Dweller"],
+    "dungeon": ["Skeleton", "Zombie", "Ghost", "Dark Knight"],
+    "mountain": ["Eagle", "Goat", "Mountain Lion", "Yeti"],
+    "village": ["Bandit", "Thief", "Ruffian", "Outlaw"],
+    "default": ["Monster", "Creature", "Beast", "Fiend"]
+}
+
+# Exported set of all spawnable enemy types (lowercase) for validation
+VALID_ENEMY_TYPES: frozenset[str] = frozenset(
+    enemy.lower()
+    for enemies in ENEMY_TEMPLATES.values()
+    for enemy in enemies
+)
+
 
 def display_combat_start(intro_text: str) -> None:
     """Display combat start with typewriter effect.
@@ -2136,16 +2154,6 @@ def spawn_enemy(
     Returns:
         Enemy instance with stats scaled by distance
     """
-    # Enemy templates by location type
-    enemy_templates = {
-        "forest": ["Wolf", "Bear", "Wild Boar", "Giant Spider"],
-        "cave": ["Bat", "Goblin", "Troll", "Cave Dweller"],
-        "dungeon": ["Skeleton", "Zombie", "Ghost", "Dark Knight"],
-        "mountain": ["Eagle", "Goat", "Mountain Lion", "Yeti"],
-        "village": ["Bandit", "Thief", "Ruffian", "Outlaw"],
-        "default": ["Monster", "Creature", "Beast", "Fiend"]
-    }
-
     # Category mappings: map location categories to enemy template keys
     # This allows semantic categories like "wilderness" to map to "forest" enemies
     category_mappings = {
@@ -2172,13 +2180,13 @@ def spawn_enemy(
     else:
         # Fall back to name-based matching
         location_lower = location_name.lower()
-        for loc_type in enemy_templates:
+        for loc_type in ENEMY_TEMPLATES:
             if loc_type in location_lower:
                 location_type = loc_type
                 break
 
     # Select random enemy from template
-    enemy_list = enemy_templates.get(location_type, enemy_templates["default"])
+    enemy_list = ENEMY_TEMPLATES.get(location_type, ENEMY_TEMPLATES["default"])
     enemy_name = random.choice(enemy_list)
 
     # Calculate base stats from level

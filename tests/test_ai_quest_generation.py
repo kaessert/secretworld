@@ -365,7 +365,7 @@ class TestAIServiceGenerateQuest:
             "name": "Zero Target Quest",
             "description": "A quest with zero target count.",
             "objective_type": "kill",
-            "target": "Enemy",
+            "target": "Goblin",  # Valid enemy type
             "target_count": 0,  # Invalid: < 1
             "gold_reward": 50,
             "xp_reward": 25
@@ -397,7 +397,7 @@ class TestAIServiceGenerateQuest:
             "name": "Bad Reward Quest",
             "description": "A quest with negative rewards.",
             "objective_type": "kill",
-            "target": "Enemy",
+            "target": "Goblin",  # Valid enemy type
             "target_count": 1,
             "gold_reward": -10,  # Invalid: negative
             "xp_reward": 25
@@ -688,7 +688,7 @@ class TestParseQuestResponseErrors:
             "name": "Bad Reward Quest",
             "description": "A quest with negative xp reward.",
             "objective_type": "kill",
-            "target": "Enemy",
+            "target": "Goblin",  # Valid enemy type
             "target_count": 1,
             "gold_reward": 50,
             "xp_reward": -10  # Invalid: negative

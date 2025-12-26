@@ -335,10 +335,10 @@ class TestAIServiceQuestCache:
 
         # Set up mock response
         quest_response = json.dumps({
-            "name": "Dragon Slayer",
-            "description": "Defeat the dragon",
+            "name": "Troll Slayer",
+            "description": "Defeat the troll",
             "objective_type": "kill",
-            "target": "Dragon",
+            "target": "Troll",  # Valid enemy type
             "target_count": 1,
             "gold_reward": 100,
             "xp_reward": 200
@@ -450,10 +450,10 @@ class TestAIServiceParseQuestResponse:
 
         # Negative xp_reward
         invalid_data = json.dumps({
-            "name": "Dragon Hunt",
-            "description": "Hunt the dragon",
+            "name": "Goblin Hunt",
+            "description": "Hunt the goblins",
             "objective_type": "kill",
-            "target": "Dragon",
+            "target": "Goblin",  # Valid enemy type
             "target_count": 1,
             "gold_reward": 100,
             "xp_reward": -50  # Invalid

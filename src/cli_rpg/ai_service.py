@@ -1866,6 +1866,14 @@ Note: Use "EXISTING_WORLD" as placeholder for the connection back to the source 
         if not target:
             raise AIGenerationError("Quest target cannot be empty")
 
+        # Validate KILL quest targets against spawnable enemies
+        if objective_type == "kill":
+            from cli_rpg.combat import VALID_ENEMY_TYPES
+            if target.lower() not in VALID_ENEMY_TYPES:
+                raise AIGenerationError(
+                    f"Invalid KILL quest target '{target}'. Must be a spawnable enemy type."
+                )
+
         # Validate target_count >= 1
         if not isinstance(data["target_count"], (int, float)) or data["target_count"] < 1:
             raise AIGenerationError(

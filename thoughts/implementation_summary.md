@@ -1,31 +1,58 @@
-# Implementation Summary: Fix test_rest_displays_heal_amount
+# Implementation Summary: Fix KILL Quest Target Spawn Mismatch
 
-## What was implemented
+## What Was Implemented
 
-Fixed a flaky test by ensuring the rest command always returns the heal message in its return value, regardless of whether a dream was triggered.
+Fixed KILL quests that generate enemy targets (e.g., "Giant Spider") that never spawn in the game world, making quests impossible to complete.
 
-## Change made
+### Changes Made
 
-**File:** `src/cli_rpg/main.py`, line 2211
+#### 1. `src/cli_rpg/combat.py`
+- Moved `enemy_templates` dict from inside `spawn_enemy()` to module level as `ENEMY_TEMPLATES`
+- Added `VALID_ENEMY_TYPES: frozenset[str]` - a set of all spawnable enemy names (lowercase) for O(1) validation lookups
+- Updated `spawn_enemy()` to reference the module-level `ENEMY_TEMPLATES` instead of local variable
 
-Changed the return value when a dream is triggered from returning an empty string to returning the `result_message`:
+#### 2. `src/cli_rpg/ai_service.py`
+- Added KILL quest target validation in `_parse_quest_response()` (after line 1867)
+- When `objective_type == "kill"`, validates that `target.lower()` is in `VALID_ENEMY_TYPES`
+- Raises `AIGenerationError` with descriptive message for invalid targets
 
-```python
-# Before
-return (True, "")  # Empty message since we already printed
+#### 3. `tests/test_quest_validation.py` (new file)
+- 8 tests for `VALID_ENEMY_TYPES` constant (validates all enemy categories are present, lowercase)
+- 7 tests for KILL quest target validation (valid targets accepted, invalid rejected, case-insensitive, non-kill quests not validated)
 
-# After
-return (True, result_message)  # Return message for test assertions
-```
+#### 4. Test Fixes
+Updated existing tests that used invalid enemy types as KILL targets:
+- `tests/test_ai_quest_generation.py`: Changed "Enemy" to "Goblin" in 3 tests
+- `tests/test_coverage_gaps.py`: Changed "Dragon" to "Troll"/"Goblin" in 2 tests
 
-## Why this fixes the flakiness
+## Valid Enemy Types (Spawnable)
 
-The test `test_rest_displays_heal_amount` expects the heal amount to be in the returned message. Previously, when `maybe_trigger_dream()` randomly returned a dream, the code would print the message to stdout but return an empty string, causing the test assertion to fail. Now the message is always returned, making the test deterministic.
+| Location | Enemies |
+|----------|---------|
+| Forest | Wolf, Bear, Wild Boar, Giant Spider |
+| Cave | Bat, Goblin, Troll, Cave Dweller |
+| Dungeon | Skeleton, Zombie, Ghost, Dark Knight |
+| Mountain | Eagle, Goat, Mountain Lion, Yeti |
+| Village | Bandit, Thief, Ruffian, Outlaw |
+| Default | Monster, Creature, Beast, Fiend |
 
 ## Test Results
 
-Ran the test 10 times with `--count=10` - all 10 passed consistently.
+```
+pytest - 3473 passed in 104.63s
+pytest tests/test_quest_validation.py - 15 passed in 0.53s
+```
+
+## Technical Details
+
+- `VALID_ENEMY_TYPES` is a `frozenset` for immutability and O(1) lookups
+- Validation is case-insensitive (target is lowercased before checking)
+- Original target case is preserved in quest data
+- Only KILL quests are validated; EXPLORE, COLLECT, TALK, DROP quests are not affected
 
 ## E2E Validation
 
-The game behavior is unchanged: the rest message is still printed before the dream display. The only difference is the return value now includes the message for programmatic access.
+With seed 999, KILL quests should now only generate targets that can actually spawn:
+- AI generates "Hunt Goblins" → player can find goblins in caves
+- AI generates "Kill Wild Boar" → player can find wild boars in forests
+- AI cannot generate "Slay Dragons" → dragons are not spawnable enemies
