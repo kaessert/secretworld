@@ -1,7 +1,10 @@
 """Item model for CLI RPG inventory system."""
 from dataclasses import dataclass
 from enum import Enum
-from typing import ClassVar, Dict
+from typing import ClassVar, Dict, Optional, TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from cli_rpg.models.weapon_proficiency import WeaponType
 
 
 class ItemType(Enum):
@@ -40,6 +43,7 @@ class Item:
     stamina_restore: int = 0
     light_duration: int = 0
     is_cure: bool = False  # True for items that can cure plagues/events
+    weapon_type: Optional["WeaponType"] = None  # Weapon proficiency type for weapons
 
     def __post_init__(self):
         """Validate item attributes."""
@@ -77,7 +81,7 @@ class Item:
         Returns:
             Dictionary containing all item attributes
         """
-        return {
+        data = {
             "name": self.name,
             "description": self.description,
             "item_type": self.item_type.value,
@@ -89,6 +93,10 @@ class Item:
             "light_duration": self.light_duration,
             "is_cure": self.is_cure
         }
+        # Only include weapon_type if set
+        if self.weapon_type is not None:
+            data["weapon_type"] = self.weapon_type.value
+        return data
 
     @classmethod
     def from_dict(cls, data: Dict) -> "Item":
@@ -100,6 +108,12 @@ class Item:
         Returns:
             Item instance
         """
+        # Handle weapon_type (backward compatible - defaults to None)
+        weapon_type = None
+        if "weapon_type" in data:
+            from cli_rpg.models.weapon_proficiency import WeaponType
+            weapon_type = WeaponType(data["weapon_type"])
+
         return cls(
             name=data["name"],
             description=data["description"],
@@ -110,7 +124,8 @@ class Item:
             mana_restore=data.get("mana_restore", 0),
             stamina_restore=data.get("stamina_restore", 0),
             light_duration=data.get("light_duration", 0),
-            is_cure=data.get("is_cure", False)
+            is_cure=data.get("is_cure", False),
+            weapon_type=weapon_type,
         )
 
     def __str__(self) -> str:

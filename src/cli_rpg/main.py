@@ -63,6 +63,7 @@ def get_command_reference() -> str:
         "  recruit <npc>      - Recruit an NPC to join your party",
         "  dismiss <name>     - Dismiss a companion from your party",
         "  companion-quest <name> - Accept a companion's personal quest",
+        "  proficiency (prof) - View your weapon proficiency levels",
         "",
         "Social Commands (when talking to an NPC):",
         "  persuade           - Charm NPC for shop discounts (CHA-based)",
@@ -1632,6 +1633,61 @@ def handle_exploration_command(game_state: GameState, command: str, args: list[s
             lines.append("")
 
         lines.append(f"Total enemies defeated: {total_kills}")
+        return (True, "\n".join(lines))
+
+    elif command == "proficiency":
+        from cli_rpg.models.weapon_proficiency import WeaponType, ProficiencyLevel
+        from cli_rpg import colors
+
+        proficiencies = game_state.current_character.weapon_proficiencies
+        if not proficiencies:
+            return (True, "\n=== Weapon Proficiencies ===\nNo weapon proficiencies yet. Attack with weapons to gain experience!")
+
+        lines = ["\n=== Weapon Proficiencies ===", ""]
+
+        # Sort by weapon type name for consistent output
+        for weapon_type in sorted(proficiencies.keys(), key=lambda x: x.value):
+            prof = proficiencies[weapon_type]
+            level = prof.get_level()
+            xp = prof.xp
+            bonus = prof.get_damage_bonus()
+
+            # Create progress bar (20 chars wide)
+            progress = min(xp, 100)
+            filled = int(progress / 5)  # 100 XP / 5 = 20 chars
+            bar = "█" * filled + "░" * (20 - filled)
+
+            # Level color based on rank
+            if level == ProficiencyLevel.MASTER:
+                level_str = colors.gold(level.value)
+            elif level == ProficiencyLevel.EXPERT:
+                level_str = colors.heal(level.value)
+            elif level == ProficiencyLevel.JOURNEYMAN:
+                level_str = colors.location(level.value)
+            else:
+                level_str = level.value
+
+            # Damage bonus display
+            bonus_pct = int((bonus - 1.0) * 100)
+            if bonus_pct > 0:
+                bonus_str = colors.heal(f"+{bonus_pct}% damage")
+            else:
+                bonus_str = "+0% damage"
+
+            # Special move status
+            if prof.is_special_enhanced():
+                special_str = colors.gold(" [Special: Enhanced]")
+            elif prof.can_use_special():
+                special_str = colors.location(" [Special: Unlocked]")
+            else:
+                special_str = ""
+
+            weapon_name = weapon_type.value.capitalize()
+            lines.append(f"{weapon_name}: {level_str}")
+            lines.append(f"  XP: [{bar}] {xp}/100")
+            lines.append(f"  Bonus: {bonus_str}{special_str}")
+            lines.append("")
+
         return (True, "\n".join(lines))
 
     elif command == "events":

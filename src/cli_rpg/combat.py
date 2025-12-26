@@ -636,8 +636,19 @@ class CombatEncounter:
         # Check for backstab bonus (attacking from stealth)
         is_backstab = self.player.consume_stealth()
 
+        # Get equipped weapon type for proficiency system
+        from cli_rpg.models.weapon_proficiency import WeaponType
+        weapon_type = None
+        if self.player.inventory.equipped_weapon:
+            weapon_type = self.player.inventory.equipped_weapon.weapon_type
+
         # Calculate damage: player attack power (strength + weapon bonus) - enemy defense, minimum 1
         dmg = max(1, self.player.get_attack_power() - enemy.defense)
+
+        # Apply weapon proficiency damage bonus
+        if weapon_type and weapon_type != WeaponType.UNKNOWN:
+            prof = self.player.get_weapon_proficiency(weapon_type)
+            dmg = int(dmg * prof.get_damage_bonus())
 
         # Apply stance damage modifier
         stance_modifier = self.player.get_stance_damage_modifier()
@@ -670,6 +681,11 @@ class CombatEncounter:
 
         enemy.take_damage(dmg)
 
+        # Grant weapon proficiency XP (1 XP per attack)
+        proficiency_message = None
+        if weapon_type and weapon_type != WeaponType.UNKNOWN:
+            proficiency_message = self.player.gain_weapon_xp(weapon_type, 1)
+
         if is_backstab:
             message = (
                 f"{colors.damage('BACKSTAB!')} You strike {colors.enemy(enemy.name)} "
@@ -683,6 +699,10 @@ class CombatEncounter:
         else:
             message = f"You attack {colors.enemy(enemy.name)} for {colors.damage(str(dmg))} damage!"
 
+        # Add proficiency level-up message if leveled up
+        if proficiency_message:
+            message += f"\n{colors.heal(proficiency_message)}"
+
         if not enemy.is_alive():
             message += f"\n{colors.enemy(enemy.name)} has been defeated!"
 
@@ -695,7 +715,7 @@ class CombatEncounter:
             message += f"\n{colors.enemy(enemy.name)} has {enemy.health}/{enemy.max_health} HP remaining."
 
         return False, message
-    
+
     def player_defend(self) -> Tuple[bool, str]:
         """
         Player takes defensive stance.
@@ -1749,16 +1769,21 @@ def generate_loot(enemy: Enemy, level: int, luck: int = 10) -> Optional[Item]:
 
     # Generate item based on type
     if item_type == ItemType.WEAPON:
+        from cli_rpg.models.weapon_proficiency import infer_weapon_type
         prefixes = ["Rusty", "Iron", "Steel", "Sharp", "Worn", "Old"]
         names = ["Sword", "Dagger", "Axe", "Mace", "Spear"]
         prefix = random.choice(prefixes)
         name = random.choice(names)
+        full_name = f"{prefix} {name}"
         damage_bonus = max(1, level + random.randint(1, 3) + luck_bonus)
+        # Infer weapon type from generated name
+        weapon_type = infer_weapon_type(full_name)
         return Item(
-            name=f"{prefix} {name}",
+            name=full_name,
             description=f"A {prefix.lower()} {name.lower()} from {enemy.name}",
             item_type=ItemType.WEAPON,
-            damage_bonus=damage_bonus
+            damage_bonus=damage_bonus,
+            weapon_type=weapon_type,
         )
 
     elif item_type == ItemType.ARMOR:
@@ -2197,16 +2222,21 @@ def generate_boss_loot(boss: Enemy, level: int) -> Item:
 
     # Generate item based on type
     if item_type == ItemType.WEAPON:
+        from cli_rpg.models.weapon_proficiency import infer_weapon_type
         prefix = random.choice(legendary_prefixes)
         names = ["Greatsword", "Warblade", "Doom Axe", "Soul Reaver", "Dragon Slayer"]
         name = random.choice(names)
+        full_name = f"{prefix} {name}"
         # Enhanced stats: level + random(5, 10)
         damage_bonus = level + random.randint(5, 10)
+        # Infer weapon type from generated name
+        weapon_type = infer_weapon_type(full_name)
         return Item(
-            name=f"{prefix} {name}",
+            name=full_name,
             description=f"A powerful weapon dropped by {boss.name}",
             item_type=ItemType.WEAPON,
-            damage_bonus=damage_bonus
+            damage_bonus=damage_bonus,
+            weapon_type=weapon_type,
         )
 
     elif item_type == ItemType.ARMOR:

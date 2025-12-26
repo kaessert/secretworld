@@ -895,13 +895,18 @@ Special abilities should cost resources, not be free.
 - Some enemies drain mana/stamina with attacks
 
 ### Weapon proficiencies & fighting styles
-**Status**: ACTIVE (Fighting Stances Implemented)
+**Status**: ✅ RESOLVED
 
 Not all weapons should feel the same.
 
-- **Weapon types**: Swords, axes, maces, daggers, bows, staves
-- **Proficiency**: Using a weapon type increases skill with it
-- Higher proficiency = damage bonus, special moves, faster attacks
+- ✅ **Weapon types**: Sword, Axe, Dagger, Mace, Bow, Staff (plus UNKNOWN for unrecognized)
+- ✅ **Proficiency system**: Using a weapon type increases skill with it (1 XP per attack)
+- ✅ **Proficiency levels**: Novice (0 XP) → Apprentice (25 XP) → Journeyman (50 XP) → Expert (75 XP) → Master (100 XP)
+- ✅ **Damage bonuses**: Novice +0%, Apprentice +5%, Journeyman +10%, Expert +15%, Master +20%
+- ✅ **`proficiency` command** (alias: `prof`): View weapon proficiency levels with progress bars and damage bonuses
+- ✅ **Combat integration**: Proficiency damage bonus applied to attacks, level-up messages displayed
+- ✅ **Loot generation**: Weapon loot automatically gets weapon_type assigned via `infer_weapon_type()`
+- ✅ **Persistence**: Weapon proficiencies save/load correctly, backward compatible with old saves
 - ✅ **Fighting stances** (choose one active via `stance` command):
   - Balanced (default): +5% crit chance
   - Aggressive: +20% damage, -10% defense
@@ -909,6 +914,10 @@ Not all weapons should feel the same.
   - Berserker: Damage scales with missing HP (up to +50% at low health)
 - ✅ Stance modifiers apply to all attacks (physical, spells, abilities)
 - ✅ Stance persists through save/load with backward compatibility
+
+**Future Enhancements** (moved to backlog):
+- Special moves unlocked at Journeyman and Master levels
+- Faster attacks at higher proficiency
 
 ### Status effects and combat depth
 **Status**: ACTIVE (Partial)

@@ -7,6 +7,7 @@ from cli_rpg import colors
 from cli_rpg.sound_effects import sound_level_up
 
 from cli_rpg.models.dread import DreadMeter
+from cli_rpg.models.weapon_proficiency import WeaponType, WeaponProficiency
 
 
 class CharacterClass(Enum):
@@ -117,6 +118,7 @@ class Character:
     max_mana: int = field(init=False)
     stamina: int = field(init=False)
     max_stamina: int = field(init=False)
+    weapon_proficiencies: Dict[WeaponType, WeaponProficiency] = field(default_factory=dict)
 
     def __post_init__(self):
         """Validate attributes and calculate derived stats."""
@@ -882,6 +884,34 @@ class Character:
         """
         self.look_counts.pop(location_name, None)
 
+    def get_weapon_proficiency(self, weapon_type: WeaponType) -> WeaponProficiency:
+        """Get or create a weapon proficiency for a weapon type.
+
+        Args:
+            weapon_type: The type of weapon to get proficiency for
+
+        Returns:
+            WeaponProficiency for the given type (creates at Novice if not exists)
+        """
+        if weapon_type not in self.weapon_proficiencies:
+            self.weapon_proficiencies[weapon_type] = WeaponProficiency(
+                weapon_type=weapon_type
+            )
+        return self.weapon_proficiencies[weapon_type]
+
+    def gain_weapon_xp(self, weapon_type: WeaponType, amount: int) -> Optional[str]:
+        """Add XP to a weapon proficiency.
+
+        Args:
+            weapon_type: The type of weapon to gain XP for
+            amount: Amount of XP to gain
+
+        Returns:
+            Level-up message if proficiency level increased, None otherwise
+        """
+        prof = self.get_weapon_proficiency(weapon_type)
+        return prof.gain_xp(amount)
+
     def record_enemy_defeat(self, enemy: "Enemy") -> None:
         """Record a defeated enemy in the bestiary.
 
@@ -1056,6 +1086,9 @@ class Character:
             "look_counts": self.look_counts,
             "dread_meter": self.dread_meter.to_dict(),
             "light_remaining": self.light_remaining,
+            "weapon_proficiencies": [
+                prof.to_dict() for prof in self.weapon_proficiencies.values()
+            ],
         }
     
     @classmethod
@@ -1189,6 +1222,11 @@ class Character:
             character.dread_meter = DreadMeter()
         # Restore light_remaining (with backward compatibility, defaults to 0)
         character.light_remaining = data.get("light_remaining", 0)
+        # Restore weapon proficiencies (with backward compatibility, defaults to empty)
+        if "weapon_proficiencies" in data:
+            for prof_data in data["weapon_proficiencies"]:
+                prof = WeaponProficiency.from_dict(prof_data)
+                character.weapon_proficiencies[prof.weapon_type] = prof
         return character
     
     def __str__(self) -> str:

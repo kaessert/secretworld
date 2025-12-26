@@ -88,6 +88,7 @@ python -m cli_rpg.main
 - `abandon <quest>` - Abandon an active quest from your journal
 - `lore` - Discover AI-generated lore snippets about your current location
 - `bestiary` (b) - View all defeated enemies with ASCII art, kill counts, and stats
+- `proficiency` (prof) - View your weapon proficiency levels, XP progress, and damage bonuses
 - `companions` - View your party members with bond levels
 - `recruit <npc>` - Recruit a willing NPC to join your party
 - `dismiss <name>` - Dismiss a companion from your party (requires confirmation; high-bond companions show warning)
@@ -155,6 +156,13 @@ Enemy stats (HP, attack, defense) and XP rewards all scale with distance, encour
 - **Loot Drop Rate**: Base 50% chance, modified by ±2% per LCK point from 10
 - **Loot Quality**: Weapon/armor bonuses gain +1 per 5 LCK above 10
 - **Gold Rewards**: Modified by ±5% per LCK point from 10
+
+**Weapon Proficiencies**: Using weapons builds proficiency with that weapon type, granting damage bonuses:
+- **Weapon Types**: Sword, Axe, Dagger, Mace, Bow, Staff
+- **Proficiency Levels**: Novice → Apprentice → Journeyman → Expert → Master
+- **XP Per Attack**: 1 XP gained per attack with an equipped weapon
+- **Damage Bonuses**: Novice +0%, Apprentice +5%, Journeyman +10%, Expert +15%, Master +20%
+- Use `proficiency` command to view your progress with each weapon type
 
 **Status Effects**: Some enemies can inflict status effects during combat:
 - **Poison**: Certain creatures (spiders, snakes, serpents, vipers) have a chance to poison you on attack. Poison deals damage each turn and wears off after a set duration.

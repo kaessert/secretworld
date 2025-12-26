@@ -1,74 +1,68 @@
-# Fighting Stances System - Implementation Summary
+# Weapon Proficiencies System - Implementation Summary
 
 ## What Was Implemented
 
-The Fighting Stances system was already fully implemented. This session verified the implementation and fixed a flaky test.
+The weapon proficiency system was fully implemented as specified in the plan. All features are complete and tested.
 
-### 1. FightingStance Enum (character.py)
-- **BALANCED**: Default stance, +5% crit chance
-- **AGGRESSIVE**: +20% damage, -10% defense
-- **DEFENSIVE**: -10% damage, +20% defense
-- **BERSERKER**: Damage scales with missing HP (up to +50% at low health)
+### New Files Created
+- `src/cli_rpg/models/weapon_proficiency.py` - Core proficiency model
 
-### 2. Character Model Updates (character.py)
-- Added `stance: FightingStance = FightingStance.BALANCED` field
-- `get_stance_damage_modifier()`: Returns damage multiplier based on stance
-- `get_stance_defense_modifier()`: Returns defense multiplier based on stance
-- `get_stance_crit_modifier()`: Returns crit chance bonus (5% for Balanced)
-- Serialization (`to_dict`) and deserialization (`from_dict`) with backward compatibility
+### Files Modified
+- `src/cli_rpg/models/item.py` - Added `weapon_type` field
+- `src/cli_rpg/models/character.py` - Added `weapon_proficiencies` dict and methods
+- `src/cli_rpg/combat.py` - Integrated proficiency damage bonus and XP gain
+- `src/cli_rpg/main.py` - Added `proficiency` command
+- `src/cli_rpg/game_state.py` - Added command alias and valid command
 
-### 3. Combat Integration (combat.py)
-- Stance damage modifier applied in:
-  - `player_attack()` (line 643-644)
-  - `player_cast()` (line 928-929)
-  - `player_fireball()` (line 1007-1009)
-  - `player_ice_bolt()` (line 1083-1085)
-  - `player_bash()` (line 833-834)
-  - `player_smite()` (line 1311-1312)
-- Stance defense modifier applied in `enemy_turn()` (line 1426)
-- Stance crit modifier added in `player_attack()` and `player_cast()` (lines 666-667, 937-938)
+### Test Files Created
+- `tests/test_weapon_proficiency.py` - 24 unit tests
+- `tests/test_combat_proficiency.py` - 11 integration tests
 
-### 4. Command Handling (game_state.py, main.py)
-- "stance" added to `KNOWN_COMMANDS`
-- "st" alias resolves to "stance" in `parse_command()`
-- `handle_stance_command()` handles showing current stance and changing stances
-- Works both in and out of combat
+## Features Implemented
 
-### 5. Comprehensive Test Suite (tests/test_fighting_stances.py)
-29 tests covering:
-- Enum values exist
-- Character defaults to BALANCED
-- Serialization/deserialization
-- Backward compatibility for old saves
-- Damage modifier calculations for each stance
-- Defense modifier calculations for each stance
-- Berserker scaling with missing HP
-- Balanced crit bonus
-- Stance command functionality
-- Combat damage effects
-- Persistence through save/load
+### 1. WeaponType Enum
+Six weapon types (SWORD, AXE, DAGGER, MACE, BOW, STAFF) plus UNKNOWN for unrecognized weapons.
 
-## Test Fix Applied
+### 2. ProficiencyLevel System
+- **Novice** (0 XP): +0% damage
+- **Apprentice** (25 XP): +5% damage
+- **Journeyman** (50 XP): +10% damage, unlocks special move
+- **Expert** (75 XP): +15% damage
+- **Master** (100 XP): +20% damage, enhanced special move
 
-Fixed `tests/test_combat.py::TestPlayerAttack::test_player_attack_damages_enemy`:
-- Changed random seed from 100 to 0 to avoid triggering a critical hit
-- The balanced stance adds +5% crit chance, which combined with the base crit chance made seed 100 trigger crits
+### 3. Combat Integration
+- Attacking with an equipped weapon grants 1 XP to that weapon type
+- Proficiency damage bonus is applied to all attacks
+- Level-up messages displayed in combat when proficiency increases
+- No XP gained for bare-hand attacks or UNKNOWN weapon types
+
+### 4. Loot Generation
+- Generated weapon loot automatically gets `weapon_type` assigned via `infer_weapon_type()`
+- Keywords in item names map to appropriate weapon types
+
+### 5. Proficiency Command
+- `proficiency` or `prof` command shows weapon proficiency levels
+- Displays progress bars, XP, and damage bonuses for each trained weapon type
+
+### 6. Persistence
+- Weapon proficiencies save/load correctly with `to_dict()` / `from_dict()`
+- Backward compatible with old saves (defaults to empty proficiencies)
 
 ## Test Results
 
+All 35 tests pass:
+- 24 unit tests in `test_weapon_proficiency.py`
+- 11 integration tests in `test_combat_proficiency.py`
+
 ```
-tests/test_fighting_stances.py: 29 passed
-Full test suite: 2968 passed (0:01:04)
+============================== 35 passed in 0.58s ==============================
 ```
 
-## E2E Validation Checklist
+## E2E Validation Points
 
-- [ ] Start new game, verify default stance is Balanced
-- [ ] Use `stance` command (no args) to view current stance and options
-- [ ] Use `stance aggressive` to change to Aggressive stance
-- [ ] Verify damage increases in combat with Aggressive stance
-- [ ] Use `stance defensive` and verify reduced damage taken
-- [ ] Use `stance berserker`, take damage, verify damage scales with missing HP
-- [ ] Use `st` alias to change stances
-- [ ] Save game, load game, verify stance persists
-- [ ] Test stance command works during combat
+1. Create a new character and verify no proficiencies exist with `prof` command
+2. Equip a weapon (e.g., Iron Sword) and engage in combat
+3. After attacking, verify sword proficiency gains 1 XP
+4. Level up proficiency to Apprentice (25 XP) and verify +5% damage bonus
+5. Save game, reload, and verify proficiencies persist
+6. Pick up weapon loot and verify it has correct weapon_type assigned

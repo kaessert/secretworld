@@ -62,6 +62,7 @@ KNOWN_COMMANDS: set[str] = {
     "search",  # Secret discovery
     "camp", "forage", "hunt",  # Wilderness survival
     "track",  # Ranger ability
+    "proficiency",  # Weapon proficiency display
 }
 
 # Dread increases by location category (darker areas = more dread)
@@ -122,7 +123,7 @@ def parse_command(command_str: str) -> tuple[str, list[str]]:
         "d": "defend", "bl": "block", "f": "flee", "s": "status", "i": "inventory",
         "m": "map", "wm": "worldmap", "h": "help", "t": "talk", "u": "use", "e": "equip",
         "q": "quests", "dr": "drop", "r": "rest", "stats": "status",
-        "b": "bestiary", "sn": "sneak", "ba": "bash", "lp": "pick", "o": "open", "sr": "search",
+        "b": "bestiary", "sn": "sneak", "ba": "bash", "lp": "pick", "o": "open", "sr": "search", "prof": "proficiency",
         # Mage spell aliases
         "fb": "fireball", "ib": "ice_bolt", "hl": "heal",
         # Cleric ability aliases
