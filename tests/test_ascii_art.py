@@ -431,3 +431,67 @@ class TestAsciiArtFirstLineAlignment:
         # First line should still have leading spaces
         first_line = art.splitlines()[0]
         assert first_line.startswith("     "), f"Expected leading spaces, got: '{first_line}'"
+
+    def test_parse_location_ascii_art_strips_code_fences(self):
+        """Verify location art parsing strips markdown code fences."""
+        from cli_rpg.ai_service import AIService
+        from cli_rpg.ai_config import AIConfig
+
+        config = AIConfig(api_key="test-key", provider="openai", enable_caching=False)
+        service = AIService(config)
+
+        # Response wrapped in code fences
+        response = """```
+     /\\
+    /  \\
+   /    \\
+  /______\\
+```"""
+
+        art = service._parse_location_ascii_art_response(response)
+
+        # Should not contain backticks
+        assert "```" not in art
+        # First line should be the art
+        first_line = art.splitlines()[0]
+        assert first_line == "     /\\"
+
+    def test_parse_enemy_ascii_art_strips_code_fences(self):
+        """Verify enemy art parsing strips markdown code fences."""
+        from cli_rpg.ai_service import AIService
+        from cli_rpg.ai_config import AIConfig
+
+        config = AIConfig(api_key="test-key", provider="openai", enable_caching=False)
+        service = AIService(config)
+
+        response = """```ascii
+   /\\ /\\
+  (  V  )
+  /|   |\\
+```"""
+
+        art = service._parse_ascii_art_response(response)
+
+        assert "```" not in art
+        first_line = art.splitlines()[0]
+        assert first_line == "   /\\ /\\"
+
+    def test_parse_npc_ascii_art_strips_code_fences(self):
+        """Verify NPC art parsing strips markdown code fences."""
+        from cli_rpg.ai_service import AIService
+        from cli_rpg.ai_config import AIConfig
+
+        config = AIConfig(api_key="test-key", provider="openai", enable_caching=False)
+        service = AIService(config)
+
+        response = """```
+    O
+   /|\\
+   / \\
+```"""
+
+        art = service._parse_npc_ascii_art_response(response)
+
+        assert "```" not in art
+        first_line = art.splitlines()[0]
+        assert first_line == "    O"

@@ -96,7 +96,7 @@ def _generate_location_ascii_art(
             theme=theme
         )
     except Exception as e:
-        logger.warning(f"AI location ASCII art generation failed, using fallback: {e}")
+        logger.debug(f"AI location ASCII art generation failed, using fallback: {e}")
         return get_fallback_location_ascii_art(
             category=location_category,
             location_name=location_name
@@ -320,7 +320,7 @@ def create_ai_world(
                         dx, dy = DIRECTION_OFFSETS[new_dir]
                         coord_queue.append((new_location.name, target_x + dx, target_y + dy, new_dir, new_target))
             else:
-                logger.warning(f"Duplicate location name generated: {new_location.name}")
+                logger.debug(f"Duplicate location name generated: {new_location.name}")
 
         except Exception as e:
             logger.warning(f"Failed to generate location: {e}")
@@ -567,7 +567,7 @@ def expand_area(
     )
 
     if not area_data:
-        logger.warning("No area data generated, falling back to single location")
+        logger.debug("No area data generated, falling back to single location")
         return expand_world(
             world=world,
             ai_service=ai_service,
@@ -599,7 +599,7 @@ def expand_area(
                 break
 
         if existing is not None:
-            logger.warning(
+            logger.debug(
                 f"Skipping {loc_data['name']}: coordinates ({abs_x}, {abs_y}) "
                 f"already occupied by {existing.name}"
             )
@@ -607,7 +607,7 @@ def expand_area(
 
         # Skip if name already exists
         if loc_data["name"] in world:
-            logger.warning(f"Skipping duplicate location name: {loc_data['name']}")
+            logger.debug(f"Skipping duplicate location name: {loc_data['name']}")
             continue
 
         # Generate ASCII art using fallback (to avoid extra API calls for area locations)
@@ -663,7 +663,7 @@ def expand_area(
         placed_locations[entry_name]["location"].is_overworld = True
         placed_locations[entry_name]["is_entry"] = True
     elif not placed_locations:
-        logger.warning("No locations could be placed, falling back to single location")
+        logger.debug("No locations could be placed, falling back to single location")
         return expand_world(
             world=world,
             ai_service=ai_service,
@@ -724,7 +724,7 @@ def expand_area(
 
             # Check SubGrid bounds before adding
             if not sub_grid.is_within_bounds(rel_x, rel_y):
-                logger.warning(
+                logger.debug(
                     f"Skipping {name}: coords ({rel_x}, {rel_y}) outside SubGrid bounds "
                     f"{sub_grid.bounds}"
                 )

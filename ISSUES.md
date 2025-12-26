@@ -479,10 +479,10 @@ Issues discovered during `--wfc` mode playtesting (updated 2025-12-26):
    - ~~Typing `enter Spectral Grove` fails with "No such location: spectral grove"~~
    - **Solution**: Implemented case-insensitive multi-word location matching in `game_state.py:809-822`. The `enter` command now correctly matches "spectral grove" to "Spectral Grove".
 
-3. **Location art contains markdown code fences**
-   - Some AI-generated ASCII art includes literal "```" characters at start/end
-   - Example: The art starts with ``` and ends with ``` which displays to user
-   - **Fix**: Strip markdown code fence markers from AI-generated art responses
+3. ~~**Location art contains markdown code fences**~~ (RESOLVED 2025-12-26)
+   - Fixed: Added `_extract_ascii_art_from_code_block()` method to strip markdown fences
+   - Applied to all 3 ASCII art parsing methods: location, enemy, and NPC art
+   - Test coverage added in `tests/test_ascii_art.py`
 
 4. **Fallback location names include coordinates**
    - When fallback occurs, names like "Vast Prairie (-1, 0)" or "Vast Prairie (1, 1)" are used

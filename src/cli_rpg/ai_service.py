@@ -363,6 +363,24 @@ class AIService:
             return match.group(1).strip()
         return response_text.strip()
 
+    def _extract_ascii_art_from_code_block(self, response_text: str) -> str:
+        """Extract ASCII art from markdown code fence if present.
+
+        Args:
+            response_text: Raw response text that may contain code fences
+
+        Returns:
+            Extracted content without code fences, or original text if no fence found
+        """
+        import re
+        # Match ```<optional-lang>\n ... ``` (handles ascii, text, or no language tag)
+        # The newline after opening fence is required to avoid eating leading spaces
+        pattern = r'```(?:\w*)?\n([\s\S]*?)\n?```'
+        match = re.search(pattern, response_text)
+        if match:
+            return match.group(1)
+        return response_text
+
     def _repair_truncated_json(self, json_text: str) -> str:
         """Attempt to repair truncated JSON by closing unclosed brackets.
 
@@ -1291,8 +1309,10 @@ Note: Use "EXISTING_WORLD" as placeholder for the connection back to the source 
         Raises:
             AIGenerationError: If validation fails
         """
+        # Extract from code fence if present
+        art = self._extract_ascii_art_from_code_block(response_text)
         # Strip only trailing whitespace, preserve first line's leading spaces
-        art = response_text.rstrip()
+        art = art.rstrip()
         # Remove leading empty lines
         while art.startswith("\n"):
             art = art[1:]
@@ -1388,8 +1408,10 @@ Note: Use "EXISTING_WORLD" as placeholder for the connection back to the source 
         Raises:
             AIGenerationError: If validation fails
         """
+        # Extract from code fence if present
+        art = self._extract_ascii_art_from_code_block(response_text)
         # Strip only trailing whitespace, preserve first line's leading spaces
-        art = response_text.rstrip()
+        art = art.rstrip()
         # Remove leading empty lines
         while art.startswith("\n"):
             art = art[1:]
@@ -1992,8 +2014,10 @@ Note: Use "EXISTING_WORLD" as placeholder for the connection back to the source 
         Raises:
             AIGenerationError: If validation fails
         """
+        # Extract from code fence if present
+        art = self._extract_ascii_art_from_code_block(response_text)
         # Strip only trailing whitespace, preserve first line's leading spaces
-        art = response_text.rstrip()
+        art = art.rstrip()
         # Remove leading empty lines
         while art.startswith("\n"):
             art = art[1:]

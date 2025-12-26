@@ -1,129 +1,184 @@
-# Implementation Plan: Improve `enter` Command Error Messages
+# Implementation Plan: Strip Markdown Code Fences from ASCII Art
 
 ## Summary
-The case-insensitive matching for `enter` already works correctly. The remaining issue is that error messages show lowercased location names and don't suggest available options. Fix the error message to be more helpful.
+Fix `_parse_location_ascii_art_response`, `_parse_ascii_art_response`, and `_parse_npc_ascii_art_response` methods in `ai_service.py` to strip markdown code fences from AI-generated ASCII art, matching how `_extract_json_from_code_block` handles JSON responses.
 
-## Current State Analysis
-
-**What works correctly:**
-- Case-insensitive matching in `game_state.enter()` (lines 788-807)
-- SubGrid lookup: `loc.name.lower().startswith(target_lower)` (line 796)
-- Traditional lookup: `sub_name.lower().startswith(target_lower)` (line 804)
-- All 7 existing enter tests pass
-
-**The actual issue:**
-- Error message at line 810: `f"No such location: {target_name}"` shows lowercased name
-- User types `enter Spectral Grove` → gets `No such location: spectral grove`
-- No suggestion of available locations to enter
+## The Bug
+AI may return ASCII art wrapped in markdown code fences like:
+```
+```
+   /\
+  /  \
+ /____\
+```
+```
+This renders incorrectly in the game, breaking immersion.
 
 ## Implementation Steps
 
-### Step 1: Add test for case-insensitive matching with multi-word location names
+### Step 1: Add tests for code fence stripping
 
-**File: `tests/test_game_state.py`**
+**File: `tests/test_ascii_art.py`**
 
-Add to `TestEnterExitCommands` class:
+Add to `TestAsciiArtFirstLineAlignment` class (around line 434):
 
 ```python
-def test_enter_case_insensitive_multiword_name(self, monkeypatch):
-    """Test that enter works with multi-word location names in any case.
+def test_parse_location_ascii_art_strips_code_fences(self):
+    """Verify location art parsing strips markdown code fences."""
+    from cli_rpg.ai_service import AIService
+    from cli_rpg.ai_config import AIConfig
 
-    Spec: 'enter spectral grove' should match 'Spectral Grove' case-insensitively.
-    This tests the full command flow where input is lowercased before reaching enter().
-    """
-    monkeypatch.setattr("cli_rpg.game_state.autosave", lambda gs: None)
+    config = AIConfig(api_key="test-key", provider="openai", enable_caching=False)
+    service = AIService(config)
 
-    character = Character("Hero", strength=10, dexterity=10, intelligence=10)
+    # Response wrapped in code fences
+    response = """```
+     /\\
+    /  \\
+   /    \\
+  /______\\
+```"""
 
-    overworld = Location(
-        "Ancient Forest",
-        "A mystical forest",
-        is_overworld=True,
-        sub_locations=["Spectral Grove", "Moonlit Clearing"],
-    )
-    spectral = Location("Spectral Grove", "A ghostly grove", parent_location="Ancient Forest")
-    moonlit = Location("Moonlit Clearing", "A clearing bathed in moonlight", parent_location="Ancient Forest")
+    art = service._parse_location_ascii_art_response(response)
 
-    world = {"Ancient Forest": overworld, "Spectral Grove": spectral, "Moonlit Clearing": moonlit}
-    game_state = GameState(character, world, "Ancient Forest")
+    # Should not contain backticks
+    assert "```" not in art
+    # First line should be the art
+    first_line = art.splitlines()[0]
+    assert first_line == "     /\\"
 
-    # Test lowercase input (as parse_command would provide)
-    success, _ = game_state.enter("spectral grove")
-    assert success is True
-    assert game_state.current_location == "Spectral Grove"
+def test_parse_enemy_ascii_art_strips_code_fences(self):
+    """Verify enemy art parsing strips markdown code fences."""
+    from cli_rpg.ai_service import AIService
+    from cli_rpg.ai_config import AIConfig
+
+    config = AIConfig(api_key="test-key", provider="openai", enable_caching=False)
+    service = AIService(config)
+
+    response = """```ascii
+   /\\ /\\
+  (  V  )
+  /|   |\\
+```"""
+
+    art = service._parse_ascii_art_response(response)
+
+    assert "```" not in art
+    first_line = art.splitlines()[0]
+    assert first_line == "   /\\ /\\"
+
+def test_parse_npc_ascii_art_strips_code_fences(self):
+    """Verify NPC art parsing strips markdown code fences."""
+    from cli_rpg.ai_service import AIService
+    from cli_rpg.ai_config import AIConfig
+
+    config = AIConfig(api_key="test-key", provider="openai", enable_caching=False)
+    service = AIService(config)
+
+    response = """```
+    O
+   /|\\
+   / \\
+```"""
+
+    art = service._parse_npc_ascii_art_response(response)
+
+    assert "```" not in art
+    first_line = art.splitlines()[0]
+    assert first_line == "    O"
 ```
 
-### Step 2: Improve error message to show available locations
+### Step 2: Add helper method for code fence extraction
 
-**File: `src/cli_rpg/game_state.py`**
+**File: `src/cli_rpg/ai_service.py`**
 
-Change line 810 from:
+Add new helper method (after `_extract_json_from_code_block` at line 364):
+
 ```python
-return (False, f"No such location: {target_name}")
+def _extract_ascii_art_from_code_block(self, response_text: str) -> str:
+    """Extract ASCII art from markdown code fence if present.
+
+    Args:
+        response_text: Raw response text that may contain code fences
+
+    Returns:
+        Extracted content without code fences, or original text if no fence found
+    """
+    import re
+    # Match ```<optional-lang> ... ``` (handles ascii, text, or no language tag)
+    pattern = r'```(?:\w*)?\s*\n?([\s\S]*?)\n?```'
+    match = re.search(pattern, response_text)
+    if match:
+        return match.group(1)
+    return response_text
+```
+
+### Step 3: Update `_parse_ascii_art_response` (enemy art)
+
+**File: `src/cli_rpg/ai_service.py` (line 1294-1295)**
+
+Change:
+```python
+# Strip only trailing whitespace, preserve first line's leading spaces
+art = response_text.rstrip()
 ```
 
 To:
 ```python
-# Build helpful error message with available locations
-available = []
-if current.sub_grid is not None:
-    available.extend(current.sub_grid._by_name.keys())
-if current.sub_locations:
-    available.extend(current.sub_locations)
-# Remove duplicates while preserving order
-available = list(dict.fromkeys(available))
-
-if available:
-    return (False, f"No such location: {target_name}. Available: {', '.join(available)}")
-else:
-    return (False, f"There are no locations to enter here.")
+# Extract from code fence if present
+art = self._extract_ascii_art_from_code_block(response_text)
+# Strip only trailing whitespace, preserve first line's leading spaces
+art = art.rstrip()
 ```
 
-### Step 3: Add test for improved error message
+### Step 4: Update `_parse_location_ascii_art_response`
 
-**File: `tests/test_game_state.py`**
+**File: `src/cli_rpg/ai_service.py` (line 1391-1392)**
 
-Add to `TestEnterExitCommands` class:
-
+Change:
 ```python
-def test_enter_invalid_location_shows_available(self, monkeypatch):
-    """Test that entering invalid location shows available options.
+# Strip only trailing whitespace, preserve first line's leading spaces
+art = response_text.rstrip()
+```
 
-    Spec: Error message should list available sub-locations for discoverability.
-    """
-    monkeypatch.setattr("cli_rpg.game_state.autosave", lambda gs: None)
+To:
+```python
+# Extract from code fence if present
+art = self._extract_ascii_art_from_code_block(response_text)
+# Strip only trailing whitespace, preserve first line's leading spaces
+art = art.rstrip()
+```
 
-    character = Character("Hero", strength=10, dexterity=10, intelligence=10)
+### Step 5: Update `_parse_npc_ascii_art_response`
 
-    overworld = Location(
-        "City",
-        "A bustling city",
-        is_overworld=True,
-        sub_locations=["Tavern", "Market"],
-    )
-    tavern = Location("Tavern", "A tavern", parent_location="City")
-    market = Location("Market", "A market", parent_location="City")
+**File: `src/cli_rpg/ai_service.py` (line 1995-1996)**
 
-    world = {"City": overworld, "Tavern": tavern, "Market": market}
-    game_state = GameState(character, world, "City")
+Change:
+```python
+# Strip only trailing whitespace, preserve first line's leading spaces
+art = response_text.rstrip()
+```
 
-    success, message = game_state.enter("nonexistent")
-    assert success is False
-    assert "Available:" in message
-    assert "Tavern" in message
-    assert "Market" in message
+To:
+```python
+# Extract from code fence if present
+art = self._extract_ascii_art_from_code_block(response_text)
+# Strip only trailing whitespace, preserve first line's leading spaces
+art = art.rstrip()
 ```
 
 ## Code Changes Summary
 
 | File | Change |
 |------|--------|
-| `src/cli_rpg/game_state.py` | Improve error message to show available locations (line 810) |
-| `tests/test_game_state.py` | Add test for multi-word case-insensitive matching |
-| `tests/test_game_state.py` | Add test for improved error message |
+| `src/cli_rpg/ai_service.py` | Add `_extract_ascii_art_from_code_block` helper method |
+| `src/cli_rpg/ai_service.py` | Update `_parse_ascii_art_response` to use helper (line 1294) |
+| `src/cli_rpg/ai_service.py` | Update `_parse_location_ascii_art_response` to use helper (line 1391) |
+| `src/cli_rpg/ai_service.py` | Update `_parse_npc_ascii_art_response` to use helper (line 1995) |
+| `tests/test_ascii_art.py` | Add 3 tests for code fence stripping |
 
 ## Verification
 
-1. Run enter tests: `pytest tests/test_game_state.py -k "enter" -v`
-2. Run subgrid tests: `pytest tests/test_subgrid_navigation.py -k "enter" -v`
+1. Run ASCII art tests: `pytest tests/test_ascii_art.py -v`
+2. Run full AI service tests: `pytest tests/test_ai_service.py -v`
 3. Run full suite: `pytest`

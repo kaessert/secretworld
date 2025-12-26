@@ -1,36 +1,40 @@
-# Implementation Summary: Improve `enter` Command Error Messages
+# Implementation Summary: Strip Markdown Code Fences from ASCII Art
 
-## What was implemented
+## What Was Implemented
 
-### Code Changes
+Fixed a bug where AI-generated ASCII art wrapped in markdown code fences (e.g., ` ```\n...\n``` `) would render incorrectly in the game.
 
-1. **`src/cli_rpg/game_state.py` (line 809-822)**: Modified the error handling when `enter` command fails to find a matching location:
-   - Now collects available locations from both `sub_grid` and `sub_locations`
-   - Removes duplicates while preserving order
-   - Shows "Available: Tavern, Market" in the error message
-   - Shows "There are no locations to enter here." if no locations exist
+### Files Modified
 
-### Tests Added
+1. **`src/cli_rpg/ai_service.py`**
+   - Added new helper method `_extract_ascii_art_from_code_block(self, response_text: str) -> str` (lines 366-382)
+   - Updated `_parse_ascii_art_response` to extract from code fences before processing (line 1312)
+   - Updated `_parse_location_ascii_art_response` to extract from code fences before processing (line 1411)
+   - Updated `_parse_npc_ascii_art_response` to extract from code fences before processing (line 2017)
 
-2. **`tests/test_game_state.py`**: Added two new tests to `TestEnterExitCommands` class:
-   - `test_enter_case_insensitive_multiword_name`: Verifies multi-word location names work with lowercase input (e.g., "spectral grove" matches "Spectral Grove")
-   - `test_enter_invalid_location_shows_available`: Verifies error message lists available sub-locations
+2. **`tests/test_ascii_art.py`**
+   - Added 3 new tests in `TestAsciiArtFirstLineAlignment` class (lines 435-497):
+     - `test_parse_location_ascii_art_strips_code_fences`
+     - `test_parse_enemy_ascii_art_strips_code_fences`
+     - `test_parse_npc_ascii_art_strips_code_fences`
+
+### Technical Details
+
+- The regex pattern `r'```(?:\w*)?\n([\s\S]*?)\n?```'` extracts content from markdown code fences
+- Key design decision: The newline after the opening fence is **required** (not optional) to avoid the `\s*` pattern eating leading spaces from the first content line
+- The helper method differs from `_extract_json_from_code_block` in that it does NOT strip whitespace from the extracted content, preserving ASCII art alignment
 
 ## Test Results
 
-- All 13 enter-related tests pass
-- All 4 subgrid enter tests pass
-- Full test suite: 3436 passed
+- All 8 tests in `TestAsciiArtFirstLineAlignment` pass
+- All 108 tests in ASCII art + AI service modules pass
+- Full test suite: **3439 tests passed** in 65.45s
 
-## Design Decisions
+## E2E Validation
 
-- Error message uses proper casing from the location names (e.g., "Tavern" not "tavern")
-- Duplicates are removed using `dict.fromkeys()` to preserve insertion order
-- SubGrid locations are listed first, then traditional sub_locations (matches lookup order)
-
-## E2E Test Validation
-
-The implementation should be validated by:
-1. Starting at an overworld location with sub-locations
-2. Running `enter nonexistent` and verifying available locations are shown
-3. Running `enter spectral grove` (lowercase) to verify case-insensitive multi-word matching
+The fix should be validated by:
+1. Starting the game with AI enabled
+2. Visiting a new location and observing location ASCII art
+3. Entering combat with an AI-generated enemy
+4. Talking to an AI-generated NPC
+5. Verifying no ` ``` ` backticks appear in any ASCII art output
