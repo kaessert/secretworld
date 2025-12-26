@@ -199,12 +199,14 @@ class TestBanterContextInMove:
         # Set specific weather
         game_state.weather.condition = "storm"
 
-        with patch.object(game_state.banter_service, "get_banter") as mock_get_banter:
-            mock_get_banter.return_value = None
-            game_state.move("north")
+        # Patch weather transition random to prevent weather change during move
+        with patch("cli_rpg.models.weather.random.random", return_value=0.50):
+            with patch.object(game_state.banter_service, "get_banter") as mock_get_banter:
+                mock_get_banter.return_value = None
+                game_state.move("north")
 
-            call_kwargs = mock_get_banter.call_args.kwargs
-            assert call_kwargs["weather"] == "storm"
+                call_kwargs = mock_get_banter.call_args.kwargs
+                assert call_kwargs["weather"] == "storm"
 
     def test_banter_receives_time_of_day(self):
         """Test that banter service receives night/day status."""
