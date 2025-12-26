@@ -130,7 +130,7 @@ The world has a heartbeat. Events happen whether you're there or not:
 - **Spreading events**: Plagues, wars, monster migrations, seasons changing
 - **Cascading effects**: Saved village → thriving trade → better shop inventory
 - **Rival adventurers**: NPCs who complete quests you ignore, becoming allies or enemies
-- **Event resolution**: Player actions to resolve events before they expire
+- ✅ **Event resolution**: Player actions to resolve events before they expire - MVP IMPLEMENTED (`resolve` command for plagues/invasions, auto-resolution for caravans on purchase; cure items drop from loot)
 
 ---
 

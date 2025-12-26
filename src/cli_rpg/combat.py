@@ -1150,19 +1150,35 @@ def generate_loot(enemy: Enemy, level: int) -> Optional[Item]:
         )
 
     elif item_type == ItemType.CONSUMABLE:
-        heal_amount = 15 + (level * 5) + random.randint(0, 10)
-        potions = [
-            ("Health Potion", "Restores health when consumed"),
-            ("Healing Elixir", "A bubbling red liquid"),
-            ("Life Draught", "Smells of herbs and magic"),
-        ]
-        name, desc = random.choice(potions)
-        return Item(
-            name=name,
-            description=desc,
-            item_type=ItemType.CONSUMABLE,
-            heal_amount=heal_amount
-        )
+        # 15% chance for cure item, otherwise regular healing consumable
+        if random.random() < 0.15:
+            # Cure items
+            cure_items = [
+                ("Antidote", "A powerful cure for plagues and afflictions"),
+                ("Cure Vial", "A rare remedy that can cure deadly diseases"),
+                ("Purification Elixir", "Cleansing medicine from ancient recipes"),
+            ]
+            name, desc = random.choice(cure_items)
+            return Item(
+                name=name,
+                description=desc,
+                item_type=ItemType.CONSUMABLE,
+                is_cure=True,
+            )
+        else:
+            heal_amount = 15 + (level * 5) + random.randint(0, 10)
+            potions = [
+                ("Health Potion", "Restores health when consumed"),
+                ("Healing Elixir", "A bubbling red liquid"),
+                ("Life Draught", "Smells of herbs and magic"),
+            ]
+            name, desc = random.choice(potions)
+            return Item(
+                name=name,
+                description=desc,
+                item_type=ItemType.CONSUMABLE,
+                heal_amount=heal_amount
+            )
 
     else:  # MISC
         misc_items = [

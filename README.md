@@ -76,6 +76,7 @@ python -m cli_rpg.main
 - `dump-state` - Export complete game state as JSON for programmatic inspection
 - `rest` (r) - Rest to recover health (restores 25% of max HP, advances time by 4 hours, reduces dread, may trigger dreams; not available during combat)
 - `events` - View active world events and their status
+- `resolve [event]` - Attempt to resolve an active world event (without args: lists events with requirements)
 - `save` - Save complete game state including world, location, and theme (not available during combat)
 - `help` (h) - Display the full command reference
 - `quit` - Exit to main menu
@@ -88,6 +89,16 @@ The world is alive with timed events that progress with in-game time:
 - **Invasions**: Hostile forces threaten locations, requiring player intervention
 
 Events have limited duration and consequences if not resolved. Use the `events` command to view active events and their time remaining. When entering a location affected by an event, you'll receive a warning. Events persist across save/load.
+
+**Resolving Events**: Use the `resolve <event>` command to attempt to resolve active events:
+
+| Event Type | Resolution Method | Requirements | Rewards |
+|------------|-------------------|--------------|---------|
+| Plague | `resolve <event>` | Cure item in inventory, at affected location | 50 XP, 30 gold |
+| Invasion | `resolve <event>` | At affected location | Combat encounter → 75 XP, 50 gold on victory |
+| Caravan | Trade at shop | At affected location | Auto-resolves on purchase |
+
+**Cure Items**: Cure items (Antidote, Cure Vial, Purification Elixir) can be found as loot drops from defeated enemies (15% chance when consumables drop) or purchased from merchants.
 
 ### Random Travel Encounters
 When moving between locations, you have a 15% chance to trigger a random encounter:

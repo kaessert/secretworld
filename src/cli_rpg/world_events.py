@@ -337,3 +337,280 @@ def get_active_event_count(game_state: "GameState") -> int:
         Number of active events
     """
     return sum(1 for e in game_state.world_events if e.is_active)
+
+
+def find_event_by_name(game_state: "GameState", event_name: str) -> Optional[WorldEvent]:
+    """Find an active event by partial name match.
+
+    Args:
+        game_state: Current game state
+        event_name: Partial or full event name (case-insensitive)
+
+    Returns:
+        Matching WorldEvent if found, None otherwise
+    """
+    event_name_lower = event_name.lower()
+    for event in game_state.world_events:
+        if event.is_active and event_name_lower in event.name.lower():
+            return event
+    return None
+
+
+def get_resolution_requirements(event: WorldEvent) -> str:
+    """Get human-readable requirements to resolve an event.
+
+    Args:
+        event: The event to get requirements for
+
+    Returns:
+        Description of what's needed to resolve the event
+    """
+    if event.event_type == "plague":
+        return "Use a Cure or Antidote item at the affected location."
+    elif event.event_type == "invasion":
+        return "Defeat the invading creatures in combat."
+    elif event.event_type == "caravan":
+        return "Trade with the caravan by buying or selling items."
+    else:
+        return "Unknown event type."
+
+
+def can_resolve_event(
+    game_state: "GameState", event: WorldEvent
+) -> tuple[bool, str]:
+    """Check if the player can resolve an event.
+
+    Args:
+        game_state: Current game state
+        event: The event to check
+
+    Returns:
+        Tuple of (can_resolve, reason_if_not)
+    """
+    # Check if player is at affected location
+    if game_state.current_location not in event.affected_locations:
+        return (
+            False,
+            f"You must be at {event.affected_locations[0]} to resolve this event."
+        )
+
+    # Check type-specific requirements
+    if event.event_type == "plague":
+        # Need a cure item in inventory
+        inventory = game_state.current_character.inventory
+        cure_items = [item for item in inventory.items if item.is_cure]
+        if not cure_items:
+            return (
+                False,
+                "You need a Cure or Antidote item to resolve the plague."
+            )
+        return (True, "")
+
+    elif event.event_type == "invasion":
+        # No special requirements - just need to fight
+        return (True, "")
+
+    elif event.event_type == "caravan":
+        # Caravans are auto-resolved by trading, but player can still try
+        return (True, "")
+
+    return (False, "Cannot resolve this type of event.")
+
+
+def try_resolve_event(
+    game_state: "GameState", event: WorldEvent
+) -> tuple[bool, str]:
+    """Attempt to resolve an event.
+
+    Args:
+        game_state: Current game state
+        event: The event to resolve
+
+    Returns:
+        Tuple of (success, message)
+    """
+    # Check if resolution is possible
+    can_do, reason = can_resolve_event(game_state, event)
+    if not can_do:
+        return (False, reason)
+
+    if event.event_type == "plague":
+        return _resolve_plague(game_state, event)
+    elif event.event_type == "invasion":
+        return _resolve_invasion(game_state, event)
+    elif event.event_type == "caravan":
+        return _resolve_caravan(game_state, event)
+
+    return (False, "Cannot resolve this type of event.")
+
+
+def _resolve_plague(
+    game_state: "GameState", event: WorldEvent
+) -> tuple[bool, str]:
+    """Resolve a plague event by using a cure item.
+
+    Args:
+        game_state: Current game state
+        event: The plague event
+
+    Returns:
+        Tuple of (success, message)
+    """
+    inventory = game_state.current_character.inventory
+    cure_items = [item for item in inventory.items if item.is_cure]
+
+    if not cure_items:
+        return (False, "You need a Cure or Antidote item to cure the plague.")
+
+    # Consume the cure item
+    cure = cure_items[0]
+    inventory.remove_item(cure)
+
+    # Mark event as resolved
+    event.is_resolved = True
+    event.is_active = False
+
+    # Award rewards: XP and gold based on event difficulty
+    xp_reward = 50
+    gold_reward = 30
+    game_state.current_character.gain_xp(xp_reward)
+    game_state.current_character.add_gold(gold_reward)
+
+    location = event.affected_locations[0]
+    return (
+        True,
+        colors.heal(
+            f"You use the {cure.name} to cure the plague in {location}!\n"
+            f"The townspeople are grateful. (+{xp_reward} XP, +{gold_reward} gold)"
+        )
+    )
+
+
+def _resolve_invasion(
+    game_state: "GameState", event: WorldEvent
+) -> tuple[bool, str]:
+    """Start combat to resolve an invasion event.
+
+    Note: The actual resolution happens when combat is won.
+    This function spawns the enemies and starts combat.
+
+    Args:
+        game_state: Current game state
+        event: The invasion event
+
+    Returns:
+        Tuple of (success, message)
+    """
+    from cli_rpg.combat import CombatEncounter, spawn_enemies
+
+    # Spawn invasion enemies (2-3 enemies)
+    enemies = spawn_enemies(
+        location_name=event.affected_locations[0],
+        level=game_state.current_character.level,
+        count=random.randint(2, 3),
+    )
+
+    # Store event ID on combat so we can resolve on victory
+    game_state.current_combat = CombatEncounter(
+        game_state.current_character,
+        enemies=enemies,
+        weather=game_state.weather,
+        companions=game_state.companions,
+    )
+    # Mark the invasion event ID for post-combat resolution
+    game_state._pending_invasion_event = event.event_id
+
+    combat_intro = game_state.current_combat.start()
+    return (
+        True,
+        f"You charge into combat to repel the invasion!\n\n{combat_intro}"
+    )
+
+
+def _resolve_caravan(
+    game_state: "GameState", event: WorldEvent
+) -> tuple[bool, str]:
+    """Resolve a caravan event by acknowledging trade.
+
+    Caravans are usually auto-resolved when player buys something,
+    but this allows explicit resolution.
+
+    Args:
+        game_state: Current game state
+        event: The caravan event
+
+    Returns:
+        Tuple of (success, message)
+    """
+    event.is_resolved = True
+    event.is_active = False
+
+    return (
+        True,
+        colors.heal(
+            f"You've traded with the {event.name}. The merchants thank you for your patronage!"
+        )
+    )
+
+
+def check_and_resolve_caravan(game_state: "GameState") -> bool:
+    """Check for and resolve a caravan event at current location.
+
+    Called after successful purchase to auto-resolve caravan events.
+
+    Args:
+        game_state: Current game state
+
+    Returns:
+        True if a caravan was resolved, False otherwise
+    """
+    for event in game_state.world_events:
+        if (
+            event.is_active
+            and event.event_type == "caravan"
+            and game_state.current_location in event.affected_locations
+        ):
+            event.is_resolved = True
+            event.is_active = False
+            return True
+    return False
+
+
+def resolve_invasion_on_victory(game_state: "GameState") -> Optional[str]:
+    """Resolve pending invasion event after combat victory.
+
+    Called when player wins combat to check if it was an invasion resolution.
+
+    Args:
+        game_state: Current game state
+
+    Returns:
+        Resolution message if invasion was resolved, None otherwise
+    """
+    pending_id = getattr(game_state, "_pending_invasion_event", None)
+    if not pending_id:
+        return None
+
+    # Find and resolve the event
+    for event in game_state.world_events:
+        if event.event_id == pending_id:
+            event.is_resolved = True
+            event.is_active = False
+
+            # Award rewards
+            xp_reward = 75
+            gold_reward = 50
+            game_state.current_character.gain_xp(xp_reward)
+            game_state.current_character.add_gold(gold_reward)
+
+            # Clear pending event
+            game_state._pending_invasion_event = None
+
+            location = event.affected_locations[0]
+            return colors.heal(
+                f"\nYou have repelled the {event.name} at {location}!\n"
+                f"The area is now safe. (+{xp_reward} XP, +{gold_reward} gold)"
+            )
+
+    game_state._pending_invasion_event = None
+    return None

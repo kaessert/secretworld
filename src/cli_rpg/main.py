@@ -51,6 +51,7 @@ def get_command_reference() -> str:
         "  quest <name>       - View details of a specific quest",
         "  bestiary (b)       - View defeated enemies",
         "  events             - View active world events",
+        "  resolve <event>    - Resolve an active world event",
         "  companions         - View your party members and bond levels",
         "  recruit <npc>      - Recruit an NPC to join your party",
         "  dismiss <name>     - Dismiss a companion from your party",
@@ -288,6 +289,11 @@ def handle_combat_command(game_state: GameState, command: str, args: list[str], 
             reaction_msgs = process_companion_reactions(game_state.companions, "combat_kill")
             for msg in reaction_msgs:
                 output += f"\n{msg}"
+            # Check for invasion resolution
+            from cli_rpg.world_events import resolve_invasion_on_victory
+            invasion_msg = resolve_invasion_on_victory(game_state)
+            if invasion_msg:
+                output += f"\n{invasion_msg}"
             game_state.current_combat = None
             # Autosave after combat victory
             try:
@@ -407,6 +413,11 @@ def handle_combat_command(game_state: GameState, command: str, args: list[str], 
             reaction_msgs = process_companion_reactions(game_state.companions, "combat_kill")
             for msg in reaction_msgs:
                 output += f"\n{msg}"
+            # Check for invasion resolution
+            from cli_rpg.world_events import resolve_invasion_on_victory
+            invasion_msg = resolve_invasion_on_victory(game_state)
+            if invasion_msg:
+                output += f"\n{invasion_msg}"
             game_state.current_combat = None
             # Autosave after combat victory
             try:
@@ -1084,6 +1095,42 @@ def handle_exploration_command(game_state: GameState, command: str, args: list[s
     elif command == "events":
         from cli_rpg.world_events import get_active_events_display
         return (True, get_active_events_display(game_state))
+
+    elif command == "resolve":
+        from cli_rpg.world_events import (
+            find_event_by_name,
+            can_resolve_event,
+            try_resolve_event,
+            get_resolution_requirements,
+        )
+
+        if not args:
+            # List all active events with resolution requirements
+            active = [e for e in game_state.world_events if e.is_active]
+            if not active:
+                return (True, "\nNo active events to resolve.")
+
+            lines = ["\n=== Active Events ==="]
+            for event in active:
+                location = event.affected_locations[0] if event.affected_locations else "Unknown"
+                at_location = game_state.current_location in event.affected_locations
+                location_marker = " ← You are here" if at_location else ""
+                requirements = get_resolution_requirements(event)
+                lines.append(f"\n{event.name} ({event.event_type})")
+                lines.append(f"  Location: {location}{location_marker}")
+                lines.append(f"  How to resolve: {requirements}")
+            lines.append("\nUse: resolve <event name>")
+            return (True, "\n".join(lines))
+
+        event_name = " ".join(args)
+        event = find_event_by_name(game_state, event_name)
+
+        if event is None:
+            return (True, f"\nNo active event matching '{event_name}'.")
+
+        # Try to resolve
+        success, message = try_resolve_event(game_state, event)
+        return (True, f"\n{message}")
 
     elif command == "companions":
         if not game_state.companions:

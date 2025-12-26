@@ -144,6 +144,8 @@ class CommandCompleter:
             return self._complete_use(text_lower)
         elif command == "buy":
             return self._complete_buy(text_lower)
+        elif command == "resolve":
+            return self._complete_resolve(text_lower)
 
         return []
 
@@ -245,6 +247,25 @@ class CommandCompleter:
         item_names = [shop_item.item.name for shop_item in shop.inventory]
 
         return [name for name in item_names if name.lower().startswith(text)]
+
+    def _complete_resolve(self, text: str) -> List[str]:
+        """Complete event name for 'resolve' command.
+
+        Returns active world event names.
+
+        Args:
+            text: Partial event name text (lowercase)
+
+        Returns:
+            List of matching active event names
+        """
+        if self._game_state is None:
+            return []
+
+        active_events = [e for e in self._game_state.world_events if e.is_active]
+        event_names = [event.name for event in active_events]
+
+        return [name for name in event_names if name.lower().startswith(text)]
 
 
 # Module-level singleton instance for use by input_handler

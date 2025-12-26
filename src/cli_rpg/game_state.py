@@ -54,7 +54,7 @@ KNOWN_COMMANDS: set[str] = {
     "inventory", "equip", "unequip", "use", "drop", "talk", "buy", "sell", "shop",
     "map", "worldmap", "help", "quests", "quest", "accept", "complete", "abandon", "lore", "rest",
     "bestiary", "dump-state", "events", "companions", "recruit", "dismiss", "companion-quest",
-    "enter", "exit", "leave"
+    "enter", "exit", "leave", "resolve"
 }
 
 # Dread increases by location category (darker areas = more dread)

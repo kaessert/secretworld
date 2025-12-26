@@ -37,6 +37,7 @@ class Item:
     defense_bonus: int = 0
     heal_amount: int = 0
     light_duration: int = 0
+    is_cure: bool = False  # True for items that can cure plagues/events
 
     def __post_init__(self):
         """Validate item attributes."""
@@ -77,7 +78,8 @@ class Item:
             "damage_bonus": self.damage_bonus,
             "defense_bonus": self.defense_bonus,
             "heal_amount": self.heal_amount,
-            "light_duration": self.light_duration
+            "light_duration": self.light_duration,
+            "is_cure": self.is_cure
         }
 
     @classmethod
@@ -97,7 +99,8 @@ class Item:
             damage_bonus=data.get("damage_bonus", 0),
             defense_bonus=data.get("defense_bonus", 0),
             heal_amount=data.get("heal_amount", 0),
-            light_duration=data.get("light_duration", 0)
+            light_duration=data.get("light_duration", 0),
+            is_cure=data.get("is_cure", False)
         )
 
     def __str__(self) -> str:
@@ -117,6 +120,8 @@ class Item:
             stat_parts.append(f"heals {self.heal_amount} HP")
         if self.light_duration > 0:
             stat_parts.append(f"{self.light_duration} moves of light")
+        if self.is_cure:
+            stat_parts.append("cures plague")
 
         stats_str = f" ({', '.join(stat_parts)})" if stat_parts else ""
         return f"{self.name} [{type_str}]{stats_str}"

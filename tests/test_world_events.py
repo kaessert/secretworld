@@ -571,3 +571,333 @@ class TestLocationEventWarning:
 
         assert warning is not None
         assert "plague" in warning.lower() or "event" in warning.lower()
+
+
+class TestEventResolution:
+    """Tests for event resolution mechanics.
+
+    Spec: Players can resolve world events before they expire.
+    - Plague: Use cure item at affected location
+    - Invasion: Defeat combat at affected location
+    - Caravan: Trade with caravan (auto-resolve on purchase)
+    """
+
+    @pytest.fixture
+    def game_state(self, monkeypatch):
+        """Create game state for testing resolution."""
+        monkeypatch.setattr("cli_rpg.game_state.autosave", lambda gs: None)
+
+        character = Character("Hero", strength=10, dexterity=10, intelligence=10)
+        world = {
+            "Town": Location("Town", "A town", {"north": "Village"}, coordinates=(0, 0)),
+            "Village": Location("Village", "A village", {"south": "Town"}, coordinates=(0, 1)),
+        }
+        gs = GameState(character, world, "Town")
+        gs.world_events = []
+        return gs
+
+    def test_resolve_plague_with_cure_item(self, game_state):
+        """Test resolving plague event with cure item.
+
+        Spec: Cure item consumed, event resolved, rewards given
+        """
+        from cli_rpg.models.item import Item, ItemType
+        from cli_rpg.world_events import can_resolve_event, try_resolve_event
+
+        # Add plague event at current location
+        plague_event = WorldEvent(
+            event_id="plague_001",
+            name="The Plague",
+            description="A plague spreads through Town",
+            event_type="plague",
+            affected_locations=["Town"],
+            start_hour=game_state.game_time.hour,
+            duration_hours=24,
+        )
+        game_state.world_events.append(plague_event)
+
+        # Add cure item to inventory
+        cure = Item(
+            name="Antidote",
+            description="Cures plague",
+            item_type=ItemType.CONSUMABLE,
+            is_cure=True,
+        )
+        game_state.current_character.inventory.add_item(cure)
+
+        # Check can resolve
+        can_resolve, reason = can_resolve_event(game_state, plague_event)
+        assert can_resolve is True
+
+        # Resolve
+        success, message = try_resolve_event(game_state, plague_event)
+        assert success is True
+        assert plague_event.is_resolved is True
+        assert plague_event.is_active is False
+        # Cure should be consumed
+        assert game_state.current_character.inventory.find_item_by_name("Antidote") is None
+        # Message may contain ANSI color codes, so check for key words
+        assert "cure" in message.lower() or "plague" in message.lower()
+
+    def test_resolve_plague_without_cure_fails(self, game_state):
+        """Test that plague cannot be resolved without cure item.
+
+        Spec: Error message, event unchanged
+        """
+        from cli_rpg.world_events import can_resolve_event, try_resolve_event
+
+        # Add plague event
+        plague_event = WorldEvent(
+            event_id="plague_001",
+            name="The Plague",
+            description="A plague spreads",
+            event_type="plague",
+            affected_locations=["Town"],
+            start_hour=game_state.game_time.hour,
+            duration_hours=24,
+        )
+        game_state.world_events.append(plague_event)
+
+        # No cure in inventory
+        can_resolve, reason = can_resolve_event(game_state, plague_event)
+        assert can_resolve is False
+        assert "cure" in reason.lower() or "antidote" in reason.lower()
+
+        # Try to resolve anyway - should fail
+        success, message = try_resolve_event(game_state, plague_event)
+        assert success is False
+        assert plague_event.is_resolved is False
+        assert plague_event.is_active is True
+
+    def test_resolve_event_wrong_location_fails(self, game_state):
+        """Test that event cannot be resolved from wrong location.
+
+        Spec: Must be at affected location
+        """
+        from cli_rpg.world_events import can_resolve_event
+
+        # Add plague event at Village (player is at Town)
+        plague_event = WorldEvent(
+            event_id="plague_001",
+            name="The Plague",
+            description="A plague spreads",
+            event_type="plague",
+            affected_locations=["Village"],
+            start_hour=game_state.game_time.hour,
+            duration_hours=24,
+        )
+        game_state.world_events.append(plague_event)
+
+        # Player is at Town, not Village
+        can_resolve, reason = can_resolve_event(game_state, plague_event)
+        assert can_resolve is False
+        assert "location" in reason.lower() or "village" in reason.lower()
+
+    def test_resolve_invasion_triggers_combat(self, game_state):
+        """Test that resolving invasion returns combat trigger flag.
+
+        Spec: Combat encounter spawns for invasion events
+        """
+        from cli_rpg.world_events import can_resolve_event, try_resolve_event
+
+        # Add invasion event at current location
+        invasion_event = WorldEvent(
+            event_id="invasion_001",
+            name="Monster Incursion",
+            description="Monsters overrun the town",
+            event_type="invasion",
+            affected_locations=["Town"],
+            start_hour=game_state.game_time.hour,
+            duration_hours=12,
+        )
+        game_state.world_events.append(invasion_event)
+
+        # Check can resolve (no special requirements for invasion)
+        can_resolve, reason = can_resolve_event(game_state, invasion_event)
+        assert can_resolve is True
+
+        # Try to resolve - should trigger combat
+        success, message = try_resolve_event(game_state, invasion_event)
+        # For invasions, the success flag means combat was triggered
+        # The actual resolution happens when player wins combat
+        assert "combat" in message.lower() or "fight" in message.lower() or game_state.is_in_combat()
+
+    def test_caravan_auto_resolves_on_purchase(self, game_state):
+        """Test that caravan event resolves when player makes a purchase.
+
+        Spec: Buy item → event resolved
+        """
+        from cli_rpg.world_events import check_and_resolve_caravan
+
+        # Add caravan event at current location
+        caravan_event = WorldEvent(
+            event_id="caravan_001",
+            name="Merchant Caravan",
+            description="A caravan arrives",
+            event_type="caravan",
+            affected_locations=["Town"],
+            start_hour=game_state.game_time.hour,
+            duration_hours=16,
+        )
+        game_state.world_events.append(caravan_event)
+
+        # Simulate purchase - check_and_resolve_caravan should mark it resolved
+        resolved = check_and_resolve_caravan(game_state)
+        assert resolved is True
+        assert caravan_event.is_resolved is True
+        assert caravan_event.is_active is False
+
+    def test_resolve_command_unknown_event(self, game_state):
+        """Test error handling for invalid event resolution.
+
+        Spec: Error for non-existent event
+        """
+        from cli_rpg.world_events import find_event_by_name
+
+        # No events exist
+        event = find_event_by_name(game_state, "nonexistent")
+        assert event is None
+
+    def test_resolve_gives_rewards(self, game_state):
+        """Test that resolving event gives XP and gold rewards.
+
+        Spec: XP and gold awarded on successful resolution
+        """
+        from cli_rpg.models.item import Item, ItemType
+        from cli_rpg.world_events import try_resolve_event
+
+        # Add plague event at current location
+        plague_event = WorldEvent(
+            event_id="plague_001",
+            name="The Plague",
+            description="A plague spreads",
+            event_type="plague",
+            affected_locations=["Town"],
+            start_hour=game_state.game_time.hour,
+            duration_hours=24,
+        )
+        game_state.world_events.append(plague_event)
+
+        # Add cure item
+        cure = Item(
+            name="Antidote",
+            description="Cures plague",
+            item_type=ItemType.CONSUMABLE,
+            is_cure=True,
+        )
+        game_state.current_character.inventory.add_item(cure)
+
+        # Record initial state
+        initial_gold = game_state.current_character.gold
+        initial_xp = game_state.current_character.xp
+
+        # Resolve event
+        success, message = try_resolve_event(game_state, plague_event)
+        assert success is True
+
+        # Should have gained XP and gold
+        assert game_state.current_character.gold > initial_gold
+        assert game_state.current_character.xp > initial_xp
+
+    def test_get_resolution_requirements_display(self, game_state):
+        """Test that resolution requirements are displayed correctly.
+
+        Spec: Each event type shows what's needed to resolve
+        """
+        from cli_rpg.world_events import get_resolution_requirements
+
+        plague_event = WorldEvent(
+            event_id="plague_001",
+            name="The Plague",
+            description="A plague spreads",
+            event_type="plague",
+            affected_locations=["Town"],
+            start_hour=10,
+            duration_hours=24,
+        )
+
+        requirements = get_resolution_requirements(plague_event)
+        assert "cure" in requirements.lower() or "antidote" in requirements.lower()
+
+        invasion_event = WorldEvent(
+            event_id="invasion_001",
+            name="Invasion",
+            description="Monsters attack",
+            event_type="invasion",
+            affected_locations=["Town"],
+            start_hour=10,
+            duration_hours=12,
+        )
+
+        requirements = get_resolution_requirements(invasion_event)
+        assert "defeat" in requirements.lower() or "combat" in requirements.lower() or "fight" in requirements.lower()
+
+        caravan_event = WorldEvent(
+            event_id="caravan_001",
+            name="Caravan",
+            description="Merchants arrive",
+            event_type="caravan",
+            affected_locations=["Town"],
+            start_hour=10,
+            duration_hours=12,
+        )
+
+        requirements = get_resolution_requirements(caravan_event)
+        assert "trade" in requirements.lower() or "buy" in requirements.lower()
+
+
+class TestCureItem:
+    """Tests for cure item mechanics."""
+
+    def test_cure_item_creation(self):
+        """Test creating a cure item with is_cure flag.
+
+        Spec: Cure items have is_cure=True
+        """
+        from cli_rpg.models.item import Item, ItemType
+
+        cure = Item(
+            name="Antidote",
+            description="Cures plague and poison",
+            item_type=ItemType.CONSUMABLE,
+            is_cure=True,
+        )
+        assert cure.is_cure is True
+        assert cure.item_type == ItemType.CONSUMABLE
+
+    def test_regular_consumable_not_cure(self):
+        """Test that regular consumables are not cures by default.
+
+        Spec: is_cure defaults to False
+        """
+        from cli_rpg.models.item import Item, ItemType
+
+        potion = Item(
+            name="Health Potion",
+            description="Heals health",
+            item_type=ItemType.CONSUMABLE,
+            heal_amount=20,
+        )
+        assert potion.is_cure is False
+
+    def test_cure_item_serialization(self):
+        """Test cure item survives serialization.
+
+        Spec: is_cure persists through save/load
+        """
+        from cli_rpg.models.item import Item, ItemType
+
+        cure = Item(
+            name="Antidote",
+            description="Cures plague",
+            item_type=ItemType.CONSUMABLE,
+            is_cure=True,
+        )
+
+        # Serialize
+        data = cure.to_dict()
+        assert data["is_cure"] is True
+
+        # Deserialize
+        restored = Item.from_dict(data)
+        assert restored.is_cure is True
