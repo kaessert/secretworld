@@ -154,6 +154,8 @@ Enemy stats (HP, attack, defense) and XP rewards all scale with distance, encour
 
 **Boss Fights**: Occasionally, you'll encounter powerful boss enemies with enhanced stats (2x health, attack, and defense) and 4x XP rewards. Bosses are guaranteed to drop legendary loot with enhanced stats upon defeat. Boss types vary by location category (Lich Lords in dungeons, Ancient Guardians in ruins, Cave Troll Kings in caves, etc.).
 
+**Telegraphed Attacks**: Boss enemies have powerful special attacks that are telegraphed one turn in advance. When you see a warning like "The Stone Sentinel raises its massive fist high above its head...", prepare for a devastating strike next turn. Special attacks deal 1.5x-2x damage and may inflict status effects (stun, poison, freeze). Use `defend` (50% reduction) or `block` (75% reduction) to mitigate incoming damage from these powerful attacks.
+
 **Critical Hits & Dodge**: Combat includes critical hit and dodge mechanics:
 - **Player Critical Hits**: Base 5% chance + 1% per DEX (physical) or INT (magic) + 0.5% per LCK from 10, capped at 20%. Crits deal 1.5x damage.
 - **Player Dodge**: Base 5% chance + 0.5% per DEX, capped at 15%. Successful dodge negates all damage from an attack.

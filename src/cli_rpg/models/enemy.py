@@ -8,6 +8,50 @@ if TYPE_CHECKING:
     from cli_rpg.models.status_effect import StatusEffect
 
 
+@dataclass
+class SpecialAttack:
+    """A powerful special attack that bosses can telegraph and execute.
+
+    Telegraphed attacks are announced one turn before execution, giving
+    players a chance to defend, block, or parry strategically.
+    """
+    name: str  # e.g., "Crushing Blow"
+    damage_multiplier: float  # 2.0 = 100% more damage
+    telegraph_message: str  # "The boss raises its massive fist high..."
+    hit_message: str  # "brings down a CRUSHING BLOW"
+    effect_type: Optional[str] = None  # "stun", "poison", "freeze", etc.
+    effect_damage: int = 0  # Damage per turn for DOT effects
+    effect_duration: int = 0  # Duration in turns
+    effect_chance: float = 1.0  # Probability of applying effect (1.0 = guaranteed)
+
+    def to_dict(self) -> Dict:
+        """Serialize SpecialAttack to dictionary."""
+        return {
+            "name": self.name,
+            "damage_multiplier": self.damage_multiplier,
+            "telegraph_message": self.telegraph_message,
+            "hit_message": self.hit_message,
+            "effect_type": self.effect_type,
+            "effect_damage": self.effect_damage,
+            "effect_duration": self.effect_duration,
+            "effect_chance": self.effect_chance,
+        }
+
+    @staticmethod
+    def from_dict(data: Dict) -> "SpecialAttack":
+        """Deserialize SpecialAttack from dictionary."""
+        return SpecialAttack(
+            name=data["name"],
+            damage_multiplier=data["damage_multiplier"],
+            telegraph_message=data["telegraph_message"],
+            hit_message=data["hit_message"],
+            effect_type=data.get("effect_type"),
+            effect_damage=data.get("effect_damage", 0),
+            effect_duration=data.get("effect_duration", 0),
+            effect_chance=data.get("effect_chance", 1.0),
+        )
+
+
 class ElementType(Enum):
     """Element types for elemental damage system.
 
@@ -55,6 +99,8 @@ class Enemy:
     element_type: ElementType = ElementType.PHYSICAL  # Elemental affinity for damage modifiers
     status_effects: List = field(default_factory=list)  # Active status effects on this enemy
     faction_affiliation: Optional[str] = None  # Faction this enemy belongs to (for reputation effects)
+    special_attacks: List[SpecialAttack] = field(default_factory=list)  # Special attacks for bosses
+    telegraphed_attack: Optional[str] = None  # Name of special attack telegraphed for next turn
 
     def __post_init__(self):
         """Validate enemy attributes."""
@@ -210,6 +256,8 @@ class Enemy:
             "element_type": self.element_type.value,
             "status_effects": [e.to_dict() for e in self.status_effects],
             "faction_affiliation": self.faction_affiliation,
+            "special_attacks": [a.to_dict() for a in self.special_attacks],
+            "telegraphed_attack": self.telegraphed_attack,
         }
     
     @staticmethod
@@ -228,6 +276,11 @@ class Enemy:
         # Deserialize status effects
         status_effects = [
             StatusEffect.from_dict(e) for e in data.get("status_effects", [])
+        ]
+
+        # Deserialize special attacks
+        special_attacks = [
+            SpecialAttack.from_dict(a) for a in data.get("special_attacks", [])
         ]
 
         # Deserialize element type with backward compatibility
@@ -263,4 +316,6 @@ class Enemy:
             element_type=element_type,
             status_effects=status_effects,
             faction_affiliation=data.get("faction_affiliation"),
+            special_attacks=special_attacks,
+            telegraphed_attack=data.get("telegraphed_attack"),
         )

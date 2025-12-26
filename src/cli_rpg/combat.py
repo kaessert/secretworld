@@ -4,7 +4,7 @@ import logging
 import random
 from typing import Optional, Tuple, Union, TYPE_CHECKING
 from cli_rpg.models.character import Character
-from cli_rpg.models.enemy import Enemy, ElementType
+from cli_rpg.models.enemy import Enemy, ElementType, SpecialAttack
 from cli_rpg.models.item import Item, ItemType
 from cli_rpg.models.status_effect import StatusEffect
 from cli_rpg.models.weather import Weather
@@ -1480,6 +1480,113 @@ class CombatEncounter:
         else:
             return False, "You couldn't escape! The enemy blocks your path!"
     
+    def _execute_special_attack(
+        self, enemy: Enemy, special: SpecialAttack, is_blocked: bool, is_defended: bool
+    ) -> Tuple[int, list[str]]:
+        """Execute a boss's telegraphed special attack.
+
+        Args:
+            enemy: The enemy executing the special attack
+            special: The SpecialAttack to execute
+            is_blocked: True if player is blocking
+            is_defended: True if player is defending
+
+        Returns:
+            Tuple of (damage dealt, list of messages)
+        """
+        messages = []
+
+        # Calculate base damage with multiplier
+        attack_power = enemy.calculate_damage()
+        if enemy.has_effect_type("freeze"):
+            attack_power = int(attack_power * 0.5)
+
+        effective_defense = int(self.player.get_defense() * self.player.get_stance_defense_modifier())
+        base_damage = max(1, attack_power - effective_defense)
+
+        # Apply special attack multiplier
+        special_damage = int(base_damage * special.damage_multiplier)
+
+        # Apply defensive mitigation
+        if is_blocked:
+            dmg = max(1, special_damage // 4)  # 75% reduction
+            msg = (
+                f"{colors.enemy(enemy.name)} {special.hit_message}! "
+                f"You block the blow, taking only {colors.damage(str(dmg))} damage!"
+            )
+        elif is_defended:
+            dmg = max(1, special_damage // 2)  # 50% reduction
+            msg = (
+                f"{colors.enemy(enemy.name)} {special.hit_message}! "
+                f"You brace yourself, taking {colors.damage(str(dmg))} damage!"
+            )
+        else:
+            dmg = special_damage
+            msg = (
+                f"{colors.enemy(enemy.name)} {special.hit_message}! "
+                f"You take {colors.damage(str(dmg))} damage!"
+            )
+
+        self.player.take_damage(dmg)
+        messages.append(msg)
+
+        # Apply special attack status effect
+        if special.effect_type and random.random() < special.effect_chance:
+            if special.effect_type == "stun":
+                effect = StatusEffect(
+                    name="Stun",
+                    effect_type="stun",
+                    damage_per_turn=0,
+                    duration=special.effect_duration,
+                )
+                self.player.apply_status_effect(effect)
+                messages.append(f"The attack {colors.damage('stuns')} you!")
+            elif special.effect_type == "poison":
+                effect = StatusEffect(
+                    name="Poison",
+                    effect_type="dot",
+                    damage_per_turn=special.effect_damage,
+                    duration=special.effect_duration,
+                )
+                self.player.apply_status_effect(effect)
+                messages.append(f"The attack {colors.damage('poisons')} you!")
+            elif special.effect_type == "freeze":
+                effect = StatusEffect(
+                    name="Freeze",
+                    effect_type="freeze",
+                    damage_per_turn=0,
+                    duration=special.effect_duration,
+                )
+                self.player.apply_status_effect(effect)
+                messages.append(f"The attack {colors.damage('freezes')} you!")
+
+        return dmg, messages
+
+    def _maybe_telegraph_special(self, enemy: Enemy) -> Optional[str]:
+        """Check if boss should telegraph a special attack.
+
+        Args:
+            enemy: The enemy to check
+
+        Returns:
+            Telegraph message if telegraphing, None otherwise
+        """
+        # Only bosses with special attacks can telegraph
+        if not enemy.is_boss or not enemy.special_attacks:
+            return None
+
+        # Don't telegraph if already telegraphed
+        if enemy.telegraphed_attack:
+            return None
+
+        # 30% chance to telegraph a special attack
+        if random.random() < 0.3:
+            special = random.choice(enemy.special_attacks)
+            enemy.telegraphed_attack = special.name
+            return special.telegraph_message
+
+        return None
+
     def enemy_turn(self) -> str:
         """
         All living enemies attack player.
@@ -1510,6 +1617,26 @@ class CombatEncounter:
             return "\n".join(messages) + f"\nYou have {self.player.health}/{self.player.max_health} HP remaining."
 
         for enemy in living:
+            # Check if this boss has a telegraphed special attack to execute
+            if enemy.is_boss and enemy.telegraphed_attack and enemy.special_attacks:
+                # Find the matching special attack
+                special = next(
+                    (a for a in enemy.special_attacks if a.name == enemy.telegraphed_attack),
+                    None
+                )
+                if special:
+                    # Execute the special attack
+                    dmg, special_msgs = self._execute_special_attack(
+                        enemy, special, self.blocking, self.defending
+                    )
+                    messages.extend(special_msgs)
+                    total_damage += dmg
+                    # Clear the telegraphed attack
+                    enemy.telegraphed_attack = None
+                    # Tick enemy status effects
+                    enemy_status_messages = enemy.tick_status_effects()
+                    messages.extend(enemy_status_messages)
+                    continue  # Special attack replaces normal attack
             # Check for player dodge (stealth or DEX-based)
             if self.player.is_stealthed():
                 # Stealth dodge: DEX * 5%, capped at 75%
@@ -1717,6 +1844,11 @@ class CombatEncounter:
             # Tick status effects on this enemy
             enemy_status_messages = enemy.tick_status_effects()
             messages.extend(enemy_status_messages)
+
+            # Check if boss should telegraph a special attack for next turn
+            telegraph_msg = self._maybe_telegraph_special(enemy)
+            if telegraph_msg:
+                messages.append(f"\n{colors.warning(telegraph_msg)}")
 
         # Reset defensive stance after all attacks
         self.defending = False
@@ -2218,6 +2350,19 @@ def spawn_boss(
         # Get boss ASCII art
         ascii_art = get_boss_ascii_art("The Stone Sentinel")
 
+        # Special attacks for Stone Sentinel
+        special_attacks = [
+            SpecialAttack(
+                name="Crushing Blow",
+                damage_multiplier=2.0,
+                telegraph_message="The Stone Sentinel raises its massive fist high above its head...",
+                hit_message="brings down a CRUSHING BLOW",
+                effect_type="stun",
+                effect_duration=1,
+                effect_chance=0.75,
+            )
+        ]
+
         return Enemy(
             name="The Stone Sentinel",
             health=base_health,
@@ -2232,6 +2377,7 @@ def spawn_boss(
             attack_flavor="slams down with a massive stone fist",
             stun_chance=0.20,  # Heavy stone fist can stun
             stun_duration=1,
+            special_attacks=special_attacks,
         )
 
     if boss_type == "elder_treant":
@@ -2245,6 +2391,20 @@ def spawn_boss(
 
         # Get boss ASCII art
         ascii_art = get_boss_ascii_art("The Elder Treant")
+
+        # Special attacks for Elder Treant
+        special_attacks = [
+            SpecialAttack(
+                name="Nature's Wrath",
+                damage_multiplier=1.5,
+                telegraph_message="The Elder Treant's roots writhe beneath the ground, gathering power...",
+                hit_message="unleashes NATURE'S WRATH",
+                effect_type="poison",
+                effect_damage=8,
+                effect_duration=4,
+                effect_chance=1.0,  # Guaranteed poison
+            )
+        ]
 
         return Enemy(
             name="The Elder Treant",
@@ -2261,6 +2421,7 @@ def spawn_boss(
             poison_chance=0.25,  # Nature's corruption
             poison_damage=5,
             poison_duration=3,
+            special_attacks=special_attacks,
         )
 
     if boss_type == "drowned_overseer":
@@ -2274,6 +2435,19 @@ def spawn_boss(
 
         # Get boss ASCII art
         ascii_art = get_boss_ascii_art("The Drowned Overseer")
+
+        # Special attacks for Drowned Overseer
+        special_attacks = [
+            SpecialAttack(
+                name="Tidal Surge",
+                damage_multiplier=1.5,
+                telegraph_message="The Drowned Overseer raises his arms as icy water begins to swirl around him...",
+                hit_message="unleashes a TIDAL SURGE",
+                effect_type="freeze",
+                effect_duration=2,
+                effect_chance=0.9,
+            )
+        ]
 
         return Enemy(
             name="The Drowned Overseer",
@@ -2292,6 +2466,7 @@ def spawn_boss(
             bleed_duration=3,
             freeze_chance=0.15,  # Icy water touch can freeze
             freeze_duration=2,
+            special_attacks=special_attacks,
         )
 
     # Boss templates by location type
@@ -2322,6 +2497,16 @@ def spawn_boss(
     # Get boss ASCII art
     ascii_art = get_boss_ascii_art(boss_name)
 
+    # Generic special attack for all other bosses
+    special_attacks = [
+        SpecialAttack(
+            name="Devastating Strike",
+            damage_multiplier=1.75,
+            telegraph_message=f"The {boss_name} gathers dark energy, preparing a devastating attack...",
+            hit_message="unleashes a DEVASTATING STRIKE",
+        )
+    ]
+
     return Enemy(
         name=boss_name,
         health=base_health,
@@ -2332,6 +2517,7 @@ def spawn_boss(
         level=level,
         ascii_art=ascii_art,
         is_boss=True,
+        special_attacks=special_attacks,
     )
 
 

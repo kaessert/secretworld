@@ -232,6 +232,8 @@ class TestEnemySerialization:
             "element_type": "physical",
             "status_effects": [],
             "faction_affiliation": None,
+            "special_attacks": [],
+            "telegraphed_attack": None,
         }
 
     def test_from_dict_deserializes_enemy(self):
