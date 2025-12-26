@@ -257,6 +257,113 @@ Requirements:
 Respond with ONLY the whisper text, no quotes or formatting."""
 
 
+# --- Layered Query Architecture Prompts (Step 5) ---
+
+# Default prompt template for world context generation (Layer 1)
+DEFAULT_WORLD_CONTEXT_PROMPT = """Generate world-level thematic context for a {theme} RPG.
+
+Requirements:
+1. Create a concise "theme essence" (1-2 sentences) that captures the core mood and feel
+2. Define a naming style guide for locations and NPCs (e.g., "Nordic-inspired", "Victorian Gothic")
+3. Set the overall tone (e.g., "grim and foreboding", "whimsical and mysterious")
+
+Respond with valid JSON in this exact format (no additional text):
+{{
+  "theme_essence": "A brief description of the world's core atmosphere and feel.",
+  "naming_style": "A guide for how names should sound and feel.",
+  "tone": "The overall emotional tone of the world."
+}}"""
+
+
+# Default prompt template for region context generation (Layer 2)
+DEFAULT_REGION_CONTEXT_PROMPT = """Generate region-level context for a {theme} RPG.
+
+World Context:
+- Theme Essence: {theme_essence}
+- Naming Style: {naming_style}
+- Tone: {tone}
+
+Region Details:
+- Coordinates: {coordinates}
+- Terrain: {terrain_hint}
+
+Requirements:
+1. Create a unique region name following the naming style
+2. Define a regional theme that fits within the world's tone
+3. Set a danger level (low, medium, high, deadly)
+4. List 2-3 notable landmarks for this region
+
+Respond with valid JSON in this exact format (no additional text):
+{{
+  "name": "Region Name",
+  "theme": "A brief description of this region's unique character.",
+  "danger_level": "low|medium|high|deadly",
+  "landmarks": ["Landmark 1", "Landmark 2", "Landmark 3"]
+}}"""
+
+
+# Default prompt template for minimal location generation (Layer 3, no NPCs)
+DEFAULT_LOCATION_PROMPT_MINIMAL = """Generate a location for a {theme} RPG.
+
+World Context:
+- Theme Essence: {theme_essence}
+
+Region Context:
+- Region Name: {region_name}
+- Region Theme: {region_theme}
+
+Navigation:
+- Direction from previous: {direction}
+- Previous location: {source_location}
+
+Requirements:
+1. Create a unique location name (2-50 characters) that fits the region theme
+2. Write a vivid description (1-500 characters)
+3. Include a connection back to {source_location} via the opposite direction
+4. Assign a category (town, dungeon, wilderness, settlement, ruins, cave, forest, mountain, village)
+
+Respond with valid JSON in this exact format (no additional text):
+{{
+  "name": "Location Name",
+  "description": "A detailed description of the location.",
+  "connections": {{
+    "direction": "location_name"
+  }},
+  "category": "wilderness"
+}}"""
+
+
+# Default prompt template for minimal NPC generation (Layer 4)
+DEFAULT_NPC_PROMPT_MINIMAL = """Generate NPCs for a {theme} RPG location.
+
+World Context:
+- Theme Essence: {theme_essence}
+- Naming Style: {naming_style}
+
+Location Details:
+- Name: {location_name}
+- Description: {location_description}
+- Category: {location_category}
+
+Requirements:
+1. Generate 1-2 NPCs appropriate for this location
+2. Each NPC needs: name (2-30 chars), description (1-200 chars), dialogue (a greeting), role
+3. Roles: villager, merchant, or quest_giver
+4. Names should follow the world's naming style
+
+Respond with valid JSON in this exact format (no additional text):
+{{
+  "npcs": [
+    {{
+      "name": "NPC Name",
+      "description": "Brief description of the NPC.",
+      "dialogue": "What the NPC says when greeted.",
+      "role": "villager"
+    }}
+  ]
+}}"""
+
+
 # Default prompt template for dream generation
 DEFAULT_DREAM_GENERATION_PROMPT = """Generate a short, atmospheric dream sequence for a {theme} RPG.
 
@@ -342,6 +449,10 @@ class AIConfig:
     npc_ascii_art_generation_prompt: str = field(default=DEFAULT_NPC_ASCII_ART_PROMPT)
     dream_generation_prompt: str = field(default=DEFAULT_DREAM_GENERATION_PROMPT)
     whisper_generation_prompt: str = field(default=DEFAULT_WHISPER_GENERATION_PROMPT)
+    world_context_prompt: str = field(default=DEFAULT_WORLD_CONTEXT_PROMPT)
+    region_context_prompt: str = field(default=DEFAULT_REGION_CONTEXT_PROMPT)
+    location_prompt_minimal: str = field(default=DEFAULT_LOCATION_PROMPT_MINIMAL)
+    npc_prompt_minimal: str = field(default=DEFAULT_NPC_PROMPT_MINIMAL)
 
     def __post_init__(self) -> None:
         """Validate configuration after initialization."""
@@ -498,6 +609,10 @@ class AIConfig:
             "npc_ascii_art_generation_prompt": self.npc_ascii_art_generation_prompt,
             "dream_generation_prompt": self.dream_generation_prompt,
             "whisper_generation_prompt": self.whisper_generation_prompt,
+            "world_context_prompt": self.world_context_prompt,
+            "region_context_prompt": self.region_context_prompt,
+            "location_prompt_minimal": self.location_prompt_minimal,
+            "npc_prompt_minimal": self.npc_prompt_minimal,
         }
     
     @classmethod
@@ -546,5 +661,17 @@ class AIConfig:
             ),
             whisper_generation_prompt=data.get(
                 "whisper_generation_prompt", DEFAULT_WHISPER_GENERATION_PROMPT
+            ),
+            world_context_prompt=data.get(
+                "world_context_prompt", DEFAULT_WORLD_CONTEXT_PROMPT
+            ),
+            region_context_prompt=data.get(
+                "region_context_prompt", DEFAULT_REGION_CONTEXT_PROMPT
+            ),
+            location_prompt_minimal=data.get(
+                "location_prompt_minimal", DEFAULT_LOCATION_PROMPT_MINIMAL
+            ),
+            npc_prompt_minimal=data.get(
+                "npc_prompt_minimal", DEFAULT_NPC_PROMPT_MINIMAL
             ),
         )

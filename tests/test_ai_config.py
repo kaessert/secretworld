@@ -295,3 +295,98 @@ def test_ai_config_from_env_explicit_anthropic_provider_selection(monkeypatch):
     assert config.api_key == "anthropic-test-key"
     assert config.provider == "anthropic"
     assert config.model == "claude-3-5-sonnet-latest"
+
+
+# --- Tests for Split Generation Prompts (Step 5 of Layered Query Architecture) ---
+
+
+# Test: WORLD_CONTEXT_PROMPT exists and contains {theme}
+def test_ai_config_world_context_prompt_exists():
+    """Test AIConfig has world_context_prompt with {theme} placeholder.
+
+    Spec: WORLD_CONTEXT_PROMPT generates Layer 1 context (once per world)
+    with input {theme} and outputs theme_essence, naming_style, tone.
+    """
+    config = AIConfig(api_key="test-key")
+
+    assert config.world_context_prompt
+    assert len(config.world_context_prompt) > 0
+    assert "{theme}" in config.world_context_prompt
+
+
+# Test: REGION_CONTEXT_PROMPT exists and contains {theme_essence}
+def test_ai_config_region_context_prompt_exists():
+    """Test AIConfig has region_context_prompt with {theme_essence} placeholder.
+
+    Spec: REGION_CONTEXT_PROMPT generates Layer 2 context (per region)
+    with inputs including theme_essence and outputs region metadata.
+    """
+    config = AIConfig(api_key="test-key")
+
+    assert config.region_context_prompt
+    assert len(config.region_context_prompt) > 0
+    assert "{theme_essence}" in config.region_context_prompt
+
+
+# Test: LOCATION_PROMPT_MINIMAL exists and contains {region_theme}
+def test_ai_config_location_prompt_minimal_exists():
+    """Test AIConfig has location_prompt_minimal with {region_theme} placeholder.
+
+    Spec: LOCATION_PROMPT_MINIMAL generates Layer 3 location (per location, no NPCs)
+    with inputs including region_theme and outputs location metadata.
+    """
+    config = AIConfig(api_key="test-key")
+
+    assert config.location_prompt_minimal
+    assert len(config.location_prompt_minimal) > 0
+    assert "{region_theme}" in config.location_prompt_minimal
+
+
+# Test: NPC_PROMPT_MINIMAL exists and contains {location_name}
+def test_ai_config_npc_prompt_minimal_exists():
+    """Test AIConfig has npc_prompt_minimal with {location_name} placeholder.
+
+    Spec: NPC_PROMPT_MINIMAL generates Layer 4 NPCs (optional, per location)
+    with inputs including location_name and outputs NPC data.
+    """
+    config = AIConfig(api_key="test-key")
+
+    assert config.npc_prompt_minimal
+    assert len(config.npc_prompt_minimal) > 0
+    assert "{location_name}" in config.npc_prompt_minimal
+
+
+# Test: Serialization includes all 4 new prompts
+def test_ai_config_serialization_includes_new_prompts():
+    """Test AIConfig serialization round-trip includes all 4 new prompts.
+
+    Spec: to_dict() and from_dict() serialize/deserialize new prompts.
+    """
+    custom_world = "Custom world context: {theme}"
+    custom_region = "Custom region context: {theme_essence}"
+    custom_location = "Custom location: {region_theme}"
+    custom_npc = "Custom npc: {location_name}"
+
+    original_config = AIConfig(
+        api_key="test-key",
+        world_context_prompt=custom_world,
+        region_context_prompt=custom_region,
+        location_prompt_minimal=custom_location,
+        npc_prompt_minimal=custom_npc,
+    )
+
+    # Serialize to dict
+    config_dict = original_config.to_dict()
+
+    assert config_dict["world_context_prompt"] == custom_world
+    assert config_dict["region_context_prompt"] == custom_region
+    assert config_dict["location_prompt_minimal"] == custom_location
+    assert config_dict["npc_prompt_minimal"] == custom_npc
+
+    # Deserialize from dict
+    restored_config = AIConfig.from_dict(config_dict)
+
+    assert restored_config.world_context_prompt == custom_world
+    assert restored_config.region_context_prompt == custom_region
+    assert restored_config.location_prompt_minimal == custom_location
+    assert restored_config.npc_prompt_minimal == custom_npc

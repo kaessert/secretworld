@@ -101,11 +101,13 @@ Instead of one monolithic prompt, use a hierarchical generation system:
    - Default values for 8 terrain types in `DEFAULT_REGION_THEMES`
    - Full test coverage (12 tests) in `tests/test_region_context.py`
 
-5. **Split generation prompts** (`ai_config.py`):
-   - `WORLD_CONTEXT_PROMPT`: Generate theme essence (once)
-   - `REGION_CONTEXT_PROMPT`: Generate region details (per area)
-   - `LOCATION_PROMPT_MINIMAL`: Just name/desc/category (per location)
-   - `NPC_PROMPT_MINIMAL`: Just NPC list (optional per location)
+5. ~~**Split generation prompts** (`ai_config.py`)~~ ✓ Completed (2025-12-26):
+   - Added `DEFAULT_WORLD_CONTEXT_PROMPT`: Generate theme essence (Layer 1, once per world)
+   - Added `DEFAULT_REGION_CONTEXT_PROMPT`: Generate region details (Layer 2, per area)
+   - Added `DEFAULT_LOCATION_PROMPT_MINIMAL`: Just name/desc/category (Layer 3, per location)
+   - Added `DEFAULT_NPC_PROMPT_MINIMAL`: Just NPC list (Layer 4, optional per location)
+   - Added 4 new AIConfig fields with serialization support
+   - Full test coverage (5 new tests) in `tests/test_ai_config.py`
 
 6. **Update AIService** (`ai_service.py`):
    - Add `generate_world_context()` method

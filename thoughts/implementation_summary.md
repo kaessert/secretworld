@@ -1,45 +1,65 @@
-# Implementation Summary: RegionContext Model
+# Implementation Summary: Split Generation Prompts (Step 5 of Layered Query Architecture)
 
 ## What Was Implemented
 
-Created the `RegionContext` model as Layer 2 in the layered query architecture (WorldContext → RegionContext → Location → NPCs).
+Added 4 new prompt templates to `ai_config.py` to support the layered query architecture for more reliable AI content generation with smaller, focused prompts.
 
-### Files Created
+### New Prompt Templates Added
 
-1. **`src/cli_rpg/models/region_context.py`** - The RegionContext dataclass with:
-   - Fields: `name`, `theme`, `danger_level`, `landmarks`, `coordinates`, `generated_at`
-   - `to_dict()` method for serialization (coordinates as list for JSON)
-   - `from_dict()` classmethod for deserialization (list→tuple conversion)
-   - `default()` classmethod factory for fallback when AI unavailable
-   - `DEFAULT_REGION_THEMES` dict with 8 terrain types for fallback themes
+1. **DEFAULT_WORLD_CONTEXT_PROMPT** (Layer 1)
+   - Purpose: Generates world-level thematic context once per world
+   - Input: `{theme}`
+   - Output JSON: `{ "theme_essence", "naming_style", "tone" }`
+   - Location: Lines 262-275
 
-2. **`tests/test_region_context.py`** - Comprehensive test suite with 12 tests:
-   - Creation tests (all fields, minimal fields, empty landmarks)
-   - Serialization tests (all fields, None generated_at)
-   - Deserialization tests (all fields, missing generated_at, null generated_at)
-   - Default factory tests (valid context, different coordinates)
-   - Round-trip tests (full data, without generated_at)
+2. **DEFAULT_REGION_CONTEXT_PROMPT** (Layer 2)
+   - Purpose: Generates region-level context per region
+   - Inputs: `{theme}`, `{theme_essence}`, `{naming_style}`, `{tone}`, `{coordinates}`, `{terrain_hint}`
+   - Output JSON: `{ "name", "theme", "danger_level", "landmarks" }`
+   - Location: Lines 278-302
 
-### Files Modified
+3. **DEFAULT_LOCATION_PROMPT_MINIMAL** (Layer 3)
+   - Purpose: Generates location without NPCs
+   - Inputs: `{theme}`, `{theme_essence}`, `{region_name}`, `{region_theme}`, `{direction}`, `{source_location}`
+   - Output JSON: `{ "name", "description", "connections", "category" }`
+   - Location: Lines 305-333
 
-- **`src/cli_rpg/models/__init__.py`** - Added RegionContext import and export
+4. **DEFAULT_NPC_PROMPT_MINIMAL** (Layer 4)
+   - Purpose: Generates NPCs separately from location
+   - Inputs: `{theme}`, `{theme_essence}`, `{naming_style}`, `{location_name}`, `{location_description}`, `{location_category}`
+   - Output JSON: `{ "npcs": [...] }`
+   - Location: Lines 336-364
+
+### AIConfig Dataclass Updates
+
+- Added 4 new fields with defaults:
+  - `world_context_prompt: str = field(default=DEFAULT_WORLD_CONTEXT_PROMPT)`
+  - `region_context_prompt: str = field(default=DEFAULT_REGION_CONTEXT_PROMPT)`
+  - `location_prompt_minimal: str = field(default=DEFAULT_LOCATION_PROMPT_MINIMAL)`
+  - `npc_prompt_minimal: str = field(default=DEFAULT_NPC_PROMPT_MINIMAL)`
+
+### Serialization Updates
+
+- **to_dict()**: Added 4 new keys for the new prompts
+- **from_dict()**: Added 4 new `.get()` calls with defaults
+
+## Files Modified
+
+- `src/cli_rpg/ai_config.py` - Added prompts, dataclass fields, and serialization support
+- `tests/test_ai_config.py` - Added 5 new tests
 
 ## Test Results
 
-- All 12 new RegionContext tests pass
-- Full test suite: 3386 tests pass
+All 25 tests pass (20 existing + 5 new):
+- `test_ai_config_world_context_prompt_exists` - Verifies prompt exists with `{theme}`
+- `test_ai_config_region_context_prompt_exists` - Verifies prompt exists with `{theme_essence}`
+- `test_ai_config_location_prompt_minimal_exists` - Verifies prompt exists with `{region_theme}`
+- `test_ai_config_npc_prompt_minimal_exists` - Verifies prompt exists with `{location_name}`
+- `test_ai_config_serialization_includes_new_prompts` - Verifies round-trip serialization
 
-## Design Decisions
+## E2E Validation Points
 
-1. **Coordinates stored as tuple** in the model but serialized as list for JSON compatibility (following Python JSON conventions)
-2. **Default danger_level is "moderate"** - a safe middle-ground for fallback
-3. **Default theme uses "wilderness"** - generic enough for any world theme
-4. **Empty landmarks list** for defaults - allows AI to generate specific POIs later
-5. **Pattern follows WorldContext** - consistent API with `to_dict()`, `from_dict()`, `default()`
-
-## E2E Validation
-
-When region-based AI generation is implemented:
-- Verify RegionContext persists through save/load cycles
-- Verify default factory provides usable fallback when AI unavailable
-- Verify region themes influence location generation within the region
+When E2E testing, verify:
+1. AIConfig can be instantiated with custom values for all 4 new prompts
+2. Saving and loading game state preserves custom prompt values
+3. AI service can format prompts using the new templates with appropriate context
