@@ -1328,8 +1328,19 @@ def handle_exploration_command(game_state: GameState, command: str, args: list[s
             if rep_message:
                 lines.append(rep_message)
                 lines.append("")
+        # Calculate price modifiers for display (same as buy command)
+        from cli_rpg.social_skills import get_cha_price_modifier
+        cha_modifier = get_cha_price_modifier(game_state.current_character.charisma)
         for si in shop.inventory:
-            lines.append(f"  {si.item.name} - {si.buy_price} gold")
+            # Calculate display price with all modifiers (matches buy logic)
+            display_price = int(si.buy_price * cha_modifier)
+            if faction_buy_mod is not None:
+                display_price = int(display_price * faction_buy_mod)
+            if game_state.current_npc and game_state.current_npc.persuaded:
+                display_price = int(display_price * 0.8)
+            if game_state.haggle_bonus > 0:
+                display_price = int(display_price * (1 - game_state.haggle_bonus))
+            lines.append(f"  {si.item.name} - {display_price} gold")
         return (True, "\n".join(lines))
 
     elif command == "buy":

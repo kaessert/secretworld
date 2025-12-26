@@ -87,69 +87,15 @@ Instead of one monolithic prompt, use a hierarchical generation system:
    - Attempt to close truncated arrays/objects
    - Validate against expected schema before use
 
-3. ~~**Create WorldContext model** (`models/world_context.py`)~~ ✓ Completed (2025-12-26):
-   - Created `WorldContext` dataclass with fields: `theme`, `theme_essence`, `naming_style`, `tone`, `generated_at`
-   - Added `to_dict()`/`from_dict()` serialization with backward compatibility
-   - Added `default(theme)` factory for fallback contexts when AI unavailable
-   - Default values for 5 theme types: fantasy, cyberpunk, steampunk, horror, post-apocalyptic
-   - Full test coverage (10 tests) in `tests/test_world_context.py`
-
-4. ~~**Create RegionContext model** (`models/region_context.py`)~~ ✓ Completed (2025-12-26):
-   - Created `RegionContext` dataclass with fields: `name`, `theme`, `danger_level`, `landmarks`, `coordinates`, `generated_at`
-   - Added `to_dict()`/`from_dict()` serialization (coordinates as tuple internally, list for JSON)
-   - Added `default(coordinates)` factory for fallback contexts when AI unavailable
-   - Default values for 8 terrain types in `DEFAULT_REGION_THEMES`
-   - Full test coverage (12 tests) in `tests/test_region_context.py`
-
-5. ~~**Split generation prompts** (`ai_config.py`)~~ ✓ Completed (2025-12-26):
-   - Added `DEFAULT_WORLD_CONTEXT_PROMPT`: Generate theme essence (Layer 1, once per world)
-   - Added `DEFAULT_REGION_CONTEXT_PROMPT`: Generate region details (Layer 2, per area)
-   - Added `DEFAULT_LOCATION_PROMPT_MINIMAL`: Just name/desc/category (Layer 3, per location)
-   - Added `DEFAULT_NPC_PROMPT_MINIMAL`: Just NPC list (Layer 4, optional per location)
-   - Added 4 new AIConfig fields with serialization support
-   - Full test coverage (5 new tests) in `tests/test_ai_config.py`
-
-6. ~~**Update AIService** (`ai_service.py`)~~ ✓ Completed (2025-12-26):
-   - ~~Add `generate_world_context()` method~~ ✓ Completed - generates WorldContext with theme_essence, naming_style, and tone
-   - ~~Add `generate_region_context()` method~~ ✓ Completed - generates RegionContext with name, theme, danger_level, and landmarks; includes danger level mapping (low/medium/high/deadly → safe/moderate/dangerous/deadly)
-   - ~~Add `generate_location_with_context()` method~~ ✓ Completed - uses `location_prompt_minimal` template, accepts world_context and region_context parameters
-   - ~~Add `generate_npcs_for_location()` method~~ ✓ Completed - uses `npc_prompt_minimal` template, returns validated NPC list
-
-7. ~~**Cache contexts in GameState**~~ ✓ Completed (2025-12-26):
-   - ~~Store WorldContext at game creation~~ ✓ `world_context` attribute + `get_or_create_world_context()` method
-   - ~~Store RegionContexts as player explores~~ ✓ `region_contexts` dict + `get_or_create_region_context()` method
-   - ~~Pass relevant context to generation calls~~ ✓ Wired in `ai_world.py` `expand_world()` and `expand_area()`
-   - ~~Serialize contexts with game state~~ ✓ Added to `to_dict()` and `from_dict()`
-
-**Files to modify**:
-- `src/cli_rpg/ai_config.py`: Split prompts, adjust token limits
-- `src/cli_rpg/ai_service.py`: Add layered generation methods, JSON repair
-- `src/cli_rpg/models/world_context.py`: NEW - WorldContext model
-- `src/cli_rpg/models/region_context.py`: NEW - RegionContext model
-- `src/cli_rpg/game_state.py`: Cache contexts, pass to generation
-- `src/cli_rpg/ai_world.py`: Use layered generation
-
-**Quick Wins (do first)**:
-1. ~~Increase `max_tokens` for location generation (current: 2000, try: 3000)~~ ✓ Completed (2025-12-26) - Default increased to 3000
-2. ~~Add JSON extraction from markdown code blocks~~ ✓ Completed (2025-12-26) - Added `_extract_json_from_response()` to extract JSON from ```json...``` or ```...``` blocks in all 5 parse methods
-3. ~~Add try/except with JSON repair for truncated responses~~ ✓ Completed (2025-12-26) - Added `_repair_truncated_json()` method that closes unclosed strings/brackets; integrated into all 5 parse methods
-4. ~~Log full AI responses on parse failure for debugging~~ ✓ Completed (2025-12-26) - Added `_log_parse_failure()` helper that logs full response text with DEBUG level; integrated into all 5 parse methods (location, area, enemy, item, quest)
-
----
-
-### ~~AI Area Generation - Coordinates Outside SubGrid Bounds~~
-**Status**: RESOLVED (2025-12-26)
-
-**Problem**: AI area generation was failing when generated locations had coordinates outside SubGrid bounds:
-
-```
-AI area generation failed: Coordinates (0, 4) outside bounds (-3, 3, -3, 3)
-```
-
-**Solution Implemented**: Combined defense-in-depth approach:
-1. **Prompt guidance** (`ai_service.py`): Updated area generation prompt to inform AI about coordinate bounds (-3 to 3 for both x and y)
-2. **Runtime bounds checking** (`ai_world.py`): Added `is_within_bounds()` check before adding locations - out-of-bounds locations are skipped with a warning log instead of crashing
-3. **Test coverage** (`test_ai_world_subgrid.py`): Added test `test_expand_area_skips_out_of_bounds_locations` to verify graceful degradation
+**Completed (2025-12-26)**:
+- ✓ WorldContext and RegionContext models created
+- ✓ Split generation prompts (world context, region context, minimal location, NPC)
+- ✓ AIService layered generation methods
+- ✓ GameState context caching and serialization
+- ✓ Increased max_tokens to 3000
+- ✓ JSON extraction from markdown code blocks
+- ✓ JSON repair for truncated responses
+- ✓ Debug logging for parse failures
 
 ---
 
@@ -157,17 +103,9 @@ AI area generation failed: Coordinates (0, 4) outside bounds (-3, 3, -3, 3)
 **Status**: ACTIVE
 **Date Discovered**: 2025-12-26
 
-Issues discovered through comprehensive map system playtesting in non-interactive mode:
+Issues discovered through comprehensive map system playtesting in non-interactive mode.
 
-1. ~~**CRITICAL: Map command fails inside SubGrid locations**~~ (RESOLVED 2025-12-26)
-   - Fixed in `src/cli_rpg/main.py` - now passes `game_state.current_sub_grid` to `render_map()`
-   - Test added: `test_map_command_inside_subgrid_shows_interior_map`
-
-2. ~~**MEDIUM: Worldmap command fails inside SubGrid locations**~~ (RESOLVED 2025-12-26)
-   - Fixed in `src/cli_rpg/main.py` - now detects `in_sub_location` and uses `parent_location` to center the worldmap
-   - Test added: `test_worldmap_command_inside_subgrid_uses_parent_location`
-
-**Note**: Both map issues are now resolved. The `render_map()` and `render_worldmap()` functions fully support SubGrid locations.
+**Note**: Map command issues inside SubGrid locations are resolved.
 
 ---
 
@@ -188,28 +126,8 @@ Issues discovered through comprehensive map system playtesting in non-interactiv
 
 ---
 
-### Non-interactive mode bugs
-**Status**: ACTIVE
-
-Issues discovered while playtesting `--non-interactive` mode:
-
-1. ~~**Character creation broken in non-interactive mode**~~ (RESOLVED)
-2. ~~**Shop command requires prior NPC interaction**~~ (RESOLVED)
-3. ~~**NPC conversation responses are generic**~~ (RESOLVED with AI service)
-4. ~~**Enemy attack text duplicates name**~~ (RESOLVED)
-5. ~~**Non-interactive mode skipped AI initialization**~~ (RESOLVED)
-
----
-
 ### Non-interactive mode enhancements
-**Status**: ACTIVE (Mostly Complete)
-
-The basic `--non-interactive` mode has been implemented. The following enhancements would improve automated playtesting further:
-
-1. ~~**Structured output for AI parsing**~~ (DONE - JSON output mode)
-2. ~~**Comprehensive gameplay logging**~~ (DONE - `--log-file` option)
-3. ~~**Session state export**~~ (DONE - `dump-state` command)
-4. ~~**Additional automation features**~~ (DONE - `--delay`, `--seed` options)
+**Status**: ACTIVE
 
 **Future enhancements**:
 - Include RNG seeds in logs for reproducibility
@@ -502,103 +420,18 @@ class Tiredness:
 
 ---
 
-### ~~Class-specific combat abilities show "Unknown command" outside combat~~
-**Status**: RESOLVED (2025-12-26)
-
-**Problem**: When a player used class-specific combat abilities (fireball, ice_bolt, heal, bash, bless, smite, hide) outside of combat, they received "Unknown command. Type 'help' for a list of commands." instead of the clearer "Not in combat." message that basic combat commands give.
-
-**Solution Implemented**:
-- Extended the combat command check in `handle_exploration_command()` to include class-specific abilities
-- Added `fireball`, `ice_bolt`, `heal`, `bash`, `bless`, `smite`, `hide` to the combat commands list
-- All now correctly return "Not in combat." when used outside combat
-- Added comprehensive test coverage in `test_main_coverage.py`
-
----
-
-### ~~Talk command fails in SubGrid sublocations~~
-**Status**: RESOLVED (2025-12-26)
-
-**Problem**: The `talk` command did not find NPCs when inside SubGrid sublocations. Despite `look` showing NPCs present (e.g., "NPCs: Merchant"), the `talk` command returned "There are no NPCs here to talk to."
-
-**Root Cause**: The talk command used `game_state.world.get()` which only looked in the main world dictionary, not in SubGrid sublocations stored in `game_state.current_sub_grid`.
-
-**Solution Implemented**: Changed `game_state.world.get(game_state.current_location)` to `game_state.get_current_location()` in `src/cli_rpg/main.py` line 1147. The `get_current_location()` method properly handles both overworld locations and SubGrid sublocations.
-
-**Test Coverage**: 4 new tests added in `tests/test_talk_subgrid.py`:
-- `test_talk_finds_npc_in_subgrid`
-- `test_talk_to_specific_npc_in_subgrid`
-- `test_talk_npc_not_found_in_subgrid`
-- `test_talk_to_merchant_in_subgrid_sets_shop`
-
----
-
-### ~~CRITICAL: ImportError crashes game on Cleric smite ability~~
-**Status**: RESOLVED (2025-12-26)
-
-**Problem**: Game crashed with ImportError when Cleric used `smite` ability and defeated an enemy.
-
-**Solution**: Replaced incorrect `get_combat_reaction` import with `process_companion_reactions`, which is already imported and used elsewhere in `main.py` for handling companion reactions to combat kills.
-
----
-
 ### WFC Playtesting Issues (2025-12-26)
 **Status**: ACTIVE
 
 Issues discovered during `--wfc` mode playtesting (updated 2025-12-26):
 
-#### CRITICAL BUGS
-
-1. ~~**ImportError on Cleric smite**~~ (RESOLVED 2025-12-26 - see above)
-
 #### HIGH PRIORITY BUGS
 
-1. ~~**AI generation should retry, not fallback to templates**~~ (RESOLVED 2025-12-26)
-   - Implemented `generation_max_retries` config field (default: 2, = 3 total attempts)
-   - Added `_generate_with_retry()` wrapper in `AIService` for generation-level retries
-   - Retries `AIGenerationError` (parse/validation failures) with exponential backoff
-   - Does NOT retry `AIServiceError` or `AITimeoutError` (already have API-level retries)
-   - Updated `generate_location()`, `generate_area()`, and `generate_location_with_context()` to use retry wrapper
-   - Full test coverage added (9 new tests in `test_ai_service.py`)
+1. ~~**Shop price inconsistency**~~ ✅ RESOLVED (2025-12-26)
+   - Shop display now shows adjusted prices (CHA, faction, persuade, haggle modifiers)
+   - Matches the actual purchase price shown in buy command errors
 
-2. ~~**Case-sensitive location names for `enter` command**~~ (RESOLVED 2025-12-26)
-   - ~~Location names displayed with "Enter: Spectral Grove" but `enter` command converts to lowercase~~
-   - ~~Typing `enter Spectral Grove` fails with "No such location: spectral grove"~~
-   - **Solution**: Implemented case-insensitive multi-word location matching in `game_state.py:809-822`. The `enter` command now correctly matches "spectral grove" to "Spectral Grove".
-
-3. ~~**Location art contains markdown code fences**~~ (RESOLVED 2025-12-26)
-   - Fixed: Added `_extract_ascii_art_from_code_block()` method to strip markdown fences
-   - Applied to all 3 ASCII art parsing methods: location, enemy, and NPC art
-   - Test coverage added in `tests/test_ascii_art.py`
-
-4. ~~**Fallback location names include coordinates**~~ (RESOLVED 2025-12-26)
-   - ~~When fallback occurs, names like "Vast Prairie (-1, 0)" or "Vast Prairie (1, 1)" are used~~
-   - ~~Coordinates in names break immersion~~
-   - **Solution**: Replaced coordinate-based naming with direction-based suffixes (e.g., "Stone Ridge North", "Dark Forest East"). Supports all 8 cardinal/ordinal directions. Test added in `test_infinite_world_without_ai.py`.
-
-3. ~~**NPCs shown as "???" in fog weather**~~ (RESOLVED 2025-12-26)
-   - Fixed: NPCs at the player's current location are now always visible regardless of fog
-   - The fog "obscured" visibility effect only hides some exits (50% chance each)
-
-4. ~~**SubGrid bounds warning shown to user**~~ (RESOLVED 2025-12-26)
-   - Added NullHandler to cli_rpg package logger to prevent log messages leaking to stderr
-   - Internal warnings now silenced from user output
-
-5. ~~**AI ASCII art generation failure shown to user**~~ (RESOLVED 2025-12-26)
-   - Added NullHandler to cli_rpg package logger to prevent log messages leaking to stderr
-   - Internal warnings now silenced from user output
-
-6. ~~**Debug messages shown to players**~~ (RESOLVED 2025-12-26)
-   - Added NullHandler to cli_rpg package logger in `src/cli_rpg/__init__.py`
-   - Follows Python logging best practices for library packages
-   - Applications can still configure handlers if they want to see log output (e.g., via `--verbose` flag)
-
-7. **Shop price inconsistency**
-   - Shop display: "Health Potion - 50 gold"
-   - Error message: "You can't afford Health Potion (48 gold). You have 9 gold."
-   - The prices don't match (50 vs 48) - confusing for players
-   - Related to faction price modifiers showing in error but not shop listing
-
-8. **ASCII art first line loses leading whitespace**
+2. **ASCII art first line loses leading whitespace**
    - First row of ASCII art displays without leading spaces, breaking alignment
    - Example (wrong):
      ```
@@ -615,7 +448,7 @@ Issues discovered during `--wfc` mode playtesting (updated 2025-12-26):
    - **Cause**: Likely string stripping or split/join operation removing leading spaces from first line
    - **Files to investigate**: `ai_service.py` (ASCII art parsing), `location_art.py` (fallback templates)
 
-9. **Shop command doesn't work with AI-generated merchants in SubGrid locations**
+3. **Shop command doesn't work with AI-generated merchants in SubGrid locations**
    - Location shows "NPCs: Tech Merchant" but `shop` command says "There's no merchant here."
    - Reproduction:
      1. Enter a SubGrid location (e.g., `enter Rusty Outpost`)
@@ -630,7 +463,7 @@ Issues discovered during `--wfc` mode playtesting (updated 2025-12-26):
      - `src/cli_rpg/ai_world.py`: NPC generation for SubGrid locations
      - `src/cli_rpg/models/npc.py`: NPC role field
 
-10. **Caravan world event doesn't provide shop access**
+4. **Caravan world event doesn't provide shop access**
     - "A merchant caravan is present in Shadowed Dell!" message displays
     - `events` command shows "Traveling Traders [CARAVAN]" active at location
     - But `shop` command says "There's no merchant here."
@@ -644,7 +477,7 @@ Issues discovered during `--wfc` mode playtesting (updated 2025-12-26):
       - `src/cli_rpg/main.py`: `shop` command - doesn't check for active caravan events
       - `src/cli_rpg/models/world_event.py`: Event model
 
-11. **"Can't go that way" even though map shows valid exits**
+5. **"Can't go that way" even though map shows valid exits**
     - Map displays "Exits: east, south, west" but movement fails with "You can't go that way."
     - Location "Dim Glade North" at (1, 11) shows exits but they don't work
     - **Possible causes**:
@@ -692,17 +525,7 @@ Issues discovered during `--wfc` mode playtesting (updated 2025-12-26):
      - Add pagination or search
      - Fix "(saved: unknown)" to show actual timestamps
 
-6. ~~**"enter" command with no argument silently fails**~~ (RESOLVED 2025-12-26)
-   - ~~Typing `enter` without a location name gives no feedback~~
-   - **Solution**: Improved error handling now shows "Available: Tavern, Market" when entering invalid location names, or "There are no locations to enter here." when no sub-locations exist. Implemented in `game_state.py:809-822`.
-
-7. ~~**Map shows reachable cells as blocked**~~ (RESOLVED 2025-12-26)
-   - Map displayed `█` (blocked) for cells that had valid exits from the current location
-   - Example: Player at (1,0) with "south" exit, but cell (1,-1) showed as blocked
-   - **Root cause**: Map logic marked cell as blocked if ANY adjacent explored location lacked a connection, instead of checking if ANY adjacent location HAD a connection
-   - **Solution**: Fixed logic in `map_renderer.py:175-201` to only mark cells blocked when NO adjacent explored locations have connections to them
-
-8. **Can enter any sub-location instead of designated entry point**
+6. **Can enter any sub-location instead of designated entry point**
    - Currently shows multiple "Enter:" options for all sub-locations in an area
    - Player can enter any sub-location directly (e.g., "Enter: Data Glade, Cyber Grove, Neon Orchard, Quantum Glade")
    - **Problem**: This is unrealistic - you shouldn't be able to teleport into any room
@@ -740,9 +563,8 @@ Issues discovered during `--wfc` mode playtesting (updated 2025-12-26):
 
 #### DESIGN OBSERVATIONS
 
-1. **Shop price shows base, not reputation-adjusted price**
-   - Shop displays base price (50 gold) but purchase shows discounted price (49 gold)
-   - Minor UX issue - could show discounted price in shop listing
+1. ~~**Shop price shows base, not reputation-adjusted price**~~ ✅ RESOLVED (2025-12-26)
+   - Shop now displays fully adjusted prices (CHA, faction, persuade, haggle modifiers)
 
 2. **Rest command output**
    - Shows stamina recovery and dread reduction
@@ -1153,18 +975,7 @@ AI generates:  "Desert Oasis" at coordinates (1,1) ← No connection!
 - `src/cli_rpg/wfc_chunks.py` - ChunkManager (working correctly)
 - `src/cli_rpg/ai_world.py` - Location generation (doesn't query terrain)
 
-**2. ~~Orphaned Layered Context System~~** ✓ RESOLVED (2025-12-26)
-
-~~Models exist in `models/world_context.py` and `models/region_context.py`, plus generation methods `generate_world_context()` and `generate_region_context()` in `ai_service.py`. But they're **never called**:~~
-
-The layered context system is now fully integrated:
-- `GameState.get_or_create_world_context()` generates/caches WorldContext
-- `GameState.get_or_create_region_context()` generates/caches RegionContext per coordinates
-- `ai_world.py` passes contexts to `expand_world()` and `expand_area()`
-- `generate_location_with_context()` uses minimal prompts with context
-- `generate_npcs_for_location()` generates NPCs separately (Layer 4)
-
-**3. Each Location Generated in Isolation**
+**2. Each Location Generated in Isolation**
 
 The AI prompt for location generation (`ai_config.py`) doesn't include:
 - World theme/essence
@@ -1174,7 +985,7 @@ The AI prompt for location generation (`ai_config.py`) doesn't include:
 
 Result: Locations feel random, not part of a cohesive world.
 
-**4. Minimal NPC/Content Generation**
+**3. Minimal NPC/Content Generation**
 
 - Only 0-2 NPCs per AI-generated location
 - No shop inventories generated
@@ -1185,34 +996,7 @@ Result: Locations feel random, not part of a cohesive world.
 
 **Phase 1: High Priority (Integrate existing systems)**
 
-1. ~~**Wire Up the Layer Context System**~~ ✓ COMPLETED (2025-12-26)
-   - [x] Generate `WorldContext` once in `create_ai_world()` at world creation
-   - [x] Store `WorldContext` in `GameState` for persistence
-   - [x] Generate `RegionContext` when player enters new region
-   - [x] Cache `RegionContext` by coordinates in `GameState`
-   - [x] Pass world + region context to location generation prompts
-
-   **Implementation**:
-   - `GameState.get_or_create_world_context()` - generates/caches Layer 1 context
-   - `GameState.get_or_create_region_context()` - generates/caches Layer 2 context per coordinates
-   - `AIService.generate_location_with_context()` - Layer 3 minimal location generation
-   - `AIService.generate_npcs_for_location()` - Layer 4 separate NPC generation
-   - Contexts serialized in `to_dict()`/`from_dict()` for save/load
-
-2. ~~**Connect Terrain to Location Generation**~~ ✓ COMPLETED (2025-12-26)
-   - [x] Query `chunk_manager.get_tile_at(x, y)` before generating location
-   - [x] Pass terrain type to AI prompt
-   - [x] Update prompt template to include terrain hint
-   - [ ] Validate generated location category matches terrain (`world_tiles.py:TERRAIN_LOCATION_TYPES`) - deferred
-
-   **Implementation**:
-   - `game_state.py`: `move()` queries terrain from ChunkManager and passes to `expand_area()`
-   - `ai_world.py`: `expand_area()` and `expand_world()` accept `terrain_type` parameter
-   - `ai_service.py`: `generate_location_with_context()` accepts `terrain_type` and includes in prompt
-   - `ai_config.py`: `DEFAULT_LOCATION_PROMPT_MINIMAL` includes `{terrain_type}` placeholder
-   - Test coverage in `tests/test_terrain_location_coherence.py` (6 tests)
-
-3. **Enrich Location Prompts** (Partially Complete)
+1. **Enrich Location Prompts** (Partially Complete)
    - [x] Add `terrain_type` from ChunkManager to prompt ✓ (2025-12-26)
    - [ ] Add `world_theme_essence` from WorldContext to prompt
    - [ ] Add `region_theme` from RegionContext to prompt
@@ -1223,7 +1007,7 @@ Result: Locations feel random, not part of a cohesive world.
 
 **Phase 2: Medium Priority (New features)**
 
-4. **Region Planning System**
+2. **Region Planning System**
    - [ ] Divide world into ~16x16 tile regions
    - [ ] Pre-generate `RegionContext` when player approaches region boundary
    - [ ] All locations in region share theme, danger level, naming style
@@ -1233,7 +1017,7 @@ Result: Locations feel random, not part of a cohesive world.
    - `src/cli_rpg/game_state.py`: Add region management
    - `src/cli_rpg/ai_world.py`: Use region context during expansion
 
-5. **Enhanced NPC Generation**
+3. **Enhanced NPC Generation**
    - [ ] Request 3-5 NPCs per location with roles (merchant, quest giver, guard, traveler)
    - [ ] Generate shop inventories for merchants
    - [ ] Generate quest hooks tied to region theme
@@ -1243,7 +1027,7 @@ Result: Locations feel random, not part of a cohesive world.
    - `src/cli_rpg/ai_service.py`: Enhance NPC generation
    - `src/cli_rpg/ai_config.py`: Update NPC prompt template
 
-6. **Terrain-Biased WFC**
+4. **Terrain-Biased WFC**
    - [ ] Modify chunk generation to respect region themes
    - [ ] Mountain region → bias WFC toward mountain/foothills/hills
    - [ ] Swamp region → bias toward swamp/water/forest
@@ -1255,12 +1039,12 @@ Result: Locations feel random, not part of a cohesive world.
 
 **Phase 3: Lower Priority (Polish)**
 
-7. **Strategic World Expansion**
+5. **Strategic World Expansion**
    - [ ] Place frontier exits strategically (toward unexplored regions)
    - [ ] Ensure terrain transitions feel natural (forest → plains → desert, not forest → desert)
    - [ ] Cluster similar locations together
 
-8. **Configurable SubGrid Bounds**
+6. **Configurable SubGrid Bounds**
    - [ ] Support linear dungeons (1x10 corridors)
    - [ ] Support large open areas (10x10 plazas)
    - [ ] Multi-level dungeons with z-coordinate

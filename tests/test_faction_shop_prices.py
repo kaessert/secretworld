@@ -424,3 +424,23 @@ class TestShopCommandWithFactionReputation:
         cont, msg = handle_exploration_command(game, "shop", [])
         assert cont is True
         assert "20%" in msg or "honored" in msg.lower()
+
+    def test_shop_displays_faction_adjusted_prices(self, game_with_shop_and_factions):
+        """Shop command shows faction-adjusted prices, not base prices.
+
+        Tests spec: Shop display should show the same adjusted prices that
+        the buy command uses, preventing confusion when displayed and charged
+        prices don't match.
+        """
+        game = game_with_shop_and_factions
+        game.factions = create_factions_with_merchant_guild(90)  # HONORED (-20%)
+
+        cont, msg = handle_exploration_command(game, "shop", [])
+        assert cont is True
+        # Base price is 100 for Health Potion, HONORED = 80
+        assert "80 gold" in msg
+        # Should NOT show base price
+        assert "100 gold" not in msg
+        # Also check Iron Sword: base 200, HONORED = 160
+        assert "160 gold" in msg
+        assert "200 gold" not in msg

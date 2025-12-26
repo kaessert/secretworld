@@ -1,34 +1,47 @@
-# Implementation Summary: NPCs Visible at Current Location in Fog
+# Implementation Summary: Fix Shop Price Display Inconsistency
 
 ## What Was Implemented
 
-Fixed bug #3 (HIGH PRIORITY): NPCs were incorrectly shown as "???" at the player's current location during fog weather conditions.
-
-### The Fix
-NPCs at the player's current location are now always visible regardless of fog. The fog "obscured" visibility effect now only hides some exits (50% chance each), not NPCs.
+Fixed a bug where the `shop` command displayed base prices while the `buy` command used adjusted prices (factoring in CHA modifier, faction reputation, persuade discount, and haggle bonus). This caused player confusion when the displayed price didn't match the actual purchase price.
 
 ## Files Modified
 
-1. **`src/cli_rpg/models/location.py`** (lines 202-205)
-   - Removed the conditional logic that obscured NPC names with "???" in fog
-   - NPCs are now always shown with their actual names at the player's location
-   - Updated docstring to reflect that "obscured" visibility only affects exits
+1. **`tests/test_faction_shop_prices.py`**
+   - Added `test_shop_displays_faction_adjusted_prices` to `TestShopCommandWithFactionReputation` class
+   - Test verifies that displayed prices match faction-adjusted prices (80 gold instead of 100 for HONORED)
 
-2. **`src/cli_rpg/game_state.py`** (line 335)
-   - Updated docstring in `look()` method to remove reference to NPC names being obscured
+2. **`src/cli_rpg/main.py`** (lines 1331-1343)
+   - Updated shop display logic to calculate prices with all modifiers:
+     - CHA modifier (from `get_cha_price_modifier`)
+     - Faction reputation modifier (via `faction_buy_mod`)
+     - Persuade discount (20% if NPC persuaded)
+     - Haggle bonus (if active)
+   - This matches the exact price calculation used in the `buy` command
 
-3. **`src/cli_rpg/models/weather.py`** (line 53)
-   - Updated visibility levels comment to remove reference to NPC name obscuring
+## Technical Details
 
-4. **`tests/test_weather.py`** (lines 472-493, 554-580)
-   - Updated `test_location_obscured_visibility_shows_npc_names` to verify NPCs ARE visible in fog
-   - Updated `test_look_in_fog_shows_npcs_at_current_location` to verify NPCs ARE visible via GameState.look()
+The fix imports `get_cha_price_modifier` from `social_skills` module and applies the same chain of price modifiers used in the buy command:
+
+```python
+display_price = int(si.buy_price * cha_modifier)
+if faction_buy_mod is not None:
+    display_price = int(display_price * faction_buy_mod)
+if game_state.current_npc and game_state.current_npc.persuaded:
+    display_price = int(display_price * 0.8)
+if game_state.haggle_bonus > 0:
+    display_price = int(display_price * (1 - game_state.haggle_bonus))
+```
 
 ## Test Results
 
-- All 39 weather tests pass
-- Full test suite: 3453 tests pass
+- New test: `test_shop_displays_faction_adjusted_prices` - PASSED
+- Related tests (118 shop/charisma/haggle/faction tests) - ALL PASSED
+- Full test suite (3454 tests) - ALL PASSED
 
-## Design Decision
+## E2E Validation
 
-The fog weather effect is intended to reduce visibility of distant locations (hidden exits), not obscure things the player is standing directly next to. Players should always be able to see NPCs at their current location.
+To manually validate:
+1. Start game with a merchant NPC
+2. Build faction reputation to HONORED (80+)
+3. Run `shop` command - prices should show discounted values
+4. Run `buy <item>` - charged price should match displayed price
