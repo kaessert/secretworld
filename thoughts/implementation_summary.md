@@ -1,64 +1,82 @@
-# WFC Core Algorithm Implementation Summary
+# Implementation Summary: WFC ChunkManager
 
-## What Was Implemented
+## Overview
 
-### New Files Created
+Implemented `ChunkManager` class in `src/cli_rpg/wfc_chunks.py` for infinite terrain generation via cached WFC-generated 8x8 chunks with deterministic seeding.
 
-1. **`src/cli_rpg/wfc.py`** - Wave Function Collapse algorithm implementation
-   - `WFCCell` dataclass: Represents a single cell with coords, possible tiles, collapsed state, and final tile
-   - `WFCGenerator` class: Main WFC algorithm implementation
+## Files Created
 
-2. **`tests/test_wfc.py`** - 17 comprehensive tests covering:
-   - WFCCell dataclass creation and defaults
-   - WFCGenerator initialization and deterministic seeding
-   - Shannon entropy calculation
-   - Minimum entropy cell selection
-   - Cell collapse with weighted random selection
-   - Constraint propagation with chain reactions
-   - Contradiction detection
-   - Full chunk generation with adjacency validation
+| File | Description |
+|------|-------------|
+| `src/cli_rpg/wfc_chunks.py` | ChunkManager class implementation |
+| `tests/test_wfc_chunks.py` | 17 test cases covering all spec requirements |
 
-### Algorithm Details
+## Implementation Details
 
-The WFC implementation follows the classic algorithm:
+### ChunkManager Class
 
-1. **Initialization**: Create grid of cells, each with all possible terrain types
-2. **Loop until complete**:
-   - Find cell with minimum Shannon entropy (using tile weights)
-   - Collapse cell using weighted random selection
-   - Propagate constraints to neighbors using BFS
-   - Restart on contradiction (cell with 0 options)
-3. **Return**: Dictionary mapping coordinates to terrain tile names
+```python
+@dataclass
+class ChunkManager:
+    tile_registry: TileRegistry
+    chunk_size: int = 8
+    world_seed: int = 0
+    _chunks: Dict[Tuple[int, int], Dict[Tuple[int, int], str]]
+```
 
-### Key Features
+### Key Methods
 
-- **Deterministic generation**: Same seed always produces same output
-- **Weighted tile selection**: Uses `TileRegistry.get_weight()` for biased selection
-- **Arc consistency propagation**: BFS-based constraint propagation
-- **Contradiction recovery**: Automatic restart with different RNG state (up to 100 attempts)
-- **Bidirectional adjacency check**: Ensures both tiles accept each other as neighbors
+1. **`get_or_generate_chunk(chunk_x, chunk_y)`** - Returns cached chunk or generates new one with deterministic seeding: `hash((world_seed, chunk_x, chunk_y)) & 0xFFFFFFFF`
+
+2. **`get_tile_at(world_x, world_y)`** - World coordinate to tile lookup with automatic chunk generation
+
+3. **`to_dict()` / `from_dict()`** - Serialization/deserialization for save/load functionality
+
+### Boundary Constraint System
+
+When generating a new chunk adjacent to existing chunks, the implementation:
+1. Collects boundary tiles from all 4 neighboring chunks
+2. Pre-constrains edge cells to be compatible with neighbors
+3. Propagates constraints through WFC before collapsing any cells
+4. Uses restart-on-contradiction with fresh RNG state
+
+The constraint propagation uses a custom WFC implementation (duplicated from `wfc.py`) that:
+- Accepts pre-constrained cell possibilities
+- Propagates initial constraints before WFC main loop
+- Handles contradictions with multiple restart attempts
+
+### Coordinate System
+
+- Chunk coordinates: `chunk_x = world_x // chunk_size`
+- World origin of chunk: `(chunk_x * chunk_size, chunk_y * chunk_size)`
+- Supports negative coordinates correctly (Python's floor division)
 
 ## Test Results
 
-All 17 WFC tests pass:
-- Basic tests (4): Cell creation, defaults, generator creation, determinism
-- Entropy tests (3): Single option, multiple options, minimum selection
-- Collapse tests (3): Reduction, weight respecting, flag setting
-- Propagation tests (3): Neighbor reduction, chain reaction, contradiction detection
-- Generation tests (4): All collapsed, adjacency respected, correct size, contradiction handling
+```
+17 passed in 0.74s
+```
 
-Full test suite: 3311 tests pass (no regressions)
+All 17 tests pass, covering:
+- Creation and initialization
+- Deterministic seeding
+- Chunk caching
+- Coordinate conversion (positive/negative)
+- Boundary constraints (horizontal and vertical)
+- Large area traversal (21x21 area across 9 chunks)
+- Serialization/deserialization
+
+## Full Test Suite
+
+```
+3328 passed in 66.63s
+```
+
+No regressions in existing tests.
 
 ## E2E Validation
 
-To validate the WFC system works correctly:
-1. Generate multiple chunks with different seeds and verify all adjacency constraints are satisfied
-2. Verify chunk generation is deterministic (same seed = same result)
-3. Verify higher-weight terrains (plains, forest) appear more frequently than low-weight ones (beach, swamp)
-4. Verify water tiles are always adjacent only to water/beach/swamp (most constrained tile)
-
-## Integration Notes
-
-The WFC generator is ready to be integrated with the world grid system. It uses:
-- `TileRegistry` from `world_tiles.py` for tile definitions and weights
-- `ADJACENCY_RULES` from `world_tiles.py` for constraint propagation
+The implementation should be validated with:
+1. Walking across multiple chunk boundaries in-game
+2. Save/load with generated chunks
+3. Performance testing with many chunks loaded

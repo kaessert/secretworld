@@ -33,6 +33,7 @@ src/cli_rpg/
 ├── world_grid.py        # Grid-based spatial world system
 ├── world_tiles.py       # Terrain tile definitions and adjacency rules
 ├── wfc.py               # Wave Function Collapse terrain generation
+├── wfc_chunks.py        # ChunkManager for infinite terrain via cached WFC chunks
 ├── map_renderer.py      # ASCII map display for explored locations
 ├── combat.py            # Combat mechanics
 ├── elements.py          # Elemental damage type system (fire, ice, poison)

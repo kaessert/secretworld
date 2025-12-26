@@ -440,13 +440,13 @@ class ChunkManager:
 | `src/cli_rpg/ai_world.py` | MODIFY | Fix `expand_area()` to use SubGrid |
 | `src/cli_rpg/world.py` | MODIFY | Convert default world to use SubGrid |
 | `src/cli_rpg/persistence.py` | MODIFY | Serialize SubGrid and WFC state |
-| `src/cli_rpg/wfc.py` | CREATE | Core WFC algorithm |
-| `src/cli_rpg/world_tiles.py` | CREATE | Tile definitions and adjacency rules |
-| `src/cli_rpg/wfc_chunks.py` | CREATE | Chunk manager for infinite world |
-| `tests/test_sub_grid.py` | CREATE | SubGrid unit tests |
+| `src/cli_rpg/wfc.py` | ✅ CREATED | Core WFC algorithm |
+| `src/cli_rpg/world_tiles.py` | ✅ CREATED | Tile definitions and adjacency rules |
+| `src/cli_rpg/wfc_chunks.py` | ✅ CREATED | Chunk manager for infinite world |
+| `tests/test_sub_grid.py` | ✅ CREATED | SubGrid unit tests |
 | `tests/test_exit_points.py` | CREATE | Exit command restriction tests |
-| `tests/test_wfc.py` | CREATE | WFC algorithm tests |
-| `tests/test_wfc_chunks.py` | CREATE | Chunk boundary tests |
+| `tests/test_wfc.py` | ✅ CREATED | WFC algorithm tests |
+| `tests/test_wfc_chunks.py` | ✅ CREATED | Chunk boundary tests |
 | `tests/test_wfc_integration.py` | CREATE | Full integration tests |
 
 ---
@@ -468,12 +468,12 @@ class ChunkManager:
 
 1. ✅ Create `wfc.py` with core algorithm - **DONE** (WFCCell dataclass, WFCGenerator class with Shannon entropy, weighted tile selection, constraint propagation, contradiction recovery)
 2. ✅ Create `world_tiles.py` with tile/adjacency definitions - **DONE** (TileRegistry with 9 terrain types, ADJACENCY_RULES, terrain weights)
-3. Create `wfc_chunks.py` with chunk manager
+3. ✅ Create `wfc_chunks.py` with chunk manager - **DONE** (ChunkManager class with deterministic seeding, boundary constraint propagation, serialization)
 4. Integrate with GameState movement
 5. Add terrain-aware location generation
 6. Add persistence for WFC state
 7. Add `--wfc` flag for optional enablement
-8. ✅ Write tests - **DONE** (17 tests in `tests/test_wfc.py`)
+8. ✅ Write tests - **DONE** (17 tests in `tests/test_wfc.py`, 17 tests in `tests/test_wfc_chunks.py`)
 
 ---
 
@@ -516,10 +516,14 @@ class ChunkManager:
 - ✅ Full chunk generation with adjacency validation
 - ✅ Contradiction handling/recovery
 
-### `tests/test_wfc_chunks.py`
-- Chunk boundary consistency
-- Deterministic chunk generation from seed
-- Chunk caching works correctly
+### `tests/test_wfc_chunks.py` ✅ CREATED (17 tests)
+- ✅ ChunkManager creation and initialization
+- ✅ Deterministic chunk generation from seed
+- ✅ Chunk caching works correctly
+- ✅ Coordinate conversion (positive/negative)
+- ✅ Boundary constraint propagation (horizontal and vertical)
+- ✅ Large area traversal (21x21 area across 9 chunks)
+- ✅ Serialization/deserialization
 
 ### `tests/test_wfc_integration.py`
 - Terrain affects location generation

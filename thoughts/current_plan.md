@@ -1,105 +1,118 @@
-# WFC Core Algorithm Implementation Plan
+# Implementation Plan: WFC Chunks Manager (`wfc_chunks.py`)
 
-## Objective
-Create `src/cli_rpg/wfc.py` with Wave Function Collapse algorithm for procedural terrain generation (Phase 2, Item 1 of ISSUES.md P0 blocker).
+## Overview
 
-## Spec
+Create `src/cli_rpg/wfc_chunks.py` with `ChunkManager` class for infinite terrain generation via cached WFC-generated 8x8 chunks with deterministic seeding from world coordinates.
 
-### `WFCCell` Dataclass
-- `coords: Tuple[int, int]` - Cell position
-- `possible_tiles: Set[str]` - Starts with ALL terrain types from `TileRegistry`
-- `collapsed: bool = False` - Whether cell has been resolved
-- `tile: Optional[str] = None` - Final tile (set when collapsed)
+## Spec (from ISSUES.md lines 398-428)
 
-### `WFCGenerator` Class
-- `__init__(self, tile_registry: TileRegistry, seed: int)` - Uses `world_tiles.TileRegistry`
-- `generate_chunk(self, origin: Tuple[int, int], size: int = 8) -> Dict[Tuple[int, int], str]`
-  - Initialize cells with all possible tiles
-  - Loop until all collapsed:
-    1. Find cell with minimum entropy (fewest options, break ties with RNG)
-    2. Collapse cell (weighted random by `TileRegistry.get_weight()`)
-    3. Propagate constraints to neighbors using `ADJACENCY_RULES`
-    4. Handle contradictions (cell with 0 options) - restart or backtrack
-  - Return `{(x, y): tile_name}` dict
+```python
+@dataclass
+class ChunkManager:
+    chunk_size: int = 8  # 8x8 tiles per chunk
+    chunks: Dict[Tuple[int, int], Dict] = field(default_factory=dict)
+    generator: WFCGenerator = None
+    world_seed: int = 0
 
-- `_calculate_entropy(self, cell: WFCCell) -> float` - Shannon entropy formula
-- `_collapse_cell(self, cell: WFCCell) -> str` - Weighted random selection
-- `_propagate(self, grid: Dict, collapsed_coords: Tuple[int, int]) -> bool` - Arc consistency, returns False on contradiction
+    def get_or_generate_chunk(self, chunk_x: int, chunk_y: int) -> Dict
+    def get_tile_at(self, world_x: int, world_y: int) -> str
+    def _apply_boundary_constraints(self, new_chunk, neighbors)
+```
 
----
+Key behaviors:
+- Chunk cache stores generated 8x8 terrain chunks by (chunk_x, chunk_y) key
+- Deterministic chunk seeding: `hash((world_seed, chunk_x, chunk_y)) & 0xFFFFFFFF`
+- World-to-chunk coordinate conversion: `chunk_x = world_x // chunk_size`
+- Local-within-chunk coordinates: `local_x = world_x % chunk_size`
+- Boundary constraints: Edge cells constrained by adjacent chunk tiles
 
-## Tests First (`tests/test_wfc.py`)
+## Tests First (`tests/test_wfc_chunks.py`)
 
-### Basic tests
-1. `test_wfc_cell_creation` - WFCCell dataclass exists with correct fields
-2. `test_wfc_cell_starts_uncollapsed` - collapsed=False, tile=None by default
-3. `test_wfc_generator_creation` - WFCGenerator accepts TileRegistry and seed
-4. `test_wfc_generator_deterministic` - Same seed produces same output
+### Chunk Manager Creation
+1. `test_chunk_manager_creation` - Default values (chunk_size=8, empty chunks dict, world_seed=0)
+2. `test_chunk_manager_with_custom_seed` - Custom world_seed accepted
 
-### Entropy tests
-5. `test_entropy_single_option` - 1 option = 0 entropy
-6. `test_entropy_multiple_options` - More options = higher entropy
-7. `test_select_minimum_entropy_cell` - Correctly finds lowest entropy cell
+### Deterministic Seeding (spec: chunk boundary tests)
+3. `test_chunk_seed_deterministic` - Same world_seed + chunk coords = same terrain
+4. `test_different_chunks_different_terrain` - Different chunk coords = different terrain
+5. `test_different_world_seeds_different_terrain` - Different world_seed = different terrain
 
-### Collapse tests
-8. `test_collapse_reduces_to_one` - After collapse, cell has exactly 1 tile
-9. `test_collapse_respects_weights` - Higher weight tiles selected more often (statistical)
-10. `test_collapse_sets_collapsed_flag` - collapsed=True after collapse
+### Chunk Caching (spec: chunk caching works correctly)
+6. `test_get_or_generate_caches_chunk` - Second call returns cached chunk (no regeneration)
+7. `test_cached_chunk_unchanged` - Cached chunk identical to original
 
-### Propagation tests
-11. `test_propagate_reduces_neighbor_options` - Neighbors lose invalid options
-12. `test_propagate_chain_reaction` - Reduction cascades through grid
-13. `test_propagate_detects_contradiction` - Returns False when cell has 0 options
+### Coordinate Conversion
+8. `test_get_tile_at_positive_coords` - World (5, 3) in chunk (0, 0) returns correct tile
+9. `test_get_tile_at_negative_coords` - World (-3, -5) maps to correct chunk
+10. `test_get_tile_at_chunk_boundary` - World (8, 0) is in chunk (1, 0)
+11. `test_world_to_chunk_conversion` - Verify chunk_x/chunk_y calculation
 
-### Generation tests
-14. `test_generate_chunk_all_collapsed` - All cells have tile assigned
-15. `test_generate_chunk_respects_adjacency` - All neighbors satisfy ADJACENCY_RULES
-16. `test_generate_chunk_correct_size` - 8x8 = 64 cells by default
-17. `test_generate_chunk_handles_contradiction` - Restarts on contradiction, eventually succeeds
+### Boundary Constraints (spec: chunk boundary consistency)
+12. `test_adjacent_chunks_share_compatible_edges` - East edge of (0,0) compatible with west edge of (1,0)
+13. `test_boundary_constraints_applied` - Internal helper constrains edge cells
 
----
+### Integration
+14. `test_large_area_traversal` - Walk across chunk boundaries, terrain is coherent
+15. `test_serialization_to_dict` - ChunkManager.to_dict() serializes world_seed and cached chunks
+16. `test_deserialization_from_dict` - ChunkManager.from_dict() restores state
 
 ## Implementation Steps
 
-1. **Create `tests/test_wfc.py`** with all tests above (they will fail initially)
+### 1. Create `tests/test_wfc_chunks.py`
+- Import fixtures from `test_wfc.py` pattern
+- Write all 16 tests above (red phase)
 
-2. **Create `src/cli_rpg/wfc.py`**:
-   ```python
-   from dataclasses import dataclass, field
-   from typing import Dict, Set, Tuple, Optional, List
-   import random
-   import math
-   from cli_rpg.world_tiles import TileRegistry, ADJACENCY_RULES
-   ```
+### 2. Create `src/cli_rpg/wfc_chunks.py`
+Implement:
+```python
+@dataclass
+class ChunkManager:
+    chunk_size: int = 8
+    _chunks: Dict[Tuple[int, int], Dict[Tuple[int, int], str]] = field(default_factory=dict)
+    world_seed: int = 0
+    _tile_registry: TileRegistry = field(default_factory=TileRegistry)
 
-3. **Implement `WFCCell`** dataclass
+    def get_or_generate_chunk(self, chunk_x: int, chunk_y: int) -> Dict[Tuple[int, int], str]:
+        """Get cached chunk or generate new one with deterministic seeding."""
+        key = (chunk_x, chunk_y)
+        if key not in self._chunks:
+            chunk_seed = hash((self.world_seed, chunk_x, chunk_y)) & 0xFFFFFFFF
+            generator = WFCGenerator(self._tile_registry, seed=chunk_seed)
+            origin = (chunk_x * self.chunk_size, chunk_y * self.chunk_size)
+            self._chunks[key] = generator.generate_chunk(origin, self.chunk_size)
+        return self._chunks[key]
 
-4. **Implement `WFCGenerator.__init__`** - store registry and seed RNG
+    def get_tile_at(self, world_x: int, world_y: int) -> str:
+        """Get terrain tile at world coordinates."""
+        chunk_x = world_x // self.chunk_size
+        chunk_y = world_y // self.chunk_size
+        chunk = self.get_or_generate_chunk(chunk_x, chunk_y)
+        return chunk[(world_x, world_y)]
 
-5. **Implement `_calculate_entropy`** - Shannon entropy: `sum(-p*log(p) for p in probs)`
+    def to_dict(self) -> dict:
+        """Serialize for persistence."""
 
-6. **Implement `_collapse_cell`** - weighted random using `registry.get_weight()`
+    @classmethod
+    def from_dict(cls, data: dict) -> "ChunkManager":
+        """Deserialize from saved state."""
+```
 
-7. **Implement `_propagate`** - BFS/queue-based arc consistency:
-   - Add collapsed cell to queue
-   - For each neighbor: intersect options with valid adjacencies
-   - If any neighbor changed, add to queue
-   - Return False if any cell reaches 0 options
+### 3. Add boundary constraint handling (enhancement)
+- When generating a new chunk adjacent to existing chunks, pre-constrain edge cells
+- Modify `get_or_generate_chunk` to check for neighbor chunks first
+- Apply edge constraints before WFC generation
 
-8. **Implement `generate_chunk`**:
-   - Init grid of WFCCells
-   - While uncollapsed cells exist:
-     - Find min entropy cell (tie-break with RNG)
-     - Collapse it
-     - Propagate
-     - On contradiction: restart with different RNG state
-   - Return tile dict
+### 4. Run tests, iterate until green
 
-9. **Run tests** - all should pass
+## Files to Create/Modify
 
----
+| File | Action |
+|------|--------|
+| `tests/test_wfc_chunks.py` | CREATE |
+| `src/cli_rpg/wfc_chunks.py` | CREATE |
 
-## Files
-- Create: `src/cli_rpg/wfc.py`
-- Create: `tests/test_wfc.py`
-- Uses: `src/cli_rpg/world_tiles.py` (already exists with TileRegistry)
+## Verification
+
+```bash
+pytest tests/test_wfc_chunks.py -v
+```
