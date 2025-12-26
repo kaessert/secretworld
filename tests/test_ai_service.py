@@ -2542,3 +2542,240 @@ def test_generate_world_context_repairs_truncated_json(mock_openai_class, basic_
     assert result.theme_essence == "A dark world."
     assert result.naming_style == "Gothic"
     assert result.tone == "grim"
+
+
+# Tests: generate_region_context() (Layer 2 Region Context Generation)
+# ============================================================================
+
+
+@patch('cli_rpg.ai_service.OpenAI')
+def test_generate_region_context_returns_valid_region_context(mock_openai_class, basic_config):
+    """Test generate_region_context returns a valid RegionContext.
+
+    Spec: Method returns RegionContext with AI-generated name, theme, danger_level, landmarks.
+    """
+    from cli_rpg.models.region_context import RegionContext
+    from cli_rpg.models.world_context import WorldContext
+
+    mock_client = Mock()
+    mock_openai_class.return_value = mock_client
+
+    # Valid JSON response with all required fields
+    valid_response = {
+        "name": "The Shadowed Vale",
+        "theme": "A mist-shrouded valley haunted by ancient spirits.",
+        "danger_level": "high",
+        "landmarks": ["The Hollow Oak", "Wraithstone Bridge", "Ruins of Aldrath"]
+    }
+
+    mock_response = Mock()
+    mock_response.choices = [Mock()]
+    mock_response.choices[0].message.content = json.dumps(valid_response)
+    mock_client.chat.completions.create.return_value = mock_response
+
+    service = AIService(basic_config)
+
+    # Create a WorldContext for input
+    world_context = WorldContext(
+        theme="fantasy",
+        theme_essence="A dark medieval world shrouded in shadow.",
+        naming_style="Old English with Gothic influence",
+        tone="grim, foreboding"
+    )
+
+    result = service.generate_region_context(
+        theme="fantasy",
+        world_context=world_context,
+        coordinates=(5, 10),
+        terrain_hint="forest"
+    )
+
+    # Verify result is RegionContext with correct fields
+    assert isinstance(result, RegionContext)
+    assert result.name == valid_response["name"]
+    assert result.theme == valid_response["theme"]
+    # danger_level 'high' should map to 'dangerous'
+    assert result.danger_level == "dangerous"
+    assert result.landmarks == valid_response["landmarks"]
+    assert result.coordinates == (5, 10)
+    assert result.generated_at is not None
+
+
+@patch('cli_rpg.ai_service.OpenAI')
+def test_generate_region_context_validates_required_fields(mock_openai_class, basic_config):
+    """Test generate_region_context raises AIGenerationError for missing fields.
+
+    Spec: Missing required fields (name, theme, danger_level) raise AIGenerationError.
+    """
+    from cli_rpg.models.world_context import WorldContext
+
+    mock_client = Mock()
+    mock_openai_class.return_value = mock_client
+
+    # Response missing 'danger_level' field
+    invalid_response = {
+        "name": "The Vale",
+        "theme": "A misty valley."
+        # Missing: "danger_level", "landmarks"
+    }
+
+    mock_response = Mock()
+    mock_response.choices = [Mock()]
+    mock_response.choices[0].message.content = json.dumps(invalid_response)
+    mock_client.chat.completions.create.return_value = mock_response
+
+    service = AIService(basic_config)
+    world_context = WorldContext.default("fantasy")
+
+    with pytest.raises(AIGenerationError, match="danger_level"):
+        service.generate_region_context(
+            theme="fantasy",
+            world_context=world_context,
+            coordinates=(0, 0)
+        )
+
+
+@patch('cli_rpg.ai_service.OpenAI')
+def test_generate_region_context_validates_danger_level(mock_openai_class, basic_config):
+    """Test generate_region_context raises AIGenerationError for invalid danger_level.
+
+    Spec: danger_level must be one of 'low', 'medium', 'high', 'deadly'.
+    """
+    from cli_rpg.models.world_context import WorldContext
+
+    mock_client = Mock()
+    mock_openai_class.return_value = mock_client
+
+    # Response with invalid danger_level
+    invalid_response = {
+        "name": "The Vale",
+        "theme": "A misty valley.",
+        "danger_level": "extreme",  # Invalid value
+        "landmarks": []
+    }
+
+    mock_response = Mock()
+    mock_response.choices = [Mock()]
+    mock_response.choices[0].message.content = json.dumps(invalid_response)
+    mock_client.chat.completions.create.return_value = mock_response
+
+    service = AIService(basic_config)
+    world_context = WorldContext.default("fantasy")
+
+    with pytest.raises(AIGenerationError, match="danger_level"):
+        service.generate_region_context(
+            theme="fantasy",
+            world_context=world_context,
+            coordinates=(0, 0)
+        )
+
+
+@patch('cli_rpg.ai_service.OpenAI')
+def test_generate_region_context_validates_field_lengths(mock_openai_class, basic_config):
+    """Test generate_region_context validates field length constraints.
+
+    Spec: name: 1-50 chars, theme: 1-200 chars, landmarks: 0-5 items, each 1-50 chars.
+    """
+    from cli_rpg.models.world_context import WorldContext
+
+    mock_client = Mock()
+    mock_openai_class.return_value = mock_client
+
+    # Response with name too long (>50 chars)
+    invalid_response = {
+        "name": "A" * 51,  # Too long
+        "theme": "A misty valley.",
+        "danger_level": "low",
+        "landmarks": []
+    }
+
+    mock_response = Mock()
+    mock_response.choices = [Mock()]
+    mock_response.choices[0].message.content = json.dumps(invalid_response)
+    mock_client.chat.completions.create.return_value = mock_response
+
+    service = AIService(basic_config)
+    world_context = WorldContext.default("fantasy")
+
+    with pytest.raises(AIGenerationError, match="name"):
+        service.generate_region_context(
+            theme="fantasy",
+            world_context=world_context,
+            coordinates=(0, 0)
+        )
+
+
+@patch('cli_rpg.ai_service.OpenAI')
+def test_generate_region_context_handles_json_in_code_block(mock_openai_class, basic_config):
+    """Test generate_region_context extracts JSON from markdown code blocks.
+
+    Spec: Response may be wrapped in ```json...``` and should be extracted.
+    """
+    from cli_rpg.models.region_context import RegionContext
+    from cli_rpg.models.world_context import WorldContext
+
+    mock_client = Mock()
+    mock_openai_class.return_value = mock_client
+
+    # Response wrapped in markdown code block
+    valid_json = {
+        "name": "Neon District",
+        "theme": "A rain-slicked urban sprawl of corporate towers and neon signs.",
+        "danger_level": "medium",
+        "landmarks": ["MegaCorp Tower", "The Undercity"]
+    }
+    wrapped_response = f"```json\n{json.dumps(valid_json)}\n```"
+
+    mock_response = Mock()
+    mock_response.choices = [Mock()]
+    mock_response.choices[0].message.content = wrapped_response
+    mock_client.chat.completions.create.return_value = mock_response
+
+    service = AIService(basic_config)
+    world_context = WorldContext.default("cyberpunk")
+
+    result = service.generate_region_context(
+        theme="cyberpunk",
+        world_context=world_context,
+        coordinates=(0, 0)
+    )
+
+    assert isinstance(result, RegionContext)
+    assert result.name == valid_json["name"]
+    assert result.theme == valid_json["theme"]
+
+
+@patch('cli_rpg.ai_service.OpenAI')
+def test_generate_region_context_repairs_truncated_json(mock_openai_class, basic_config):
+    """Test generate_region_context repairs truncated JSON responses.
+
+    Spec: Truncated JSON (unclosed braces) should be repaired.
+    """
+    from cli_rpg.models.region_context import RegionContext
+    from cli_rpg.models.world_context import WorldContext
+
+    mock_client = Mock()
+    mock_openai_class.return_value = mock_client
+
+    # Truncated JSON (missing closing brace)
+    truncated_response = '{"name": "The Vale", "theme": "A misty valley.", "danger_level": "low", "landmarks": []'
+
+    mock_response = Mock()
+    mock_response.choices = [Mock()]
+    mock_response.choices[0].message.content = truncated_response
+    mock_client.chat.completions.create.return_value = mock_response
+
+    service = AIService(basic_config)
+    world_context = WorldContext.default("fantasy")
+
+    result = service.generate_region_context(
+        theme="fantasy",
+        world_context=world_context,
+        coordinates=(3, 7)
+    )
+
+    assert isinstance(result, RegionContext)
+    assert result.name == "The Vale"
+    assert result.theme == "A misty valley."
+    assert result.danger_level == "safe"  # 'low' maps to 'safe'
+    assert result.coordinates == (3, 7)

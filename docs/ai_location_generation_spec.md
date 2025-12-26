@@ -83,6 +83,18 @@ Core service for interacting with LLM APIs.
 - Uses sub-theme hints (mystical forest, ancient ruins, haunted grounds, etc.) for variety
 - Supports caching for performance
 
+`generate_world_context(theme: str) -> WorldContext`
+- Generate Layer 1 world context with theme_essence, naming_style, and tone
+- Returns `WorldContext` instance
+- Raises `AIGenerationError` on generation failure
+
+`generate_region_context(theme: str, world_context: WorldContext, coordinates: Tuple[int, int], terrain_hint: str = "") -> RegionContext`
+- Generate Layer 2 region context with name, theme, danger_level, and landmarks
+- Uses Layer 1 `WorldContext` for thematic consistency
+- Maps LLM danger levels ("low/medium/high/deadly") to model values ("safe/moderate/dangerous/deadly")
+- Returns `RegionContext` instance
+- Raises `AIGenerationError` on generation failure
+
 ### 3.3 WorldContext
 
 Cached world theme context for layered AI generation (Layer 1 of the hierarchical generation system).
@@ -113,6 +125,46 @@ Pre-configured defaults for 5 theme types:
 - Generated once at world creation (Layer 1)
 - Cached in GameState for reuse across all location/NPC generation
 - Passed to AIService methods to ensure thematic consistency
+- Serialized with game state for persistence across save/load
+
+### 3.3.1 RegionContext
+
+Cached region theme context for layered AI generation (Layer 2 of the hierarchical generation system).
+
+**Class:** `RegionContext` (`models/region_context.py`)
+
+**Fields:**
+- `name: str` - Region name (1-50 characters, e.g., "The Whispering Woods")
+- `theme: str` - Region-specific theme (1-200 characters, e.g., "Ancient forest shrouded in mist")
+- `danger_level: str` - One of "safe", "moderate", "dangerous", "deadly"
+- `landmarks: list[str]` - 0-5 notable landmarks (each 1-50 characters)
+- `coordinates: Tuple[int, int]` - Grid coordinates this context was generated for
+- `generated_at: Optional[datetime]` - When context was AI-generated (None if using defaults)
+
+**Methods:**
+- `to_dict() -> dict`: Serializes to dictionary (coordinates as list for JSON compatibility)
+- `from_dict(data: dict) -> RegionContext`: Deserializes with backward compatibility
+- `default(coordinates: Tuple[int, int]) -> RegionContext`: Creates fallback context when AI unavailable
+
+**Default Values:**
+Pre-configured defaults for 8 terrain types in `DEFAULT_REGION_THEMES`:
+- `plains`, `forest`, `mountain`, `water`, `desert`, `swamp`, `tundra`, `volcanic`, `ruins`
+
+**AIService Integration:**
+
+`generate_region_context(theme: str, world_context: WorldContext, coordinates: Tuple[int, int], terrain_hint: str = "") -> RegionContext`
+- Generates region-level context using Layer 1 WorldContext for consistency
+- Prompt includes world's theme_essence, naming_style, and tone
+- LLM returns JSON with name, theme, danger_level ("low/medium/high/deadly"), and landmarks
+- Parser maps danger levels: "low"→"safe", "medium"→"moderate", "high"→"dangerous", "deadly"→"deadly"
+- Validates all field constraints (lengths, enum values, landmark count)
+- Gracefully filters invalid landmarks instead of failing
+- Supports markdown code block extraction and truncated JSON repair
+
+**Usage:**
+- Generated when entering new region/area (Layer 2)
+- Cached per region coordinates
+- Passed to location generation for thematic consistency
 - Serialized with game state for persistence across save/load
 
 ### 3.4 WorldGrid

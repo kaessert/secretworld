@@ -2253,3 +2253,152 @@ Note: Use "EXISTING_WORLD" as placeholder for the connection back to the source 
             tone=tone,
             generated_at=datetime.now()
         )
+
+    def generate_region_context(
+        self,
+        theme: str,
+        world_context: "WorldContext",
+        coordinates: tuple[int, int],
+        terrain_hint: str = "wilderness"
+    ) -> "RegionContext":
+        """Generate region-level thematic context using AI.
+
+        Args:
+            theme: Base theme keyword (e.g., "fantasy", "cyberpunk")
+            world_context: Layer 1 context for consistency
+            coordinates: Center coordinates of the region
+            terrain_hint: Terrain type hint for the region (e.g., "mountains", "swamp")
+
+        Returns:
+            RegionContext with AI-generated name, theme, danger_level, landmarks
+
+        Raises:
+            AIGenerationError: If generation fails or response invalid
+            AIServiceError: If API call fails
+            AITimeoutError: If request times out
+        """
+        from cli_rpg.models.region_context import RegionContext
+
+        prompt = self._build_region_context_prompt(theme, world_context, coordinates, terrain_hint)
+        response_text = self._call_llm(prompt)
+        return self._parse_region_context_response(response_text, coordinates)
+
+    def _build_region_context_prompt(
+        self,
+        theme: str,
+        world_context: "WorldContext",
+        coordinates: tuple[int, int],
+        terrain_hint: str
+    ) -> str:
+        """Build prompt for region context generation.
+
+        Args:
+            theme: Base theme keyword
+            world_context: Layer 1 context for consistency
+            coordinates: Center coordinates of the region
+            terrain_hint: Terrain type hint
+
+        Returns:
+            Formatted prompt string
+        """
+        return self.config.region_context_prompt.format(
+            theme=theme,
+            theme_essence=world_context.theme_essence,
+            naming_style=world_context.naming_style,
+            tone=world_context.tone,
+            coordinates=f"({coordinates[0]}, {coordinates[1]})",
+            terrain_hint=terrain_hint
+        )
+
+    def _parse_region_context_response(
+        self,
+        response_text: str,
+        coordinates: tuple[int, int]
+    ) -> "RegionContext":
+        """Parse and validate LLM response for region context generation.
+
+        Args:
+            response_text: Raw response text from LLM
+            coordinates: Center coordinates for the RegionContext
+
+        Returns:
+            RegionContext instance with validated data
+
+        Raises:
+            AIGenerationError: If parsing fails or validation fails
+        """
+        from datetime import datetime
+        from cli_rpg.models.region_context import RegionContext
+
+        # Extract JSON from markdown code blocks if present
+        json_text = self._extract_json_from_response(response_text)
+
+        # Attempt to parse JSON, repairing if truncated
+        try:
+            data = json.loads(json_text)
+        except json.JSONDecodeError:
+            # Try to repair truncated JSON
+            repaired = self._repair_truncated_json(json_text)
+            try:
+                data = json.loads(repaired)
+            except json.JSONDecodeError as e:
+                self._log_parse_failure(response_text, e, "region_context")
+                raise AIGenerationError(f"Invalid JSON in region context response: {e}")
+
+        # Validate required fields
+        required_fields = ["name", "theme", "danger_level"]
+        for field in required_fields:
+            if field not in data:
+                raise AIGenerationError(f"Missing required field: {field}")
+            if not isinstance(data[field], str) or not data[field].strip():
+                raise AIGenerationError(f"Field '{field}' must be a non-empty string")
+
+        # Validate field lengths
+        name = data["name"].strip()
+        theme = data["theme"].strip()
+
+        if len(name) > 50:
+            raise AIGenerationError(
+                f"name exceeds 50 characters ({len(name)} chars)"
+            )
+        if len(theme) > 200:
+            raise AIGenerationError(
+                f"theme exceeds 200 characters ({len(theme)} chars)"
+            )
+
+        # Validate danger_level mapping
+        # LLM returns: low, medium, high, deadly
+        # RegionContext uses: safe, moderate, dangerous, deadly
+        danger_level_map = {
+            "low": "safe",
+            "medium": "moderate",
+            "high": "dangerous",
+            "deadly": "deadly"
+        }
+        raw_danger = data["danger_level"].strip().lower()
+        if raw_danger not in danger_level_map:
+            raise AIGenerationError(
+                f"Invalid danger_level '{raw_danger}'. Must be one of: low, medium, high, deadly"
+            )
+        danger_level = danger_level_map[raw_danger]
+
+        # Validate landmarks (optional, default to empty list)
+        landmarks = data.get("landmarks", [])
+        if not isinstance(landmarks, list):
+            landmarks = []
+        # Filter and validate landmarks
+        validated_landmarks = []
+        for lm in landmarks[:5]:  # Max 5 landmarks
+            if isinstance(lm, str) and lm.strip():
+                lm_stripped = lm.strip()
+                if len(lm_stripped) <= 50:
+                    validated_landmarks.append(lm_stripped)
+
+        return RegionContext(
+            name=name,
+            theme=theme,
+            danger_level=danger_level,
+            landmarks=validated_landmarks,
+            coordinates=coordinates,
+            generated_at=datetime.now()
+        )

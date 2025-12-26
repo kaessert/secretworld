@@ -1,68 +1,55 @@
-# Implementation Summary: Add `generate_world_context()` to AIService
+# Implementation Summary: `generate_region_context()` for AIService
 
 ## What Was Implemented
 
-Added the `generate_world_context()` method to `src/cli_rpg/ai_service.py` as Step 6 of the Layered Query Architecture. This method generates Layer 1 world context (theme essence, naming conventions, tone) using the existing `DEFAULT_WORLD_CONTEXT_PROMPT` from `ai_config.py`.
+Added Layer 2 Region Context Generation to `AIService` class as part of the Layered Query Architecture (Step 6).
 
-### Files Modified
+### New Methods in `src/cli_rpg/ai_service.py`:
 
-1. **`src/cli_rpg/ai_service.py`** (lines 2159-2255)
-   - Added `generate_world_context(theme: str) -> WorldContext` - Main public method
-   - Added `_build_world_context_prompt(theme: str) -> str` - Prompt builder
-   - Added `_parse_world_context_response(response_text: str, theme: str) -> WorldContext` - JSON parser/validator
+1. **`generate_region_context(theme, world_context, coordinates, terrain_hint)`**
+   - Main public method for generating region-level thematic context
+   - Takes Layer 1 `WorldContext` as input for consistency
+   - Returns `RegionContext` with AI-generated name, theme, danger_level, and landmarks
 
-2. **`tests/test_ai_service.py`** (lines 2366-2544)
-   - Added 6 test cases for the new method
+2. **`_build_region_context_prompt(theme, world_context, coordinates, terrain_hint)`**
+   - Private helper that formats the prompt using `DEFAULT_REGION_CONTEXT_PROMPT` from `ai_config.py`
+   - Injects world context fields (theme_essence, naming_style, tone) for consistency
 
-### Method Signature
-```python
-def generate_world_context(self, theme: str) -> WorldContext:
-    """Generate world-level thematic context using AI.
+3. **`_parse_region_context_response(response_text, coordinates)`**
+   - Parses and validates LLM JSON response
+   - Handles markdown code blocks extraction
+   - Repairs truncated JSON responses
+   - Validates all field constraints per spec:
+     - `name`: non-empty string, 1-50 chars
+     - `theme`: non-empty string, 1-200 chars
+     - `danger_level`: maps "low/medium/high/deadly" → "safe/moderate/dangerous/deadly"
+     - `landmarks`: list of 0-5 strings, each 1-50 chars
 
-    Args:
-        theme: Base theme keyword (e.g., "fantasy", "cyberpunk")
+### Tests Added in `tests/test_ai_service.py`:
 
-    Returns:
-        WorldContext with AI-generated theme_essence, naming_style, and tone
-
-    Raises:
-        AIGenerationError: If generation fails or response is invalid
-        AIServiceError: If API call fails
-        AITimeoutError: If request times out
-    """
-```
-
-### Validation Rules Implemented
-- `theme_essence`: Required, non-empty string, 1-200 characters
-- `naming_style`: Required, non-empty string, 1-100 characters
-- `tone`: Required, non-empty string, 1-100 characters
-
-### Features
-- Uses existing `_call_llm()` for API interaction
-- Extracts JSON from markdown code blocks (via `_extract_json_from_response()`)
-- Repairs truncated JSON responses (via `_repair_truncated_json()`)
-- Logs parse failures for debugging (via `_log_parse_failure()`)
-- Sets `generated_at` timestamp on returned WorldContext
+6 new tests covering:
+1. `test_generate_region_context_returns_valid_region_context` - Happy path
+2. `test_generate_region_context_validates_required_fields` - Missing field error
+3. `test_generate_region_context_validates_danger_level` - Invalid enum error
+4. `test_generate_region_context_validates_field_lengths` - Length constraint error
+5. `test_generate_region_context_handles_json_in_code_block` - Markdown extraction
+6. `test_generate_region_context_repairs_truncated_json` - JSON repair
 
 ## Test Results
 
-All 79 tests in `test_ai_service.py` pass:
+All 85 tests in `test_ai_service.py` pass, including the 6 new tests.
 
-```
-tests/test_ai_service.py::test_generate_world_context_returns_valid_world_context PASSED
-tests/test_ai_service.py::test_generate_world_context_validates_required_fields PASSED
-tests/test_ai_service.py::test_generate_world_context_validates_field_lengths PASSED
-tests/test_ai_service.py::test_generate_world_context_validates_empty_fields PASSED
-tests/test_ai_service.py::test_generate_world_context_handles_json_in_code_block PASSED
-tests/test_ai_service.py::test_generate_world_context_repairs_truncated_json PASSED
+## Design Decisions
 
-============================== 79 passed in 3.95s ==============================
-```
+1. **Danger level mapping**: The LLM prompt uses "low/medium/high/deadly" terminology (natural language), but `RegionContext` uses "safe/moderate/dangerous/deadly" (internal model). The parser maps between them.
 
-## E2E Validation Points
+2. **Graceful landmark handling**: Landmarks are optional and validated leniently - invalid entries are silently filtered rather than raising errors, to improve robustness with varied LLM outputs.
 
-The new method should be validated with actual LLM calls to verify:
-1. The prompt produces valid JSON with theme_essence, naming_style, and tone
-2. Different themes (fantasy, cyberpunk, horror, etc.) produce thematically appropriate context
-3. The generated WorldContext can be serialized/deserialized via `to_dict()`/`from_dict()`
-4. Error handling works correctly when API returns malformed responses
+3. **Reused infrastructure**: Leverages existing `_extract_json_from_response`, `_repair_truncated_json`, and `_log_parse_failure` helpers for consistency with other generation methods.
+
+## E2E Validation
+
+The implementation should be validated by:
+1. Running game with AI enabled and traveling to new regions
+2. Verifying region contexts are generated with valid names, themes, danger levels, and landmarks
+3. Checking that generated content respects the world context (naming style, tone)

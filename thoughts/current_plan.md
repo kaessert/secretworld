@@ -1,84 +1,132 @@
-# Implementation Plan: Add `generate_world_context()` to AIService
+# Implementation Plan: Add `generate_region_context()` to AIService
 
-## Task Summary
-Add the `generate_world_context()` method to `ai_service.py` as Step 6 of the Layered Query Architecture. This method generates Layer 1 world context (theme essence, naming conventions, tone) using the existing `DEFAULT_WORLD_CONTEXT_PROMPT`.
+## Summary
+Add the `generate_region_context()` method to `ai_service.py` as continuation of Step 6 of the Layered Query Architecture. This method generates Layer 2 region context (name, theme, danger_level, landmarks) using the existing `DEFAULT_REGION_CONTEXT_PROMPT` from `ai_config.py`.
 
-## Specification
+## Spec
 
-### Method Signature
 ```python
-def generate_world_context(self, theme: str) -> WorldContext:
-    """Generate world-level thematic context using AI.
+def generate_region_context(
+    self,
+    theme: str,
+    world_context: WorldContext,
+    coordinates: tuple[int, int],
+    terrain_hint: str = "wilderness"
+) -> RegionContext:
+    """Generate region-level thematic context using AI.
 
     Args:
         theme: Base theme keyword (e.g., "fantasy", "cyberpunk")
+        world_context: Layer 1 context for consistency
+        coordinates: Center coordinates of the region
+        terrain_hint: Terrain type hint for the region (e.g., "mountains", "swamp")
 
     Returns:
-        WorldContext with AI-generated theme_essence, naming_style, and tone
+        RegionContext with AI-generated name, theme, danger_level, landmarks
 
     Raises:
-        AIGenerationError: If generation fails or response is invalid
+        AIGenerationError: If generation fails or response invalid
         AIServiceError: If API call fails
         AITimeoutError: If request times out
     """
 ```
 
-### Expected JSON Response Format
+**Expected JSON response format** (from `DEFAULT_REGION_CONTEXT_PROMPT`):
 ```json
 {
-  "theme_essence": "A brief description of the world's core atmosphere and feel.",
-  "naming_style": "A guide for how names should sound and feel.",
-  "tone": "The overall emotional tone of the world."
+  "name": "Region Name",
+  "theme": "A brief description of this region's unique character.",
+  "danger_level": "low|medium|high|deadly",
+  "landmarks": ["Landmark 1", "Landmark 2", "Landmark 3"]
 }
 ```
 
-### Validation Rules
-- `theme_essence`: Required, non-empty string, 1-200 characters
-- `naming_style`: Required, non-empty string, 1-100 characters
-- `tone`: Required, non-empty string, 1-100 characters
+**Validation rules:**
+- `name`: non-empty string, 1-50 chars
+- `theme`: non-empty string, 1-200 chars
+- `danger_level`: must be one of "low", "medium", "high", "deadly" (map to RegionContext values: "safe", "moderate", "dangerous", "deadly")
+- `landmarks`: list of 0-5 strings, each 1-50 chars
 
 ## Implementation Steps
 
-### 1. Add Tests (`tests/test_ai_service.py`)
-Add tests for the new method:
-- `test_generate_world_context_returns_valid_world_context`: Mock LLM response, verify WorldContext returned
-- `test_generate_world_context_validates_required_fields`: Missing field raises AIGenerationError
-- `test_generate_world_context_validates_field_lengths`: Too short/long raises AIGenerationError
-- `test_generate_world_context_handles_json_in_code_block`: Extract JSON from ```json...```
-- `test_generate_world_context_repairs_truncated_json`: Truncated JSON is repaired
+### 1. Write Tests (`tests/test_ai_service.py`)
 
-### 2. Add `generate_world_context()` Method (`src/cli_rpg/ai_service.py`)
-
-Location: After `generate_dream()` method (around line 2059)
+Add after existing `generate_world_context` tests (around line 2544):
 
 ```python
-def generate_world_context(self, theme: str) -> "WorldContext":
-    """Generate world-level thematic context using AI."""
-    from cli_rpg.models.world_context import WorldContext
+# Tests: generate_region_context() (Layer 2 Region Context Generation)
+# ============================================================================
 
-    prompt = self._build_world_context_prompt(theme)
+@patch('cli_rpg.ai_service.OpenAI')
+def test_generate_region_context_returns_valid_region_context(mock_openai_class, basic_config):
+    """Test generate_region_context returns a valid RegionContext."""
+
+@patch('cli_rpg.ai_service.OpenAI')
+def test_generate_region_context_validates_required_fields(mock_openai_class, basic_config):
+    """Test missing required fields raise AIGenerationError."""
+
+@patch('cli_rpg.ai_service.OpenAI')
+def test_generate_region_context_validates_danger_level(mock_openai_class, basic_config):
+    """Test invalid danger_level raises AIGenerationError."""
+
+@patch('cli_rpg.ai_service.OpenAI')
+def test_generate_region_context_validates_field_lengths(mock_openai_class, basic_config):
+    """Test name/theme length constraints."""
+
+@patch('cli_rpg.ai_service.OpenAI')
+def test_generate_region_context_handles_json_in_code_block(mock_openai_class, basic_config):
+    """Test JSON extraction from markdown code blocks."""
+
+@patch('cli_rpg.ai_service.OpenAI')
+def test_generate_region_context_repairs_truncated_json(mock_openai_class, basic_config):
+    """Test truncated JSON is repaired."""
+```
+
+### 2. Add Methods to AIService (`src/cli_rpg/ai_service.py`)
+
+Add after `generate_world_context` method (around line 2256):
+
+```python
+def generate_region_context(
+    self,
+    theme: str,
+    world_context: "WorldContext",
+    coordinates: tuple[int, int],
+    terrain_hint: str = "wilderness"
+) -> "RegionContext":
+    """Generate region-level thematic context using AI."""
+    from cli_rpg.models.region_context import RegionContext
+
+    prompt = self._build_region_context_prompt(theme, world_context, coordinates, terrain_hint)
     response_text = self._call_llm(prompt)
-    return self._parse_world_context_response(response_text, theme)
+    return self._parse_region_context_response(response_text, coordinates)
 
-def _build_world_context_prompt(self, theme: str) -> str:
-    """Build prompt for world context generation."""
-    return self.config.world_context_prompt.format(theme=theme)
+def _build_region_context_prompt(
+    self,
+    theme: str,
+    world_context: "WorldContext",
+    coordinates: tuple[int, int],
+    terrain_hint: str
+) -> str:
+    """Build prompt for region context generation."""
+    return self.config.region_context_prompt.format(
+        theme=theme,
+        theme_essence=world_context.theme_essence,
+        naming_style=world_context.naming_style,
+        tone=world_context.tone,
+        coordinates=f"({coordinates[0]}, {coordinates[1]})",
+        terrain_hint=terrain_hint
+    )
 
-def _parse_world_context_response(self, response_text: str, theme: str) -> "WorldContext":
-    """Parse and validate LLM response for world context generation."""
-    # Extract and parse JSON (reuse existing helpers)
-    # Validate required fields
-    # Return WorldContext instance
+def _parse_region_context_response(
+    self,
+    response_text: str,
+    coordinates: tuple[int, int]
+) -> "RegionContext":
+    """Parse and validate LLM response for region context generation."""
+    # Extract JSON, repair if truncated, validate fields, return RegionContext
 ```
 
-### 3. Add Import Statement
-Add `from datetime import datetime` if not present (for `generated_at` field)
-
-### 4. Run Tests
-```bash
-pytest tests/test_ai_service.py -v -k "world_context"
-```
-
-## Files to Modify
-- `src/cli_rpg/ai_service.py`: Add `generate_world_context()`, `_build_world_context_prompt()`, `_parse_world_context_response()`
-- `tests/test_ai_service.py`: Add 5 test cases for the new method
+## Files Modified
+- `tests/test_ai_service.py`: Add 6 tests for `generate_region_context()`
+- `src/cli_rpg/ai_service.py`: Add `generate_region_context()`, `_build_region_context_prompt()`, `_parse_region_context_response()`

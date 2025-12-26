@@ -111,7 +111,7 @@ Instead of one monolithic prompt, use a hierarchical generation system:
 
 6. ~~**Update AIService** (`ai_service.py`)~~ ✓ Partially Completed (2025-12-26):
    - ~~Add `generate_world_context()` method~~ ✓ Completed - generates WorldContext with theme_essence, naming_style, and tone
-   - Add `generate_region_context()` method
+   - ~~Add `generate_region_context()` method~~ ✓ Completed (2025-12-26) - generates RegionContext with name, theme, danger_level, and landmarks; includes danger level mapping (low/medium/high/deadly → safe/moderate/dangerous/deadly)
    - Refactor `generate_location()` to use layered contexts
    - Add `generate_npcs_for_location()` as separate call
 
@@ -463,6 +463,131 @@ The `get_current_location()` method properly handles both overworld locations (i
 
 **Files to modify**:
 - `src/cli_rpg/main.py`: Line 1154 in the `talk` command handler
+
+---
+
+### CRITICAL: ImportError crashes game on Cleric smite ability
+**Status**: ACTIVE - CRITICAL BUG
+**Date Discovered**: 2025-12-26
+
+**Problem**: Game crashes with ImportError when Cleric uses `smite` ability and defeats an enemy.
+
+**Location**: `src/cli_rpg/main.py:911`
+
+**Error**:
+```
+ImportError: cannot import name 'get_combat_reaction' from 'cli_rpg.companion_reactions'
+```
+
+**Root Cause**: Code imports `get_combat_reaction` but the actual function in `companion_reactions.py` is named `get_companion_reaction`.
+
+**Impact**: Game crashes completely, preventing Cleric class from being fully playable in combat.
+
+**Fix**: Change line 911 from:
+```python
+from cli_rpg.companion_reactions import get_combat_reaction
+```
+To:
+```python
+from cli_rpg.companion_reactions import get_companion_reaction
+```
+
+And update line 913 to use the correct function name.
+
+---
+
+### WFC Playtesting Issues (2025-12-26)
+**Status**: ACTIVE
+
+Issues discovered during `--wfc` mode playtesting:
+
+#### CRITICAL BUGS
+
+1. **ImportError on Cleric smite** (see above - separate issue)
+
+#### HIGH PRIORITY BUGS
+
+1. **AI generation should retry, not fallback to templates**
+   - Currently when AI generation fails, it silently falls back to template generation
+   - "[AI world generation temporarily unavailable. Using template generation.]"
+   - **Expected behavior**: Should retry AI generation, and if still failing, prompt user or stop
+   - This creates inconsistent world feel when AI locations mix with template locations
+
+2. **Case-sensitive location names for `enter` command**
+   - Location names displayed with "Enter: Spectral Grove" but `enter` command converts to lowercase
+   - Typing `enter Spectral Grove` fails with "No such location: spectral grove"
+   - **Fix**: Make location lookup case-insensitive
+
+3. **Location art contains markdown code fences**
+   - Some AI-generated ASCII art includes literal "```" characters at start/end
+   - Example: The art starts with ``` and ends with ``` which displays to user
+   - **Fix**: Strip markdown code fence markers from AI-generated art responses
+
+4. **Fallback location names include coordinates**
+   - When fallback occurs, names like "Vast Prairie (-1, 0)" or "Vast Prairie (1, 1)" are used
+   - Coordinates in names break immersion
+   - **Fix**: If fallback is kept, generate unique suffixes without coordinates
+
+3. **NPCs shown as "???" in fog weather**
+   - When fog reduces visibility, NPC names display as "???" even at the player's location
+   - You should recognize NPCs you're standing next to in fog
+
+4. **SubGrid bounds warning shown to user**
+   - "Skipping Forgotten Graveyard: coords (0, 4) outside SubGrid bounds (-3, 3, -3, 3)"
+   - This internal warning shouldn't be displayed to user
+
+5. **Debug messages shown to players**
+   - Various internal messages displayed during normal gameplay:
+     - "Skipping duplicate location name: Mystic Valley"
+     - "AI area generation failed: Failed to parse response as JSON..."
+   - These should be logged internally, not printed to stdout
+
+#### MEDIUM PRIORITY BUGS
+
+1. **NPCs show as "???" when revisiting locations**
+   - After leaving a location and returning, NPC names display as "???" instead of actual names
+   - Reproduction: Start at Whispering Woods → Go east → Return west → NPCs now "???, ???, ???"
+   - May be related to fog/visibility system being too aggressive
+
+2. **Exits disappear/change when revisiting locations**
+   - Available exits change inconsistently when revisiting a location
+   - Whispering Woods initially shows "east, north, west", later shows "east, west" (north gone)
+
+3. **Wild Boar ASCII art is a cat**
+   - The Wild Boar enemy uses ASCII art that clearly depicts a cat:
+   ```
+      /\_/\
+     ( o.o )
+      > ^ <
+     /|   |\
+    (_|   |_)
+   ```
+   - The `/\_/\` ears and `( o.o )` face is universal ASCII cat pattern
+
+4. **Inconsistent shop pricing message**
+   - Shop display shows one price but error message shows different price
+   - Shop displays: "Iron Sword - 100 gold", Error says: "99 gold needed"
+
+#### LOW PRIORITY / UX ISSUES
+
+1. **Combo system unclear**
+   - During combat, "COMBO AVAILABLE: Frenzy!" displayed but no obvious trigger command
+   - **Suggestion**: Add hint text like "Type 'frenzy' to use combo!" or document in help
+
+2. **Confusing "exit" message when not in sub-location**
+   - Using `exit` when not inside sub-location shows "You're not inside a landmark."
+   - **Suggestion**: Change to "You're not inside a building or dungeon. Use 'go <direction>' to travel."
+
+#### DESIGN OBSERVATIONS
+
+1. **Shop price shows base, not reputation-adjusted price**
+   - Shop displays base price (50 gold) but purchase shows discounted price (49 gold)
+   - Minor UX issue - could show discounted price in shop listing
+
+2. **Rest command output**
+   - Shows stamina recovery and dread reduction
+   - HP recovery (25% max) not shown in message if health is full
+   - Consider showing "HP: X/X (already full)" for clarity
 
 ---
 
