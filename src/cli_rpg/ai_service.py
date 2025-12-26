@@ -1167,8 +1167,11 @@ Note: Use "EXISTING_WORLD" as placeholder for the connection back to the source 
         Raises:
             AIGenerationError: If validation fails
         """
-        # Strip whitespace and clean up
-        art = response_text.strip()
+        # Strip only trailing whitespace, preserve first line's leading spaces
+        art = response_text.rstrip()
+        # Remove leading empty lines
+        while art.startswith("\n"):
+            art = art[1:]
 
         # Validate minimum content
         lines = art.splitlines()
@@ -1261,8 +1264,11 @@ Note: Use "EXISTING_WORLD" as placeholder for the connection back to the source 
         Raises:
             AIGenerationError: If validation fails
         """
-        # Strip whitespace and clean up
-        art = response_text.strip()
+        # Strip only trailing whitespace, preserve first line's leading spaces
+        art = response_text.rstrip()
+        # Remove leading empty lines
+        while art.startswith("\n"):
+            art = art[1:]
 
         # Validate minimum content
         lines = art.splitlines()
@@ -1836,8 +1842,11 @@ Note: Use "EXISTING_WORLD" as placeholder for the connection back to the source 
         Raises:
             AIGenerationError: If validation fails
         """
-        # Strip whitespace and clean up
-        art = response_text.strip()
+        # Strip only trailing whitespace, preserve first line's leading spaces
+        art = response_text.rstrip()
+        # Remove leading empty lines
+        while art.startswith("\n"):
+            art = art[1:]
 
         # Validate minimum content
         lines = art.splitlines()

@@ -295,3 +295,139 @@ class TestAIAsciiArtGeneration:
             # Should be max 40 chars wide
             for line in art.splitlines():
                 assert len(line) <= 40, f"Line too long: {line}"
+
+
+class TestAsciiArtFirstLineAlignment:
+    """Test that ASCII art parsing preserves first line indentation.
+
+    Spec: ASCII art with leading spaces on the first line should preserve
+    those spaces after parsing. The `strip()` call was removing leading
+    whitespace, breaking alignment.
+    """
+
+    def test_parse_enemy_ascii_art_preserves_first_line_spaces(self):
+        """Verify enemy art parsing preserves leading spaces on first line."""
+        from cli_rpg.ai_service import AIService
+        from cli_rpg.ai_config import AIConfig
+
+        # Create service
+        config = AIConfig(
+            api_key="test-key",
+            provider="openai",
+            enable_caching=False,
+        )
+        service = AIService(config)
+
+        # Input with leading spaces on first line (simulating AI response)
+        response = """   /\\ /\\
+  (  V  )
+  /|   |\\"""
+
+        art = service._parse_ascii_art_response(response)
+
+        # First line should preserve leading spaces
+        first_line = art.splitlines()[0]
+        assert first_line.startswith("   "), f"Expected leading spaces, got: '{first_line}'"
+        assert first_line == "   /\\ /\\"
+
+    def test_parse_location_ascii_art_preserves_first_line_spaces(self):
+        """Verify location art parsing preserves leading spaces on first line."""
+        from cli_rpg.ai_service import AIService
+        from cli_rpg.ai_config import AIConfig
+
+        config = AIConfig(
+            api_key="test-key",
+            provider="openai",
+            enable_caching=False,
+        )
+        service = AIService(config)
+
+        # Input with leading spaces on first line
+        response = """     /\\
+    /  \\
+   /    \\
+  /______\\"""
+
+        art = service._parse_location_ascii_art_response(response)
+
+        # First line should preserve leading spaces
+        first_line = art.splitlines()[0]
+        assert first_line.startswith("     "), f"Expected 5 leading spaces, got: '{first_line}'"
+        assert first_line == "     /\\"
+
+    def test_parse_npc_ascii_art_preserves_first_line_spaces(self):
+        """Verify NPC art parsing preserves leading spaces on first line."""
+        from cli_rpg.ai_service import AIService
+        from cli_rpg.ai_config import AIConfig
+
+        config = AIConfig(
+            api_key="test-key",
+            provider="openai",
+            enable_caching=False,
+        )
+        service = AIService(config)
+
+        # Input with leading spaces on first line
+        response = """    O
+   /|\\
+   / \\"""
+
+        art = service._parse_npc_ascii_art_response(response)
+
+        # First line should preserve leading spaces
+        first_line = art.splitlines()[0]
+        assert first_line.startswith("    "), f"Expected 4 leading spaces, got: '{first_line}'"
+        assert first_line == "    O"
+
+    def test_parse_enemy_ascii_art_strips_leading_empty_lines(self):
+        """Verify parser removes leading empty lines but preserves first content line."""
+        from cli_rpg.ai_service import AIService
+        from cli_rpg.ai_config import AIConfig
+
+        config = AIConfig(
+            api_key="test-key",
+            provider="openai",
+            enable_caching=False,
+        )
+        service = AIService(config)
+
+        # Response with leading empty lines (common from LLM responses)
+        response = """
+
+   /\\ /\\
+  (  V  )
+  /|   |\\"""
+
+        art = service._parse_ascii_art_response(response)
+
+        # First line should be the art, not empty
+        first_line = art.splitlines()[0]
+        assert first_line == "   /\\ /\\", f"Expected art on first line, got: '{first_line}'"
+
+    def test_parse_location_ascii_art_strips_trailing_whitespace(self):
+        """Verify parser strips trailing whitespace but not leading."""
+        from cli_rpg.ai_service import AIService
+        from cli_rpg.ai_config import AIConfig
+
+        config = AIConfig(
+            api_key="test-key",
+            provider="openai",
+            enable_caching=False,
+        )
+        service = AIService(config)
+
+        # Response with trailing whitespace
+        response = """     /\\
+    /  \\
+   /    \\
+  /______\\
+
+"""
+
+        art = service._parse_location_ascii_art_response(response)
+
+        # Should not end with newlines
+        assert not art.endswith("\n"), "Should strip trailing newlines"
+        # First line should still have leading spaces
+        first_line = art.splitlines()[0]
+        assert first_line.startswith("     "), f"Expected leading spaces, got: '{first_line}'"
