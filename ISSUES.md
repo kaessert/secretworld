@@ -474,10 +474,10 @@ Issues discovered during `--wfc` mode playtesting (updated 2025-12-26):
    - **Expected behavior**: Should retry AI generation, and if still failing, prompt user or stop
    - This creates inconsistent world feel when AI locations mix with template locations
 
-2. **Case-sensitive location names for `enter` command**
-   - Location names displayed with "Enter: Spectral Grove" but `enter` command converts to lowercase
-   - Typing `enter Spectral Grove` fails with "No such location: spectral grove"
-   - **Fix**: Make location lookup case-insensitive
+2. ~~**Case-sensitive location names for `enter` command**~~ (RESOLVED 2025-12-26)
+   - ~~Location names displayed with "Enter: Spectral Grove" but `enter` command converts to lowercase~~
+   - ~~Typing `enter Spectral Grove` fails with "No such location: spectral grove"~~
+   - **Solution**: Implemented case-insensitive multi-word location matching in `game_state.py:809-822`. The `enter` command now correctly matches "spectral grove" to "Spectral Grove".
 
 3. **Location art contains markdown code fences**
    - Some AI-generated ASCII art includes literal "```" characters at start/end
@@ -548,9 +548,9 @@ Issues discovered during `--wfc` mode playtesting (updated 2025-12-26):
      - Add pagination or search
      - Fix "(saved: unknown)" to show actual timestamps
 
-6. **"enter" command with no argument silently fails**
-   - Typing `enter` without a location name gives no feedback
-   - Should show "Enter where? Available locations: X, Y, Z" or similar
+6. ~~**"enter" command with no argument silently fails**~~ (RESOLVED 2025-12-26)
+   - ~~Typing `enter` without a location name gives no feedback~~
+   - **Solution**: Improved error handling now shows "Available: Tavern, Market" when entering invalid location names, or "There are no locations to enter here." when no sub-locations exist. Implemented in `game_state.py:809-822`.
 
 #### LOW PRIORITY / UX ISSUES
 

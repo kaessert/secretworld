@@ -1,55 +1,36 @@
-# Implementation Summary: Connect Terrain to Location Generation
+# Implementation Summary: Improve `enter` Command Error Messages
 
-## What Was Implemented
+## What was implemented
 
-This implementation connects WFC terrain types to AI location generation prompts, ensuring generated locations match their terrain (e.g., a "Desert Oasis" only spawns on desert tiles).
+### Code Changes
 
-### Files Modified
+1. **`src/cli_rpg/game_state.py` (line 809-822)**: Modified the error handling when `enter` command fails to find a matching location:
+   - Now collects available locations from both `sub_grid` and `sub_locations`
+   - Removes duplicates while preserving order
+   - Shows "Available: Tavern, Market" in the error message
+   - Shows "There are no locations to enter here." if no locations exist
 
-1. **`src/cli_rpg/ai_config.py`**
-   - Updated `DEFAULT_LOCATION_PROMPT_MINIMAL` template (lines 306-335)
-   - Added `{terrain_type}` placeholder in Region Context section
-   - Added terrain-aware requirements for location generation
+### Tests Added
 
-2. **`src/cli_rpg/ai_service.py`**
-   - Added `terrain_type: Optional[str] = None` parameter to `generate_location_with_context()` (line 2412)
-   - Updated `_build_location_with_context_prompt()` to accept and use terrain_type (lines 2473, 2490, 2500)
-   - Defaults to "wilderness" when terrain_type is None
-
-3. **`src/cli_rpg/ai_world.py`**
-   - Added `terrain_type: Optional[str] = None` parameter to `expand_world()` (line 361)
-   - Added `terrain_type: Optional[str] = None` parameter to `expand_area()` (line 509)
-   - Updated both fallback calls in `expand_area()` to pass terrain_type through
-
-4. **`src/cli_rpg/game_state.py`**
-   - Updated `expand_area()` call in `move()` to pass `terrain_type=terrain` (line 530)
-
-5. **`tests/test_terrain_location_coherence.py`** (new file)
-   - Tests for terrain inclusion in prompts
-   - Tests for backward compatibility when terrain_type is None
-   - Tests for function signature validation
-   - Tests for terrain passthrough in expand_world
-
-6. **`tests/test_game_state_ai_integration.py`**
-   - Fixed `mock_expand_area` to accept `**kwargs` for new parameters
+2. **`tests/test_game_state.py`**: Added two new tests to `TestEnterExitCommands` class:
+   - `test_enter_case_insensitive_multiword_name`: Verifies multi-word location names work with lowercase input (e.g., "spectral grove" matches "Spectral Grove")
+   - `test_enter_invalid_location_shows_available`: Verifies error message lists available sub-locations
 
 ## Test Results
 
-All 3434 tests pass, including:
-- 6 new tests in `test_terrain_location_coherence.py`
-- All existing layered generation tests
-- All game state context tests
+- All 13 enter-related tests pass
+- All 4 subgrid enter tests pass
+- Full test suite: 3436 passed
 
 ## Design Decisions
 
-1. **Backward Compatibility**: `terrain_type` defaults to `None`, and prompts use "wilderness" as a fallback
-2. **Passthrough Pattern**: terrain_type is passed from `game_state.move()` → `expand_area()` → `expand_world()` → `generate_location_with_context()` → prompt template
-3. **Prompt Enhancement**: The prompt now includes terrain in the Region Context section and adds a requirement ensuring locations make sense for the terrain
+- Error message uses proper casing from the location names (e.g., "Tavern" not "tavern")
+- Duplicates are removed using `dict.fromkeys()` to preserve insertion order
+- SubGrid locations are listed first, then traditional sub_locations (matches lookup order)
 
-## E2E Validation
+## E2E Test Validation
 
-To manually verify:
-1. Start the game with WFC enabled
-2. Move to a desert tile
-3. Verify the generated location has a desert-appropriate name/description
-4. Repeat for other terrain types (forest, mountain, etc.)
+The implementation should be validated by:
+1. Starting at an overworld location with sub-locations
+2. Running `enter nonexistent` and verifying available locations are shown
+3. Running `enter spectral grove` (lowercase) to verify case-insensitive multi-word matching

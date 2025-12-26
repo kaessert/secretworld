@@ -807,7 +807,19 @@ class GameState:
                         break
 
         if matched_location is None:
-            return (False, f"No such location: {target_name}")
+            # Build helpful error message with available locations
+            available = []
+            if current.sub_grid is not None:
+                available.extend(current.sub_grid._by_name.keys())
+            if current.sub_locations:
+                available.extend(current.sub_locations)
+            # Remove duplicates while preserving order
+            available = list(dict.fromkeys(available))
+
+            if available:
+                return (False, f"No such location: {target_name}. Available: {', '.join(available)}")
+            else:
+                return (False, "There are no locations to enter here.")
 
         # Handle sub_grid entry
         if sub_grid_location is not None:

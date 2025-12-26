@@ -1140,3 +1140,57 @@ class TestEnterExitCommands:
 
         assert success is True
         assert game_state.current_location == "City"
+
+    def test_enter_case_insensitive_multiword_name(self, monkeypatch):
+        """Test that enter works with multi-word location names in any case.
+
+        Spec: 'enter spectral grove' should match 'Spectral Grove' case-insensitively.
+        This tests the full command flow where input is lowercased before reaching enter().
+        """
+        monkeypatch.setattr("cli_rpg.game_state.autosave", lambda gs: None)
+
+        character = Character("Hero", strength=10, dexterity=10, intelligence=10)
+
+        overworld = Location(
+            "Ancient Forest",
+            "A mystical forest",
+            is_overworld=True,
+            sub_locations=["Spectral Grove", "Moonlit Clearing"],
+        )
+        spectral = Location("Spectral Grove", "A ghostly grove", parent_location="Ancient Forest")
+        moonlit = Location("Moonlit Clearing", "A clearing bathed in moonlight", parent_location="Ancient Forest")
+
+        world = {"Ancient Forest": overworld, "Spectral Grove": spectral, "Moonlit Clearing": moonlit}
+        game_state = GameState(character, world, "Ancient Forest")
+
+        # Test lowercase input (as parse_command would provide)
+        success, _ = game_state.enter("spectral grove")
+        assert success is True
+        assert game_state.current_location == "Spectral Grove"
+
+    def test_enter_invalid_location_shows_available(self, monkeypatch):
+        """Test that entering invalid location shows available options.
+
+        Spec: Error message should list available sub-locations for discoverability.
+        """
+        monkeypatch.setattr("cli_rpg.game_state.autosave", lambda gs: None)
+
+        character = Character("Hero", strength=10, dexterity=10, intelligence=10)
+
+        overworld = Location(
+            "City",
+            "A bustling city",
+            is_overworld=True,
+            sub_locations=["Tavern", "Market"],
+        )
+        tavern = Location("Tavern", "A tavern", parent_location="City")
+        market = Location("Market", "A market", parent_location="City")
+
+        world = {"City": overworld, "Tavern": tavern, "Market": market}
+        game_state = GameState(character, world, "City")
+
+        success, message = game_state.enter("nonexistent")
+        assert success is False
+        assert "Available:" in message
+        assert "Tavern" in message
+        assert "Market" in message

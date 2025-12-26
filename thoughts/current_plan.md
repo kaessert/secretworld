@@ -1,194 +1,129 @@
-# Implementation Plan: Connect Terrain to Location Generation
+# Implementation Plan: Improve `enter` Command Error Messages
 
 ## Summary
-Pass WFC terrain type to AI prompts so generated locations match their terrain. A "Desert Oasis" should only spawn on desert tiles, not forest.
+The case-insensitive matching for `enter` already works correctly. The remaining issue is that error messages show lowercased location names and don't suggest available options. Fix the error message to be more helpful.
 
 ## Current State Analysis
 
-**What exists:**
-- `ChunkManager.get_tile_at(x, y)` returns terrain type at coordinates (forest, desert, mountain, etc.)
-- `game_state.move()` already queries terrain and stores it: `terrain = self.chunk_manager.get_tile_at(*target_coords)` (line 510)
-- `game_state.move()` sets `target_location.terrain = terrain` after generation (line 536)
-- Layered generation uses `generate_location_with_context()` which takes `world_context` and `region_context`
-- `get_or_create_region_context()` already accepts a `terrain_hint` parameter
-- `generate_region_context()` passes `terrain_hint` to the prompt
+**What works correctly:**
+- Case-insensitive matching in `game_state.enter()` (lines 788-807)
+- SubGrid lookup: `loc.name.lower().startswith(target_lower)` (line 796)
+- Traditional lookup: `sub_name.lower().startswith(target_lower)` (line 804)
+- All 7 existing enter tests pass
 
-**The gap:**
-1. `expand_area()` and `expand_world()` in `ai_world.py` don't receive terrain info
-2. The `location_prompt_minimal` template doesn't include terrain type
-3. `game_state.move()` calls `expand_area()` without passing terrain
+**The actual issue:**
+- Error message at line 810: `f"No such location: {target_name}"` shows lowercased name
+- User types `enter Spectral Grove` → gets `No such location: spectral grove`
+- No suggestion of available locations to enter
 
 ## Implementation Steps
 
-### Step 1: Update ai_world.py to accept terrain_type parameter
+### Step 1: Add test for case-insensitive matching with multi-word location names
 
-**File: `src/cli_rpg/ai_world.py`**
+**File: `tests/test_game_state.py`**
 
-1. Add `terrain_type: Optional[str] = None` parameter to `expand_world()` (around line 358)
-2. Add `terrain_type: Optional[str] = None` parameter to `expand_area()` (around line 502)
-3. Pass terrain_type to `get_or_create_region_context()` as `terrain_hint` when generating locations
+Add to `TestEnterExitCommands` class:
 
-### Step 2: Update prompt template to include terrain
+```python
+def test_enter_case_insensitive_multiword_name(self, monkeypatch):
+    """Test that enter works with multi-word location names in any case.
 
-**File: `src/cli_rpg/ai_config.py`**
+    Spec: 'enter spectral grove' should match 'Spectral Grove' case-insensitively.
+    This tests the full command flow where input is lowercased before reaching enter().
+    """
+    monkeypatch.setattr("cli_rpg.game_state.autosave", lambda gs: None)
 
-1. Add `{terrain_type}` placeholder to `DEFAULT_LOCATION_PROMPT_MINIMAL` (around line 306)
-2. Add instruction: "The terrain at this location is {terrain_type}. Generate a location that fits this terrain."
+    character = Character("Hero", strength=10, dexterity=10, intelligence=10)
 
-### Step 3: Update AI service to use terrain in prompt
+    overworld = Location(
+        "Ancient Forest",
+        "A mystical forest",
+        is_overworld=True,
+        sub_locations=["Spectral Grove", "Moonlit Clearing"],
+    )
+    spectral = Location("Spectral Grove", "A ghostly grove", parent_location="Ancient Forest")
+    moonlit = Location("Moonlit Clearing", "A clearing bathed in moonlight", parent_location="Ancient Forest")
 
-**File: `src/cli_rpg/ai_service.py`**
+    world = {"Ancient Forest": overworld, "Spectral Grove": spectral, "Moonlit Clearing": moonlit}
+    game_state = GameState(character, world, "Ancient Forest")
 
-1. Add `terrain_type: Optional[str] = None` to `generate_location_with_context()` signature (around line 2406)
-2. Add `terrain_type: Optional[str] = None` to `_build_location_with_context_prompt()` (around line 2464)
-3. Pass `terrain_type` to the prompt format call (around line 2487)
+    # Test lowercase input (as parse_command would provide)
+    success, _ = game_state.enter("spectral grove")
+    assert success is True
+    assert game_state.current_location == "Spectral Grove"
+```
 
-### Step 4: Update game_state.move() to pass terrain
+### Step 2: Improve error message to show available locations
 
 **File: `src/cli_rpg/game_state.py`**
 
-1. In `move()`, pass `terrain` to `expand_area()` call (around line 523)
-2. The terrain is already retrieved at line 510: `terrain = self.chunk_manager.get_tile_at(*target_coords)`
-
-### Step 5: Write Tests
-
-**File: `tests/test_terrain_location_coherence.py`** (new file)
-
+Change line 810 from:
 ```python
-"""Tests for terrain-to-location generation coherence."""
-
-import pytest
-from unittest.mock import Mock, patch
-import json
-
-from cli_rpg.ai_config import AIConfig
-from cli_rpg.ai_service import AIService
-from cli_rpg.models.world_context import WorldContext
-from cli_rpg.models.region_context import RegionContext
-
-
-@pytest.fixture
-def basic_config(tmp_path):
-    return AIConfig(
-        api_key="test-key",
-        model="gpt-3.5-turbo",
-        cache_file=str(tmp_path / "cache.json"),
-    )
-
-
-@pytest.fixture
-def world_context():
-    return WorldContext(
-        theme="fantasy",
-        theme_essence="A mystical fantasy realm",
-        naming_style="Celtic-inspired",
-        tone="adventurous",
-    )
-
-
-@pytest.fixture
-def region_context():
-    return RegionContext(
-        name="The Sunbaked Expanse",
-        theme="arid desert with ancient ruins",
-        danger_level="moderate",
-        landmarks=["The Obelisk"],
-        coordinates=(10, 10),
-    )
-
-
-class TestTerrainInPrompt:
-    """Test that terrain type is included in location generation prompts."""
-
-    @patch("cli_rpg.ai_service.OpenAI")
-    def test_terrain_included_in_prompt(
-        self, mock_openai_class, basic_config, world_context, region_context
-    ):
-        """Verify terrain_type appears in the AI prompt."""
-        mock_client = Mock()
-        mock_openai_class.return_value = mock_client
-
-        valid_response = {
-            "name": "Desert Oasis",
-            "description": "A refreshing oasis amid the dunes.",
-            "connections": {"south": "Caravan Route"},
-            "category": "wilderness",
-        }
-        mock_response = Mock()
-        mock_response.choices = [Mock()]
-        mock_response.choices[0].message.content = json.dumps(valid_response)
-        mock_client.chat.completions.create.return_value = mock_response
-
-        service = AIService(basic_config)
-        service.generate_location_with_context(
-            world_context=world_context,
-            region_context=region_context,
-            terrain_type="desert",
-        )
-
-        call_args = mock_client.chat.completions.create.call_args
-        prompt = call_args[1]["messages"][0]["content"]
-
-        assert "desert" in prompt.lower()
-
-    @patch("cli_rpg.ai_service.OpenAI")
-    def test_terrain_none_uses_default(
-        self, mock_openai_class, basic_config, world_context, region_context
-    ):
-        """Verify prompt works when terrain_type is None."""
-        mock_client = Mock()
-        mock_openai_class.return_value = mock_client
-
-        valid_response = {
-            "name": "Mysterious Path",
-            "description": "A winding path through unknown lands.",
-            "connections": {},
-            "category": "wilderness",
-        }
-        mock_response = Mock()
-        mock_response.choices = [Mock()]
-        mock_response.choices[0].message.content = json.dumps(valid_response)
-        mock_client.chat.completions.create.return_value = mock_response
-
-        service = AIService(basic_config)
-        # Should not raise with terrain_type=None
-        result = service.generate_location_with_context(
-            world_context=world_context,
-            region_context=region_context,
-            terrain_type=None,
-        )
-
-        assert result["name"] == "Mysterious Path"
+return (False, f"No such location: {target_name}")
 ```
 
-**Add integration test to `tests/test_ai_world_generation.py`:**
+To:
+```python
+# Build helpful error message with available locations
+available = []
+if current.sub_grid is not None:
+    available.extend(current.sub_grid._by_name.keys())
+if current.sub_locations:
+    available.extend(current.sub_locations)
+# Remove duplicates while preserving order
+available = list(dict.fromkeys(available))
+
+if available:
+    return (False, f"No such location: {target_name}. Available: {', '.join(available)}")
+else:
+    return (False, f"There are no locations to enter here.")
+```
+
+### Step 3: Add test for improved error message
+
+**File: `tests/test_game_state.py`**
+
+Add to `TestEnterExitCommands` class:
 
 ```python
-class TestTerrainPassthrough:
-    """Test that terrain is passed through world expansion."""
+def test_enter_invalid_location_shows_available(self, monkeypatch):
+    """Test that entering invalid location shows available options.
 
-    @patch("cli_rpg.ai_world.expand_area")
-    def test_expand_area_receives_terrain(self, mock_expand_area, ...):
-        """Verify expand_area receives terrain_type from move()."""
-        # Set up game state with chunk_manager
-        # Move to coordinates with known terrain
-        # Assert expand_area was called with terrain_type parameter
-        pass
+    Spec: Error message should list available sub-locations for discoverability.
+    """
+    monkeypatch.setattr("cli_rpg.game_state.autosave", lambda gs: None)
+
+    character = Character("Hero", strength=10, dexterity=10, intelligence=10)
+
+    overworld = Location(
+        "City",
+        "A bustling city",
+        is_overworld=True,
+        sub_locations=["Tavern", "Market"],
+    )
+    tavern = Location("Tavern", "A tavern", parent_location="City")
+    market = Location("Market", "A market", parent_location="City")
+
+    world = {"City": overworld, "Tavern": tavern, "Market": market}
+    game_state = GameState(character, world, "City")
+
+    success, message = game_state.enter("nonexistent")
+    assert success is False
+    assert "Available:" in message
+    assert "Tavern" in message
+    assert "Market" in message
 ```
 
 ## Code Changes Summary
 
 | File | Change |
 |------|--------|
-| `ai_config.py` | Add `{terrain_type}` to `DEFAULT_LOCATION_PROMPT_MINIMAL` |
-| `ai_service.py` | Add `terrain_type` param to `generate_location_with_context()` and `_build_location_with_context_prompt()` |
-| `ai_world.py` | Add `terrain_type` param to `expand_world()` and `expand_area()` |
-| `game_state.py` | Pass `terrain` to `expand_area()` in `move()` |
-| `tests/test_terrain_location_coherence.py` | New test file |
+| `src/cli_rpg/game_state.py` | Improve error message to show available locations (line 810) |
+| `tests/test_game_state.py` | Add test for multi-word case-insensitive matching |
+| `tests/test_game_state.py` | Add test for improved error message |
 
 ## Verification
 
-1. Run existing tests: `pytest tests/test_ai_layered_generation.py -v`
-2. Run new tests: `pytest tests/test_terrain_location_coherence.py -v`
+1. Run enter tests: `pytest tests/test_game_state.py -k "enter" -v`
+2. Run subgrid tests: `pytest tests/test_subgrid_navigation.py -k "enter" -v`
 3. Run full suite: `pytest`
-4. Manual test: Start game with WFC enabled, move to desert tile, verify generated location fits desert theme
