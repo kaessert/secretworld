@@ -589,7 +589,7 @@ def test_expand_area_generates_area_cluster(mock_ai_service):
     """Test expand_area generates multiple connected locations.
 
     Spec: expand_area calls generate_area and places locations at
-    relative coordinates (lines 343-372).
+    relative coordinates. Entry location goes to world, sub-locations go to SubGrid.
     """
     # Create a world with source location
     town_square = Location(
@@ -625,18 +625,23 @@ def test_expand_area_generates_area_cluster(mock_ai_service):
         size=2
     )
 
-    # Verify both locations were added
+    # Entry location should be in world
     assert "Forest Entry" in updated_world
-    assert "Deep Woods" in updated_world
-    assert len(updated_world) == 3  # Original + 2 new locations
+    # Sub-location should be in entry's SubGrid, not in world
+    assert "Deep Woods" not in updated_world
+    entry = updated_world["Forest Entry"]
+    assert entry.sub_grid is not None
+    assert entry.sub_grid.get_by_name("Deep Woods") is not None
+    # Only entry added to world (Original + 1 new location)
+    assert len(updated_world) == 2
 
 
 # Test: expand_area places locations at correct coordinates - spec: lines 391-427
 def test_expand_area_places_locations_at_correct_coordinates(mock_ai_service):
-    """Test expand_area places locations at correct absolute coordinates.
+    """Test expand_area places entry at correct coordinates, sub-locations in SubGrid.
 
-    Spec: Relative coordinates from generate_area are added to target_coords
-    to calculate absolute coordinates (lines 391-427).
+    Spec: Entry location gets overworld coordinates. Sub-locations are added
+    to SubGrid with relative coordinates.
     """
     town_square = Location(
         name="Town Square",
@@ -676,10 +681,17 @@ def test_expand_area_places_locations_at_correct_coordinates(mock_ai_service):
         size=3
     )
 
-    # Verify coordinates
+    # Entry location has overworld coordinates
     assert updated_world["Central Hub"].coordinates == (0, 1)
-    assert updated_world["East Wing"].coordinates == (1, 1)
-    assert updated_world["North Chamber"].coordinates == (0, 2)
+    # Sub-locations are in SubGrid with relative coordinates
+    entry = updated_world["Central Hub"]
+    east_wing = entry.sub_grid.get_by_name("East Wing")
+    north_chamber = entry.sub_grid.get_by_name("North Chamber")
+    assert east_wing is not None
+    assert north_chamber is not None
+    # SubGrid locations have their relative coordinates
+    assert east_wing.coordinates == (1, 0)
+    assert north_chamber.coordinates == (0, 1)
 
 
 # Test: expand_area connects entry to source - spec: lines 454-471
@@ -912,10 +924,10 @@ def test_expand_area_invalid_direction(mock_ai_service):
 
 # Test: expand_area adds bidirectional connections between placed locations - spec: lines 473-501
 def test_expand_area_adds_bidirectional_connections(mock_ai_service):
-    """Test expand_area creates bidirectional connections based on coordinates.
+    """Test SubGrid creates bidirectional connections based on coordinates.
 
     Spec: Adjacent locations by coordinates should have bidirectional
-    connections (lines 473-501).
+    connections via SubGrid.add_location().
     """
     town_square = Location(
         name="Town Square",
@@ -949,9 +961,15 @@ def test_expand_area_adds_bidirectional_connections(mock_ai_service):
         size=2
     )
 
-    # Verify bidirectional connection based on coordinates
-    assert updated_world["Center Room"].get_connection("east") == "East Room"
-    assert updated_world["East Room"].get_connection("west") == "Center Room"
+    # Entry is in world, sub-location is in SubGrid
+    entry = updated_world["Center Room"]
+    # Entry should connect to East Room via entry's connections
+    assert entry.get_connection("east") == "East Room"
+    # East Room is in SubGrid
+    east_room = entry.sub_grid.get_by_name("East Room")
+    assert east_room is not None
+    # SubGrid creates bidirectional connections based on coordinates
+    assert east_room.get_connection("west") == "Center Room"
 
 
 # ========================================================================
@@ -1789,15 +1807,16 @@ def test_expand_area_creates_npcs(mock_ai_service):
         size=2
     )
 
-    # Verify NPCs in Forest Entry
+    # Verify NPCs in Forest Entry (in world)
     entry_loc = updated_world["Forest Entry"]
     assert len(entry_loc.npcs) == 1
     assert entry_loc.npcs[0].name == "Forest Ranger"
     assert entry_loc.npcs[0].is_merchant is False
     assert entry_loc.npcs[0].is_quest_giver is False
 
-    # Verify NPCs in Deep Woods
-    deep_loc = updated_world["Deep Woods"]
+    # Verify NPCs in Deep Woods (in SubGrid, not world)
+    deep_loc = entry_loc.sub_grid.get_by_name("Deep Woods")
+    assert deep_loc is not None
     assert len(deep_loc.npcs) == 1
     assert deep_loc.npcs[0].name == "Hermit Sage"
     assert deep_loc.npcs[0].is_quest_giver is True

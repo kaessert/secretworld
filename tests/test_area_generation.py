@@ -204,8 +204,12 @@ class TestExpandArea:
             target_coords=(0, 1)
         )
 
-        # Should have added 4 new locations
-        assert len(result) >= initial_count + 4
+        # Should have added entry to world (sub-locations are now in SubGrid)
+        assert len(result) >= initial_count + 1
+        # Entry should have SubGrid with 3 sub-locations
+        entry = result["Forest Clearing"]
+        assert entry.sub_grid is not None
+        assert len(entry.sub_grid._by_name) == 3  # Deep Woods, Brook, Old Oak
 
     def test_expand_area_locations_are_connected(self):
         """All locations in the area are reachable from the entry point.
@@ -265,10 +269,11 @@ class TestExpandArea:
         entry_loc = result["Area Entry"]
         assert entry_loc.get_connection("south") == "Town Square"
 
-        # Verify all area locations are in the world
-        assert "Area Center" in result
-        assert "Area East" in result
-        assert "Area Southeast" in result
+        # Sub-locations are now in entry's SubGrid, not world dict
+        assert entry_loc.sub_grid is not None
+        assert entry_loc.sub_grid.get_by_name("Area Center") is not None
+        assert entry_loc.sub_grid.get_by_name("Area East") is not None
+        assert entry_loc.sub_grid.get_by_name("Area Southeast") is not None
 
     def test_expand_area_preserves_expansion_exits(self):
         """Area expansion should preserve ability to expand further.

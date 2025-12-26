@@ -459,7 +459,7 @@ class ChunkManager:
 2. ✅ Add `is_exit_point` and `sub_grid` to Location model - **DONE** (16 tests in `tests/test_exit_points.py`)
 3. ✅ Update GameState `enter()`, `exit_location()`, `move()`, `get_current_location()` - **DONE** (21 tests in `tests/test_subgrid_navigation.py`)
 4. ✅ Update map renderer for interior maps - **DONE** (12 tests in `tests/test_map_renderer.py::TestSubGridMapRendering`)
-5. Fix `ai_world.py` `expand_area()` to use SubGrid
+5. ✅ Fix `ai_world.py` `expand_area()` to use SubGrid - **DONE** (11 tests in `tests/test_ai_world_subgrid.py`)
 6. Convert default world sub-locations to use SubGrid
 7. Update persistence for SubGrid serialization
 8. Write tests
@@ -496,6 +496,14 @@ class ChunkManager:
 - ✅ `sub_grid` serialization/deserialization
 - ✅ Backward compatibility (old saves without new fields)
 - ✅ Round-trip serialization preserves all data
+
+### `tests/test_ai_world_subgrid.py` ✅ CREATED (11 tests)
+- ✅ Entry location has sub_grid attached
+- ✅ Sub-locations not in world dict
+- ✅ Sub-locations accessible via SubGrid
+- ✅ Entry marked as exit point
+- ✅ First sub-location marked as exit point
+- ✅ Relative coordinates preserved in SubGrid placement
 
 ### `tests/test_wfc.py`
 - All cells collapse to valid tiles
@@ -1665,6 +1673,30 @@ Quests should be dynamically generated to keep gameplay fresh.
 - Scaling difficulty based on player level
 - Quest chains that build on each other
 - Emergent storylines from completed quests
+
+### Confusing camp error message at overworld wilderness locations
+**Status**: ACTIVE (UX Issue)
+
+**Description**: When a player is at an overworld location that appears to be wilderness (Forest, Cave), the `camp` command displays "You can't camp here. Find a wilderness location." This message is confusing because:
+
+1. The player IS visibly in a forest/cave which looks like wilderness
+2. The actual issue is that camping is only allowed in sub-locations (e.g., Forest Edge, Deep Woods), not at overworld landmarks
+3. The error message doesn't explain this distinction or guide the user on how to proceed
+
+**Steps to Reproduce**:
+1. Start a new game with `--skip-character-creation`
+2. Run `go north` to travel to Forest
+3. Run `camp`
+4. Observe error: "You can't camp here. Find a wilderness location."
+5. The Forest description shows "Enter: Forest Edge, Deep Woods, Ancient Grove" but the player isn't told to use `enter` command
+
+**Expected Behavior**: The error message should be more helpful, such as:
+- "You can't camp at overworld landmarks. Use 'enter <location>' to find a suitable campsite in Forest Edge, Deep Woods, or Ancient Grove."
+- OR the Forest overworld location itself should allow camping
+
+**Actual Behavior**: Generic "Find a wilderness location" message that doesn't explain the sub-location requirement.
+
+**User Impact**: Players may be confused and repeatedly try to camp at Forest/Cave without understanding they need to `enter` a sub-location first.
 
 ## Resolved Issues
 

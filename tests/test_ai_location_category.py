@@ -443,8 +443,11 @@ def test_expand_area_passes_category_to_location(mock_openai_class, basic_config
         size=4
     )
 
-    # Verify the new locations have category set
+    # Verify entry location has category set (in world)
     assert "Mountain Pass" in updated_world
     assert updated_world["Mountain Pass"].category == "mountain"
-    assert "Peak" in updated_world
-    assert updated_world["Peak"].category == "mountain"
+    # Verify sub-location has category set (in SubGrid)
+    entry = updated_world["Mountain Pass"]
+    peak = entry.sub_grid.get_by_name("Peak")
+    assert peak is not None
+    assert peak.category == "mountain"

@@ -7,7 +7,7 @@ from cli_rpg.models.location import Location
 from cli_rpg.models.npc import NPC
 from cli_rpg.models.shop import Shop, ShopItem
 from cli_rpg.models.item import Item, ItemType
-from cli_rpg.world_grid import WorldGrid, DIRECTION_OFFSETS
+from cli_rpg.world_grid import WorldGrid, SubGrid, DIRECTION_OFFSETS
 from cli_rpg.location_art import get_fallback_location_ascii_art
 
 
@@ -608,6 +608,7 @@ def expand_area(
             "location": new_loc,
             "connections": loc_data["connections"],
             "coords": (abs_x, abs_y),
+            "relative_coords": (rel_x, rel_y),
             "is_entry": is_entry
         }
 
@@ -663,9 +664,41 @@ def expand_area(
             if conn_target in placed_locations or conn_target in world:
                 loc.add_connection(conn_dir, conn_target)
 
-    # Add locations to world
-    for name, data in placed_locations.items():
-        world[name] = data["location"]
+    # Add locations to world - use SubGrid for sub-locations
+    if entry_name is not None and len(placed_locations) > 1:
+        entry_loc = placed_locations[entry_name]["location"]
+
+        # Create SubGrid for interior (7x7 area)
+        sub_grid = SubGrid(bounds=(-3, 3, -3, 3), parent_name=entry_name)
+
+        # Add sub-locations to SubGrid (not to world)
+        first_subloc = True
+        for name, data in placed_locations.items():
+            if data.get("is_entry", False):
+                continue  # Skip entry, it goes to world
+
+            loc = data["location"]
+            rel_x, rel_y = data["relative_coords"]
+
+            # Clear overworld coordinates (sub-locations get SubGrid coords)
+            loc.coordinates = None
+
+            # First sub-location is exit point (entry into the SubGrid)
+            loc.is_exit_point = first_subloc
+            first_subloc = False
+
+            sub_grid.add_location(loc, rel_x, rel_y)
+
+        # Attach sub_grid to entry
+        entry_loc.sub_grid = sub_grid
+        entry_loc.is_exit_point = True  # Can exit from entry back to overworld
+
+        # Only add entry to world
+        world[entry_name] = entry_loc
+    else:
+        # Single location or no entry - add all to world (legacy behavior)
+        for name, data in placed_locations.items():
+            world[name] = data["location"]
 
     # Connect source location to entry
     if entry_name:

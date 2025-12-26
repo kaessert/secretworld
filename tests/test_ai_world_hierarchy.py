@@ -339,6 +339,7 @@ class TestExpandAreaHierarchy:
         """Verify area sub-locations have is_overworld=False.
 
         Spec: Other locations: is_overworld=False
+        Note: Sub-locations are now stored in the entry's SubGrid, not in world dict
         """
         mock_ai_service.generate_area.return_value = [
             {
@@ -366,13 +367,17 @@ class TestExpandAreaHierarchy:
             target_coords=(0, 1)
         )
 
-        sub_loc = basic_world["Dungeon Hall"]
+        # Sub-locations are in the entry's SubGrid, not in world dict
+        entry = basic_world["Dungeon Gate"]
+        sub_loc = entry.sub_grid.get_by_name("Dungeon Hall")
+        assert sub_loc is not None, "Sub-location should be in SubGrid"
         assert sub_loc.is_overworld is False
 
     def test_area_sub_location_has_parent(self, mock_ai_service, basic_world):
         """Verify area sub-locations have parent_location set to entry name.
 
         Spec: Other locations: parent_location=entry_name
+        Note: Sub-locations are now stored in the entry's SubGrid, not in world dict
         """
         mock_ai_service.generate_area.return_value = [
             {
@@ -400,7 +405,10 @@ class TestExpandAreaHierarchy:
             target_coords=(0, 1)
         )
 
-        sub_loc = basic_world["Cave Interior"]
+        # Sub-locations are in the entry's SubGrid, not in world dict
+        entry = basic_world["Cave Mouth"]
+        sub_loc = entry.sub_grid.get_by_name("Cave Interior")
+        assert sub_loc is not None, "Sub-location should be in SubGrid"
         assert sub_loc.parent_location == "Cave Mouth"
 
     def test_area_entry_has_sub_locations_list(self, mock_ai_service, basic_world):
@@ -485,6 +493,7 @@ class TestExpandAreaHierarchy:
         """Verify area locations with settlement category have is_safe_zone=True.
 
         Spec: settlement category -> is_safe_zone=True
+        Note: Sub-locations are now stored in the entry's SubGrid, not in world dict
         """
         mock_ai_service.generate_area.return_value = [
             {
@@ -513,14 +522,17 @@ class TestExpandAreaHierarchy:
         )
 
         entry = basic_world["Camp Entrance"]
-        sub = basic_world["Camp Center"]
+        # Sub-locations are in the entry's SubGrid, not in world dict
+        sub = entry.sub_grid.get_by_name("Camp Center")
         assert entry.is_safe_zone is True
+        assert sub is not None, "Sub-location should be in SubGrid"
         assert sub.is_safe_zone is True
 
     def test_area_danger_zone_for_wilderness(self, mock_ai_service, basic_world):
         """Verify area locations with wilderness category have is_safe_zone=False.
 
         Spec: wilderness category -> is_safe_zone=False
+        Note: Sub-locations are now stored in the entry's SubGrid, not in world dict
         """
         mock_ai_service.generate_area.return_value = [
             {
@@ -549,8 +561,10 @@ class TestExpandAreaHierarchy:
         )
 
         entry = basic_world["Wild Border"]
-        sub = basic_world["Deep Wild"]
+        # Sub-locations are in the entry's SubGrid, not in world dict
+        sub = entry.sub_grid.get_by_name("Deep Wild")
         assert entry.is_safe_zone is False
+        assert sub is not None, "Sub-location should be in SubGrid"
         assert sub.is_safe_zone is False
 
 
