@@ -1,149 +1,194 @@
-# Implementation Plan: Complete Layered AI Query Architecture (Steps 6-7)
+# Implementation Plan: Connect Terrain to Location Generation
 
-## Spec
+## Summary
+Pass WFC terrain type to AI prompts so generated locations match their terrain. A "Desert Oasis" should only spawn on desert tiles, not forest.
 
-Complete the layered AI query architecture by:
-1. Refactoring `generate_location()` to accept layered contexts (world/region) and use the minimal prompt
-2. Adding `generate_npcs_for_location()` as a separate API call (Layer 4)
-3. Caching WorldContext and RegionContext in GameState
-4. Wiring up context caching in world generation flow
+## Current State Analysis
+
+**What exists:**
+- `ChunkManager.get_tile_at(x, y)` returns terrain type at coordinates (forest, desert, mountain, etc.)
+- `game_state.move()` already queries terrain and stores it: `terrain = self.chunk_manager.get_tile_at(*target_coords)` (line 510)
+- `game_state.move()` sets `target_location.terrain = terrain` after generation (line 536)
+- Layered generation uses `generate_location_with_context()` which takes `world_context` and `region_context`
+- `get_or_create_region_context()` already accepts a `terrain_hint` parameter
+- `generate_region_context()` passes `terrain_hint` to the prompt
+
+**The gap:**
+1. `expand_area()` and `expand_world()` in `ai_world.py` don't receive terrain info
+2. The `location_prompt_minimal` template doesn't include terrain type
+3. `game_state.move()` calls `expand_area()` without passing terrain
 
 ## Implementation Steps
 
-### Step 1: Add `generate_location_with_context()` to AIService
+### Step 1: Update ai_world.py to accept terrain_type parameter
 
-**File:** `src/cli_rpg/ai_service.py`
+**File: `src/cli_rpg/ai_world.py`**
 
-Add new method that uses layered contexts:
+1. Add `terrain_type: Optional[str] = None` parameter to `expand_world()` (around line 358)
+2. Add `terrain_type: Optional[str] = None` parameter to `expand_area()` (around line 502)
+3. Pass terrain_type to `get_or_create_region_context()` as `terrain_hint` when generating locations
+
+### Step 2: Update prompt template to include terrain
+
+**File: `src/cli_rpg/ai_config.py`**
+
+1. Add `{terrain_type}` placeholder to `DEFAULT_LOCATION_PROMPT_MINIMAL` (around line 306)
+2. Add instruction: "The terrain at this location is {terrain_type}. Generate a location that fits this terrain."
+
+### Step 3: Update AI service to use terrain in prompt
+
+**File: `src/cli_rpg/ai_service.py`**
+
+1. Add `terrain_type: Optional[str] = None` to `generate_location_with_context()` signature (around line 2406)
+2. Add `terrain_type: Optional[str] = None` to `_build_location_with_context_prompt()` (around line 2464)
+3. Pass `terrain_type` to the prompt format call (around line 2487)
+
+### Step 4: Update game_state.move() to pass terrain
+
+**File: `src/cli_rpg/game_state.py`**
+
+1. In `move()`, pass `terrain` to `expand_area()` call (around line 523)
+2. The terrain is already retrieved at line 510: `terrain = self.chunk_manager.get_tile_at(*target_coords)`
+
+### Step 5: Write Tests
+
+**File: `tests/test_terrain_location_coherence.py`** (new file)
 
 ```python
-def generate_location_with_context(
-    self,
-    world_context: WorldContext,
-    region_context: RegionContext,
-    source_location: Optional[str] = None,
-    direction: Optional[str] = None
-) -> dict:
-```
+"""Tests for terrain-to-location generation coherence."""
 
-- Uses `location_prompt_minimal` template from config
-- Returns dict with: name, description, connections, category (no NPCs)
-- Add `_build_location_with_context_prompt()` helper
-- Reuse `_parse_location_response()` (already handles optional npcs field)
+import pytest
+from unittest.mock import Mock, patch
+import json
 
-### Step 2: Add `generate_npcs_for_location()` to AIService
-
-**File:** `src/cli_rpg/ai_service.py`
-
-Add new method for Layer 4 NPC generation:
-
-```python
-def generate_npcs_for_location(
-    self,
-    world_context: WorldContext,
-    location_name: str,
-    location_description: str,
-    location_category: Optional[str] = None
-) -> list[dict]:
-```
-
-- Uses `npc_prompt_minimal` template from config
-- Returns list of NPC dicts: [{name, description, dialogue, role}]
-- Add `_build_npc_prompt()` and `_parse_npc_only_response()` methods
-
-### Step 3: Add context caching to GameState
-
-**File:** `src/cli_rpg/game_state.py`
-
-Add imports:
-```python
+from cli_rpg.ai_config import AIConfig
+from cli_rpg.ai_service import AIService
 from cli_rpg.models.world_context import WorldContext
 from cli_rpg.models.region_context import RegionContext
+
+
+@pytest.fixture
+def basic_config(tmp_path):
+    return AIConfig(
+        api_key="test-key",
+        model="gpt-3.5-turbo",
+        cache_file=str(tmp_path / "cache.json"),
+    )
+
+
+@pytest.fixture
+def world_context():
+    return WorldContext(
+        theme="fantasy",
+        theme_essence="A mystical fantasy realm",
+        naming_style="Celtic-inspired",
+        tone="adventurous",
+    )
+
+
+@pytest.fixture
+def region_context():
+    return RegionContext(
+        name="The Sunbaked Expanse",
+        theme="arid desert with ancient ruins",
+        danger_level="moderate",
+        landmarks=["The Obelisk"],
+        coordinates=(10, 10),
+    )
+
+
+class TestTerrainInPrompt:
+    """Test that terrain type is included in location generation prompts."""
+
+    @patch("cli_rpg.ai_service.OpenAI")
+    def test_terrain_included_in_prompt(
+        self, mock_openai_class, basic_config, world_context, region_context
+    ):
+        """Verify terrain_type appears in the AI prompt."""
+        mock_client = Mock()
+        mock_openai_class.return_value = mock_client
+
+        valid_response = {
+            "name": "Desert Oasis",
+            "description": "A refreshing oasis amid the dunes.",
+            "connections": {"south": "Caravan Route"},
+            "category": "wilderness",
+        }
+        mock_response = Mock()
+        mock_response.choices = [Mock()]
+        mock_response.choices[0].message.content = json.dumps(valid_response)
+        mock_client.chat.completions.create.return_value = mock_response
+
+        service = AIService(basic_config)
+        service.generate_location_with_context(
+            world_context=world_context,
+            region_context=region_context,
+            terrain_type="desert",
+        )
+
+        call_args = mock_client.chat.completions.create.call_args
+        prompt = call_args[1]["messages"][0]["content"]
+
+        assert "desert" in prompt.lower()
+
+    @patch("cli_rpg.ai_service.OpenAI")
+    def test_terrain_none_uses_default(
+        self, mock_openai_class, basic_config, world_context, region_context
+    ):
+        """Verify prompt works when terrain_type is None."""
+        mock_client = Mock()
+        mock_openai_class.return_value = mock_client
+
+        valid_response = {
+            "name": "Mysterious Path",
+            "description": "A winding path through unknown lands.",
+            "connections": {},
+            "category": "wilderness",
+        }
+        mock_response = Mock()
+        mock_response.choices = [Mock()]
+        mock_response.choices[0].message.content = json.dumps(valid_response)
+        mock_client.chat.completions.create.return_value = mock_response
+
+        service = AIService(basic_config)
+        # Should not raise with terrain_type=None
+        result = service.generate_location_with_context(
+            world_context=world_context,
+            region_context=region_context,
+            terrain_type=None,
+        )
+
+        assert result["name"] == "Mysterious Path"
 ```
 
-Add attributes in `__init__`:
+**Add integration test to `tests/test_ai_world_generation.py`:**
+
 ```python
-self.world_context: Optional[WorldContext] = None
-self.region_contexts: dict[tuple[int, int], RegionContext] = {}
+class TestTerrainPassthrough:
+    """Test that terrain is passed through world expansion."""
+
+    @patch("cli_rpg.ai_world.expand_area")
+    def test_expand_area_receives_terrain(self, mock_expand_area, ...):
+        """Verify expand_area receives terrain_type from move()."""
+        # Set up game state with chunk_manager
+        # Move to coordinates with known terrain
+        # Assert expand_area was called with terrain_type parameter
+        pass
 ```
 
-Add methods:
-```python
-def get_or_create_world_context(self) -> WorldContext:
-    """Get cached world context or generate/create default."""
+## Code Changes Summary
 
-def get_or_create_region_context(self, coords: tuple[int, int], terrain_hint: str = "wilderness") -> RegionContext:
-    """Get cached region context or generate/create default."""
-```
+| File | Change |
+|------|--------|
+| `ai_config.py` | Add `{terrain_type}` to `DEFAULT_LOCATION_PROMPT_MINIMAL` |
+| `ai_service.py` | Add `terrain_type` param to `generate_location_with_context()` and `_build_location_with_context_prompt()` |
+| `ai_world.py` | Add `terrain_type` param to `expand_world()` and `expand_area()` |
+| `game_state.py` | Pass `terrain` to `expand_area()` in `move()` |
+| `tests/test_terrain_location_coherence.py` | New test file |
 
-Update `to_dict()`:
-- Add `world_context` serialization
-- Add `region_contexts` serialization
+## Verification
 
-Update `from_dict()`:
-- Restore `world_context`
-- Restore `region_contexts`
-
-### Step 4: Wire up contexts in ai_world.py
-
-**File:** `src/cli_rpg/ai_world.py`
-
-Modify `expand_world()`:
-- Accept optional `world_context: Optional[WorldContext]` parameter
-- Accept optional `region_context: Optional[RegionContext]` parameter
-- When contexts provided, use `ai_service.generate_location_with_context()`
-- Call `ai_service.generate_npcs_for_location()` separately after location created
-
-Modify `expand_area()`:
-- Same pattern as `expand_world()`
-
-## Test Plan
-
-### Test file: `tests/test_ai_layered_generation.py`
-
-```python
-def test_generate_location_with_context_returns_valid_structure():
-    """Test generate_location_with_context returns location without NPCs."""
-
-def test_generate_location_with_context_uses_minimal_prompt():
-    """Test that minimal prompt template is used with context."""
-
-def test_generate_npcs_for_location_returns_valid_npcs():
-    """Test generate_npcs_for_location returns list of valid NPCs."""
-
-def test_generate_npcs_for_location_handles_empty_response():
-    """Test empty NPC list is valid."""
-
-def test_parse_npc_only_response_validates_fields():
-    """Test NPC field validation."""
-```
-
-### Test file: `tests/test_game_state_context.py`
-
-```python
-def test_get_or_create_world_context_returns_default_without_ai():
-    """Test fallback to default when no AI service."""
-
-def test_get_or_create_world_context_caches_result():
-    """Test world context is cached after first call."""
-
-def test_get_or_create_region_context_caches_by_coords():
-    """Test region contexts cached by coordinate tuple."""
-
-def test_world_context_serialized_in_to_dict():
-    """Test world_context included in save data."""
-
-def test_region_contexts_serialized_in_to_dict():
-    """Test region_contexts included in save data."""
-
-def test_contexts_restored_from_dict():
-    """Test contexts properly restored on load."""
-```
-
-## Files to Modify
-
-1. `src/cli_rpg/ai_service.py` - Add `generate_location_with_context()`, `generate_npcs_for_location()`, helper methods
-2. `src/cli_rpg/game_state.py` - Add `world_context`, `region_contexts`, `get_or_create_*` methods, update serialization
-3. `src/cli_rpg/ai_world.py` - Wire up contexts in `expand_world()` and `expand_area()`
-4. `tests/test_ai_layered_generation.py` - NEW: Tests for layered generation methods
-5. `tests/test_game_state_context.py` - NEW: Tests for context caching in GameState
+1. Run existing tests: `pytest tests/test_ai_layered_generation.py -v`
+2. Run new tests: `pytest tests/test_terrain_location_coherence.py -v`
+3. Run full suite: `pytest`
+4. Manual test: Start game with WFC enabled, move to desert tile, verify generated location fits desert theme

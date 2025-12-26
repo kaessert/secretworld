@@ -332,7 +332,7 @@ def test_move_triggers_coordinate_based_ai_expansion(test_character, coord_world
     """Test move triggers expand_area for coordinate-based worlds (lines 254-270)."""
     from unittest.mock import patch
 
-    def mock_expand_area(world, ai_service, from_location, direction, theme, target_coords):
+    def mock_expand_area(world, ai_service, from_location, direction, theme, target_coords, **kwargs):
         """Mock expand_area that creates a location at target coords."""
         new_loc = Location(
             name="Northern Area",

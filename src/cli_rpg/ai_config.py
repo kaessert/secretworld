@@ -311,16 +311,18 @@ World Context:
 Region Context:
 - Region Name: {region_name}
 - Region Theme: {region_theme}
+- Terrain: {terrain_type}
 
 Navigation:
 - Direction from previous: {direction}
 - Previous location: {source_location}
 
 Requirements:
-1. Create a unique location name (2-50 characters) that fits the region theme
-2. Write a vivid description (1-500 characters)
+1. Create a unique location name (2-50 characters) that fits the region theme and terrain
+2. Write a vivid description (1-500 characters) that reflects the {terrain_type} terrain
 3. Include a connection back to {source_location} via the opposite direction
 4. Assign a category (town, dungeon, wilderness, settlement, ruins, cave, forest, mountain, village)
+5. Ensure the location makes sense for {terrain_type} terrain (e.g., oasis for desert, clearing for forest)
 
 Respond with valid JSON in this exact format (no additional text):
 {{

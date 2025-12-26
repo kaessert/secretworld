@@ -357,7 +357,8 @@ def expand_world(
     theme: str,
     target_coords: Optional[tuple[int, int]] = None,
     world_context: Optional[WorldContext] = None,
-    region_context: Optional[RegionContext] = None
+    region_context: Optional[RegionContext] = None,
+    terrain_type: Optional[str] = None
 ) -> dict[str, Location]:
     """Expand world by generating a new location.
 
@@ -373,6 +374,7 @@ def expand_world(
                        the source location.
         world_context: Optional Layer 1 context for layered generation
         region_context: Optional Layer 2 context for layered generation
+        terrain_type: Optional terrain type (e.g., "desert", "forest") for coherent generation
 
     Returns:
         Updated world dictionary (same object, modified in place)
@@ -399,7 +401,8 @@ def expand_world(
             world_context=world_context,
             region_context=region_context,
             source_location=from_location,
-            direction=direction
+            direction=direction,
+            terrain_type=terrain_type
         )
         # Generate NPCs separately (Layer 4)
         npcs_data = ai_service.generate_npcs_for_location(
@@ -502,7 +505,8 @@ def expand_area(
     target_coords: tuple[int, int],
     size: int = 5,
     world_context: Optional[WorldContext] = None,
-    region_context: Optional[RegionContext] = None
+    region_context: Optional[RegionContext] = None,
+    terrain_type: Optional[str] = None
 ) -> dict[str, Location]:
     """Expand world by generating an entire thematic area (4-7 locations).
 
@@ -523,6 +527,7 @@ def expand_area(
                        (Note: area generation currently uses generate_area which
                        doesn't support layered contexts - contexts are passed
                        through to expand_world fallback)
+        terrain_type: Optional terrain type (e.g., "desert", "forest") for coherent generation
 
     Returns:
         Updated world dictionary (same object, modified in place)
@@ -571,7 +576,8 @@ def expand_area(
             theme=theme,
             target_coords=target_coords,
             world_context=world_context,
-            region_context=region_context
+            region_context=region_context,
+            terrain_type=terrain_type
         )
 
     # Place area locations on the grid
@@ -666,7 +672,8 @@ def expand_area(
             theme=theme,
             target_coords=target_coords,
             world_context=world_context,
-            region_context=region_context
+            region_context=region_context,
+            terrain_type=terrain_type
         )
 
     # Set up hierarchy relationships between entry and sub-locations

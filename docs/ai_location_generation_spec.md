@@ -95,11 +95,13 @@ Core service for interacting with LLM APIs.
 - Returns `RegionContext` instance
 - Raises `AIGenerationError` on generation failure
 
-`generate_location_with_context(theme: str, world_context: WorldContext, region_context: RegionContext, source_location: Optional[str] = None, direction: Optional[str] = None) -> dict`
+`generate_location_with_context(theme: str, world_context: WorldContext, region_context: RegionContext, source_location: Optional[str] = None, direction: Optional[str] = None, terrain_type: Optional[str] = None) -> dict`
 - Generate Layer 3 location using minimal prompt with cached context
 - Uses `location_prompt_minimal` template from AIConfig
 - Returns location dict with empty `npcs` list (NPCs generated separately in Layer 4)
 - Accepts optional `world_context` and `region_context` for thematic consistency
+- Accepts optional `terrain_type` to ensure generated locations match WFC terrain (e.g., desert oasis on desert tiles)
+- Defaults to "wilderness" when terrain_type is None
 - Raises `AIGenerationError` on generation failure
 
 `generate_npcs_for_location(theme: str, location_name: str, location_description: str, location_category: str = "") -> list[dict]`
@@ -223,7 +225,7 @@ Coordinate-based world storage for spatial consistency.
   - `is_safe_zone=False` for danger categories (dungeon, wilderness, ruins, cave, forest, mountain)
 - Return Location dictionary compatible with GameState (via `WorldGrid.as_dict()`)
 
-**`expand_area(world: dict[str, Location], ai_service: AIService, from_location: str, direction: str, theme: str, target_coords: Tuple[int, int]) -> dict[str, Location]`**
+**`expand_area(world: dict[str, Location], ai_service: AIService, from_location: str, direction: str, theme: str, target_coords: Tuple[int, int], terrain_type: Optional[str] = None) -> dict[str, Location]`**
 - Generate a thematic area (4-7 connected locations) using `AIService.generate_area()`
 - Places locations on the grid at calculated absolute coordinates
 - Creates bidirectional connections between area locations
@@ -231,13 +233,14 @@ Coordinate-based world storage for spatial consistency.
 - Handles coordinate conflicts and duplicate names gracefully
 - Falls back to single-location expansion (`expand_world`) if needed
 - Randomly selects sub-theme hints for variety (mystical forest, ancient ruins, haunted grounds, etc.)
+- Accepts optional `terrain_type` to pass WFC terrain type to location generation
 - Sets hierarchy fields for parent-child relationships:
   - Entry location (rel 0,0): `is_overworld=True`, `sub_locations` populated, `entry_point` set
   - Sub-locations: `is_overworld=False`, `parent_location` set to entry name
   - All locations get `is_safe_zone` based on category
 - Return updated world
 
-**`expand_world(world: dict[str, Location], ai_service: AIService, from_location: str, direction: str, theme: str) -> dict[str, Location]`**
+**`expand_world(world: dict[str, Location], ai_service: AIService, from_location: str, direction: str, theme: str, terrain_type: Optional[str] = None) -> dict[str, Location]`**
 - Generate single new location in specified direction (fallback for area generation)
 - Calculate coordinates based on source location and direction offset
 - Direction offsets: north=(0,+1), south=(0,-1), east=(+1,0), west=(-1,0)
@@ -248,6 +251,7 @@ Coordinate-based world storage for spatial consistency.
 - Update world dictionary in-place
 - Return updated world
 - Accepts optional `world_context` and `region_context` for layered generation
+- Accepts optional `terrain_type` to pass WFC terrain type to location generation
 
 **`create_world_with_fallback(ai_service: Optional[AIService] = None, theme: str = "fantasy") -> dict[str, Location]`**
 - Attempt AI world generation

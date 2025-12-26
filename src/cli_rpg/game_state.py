@@ -527,6 +527,7 @@ class GameState:
                             direction=direction,
                             theme=self.theme,
                             target_coords=target_coords,
+                            terrain_type=terrain,
                         )
                         # Find the newly generated location
                         target_location = self._get_location_by_coordinates(target_coords)

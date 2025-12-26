@@ -2408,7 +2408,8 @@ Note: Use "EXISTING_WORLD" as placeholder for the connection back to the source 
         world_context: "WorldContext",
         region_context: "RegionContext",
         source_location: Optional[str] = None,
-        direction: Optional[str] = None
+        direction: Optional[str] = None,
+        terrain_type: Optional[str] = None
     ) -> dict:
         """Generate a new location using layered context (Layer 3).
 
@@ -2421,6 +2422,7 @@ Note: Use "EXISTING_WORLD" as placeholder for the connection back to the source 
             region_context: Layer 2 RegionContext with region name, theme, danger level
             source_location: Optional location to expand from
             direction: Optional direction of expansion from source
+            terrain_type: Optional terrain type (e.g., "desert", "forest") for coherent generation
 
         Returns:
             Dictionary with keys: name, description, connections, category, npcs (empty list)
@@ -2435,7 +2437,8 @@ Note: Use "EXISTING_WORLD" as placeholder for the connection back to the source 
             world_context=world_context,
             region_context=region_context,
             source_location=source_location,
-            direction=direction
+            direction=direction,
+            terrain_type=terrain_type
         )
 
         # Check cache if enabled
@@ -2466,7 +2469,8 @@ Note: Use "EXISTING_WORLD" as placeholder for the connection back to the source 
         world_context: "WorldContext",
         region_context: "RegionContext",
         source_location: Optional[str],
-        direction: Optional[str]
+        direction: Optional[str],
+        terrain_type: Optional[str] = None
     ) -> str:
         """Build prompt for location generation using layered context.
 
@@ -2475,6 +2479,7 @@ Note: Use "EXISTING_WORLD" as placeholder for the connection back to the source 
             region_context: Layer 2 context
             source_location: Optional location to expand from
             direction: Optional direction of expansion
+            terrain_type: Optional terrain type for coherent generation
 
         Returns:
             Formatted prompt string using minimal template
@@ -2482,6 +2487,7 @@ Note: Use "EXISTING_WORLD" as placeholder for the connection back to the source 
         # Format source and direction
         source_text = source_location if source_location else "None (starting location)"
         direction_text = direction if direction else "N/A"
+        terrain_text = terrain_type if terrain_type else "wilderness"
 
         # Use minimal template from config
         prompt = self.config.location_prompt_minimal.format(
@@ -2490,7 +2496,8 @@ Note: Use "EXISTING_WORLD" as placeholder for the connection back to the source 
             region_name=region_context.name,
             region_theme=region_context.theme,
             source_location=source_text,
-            direction=direction_text
+            direction=direction_text,
+            terrain_type=terrain_text
         )
 
         return prompt

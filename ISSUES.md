@@ -1038,21 +1038,23 @@ Result: Locations feel random, not part of a cohesive world.
    - `AIService.generate_npcs_for_location()` - Layer 4 separate NPC generation
    - Contexts serialized in `to_dict()`/`from_dict()` for save/load
 
-2. **Connect Terrain to Location Generation**
-   - [ ] Query `chunk_manager.get_tile_at(x, y)` before generating location
-   - [ ] Pass terrain type to AI prompt
-   - [ ] Update prompt template to include terrain hint
-   - [ ] Validate generated location category matches terrain (`world_tiles.py:TERRAIN_LOCATION_TYPES`)
+2. ~~**Connect Terrain to Location Generation**~~ ✓ COMPLETED (2025-12-26)
+   - [x] Query `chunk_manager.get_tile_at(x, y)` before generating location
+   - [x] Pass terrain type to AI prompt
+   - [x] Update prompt template to include terrain hint
+   - [ ] Validate generated location category matches terrain (`world_tiles.py:TERRAIN_LOCATION_TYPES`) - deferred
 
-   **Files to modify**:
-   - `src/cli_rpg/ai_world.py`: Query terrain before generation
-   - `src/cli_rpg/ai_config.py`: Add terrain to location prompt template
-   - `src/cli_rpg/ai_service.py`: Accept terrain parameter
+   **Implementation**:
+   - `game_state.py`: `move()` queries terrain from ChunkManager and passes to `expand_area()`
+   - `ai_world.py`: `expand_area()` and `expand_world()` accept `terrain_type` parameter
+   - `ai_service.py`: `generate_location_with_context()` accepts `terrain_type` and includes in prompt
+   - `ai_config.py`: `DEFAULT_LOCATION_PROMPT_MINIMAL` includes `{terrain_type}` placeholder
+   - Test coverage in `tests/test_terrain_location_coherence.py` (6 tests)
 
-3. **Enrich Location Prompts**
+3. **Enrich Location Prompts** (Partially Complete)
+   - [x] Add `terrain_type` from ChunkManager to prompt ✓ (2025-12-26)
    - [ ] Add `world_theme_essence` from WorldContext to prompt
    - [ ] Add `region_theme` from RegionContext to prompt
-   - [ ] Add `terrain_type` from ChunkManager to prompt
    - [ ] Add `neighboring_locations` names/themes for coherence
 
    **Files to modify**:
