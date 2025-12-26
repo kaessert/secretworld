@@ -1,31 +1,25 @@
-# Implementation Summary: `dismiss <name>` Command
+# Implementation Summary: Register Custom Pytest Marks
 
-## Status: Already Complete
+## What Was Implemented
 
-The `dismiss <name>` command was **already fully implemented** before this task began. No new code was written.
+Added the `slow` custom mark registration to pytest configuration in `pyproject.toml`.
 
-## Verification Performed
+## File Modified
 
-Ran all 10 dismiss-related tests, all passed:
-- `TestDismissCommand` (4 tests): Basic functionality
-- `TestDismissConfirmation` (5 tests): Confirmation dialogs for high-bond companions
-- `TestCompanionsInKnownCommands` (1 test): Command registration
+- **pyproject.toml**: Added `markers` list to `[tool.pytest.ini_options]` section with the `slow` mark and its description.
 
-## Existing Implementation Details
+## Changes Made
 
-### Location: `src/cli_rpg/main.py:1133-1148`
+```toml
+markers = [
+    "slow: marks tests as slow (deselect with '-m \"not slow\"')",
+]
+```
 
-### Features:
-- Parses companion name argument
-- Case-insensitive name matching
-- Removes companion from `game_state.companions`
-- Error handling for missing name argument
-- Error handling for companion not in party
-- Confirmation dialog for high-bond companions (TRUSTED/DEVOTED)
-- `non_interactive=True` mode skips confirmation
-- Command registered in `KNOWN_COMMANDS`
-- Listed in help output
+## Verification
 
-## E2E Validation
+Ran `pytest --co -q 2>&1 | grep -i "unknown\|PytestUnknownMarkWarning"` - no warnings about unknown marks were found.
 
-No additional E2E tests needed - the feature is already complete with comprehensive unit test coverage.
+## Notes
+
+This allows tests to use `@pytest.mark.slow` decorator without triggering pytest warnings, and users can deselect slow tests with `-m "not slow"`.
