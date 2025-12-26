@@ -1,53 +1,55 @@
-# Implementation Summary: Caravan Shop Access Fix
+# Implementation Summary: Make WFC Default
 
-## What was Implemented
+## What Was Implemented
 
-When a CARAVAN world event is active at the player's current location, the `shop` command now provides access to a temporary caravan shop with exotic/rare items, instead of returning "There's no merchant here."
+Replaced `--wfc` flag with `--no-wfc` flag so WFC (Wave Function Collapse) terrain generation is enabled by default. WFC is now wired to all game modes.
 
 ### Files Modified
 
-1. **`src/cli_rpg/world_events.py`**
-   - Added type import for `Shop` in `TYPE_CHECKING` block (line 16)
-   - Added new function `get_caravan_shop(game_state)` (lines 582-650) that:
-     - Finds active caravan events at the player's current location
-     - Returns a `Shop` instance with exotic items:
-       - Exotic Spices (50 gold) - stamina restore
-       - Traveler's Map (75 gold) - misc item
-       - Foreign Elixir (100 gold) - healing potion
-       - Rare Gemstone (200 gold) - valuable misc
-       - Antidote (40 gold) - cure item for plagues
+1. **`src/cli_rpg/main.py`**
+   - Changed `start_game()` default parameter: `use_wfc: bool = True` (was `False`)
+   - Changed argument flag from `--wfc` to `--no-wfc`
+   - Updated interactive mode: `use_wfc = not parsed_args.no_wfc` (was `parsed_args.wfc`)
+   - Wired WFC ChunkManager to `run_json_mode()` - now creates ChunkManager and passes to GameState
+   - Wired WFC ChunkManager to `run_non_interactive()` - same pattern as json mode
+   - Extracted `parse_args()` function to make argument parsing testable
 
-2. **`src/cli_rpg/main.py`**
-   - Modified the `shop` command handler (lines 1305-1317) to:
-     - Check for caravan shop when no merchant NPC is found
-     - Set `game_state.current_shop` to the caravan shop if one exists
-     - Only return "There's no merchant here." if no merchant AND no caravan
+2. **`tests/test_wfc_integration.py`**
+   - Added `TestWFCDefaultBehavior` test class with 3 tests:
+     - `test_wfc_enabled_by_default_in_start_game` - verifies `start_game` defaults `use_wfc=True`
+     - `test_no_wfc_flag_disables_wfc` - verifies `--no-wfc` sets `no_wfc=True`
+     - `test_no_wfc_flag_not_set_by_default` - verifies `no_wfc=False` by default
 
-3. **`tests/test_world_events.py`**
-   - Added test `test_get_caravan_shop_returns_shop` in `TestCaravanEvent` class (lines 394-418) that verifies:
-     - Caravan shop is returned when active caravan event exists at location
-     - Shop name contains "Caravan"
-     - Shop has items in inventory
+## Test Results
 
-### Test Results
+All 47 WFC-related tests pass:
+- `tests/test_wfc_integration.py`: 13 tests passed
+- `tests/test_wfc.py`: 17 tests passed
+- `tests/test_wfc_chunks.py`: 17 tests passed
 
-- All 32 world events tests pass
-- All 42 shop-related tests pass
-- Full test suite: 3455 tests pass
+Main module tests also pass (5/5).
 
-### Design Decisions
+## Technical Details
 
-1. **Caravan shop is temporary** - The shop is created on-the-fly when `get_caravan_shop()` is called, not stored persistently. This aligns with the event-based nature of caravans.
+### WFC Initialization Pattern (used in json/non-interactive modes)
+```python
+import random as rnd
+from cli_rpg.wfc_chunks import ChunkManager
+from cli_rpg.world_tiles import DEFAULT_TILE_REGISTRY
+chunk_manager = ChunkManager(
+    tile_registry=DEFAULT_TILE_REGISTRY,
+    world_seed=rnd.randint(0, 2**32 - 1),
+)
+```
 
-2. **Exotic items theme** - Items are designed to feel rare/exotic (spices, foreign elixir, gemstones) fitting the traveling caravan concept.
+### Usage Change
+- **Before**: `cli-rpg --wfc` to enable WFC
+- **After**: `cli-rpg --no-wfc` to disable WFC (WFC is on by default)
 
-3. **Includes cure item** - The Antidote in caravan stock provides a way for players to prepare for plague events.
+## E2E Testing
 
-4. **No night restriction** - Caravans don't have the `available_at_night` check that regular merchants have (code structure ensures this).
-
-### E2E Test Validation
-
-The following scenarios should work:
-1. Player at location with no NPCs but active caravan event → `shop` shows caravan inventory
-2. Player buys from caravan shop → normal buy flow works
-3. Caravan event expires → `shop` returns to showing "no merchant here"
+The following should be validated:
+1. Running `cli-rpg` without flags should start with WFC enabled (terrain generation works)
+2. Running `cli-rpg --no-wfc` should start with fixed world (no terrain generation)
+3. Running `cli-rpg --json` should work with WFC terrain
+4. Running `cli-rpg --non-interactive` should work with WFC terrain

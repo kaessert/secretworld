@@ -27,7 +27,7 @@ python -m cli_rpg.main
 - **Weather System**: Dynamic weather (clear, rain, storm, fog) affects gameplay with dread modifiers, storm travel delays, and visibility effects. Storms reduce visibility (truncated descriptions, hidden details). Fog obscures some exits (50% chance each). Underground locations (caves) are sheltered from weather effects. Weather also affects combat: rain/storms can extinguish Burn effects (40% chance per turn), and storms extend Freeze duration (+1 turn when applied).
 - **Dread System**: Psychological horror element that tracks your fear level (0-100%). Dangerous areas build dread; high dread causes paranoid whispers and combat penalties. At 75-99% dread, hallucinations may appear during travel (30% chance) - spectral enemies that dissipate when attacked, providing catharsis (-5 dread) but no rewards. At 100% dread, a Shadow Creature manifests and attacks you - defeating it reduces your dread by 50%. Reduce dread by resting, visiting towns, or talking to NPCs. Light sources (e.g., Torches from merchants) reduce dread buildup by 50% and negate the night dread bonus while active. **Dread Treasures**: Brave players who maintain 75%+ dread may discover powerful treasures when examining their surroundings (30% chance on 3rd+ look) - including Shadow Essence, Veil of Courage, Dread Blade, and Darklight Torch.
 - **Grid-Based World**: Navigate a spatially consistent world where directions are reliable (going north then south returns you to the same place)
-- **Procedural Terrain Generation**: Enable Wave Function Collapse (WFC) terrain generation with `--wfc` for coherent, infinite terrain with forests, mountains, water, and more. Terrain types affect location generation and some terrain (like water) may be impassable.
+- **Procedural Terrain Generation**: Wave Function Collapse (WFC) terrain generation is enabled by default, providing coherent, infinite terrain with forests, mountains, water, and more. Terrain types affect location generation and some terrain (like water) may be impassable. Use `--no-wfc` to disable.
 - **Lockpicking & Treasure Chests**: Rogues can pick locked chests using DEX-based skill checks. Treasure chests contain valuable items and can be found throughout the world
 - **Secret Discovery**: Use the `search` command to actively search for hidden secrets. Perception (PER) stat determines what you can find - hidden doors, buried treasure, traps, and lore hints await observant players
 - **Experience System**: Level up by defeating enemies
@@ -420,10 +420,12 @@ CLI_RPG_NO_COLOR=true
 
 ### Procedural Terrain (WFC Mode)
 
-Enable Wave Function Collapse terrain generation for coherent, infinite world terrain:
+Wave Function Collapse terrain generation is **enabled by default**, providing coherent, infinite world terrain.
+
+To disable WFC and use the fixed world instead:
 
 ```bash
-cli-rpg --wfc
+cli-rpg --no-wfc
 ```
 
 **Features:**
@@ -432,7 +434,7 @@ cli-rpg --wfc
 - Terrain affects location theming (forests generate forest locations, etc.)
 - Water terrain is impassable - find another route
 - Terrain persists across save/load
-- Works with all other game modes and flags
+- Works with all other game modes and flags (interactive, non-interactive, JSON)
 
 ### Non-Interactive Mode
 

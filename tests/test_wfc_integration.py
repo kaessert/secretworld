@@ -259,3 +259,29 @@ class TestChunkManagerPersistence:
         # Deserialize
         restored_gs = GameState.from_dict(data)
         assert restored_gs.chunk_manager is None
+
+
+class TestWFCDefaultBehavior:
+    """Tests for WFC being default behavior."""
+
+    def test_wfc_enabled_by_default_in_start_game(self, basic_character, basic_world):
+        """Test: start_game uses WFC by default (use_wfc=True)."""
+        # Spec: Replace --wfc flag with --no-wfc so WFC is enabled by default
+        import inspect
+        from cli_rpg.main import start_game
+        sig = inspect.signature(start_game)
+        assert sig.parameters['use_wfc'].default is True
+
+    def test_no_wfc_flag_disables_wfc(self):
+        """Test: --no-wfc flag sets no_wfc=True."""
+        # Spec: Replace --wfc flag with --no-wfc flag
+        from cli_rpg.main import parse_args
+        args = parse_args(['--no-wfc'])
+        assert args.no_wfc is True
+
+    def test_no_wfc_flag_not_set_by_default(self):
+        """Test: --no-wfc flag is False by default."""
+        # Spec: WFC terrain generation is enabled by default
+        from cli_rpg.main import parse_args
+        args = parse_args([])
+        assert args.no_wfc is False

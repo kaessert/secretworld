@@ -99,6 +99,90 @@ Instead of one monolithic prompt, use a hierarchical generation system:
 
 ---
 
+### WFC World Generation Overhaul
+**Status**: IN PROGRESS
+**Priority**: HIGH
+
+Transform the world generation system to support infinite procedural terrain as the default experience.
+
+#### Goals
+
+1. ~~**WFC as Default**~~ ✅ COMPLETE (2025-12-26) - Infinite procedural terrain is now the standard experience
+2. **Named vs Unnamed Locations** - Most tiles are generic terrain (forest, road, plains), only key POIs get full AI generation
+3. **Variable SubGrid Sizes** - Cities with 20+ rooms, dungeons with 50+ chambers, houses with 3 rooms
+4. **Layered AI Integration** - WorldContext → RegionContext → Named Location → NPCs
+
+#### 1. Make WFC Default ✅ COMPLETE
+
+**Completed 2025-12-26:**
+- ✅ Replaced `--wfc` flag with `--no-wfc` flag (WFC enabled by default)
+- ✅ `start_game()` defaults to `use_wfc=True`
+- ✅ Wired WFC ChunkManager to `run_json_mode()`
+- ✅ Wired WFC ChunkManager to `run_non_interactive()`
+- ✅ Extracted `parse_args()` for testability
+- ✅ All 47 WFC tests passing
+
+**Usage:**
+- `cli-rpg` - Starts with WFC terrain (default)
+- `cli-rpg --no-wfc` - Disables WFC, uses fixed world
+
+#### 2. Named vs Unnamed Location System
+
+**Concept:**
+- **Unnamed locations**: Generic terrain tiles (forest, plains, road, hills) - cheap/instant generation via templates
+- **Named locations**: Story-important POIs (towns, dungeons, temples) - full AI generation with context
+
+**Ratio Target:** ~1 named location per 10-20 unnamed tiles
+
+**Implementation:**
+- Add `is_named` and `terrain_type` fields to Location model
+- Create unnamed location templates in `world_tiles.py`
+- Named location triggers: every N tiles, terrain combinations, region landmarks
+
+#### 3. Variable SubGrid Sizes
+
+**Size Categories:**
+
+| Category | Bounds | Grid Size | Example |
+|----------|--------|-----------|---------|
+| tiny | `(-1, 1, -1, 1)` | 3x3 | House, shop, cave entrance |
+| small | `(-2, 2, -2, 2)` | 5x5 | Tavern, small dungeon |
+| medium | `(-3, 3, -3, 3)` | 7x7 | Keep, temple, mine |
+| large | `(-5, 5, -5, 5)` | 11x11 | Town, fortress |
+| huge | `(-8, 8, -8, 8)` | 17x17 | City district, mega-dungeon |
+| massive | `(-12, 12, -12, 12)` | 25x25 | Capital city, underworld |
+
+**Implementation:**
+- Add `SUBGRID_SIZE_BY_CATEGORY` and `SUBGRID_BOUNDS` config
+- Add `get_subgrid_bounds(category)` helper function
+- Update `expand_area()` to use dynamic bounds
+
+#### 4. Layered AI Integration
+
+| Generation Event | Layers Used | Cost |
+|------------------|-------------|------|
+| Unnamed location | None | Free (template) |
+| Named location (single) | 1, 2, 3, 4 | 2 AI calls |
+| Named area (SubGrid) | 1, 2, 3+, 4+ | 3+ AI calls |
+
+**Implementation:**
+- Add `generate_area_with_context()` method to AIService
+- Wire all layers together in area generation
+
+#### Files to Modify
+
+| File | Changes |
+|------|---------|
+| `main.py` | Flip WFC default, wire to all modes |
+| `models/location.py` | Add `is_named`, `terrain_type` fields |
+| `world_tiles.py` | Add unnamed location templates |
+| `ai_config.py` | Add SubGrid size config, area prompt |
+| `ai_service.py` | Add `generate_area_with_context()` |
+| `ai_world.py` | Use dynamic bounds, layered generation |
+| `game_state.py` | Check `is_named` before AI calls |
+
+---
+
 ### Map System Bugs (Discovered via Playtesting)
 **Status**: ACTIVE
 **Date Discovered**: 2025-12-26
@@ -423,7 +507,7 @@ class Tiredness:
 ### WFC Playtesting Issues (2025-12-26)
 **Status**: ACTIVE
 
-Issues discovered during `--wfc` mode playtesting (updated 2025-12-26):
+Issues discovered during WFC mode playtesting (WFC is now enabled by default; updated 2025-12-26):
 
 #### HIGH PRIORITY BUGS
 

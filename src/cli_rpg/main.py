@@ -2333,7 +2333,7 @@ def start_game(
     ai_service: Optional[AIService] = None,
     theme: str = "fantasy",
     strict: bool = True,
-    use_wfc: bool = False,
+    use_wfc: bool = True,
 ) -> None:
     """Start the gameplay loop with the given character.
 
@@ -2501,12 +2501,22 @@ def run_json_mode(
 
     world, starting_location = create_world(ai_service=ai_service, theme="fantasy", strict=False)
 
+    # Initialize WFC ChunkManager for terrain generation
+    import random as rnd
+    from cli_rpg.wfc_chunks import ChunkManager
+    from cli_rpg.world_tiles import DEFAULT_TILE_REGISTRY
+    chunk_manager = ChunkManager(
+        tile_registry=DEFAULT_TILE_REGISTRY,
+        world_seed=rnd.randint(0, 2**32 - 1),
+    )
+
     game_state = GameState(
         character,
         world,
         starting_location=starting_location,
         ai_service=ai_service,
-        theme="fantasy"
+        theme="fantasy",
+        chunk_manager=chunk_manager,
     )
 
     # Initialize default factions
@@ -2706,12 +2716,22 @@ def run_non_interactive(
 
     world, starting_location = create_world(ai_service=ai_service, theme="fantasy", strict=False)
 
+    # Initialize WFC ChunkManager for terrain generation
+    import random as rnd
+    from cli_rpg.wfc_chunks import ChunkManager
+    from cli_rpg.world_tiles import DEFAULT_TILE_REGISTRY
+    chunk_manager = ChunkManager(
+        tile_registry=DEFAULT_TILE_REGISTRY,
+        world_seed=rnd.randint(0, 2**32 - 1),
+    )
+
     game_state = GameState(
         character,
         world,
         starting_location=starting_location,
         ai_service=ai_service,
-        theme="fantasy"
+        theme="fantasy",
+        chunk_manager=chunk_manager,
     )
 
     # Initialize default factions
@@ -2802,15 +2822,15 @@ def run_non_interactive(
     return 0
 
 
-def main(args: Optional[list] = None) -> int:
-    """Main function to start the CLI RPG game.
+def parse_args(args: Optional[list] = None):
+    """Parse command-line arguments.
 
     Args:
         args: Command-line arguments. If None, uses sys.argv[1:].
               Pass [] in tests to avoid parsing pytest arguments.
 
     Returns:
-        Exit code (0 for success)
+        Parsed arguments namespace.
     """
     import argparse
 
@@ -2850,11 +2870,24 @@ def main(args: Optional[list] = None) -> int:
         help="Skip character creation and use default character (non-interactive/JSON modes only)"
     )
     parser.add_argument(
-        "--wfc",
+        "--no-wfc",
         action="store_true",
-        help="Enable WFC terrain generation for infinite procedural world"
+        help="Disable WFC terrain generation (use fixed world instead)"
     )
-    parsed_args = parser.parse_args(args)
+    return parser.parse_args(args)
+
+
+def main(args: Optional[list] = None) -> int:
+    """Main function to start the CLI RPG game.
+
+    Args:
+        args: Command-line arguments. If None, uses sys.argv[1:].
+              Pass [] in tests to avoid parsing pytest arguments.
+
+    Returns:
+        Exit code (0 for success)
+    """
+    parsed_args = parse_args(args)
 
     if parsed_args.seed is not None:
         import random
@@ -2888,7 +2921,7 @@ def main(args: Optional[list] = None) -> int:
     ai_config = load_ai_config()
     ai_service = None
     strict_mode = is_ai_strict_mode()
-    use_wfc = parsed_args.wfc
+    use_wfc = not parsed_args.no_wfc
 
     if ai_config:
         try:

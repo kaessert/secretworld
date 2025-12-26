@@ -1,159 +1,140 @@
-# Implementation Plan: Caravan Shop Access Fix
+# Implementation Plan: Make WFC Default
 
 ## Spec
 
-When a CARAVAN world event is active at the player's current location, the `shop` command should provide access to a temporary caravan shop with exotic/rare items, instead of returning "There's no merchant here."
+Replace `--wfc` flag with `--no-wfc` flag so WFC terrain generation is enabled by default. Wire WFC to non-interactive modes (`--json`, `--non-interactive`) which currently always use fallback world generation.
 
 ## Files to Modify
 
-1. `src/cli_rpg/world_events.py` - Add caravan shop creation function
-2. `src/cli_rpg/main.py` - Modify shop command to check for caravan events
-3. `tests/test_world_events.py` - Add test for shop command with caravan
+1. `src/cli_rpg/main.py` - Flip flag, wire WFC to all modes
+2. `tests/test_wfc_integration.py` - Add test for `--no-wfc` flag behavior
 
 ## Tests
 
-### New Test: `tests/test_world_events.py`
+### New Test: `tests/test_wfc_integration.py`
 
-Add to `TestCaravanEvent` class:
+Add to test file:
 
 ```python
-def test_get_caravan_shop_returns_shop(self, game_state):
-    """Test that caravan event provides a shop.
+class TestWFCDefaultBehavior:
+    """Tests for WFC being default behavior."""
 
-    Spec: Active caravan at location → shop command works
-    """
-    from cli_rpg.world_events import get_caravan_shop
+    def test_wfc_enabled_by_default_in_start_game(self, basic_character, basic_world):
+        """Test: start_game uses WFC by default (use_wfc=True)."""
+        # Verify start_game signature defaults use_wfc=True
+        import inspect
+        from cli_rpg.main import start_game
+        sig = inspect.signature(start_game)
+        assert sig.parameters['use_wfc'].default == True
 
-    # Add caravan event at current location
-    caravan_event = WorldEvent(
-        event_id="caravan_001",
-        name="Merchant Caravan",
-        description="A caravan arrives",
-        event_type="caravan",
-        affected_locations=["Town"],
-        start_hour=game_state.game_time.hour,
-        duration_hours=16,
-    )
-    game_state.world_events.append(caravan_event)
-
-    # Get caravan shop
-    shop = get_caravan_shop(game_state)
-
-    assert shop is not None
-    assert "Caravan" in shop.name or "caravan" in shop.name.lower()
-    assert len(shop.inventory) > 0  # Should have items
+    def test_no_wfc_flag_disables_wfc(self, basic_character, basic_world):
+        """Test: --no-wfc flag sets use_wfc=False."""
+        from cli_rpg.main import parse_args
+        args = parse_args(['--no-wfc'])
+        assert args.no_wfc == True  # Flag is set
 ```
 
 ## Implementation Steps
 
-### Step 1: Add `get_caravan_shop()` to `world_events.py`
+### Step 1: Change `--wfc` to `--no-wfc` in argument parser (line ~2852)
 
-Add function after line ~580 (after `check_and_resolve_caravan`):
-
+Change:
 ```python
-def get_caravan_shop(game_state: "GameState") -> Optional["Shop"]:
-    """Get a temporary shop from an active caravan event at current location.
-
-    Args:
-        game_state: Current game state
-
-    Returns:
-        Shop instance if caravan active at location, None otherwise
-    """
-    from cli_rpg.models.shop import Shop, ShopItem
-    from cli_rpg.models.item import Item, ItemType
-
-    # Find active caravan at current location
-    for event in game_state.world_events:
-        if (
-            event.is_active
-            and event.event_type == "caravan"
-            and game_state.current_location in event.affected_locations
-        ):
-            # Create temporary caravan shop with exotic items
-            return Shop(
-                name=f"{event.name}",
-                inventory=[
-                    ShopItem(
-                        item=Item(
-                            name="Exotic Spices",
-                            description="Rare spices from distant lands. Restores stamina.",
-                            item_type=ItemType.CONSUMABLE,
-                            stamina_restore=30,
-                        ),
-                        buy_price=50,
-                    ),
-                    ShopItem(
-                        item=Item(
-                            name="Traveler's Map",
-                            description="A detailed map revealing hidden paths.",
-                            item_type=ItemType.MISC,
-                        ),
-                        buy_price=75,
-                    ),
-                    ShopItem(
-                        item=Item(
-                            name="Foreign Elixir",
-                            description="A potent healing elixir from far away.",
-                            item_type=ItemType.CONSUMABLE,
-                            heal_amount=75,
-                        ),
-                        buy_price=100,
-                    ),
-                    ShopItem(
-                        item=Item(
-                            name="Rare Gemstone",
-                            description="A valuable gemstone sought by collectors.",
-                            item_type=ItemType.MISC,
-                        ),
-                        buy_price=200,
-                    ),
-                    ShopItem(
-                        item=Item(
-                            name="Antidote",
-                            description="Cures poison and plague afflictions.",
-                            item_type=ItemType.CONSUMABLE,
-                            is_cure=True,
-                        ),
-                        buy_price=40,
-                    ),
-                ],
-            )
-    return None
-```
-
-### Step 2: Modify `shop` command in `main.py` (lines 1300-1310)
-
-Change from:
-```python
-elif command == "shop":
-    if game_state.current_shop is None:
-        # Auto-detect merchant in current location
-        location = game_state.get_current_location()
-        merchant = next((npc for npc in location.npcs if npc.is_merchant and npc.shop), None)
-        if merchant is None:
-            return (True, "\nThere's no merchant here.")
+parser.add_argument(
+    "--wfc",
+    action="store_true",
+    help="Enable WFC terrain generation for infinite procedural world"
+)
 ```
 
 To:
 ```python
-elif command == "shop":
-    if game_state.current_shop is None:
-        # Auto-detect merchant in current location
-        location = game_state.get_current_location()
-        merchant = next((npc for npc in location.npcs if npc.is_merchant and npc.shop), None)
-        if merchant is None:
-            # Check for active caravan event at this location
-            from cli_rpg.world_events import get_caravan_shop
-            caravan_shop = get_caravan_shop(game_state)
-            if caravan_shop is not None:
-                game_state.current_shop = caravan_shop
-            else:
-                return (True, "\nThere's no merchant here.")
+parser.add_argument(
+    "--no-wfc",
+    action="store_true",
+    help="Disable WFC terrain generation (use fixed world instead)"
+)
 ```
 
-### Step 3: Run tests to verify
+### Step 2: Invert the flag usage in interactive mode (line ~2891)
+
+Change:
+```python
+use_wfc = parsed_args.wfc
+```
+
+To:
+```python
+use_wfc = not parsed_args.no_wfc
+```
+
+### Step 3: Change `start_game()` default parameter (line ~2336)
+
+Change:
+```python
+def start_game(
+    character: "Character",
+    ai_service: Optional["AIService"] = None,
+    theme: str = "fantasy",
+    strict: bool = False,
+    use_wfc: bool = False,
+) -> None:
+```
+
+To:
+```python
+def start_game(
+    character: "Character",
+    ai_service: Optional["AIService"] = None,
+    theme: str = "fantasy",
+    strict: bool = False,
+    use_wfc: bool = True,
+) -> None:
+```
+
+### Step 4: Wire WFC to `run_json_mode()` (lines ~2502-2510)
+
+Change:
+```python
+world, starting_location = create_world(ai_service=ai_service, theme="fantasy", strict=False)
+
+game_state = GameState(
+    character,
+    world,
+    starting_location=starting_location,
+    ai_service=ai_service,
+    theme="fantasy"
+)
+```
+
+To:
+```python
+from cli_rpg.wfc_chunks import ChunkManager
+from cli_rpg.world_tiles import DEFAULT_TILE_REGISTRY
+import random
+
+world, starting_location = create_world(ai_service=ai_service, theme="fantasy", strict=False)
+chunk_manager = ChunkManager(
+    tile_registry=DEFAULT_TILE_REGISTRY,
+    world_seed=random.randint(0, 2**31 - 1),
+)
+
+game_state = GameState(
+    character,
+    world,
+    starting_location=starting_location,
+    ai_service=ai_service,
+    theme="fantasy",
+    chunk_manager=chunk_manager,
+)
+```
+
+### Step 5: Wire WFC to `run_non_interactive()` (lines ~2707-2715)
+
+Apply same change as Step 4.
+
+### Step 6: Run tests
 
 ```bash
-pytest tests/test_world_events.py -v -k "caravan"
+pytest tests/test_wfc_integration.py tests/test_wfc.py tests/test_wfc_chunks.py -v
 ```
