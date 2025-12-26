@@ -430,39 +430,20 @@ This means players see dreams almost every other rest, which:
 
 ---
 
-### Talk command fails in SubGrid sublocations
-**Status**: ACTIVE
-**Date Discovered**: 2025-12-26
+### ~~Talk command fails in SubGrid sublocations~~
+**Status**: RESOLVED (2025-12-26)
 
-**Problem**: The `talk` command does not find NPCs when inside SubGrid sublocations. Despite `look` showing NPCs present (e.g., "NPCs: Merchant"), the `talk` command returns "There are no NPCs here to talk to."
+**Problem**: The `talk` command did not find NPCs when inside SubGrid sublocations. Despite `look` showing NPCs present (e.g., "NPCs: Merchant"), the `talk` command returned "There are no NPCs here to talk to."
 
-**Root Cause**: In `src/cli_rpg/main.py` line 1154, the talk command uses:
-```python
-location = game_state.world.get(game_state.current_location)
-```
+**Root Cause**: The talk command used `game_state.world.get()` which only looked in the main world dictionary, not in SubGrid sublocations stored in `game_state.current_sub_grid`.
 
-This looks up the location from the main `world` dictionary, but SubGrid sublocations are stored in `game_state.current_sub_grid`, not in `world`. So for sublocations, `world.get()` returns `None`.
+**Solution Implemented**: Changed `game_state.world.get(game_state.current_location)` to `game_state.get_current_location()` in `src/cli_rpg/main.py` line 1147. The `get_current_location()` method properly handles both overworld locations and SubGrid sublocations.
 
-**Steps to Reproduce**:
-1. Start new game without AI (to use default world with sublocations)
-2. At Town Square, use `enter Market` to enter Market District sublocation
-3. Use `look` - shows "NPCs: Merchant"
-4. Use `talk Merchant` - returns "There are no NPCs here to talk to."
-
-**Fix**: Replace:
-```python
-location = game_state.world.get(game_state.current_location)
-```
-
-With:
-```python
-location = game_state.get_current_location()
-```
-
-The `get_current_location()` method properly handles both overworld locations (in `world`) and sublocations (in `current_sub_grid`).
-
-**Files to modify**:
-- `src/cli_rpg/main.py`: Line 1154 in the `talk` command handler
+**Test Coverage**: 4 new tests added in `tests/test_talk_subgrid.py`:
+- `test_talk_finds_npc_in_subgrid`
+- `test_talk_to_specific_npc_in_subgrid`
+- `test_talk_npc_not_found_in_subgrid`
+- `test_talk_to_merchant_in_subgrid_sets_shop`
 
 ---
 
@@ -478,7 +459,7 @@ The `get_current_location()` method properly handles both overworld locations (i
 ### WFC Playtesting Issues (2025-12-26)
 **Status**: ACTIVE
 
-Issues discovered during `--wfc` mode playtesting:
+Issues discovered during `--wfc` mode playtesting (updated 2025-12-26):
 
 #### CRITICAL BUGS
 
@@ -515,11 +496,21 @@ Issues discovered during `--wfc` mode playtesting:
    - "Skipping Forgotten Graveyard: coords (0, 4) outside SubGrid bounds (-3, 3, -3, 3)"
    - This internal warning shouldn't be displayed to user
 
-5. **Debug messages shown to players**
+5. **AI ASCII art generation failure shown to user**
+   - "AI location ASCII art generation failed, using fallback: Location ASCII art too short (min 3 lines)"
+   - This should be logged internally, not printed to user
+
+6. **Debug messages shown to players**
    - Various internal messages displayed during normal gameplay:
      - "Skipping duplicate location name: Mystic Valley"
      - "AI area generation failed: Failed to parse response as JSON..."
    - These should be logged internally, not printed to stdout
+
+7. **Shop price inconsistency**
+   - Shop display: "Health Potion - 50 gold"
+   - Error message: "You can't afford Health Potion (48 gold). You have 9 gold."
+   - The prices don't match (50 vs 48) - confusing for players
+   - Related to faction price modifiers showing in error but not shop listing
 
 #### MEDIUM PRIORITY BUGS
 
@@ -547,6 +538,19 @@ Issues discovered during `--wfc` mode playtesting:
    - Shop display shows one price but error message shows different price
    - Shop displays: "Iron Sword - 100 gold", Error says: "99 gold needed"
 
+5. **Load character screen is overwhelming**
+   - Shows 140+ entries including all autosaves with "(saved: unknown)" timestamps
+   - Autosave entries flood the list, making manual saves hard to find
+   - **Suggestions**:
+     - Collapse autosaves into single expandable entry
+     - Show only recent 10-20 characters by default
+     - Add pagination or search
+     - Fix "(saved: unknown)" to show actual timestamps
+
+6. **"enter" command with no argument silently fails**
+   - Typing `enter` without a location name gives no feedback
+   - Should show "Enter where? Available locations: X, Y, Z" or similar
+
 #### LOW PRIORITY / UX ISSUES
 
 1. **Combo system unclear**
@@ -556,6 +560,21 @@ Issues discovered during `--wfc` mode playtesting:
 2. **Confusing "exit" message when not in sub-location**
    - Using `exit` when not inside sub-location shows "You're not inside a landmark."
    - **Suggestion**: Change to "You're not inside a building or dungeon. Use 'go <direction>' to travel."
+
+3. **"bye" command outside of talk mode is confusing**
+   - Typing `bye` when not talking to an NPC shows: "Unknown command 'bye'. Did you mean 'buy'?"
+   - Suggests "buy" which is also contextual (shop only)
+   - Better: "The 'bye' command ends conversations. Use it while talking to an NPC."
+
+4. **"accept" could auto-accept single quest**
+   - When talking to NPC with only one quest, "accept" says "Accept what? Specify a quest name."
+   - If only one quest available, could auto-accept it
+   - At minimum, show: "Accept what? Available: Quest Name"
+
+5. **Terrain blocking message varies**
+   - Water blocked: "The water ahead is impassable."
+   - Wall blocked: "You can't go that way."
+   - Consistent phrasing would be better UX
 
 #### DESIGN OBSERVATIONS
 

@@ -1,36 +1,66 @@
-# Fix: Cleric Smite ImportError Bug
+# Fix: Talk Command Fails in SubGrid Sublocations
 
 ## Problem
-`main.py:911` imports non-existent `get_combat_reaction` and calls it with wrong parameters, causing ImportError when Cleric defeats an enemy with smite.
+The `talk` command doesn't find NPCs when inside SubGrid sublocations (e.g., inside buildings/dungeons). The `look` command shows NPCs present, but `talk` returns "There are no NPCs here to talk to."
+
+## Root Cause
+`src/cli_rpg/main.py` line 1147 uses:
+```python
+location = game_state.world.get(game_state.current_location)
+```
+This looks up from the main `world` dict, but SubGrid sublocations are stored in `game_state.current_sub_grid`, so it returns `None` for sublocations.
 
 ## Fix
-Replace the broken import and function call (lines 911-920) with the pattern used elsewhere in the file (lines 395-397, 558-560, etc.).
+**File**: `src/cli_rpg/main.py`, line 1147
 
-**File**: `src/cli_rpg/main.py`
-
-**Change lines 911-920 from**:
+**Change**:
 ```python
-            from cli_rpg.companion_reactions import get_combat_reaction
-
-            reaction = get_combat_reaction(
-                companions=game_state.companions,
-                command=command,
-            )
-            if reaction:
-                companion_name, reaction_text = reaction
-                from cli_rpg import colors
-                output += f"\n\n{colors.npc(companion_name)}: \"{reaction_text}\""
+location = game_state.world.get(game_state.current_location)
 ```
 
 **To**:
 ```python
-            reaction_msgs = process_companion_reactions(game_state.companions, "combat_kill")
-            for msg in reaction_msgs:
-                output += f"\n{msg}"
+location = game_state.get_current_location()
 ```
 
-Note: `process_companion_reactions` is already imported at line 16, so no new import is needed.
+The `get_current_location()` method (defined in `game_state.py:289-302`) properly handles both overworld locations and SubGrid sublocations.
+
+## Test
+Add test in `tests/test_main_subgrid.py` (or similar existing test file):
+
+```python
+def test_talk_command_works_in_subgrid_sublocations(game_state):
+    """Talk command should find NPCs inside SubGrid sublocations."""
+    # Setup: Enter a sublocation with NPCs
+    from cli_rpg.world_grid import SubGrid
+    from cli_rpg.models.location import Location
+    from cli_rpg.models.npc import NPC
+
+    # Create sublocation with NPC
+    sub_grid = SubGrid(center=(0, 0))
+    npc = NPC(name="Test Merchant", description="A friendly merchant")
+    sublocation = Location(
+        name="Test Shop",
+        description="A shop",
+        coordinates=(0, 0),
+        npcs=[npc]
+    )
+    sub_grid.set(sublocation)
+
+    # Put player in sublocation
+    game_state.current_sub_grid = sub_grid
+    game_state.current_location = "Test Shop"
+    game_state.in_sub_location = True
+
+    # Test talk command finds NPC
+    from cli_rpg.main import handle_exploration_command
+    result = handle_exploration_command(game_state, "talk", [])
+
+    # Should NOT return "no NPCs here" error
+    assert "no NPCs here" not in result[1].lower()
+```
 
 ## Verification
-1. Run existing tests: `pytest tests/test_cleric.py -v` (should pass)
-2. Run full test suite: `pytest` (all 3403 tests should pass)
+1. Run new test: `pytest tests/test_main_subgrid.py -v -k talk`
+2. Run full suite: `pytest` (all tests should pass)
+3. Manual test: Start game → enter Market → talk Merchant → should work

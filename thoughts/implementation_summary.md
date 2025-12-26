@@ -1,55 +1,41 @@
-# Implementation Summary: Cleric Smite ImportError Bug Fix
+# Implementation Summary: Talk Command SubGrid Fix
 
-## What Was Fixed
+## What Was Implemented
 
-Fixed an ImportError bug in `src/cli_rpg/main.py` that occurred when a Cleric killed an enemy with the `smite` command. The bug was caused by:
+Fixed a bug where the `talk` command couldn't find NPCs inside SubGrid sublocations (building interiors, dungeons, etc.).
 
-1. Importing a non-existent function `get_combat_reaction` from `companion_reactions` module
-2. Calling it with incorrect parameters
-
-## Changes Made
-
-**File**: `src/cli_rpg/main.py` (lines 910-920)
-
-**Before** (broken code):
+### Root Cause
+The `talk` command in `src/cli_rpg/main.py` line 1147 was using:
 ```python
-# Trigger companion reaction after combat
-from cli_rpg.companion_reactions import get_combat_reaction
-
-reaction = get_combat_reaction(
-    companions=game_state.companions,
-    command=command,
-)
-if reaction:
-    companion_name, reaction_text = reaction
-    from cli_rpg import colors
-    output += f"\n\n{colors.npc(companion_name)}: \"{reaction_text}\""
+location = game_state.world.get(game_state.current_location)
 ```
+This only looked in the main world dictionary, not in SubGrid sublocations where interior locations are stored.
 
-**After** (fixed code):
+### Fix
+Changed to use the existing `get_current_location()` method:
 ```python
-# Trigger companion reaction after combat
-reaction_msgs = process_companion_reactions(game_state.companions, "combat_kill")
-for msg in reaction_msgs:
-    output += f"\n{msg}"
+location = game_state.get_current_location()
 ```
+This method properly handles both overworld locations (from `game_state.world`) and SubGrid sublocations (from `game_state.current_sub_grid`).
 
-## Why This Fix Works
+## Files Modified
+- `src/cli_rpg/main.py` - Line 1147: Changed world.get() to get_current_location()
 
-- `process_companion_reactions` is already imported at line 16 of `main.py`
-- This is the same pattern used elsewhere in the file (lines 395-397, 558-560) for handling companion reactions to combat kills
-- The function properly handles bond level changes and returns formatted reaction messages
+## Files Created
+- `tests/test_talk_subgrid.py` - 4 new tests verifying the fix:
+  - `test_talk_finds_npc_in_subgrid` - Verifies talk finds NPCs in SubGrid
+  - `test_talk_to_specific_npc_in_subgrid` - Verifies named NPC selection works
+  - `test_talk_npc_not_found_in_subgrid` - Verifies proper error for missing NPC
+  - `test_talk_to_merchant_in_subgrid_sets_shop` - Verifies merchant/shop context works
 
 ## Test Results
-
-- `pytest tests/test_cleric.py -v`: All 20 tests passed
-- `pytest tests/test_combat.py tests/test_main.py -v`: All 64 tests passed
-- `pytest tests/test_companion_reactions.py -v`: All 14 tests passed
+- All 4 new tests: PASSED
+- All related talk command tests: PASSED (29 tests)
+- Full test suite: 3407 PASSED
 
 ## E2E Validation
-
-To validate this fix in gameplay:
-1. Create a Cleric character
-2. Find enemies and enter combat
-3. Use the `smite` command to kill an enemy
-4. Verify no ImportError occurs and companion reactions display correctly (if companions are present)
+To manually verify:
+1. Start game → Enter any building (e.g., Market, Inn)
+2. Use `look` to see NPCs present
+3. Use `talk` command - should now work correctly
+4. Use `talk <NPC name>` - should find and interact with NPC
