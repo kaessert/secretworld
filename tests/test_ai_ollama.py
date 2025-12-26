@@ -116,7 +116,7 @@ def test_generate_location_with_ollama():
     {
         "name": "Mystic Cave",
         "description": "A dark cave filled with glowing crystals.",
-        "connections": {"north": "Forest Path", "south": "Village Square"}
+        "category": "cave"
     }
     '''
 
@@ -130,8 +130,8 @@ def test_generate_location_with_ollama():
 
         assert result["name"] == "Mystic Cave"
         assert "dark cave" in result["description"]
-        assert "north" in result["connections"]
-        assert "south" in result["connections"]
+        assert result["category"] == "cave"
+        assert "connections" not in result  # WFC handles terrain structure
 
 
 # Test 6: Ollama connection error provides helpful message

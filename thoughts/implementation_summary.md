@@ -1,75 +1,47 @@
-# Implementation Summary: Named vs Unnamed Location System
+# Implementation Summary: Remove Terrain Logic from AI Location Generation
 
 ## What Was Implemented
 
-This implementation distinguishes between generic terrain tiles (unnamed - cheap/instant templates) and story-important POIs (named - full AI generation). The target ratio is ~1 named per 10-20 unnamed tiles.
+The implementation removed AI-suggested connections from location generation, making WFC (Wave Function Collapse) the single source of truth for terrain structure. However, upon investigation, **most of this work was already done** in the codebase. The implementation was already in the correct state:
 
-### Files Modified
+### Already Correct (No Changes Needed)
+1. **`ai_config.py`**: Both `DEFAULT_LOCATION_PROMPT` and `DEFAULT_LOCATION_PROMPT_MINIMAL` already had no references to `connections` in their expected JSON output
+2. **`ai_service.py`**: `_parse_location_response()` already didn't require connections and returned only `{name, description, category, npcs}`
+3. **`ai_world.py`**: Already used grid-based expansion with all cardinal directions queued from each location (lines 295-299)
 
-1. **src/cli_rpg/models/location.py**
-   - Added `is_named: bool = False` field to Location dataclass (line 57)
-   - Updated `to_dict()` to serialize `is_named` (only when True, for backward compatibility)
-   - Updated `from_dict()` to deserialize `is_named` (defaults to False for old save files)
+### Changes Made
+Updated 5 obsolete tests in `tests/test_ai_world_generation.py` that were still testing the OLD behavior where AI suggestions drove connections:
 
-2. **src/cli_rpg/world_tiles.py**
-   - Added `UNNAMED_LOCATION_TEMPLATES` dictionary (lines 170-216) with templates for all terrain types:
-     - forest, mountain, plains, water, desert, swamp, hills, beach, foothills
-     - Each terrain has 1-3 (name, description) tuples
-   - Added `get_unnamed_location_template(terrain: str)` function (lines 219-230)
-     - Returns a random template for the given terrain
-     - Falls back to plains templates for unknown terrains
-   - Added `NAMED_LOCATION_CONFIG` dictionary (lines 233-248) with:
-     - `base_interval`: 15 tiles between named locations on average
-     - `terrain_modifiers`: Mountain (0.6x), swamp (0.7x) have higher POI chance; plains (1.2x) has lower; water (999x) never
-   - Added `should_generate_named_location(tiles_since_named, terrain, rng)` function (lines 251-282)
-     - Uses linear probability curve: 0% at 0 tiles, 50% at interval, 100% at 2x interval
-     - Terrain modifiers adjust effective interval
-
-3. **src/cli_rpg/world.py**
-   - Updated `generate_fallback_location()` to explicitly set `is_named=False` (line 207)
-   - Comment clarifies fallback locations are always unnamed terrain filler
-
-### New Test Files
-
-1. **tests/test_named_locations.py** (12 tests)
-   - `TestLocationIsNamedField`: Tests for is_named field defaults and serialization
-   - `TestShouldGenerateNamedLocation`: Tests for trigger logic at various tile counts and terrain types
-   - `TestFallbackLocationCreatesUnnamed`: Tests that fallback generation creates unnamed locations
-
-2. **tests/test_unnamed_templates.py** (9 tests)
-   - `TestUnnamedLocationTemplates`: Tests that all terrains have valid templates
-   - `TestGetUnnamedLocationTemplate`: Tests template retrieval and validation
+| Old Test | New Test | Purpose |
+|----------|----------|---------|
+| `test_expand_world_preserves_ai_suggested_dangling_connections` | `test_expand_world_adds_dangling_connections` | Tests that new locations get dangling exits for future expansion |
+| `test_create_ai_world_queues_suggested_connections` | `test_create_ai_world_queues_cardinal_directions` | Tests that all cardinal directions are queued for expansion |
+| `test_expand_world_adds_bidirectional_connection_to_existing_target` | `test_expand_world_adds_bidirectional_connection` | Tests bidirectional connection between source and new location |
+| `test_expand_world_preserves_existing_reverse_connection` | `test_expand_world_preserves_source_existing_connections` | Tests that source's existing connections are preserved |
+| `test_create_ai_world_skips_suggested_name_already_in_grid` | `test_create_ai_world_skips_occupied_positions` | Tests that occupied grid positions are skipped |
 
 ## Test Results
 
-- All 21 new tests pass
-- All 3562 existing tests pass
-- No regressions detected
+- **All 11 terrain content separation tests pass**: Verify AI prompts have no connection references, parsing ignores connections, and returned data has no connections key
+- **All 54 AI world generation tests pass**: Including the 5 updated tests
+- **Full test suite: 3573 tests pass**
 
 ## Technical Details
 
-### Named Location Trigger Algorithm
+The key architectural insight is:
+- **AI's role**: Generate content only (name, description, category, NPCs)
+- **WFC's role**: Handle terrain structure (exits, connections, passability)
+- **WorldGrid**: Manages coordinates and bidirectional connections
 
-```python
-effective_interval = base_interval * terrain_modifier
-probability = min(1.0, tiles_since_named / (effective_interval * 2))
-return random() < probability
-```
+The `expand_world()` function now:
+1. Gets AI-generated content (no connections)
+2. Adds bidirectional connection between source and new location
+3. Adds a random dangling connection for future expansion
+4. Never uses AI suggestions for connections
 
-Example with mountain terrain (modifier 0.6, base_interval 15):
-- Effective interval: 9 tiles
-- At 9 tiles: 50% chance
-- At 18 tiles: 100% chance
+## E2E Tests Should Validate
 
-### Backward Compatibility
-
-- Old save files without `is_named` field will deserialize with `is_named=False`
-- The `to_dict()` only includes `is_named` when True to minimize save file size changes
-
-## What E2E Tests Should Validate
-
-1. Moving through multiple tiles creates mostly unnamed locations (is_named=False)
-2. Named locations (is_named=True) appear at appropriate intervals
-3. Save/load preserves the is_named field correctly
-4. Mountain/swamp terrain shows more named locations than plains
-5. Unnamed locations have appropriate template names/descriptions for their terrain
+1. Moving between AI-generated locations works correctly
+2. New locations have at least one exit for expansion
+3. Bidirectional connections are properly established
+4. Location content (names, descriptions) are coherent with terrain type

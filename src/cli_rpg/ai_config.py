@@ -16,27 +16,19 @@ DEFAULT_LOCATION_PROMPT = """You are a creative game world designer. Generate a 
 Context:
 - World Theme: {theme}
 - Existing Locations: {context_locations}
-- Expanding from: {source_location}
-- Direction: {direction}
+- Terrain Type: {terrain_type}
 
 Requirements:
-1. Create a unique location name (2-50 characters)
-2. Write a vivid description (1-500 characters)
-3. Suggest 1-4 connections to other locations using valid directions: north, south, east, west
-4. If expanding from a location, include a connection back to {source_location} via the opposite direction
-5. Ensure the location fits the {theme} theme
-6. Make the location interesting and explorable
-7. Include a category for the location type (one of: town, dungeon, wilderness, settlement, ruins, cave, forest, mountain, village)
-8. Generate 0-2 NPCs appropriate for this location (optional)
+1. Create a unique location name (2-50 characters) appropriate for the terrain
+2. Write a vivid description (1-500 characters) that reflects the terrain and theme
+3. Include a category for the location type (one of: town, dungeon, wilderness, settlement, ruins, cave, forest, mountain, village)
+4. Generate 0-2 NPCs appropriate for this location (optional)
    - Each NPC needs: name (2-30 chars), description (1-200 chars), dialogue (a greeting), role (villager, merchant, or quest_giver)
 
 Respond with valid JSON in this exact format (no additional text):
 {{
   "name": "Location Name",
   "description": "A detailed description of the location.",
-  "connections": {{
-    "direction": "location_name"
-  }},
   "category": "wilderness",
   "npcs": [
     {{
@@ -313,24 +305,16 @@ Region Context:
 - Region Theme: {region_theme}
 - Terrain: {terrain_type}
 
-Navigation:
-- Direction from previous: {direction}
-- Previous location: {source_location}
-
 Requirements:
 1. Create a unique location name (2-50 characters) that fits the region theme and terrain
 2. Write a vivid description (1-500 characters) that reflects the {terrain_type} terrain
-3. Include a connection back to {source_location} via the opposite direction
-4. Assign a category (town, dungeon, wilderness, settlement, ruins, cave, forest, mountain, village)
-5. Ensure the location makes sense for {terrain_type} terrain (e.g., oasis for desert, clearing for forest)
+3. Assign a category (town, dungeon, wilderness, settlement, ruins, cave, forest, mountain, village)
+4. Ensure the location makes sense for {terrain_type} terrain (e.g., oasis for desert, clearing for forest)
 
 Respond with valid JSON in this exact format (no additional text):
 {{
   "name": "Location Name",
   "description": "A detailed description of the location.",
-  "connections": {{
-    "direction": "location_name"
-  }},
   "category": "wilderness"
 }}"""
 

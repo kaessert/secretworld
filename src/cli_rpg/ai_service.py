@@ -155,18 +155,20 @@ class AIService:
         theme: str,
         context_locations: Optional[list[str]] = None,
         source_location: Optional[str] = None,
-        direction: Optional[str] = None
+        direction: Optional[str] = None,
+        terrain_type: Optional[str] = None
     ) -> dict:
         """Generate a new location based on context.
 
         Args:
             theme: World theme (e.g., "fantasy", "sci-fi")
             context_locations: List of existing location names
-            source_location: Location to expand from
-            direction: Direction of expansion from source
+            source_location: Location to expand from (deprecated, kept for compatibility)
+            direction: Direction of expansion from source (deprecated, kept for compatibility)
+            terrain_type: Optional terrain type (e.g., "desert", "forest") for coherent generation
 
         Returns:
-            Dictionary with keys: name, description, connections
+            Dictionary with keys: name, description, category, npcs
 
         Raises:
             AIGenerationError: If generation fails or response is invalid
@@ -180,8 +182,7 @@ class AIService:
         prompt = self._build_location_prompt(
             theme=theme,
             context_locations=context_locations,
-            source_location=source_location,
-            direction=direction
+            terrain_type=terrain_type
         )
 
         # Check cache if enabled
@@ -208,17 +209,15 @@ class AIService:
         self,
         theme: str,
         context_locations: list[str],
-        source_location: Optional[str],
-        direction: Optional[str]
+        terrain_type: Optional[str] = None
     ) -> str:
         """Build prompt for location generation.
-        
+
         Args:
             theme: World theme
             context_locations: List of existing location names
-            source_location: Location to expand from
-            direction: Direction of expansion
-        
+            terrain_type: Optional terrain type (e.g., "desert", "forest")
+
         Returns:
             Formatted prompt string
         """
@@ -227,19 +226,17 @@ class AIService:
             location_list = ", ".join(context_locations)
         else:
             location_list = "None yet"
-        
-        # Format source and direction
-        source_text = source_location if source_location else "None (starting location)"
-        direction_text = direction if direction else "N/A"
-        
+
+        # Format terrain type
+        terrain_text = terrain_type if terrain_type else "wilderness"
+
         # Use template from config
         prompt = self.config.location_generation_prompt.format(
             theme=theme,
             context_locations=location_list,
-            source_location=source_text,
-            direction=direction_text
+            terrain_type=terrain_text
         )
-        
+
         return prompt
     
     def _call_llm(self, prompt: str) -> str:
@@ -583,8 +580,8 @@ class AIService:
                 self._log_parse_failure(response_text, e, "location")
                 raise AIGenerationError(f"Failed to parse response as JSON: {str(e)}") from e
 
-        # Validate required fields
-        required_fields = ["name", "description", "connections"]
+        # Validate required fields (no connections - WFC handles terrain structure)
+        required_fields = ["name", "description"]
         for field in required_fields:
             if field not in data:
                 raise AIGenerationError(f"Response missing required field: {field}")
@@ -611,23 +608,8 @@ class AIService:
                 f"Location description too long (max {Location.MAX_DESCRIPTION_LENGTH} chars)"
             )
         
-        # Validate connections
-        connections = data["connections"]
-        if not isinstance(connections, dict):
-            raise AIGenerationError("Connections must be a dictionary")
-
-        # Filter connections to only include cardinal directions (grid-based movement)
-        filtered_connections = {}
-        for direction, target in connections.items():
-            if direction in GRID_DIRECTIONS:
-                filtered_connections[direction] = target
-            else:
-                # Log but don't fail - AI sometimes generates up/down
-                logger.warning(
-                    f"Filtered non-grid direction '{direction}' from location '{name}'"
-                )
-
         # Extract and validate category (optional field)
+        # Note: connections field is ignored - WFC handles terrain structure
         category = data.get("category")
         if category is not None:
             category = category.strip().lower() if isinstance(category, str) else None
@@ -640,11 +622,10 @@ class AIService:
         # Parse NPCs (optional field)
         npcs = self._parse_npcs(data.get("npcs", []), name)
 
-        # Return validated data with filtered connections
+        # Return validated data WITHOUT connections (WFC handles terrain structure)
         return {
             "name": name,
             "description": description,
-            "connections": filtered_connections,
             "category": category,
             "npcs": npcs
         }
@@ -2656,16 +2637,14 @@ Note: Use "EXISTING_WORLD" as placeholder for the connection back to the source 
         Args:
             world_context: Layer 1 context
             region_context: Layer 2 context
-            source_location: Optional location to expand from
-            direction: Optional direction of expansion
+            source_location: Deprecated, kept for API compatibility
+            direction: Deprecated, kept for API compatibility
             terrain_type: Optional terrain type for coherent generation
 
         Returns:
             Formatted prompt string using minimal template
         """
-        # Format source and direction
-        source_text = source_location if source_location else "None (starting location)"
-        direction_text = direction if direction else "N/A"
+        # Format terrain type (source_location and direction no longer used)
         terrain_text = terrain_type if terrain_type else "wilderness"
 
         # Use minimal template from config
@@ -2674,8 +2653,6 @@ Note: Use "EXISTING_WORLD" as placeholder for the connection back to the source 
             theme_essence=world_context.theme_essence,
             region_name=region_context.name,
             region_theme=region_context.theme,
-            source_location=source_text,
-            direction=direction_text,
             terrain_type=terrain_text
         )
 

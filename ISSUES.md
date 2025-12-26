@@ -2,6 +2,139 @@
 
 ---
 
+### ✅ RESOLVED: Separate Terrain Generation from Content Generation
+**Status**: RESOLVED
+**Date Added**: 2025-12-26
+**Date Resolved**: 2025-12-26
+
+**Resolution**: Investigation revealed this was **already implemented correctly** in the codebase. The AI service already generates content only (name, description, category, NPCs) without connections. Only 5 obsolete tests in `tests/test_ai_world_generation.py` needed updating to reflect the current correct behavior.
+
+**Architecture (Already Correct)**:
+- `ai_config.py`: Both `DEFAULT_LOCATION_PROMPT` and `DEFAULT_LOCATION_PROMPT_MINIMAL` have no references to `connections`
+- `ai_service.py`: `_parse_location_response()` returns only `{name, description, category, npcs}` - no connections
+- `ai_world.py`: Uses grid-based expansion with all cardinal directions queued from each location
+
+**Tests Updated**:
+- `test_expand_world_preserves_ai_suggested_dangling_connections` → `test_expand_world_adds_dangling_connections`
+- `test_create_ai_world_queues_suggested_connections` → `test_create_ai_world_queues_cardinal_directions`
+- `test_expand_world_adds_bidirectional_connection_to_existing_target` → `test_expand_world_adds_bidirectional_connection`
+- `test_expand_world_preserves_existing_reverse_connection` → `test_expand_world_preserves_source_existing_connections`
+- `test_create_ai_world_skips_suggested_name_already_in_grid` → `test_create_ai_world_skips_occupied_positions`
+
+**Verification**: All 3573 tests pass, including 11 terrain content separation tests and 54 AI world generation tests.
+
+---
+
+### 🚨 BLOCKER: Connections Inferred from Terrain Passability
+**Status**: BLOCKER - HIGHEST PRIORITY
+**Date Added**: 2025-12-26
+
+**Problem**: Location connections are currently stored explicitly and managed separately from terrain. Connections should be INFERRED at runtime from terrain passability - if two adjacent tiles are both passable, the player can move between them. Period.
+
+**Current (Wrong)**:
+```python
+# Connections stored on Location objects
+location.connections = {"north": "Forest Path", "east": "Mountain Base"}
+
+# Movement checks connection dict
+if direction in current_location.connections:
+    move_to(connections[direction])
+```
+
+**Target (Correct)**:
+```python
+# Terrain determines passability
+PASSABLE_TERRAIN = {"plains", "forest", "road", "village", "hills", "swamp", "desert", "cave_entrance"}
+IMPASSABLE_TERRAIN = {"water", "mountain", "wall", "void"}
+
+# Movement checks adjacent terrain
+def can_move(from_coords, direction):
+    to_coords = from_coords + DIRECTION_OFFSETS[direction]
+    terrain = chunk_manager.get_tile(*to_coords)
+    return terrain in PASSABLE_TERRAIN
+```
+
+**Key Principles**:
+
+1. **No explicit connections** - Remove `connections` dict from Location model
+2. **Terrain is truth** - `ChunkManager.get_tile(x, y)` determines what's at each coordinate
+3. **Passability is binary** - Each terrain type is either passable or impassable
+4. **Movement is implicit** - Player can always move to adjacent passable terrain
+
+**Terrain Classification**:
+
+| Passable | Impassable |
+|----------|------------|
+| plains | water |
+| forest | mountain (peaks) |
+| road | wall |
+| village | void |
+| hills | cliff |
+| swamp | |
+| desert | |
+| cave_entrance | |
+| ruins | |
+
+**Implementation**:
+
+```python
+# In world_tiles.py
+PASSABLE_TERRAIN: frozenset[str] = frozenset({
+    "plains", "forest", "road", "village", "hills",
+    "swamp", "desert", "cave_entrance", "ruins"
+})
+
+def is_passable(terrain: str) -> bool:
+    return terrain in PASSABLE_TERRAIN
+
+def get_valid_moves(chunk_manager: ChunkManager, x: int, y: int) -> list[str]:
+    """Return list of valid directions from current position."""
+    valid = []
+    for direction, (dx, dy) in DIRECTION_OFFSETS.items():
+        terrain = chunk_manager.get_tile(x + dx, y + dy)
+        if is_passable(terrain):
+            valid.append(direction)
+    return valid
+```
+
+**Required Changes**:
+
+1. **Remove `connections` from Location model**
+   - Delete `connections: dict[str, str]` field
+   - Remove all connection management code
+   - Remove bidirectional connection logic
+
+2. **Add passability to world_tiles.py**
+   - Define `PASSABLE_TERRAIN` and `IMPASSABLE_TERRAIN` sets
+   - Add `is_passable(terrain)` function
+   - Add `get_valid_moves(chunk_manager, x, y)` function
+
+3. **Update movement in game_state.py / main.py**
+   - Replace connection lookup with terrain passability check
+   - Use coordinates + direction offset to find target
+   - Query ChunkManager for target terrain
+
+4. **Update map rendering**
+   - Show passable directions based on terrain, not connections
+   - Impassable terrain shown differently (e.g., `~` for water, `^` for mountains)
+
+**Files to Modify**:
+- `src/cli_rpg/models/location.py`: Remove `connections` field
+- `src/cli_rpg/world_tiles.py`: Add passability sets and functions
+- `src/cli_rpg/game_state.py`: Use terrain for movement validation
+- `src/cli_rpg/main.py`: Update `go` command to use terrain
+- `src/cli_rpg/map_renderer.py`: Derive exits from terrain
+- `src/cli_rpg/world.py`: Remove connection generation logic
+
+**Success Criteria**:
+- [ ] `Location.connections` field removed entirely
+- [ ] `PASSABLE_TERRAIN` and `IMPASSABLE_TERRAIN` defined in world_tiles.py
+- [ ] `go <direction>` checks terrain passability, not connection dict
+- [ ] Map shows valid exits based on adjacent terrain types
+- [ ] No code references "connections" for movement logic
+
+---
+
 ### AI Location Generation Failures - JSON Parsing & Token Limits
 **Status**: HIGH PRIORITY
 

@@ -88,13 +88,14 @@ def test_generate_location_returns_valid_structure(mock_openai_class, basic_conf
     service = AIService(basic_config)
     result = service.generate_location(theme="fantasy")
     
-    # Verify structure
+    # Verify structure (no connections - WFC handles terrain structure)
     assert "name" in result
     assert "description" in result
-    assert "connections" in result
+    assert "category" in result
+    assert "npcs" in result
+    assert "connections" not in result  # AI no longer generates connections
     assert isinstance(result["name"], str)
     assert isinstance(result["description"], str)
-    assert isinstance(result["connections"], dict)
 
 
 # Test: Generate location validates constraints
@@ -182,38 +183,39 @@ def test_generate_location_with_timeout_raises_exception(mock_openai_class, basi
         service.generate_location(theme="fantasy")
 
 
-# Test: Connection directions are filtered to cardinal only
+# Test: Connections from AI are ignored (WFC handles terrain structure)
 @patch('cli_rpg.ai_service.OpenAI')
-def test_generate_location_connection_directions_filtered(mock_openai_class, basic_config):
-    """Test generate_location filters out non-cardinal directions like 'northeast'.
+def test_generate_location_connections_ignored(mock_openai_class, basic_config):
+    """Test generate_location ignores connections from AI response.
 
-    Only north, south, east, west are valid for grid-based movement.
-    Invalid directions like 'northeast' are silently filtered.
+    Connections are now determined by WFC terrain adjacency, not AI suggestions.
     """
     mock_client = Mock()
     mock_openai_class.return_value = mock_client
 
-    # Response with invalid direction
-    invalid_response = {
+    # Response with connections (should be ignored)
+    response_with_connections = {
         "name": "Test Location",
         "description": "A test location",
         "connections": {
-            "northeast": "Invalid Direction Location",  # Invalid - will be filtered
-            "south": "Valid Location"  # Valid - will be kept
-        }
+            "north": "Some Location",
+            "south": "Another Location"
+        },
+        "category": "wilderness"
     }
 
     mock_response = Mock()
     mock_response.choices = [Mock()]
-    mock_response.choices[0].message.content = json.dumps(invalid_response)
+    mock_response.choices[0].message.content = json.dumps(response_with_connections)
     mock_client.chat.completions.create.return_value = mock_response
 
     service = AIService(basic_config)
     result = service.generate_location(theme="fantasy")
 
-    # Verify 'northeast' was filtered out, but valid 'south' remains
-    assert "northeast" not in result["connections"]
-    assert result["connections"] == {"south": "Valid Location"}
+    # Connections should NOT be in the result (WFC handles terrain structure)
+    assert "connections" not in result
+    assert result["name"] == "Test Location"
+    assert result["category"] == "wilderness"
 
 
 # Test: Caching enabled
@@ -257,30 +259,29 @@ def test_generate_location_prompt_includes_context(mock_openai_class, basic_conf
     """Test generate_location builds prompt that includes context information."""
     mock_client = Mock()
     mock_openai_class.return_value = mock_client
-    
+
     mock_response = Mock()
     mock_response.choices = [Mock()]
     mock_response.choices[0].message.content = json.dumps(mock_openai_response)
     mock_client.chat.completions.create.return_value = mock_response
-    
+
     service = AIService(basic_config)
-    
+
     service.generate_location(
         theme="sci-fi",
         context_locations=["Space Station", "Docking Bay"],
-        source_location="Space Station",
-        direction="north"
+        terrain_type="space"
     )
-    
+
     # Get the actual call arguments
     call_args = mock_client.chat.completions.create.call_args
     messages = call_args[1]["messages"]
     prompt = messages[0]["content"]
-    
-    # Verify context is in prompt
+
+    # Verify context is in prompt (note: source/direction no longer used)
     assert "sci-fi" in prompt
     assert "Space Station" in prompt or "space station" in prompt.lower()
-    assert "north" in prompt.lower()
+    assert "space" in prompt.lower()  # terrain_type
 
 
 # Test: Configurable model
@@ -461,14 +462,11 @@ def test_generate_location_with_anthropic(mock_anthropic_class, tmp_path):
     mock_client = Mock()
     mock_anthropic_class.return_value = mock_client
 
-    # Simulate Anthropic API response structure
+    # Simulate Anthropic API response structure (no connections - WFC handles terrain)
     location_data = {
         "name": "Mystic Forest",
         "description": "A dark and mysterious forest filled with ancient trees.",
-        "connections": {
-            "north": "Village Square",
-            "east": "River Bank"
-        }
+        "category": "forest"
     }
 
     mock_response = Mock()
@@ -479,10 +477,10 @@ def test_generate_location_with_anthropic(mock_anthropic_class, tmp_path):
     service = AIService(config)
     result = service.generate_location(theme="fantasy")
 
-    # Verify result
+    # Verify result (no connections - WFC handles terrain structure)
     assert result["name"] == "Mystic Forest"
     assert result["description"] == "A dark and mysterious forest filled with ancient trees."
-    assert result["connections"]["north"] == "Village Square"
+    assert "connections" not in result
 
     # Verify Anthropic API was called correctly
     mock_client.messages.create.assert_called_once()
@@ -493,73 +491,71 @@ def test_generate_location_with_anthropic(mock_anthropic_class, tmp_path):
     assert call_kwargs["messages"][0]["role"] == "user"
 
 
-# Test: Filter non-cardinal directions (down) - spec: grid-based movement only supports cardinal directions
+# Test: AI connections are completely ignored (WFC handles terrain)
 @patch('cli_rpg.ai_service.OpenAI')
-def test_generate_location_filters_non_cardinal_directions(mock_openai_class, basic_config):
-    """Test generate_location filters out non-cardinal directions like 'down'.
+def test_generate_location_ignores_all_connections(mock_openai_class, basic_config):
+    """Test generate_location ignores all connections from AI.
 
-    The grid-based movement system only supports north, south, east, west.
-    AI may generate 'up' or 'down' connections which should be filtered out.
+    WFC handles terrain structure - AI only provides content (name, description, etc).
     """
     mock_client = Mock()
     mock_openai_class.return_value = mock_client
 
-    # Response with both valid and invalid directions
-    response_with_down = {
+    # Response with connections (should be completely ignored)
+    response_with_connections = {
         "name": "Neon Nexus",
         "description": "A hub of pulsing energy and data streams.",
         "connections": {
             "north": "Crystal Spire",
-            "down": "Underground Lab",  # Invalid - should be filtered
+            "down": "Underground Lab",
             "east": "Data Center"
-        }
+        },
+        "category": "dungeon"
     }
 
     mock_response = Mock()
     mock_response.choices = [Mock()]
-    mock_response.choices[0].message.content = json.dumps(response_with_down)
+    mock_response.choices[0].message.content = json.dumps(response_with_connections)
     mock_client.chat.completions.create.return_value = mock_response
 
     service = AIService(basic_config)
     result = service.generate_location(theme="cyberpunk")
 
-    # Verify 'down' was filtered out
-    assert "down" not in result["connections"]
-    assert result["connections"] == {"north": "Crystal Spire", "east": "Data Center"}
+    # Connections should not be in result at all (WFC handles terrain)
+    assert "connections" not in result
+    assert result["name"] == "Neon Nexus"
+    assert result["category"] == "dungeon"
 
 
-# Test: Filter 'up' direction - spec: grid-based movement only supports cardinal directions
+# Test: AI returns content without connections (preferred format)
 @patch('cli_rpg.ai_service.OpenAI')
-def test_generate_location_filters_up_direction(mock_openai_class, basic_config):
-    """Test generate_location filters out 'up' direction.
+def test_generate_location_works_without_connections(mock_openai_class, basic_config):
+    """Test generate_location works when AI doesn't include connections.
 
-    The grid-based movement system only supports north, south, east, west.
-    AI may generate 'up' connections which should be filtered out.
+    This is the preferred response format - AI only provides content.
     """
     mock_client = Mock()
     mock_openai_class.return_value = mock_client
 
-    # Response with 'up' direction
-    response_with_up = {
+    # Response without connections (correct format)
+    response_without_connections = {
         "name": "Sky Tower Base",
         "description": "The base of a towering structure reaching into the clouds.",
-        "connections": {
-            "up": "Sky Tower Observation Deck",  # Invalid - should be filtered
-            "south": "Ground Floor Lobby"
-        }
+        "category": "settlement"
     }
 
     mock_response = Mock()
     mock_response.choices = [Mock()]
-    mock_response.choices[0].message.content = json.dumps(response_with_up)
+    mock_response.choices[0].message.content = json.dumps(response_without_connections)
     mock_client.chat.completions.create.return_value = mock_response
 
     service = AIService(basic_config)
     result = service.generate_location(theme="sci-fi")
 
-    # Verify 'up' was filtered out
-    assert "up" not in result["connections"]
-    assert result["connections"] == {"south": "Ground Floor Lobby"}
+    # Result should have content but no connections
+    assert result["name"] == "Sky Tower Base"
+    assert result["category"] == "settlement"
+    assert "connections" not in result
 
 
 # Test: Area generation filters non-cardinal directions - spec: grid-based movement
@@ -1292,28 +1288,32 @@ def test_parse_location_response_description_too_long(mock_openai_class, basic_c
 
 
 @patch('cli_rpg.ai_service.OpenAI')
-def test_parse_location_response_connections_not_dict(mock_openai_class, basic_config):
-    """Test _parse_location_response raises when connections is not a dictionary (line 360).
+def test_parse_location_response_connections_ignored_not_validated(mock_openai_class, basic_config):
+    """Test _parse_location_response ignores invalid connections (no validation).
 
-    Spec: When connections field is not a dict, raise AIGenerationError.
+    Spec: connections field is ignored (WFC handles terrain), so invalid
+    connections type should not cause an error.
     """
     mock_client = Mock()
     mock_openai_class.return_value = mock_client
 
-    # Return location with invalid connections type
+    # Return location with invalid connections type - should be ignored
     mock_response = Mock()
     mock_response.choices = [Mock()]
     mock_response.choices[0].message.content = json.dumps({
         "name": "Test Location",
         "description": "A valid description that meets the minimum length requirement.",
-        "connections": ["north", "south"]  # Should be a dict, not a list
+        "connections": ["north", "south"],  # Invalid type - but ignored now
+        "category": "wilderness"
     })
     mock_client.chat.completions.create.return_value = mock_response
 
     service = AIService(basic_config)
 
-    with pytest.raises(AIGenerationError, match="Connections must be a dictionary"):
-        service.generate_location(theme="fantasy")
+    # Should NOT raise - connections are ignored
+    result = service.generate_location(theme="fantasy")
+    assert result["name"] == "Test Location"
+    assert "connections" not in result
 
 
 # ========================================================================
@@ -2012,17 +2012,14 @@ def test_generate_location_handles_markdown_wrapped_json(mock_openai_class, basi
     mock_client = Mock()
     mock_openai_class.return_value = mock_client
 
-    # Response wrapped in markdown code block
+    # Response wrapped in markdown code block (no connections - WFC handles terrain)
     markdown_wrapped = '''Sure! Here's a location for your fantasy world:
 
 ```json
 {
     "name": "Enchanted Grove",
     "description": "A mystical grove where ancient trees whisper secrets.",
-    "connections": {
-        "north": "Forest Path",
-        "east": "River Bank"
-    }
+    "category": "forest"
 }
 ```
 
@@ -2036,11 +2033,11 @@ Hope this helps!'''
     service = AIService(basic_config)
     result = service.generate_location(theme="fantasy")
 
-    # Verify the location was parsed correctly
+    # Verify the location was parsed correctly (no connections)
     assert result["name"] == "Enchanted Grove"
     assert result["description"] == "A mystical grove where ancient trees whisper secrets."
-    assert result["connections"]["north"] == "Forest Path"
-    assert result["connections"]["east"] == "River Bank"
+    assert result["category"] == "forest"
+    assert "connections" not in result
 
 
 # ========================================================================
@@ -2165,8 +2162,8 @@ def test_generate_location_with_truncated_response(mock_openai_class, basic_conf
     mock_client = Mock()
     mock_openai_class.return_value = mock_client
 
-    # Simulating a truncated response (missing closing braces)
-    truncated_response = '{"name": "Mystic Cave", "description": "A dark and mysterious cave with ancient runes.", "connections": {"north": "Forest Path"}'
+    # Simulating a truncated response (missing closing brace)
+    truncated_response = '{"name": "Mystic Cave", "description": "A dark and mysterious cave with ancient runes.", "category": "cave"'
 
     mock_response = Mock()
     mock_response.choices = [Mock()]
@@ -2176,10 +2173,11 @@ def test_generate_location_with_truncated_response(mock_openai_class, basic_conf
     service = AIService(basic_config)
     result = service.generate_location(theme="fantasy")
 
-    # Verify the location was parsed correctly after repair
+    # Verify the location was parsed correctly after repair (no connections)
     assert result["name"] == "Mystic Cave"
     assert result["description"] == "A dark and mysterious cave with ancient runes."
-    assert result["connections"]["north"] == "Forest Path"
+    assert result["category"] == "cave"
+    assert "connections" not in result
 
 
 @patch('cli_rpg.ai_service.OpenAI')

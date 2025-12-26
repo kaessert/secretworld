@@ -292,11 +292,11 @@ def create_ai_world(
     for npc in ai_npcs:
         starting_location.npcs.append(npc)
 
-    # Queue connections to explore
-    for direction, target_name in starting_data["connections"].items():
-        if direction in DIRECTION_OFFSETS:
-            dx, dy = DIRECTION_OFFSETS[direction]
-            coord_queue.append((starting_location.name, 0 + dx, 0 + dy, direction, target_name))
+    # Queue ALL cardinal directions for exploration (WFC will filter passability)
+    # Connections are determined by terrain, not AI suggestions
+    for direction in DIRECTION_OFFSETS:
+        dx, dy = DIRECTION_OFFSETS[direction]
+        coord_queue.append((starting_location.name, 0 + dx, 0 + dy, direction, None))
 
     # Generate connected locations up to initial_size
     generated_count = 1
@@ -364,12 +364,12 @@ def create_ai_world(
                 grid.add_location(new_location, target_x, target_y)
                 generated_count += 1
 
-                # Queue suggested connections from new location
+                # Queue all cardinal directions from new location (WFC handles terrain passability)
                 opposite = get_opposite_direction(direction)
-                for new_dir, new_target in location_data["connections"].items():
-                    if new_dir != opposite and new_dir in DIRECTION_OFFSETS:
+                for new_dir in DIRECTION_OFFSETS:
+                    if new_dir != opposite:  # Skip back-connection direction
                         dx, dy = DIRECTION_OFFSETS[new_dir]
-                        coord_queue.append((new_location.name, target_x + dx, target_y + dy, new_dir, new_target))
+                        coord_queue.append((new_location.name, target_x + dx, target_y + dy, new_dir, None))
             else:
                 logger.debug(f"Duplicate location name generated: {new_location.name}")
 
@@ -517,31 +517,20 @@ def expand_world(
     # Add to world
     world[new_location.name] = new_location
 
-    # Add bidirectional connections
+    # Add bidirectional connections (terrain-based, not AI-suggested)
     world[from_location].add_connection(direction, new_location.name)
     opposite = get_opposite_direction(direction)
     new_location.add_connection(opposite, from_location)
 
-    # Add suggested dangling connections (keep them even if targets don't exist)
-    for new_dir, target_name in location_data["connections"].items():
-        if new_dir != opposite:  # Skip the back-connection we already added
-            new_location.add_connection(new_dir, target_name)
-            # Also add bidirectional connection if target exists
-            if target_name in world:
-                rev_dir = get_opposite_direction(new_dir)
-                if not world[target_name].has_connection(rev_dir):
-                    world[target_name].add_connection(rev_dir, new_location.name)
-
-    # Ensure at least one dangling connection for future expansion
-    non_back_connections = [d for d in new_location.connections if d != opposite]
-    if not non_back_connections:
-        import random
-        available_dirs = [d for d in Location.VALID_DIRECTIONS
-                         if d not in new_location.connections]
-        if available_dirs:
-            dangling_dir = random.choice(available_dirs)
-            placeholder_name = f"Unexplored {dangling_dir.title()}"
-            new_location.add_connection(dangling_dir, placeholder_name)
+    # Add dangling connections for future expansion
+    # Note: AI no longer suggests connections - WFC handles terrain structure
+    import random
+    available_dirs = [d for d in Location.VALID_DIRECTIONS
+                     if d not in new_location.connections]
+    if available_dirs:
+        dangling_dir = random.choice(available_dirs)
+        placeholder_name = f"Unexplored {dangling_dir.title()}"
+        new_location.add_connection(dangling_dir, placeholder_name)
 
     logger.info(f"Added location '{new_location.name}' to world")
     return world

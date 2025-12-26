@@ -421,20 +421,18 @@ def test_expand_world_creates_dangling_connection(mock_ai_service, basic_world):
     assert len(other_connections) >= 1
 
 
-# Test: Expand world preserves AI-suggested dangling connections
-def test_expand_world_preserves_ai_suggested_dangling_connections(mock_ai_service, basic_world):
-    """Test expand_world preserves AI-suggested dangling connections.
+# Test: Expand world adds dangling connections for future expansion
+def test_expand_world_adds_dangling_connections(mock_ai_service, basic_world):
+    """Test expand_world adds dangling connections for future expansion.
 
-    Spec: AI-suggested exits to non-existent locations should be kept as dangling.
+    Spec: New locations should have dangling exits for future expansion.
+    Note: AI no longer suggests connections - WFC handles terrain structure.
     """
     mock_ai_service.generate_location.return_value = {
         "name": "Crossroads",
         "description": "A busy crossroads.",
-        "connections": {
-            "south": "Town Square",  # Back-connection
-            "east": "Mountain Path",  # Dangling
-            "west": "Dark Forest"     # Dangling
-        }
+        "category": "wilderness"
+        # No connections - AI doesn't generate them anymore
     }
 
     updated_world = expand_world(
@@ -446,11 +444,12 @@ def test_expand_world_preserves_ai_suggested_dangling_connections(mock_ai_servic
     )
 
     new_loc = updated_world["Crossroads"]
+    # Must have back-connection to source
     assert new_loc.has_connection("south")
-    assert new_loc.has_connection("east")
-    assert new_loc.has_connection("west")
-    assert new_loc.get_connection("east") == "Mountain Path"
-    assert new_loc.get_connection("west") == "Dark Forest"
+    assert new_loc.get_connection("south") == "Town Square"
+    # Must have at least one dangling connection for future expansion
+    non_back_connections = [d for d in new_loc.connections if d != "south"]
+    assert len(non_back_connections) >= 1
 
 
 # Test: Expand world adds dangling connection when AI suggests none
@@ -1243,60 +1242,53 @@ def test_create_ai_world_triggers_suggested_name_skip(mock_ai_service):
     assert len(world) <= 2
 
 
-# Test: create_ai_world queues suggested connections - spec: lines 179-180
-def test_create_ai_world_queues_suggested_connections(mock_ai_service):
-    """Test create_ai_world queues suggested connections for expansion (lines 179-180).
+# Test: create_ai_world queues all cardinal directions for expansion
+def test_create_ai_world_queues_cardinal_directions(mock_ai_service):
+    """Test create_ai_world queues all cardinal directions for expansion.
 
-    Spec: After adding a location, its connections should be queued for expansion.
+    Spec: Expansion is driven by WFC terrain, not AI suggestions.
+    All cardinal directions are queued from each location.
     """
     call_count = [0]
 
     def mock_generate(theme, context_locations=None, source_location=None, direction=None):
         call_count[0] += 1
         if call_count[0] == 1:
-            # Starting location with connection to north
+            # Starting location - AI no longer suggests connections
             return {
                 "name": "Center",
                 "description": "The center hub of the world.",
-                "connections": {"north": "North Area"}
+                "category": "town"
             }
         elif call_count[0] == 2:
-            # First expansion (north) - suggests an east connection
+            # Any direction from Center (WFC decides, not AI)
             return {
                 "name": "North Area",
                 "description": "The northern region.",
-                "connections": {
-                    "south": "Center",
-                    "east": "East of North"  # This should be queued
-                }
+                "category": "wilderness"
             }
         elif call_count[0] == 3:
-            # Second expansion (east from North Area)
             return {
-                "name": "East of North",
+                "name": "East Area",
                 "description": "The eastern section.",
-                "connections": {"west": "North Area"}
+                "category": "forest"
             }
         else:
             return {
                 "name": f"Location {call_count[0]}",
                 "description": "A generated location.",
-                "connections": {}
+                "category": "wilderness"
             }
 
     mock_ai_service.generate_location.side_effect = mock_generate
 
     world, starting_location = create_ai_world(mock_ai_service, theme="fantasy", initial_size=3)
 
-    # Should have 3 locations: Center, North Area, East of North
-    assert "Center" in world
-    assert "North Area" in world
-    assert "East of North" in world
+    # Should have 3 locations based on initial_size
     assert len(world) == 3
-    # Verify coordinates
+    assert "Center" in world
+    # Verify coordinates - Center at origin
     assert world["Center"].coordinates == (0, 0)
-    assert world["North Area"].coordinates == (0, 1)
-    assert world["East of North"].coordinates == (1, 1)
 
 
 # ========================================================================
@@ -1362,34 +1354,25 @@ def test_create_ai_world_logs_warning_for_non_grid_direction(mock_ai_service, ca
     assert "Tower Base" in world
 
 
-# Test: expand_world adds bidirectional connection to existing target - spec: lines 292-294
-def test_expand_world_adds_bidirectional_connection_to_existing_target(mock_ai_service):
-    """Test expand_world adds reverse connection when AI suggests existing location.
+# Test: expand_world adds bidirectional connection to source
+def test_expand_world_adds_bidirectional_connection(mock_ai_service):
+    """Test expand_world adds bidirectional connection between source and new location.
 
-    Spec: Lines 292-294 - When AI suggests a connection to an existing location,
-    add the reverse connection if it doesn't exist.
+    Spec: New location gets back-connection to source, source gets forward-connection.
+    Note: AI no longer suggests connections - terrain structure is from WFC.
     """
-    # Create world with two locations that aren't connected
     town_square = Location(
         name="Town Square",
         description="A bustling town square.",
         coordinates=(0, 0)
     )
-    market = Location(
-        name="Market",
-        description="A busy market.",
-        coordinates=(1, 0)  # East of town square, but not connected
-    )
-    world = {"Town Square": town_square, "Market": market}
+    world = {"Town Square": town_square}
 
-    # AI returns new location with connection to existing "Market"
     mock_ai_service.generate_location.return_value = {
         "name": "New Plaza",
         "description": "A new plaza.",
-        "connections": {
-            "south": "Town Square",
-            "east": "Market"  # Connection to existing location
-        }
+        "category": "settlement"
+        # No connections - AI doesn't generate them anymore
     }
 
     updated_world = expand_world(
@@ -1400,19 +1383,18 @@ def test_expand_world_adds_bidirectional_connection_to_existing_target(mock_ai_s
         theme="fantasy"
     )
 
-    # Verify new location has east connection to Market
-    assert updated_world["New Plaza"].get_connection("east") == "Market"
-    # Verify Market now has west connection back to New Plaza (bidirectional)
-    assert updated_world["Market"].get_connection("west") == "New Plaza"
+    # Verify bidirectional connection between Town Square and New Plaza
+    assert updated_world["Town Square"].get_connection("north") == "New Plaza"
+    assert updated_world["New Plaza"].get_connection("south") == "Town Square"
 
 
-# Test: expand_world does not override existing reverse connection - spec: lines 293-294
-def test_expand_world_preserves_existing_reverse_connection(mock_ai_service):
-    """Test expand_world doesn't override existing reverse connection.
+# Test: expand_world preserves source location's existing connections
+def test_expand_world_preserves_source_existing_connections(mock_ai_service):
+    """Test expand_world preserves source location's existing connections.
 
-    Spec: Lines 293-294 - Only add reverse connection if target doesn't already have one.
+    Spec: Adding a new location should not affect other connections on source.
+    Note: AI no longer suggests connections - terrain structure is from WFC.
     """
-    # Create world with Market having an existing west connection
     town_square = Location(
         name="Town Square",
         description="A bustling town square.",
@@ -1421,26 +1403,18 @@ def test_expand_world_preserves_existing_reverse_connection(mock_ai_service):
     other_place = Location(
         name="Other Place",
         description="Another location.",
-        coordinates=(-1, 1)
+        coordinates=(-1, 0)
     )
-    market = Location(
-        name="Market",
-        description="A busy market.",
-        coordinates=(1, 1)
-    )
-    # Market already has a west connection to Other Place
-    market.add_connection("west", "Other Place")
+    # Town Square already has a west connection to Other Place
+    town_square.add_connection("west", "Other Place")
 
-    world = {"Town Square": town_square, "Market": market, "Other Place": other_place}
+    world = {"Town Square": town_square, "Other Place": other_place}
 
-    # AI returns new location with connection to Market
     mock_ai_service.generate_location.return_value = {
         "name": "New Plaza",
         "description": "A new plaza.",
-        "connections": {
-            "south": "Town Square",
-            "east": "Market"  # Connection to existing location
-        }
+        "category": "settlement"
+        # No connections - AI doesn't generate them anymore
     }
 
     updated_world = expand_world(
@@ -1451,10 +1425,10 @@ def test_expand_world_preserves_existing_reverse_connection(mock_ai_service):
         theme="fantasy"
     )
 
-    # Verify New Plaza has east connection to Market
-    assert updated_world["New Plaza"].get_connection("east") == "Market"
-    # Verify Market's west connection is preserved (not overwritten to New Plaza)
-    assert updated_world["Market"].get_connection("west") == "Other Place"
+    # Verify Town Square's new north connection to New Plaza
+    assert updated_world["Town Square"].get_connection("north") == "New Plaza"
+    # Verify Town Square's existing west connection is preserved
+    assert updated_world["Town Square"].get_connection("west") == "Other Place"
 
 
 # Test: expand_area falls back when all locations conflict - spec: lines 434, 436-437
@@ -1612,53 +1586,53 @@ def test_expand_area_uses_first_location_when_entry_blocked(mock_ai_service):
     assert updated_world["Town Square"].get_connection("north") == "Side Room"
 
 
-# Test: create_ai_world skips when suggested name in grid but position free - spec: line 146
-def test_create_ai_world_skips_suggested_name_already_in_grid(mock_ai_service):
-    """Test create_ai_world skips when suggested connection name already exists.
+# Test: create_ai_world skips positions already occupied
+def test_create_ai_world_skips_occupied_positions(mock_ai_service):
+    """Test create_ai_world skips grid positions that are already occupied.
 
-    Spec: Line 146 - If suggested_name from connection already exists in the grid,
-    skip that expansion even if the target position is free.
+    Spec: When expanding, if a grid position is already occupied by another
+    location, skip that expansion attempt.
+    Note: AI no longer suggests connection names - expansion is grid-based.
     """
     call_count = [0]
 
     def mock_generate(theme, context_locations=None, source_location=None, direction=None):
         call_count[0] += 1
         if call_count[0] == 1:
-            # Starting location at (0,0) suggesting north leads to "North Area"
             return {
                 "name": "Center",
                 "description": "The center.",
-                "connections": {"north": "North Area"}
+                "category": "town"
             }
         elif call_count[0] == 2:
-            # Generate "North Area" at (0,1) - this succeeds
             return {
                 "name": "North Area",
                 "description": "The north area.",
-                "connections": {
-                    "south": "Center",
-                    "east": "North Area"  # Suggests name that already exists in grid!
-                }
+                "category": "wilderness"
+            }
+        elif call_count[0] == 3:
+            return {
+                "name": "East Area",
+                "description": "The east area.",
+                "category": "forest"
             }
         else:
-            # This should NOT be called because "North Area" already exists
             return {
-                "name": "East Extension",
-                "description": "Extended area.",
-                "connections": {"west": "North Area"}
+                "name": f"Location {call_count[0]}",
+                "description": "Generated location.",
+                "category": "wilderness"
             }
 
     mock_ai_service.generate_location.side_effect = mock_generate
 
     world, starting_location = create_ai_world(mock_ai_service, theme="fantasy", initial_size=3)
 
-    # Center and North Area should exist
+    # Should have exactly 3 locations (initial_size)
+    assert len(world) == 3
     assert "Center" in world
-    assert "North Area" in world
-    # The expansion from North Area eastward should be skipped because
-    # suggested name "North Area" already exists
-    # Only 2 locations should exist, not 3
-    assert len(world) == 2
+    # All locations should have unique coordinates
+    coords = [loc.coordinates for loc in world.values() if loc.coordinates]
+    assert len(coords) == len(set(coords)), "All locations should have unique coordinates"
 
 
 # ========================================================================

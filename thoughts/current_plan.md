@@ -1,294 +1,202 @@
-# Implementation Plan: Named vs Unnamed Location System
+# Implementation Plan: Remove Terrain Logic from AI Location Generation
 
 ## Summary
-Distinguish between generic terrain tiles (unnamed - cheap/instant templates) and story-important POIs (named - full AI generation). Target ratio: ~1 named per 10-20 unnamed tiles.
+Remove connections/exits generation from AI prompts and parsing. AI should only generate content (name, description, NPCs, category), while WFC is the single source of truth for terrain structure (exits/connections).
 
 ## Spec
 
-**Core Concept:**
-- **Unnamed locations**: Generic terrain (forest, plains, road) - use template descriptions, no AI calls
-- **Named locations**: Story POIs (towns, dungeons, temples) - full AI generation with LayeredContext
+**Current State (Incorrect):**
+- AI prompts ask for `connections: {direction: location_name}`
+- AI decides which exits exist
+- `_parse_location_response()` validates and filters connections
+- `expand_world()` uses AI-generated connections to determine navigation
 
-**Location Model Changes:**
-- Add `is_named: bool = False` field (True for POIs, False for terrain filler)
-- Add `terrain_type: Optional[str] = None` field (from WFC: "forest", "plains", etc.)
-- Unnamed locations get template descriptions based on terrain_type
-
-**Named Location Triggers:**
-1. Every N tiles (configurable, default 15)
-2. Special terrain (mountains, swamps → higher POI chance)
-3. Region landmarks (town every ~50 tiles)
-4. Player-discovered secrets
+**Target State (Correct):**
+- AI prompts have NO reference to exits, directions, or connections
+- AI receives terrain type as INPUT (from WFC)
+- AI returns ONLY: `{name, description, category, npcs}`
+- All exits determined by WFC terrain adjacency in ChunkManager
 
 ## Test Plan (TDD)
 
-**File: `tests/test_named_locations.py`**
+**File: `tests/test_terrain_content_separation.py`**
 
 | Test | Description |
 |------|-------------|
-| `test_location_is_named_defaults_false` | Location.is_named defaults to False |
-| `test_location_terrain_type_defaults_none` | Location.terrain_type defaults to None |
-| `test_location_serialization_with_is_named` | is_named survives to_dict/from_dict |
-| `test_location_serialization_with_terrain_type` | terrain_type survives to_dict/from_dict |
-| `test_unnamed_template_forest` | Unnamed forest location gets forest template |
-| `test_unnamed_template_plains` | Unnamed plains location gets plains template |
-| `test_should_generate_named_every_n_tiles` | Named location triggers every N tiles |
-| `test_should_generate_named_mountain_terrain` | Mountain terrain has higher named chance |
-| `test_fallback_creates_unnamed_location` | `generate_fallback_location` creates unnamed |
-
-**File: `tests/test_unnamed_templates.py`**
-
-| Test | Description |
-|------|-------------|
-| `test_get_unnamed_template_forest` | Returns forest-themed description |
-| `test_get_unnamed_template_plains` | Returns plains-themed description |
-| `test_get_unnamed_template_all_terrains` | All terrain types have templates |
-| `test_unnamed_template_has_valid_name` | Template name is 2-50 chars |
-| `test_unnamed_template_has_valid_description` | Template description is 1-500 chars |
+| `test_minimal_location_prompt_no_connections` | Minimal prompt has no `connections` field in example JSON |
+| `test_minimal_location_prompt_no_exits` | Minimal prompt contains no word "exit" or "direction" |
+| `test_parse_location_response_no_connections_required` | Parsing succeeds without `connections` in response |
+| `test_parse_location_response_ignores_connections` | If AI includes connections, they are ignored |
+| `test_location_data_has_no_connections_key` | Returned dict has no `connections` key |
+| `test_generate_location_with_context_no_connections` | Full generation returns no connections |
 
 ## Implementation Steps
 
-### Step 1: Add Location Model Fields
+### Step 1: Update AI Prompts (ai_config.py)
 
-**File: `src/cli_rpg/models/location.py`**
-
-Add after line 56 (`terrain: Optional[str] = None`):
-```python
-is_named: bool = False  # True for story-important POIs, False for terrain filler
-```
-
-Update `to_dict()` (around line 375):
-```python
-if self.is_named:
-    data["is_named"] = self.is_named
-```
-
-Update `from_dict()` (around line 427):
-```python
-is_named = data.get("is_named", False)
-```
-
-And add to the constructor call.
-
-### Step 2: Create Unnamed Location Templates
-
-**File: `src/cli_rpg/world_tiles.py`**
-
-Add after line 101 (after TERRAIN_TO_CATEGORY):
+**Modify `DEFAULT_LOCATION_PROMPT` (line 14-49):**
+Remove requirements #3, #4 about connections. Remove `connections` from JSON example.
 
 ```python
-# Unnamed location templates by terrain type
-# Each terrain has a list of (name_template, description_template) tuples
-UNNAMED_LOCATION_TEMPLATES: Dict[str, List[tuple[str, str]]] = {
-    "forest": [
-        ("Dense Woods", "Tall trees crowd together, their canopy blocking most sunlight."),
-        ("Wooded Trail", "A narrow path winds through towering oaks and elms."),
-        ("Forest Clearing", "A small gap in the trees lets dappled light through."),
-    ],
-    "mountain": [
-        ("Rocky Pass", "Jagged peaks rise on either side of this narrow mountain trail."),
-        ("Steep Cliffs", "The path hugs a sheer rock face, wind howling past."),
-        ("Alpine Meadow", "A grassy plateau offers respite between stone peaks."),
-    ],
-    "plains": [
-        ("Open Grassland", "Tall grass sways in the wind under an open sky."),
-        ("Rolling Hills", "Gentle slopes covered in wildflowers stretch to the horizon."),
-        ("Dusty Road", "A well-worn path cuts through the flat landscape."),
-    ],
-    "water": [
-        ("Riverbank", "The sound of rushing water fills the air."),
-    ],
-    "desert": [
-        ("Sand Dunes", "Endless waves of golden sand shimmer in the heat."),
-        ("Rocky Desert", "Cracked earth and scattered boulders dot the wasteland."),
-        ("Desert Trail", "A faint path marks where others have crossed before."),
-    ],
-    "swamp": [
-        ("Murky Bog", "Dark water pools between twisted, moss-covered trees."),
-        ("Fetid Marsh", "The air hangs thick with moisture and decay."),
-        ("Swamp Trail", "Rotting planks form a rickety path over the mire."),
-    ],
-    "hills": [
-        ("Grassy Knoll", "A gentle slope offers a view of the surrounding land."),
-        ("Hilltop Path", "The trail winds up and down rolling terrain."),
-        ("Valley Floor", "You walk between two grass-covered rises."),
-    ],
-    "beach": [
-        ("Sandy Shore", "Waves lap at the golden sand beneath your feet."),
-        ("Rocky Beach", "Tide pools dot the coast between weathered stones."),
-        ("Coastal Path", "A trail follows the line where land meets sea."),
-    ],
-    "foothills": [
-        ("Mountain Base", "The terrain rises sharply toward distant peaks."),
-        ("Foothill Trail", "A winding path leads up from the lowlands."),
-        ("Rocky Slope", "Scattered boulders mark the transition to mountains."),
-    ],
-}
+DEFAULT_LOCATION_PROMPT = """You are a creative game world designer. Generate a new location for a {theme} RPG game.
 
-def get_unnamed_location_template(terrain: str) -> tuple[str, str]:
-    """Get a random unnamed location template for a terrain type.
+Context:
+- World Theme: {theme}
+- Existing Locations: {context_locations}
+- Terrain Type: {terrain_type}
 
-    Args:
-        terrain: Terrain type (forest, plains, mountain, etc.)
+Requirements:
+1. Create a unique location name (2-50 characters) appropriate for {terrain_type} terrain
+2. Write a vivid description (1-500 characters) that reflects the terrain and theme
+3. Include a category for the location type (one of: town, dungeon, wilderness, settlement, ruins, cave, forest, mountain, village)
+4. Generate 0-2 NPCs appropriate for this location (optional)
+   - Each NPC needs: name (2-30 chars), description (1-200 chars), dialogue (a greeting), role (villager, merchant, or quest_giver)
 
-    Returns:
-        Tuple of (name, description) for the unnamed location
-    """
-    import random
-    templates = UNNAMED_LOCATION_TEMPLATES.get(terrain, UNNAMED_LOCATION_TEMPLATES["plains"])
-    return random.choice(templates)
+Respond with valid JSON in this exact format (no additional text):
+{{
+  "name": "Location Name",
+  "description": "A detailed description of the location.",
+  "category": "wilderness",
+  "npcs": [
+    {{
+      "name": "NPC Name",
+      "description": "Brief description of the NPC.",
+      "dialogue": "What the NPC says when greeted.",
+      "role": "villager"
+    }}
+  ]
+}}"""
 ```
 
-### Step 3: Add Named Location Trigger Logic
-
-**File: `src/cli_rpg/world_tiles.py`**
-
-Add after the template function:
+**Modify `DEFAULT_LOCATION_PROMPT_MINIMAL` (line 306-335):**
+Remove requirements about connections and back-connection to source.
 
 ```python
-# Configuration for named location generation
-NAMED_LOCATION_CONFIG = {
-    "base_interval": 15,  # Generate named location every N tiles on average
-    "terrain_modifiers": {
-        # Terrain types more likely to have POIs
-        "mountain": 0.6,  # 60% of base interval → more POIs
-        "swamp": 0.7,
-        "foothills": 0.8,
-        "forest": 1.0,  # Normal
-        "plains": 1.2,  # Slightly fewer POIs
-        "hills": 1.0,
-        "beach": 0.8,
-        "desert": 0.9,
-        "water": 999.0,  # Never (impassable)
-    },
-}
+DEFAULT_LOCATION_PROMPT_MINIMAL = """Generate a location for a {theme} RPG.
 
-def should_generate_named_location(
-    tiles_since_named: int,
-    terrain: str,
-    rng: Optional[random.Random] = None
-) -> bool:
-    """Determine if a named location should be generated.
+World Context:
+- Theme Essence: {theme_essence}
 
-    Uses a probability curve that increases with tiles since last named.
-    Terrain type modifies the effective interval.
+Region Context:
+- Region Name: {region_name}
+- Region Theme: {region_theme}
+- Terrain: {terrain_type}
 
-    Args:
-        tiles_since_named: Number of tiles traveled since last named location
-        terrain: Current terrain type
-        rng: Optional random number generator for determinism
+Requirements:
+1. Create a unique location name (2-50 characters) that fits the region theme and terrain
+2. Write a vivid description (1-500 characters) that reflects the {terrain_type} terrain
+3. Assign a category (town, dungeon, wilderness, settlement, ruins, cave, forest, mountain, village)
+4. Ensure the location makes sense for {terrain_type} terrain (e.g., oasis for desert, clearing for forest)
 
-    Returns:
-        True if a named location should be generated
-    """
-    if rng is None:
-        rng = random.Random()
-
-    base_interval = NAMED_LOCATION_CONFIG["base_interval"]
-    modifier = NAMED_LOCATION_CONFIG["terrain_modifiers"].get(terrain, 1.0)
-    effective_interval = base_interval * modifier
-
-    # Probability increases linearly from 0 at tile 0 to 100% at 2x interval
-    # At interval, probability is 50%
-    probability = min(1.0, tiles_since_named / (effective_interval * 2))
-
-    return rng.random() < probability
+Respond with valid JSON in this exact format (no additional text):
+{{
+  "name": "Location Name",
+  "description": "A detailed description of the location.",
+  "category": "wilderness"
+}}"""
 ```
 
-### Step 4: Update Fallback Generation to Create Unnamed Locations
+### Step 2: Update Parsing (ai_service.py)
 
-**File: `src/cli_rpg/world.py`**
-
-Modify `generate_fallback_location()` to create unnamed locations:
+**Modify `_parse_location_response()` (around line 586-650):**
+- Remove `connections` from required_fields
+- Remove connection validation/filtering logic
+- Return dict without `connections` key
 
 ```python
-def generate_fallback_location(
-    direction: str,
-    source_location: Location,
-    target_coords: tuple[int, int],
-    terrain: Optional[str] = None,
-    chunk_manager: Optional["ChunkManager"] = None,
-    tiles_since_named: int = 0,  # NEW parameter
-) -> Location:
-    """Generate a fallback location when AI is unavailable.
+def _parse_location_response(self, response_text: str) -> dict:
+    # ... JSON parsing logic unchanged ...
 
-    Creates unnamed terrain locations by default. Named locations are
-    generated based on tile count and terrain type.
-    """
-    from cli_rpg.world_tiles import (
-        get_unnamed_location_template,
-        should_generate_named_location,
-        TERRAIN_TO_CATEGORY,
-    )
+    # Validate required fields (NO connections)
+    required_fields = ["name", "description"]
+    for field in required_fields:
+        if field not in data:
+            raise AIGenerationError(f"Response missing required field: {field}")
 
-    # Determine if this should be a named location
-    is_named = should_generate_named_location(tiles_since_named, terrain or "plains")
+    # ... name/description validation unchanged ...
 
-    if is_named:
-        # Generate a named location (existing behavior with templates)
-        # ... existing named location logic ...
-    else:
-        # Generate an unnamed terrain location
-        name, description = get_unnamed_location_template(terrain or "plains")
-        # Make name unique by appending coordinates
-        unique_name = f"{name} ({target_coords[0]}, {target_coords[1]})"
+    # Extract and validate category (optional field)
+    category = data.get("category")
+    # ... category validation unchanged ...
 
-        category = TERRAIN_TO_CATEGORY.get(terrain, "wilderness")
+    # Parse NPCs (optional field)
+    npcs = self._parse_npcs(data.get("npcs", []), name)
 
-        return Location(
-            name=unique_name,
-            description=description,
-            connections={get_opposite_direction(direction): source_location.name},
-            coordinates=target_coords,
-            category=category,
-            terrain=terrain,
-            is_named=False,
-        )
+    # Return validated data WITHOUT connections
+    return {
+        "name": name,
+        "description": description,
+        "category": category,
+        "npcs": npcs
+    }
 ```
 
-### Step 5: Track tiles_since_named in GameState
-
-**File: `src/cli_rpg/game_state.py`**
-
-Add tracking field (around line 280):
-```python
-self.tiles_since_named: int = 0  # Tiles traveled since last named location
-```
-
-Update in `move()` method after successful move:
-```python
-# Track tiles for named location generation
-if not target_location.is_named:
-    self.tiles_since_named += 1
-else:
-    self.tiles_since_named = 0
-```
-
-Add to `to_dict()` and `from_dict()` for persistence.
-
-### Step 6: Update AI Generation to Mark Locations as Named
-
-**File: `src/cli_rpg/ai_world.py`**
-
-In `expand_world()` and `expand_area()`, set `is_named=True` for AI-generated locations:
+**Modify `generate_location()` return type docstring (line 168-169):**
+Update to reflect no connections.
 
 ```python
-new_location = Location(
-    name=location_data["name"],
-    description=location_data["description"],
-    # ... other fields ...
-    is_named=True,  # AI-generated locations are always named
-)
+Returns:
+    Dictionary with keys: name, description, category, npcs
 ```
+
+### Step 3: Update ai_world.py to Not Use AI Connections
+
+**Modify `create_ai_world()` (line 184-399):**
+- Remove code that queues AI-generated connections (lines 295-299)
+- Remove code that uses `location_data["connections"]` (line 369)
+- All expansion now driven by WFC terrain, not AI suggestions
+
+Key change at line 296:
+```python
+# OLD: for direction, target_name in starting_data["connections"].items():
+# NEW: Queue ALL cardinal directions for exploration (WFC will filter passability)
+for direction in DIRECTION_OFFSETS:
+    dx, dy = DIRECTION_OFFSETS[direction]
+    coord_queue.append((starting_location.name, 0 + dx, 0 + dy, direction, None))
+```
+
+**Modify `expand_world()` (around line 520-545):**
+- Remove code at lines 525-533 that adds AI-suggested connections
+- Bidirectional connection at lines 520-523 stays (this is terrain-based, not AI)
+
+Remove this block:
+```python
+# OLD: Add suggested dangling connections (keep them even if targets don't exist)
+# for new_dir, target_name in location_data["connections"].items():
+#     ...
+```
+
+### Step 4: Update Area Generation Prompts (ai_service.py)
+
+**Modify `_build_area_prompt()` (around line 913-963):**
+- Remove requirement #9 about valid directions
+- Remove requirement #10 about internal consistency of connections
+- Remove `connections` from JSON example
+- Change focus to generating themed locations with relative positions
+
+This is more complex since areas have internal connectivity. However, for areas:
+- Use `relative_coords` to establish spatial layout
+- Derive connections FROM coordinates, not AI
+
+**Modify `_parse_area_response()` and `_validate_area_location()` (lines 1028-1099):**
+- Remove `connections` from required_fields
+- Remove connection filtering logic
+- Derive connections from relative_coords in caller (ai_world.py)
 
 ## Files to Modify
 
-| File | Change |
-|------|--------|
-| `tests/test_named_locations.py` | NEW - Tests for is_named field and triggers |
-| `tests/test_unnamed_templates.py` | NEW - Tests for template system |
-| `src/cli_rpg/models/location.py` | Add `is_named` field, serialization |
-| `src/cli_rpg/world_tiles.py` | Add templates and trigger logic |
-| `src/cli_rpg/world.py` | Update fallback to create unnamed locations |
-| `src/cli_rpg/game_state.py` | Track `tiles_since_named`, pass to generation |
-| `src/cli_rpg/ai_world.py` | Mark AI-generated locations as `is_named=True` |
+| File | Changes |
+|------|---------|
+| `tests/test_terrain_content_separation.py` | NEW - Tests for content-only AI generation |
+| `src/cli_rpg/ai_config.py` | Remove connections from prompts (lines 14-49, 306-335) |
+| `src/cli_rpg/ai_service.py` | Remove connections from parsing (lines 586-650, 1028-1099) |
+| `src/cli_rpg/ai_world.py` | Stop using AI connections (lines 295-299, 369, 525-533) |
+
+## Success Criteria
+
+- [ ] AI prompts contain zero references to exits, directions, or connections
+- [ ] `_parse_location_response()` does not require or return `connections`
+- [ ] `create_ai_world()` expands based on grid positions, not AI suggestions
+- [ ] `expand_world()` adds only bidirectional terrain connections
+- [ ] All existing tests pass
+- [ ] New tests verify content-only generation
