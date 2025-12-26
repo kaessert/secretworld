@@ -1,66 +1,86 @@
-# Implementation Summary: AI World Generation Hierarchy Support
+# Implementation Summary: Millbrook Village Hierarchical Location
 
 ## What Was Implemented
 
-Updated `ai_world.py` to generate locations with hierarchy fields (`is_overworld`, `parent_location`, `sub_locations`, `is_safe_zone`, `entry_point`), enabling AI-generated areas to support hierarchical navigation (`enter`/`exit` commands).
+Added Millbrook Village as a new overworld location west of Town Square with 3 sub-locations, following the established hierarchical pattern from Town Square and Forest.
 
 ### Files Modified
 
-1. **`src/cli_rpg/ai_world.py`**
-   - Added `SAFE_ZONE_CATEGORIES` constant defining safe location categories
-   - Added `_infer_hierarchy_from_category()` helper function that maps categories to hierarchy fields
-   - Updated `create_ai_world()` to set `is_overworld` and `is_safe_zone` on starting and subsequent locations
-   - Updated `expand_world()` to set `is_overworld` and `is_safe_zone` on expanded locations
-   - Updated `expand_area()` with full hierarchy support:
-     - Entry location (rel 0,0): `is_overworld=True`
-     - Sub-locations: `is_overworld=False`, `parent_location=entry_name`
-     - Entry's `sub_locations` list populated with child names
-     - Entry's `entry_point` set to first sub-location
-     - All locations get `is_safe_zone` based on category
+1. **`src/cli_rpg/world.py`** - Added:
+   - Millbrook Village overworld location at coordinates (-1, 0)
+   - 3 sub-locations: Village Square, Inn, Blacksmith
+   - 3 NPCs: Elder, Innkeeper (recruitable), Blacksmith (merchant)
+   - Blacksmith shop with Steel Sword, Chainmail, and Iron Helmet items
 
-2. **`tests/test_ai_world_hierarchy.py`** (new file)
-   - 26 tests covering all hierarchy functionality
-   - Tests for `_infer_hierarchy_from_category()` helper
-   - Tests for `create_ai_world()` hierarchy fields
-   - Tests for `expand_world()` hierarchy fields
-   - Tests for `expand_area()` hierarchy fields
-   - Tests for graceful defaults when AI omits hierarchy fields
+2. **`tests/test_world.py`** - Added 11 new tests:
+   - `test_default_world_millbrook_village_exists`
+   - `test_default_world_millbrook_village_is_overworld`
+   - `test_default_world_millbrook_village_sub_locations_exist`
+   - `test_default_world_millbrook_village_sub_locations_have_parent`
+   - `test_default_world_millbrook_village_sub_locations_no_cardinal_exits`
+   - `test_default_world_millbrook_village_connections`
+   - `test_default_world_town_square_has_west_connection`
+   - `test_default_world_elder_in_village_square`
+   - `test_default_world_innkeeper_in_inn`
+   - `test_default_world_blacksmith_in_blacksmith`
+   - Updated `test_default_world_location_count_with_sublocations` (9 -> 13)
 
-### Category-to-Hierarchy Mapping
+3. **`tests/test_gameplay_integration.py`** - Updated:
+   - `test_gameplay_initialization` - Updated location count from 9 to 13
+   - `test_gameplay_move_blocked_without_connection` - Changed test direction from "west" to "south" (west now connects to Millbrook Village)
 
-| Category | is_overworld | is_safe_zone |
-|----------|--------------|--------------|
-| town | True | True |
-| village | True | True |
-| settlement | True | True |
-| dungeon | True | False |
-| wilderness | True | False |
-| ruins | True | False |
-| cave | True | False |
-| forest | True | False |
-| mountain | True | False |
-| None/missing | True | False |
+### World Structure After Implementation
+
+```
+Town Square (SAFE, overworld at 0, 0)
+├── Market District (entry_point, with Merchant NPC)
+├── Guard Post (with Guard NPC)
+├── Town Well (atmospheric)
+├── north -> Forest
+├── east -> Cave
+└── west -> Millbrook Village (NEW)
+
+Forest (DANGER, overworld at 0, 1)
+├── Forest Edge (entry_point)
+├── Deep Woods
+├── Ancient Grove (with Hermit NPC, recruitable)
+└── south -> Town Square
+
+Cave (DANGER at 1, 0)
+└── west -> Town Square
+
+Millbrook Village (NEW - SAFE, overworld at -1, 0)
+├── Village Square (entry_point, with Elder NPC)
+├── Inn (with Innkeeper NPC, recruitable)
+├── Blacksmith (with Blacksmith NPC, merchant)
+└── east -> Town Square
+```
+
+### NPCs Added
+
+| NPC | Location | Features |
+|-----|----------|----------|
+| Elder | Village Square | Wisdom/lore dialogue |
+| Innkeeper | Inn | `is_recruitable=True` |
+| Blacksmith | Blacksmith | `is_merchant=True` with shop |
+
+### Blacksmith Shop Inventory
+
+| Item | Type | Bonus | Price |
+|------|------|-------|-------|
+| Steel Sword | Weapon | +8 damage | 150g |
+| Chainmail | Armor | +6 defense | 200g |
+| Iron Helmet | Armor | +2 defense | 75g |
 
 ## Test Results
 
-- **New tests:** 26 passed (`tests/test_ai_world_hierarchy.py`)
-- **Existing AI world tests:** 54 passed (`tests/test_ai_world_generation.py`)
-- **Full test suite:** 2496 passed, 0 failed
+All 2506 tests pass (47 in test_world.py, 2459 in other test files).
 
-## E2E Validation Points
+## E2E Validation
 
-1. Creating a new AI world should result in starting location having `is_overworld=True` and `is_safe_zone` based on category
-2. Expanding to a village should have `is_safe_zone=True`
-3. Expanding to a dungeon should have `is_safe_zone=False`
-4. Area generation should create proper parent-child relationships
-5. Entry locations should list their sub-locations and have an entry_point set
-
-## Design Decisions
-
-1. **All AI-generated locations default to `is_overworld=True`** - This ensures compatibility with existing behavior where all locations are traversable via cardinal directions.
-
-2. **Only area sub-locations get `is_overworld=False` and `parent_location`** - This matches the spec for hierarchical navigation where entering an area takes you into sub-locations.
-
-3. **`entry_point` set to first sub-location** - Provides consistent behavior when entering an area.
-
-4. **Graceful defaults when category missing** - Locations without categories default to unsafe (danger zone) behavior for safety.
+To validate the implementation in-game:
+1. Start the game and go west from Town Square to reach Millbrook Village
+2. Use `enter Village Square`, `enter Inn`, `enter Blacksmith` to visit sub-locations
+3. Use `talk Elder`, `talk Innkeeper`, `talk Blacksmith` to interact with NPCs
+4. Use `recruit Innkeeper` to test companion recruitment
+5. Use `shop` or `buy` at Blacksmith location to test merchant functionality

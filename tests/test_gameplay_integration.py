@@ -23,7 +23,7 @@ class TestGameplayIntegration:
         
         assert game_state.current_character == character
         assert game_state.current_location == "Town Square"
-        assert len(game_state.world) == 9  # 3 main + 3 Town Square sub + 3 Forest sub
+        assert len(game_state.world) == 13  # 4 main + 3 Town Square sub + 3 Forest sub + 3 Millbrook sub
     
     def test_gameplay_look_command(self):
         """Test that look command displays location.
@@ -84,7 +84,7 @@ class TestGameplayIntegration:
         initial_world_size = len(world)
         game_state = GameState(character, world, starting_location)
 
-        success, message = game_state.move("west")  # No west exit from Town Square
+        success, message = game_state.move("south")  # No south exit from Town Square
 
         assert success is False
         assert "can't go that way" in message.lower()

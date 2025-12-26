@@ -1,104 +1,139 @@
-# Implementation Plan: AI World Generation Hierarchy Support
+# Implementation Plan: Add Millbrook Village Hierarchical Location
 
 ## Summary
-Update `ai_world.py` to generate locations with hierarchy fields (`is_overworld`, `parent_location`, `sub_locations`, `is_safe_zone`, `entry_point`), enabling AI-generated areas to support hierarchical navigation (`enter`/`exit` commands).
+Add Millbrook Village as a new overworld location with 3 sub-locations (Village Square, Inn, Blacksmith), following the established pattern from Town Square and Forest.
 
 ## Spec
 
-### Location Hierarchy Fields
-- `is_overworld: bool` - True for landmark locations (cities, dungeons, forests)
-- `parent_location: Optional[str]` - Parent landmark name for sub-locations
-- `sub_locations: List[str]` - Child location names for landmarks
-- `is_safe_zone: bool` - No random encounters if True (towns, inns, shops)
-- `entry_point: Optional[str]` - Default sub-location when entering
+### Millbrook Village Structure
+```
+🏠 Millbrook Village (SAFE, overworld at -1, 0 - west of Town Square)
+├── Village Square (entry_point, with Elder NPC)
+├── Inn (with Innkeeper NPC, recruitable)
+└── Blacksmith (with Blacksmith NPC, merchant with weapons/armor)
+```
 
-### Category-to-Hierarchy Mapping
-Safe zones: `town`, `village`, `settlement` → `is_safe_zone=True`
-Danger zones: `dungeon`, `wilderness`, `ruins`, `cave`, `forest`, `mountain` → `is_safe_zone=False`
+### Location Fields
+- **Millbrook Village**: `is_overworld=True`, `is_safe_zone=True`, `sub_locations=["Village Square", "Inn", "Blacksmith"]`, `entry_point="Village Square"`, `coordinates=(-1, 0)`
+- **Sub-locations**: `parent_location="Millbrook Village"`, `is_safe_zone=True`, `connections={}`
 
-### AI Prompt Updates
-1. Update `DEFAULT_LOCATION_PROMPT` in `ai_config.py` to request hierarchy metadata
-2. Update `_build_area_prompt` in `ai_service.py` to request hierarchy for area generation
-
-### Parsing Updates
-1. Update `_parse_location_response()` to extract hierarchy fields
-2. Update `_validate_area_location()` to extract hierarchy fields from area responses
-
-### Location Creation Updates
-3 creation points in `ai_world.py`:
-1. `create_ai_world()` - Starting location (~line 159)
-2. `expand_world()` - Single location expansion (~line 388)
-3. `expand_area()` - Area location creation (~line 544)
+### NPCs
+1. **Elder** (Village Square): Wisdom/lore dialogue, not recruitable
+2. **Innkeeper** (Inn): Friendly dialogue, `is_recruitable=True`
+3. **Blacksmith** (Blacksmith): `is_merchant=True` with weapon/armor shop
 
 ## Tests
 
-### File: `tests/test_ai_world_hierarchy.py`
+### File: `tests/test_world.py` (add to TestCreateDefaultWorld)
 
-1. **test_create_ai_world_starting_location_has_hierarchy_fields**
-   - Verify starting location has `is_overworld=True`, `is_safe_zone=True` (for town category)
-
-2. **test_expand_world_location_has_hierarchy_fields**
-   - Verify expanded location inherits proper hierarchy from AI response
-
-3. **test_expand_area_locations_have_hierarchy_fields**
-   - Verify all area locations have appropriate hierarchy fields
-
-4. **test_safe_zone_category_mapping**
-   - Verify town/village/settlement categories → `is_safe_zone=True`
-   - Verify dungeon/cave/wilderness categories → `is_safe_zone=False`
-
-5. **test_hierarchy_fields_default_when_ai_missing**
-   - Verify graceful defaults when AI response omits hierarchy fields
-
-6. **test_area_entry_location_is_overworld**
-   - Verify entry location in area has `is_overworld=True`
+1. **test_default_world_has_12_locations** - Update count from 9 to 12
+2. **test_default_world_millbrook_village_exists** - Village in world dict
+3. **test_default_world_millbrook_village_is_overworld** - `is_overworld=True`, `is_safe_zone=True`, `sub_locations` length, `entry_point`
+4. **test_default_world_millbrook_village_sub_locations_exist** - All 3 sub-locations in world
+5. **test_default_world_millbrook_village_sub_locations_have_parent** - `parent_location="Millbrook Village"`, `is_safe_zone=True`
+6. **test_default_world_millbrook_village_sub_locations_no_cardinal_exits** - Empty `connections`
+7. **test_default_world_millbrook_village_connections** - `east->Town Square`
+8. **test_default_world_town_square_has_west_connection** - `west->Millbrook Village`
+9. **test_default_world_elder_in_village_square** - Elder NPC exists
+10. **test_default_world_innkeeper_in_inn** - Innkeeper NPC, `is_recruitable=True`
+11. **test_default_world_blacksmith_in_blacksmith** - Blacksmith NPC, `is_merchant=True`
 
 ## Implementation Steps
 
-### Step 1: Update AI Prompts
+### Step 1: Write tests first
+**File: `tests/test_world.py`**
+- Update `test_default_world_location_count_with_sublocations` from 9 to 12
+- Add 10 new test methods for Millbrook Village
 
-**File: `src/cli_rpg/ai_config.py`**
-- Add hierarchy fields to `DEFAULT_LOCATION_PROMPT` JSON schema
-- Add `is_overworld`, `is_safe_zone` to required response fields
+### Step 2: Add Millbrook Village to world.py
+**File: `src/cli_rpg/world.py`**
 
-### Step 2: Update AI Response Parsing
+1. Create Millbrook Village Location (~line 170, after Forest):
+```python
+millbrook = Location(
+    name="Millbrook Village",
+    description="A small rural village surrounded by wheat fields. Smoke rises from cottage chimneys, and the sound of a blacksmith's hammer echoes through the air.",
+    is_overworld=True,
+    is_safe_zone=True,
+    sub_locations=["Village Square", "Inn", "Blacksmith"],
+    entry_point="Village Square"
+)
+```
 
-**File: `src/cli_rpg/ai_service.py`**
-- `_parse_location_response()`: Extract `is_overworld`, `is_safe_zone` from response
-- `_validate_area_location()`: Extract hierarchy fields from area location
-- `_build_area_prompt()`: Add hierarchy requirements to area prompt
+2. Add to grid at (-1, 0) - west of Town Square (~line 183):
+```python
+grid.add_location(millbrook, -1, 0)
+```
 
-### Step 3: Update Location Creation in `ai_world.py`
+3. Create NPCs (~line 241, after Guard NPC):
+```python
+# Elder NPC
+elder = NPC(
+    name="Elder",
+    description="A wise old woman who has lived in Millbrook all her life",
+    dialogue="The old ways are not forgotten here, traveler.",
+    greetings=[...]
+)
 
-**File: `src/cli_rpg/ai_world.py`**
+# Innkeeper NPC
+innkeeper = NPC(
+    name="Innkeeper",
+    description="A jovial man with a hearty laugh who runs the village inn",
+    dialogue="Rest your weary bones, friend!",
+    is_recruitable=True,
+    greetings=[...]
+)
 
-1. **Helper function** `_infer_hierarchy_from_category()`:
-   ```python
-   def _infer_hierarchy_from_category(category: Optional[str]) -> tuple[bool, bool]:
-       """Infer is_overworld and is_safe_zone from category."""
-       safe_categories = {"town", "village", "settlement"}
-       is_safe = category in safe_categories if category else False
-       return (True, is_safe)  # All AI-generated are overworld by default
-   ```
+# Blacksmith NPC with shop
+blacksmith_shop = Shop(name="Village Smithy", inventory=[...])
+blacksmith = NPC(
+    name="Blacksmith",
+    description="A muscular woman covered in soot, working the forge",
+    dialogue="Looking for steel? You've come to the right place.",
+    is_merchant=True,
+    shop=blacksmith_shop,
+    greetings=[...]
+)
+```
 
-2. **Update `create_ai_world()`** (~line 159):
-   - Set hierarchy fields on starting location based on category
-   - Starting location defaults: `is_overworld=True`, `is_safe_zone=True`
+4. Create sub-locations (~line 300, after Forest sub-locations):
+```python
+village_square = Location(
+    name="Village Square",
+    description="A humble village square with a weathered wooden well at its center. Villagers go about their daily routines.",
+    parent_location="Millbrook Village",
+    is_safe_zone=True,
+    connections={}
+)
+village_square.npcs.append(elder)
 
-3. **Update `expand_world()`** (~line 388):
-   - Extract hierarchy fields from `location_data`
-   - Pass to Location constructor
+inn = Location(
+    name="Inn",
+    description="A cozy inn with a roaring fireplace. The smell of fresh bread and ale fills the air.",
+    parent_location="Millbrook Village",
+    is_safe_zone=True,
+    connections={}
+)
+inn.npcs.append(innkeeper)
 
-4. **Update `expand_area()`** (~line 544):
-   - Entry location (rel 0,0): `is_overworld=True`
-   - Other locations: `is_overworld=False`, `parent_location=entry_name`
-   - Set `is_safe_zone` based on category
-   - Set entry location's `sub_locations` list
-   - Set entry location's `entry_point` to first sub-location
+blacksmith_loc = Location(
+    name="Blacksmith",
+    description="A hot, smoky workshop filled with weapons, armor, and tools. The forge glows orange.",
+    parent_location="Millbrook Village",
+    is_safe_zone=True,
+    connections={}
+)
+blacksmith_loc.npcs.append(blacksmith)
+```
 
-### Step 4: Write Tests
+5. Add sub-locations to world dict (~line 320):
+```python
+world["Village Square"] = village_square
+world["Inn"] = inn
+world["Blacksmith"] = blacksmith_loc
+```
 
-**File: `tests/test_ai_world_hierarchy.py`**
-- Create test class `TestAIWorldHierarchy`
-- Mock `AIService.generate_location()` to return responses with hierarchy data
-- Test all 3 creation paths in `ai_world.py`
+### Step 3: Run tests
+```bash
+pytest tests/test_world.py -v
+```

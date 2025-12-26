@@ -169,6 +169,16 @@ def create_default_world() -> tuple[dict[str, Location], str]:
         entry_point="Forest Edge"
     )
 
+    # Create Millbrook Village as overworld landmark with sub-locations (safe zone)
+    millbrook = Location(
+        name="Millbrook Village",
+        description="A small rural village surrounded by wheat fields. Smoke rises from cottage chimneys, and the sound of a blacksmith's hammer echoes through the air.",
+        is_overworld=True,
+        is_safe_zone=True,
+        sub_locations=["Village Square", "Inn", "Blacksmith"],
+        entry_point="Village Square"
+    )
+
     cave = Location(
         name="Cave",
         description="A dark cave with damp walls. You can hear water dripping somewhere deeper inside."
@@ -181,6 +191,8 @@ def create_default_world() -> tuple[dict[str, Location], str]:
     grid.add_location(forest, 0, 1)
     # Cave is east of Town Square (1, 0)
     grid.add_location(cave, 1, 0)
+    # Millbrook Village is west of Town Square (-1, 0)
+    grid.add_location(millbrook, -1, 0)
 
     # Create default merchant shop
     potion = Item(
@@ -309,6 +321,97 @@ def create_default_world() -> tuple[dict[str, Location], str]:
     )
     ancient_grove.npcs.append(hermit)
 
+    # Create NPCs for Millbrook Village
+    elder = NPC(
+        name="Elder",
+        description="A wise old woman who has lived in Millbrook all her life",
+        dialogue="The old ways are not forgotten here, traveler.",
+        greetings=[
+            "The old ways are not forgotten here, traveler.",
+            "Welcome to Millbrook. We are simple folk, but kind.",
+            "I have seen much in my years. Perhaps I can share some wisdom.",
+        ]
+    )
+
+    innkeeper = NPC(
+        name="Innkeeper",
+        description="A jovial man with a hearty laugh who runs the village inn",
+        dialogue="Rest your weary bones, friend!",
+        is_recruitable=True,
+        greetings=[
+            "Rest your weary bones, friend!",
+            "A traveler! Come, warm yourself by the fire.",
+            "We have the best ale in the region, I promise you that!",
+        ]
+    )
+
+    # Create Blacksmith shop with weapons and armor
+    steel_sword = Item(
+        name="Steel Sword",
+        description="A well-crafted blade from the village smithy",
+        item_type=ItemType.WEAPON,
+        damage_bonus=8
+    )
+    chainmail = Item(
+        name="Chainmail",
+        description="Interlocking metal rings providing solid protection",
+        item_type=ItemType.ARMOR,
+        defense_bonus=6
+    )
+    iron_helmet = Item(
+        name="Iron Helmet",
+        description="A sturdy helmet forged in the village",
+        item_type=ItemType.ARMOR,
+        defense_bonus=2
+    )
+    blacksmith_items = [
+        ShopItem(item=steel_sword, buy_price=150),
+        ShopItem(item=chainmail, buy_price=200),
+        ShopItem(item=iron_helmet, buy_price=75),
+    ]
+    blacksmith_shop = Shop(name="Village Smithy", inventory=blacksmith_items)
+
+    blacksmith_npc = NPC(
+        name="Blacksmith",
+        description="A muscular woman covered in soot, working the forge",
+        dialogue="Looking for steel? You've come to the right place.",
+        is_merchant=True,
+        shop=blacksmith_shop,
+        greetings=[
+            "Looking for steel? You've come to the right place.",
+            "I forge the finest blades in the region.",
+            "Need something repaired? Or perhaps a new weapon?",
+        ]
+    )
+
+    # Create sub-locations for Millbrook Village (all safe zones)
+    village_square = Location(
+        name="Village Square",
+        description="A humble village square with a weathered wooden well at its center. Villagers go about their daily routines.",
+        parent_location="Millbrook Village",
+        is_safe_zone=True,
+        connections={}  # No cardinal exits for sub-locations
+    )
+    village_square.npcs.append(elder)
+
+    inn = Location(
+        name="Inn",
+        description="A cozy inn with a roaring fireplace. The smell of fresh bread and ale fills the air.",
+        parent_location="Millbrook Village",
+        is_safe_zone=True,
+        connections={}  # No cardinal exits for sub-locations
+    )
+    inn.npcs.append(innkeeper)
+
+    blacksmith_loc = Location(
+        name="Blacksmith",
+        description="A hot, smoky workshop filled with weapons, armor, and tools. The forge glows orange.",
+        parent_location="Millbrook Village",
+        is_safe_zone=True,
+        connections={}  # No cardinal exits for sub-locations
+    )
+    blacksmith_loc.npcs.append(blacksmith_npc)
+
     # Build world dictionary from grid plus sub-locations
     world = grid.as_dict()
     # Town Square sub-locations
@@ -319,6 +422,10 @@ def create_default_world() -> tuple[dict[str, Location], str]:
     world["Forest Edge"] = forest_edge
     world["Deep Woods"] = deep_woods
     world["Ancient Grove"] = ancient_grove
+    # Millbrook Village sub-locations
+    world["Village Square"] = village_square
+    world["Inn"] = inn
+    world["Blacksmith"] = blacksmith_loc
 
     # Return world dictionary and starting location (backward compatible)
     return (world, "Town Square")

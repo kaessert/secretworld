@@ -470,22 +470,22 @@ OVERWORLD (macro map)
   │     ├── Deep Woods
   │     └── Ancient Grove (with Hermit)
   │
+  ├── ✅ 🏠 Millbrook Village (SAFE) - IMPLEMENTED
+  │     ├── Village Square (with Elder NPC)
+  │     ├── Inn (with Innkeeper NPC, recruitable)
+  │     └── Blacksmith (with Blacksmith NPC, merchant)
+  │
   ├── 🏰 Ironhold City (SAFE - no random encounters)
   │     ├── Market District
   │     ├── Castle Ward
   │     ├── Slums
   │     └── Temple Quarter
   │
-  ├── ⛏️ Abandoned Mines (DUNGEON)
-  │     ├── Mine Entrance
-  │     ├── Upper Tunnels
-  │     ├── Flooded Level
-  │     └── Boss Chamber
-  │
-  └── 🏠 Millbrook Village (SAFE)
-        ├── Village Square
-        ├── Inn
-        └── Blacksmith
+  └── ⛏️ Abandoned Mines (DUNGEON)
+        ├── Mine Entrance
+        ├── Upper Tunnels
+        ├── Flooded Level
+        └── Boss Chamber
 ```
 
 **Core Concepts**:

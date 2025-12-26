@@ -45,12 +45,12 @@ class TestCreateDefaultWorld:
         assert starting_location in world
     
     def test_default_world_location_count_with_sublocations(self):
-        """Test that default world has 9 locations: 3 overworld + 3 Town sub + 3 Forest sub.
+        """Test that default world has 13 locations: 4 overworld + 3 Town sub + 3 Forest sub + 3 Millbrook sub.
 
-        Spec: World has 9 locations total (3 main + 3 Town sub-locations + 3 Forest sub-locations)
+        Spec: World has 13 locations total (4 main + 3 Town sub-locations + 3 Forest sub-locations + 3 Millbrook sub-locations)
         """
         world, _ = create_default_world()
-        assert len(world) == 9
+        assert len(world) == 13
     
     def test_default_world_location_names(self):
         """Test that default world has correct location names.
@@ -179,6 +179,111 @@ class TestCreateDefaultWorld:
         hermit = grove.find_npc_by_name("Hermit")
         assert hermit is not None
         assert hermit.is_recruitable is True
+
+    # Millbrook Village hierarchical sub-location tests
+
+    def test_default_world_millbrook_village_exists(self):
+        """Millbrook Village exists in world dict.
+
+        Spec: Millbrook Village is a location in the default world
+        """
+        world, _ = create_default_world()
+        assert "Millbrook Village" in world
+
+    def test_default_world_millbrook_village_is_overworld(self):
+        """Millbrook Village is an overworld landmark with sub-locations.
+
+        Spec: Millbrook Village is overworld safe zone with 3 sub-locations
+        """
+        world, _ = create_default_world()
+        millbrook = world["Millbrook Village"]
+        assert millbrook.is_overworld is True
+        assert millbrook.is_safe_zone is True
+        assert len(millbrook.sub_locations) == 3
+        assert millbrook.entry_point in millbrook.sub_locations
+
+    def test_default_world_millbrook_village_sub_locations_exist(self):
+        """All Millbrook Village sub-locations exist in world dict.
+
+        Spec: Sub-locations listed in millbrook.sub_locations are in world
+        """
+        world, _ = create_default_world()
+        millbrook = world["Millbrook Village"]
+        for sub_name in millbrook.sub_locations:
+            assert sub_name in world, f"Sub-location '{sub_name}' not in world"
+
+    def test_default_world_millbrook_village_sub_locations_have_parent(self):
+        """Millbrook Village sub-locations reference Millbrook Village as parent and are safe zones.
+
+        Spec: Each sub-location has parent_location="Millbrook Village" and is_safe_zone=True
+        """
+        world, _ = create_default_world()
+        millbrook = world["Millbrook Village"]
+        for sub_name in millbrook.sub_locations:
+            sub = world[sub_name]
+            assert sub.parent_location == "Millbrook Village"
+            assert sub.is_safe_zone is True
+
+    def test_default_world_millbrook_village_sub_locations_no_cardinal_exits(self):
+        """Millbrook Village sub-locations have no n/s/e/w exits (only enter/exit).
+
+        Spec: Millbrook Village sub-locations have no cardinal connections
+        """
+        world, _ = create_default_world()
+        millbrook = world["Millbrook Village"]
+        for sub_name in millbrook.sub_locations:
+            sub = world[sub_name]
+            assert len(sub.connections) == 0
+
+    def test_default_world_millbrook_village_connections(self):
+        """Millbrook Village has east connection to Town Square.
+
+        Spec: Millbrook Village has east->Town Square
+        """
+        world, _ = create_default_world()
+        millbrook = world["Millbrook Village"]
+        assert millbrook.get_connection("east") == "Town Square"
+
+    def test_default_world_town_square_has_west_connection(self):
+        """Town Square has west connection to Millbrook Village.
+
+        Spec: Town Square has west->Millbrook Village
+        """
+        world, _ = create_default_world()
+        town_square = world["Town Square"]
+        assert town_square.get_connection("west") == "Millbrook Village"
+
+    def test_default_world_elder_in_village_square(self):
+        """Elder NPC is in Village Square.
+
+        Spec: Elder NPC exists in Village Square sub-location
+        """
+        world, _ = create_default_world()
+        village_square = world["Village Square"]
+        elder = village_square.find_npc_by_name("Elder")
+        assert elder is not None
+
+    def test_default_world_innkeeper_in_inn(self):
+        """Innkeeper NPC is in Inn and is recruitable.
+
+        Spec: Innkeeper NPC in Inn with is_recruitable=True
+        """
+        world, _ = create_default_world()
+        inn = world["Inn"]
+        innkeeper = inn.find_npc_by_name("Innkeeper")
+        assert innkeeper is not None
+        assert innkeeper.is_recruitable is True
+
+    def test_default_world_blacksmith_in_blacksmith(self):
+        """Blacksmith NPC is in Blacksmith and is a merchant.
+
+        Spec: Blacksmith NPC in Blacksmith with is_merchant=True
+        """
+        world, _ = create_default_world()
+        blacksmith_loc = world["Blacksmith"]
+        blacksmith = blacksmith_loc.find_npc_by_name("Blacksmith")
+        assert blacksmith is not None
+        assert blacksmith.is_merchant is True
 
     def test_default_world_all_valid_locations(self):
         """Test that all values in world dict are Location instances.
