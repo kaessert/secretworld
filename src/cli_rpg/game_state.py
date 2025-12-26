@@ -56,7 +56,8 @@ KNOWN_COMMANDS: set[str] = {
     "bestiary", "dump-state", "events", "companions", "recruit", "dismiss", "companion-quest",
     "enter", "exit", "leave", "resolve", "pick", "open",
     "persuade", "intimidate", "bribe", "haggle",  # Social skills
-    "search"  # Secret discovery
+    "search",  # Secret discovery
+    "camp", "forage", "hunt",  # Wilderness survival
 }
 
 # Dread increases by location category (darker areas = more dread)
@@ -120,7 +121,9 @@ def parse_command(command_str: str) -> tuple[str, list[str]]:
         "b": "bestiary", "sn": "sneak", "lp": "pick", "o": "open", "sr": "search",
         # Ultra-short movement shortcuts
         "n": "go", "w": "go",
-        "gn": "go", "gs": "go", "ge": "go", "gw": "go"
+        "gn": "go", "gs": "go", "ge": "go", "gw": "go",
+        # Wilderness survival aliases
+        "ca": "camp", "fg": "forage", "hu": "hunt",
     }
     raw_command = command  # Save for movement shortcut detection
     command = aliases.get(command, command)
@@ -213,6 +216,8 @@ class GameState:
         self.world_events: list[WorldEvent] = []  # Living world events
         self.companions: list[Companion] = []  # Party companions with bond mechanics
         self.haggle_bonus: float = 0.0  # Active haggle bonus (reset after one transaction)
+        self.forage_cooldown: int = 0  # Forage command cooldown in hours
+        self.hunt_cooldown: int = 0  # Hunt command cooldown in hours
 
     @property
     def is_in_conversation(self) -> bool:
@@ -821,6 +826,8 @@ class GameState:
             "choices": self.choices,
             "world_events": [event.to_dict() for event in self.world_events],
             "companions": [companion.to_dict() for companion in self.companions],
+            "forage_cooldown": self.forage_cooldown,
+            "hunt_cooldown": self.hunt_cooldown,
         }
     
     @classmethod
@@ -879,5 +886,9 @@ class GameState:
             Companion.from_dict(companion_data)
             for companion_data in data.get("companions", [])
         ]
+
+        # Restore forage/hunt cooldowns (default to 0 for backward compatibility)
+        game_state.forage_cooldown = data.get("forage_cooldown", 0)
+        game_state.hunt_cooldown = data.get("hunt_cooldown", 0)
 
         return game_state

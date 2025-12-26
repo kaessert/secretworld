@@ -50,6 +50,9 @@ def get_command_reference() -> str:
         "  worldmap (wm)      - Display the overworld map",
         "  lore               - Discover lore about your current location",
         "  rest (r)           - Rest to recover health (25% of max HP)",
+        "  camp (ca)          - Set up camp to rest in wilderness (requires supplies)",
+        "  forage (fg)        - Search for herbs and berries in wilderness",
+        "  hunt (hu)          - Hunt for game in wilderness",
         "  quests (q)         - View your quest journal",
         "  quest <name>       - View details of a specific quest",
         "  bestiary (b)       - View defeated enemies",
@@ -1585,6 +1588,21 @@ def handle_exploration_command(game_state: GameState, command: str, args: list[s
             return (True, "")  # Empty message since we already printed
 
         return (True, result_message)
+
+    elif command == "camp":
+        from cli_rpg.camping import execute_camp
+        success, msg = execute_camp(game_state)
+        return (True, f"\n{msg}" if msg else "\n")
+
+    elif command == "forage":
+        from cli_rpg.camping import execute_forage
+        success, msg = execute_forage(game_state)
+        return (True, f"\n{msg}")
+
+    elif command == "hunt":
+        from cli_rpg.camping import execute_hunt
+        success, msg = execute_hunt(game_state)
+        return (True, f"\n{msg}")
 
     elif command in ["attack", "defend", "flee", "rest", "cast"]:
         return (True, "\n✗ Not in combat.")

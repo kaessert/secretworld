@@ -1,73 +1,80 @@
-# Implementation Summary: Mana Resource System
+# Camping Feature Implementation Summary
 
 ## What Was Implemented
 
-### Character Model (`src/cli_rpg/models/character.py`)
-1. **Added mana fields**:
-   - `mana: int` and `max_mana: int` as `field(init=False)`
+### New Module: `src/cli_rpg/camping.py`
+Created a comprehensive wilderness survival module with the following features:
 
-2. **Mana calculation in `__post_init__`**:
-   - Mages: `50 + intelligence * 5`
-   - Other classes: `20 + intelligence * 2`
-   - Mana starts at max_mana
+#### Camp Command
+- **Mechanics**: Heals 50% of max HP, reduces dread by 30 (40 with campfire), advances time 8 hours
+- **Requirements**: Requires Camping Supplies item (consumed on use)
+- **Location restrictions**: Only works in campable categories (forest, wilderness, cave, ruins)
+- **Safe zone blocking**: Redirects to "rest" command in safe zones
+- **Combat blocking**: Cannot camp during combat
+- **Campfire features**:
+  - Active light source = campfire
+  - Extra -10 dread reduction
+  - Cooks Raw Meat → Cooked Meat (40 HP heal vs 30 HP raw)
+  - 20% chance of friendly visitor spawn
+- **Dream integration**: 40% chance of dream during camp (uses existing dream system)
 
-3. **New methods**:
-   - `use_mana(amount: int) -> bool`: Attempts to use mana, returns False if insufficient
-   - `restore_mana(amount: int)`: Restores mana, capped at max_mana
+#### Forage Command
+- **Mechanics**: Search for herbs/berries based on Perception stat
+- **Success rate**: 40% base + 2% per PER (capped at 95%)
+- **Items**: Herbs (10 HP), Wild Berries (15 HP), Medicinal Root (20 HP), Moonpetal Flower (20 mana, night only)
+- **Cooldown**: 1 hour after use
+- **Location restrictions**: Forest and wilderness only
 
-4. **Updated `level_up()`**:
-   - Recalculates max_mana based on new INT
-   - Restores mana to new maximum on level up
+#### Hunt Command
+- **Mechanics**: Hunt game based on Dexterity and Perception
+- **Success rate**: 30% base + 2% per DEX + 1% per PER (capped at 95%)
+- **Results**: Raw Meat (30 HP) on success, Animal Pelt (25 gold sell value) on critical
+- **Cooldown**: 2 hours after use
+- **Location restrictions**: Forest and wilderness only
 
-5. **Serialization**:
-   - `to_dict()`: Includes `mana` and `max_mana`
-   - `from_dict()`: Backward compatible - calculates defaults for old saves
+### GameState Modifications (`src/cli_rpg/game_state.py`)
+- Added `forage_cooldown` and `hunt_cooldown` fields
+- Added to serialization/deserialization for save/load persistence
+- Added "camp", "forage", "hunt" to KNOWN_COMMANDS
+- Added aliases: "ca" → camp, "fg" → forage, "hu" → hunt
 
-6. **Display**:
-   - `__str__()`: Shows mana bar with color coding (like health)
+### Command Integration (`src/cli_rpg/main.py`)
+- Added command handlers for camp, forage, hunt in handle_exploration_command
+- Added commands to help text with aliases
 
-7. **Item usage**:
-   - `use_item()`: Now handles `mana_restore` items
-
-### Item Model (`src/cli_rpg/models/item.py`)
-1. Added `mana_restore: int = 0` field
-2. Added validation in `__post_init__`
-3. Updated `to_dict()` and `from_dict()` for serialization
-4. Updated `__str__()` to show "restores X mana" when applicable
-
-### Combat System (`src/cli_rpg/combat.py`)
-1. **Updated `player_cast()`**:
-   - Normal cast costs 10 mana
-   - Arcane Burst combo costs 25 mana (not 3×10)
-   - Returns failure message with current/max mana if insufficient
-
-### Test File (`tests/test_mana.py`)
-Created comprehensive test suite with 16 tests covering:
-- Mage vs non-mage max_mana calculations
-- `use_mana()` and `restore_mana()` methods
-- Mana costs in combat (cast and Arcane Burst)
-- Mana potion usage
-- Serialization and backward compatibility
-- Status display
-
-### Updated Existing Tests (`tests/test_combo_combat.py`)
-Fixed Arcane Burst tests to ensure player has sufficient mana for the combo.
+### Shop Integration (`src/cli_rpg/world.py`)
+- Added Camping Supplies to Market District merchant (40 gold)
+- Added Camping Supplies to Millbrook Village Innkeeper (30 gold - rural discount)
+- Created Innkeeper shop with supplies for travelers
 
 ## Test Results
-- All 16 new mana tests pass
-- All 2793 total tests pass
-- No regressions
+- **44 new tests** in `tests/test_camping.py`
+- All tests pass
+- Full test suite (2837 tests) passes
 
-## Design Decisions
-1. **Mana costs are checked before damage is dealt** - If you can't afford the spell, no action happens
-2. **Arcane Burst costs 25 mana** - This is a special combo cost, not 3×10 (30)
-3. **Backward compatibility** - Old saves without mana fields get calculated defaults based on class/INT
-4. **Mana potions** - Work similarly to health potions with `mana_restore` field
+## Key Design Decisions
 
-## What E2E Tests Should Validate
-1. A Mage character has higher max_mana than other classes
-2. Cast command consumes mana and fails when mana is depleted
-3. Mana potions restore mana when used
-4. Rest command restores 25% of max_mana (already tested in rest functionality)
-5. Status display shows mana bar
-6. Saving and loading preserves mana state
+1. **Campable locations** are defined by category, not by name, allowing easy extension
+2. **Cooldowns** are stored in GameState and serialized for persistence
+3. **Campfire detection** uses existing `has_active_light()` method (torch, lantern, etc.)
+4. **Dream integration** reuses the existing `maybe_trigger_dream()` system
+5. **Meat cooking** is automatic when camping with campfire - no separate command needed
+
+## Files Modified
+
+1. **New files**:
+   - `src/cli_rpg/camping.py` - Core camping module (360 lines)
+   - `tests/test_camping.py` - Test suite (440 lines)
+
+2. **Modified files**:
+   - `src/cli_rpg/game_state.py` - Added cooldown fields and aliases
+   - `src/cli_rpg/main.py` - Added command handlers and help text
+   - `src/cli_rpg/world.py` - Added Camping Supplies to shops
+
+## E2E Test Validation Scenarios
+
+1. **Buy supplies in town** → Travel to forest → Camp → Verify healing and dread reduction
+2. **Forage in wilderness** → Get item → Try again (should be on cooldown)
+3. **Hunt in forest** → Get meat → Camp with torch → Verify meat is cooked
+4. **Try camping in town** → Should redirect to rest command
+5. **Save game with cooldowns** → Load game → Verify cooldowns persist

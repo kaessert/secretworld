@@ -250,13 +250,20 @@ def create_default_world() -> tuple[dict[str, Location], str]:
         item_type=ItemType.CONSUMABLE,
         heal_amount=0
     )
+    camping_supplies = Item(
+        name="Camping Supplies",
+        description="Essential supplies for camping in the wilderness",
+        item_type=ItemType.CONSUMABLE,
+        heal_amount=0
+    )
 
     shop_items = [
         ShopItem(item=potion, buy_price=50),
         ShopItem(item=sword, buy_price=100),
         ShopItem(item=armor, buy_price=80),
         ShopItem(item=torch, buy_price=15),
-        ShopItem(item=lockpick, buy_price=30)
+        ShopItem(item=lockpick, buy_price=30),
+        ShopItem(item=camping_supplies, buy_price=40),  # Spec: 40 gold in Market District
     ]
     shop = Shop(name="General Store", inventory=shop_items)
     merchant = NPC(
@@ -380,10 +387,38 @@ def create_default_world() -> tuple[dict[str, Location], str]:
         ]
     )
 
+    # Create innkeeper shop with supplies for travelers
+    village_potion = Item(
+        name="Health Potion",
+        description="Restores 25 HP",
+        item_type=ItemType.CONSUMABLE,
+        heal_amount=25
+    )
+    village_camping_supplies = Item(
+        name="Camping Supplies",
+        description="Essential supplies for camping in the wilderness",
+        item_type=ItemType.CONSUMABLE,
+        heal_amount=0
+    )
+    village_torch = Item(
+        name="Torch",
+        description="A wooden torch that provides light in dark places",
+        item_type=ItemType.CONSUMABLE,
+        light_duration=5
+    )
+    innkeeper_shop_items = [
+        ShopItem(item=village_potion, buy_price=45),  # Slightly cheaper than town
+        ShopItem(item=village_camping_supplies, buy_price=30),  # Spec: 30 gold rural discount
+        ShopItem(item=village_torch, buy_price=12),
+    ]
+    innkeeper_shop = Shop(name="Millbrook Inn Supplies", inventory=innkeeper_shop_items)
+
     innkeeper = NPC(
         name="Innkeeper",
         description="A jovial man with a hearty laugh who runs the village inn",
         dialogue="Rest your weary bones, friend!",
+        is_merchant=True,
+        shop=innkeeper_shop,
         is_recruitable=True,
         greetings=[
             "Rest your weary bones, friend!",

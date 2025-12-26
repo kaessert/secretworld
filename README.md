@@ -94,6 +94,9 @@ python -m cli_rpg.main
 - `companion-quest <name>` - Accept a companion's personal quest (requires TRUSTED bond level)
 - `dump-state` - Export complete game state as JSON for programmatic inspection
 - `rest` (r) - Rest to recover health (restores 25% of max HP, advances time by 4 hours, reduces dread, may trigger dreams; not available during combat)
+- `camp` (ca) - Set up camp in wilderness areas (requires Camping Supplies; heals 50% HP, reduces dread by 30-40, advances time 8 hours; campfire cooks raw meat and may attract friendly visitors)
+- `forage` (fg) - Search for herbs and berries (forest/wilderness only; PER-based success chance; 1-hour cooldown)
+- `hunt` (hu) - Hunt game for meat and pelts (forest/wilderness only; DEX/PER-based success chance; 2-hour cooldown)
 - `events` - View active world events and their status
 - `resolve [event]` - Attempt to resolve an active world event (without args: lists events with requirements)
 - `save` - Save complete game state including world, location, and theme (not available during combat)

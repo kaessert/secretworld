@@ -848,16 +848,25 @@ Make shopping more interactive.
 - Some events are pure luck checks ("The bridge looks unstable...")
 
 ### Camping & wilderness survival
-**Status**: ACTIVE
+**Status**: ✅ RESOLVED
 
-Make long journeys more interesting than just `rest`.
+**Implemented**:
+- ✅ `camp` command in wilderness to set up camp (uses Camping Supplies item)
+- ✅ Camping heals 50% HP, reduces dread by 30 (40 with campfire), advances time 8 hours
+- ✅ Campfire cooks Raw Meat → Cooked Meat automatically (40 HP vs 30 HP)
+- ✅ 20% chance of friendly visitor spawn with campfire
+- ✅ 40% chance of dream sequence during camp (uses dream system)
+- ✅ `forage` command to find herbs/berries in forest/wilderness (PER-based, 1-hour cooldown)
+- ✅ `hunt` command to track and kill game (DEX/PER-based, 2-hour cooldown, yields Raw Meat and Animal Pelt)
+- ✅ Location restrictions: camping only in forest/wilderness/cave/ruins; foraging/hunting only in forest/wilderness
+- ✅ Safe zone handling: camp redirects to rest in towns
+- ✅ Cooldowns persist through save/load
+- ✅ Camping Supplies available at Market District (40g) and Millbrook Village Inn (30g)
 
-- `camp` command in wilderness to set up camp (uses supplies)
-- Camping: cook food (heal bonus), keep watch (avoid ambush), repair gear
-- `forage` to find food/herbs in wilderness (survival skill)
-- `hunt` to track and kill animals for meat/pelts
+**Future Enhancements** (moved to backlog):
 - Hunger system (optional hardcore mode) - starving = stat penalties
-- Campfire reduces dread, attracts wandering NPCs (traders, storytellers)
+- Keep watch to avoid ambush
+- Repair gear at camp
 
 ### Mana/stamina resource system
 **Status**: ACTIVE (Mana MVP Implemented)
