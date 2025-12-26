@@ -1,23 +1,28 @@
-# Fix Failing Tests for Charisma Stat
+# Fix README Direction Shortcut Documentation
 
-## Problem
-3 tests fail with `StopIteration` because mock input sequences don't include the charisma value added in commit 7b19ffb.
+## Task
+Update README.md to clarify that `s` and `e` are NOT direction shortcuts (they're hijacked by `status` and `equip` commands). Only `gs` and `ge` work for south and east.
 
-## Files to Fix
+## Implementation
 
-### 1. tests/test_main_menu.py (line 25)
-**Current:** `["1", "Hero", "1", "1", "10", "12", "8", "yes", "quit", "n", "3"]`
-**Fixed:** `["1", "Hero", "1", "1", "10", "12", "8", "10", "yes", "quit", "n", "3"]`
-- Add "10" (charisma) after "8" (intelligence)
+**File**: `README.md` (lines 57-58)
 
-### 2. tests/test_integration_character.py (line 74)
-**Current:** `["Hero", "1", "manual", "15", "12", "10", "yes"]`
-**Fixed:** `["Hero", "1", "manual", "15", "12", "10", "10", "yes"]`
-- Add "10" (charisma) after "10" (intelligence)
+**Current text**:
+```markdown
+- `go <direction>` (g) - Move in a direction (north/n, south/s, east/e, west/w)
+  - Quick shortcuts: `n`, `gn` (north), `w`, `gw` (west), `gs` (south), `ge` (east)
+```
 
-### 3. tests/test_e2e_ai_integration.py (lines 272-286)
-**Current:** Stats are "12", "10", "14" (str, dex, int)
-**Fixed:** Add "10" (charisma) after "14" (intelligence)
+**Updated text**:
+```markdown
+- `go <direction>` (g) - Move in a direction (north, south, east, west)
+  - Quick shortcuts: `n`, `gn` (north), `w`, `gw` (west), `gs` (south), `ge` (east)
+  - Note: `s` runs `status` and `e` runs `equip`, so use `gs`/`ge` for south/east
+```
 
 ## Verification
-Run: `pytest tests/test_main_menu.py tests/test_integration_character.py tests/test_e2e_ai_integration.py -v`
+1. Read the updated README section to confirm clarity
+2. Ensure the note accurately reflects the behavior described in ISSUES.md
+
+## ISSUES.md Update
+Mark issue as resolved by moving from Active to Resolved section.

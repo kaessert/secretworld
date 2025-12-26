@@ -54,8 +54,9 @@ python -m cli_rpg.main
 
 ### Exploration Commands
 - `look` (l) - Examine your current location (use multiple times to reveal environmental details and hidden secrets)
-- `go <direction>` (g) - Move in a direction (north/n, south/s, east/e, west/w)
+- `go <direction>` (g) - Move in a direction (north, south, east, west)
   - Quick shortcuts: `n`, `gn` (north), `w`, `gw` (west), `gs` (south), `ge` (east)
+  - Note: `s` runs `status` and `e` runs `equip`, so use `gs`/`ge` for south/east
 - `enter <location>` - Enter a sub-location within the current overworld landmark (e.g., enter a tavern within a city)
 - `exit` / `leave` - Exit from a sub-location back to its parent overworld landmark
 - `map` (m) - Display an ASCII map of explored locations with available exits

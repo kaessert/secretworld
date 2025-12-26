@@ -1001,38 +1001,6 @@ Text output could be more atmospheric and engaging.
 
 **Note**: Players must be in the correct location type to encounter matching enemies. A quest for "Wolf" (forest enemy) won't progress while fighting in mountains (which spawn Eagle, Mountain Lion, Yeti). Players should explore forest areas to find wolves.
 
-### README direction shortcut documentation is inconsistent
-**Status**: ACTIVE
-
-**Description**: The README documentation for direction shortcuts is misleading. It states:
-```
-- `go <direction>` (g) - Move in a direction (north/n, south/s, east/e, west/w)
-  - Quick shortcuts: `n`, `gn` (north), `w`, `gw` (west), `gs` (south), `ge` (east)
-```
-
-The wording "(north/n, south/s, east/e, west/w)" implies that single-letter shortcuts work for all four directions within the `go` command. However, in practice:
-- `n` works standalone for north
-- `w` works standalone for west
-- `s` is hijacked by `status` command (NOT south)
-- `e` is hijacked by `equip` command (NOT east)
-
-Only `gs` and `ge` work as standalone shortcuts for south and east respectively.
-
-**Steps to reproduce**:
-1. Start the game
-2. Type `n` → goes north ✓
-3. Type `w` → goes west ✓
-4. Type `s` → shows status (NOT south) ✗
-5. Type `e` → prompts "Equip what?" (NOT east) ✗
-6. Type `gs` → goes south ✓
-7. Type `ge` → goes east ✓
-
-**Expected behavior**: Either:
-1. Update the README to clearly indicate that `n` and `w` work as standalone shortcuts but `s` and `e` do NOT (only `gs`/`ge` work), OR
-2. Add `gn` and `gw` to the shortcuts list for consistency (all directions use `g<letter>` format)
-
-**Impact**: Users may get confused when `s` doesn't take them south but instead shows their status.
-
 ### Procedural quest generation
 **Status**: ACTIVE
 
@@ -1172,4 +1140,15 @@ This preserves the first line's indentation while still removing trailing whites
 **Description**: The map command showed all locations with the same bullet point symbol (`•`), making it impossible to tell which location was which when 5+ locations all shared the same symbol.
 
 **Fix**: Each non-current location is now assigned a unique letter symbol (A-Z, then a-z for 27+ locations) in alphabetical order by name. The legend shows the letter with the category icon (if applicable), e.g., `A = 🌲 Forest`. The current player location still uses the `@` symbol. Implementation in `src/cli_rpg/map_renderer.py`.
+
+### README direction shortcut documentation is inconsistent
+**Status**: RESOLVED
+
+**Description**: The README documentation for direction shortcuts was misleading. It implied that single-letter shortcuts like `s` and `e` worked for south and east, when in reality:
+- `s` is handled by `status` command (NOT south)
+- `e` is handled by `equip` command (NOT east)
+
+**Fix**: Updated README.md to clarify that:
+1. Removed `/n, /s, /e, /w` from the `go <direction>` description since those aren't actually shortcuts within the go command
+2. Added an explicit note explaining that `s` runs `status` and `e` runs `equip`, so players should use `gs`/`ge` for south/east navigation
 

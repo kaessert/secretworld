@@ -1,93 +1,41 @@
-# Charisma Stat & Social Skills Implementation Summary
-
-## Implementation Status: COMPLETE
-
-All features from the plan have been implemented and tested. The implementation was mostly already in place; minor test updates were needed to account for the new charisma stat.
+# Implementation Summary: README Direction Shortcut Documentation Fix
 
 ## What Was Implemented
 
-### 1. Character Model (`src/cli_rpg/models/character.py`)
-- **CHA stat**: Added `charisma: int = 10` field with validation (1-20 range)
-- **Class bonuses**:
-  - Cleric: +2 CHA
-  - Rogue: +1 CHA
-  - Others: 0 CHA
-- **Level up**: CHA +1 on level up along with other stats
-- **Serialization**: `to_dict()` and `from_dict()` include charisma with backward compatibility (defaults to 10 for old saves)
-- **Display**: `__str__()` shows CHA in status output
+Updated documentation to clarify direction shortcut behavior in the CLI RPG game.
 
-### 2. NPC Model (`src/cli_rpg/models/npc.py`)
-- **willpower: int = 5**: Affects intimidate resistance (1-10 scale)
-- **bribeable: bool = True**: Whether NPC can be bribed
-- **persuaded: bool = False**: Tracks if NPC was persuaded this session
-- Serialization includes all social attributes with backward compatibility
+### Files Modified
 
-### 3. Character Creation (`src/cli_rpg/character_creation.py`)
-- `get_manual_stats()`: Prompts for 4 stats including charisma
-- `generate_random_stats()`: Generates charisma in 8-15 range
-- `create_character_non_interactive()`: Handles 4th stat input
+1. **README.md** (lines 57-59)
+   - Changed: `go <direction>` description from "(north/n, south/s, east/e, west/w)" to "(north, south, east, west)"
+   - Added: Note clarifying that `s` runs `status` and `e` runs `equip`, so players should use `gs`/`ge` for south/east
 
-### 4. Social Skills Module (`src/cli_rpg/social_skills.py`) - NEW FILE
-- `get_cha_price_modifier(cha)`: Buy price modifier (±1% per CHA from 10)
-- `get_cha_sell_modifier(cha)`: Sell price modifier (inverse of buy)
-- `calculate_persuade_chance(cha)`: 30% + (CHA × 3%), max 90%
-- `calculate_intimidate_chance(cha, kills)`: 20% + (CHA × 2%) + (kills × 5%), max 85%
-- `calculate_bribe_threshold(cha)`: 50 - (CHA × 2), min 10 gold
-- `attempt_persuade(char, npc)`: Roll persuade check, grants 20% shop discount
-- `attempt_intimidate(char, npc, kills)`: Roll intimidate, accounts for NPC willpower
-- `attempt_bribe(char, npc, amount)`: Process bribe, deducts gold on success
+2. **ISSUES.md**
+   - Removed: Issue from Active Issues section
+   - Added: Issue to Resolved Issues section with fix description
 
-### 5. Game Commands (`src/cli_rpg/main.py`)
-- **buy command** (~line 833): Applies CHA price modifier and 20% persuade discount
-- **sell command** (~line 887): Applies CHA sell modifier for better sell prices
-- **persuade command** (~line 922): Attempts to persuade current NPC
-- **intimidate command** (~line 930): Attempts to intimidate current NPC
-- **bribe <amount>** (~line 942): Attempts to bribe current NPC
-- Help text updated with social skill commands
+## Changes Made
 
-### 6. Command Recognition (`src/cli_rpg/game_state.py`)
-- Added `persuade`, `intimidate`, `bribe` to `KNOWN_COMMANDS` set for tab completion
+### README.md Before:
+```markdown
+- `go <direction>` (g) - Move in a direction (north/n, south/s, east/e, west/w)
+  - Quick shortcuts: `n`, `gn` (north), `w`, `gw` (west), `gs` (south), `ge` (east)
+```
 
-## Test Results
+### README.md After:
+```markdown
+- `go <direction>` (g) - Move in a direction (north, south, east, west)
+  - Quick shortcuts: `n`, `gn` (north), `w`, `gw` (west), `gs` (south), `ge` (east)
+  - Note: `s` runs `status` and `e` runs `equip`, so use `gs`/`ge` for south/east
+```
 
-All 136 relevant tests pass:
-- **test_charisma.py**: 39 tests (CHA stat, price modifiers, social skills)
-- **test_npc.py**: 16 tests (NPC model including social attributes)
-- **test_character.py**: 21 tests (Character model)
-- **test_character_creation.py**: 60 tests (Character creation with CHA)
+## Verification
 
-## Test Updates Made
+This is a documentation-only change. No tests are required. The changes:
+1. Remove misleading implication that `s` and `e` work as direction shortcuts
+2. Add explicit note explaining the command hijacking behavior
+3. Maintain consistency with existing shortcut documentation
 
-The existing character creation tests were written before charisma was added and needed updates:
-- Updated mock inputs to include 4 stats instead of 3
-- Updated call count assertions to account for 4 stat prompts
-- Added charisma assertions where appropriate
+## E2E Validation
 
-## Latest Fix: Additional Test Files for Charisma Input
-
-Updated 3 more test files that were missing the charisma stat input:
-
-1. **tests/test_main_menu.py (line 25)**
-   - Added `"10"` (charisma) after `"8"` (intelligence) in mock input sequence
-
-2. **tests/test_integration_character.py (line 74)**
-   - Added `"10"` (charisma) after `"10"` (intelligence) in mock input sequence
-
-3. **tests/test_e2e_ai_integration.py (line 280)**
-   - Added `"10"` (charisma) after `"14"` (intelligence) in mock input sequence
-
-All 22 tests in these 3 files now pass.
-
-## E2E Validation Checklist
-
-1. Create a new character with manual stats - verify CHA is prompted and applied
-2. Create a Cleric and verify +2 CHA bonus
-3. Create a Rogue and verify +1 CHA bonus
-4. Level up and verify CHA increases by 1
-5. Talk to a merchant NPC
-6. Use `persuade` command - verify success grants 20% discount
-7. Buy an item - verify CHA modifier and persuade discount applied
-8. Sell an item - verify CHA modifier increases sell price
-9. Use `intimidate` on a weak-willed NPC - verify success
-10. Use `bribe <amount>` - verify gold is deducted on success
-11. Save/load game - verify CHA and NPC social states persist
+N/A - Documentation changes only, no functional code changes.
