@@ -566,6 +566,26 @@ class Character:
         """
         self.status_effects.append(effect)
 
+    def is_stealthed(self) -> bool:
+        """Check if character has an active stealth effect.
+
+        Returns:
+            True if character has a stealth effect, False otherwise.
+        """
+        return any(e.effect_type == "stealth" for e in self.status_effects)
+
+    def consume_stealth(self) -> bool:
+        """Remove stealth effect if present.
+
+        Returns:
+            True if stealth was removed, False if character wasn't stealthed.
+        """
+        for effect in self.status_effects:
+            if effect.effect_type == "stealth":
+                self.status_effects.remove(effect)
+                return True
+        return False
+
     def tick_status_effects(self) -> List[str]:
         """Process one turn of all status effects.
 

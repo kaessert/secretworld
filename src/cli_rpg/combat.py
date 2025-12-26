@@ -626,8 +626,15 @@ class CombatEncounter:
         # Normal attack - record action for combo tracking
         self._record_action("attack")
 
+        # Check for backstab bonus (attacking from stealth)
+        is_backstab = self.player.consume_stealth()
+
         # Calculate damage: player attack power (strength + weapon bonus) - enemy defense, minimum 1
         dmg = max(1, self.player.get_attack_power() - enemy.defense)
+
+        # Apply backstab bonus (1.5x damage from stealth)
+        if is_backstab:
+            dmg = int(dmg * 1.5)
 
         # Apply companion bonus
         companion_bonus = self._get_companion_bonus()
@@ -642,7 +649,12 @@ class CombatEncounter:
 
         enemy.take_damage(dmg)
 
-        if is_crit:
+        if is_backstab:
+            message = (
+                f"{colors.damage('BACKSTAB!')} You strike {colors.enemy(enemy.name)} "
+                f"from the shadows for {colors.damage(str(dmg))} damage!"
+            )
+        elif is_crit:
             message = (
                 f"{colors.damage('CRITICAL HIT!')} You attack {colors.enemy(enemy.name)} "
                 f"for {colors.damage(str(dmg))} damage!"
@@ -683,6 +695,45 @@ class CombatEncounter:
         self.defending = True
         message = "You brace yourself for the enemy's attack, taking a defensive stance!"
         return False, message
+
+    def player_sneak(self) -> Tuple[bool, str]:
+        """
+        Rogue enters stealth mode for backstab opportunity.
+
+        Only Rogues can use this ability. Applies a stealth status effect
+        that provides a damage bonus on the next attack and increased
+        dodge chance while in effect.
+
+        Returns:
+            Tuple of (victory, message)
+            - victory: Always False (combat continues)
+            - message: Description of stealth action or error message
+        """
+        from cli_rpg.models.character import CharacterClass
+
+        # Check if player is stunned
+        stun_msg = self._check_and_consume_stun()
+        if stun_msg:
+            return False, stun_msg
+
+        # Only Rogues can sneak
+        if self.player.character_class != CharacterClass.ROGUE:
+            return False, "Only Rogues can sneak!"
+
+        # Record action for combo tracking
+        self._record_action("sneak")
+
+        # Apply stealth effect (duration 2: lasts through enemy turn + player's next action)
+        stealth_effect = StatusEffect(
+            name="Stealth",
+            effect_type="stealth",
+            damage_per_turn=0,
+            duration=2,
+            stat_modifier=0.0
+        )
+        self.player.apply_status_effect(stealth_effect)
+
+        return False, "You slip into the shadows, preparing to strike..."
 
     def player_cast(self, target: str = "") -> Tuple[bool, str]:
         """
@@ -808,20 +859,36 @@ class CombatEncounter:
         total_damage = 0
 
         for enemy in living:
-            # Check for player dodge first (DEX-based)
-            dodge_chance = calculate_dodge_chance(self.player.dexterity)
-            if random.random() < dodge_chance:
-                # Player dodged the attack
-                msg = (
-                    f"{colors.enemy(enemy.name)} attacks, but you "
-                    f"{colors.heal('dodge')} out of the way!"
-                )
-                messages.append(msg)
-                # Skip damage calculation and status effects for this enemy
-                # Still tick enemy status effects
-                enemy_status_messages = enemy.tick_status_effects()
-                messages.extend(enemy_status_messages)
-                continue
+            # Check for player dodge (stealth or DEX-based)
+            if self.player.is_stealthed():
+                # Stealth dodge: DEX * 5%, capped at 75%
+                stealth_dodge_chance = min(self.player.dexterity * 0.05, 0.75)
+                if random.random() < stealth_dodge_chance:
+                    # Player dodged from stealth
+                    msg = (
+                        f"{colors.enemy(enemy.name)} attacks, but you "
+                        f"{colors.heal('dodge')} from the shadows!"
+                    )
+                    messages.append(msg)
+                    # Still tick enemy status effects
+                    enemy_status_messages = enemy.tick_status_effects()
+                    messages.extend(enemy_status_messages)
+                    continue
+            else:
+                # Normal dodge check (DEX-based)
+                dodge_chance = calculate_dodge_chance(self.player.dexterity)
+                if random.random() < dodge_chance:
+                    # Player dodged the attack
+                    msg = (
+                        f"{colors.enemy(enemy.name)} attacks, but you "
+                        f"{colors.heal('dodge')} out of the way!"
+                    )
+                    messages.append(msg)
+                    # Skip damage calculation and status effects for this enemy
+                    # Still tick enemy status effects
+                    enemy_status_messages = enemy.tick_status_effects()
+                    messages.extend(enemy_status_messages)
+                    continue
 
             # Calculate damage: enemy attack - player defense (constitution + armor bonus), minimum 1
             # Apply freeze reduction (50%) if enemy is frozen
@@ -878,6 +945,10 @@ class CombatEncounter:
             self.player.take_damage(dmg)
             total_damage += dmg
             messages.append(msg)
+
+            # Taking damage breaks stealth
+            if self.player.consume_stealth():
+                messages.append(f"The attack {colors.warning('breaks your stealth')}!")
 
             # Check if enemy can apply poison
             if enemy.poison_chance > 0 and random.random() < enemy.poison_chance:

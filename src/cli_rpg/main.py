@@ -65,6 +65,7 @@ def get_command_reference() -> str:
         "  attack (a) [target] - Attack an enemy (default: first living enemy)",
         "  defend (d)    - Take a defensive stance",
         "  cast (c) [target]  - Cast a magic spell (default: first living enemy)",
+        "  sneak (sn)    - Enter stealth mode (Rogue only)",
         "  flee (f)      - Attempt to flee from combat",
         "  use (u) <item> - Use a consumable item",
         "  status (s, stats) - View combat status",
@@ -335,6 +336,26 @@ def handle_combat_command(game_state: GameState, command: str, args: list[str], 
 
         return (True, output)
 
+    elif command == "sneak":
+        victory, message = combat.player_sneak()
+        output = f"\n{message}"
+
+        # If sneak failed (non-Rogue), don't trigger enemy turn
+        if "Only Rogues" not in message:
+            # Enemy attacks
+            enemy_message = combat.enemy_turn()
+            output += f"\n{enemy_message}"
+
+            # Check if player died
+            if not game_state.current_character.is_alive():
+                death_message = combat.end_combat(victory=False)
+                output += f"\n{death_message}"
+                output += "\n\n=== GAME OVER ==="
+                sound_death()
+                game_state.current_combat = None
+
+        return (True, output)
+
     elif command == "flee":
         success, message = combat.player_flee()
         output = f"\n{message}"
@@ -496,15 +517,15 @@ def handle_combat_command(game_state: GameState, command: str, args: list[str], 
 
     elif command == "unknown":
         # Provide "did you mean?" suggestion during combat
-        combat_commands = {"attack", "defend", "cast", "flee", "use", "status", "help", "quit"}
+        combat_commands = {"attack", "defend", "cast", "flee", "sneak", "use", "status", "help", "quit"}
         if args and args[0]:
             suggestion = suggest_command(args[0], combat_commands)
             if suggestion:
                 return (True, f"\n✗ Unknown command '{args[0]}'. Did you mean '{suggestion}'?")
-        return (True, "\n✗ Can't do that during combat! Use: attack, defend, cast, flee, use, status, help, or quit")
+        return (True, "\n✗ Can't do that during combat! Use: attack, defend, cast, flee, sneak, use, status, help, or quit")
 
     else:
-        return (True, "\n✗ Can't do that during combat! Use: attack, defend, cast, flee, use, status, help, or quit")
+        return (True, "\n✗ Can't do that during combat! Use: attack, defend, cast, flee, sneak, use, status, help, or quit")
 
 
 def handle_exploration_command(game_state: GameState, command: str, args: list[str], non_interactive: bool = False) -> tuple[bool, str]:

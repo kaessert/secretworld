@@ -18,7 +18,7 @@ class StatusEffect:
     """
 
     name: str
-    effect_type: str  # "dot", "buff_attack", "buff_defense", "debuff_attack", "debuff_defense", "stun", "freeze"
+    effect_type: str  # "dot", "buff_attack", "buff_defense", "debuff_attack", "debuff_defense", "stun", "freeze", "stealth"
     damage_per_turn: int
     duration: int
     stat_modifier: float = 0.0
