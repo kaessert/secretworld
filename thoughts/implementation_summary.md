@@ -1,66 +1,49 @@
-# Implementation Summary: Enter/Exit Commands for Hierarchical World Navigation
+# Implementation Summary: Hierarchical Town Generation
 
 ## What Was Implemented
 
-### New Commands
-- **`enter <location>`** - Navigate from an overworld location to a sub-location (e.g., entering a tavern within a city)
-- **`exit` / `leave`** - Exit from a sub-location back to its parent overworld landmark
+Transformed Town Square from a flat location into an overworld landmark with 3 sub-locations in `create_default_world()`:
 
-### Files Modified
+### Changes to `src/cli_rpg/world.py`
 
-#### 1. `src/cli_rpg/game_state.py`
-- Added `enter`, `exit`, `leave` to `KNOWN_COMMANDS` set (line 56)
-- Implemented `enter()` method (lines 582-628):
-  - Validates player is at an overworld location (`is_overworld=True`)
-  - Supports partial, case-insensitive name matching for sub-locations
-  - Uses `entry_point` as default when no argument provided
-  - Blocks during NPC conversation
-  - Returns location description via `look()` on success
+1. **Town Square** is now an overworld landmark:
+   - `is_overworld=True`
+   - `is_safe_zone=True`
+   - `sub_locations=["Market District", "Guard Post", "Town Well"]`
+   - `entry_point="Market District"`
+   - Cardinal connections (north->Forest, east->Cave) preserved
 
-- Implemented `exit_location()` method (lines 630-657):
-  - Validates current location has a `parent_location` set
-  - Moves player to parent overworld location
-  - Blocks during NPC conversation
-  - Returns location description via `look()` on success
+2. **Created 3 sub-locations** with proper parent references:
+   - **Market District**: Contains Merchant NPC with shop, `parent_location="Town Square"`, `is_safe_zone=True`
+   - **Guard Post**: Contains Guard NPC, `parent_location="Town Square"`, `is_safe_zone=True`
+   - **Town Well**: Atmospheric location, `parent_location="Town Square"`, `is_safe_zone=True`
+   - All sub-locations have `connections={}` (no cardinal exits)
 
-#### 2. `src/cli_rpg/main.py`
-- Added help text for new commands (lines 31-32)
-- Added command handlers in `handle_exploration_command()` (lines 524-531):
-  - `enter` command handler that joins args for multi-word location names
-  - Combined handler for `exit` and `leave` aliases
+3. **NPCs moved to sub-locations**:
+   - Merchant NPC moved from Town Square to Market District
+   - Guard NPC moved from Town Square to Guard Post
 
-#### 3. `tests/test_game_state.py`
-- Added `TestEnterExitCommands` test class with 11 tests (lines 835-1143):
-  1. `test_enter_sublocation_from_overworld` - Basic enter functionality
-  2. `test_enter_uses_entry_point_default` - Using entry_point when no arg given
-  3. `test_enter_partial_match` - Case-insensitive partial matching
-  4. `test_enter_fails_when_not_overworld` - Error when not at overworld
-  5. `test_enter_fails_sublocation_not_found` - Error for nonexistent locations
-  6. `test_enter_fails_no_arg_no_entrypoint` - Error when no arg and no entry_point
-  7. `test_enter_blocked_during_conversation` - Blocked during NPC talk
-  8. `test_exit_from_sublocation` - Basic exit functionality
-  9. `test_exit_fails_when_no_parent` - Error when no parent location
-  10. `test_exit_blocked_during_conversation` - Blocked during NPC talk
-  11. `test_leave_alias_works` - Verify `leave` works same as `exit`
+### Changes to `tests/test_world.py`
+
+Added/modified 7 tests:
+- `test_default_world_location_count_with_sublocations`: Expects 6 locations
+- `test_default_world_location_names`: Checks for 3 main + 3 sub-locations
+- `test_default_world_town_square_is_overworld`: Verifies overworld properties
+- `test_default_world_sub_locations_exist`: All sub-locations in world dict
+- `test_default_world_sub_locations_have_parent`: Parent reference and safe zone
+- `test_default_world_sub_locations_have_no_cardinal_connections`: No n/s/e/w exits
+- `test_default_world_merchant_in_market_district`: Merchant in Market District
+
+### Changes to `tests/test_gameplay_integration.py`
+
+- Updated `test_gameplay_initialization` to expect 6 locations instead of 3
 
 ## Test Results
-- All 11 new tests pass
-- All 60 tests in `test_game_state.py` pass
-- Full test suite (2421 tests) passes with no regressions
 
-## Design Decisions
+All 2433 tests pass, including 32 tests in `test_world.py`.
 
-1. **Partial Matching**: The `enter` command supports partial, case-insensitive matching (e.g., `enter tav` matches "Tavern") for user convenience.
+## E2E Validation
 
-2. **Entry Point Default**: When `enter` is called without arguments and the overworld has an `entry_point` set, it automatically enters that default location.
-
-3. **Conversation Blocking**: Both `enter` and `exit` are blocked when in conversation with an NPC, consistent with the existing `move()` behavior.
-
-4. **Look Integration**: Both commands return the `look()` output for the destination, providing immediate location context.
-
-## E2E Test Validation
-The following scenarios should be validated:
-- Player at overworld can `enter <sub-location>` and move inside
-- Player inside can `exit` or `leave` to return to overworld
-- Both commands show appropriate error messages for invalid operations
-- Help text displays the new commands correctly
+The enter/exit commands can now be tested with actual content:
+- From Town Square: `enter Market District` or `enter Guard Post` or `enter Town Well`
+- From any sub-location: `exit` returns to Town Square

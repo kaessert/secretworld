@@ -44,23 +44,83 @@ class TestCreateDefaultWorld:
         world, starting_location = create_default_world()
         assert starting_location in world
     
-    def test_default_world_has_three_locations(self):
-        """Test that default world has exactly 3 locations.
-        
-        Spec: create_default_world() returns dict with 3 locations
+    def test_default_world_location_count_with_sublocations(self):
+        """Test that default world has 6 locations: Town Square, Forest, Cave, + 3 sub-locations.
+
+        Spec: World has 6 locations total (3 main + 3 sub-locations)
         """
         world, _ = create_default_world()
-        assert len(world) == 3
+        assert len(world) == 6
     
     def test_default_world_location_names(self):
         """Test that default world has correct location names.
-        
-        Spec: Locations should be "Town Square", "Forest", "Cave"
+
+        Spec: Locations should be "Town Square", "Forest", "Cave" + sub-locations
         """
         world, _ = create_default_world()
         assert "Town Square" in world
         assert "Forest" in world
         assert "Cave" in world
+        # Sub-locations should also exist
+        assert "Market District" in world
+        assert "Guard Post" in world
+        assert "Town Well" in world
+
+    def test_default_world_town_square_is_overworld(self):
+        """Town Square is an overworld landmark with sub-locations.
+
+        Spec: Town Square is overworld with 2+ sub-locations
+        """
+        world, _ = create_default_world()
+        town_square = world["Town Square"]
+        assert town_square.is_overworld is True
+        assert town_square.is_safe_zone is True
+        assert len(town_square.sub_locations) >= 2
+        assert town_square.entry_point in town_square.sub_locations
+
+    def test_default_world_sub_locations_exist(self):
+        """All Town Square sub-locations exist in world dict.
+
+        Spec: Sub-locations listed in town_square.sub_locations are in world
+        """
+        world, _ = create_default_world()
+        town_square = world["Town Square"]
+        for sub_name in town_square.sub_locations:
+            assert sub_name in world, f"Sub-location '{sub_name}' not in world"
+
+    def test_default_world_sub_locations_have_parent(self):
+        """Sub-locations reference Town Square as parent.
+
+        Spec: Each sub-location has parent_location="Town Square" and is_safe_zone=True
+        """
+        world, _ = create_default_world()
+        town_square = world["Town Square"]
+        for sub_name in town_square.sub_locations:
+            sub = world[sub_name]
+            assert sub.parent_location == "Town Square"
+            assert sub.is_safe_zone is True
+
+    def test_default_world_sub_locations_have_no_cardinal_connections(self):
+        """Sub-locations have no n/s/e/w exits (only enter/exit navigation).
+
+        Spec: Sub-locations have no cardinal connections
+        """
+        world, _ = create_default_world()
+        town_square = world["Town Square"]
+        for sub_name in town_square.sub_locations:
+            sub = world[sub_name]
+            assert len(sub.connections) == 0
+
+    def test_default_world_merchant_in_market_district(self):
+        """Merchant NPC is in Market District sub-location.
+
+        Spec: Merchant NPC moved to Market District with is_merchant=True
+        """
+        world, _ = create_default_world()
+        market = world["Market District"]
+        merchant = market.find_npc_by_name("Merchant")
+        assert merchant is not None
+        assert merchant.is_merchant is True
     
     def test_default_world_all_valid_locations(self):
         """Test that all values in world dict are Location instances.

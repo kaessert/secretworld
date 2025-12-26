@@ -1,106 +1,148 @@
-# Implementation Plan: Enter/Exit Commands for Hierarchical World Navigation
+# Implementation Plan: Hierarchical Town Generation in world.py
 
-## Overview
-Implement `enter <landmark>` and `exit/leave` commands in `game_state.py` to navigate between overworld locations and their sub-locations.
+## Goal
+Update `create_default_world()` in `world.py` to generate Town Square as a complete hierarchical landmark with 2-3 sub-locations, so the implemented `enter`/`exit` commands have actual content to work with.
 
 ## Spec
 
-### Enter Command
-- **Trigger**: `enter <location_name>` when at an overworld location
-- **Behavior**:
-  1. Validate current location is overworld (`is_overworld=True`)
-  2. Find sub-location matching name (case-insensitive, partial match)
-  3. If location has `entry_point`, use that as default when no argument given
-  4. Move player to the sub-location
-  5. Return success message with `look()` at new location
-- **Errors**:
-  - "You're not at an overworld location" if `is_overworld=False`
-  - "No such location: <name>" if sub-location not found
-  - "Enter where?" if no argument and no `entry_point`
+Transform Town Square from a flat location into an overworld landmark containing:
+- **Town Square** (overworld landmark, safe zone, entry_point="Market District")
+  - **Market District** (sub-location, safe zone) - contains Merchant NPC and shop
+  - **Guard Post** (sub-location, safe zone) - contains Guard NPC
+  - **Town Well** (sub-location, safe zone) - atmospheric location
 
-### Exit/Leave Command
-- **Trigger**: `exit` or `leave` when at a sub-location
-- **Behavior**:
-  1. Validate current location has `parent_location` set
-  2. Move player to the parent location
-  3. Return success message with `look()` at parent
-- **Errors**:
-  - "You're not inside a landmark" if `parent_location` is None
-  - "You're in a conversation. Say 'bye' to leave first." if in conversation
+The existing connections (north->Forest, east->Cave) remain on Town Square. Sub-locations have no cardinal connections (only accessible via enter/exit).
 
-### Command Registration
-- Add `enter`, `exit`, `leave` to `KNOWN_COMMANDS` set in `game_state.py`
-- Add command handlers in `main.py`
-- Update help text in `get_command_reference()`
+## Tests (test_world.py)
 
----
-
-## Tests (`tests/test_game_state.py`)
-
-### Enter Command Tests
-1. `test_enter_sublocation_from_overworld` - enter valid sub-location succeeds
-2. `test_enter_uses_entry_point_default` - enter with no arg uses `entry_point`
-3. `test_enter_partial_match` - partial name matching works (case-insensitive)
-4. `test_enter_fails_when_not_overworld` - error when current location not overworld
-5. `test_enter_fails_sublocation_not_found` - error when target doesn't exist
-6. `test_enter_fails_no_arg_no_entrypoint` - error when no arg and no entry_point
-7. `test_enter_blocked_during_conversation` - returns conversation warning
-
-### Exit Command Tests
-8. `test_exit_from_sublocation` - exit returns to parent location
-9. `test_exit_fails_when_no_parent` - error when not in sub-location
-10. `test_exit_blocked_during_conversation` - returns conversation warning
-11. `test_leave_alias_works` - "leave" works same as "exit"
-
----
-
-## Implementation Steps
-
-### Step 1: Update `game_state.py` - Add KNOWN_COMMANDS
+### Test 1: `test_default_world_town_square_is_overworld`
 ```python
-# In KNOWN_COMMANDS set, add:
-"enter", "exit", "leave"
+def test_default_world_town_square_is_overworld(self):
+    """Town Square is an overworld landmark with sub-locations."""
+    world, _ = create_default_world()
+    town_square = world["Town Square"]
+    assert town_square.is_overworld is True
+    assert town_square.is_safe_zone is True
+    assert len(town_square.sub_locations) >= 2
+    assert town_square.entry_point in town_square.sub_locations
 ```
 
-### Step 2: Add `enter()` method to `GameState` class
-Location: After the `move()` method (~line 580)
+### Test 2: `test_default_world_sub_locations_exist`
 ```python
-def enter(self, target_name: Optional[str] = None) -> tuple[bool, str]:
-    """Enter a sub-location within the current overworld landmark."""
+def test_default_world_sub_locations_exist(self):
+    """All Town Square sub-locations exist in world dict."""
+    world, _ = create_default_world()
+    town_square = world["Town Square"]
+    for sub_name in town_square.sub_locations:
+        assert sub_name in world, f"Sub-location '{sub_name}' not in world"
 ```
 
-### Step 3: Add `exit_location()` method to `GameState` class
+### Test 3: `test_default_world_sub_locations_have_parent`
 ```python
-def exit_location(self) -> tuple[bool, str]:
-    """Exit from a sub-location back to the parent overworld landmark."""
+def test_default_world_sub_locations_have_parent(self):
+    """Sub-locations reference Town Square as parent."""
+    world, _ = create_default_world()
+    town_square = world["Town Square"]
+    for sub_name in town_square.sub_locations:
+        sub = world[sub_name]
+        assert sub.parent_location == "Town Square"
+        assert sub.is_safe_zone is True
 ```
 
-### Step 4: Update `main.py` - Add command handlers
-Location: In `handle_command()` function, after "go" handler (~line 522)
+### Test 4: `test_default_world_sub_locations_have_no_cardinal_connections`
 ```python
-elif command == "enter":
-    # Call game_state.enter(args[0] if args else None)
-
-elif command in ("exit", "leave"):
-    # Call game_state.exit_location()
+def test_default_world_sub_locations_have_no_cardinal_connections(self):
+    """Sub-locations have no n/s/e/w exits (only enter/exit navigation)."""
+    world, _ = create_default_world()
+    town_square = world["Town Square"]
+    for sub_name in town_square.sub_locations:
+        sub = world[sub_name]
+        assert len(sub.connections) == 0
 ```
 
-### Step 5: Update `main.py` - Add help text
-Location: In `get_command_reference()` (~line 30)
+### Test 5: `test_default_world_merchant_in_market_district`
 ```python
-"  enter <location>   - Enter a landmark (city, dungeon, etc.)",
-"  exit / leave       - Exit back to the overworld",
+def test_default_world_merchant_in_market_district(self):
+    """Merchant NPC is in Market District sub-location."""
+    world, _ = create_default_world()
+    market = world["Market District"]
+    merchant = market.find_npc_by_name("Merchant")
+    assert merchant is not None
+    assert merchant.is_merchant is True
 ```
 
-### Step 6: Write tests first (TDD)
-Create tests in `tests/test_game_state.py` in new `TestEnterExitCommands` class
+### Test 6: `test_default_world_location_count_with_sublocations`
+```python
+def test_default_world_location_count_with_sublocations(self):
+    """World has 6 locations: Town Square, Forest, Cave, + 3 sub-locations."""
+    world, _ = create_default_world()
+    assert len(world) == 6
+```
 
----
+## Implementation (world.py)
 
-## File Changes Summary
+Update `create_default_world()` to:
 
-| File | Changes |
-|------|---------|
-| `src/cli_rpg/game_state.py` | Add `enter`, `exit`, `leave` to KNOWN_COMMANDS; add `enter()` and `exit_location()` methods |
-| `src/cli_rpg/main.py` | Add command handlers for `enter`, `exit`, `leave`; update help text |
-| `tests/test_game_state.py` | Add `TestEnterExitCommands` test class with 11 tests |
+1. Create Town Square as overworld landmark:
+   ```python
+   town_square = Location(
+       name="Town Square",
+       description="A bustling town square with a fountain in the center. Pathways lead to various districts.",
+       is_overworld=True,
+       is_safe_zone=True,
+       sub_locations=["Market District", "Guard Post", "Town Well"],
+       entry_point="Market District"
+   )
+   ```
+
+2. Create sub-locations with parent reference:
+   ```python
+   market_district = Location(
+       name="Market District",
+       description="Colorful market stalls line the cobblestone streets. The smell of fresh bread mingles with exotic spices.",
+       parent_location="Town Square",
+       is_safe_zone=True,
+       connections={}  # No cardinal exits
+   )
+   # Add Merchant NPC here
+
+   guard_post = Location(
+       name="Guard Post",
+       description="A fortified stone building where the town guard keeps watch. Weapons and armor hang on the walls.",
+       parent_location="Town Square",
+       is_safe_zone=True,
+       connections={}
+   )
+   # Add Guard NPC here
+
+   town_well = Location(
+       name="Town Well",
+       description="An ancient stone well in a quiet corner of town. Moss grows between the weathered stones.",
+       parent_location="Town Square",
+       is_safe_zone=True,
+       connections={}
+   )
+   ```
+
+3. Move NPCs to sub-locations:
+   - Move Merchant NPC to Market District
+   - Move Guard NPC to Guard Post
+   - Town Square itself has no NPCs (they're in sub-locations)
+
+4. Add sub-locations to world dict:
+   ```python
+   world = {
+       "Town Square": town_square,
+       "Market District": market_district,
+       "Guard Post": guard_post,
+       "Town Well": town_well,
+       "Forest": forest,
+       "Cave": cave
+   }
+   ```
+
+5. Keep Town Square on grid at (0,0) with north/east connections to Forest/Cave.
+
+## Files to Modify
+- `src/cli_rpg/world.py` - Update `create_default_world()`
+- `tests/test_world.py` - Add 6 new tests, update `test_default_world_has_three_locations` to expect 6 locations

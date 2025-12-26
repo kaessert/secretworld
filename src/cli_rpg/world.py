@@ -130,7 +130,7 @@ except ImportError:
 
 
 def create_default_world() -> tuple[dict[str, Location], str]:
-    """Create and return the default game world with 3 locations.
+    """Create and return the default game world with 6 locations.
 
     Returns:
         Tuple of (world, starting_location) where:
@@ -138,17 +138,25 @@ def create_default_world() -> tuple[dict[str, Location], str]:
         - starting_location: "Town Square" (the default starting location)
 
     The default world consists of:
-    - Town Square: Central hub at (0, 0) with connections north to Forest and east to Cave
+    - Town Square: Overworld landmark at (0, 0) with connections north to Forest
+      and east to Cave. Contains sub-locations: Market District, Guard Post, Town Well.
+    - Market District: Sub-location of Town Square, contains Merchant NPC
+    - Guard Post: Sub-location of Town Square, contains Guard NPC
+    - Town Well: Sub-location of Town Square, atmospheric location
     - Forest: Northern location at (0, 1) with connection south to Town Square
     - Cave: Eastern location at (1, 0) with connection west to Town Square
     """
     # Create WorldGrid for consistent spatial representation
     grid = WorldGrid()
 
-    # Create locations (connections are automatically created by WorldGrid)
+    # Create Town Square as overworld landmark with sub-locations
     town_square = Location(
         name="Town Square",
-        description="A bustling town square with a fountain in the center. People go about their daily business."
+        description="A bustling town square with a fountain in the center. Pathways lead to various districts.",
+        is_overworld=True,
+        is_safe_zone=True,
+        sub_locations=["Market District", "Guard Post", "Town Well"],
+        entry_point="Market District"
     )
 
     forest = Location(
@@ -215,13 +223,10 @@ def create_default_world() -> tuple[dict[str, Location], str]:
         ]
     )
 
-    # Add merchant to Town Square
-    town_square.npcs.append(merchant)
-
-    # Create Guard NPC for Town Square
+    # Create Guard NPC
     guard = NPC(
         name="Guard",
-        description="A vigilant town guard keeping watch over the square",
+        description="A vigilant town guard keeping watch over the area",
         dialogue="Stay out of trouble, adventurer.",
         greetings=[
             "Stay out of trouble, adventurer.",
@@ -229,10 +234,42 @@ def create_default_world() -> tuple[dict[str, Location], str]:
             "Keep your weapons sheathed in town.",
         ]
     )
-    town_square.npcs.append(guard)
+
+    # Create sub-locations for Town Square
+    market_district = Location(
+        name="Market District",
+        description="Colorful market stalls line the cobblestone streets. The smell of fresh bread mingles with exotic spices.",
+        parent_location="Town Square",
+        is_safe_zone=True,
+        connections={}  # No cardinal exits for sub-locations
+    )
+    market_district.npcs.append(merchant)
+
+    guard_post = Location(
+        name="Guard Post",
+        description="A fortified stone building where the town guard keeps watch. Weapons and armor hang on the walls.",
+        parent_location="Town Square",
+        is_safe_zone=True,
+        connections={}  # No cardinal exits for sub-locations
+    )
+    guard_post.npcs.append(guard)
+
+    town_well = Location(
+        name="Town Well",
+        description="An ancient stone well in a quiet corner of town. Moss grows between the weathered stones.",
+        parent_location="Town Square",
+        is_safe_zone=True,
+        connections={}  # No cardinal exits for sub-locations
+    )
+
+    # Build world dictionary from grid plus sub-locations
+    world = grid.as_dict()
+    world["Market District"] = market_district
+    world["Guard Post"] = guard_post
+    world["Town Well"] = town_well
 
     # Return world dictionary and starting location (backward compatible)
-    return (grid.as_dict(), "Town Square")
+    return (world, "Town Square")
 
 
 def create_world(

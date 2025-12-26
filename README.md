@@ -51,6 +51,7 @@ python -m cli_rpg.main
 - `enter <location>` - Enter a sub-location within the current overworld landmark (e.g., enter a tavern within a city)
 - `exit` / `leave` - Exit from a sub-location back to its parent overworld landmark
 - `map` (m) - Display an ASCII map of explored locations with available exits
+- `worldmap` (wm) - Display the overworld map (shows only overworld landmarks)
 - `status` (s, stats) - View your character's stats, gold, XP progress, current time, and weather
 - `inventory` (i) - View your inventory and equipped items
 - `equip <item name>` (e) - Equip a weapon or armor from your inventory

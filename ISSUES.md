@@ -412,7 +412,7 @@ Your vision fades... but this is not the end.
 ---
 
 ### OVERWORLD & SUB-LOCATION REWORK - Hierarchical World System
-**Status**: IN PROGRESS
+**Status**: IN PROGRESS (Core Infrastructure Complete)
 
 **Problem**: The current flat world grid doesn't support meaningful world structure. Players wander an endless grid with random combat everywhere. There's no sense of safe havens, no cities to explore internally, no dungeons with depth.
 
@@ -425,6 +425,11 @@ Your vision fades... but this is not the end.
   - `entry_point: Optional[str]` - Default sub-location when entering
 - ✅ Serialization: `to_dict()` and `from_dict()` updated with backward compatibility
 - ✅ Tests: 22 comprehensive tests for hierarchy fields
+- ✅ **Town Square hierarchical structure** (IMPLEMENTED): Default world now includes:
+  - Town Square as overworld landmark with `is_overworld=True`, `is_safe_zone=True`
+  - 3 sub-locations: Market District (with Merchant), Guard Post (with Guard), Town Well
+  - All sub-locations have `parent_location="Town Square"` and `is_safe_zone=True`
+  - `enter`/`exit` commands work with actual content
 
 **Remaining Architecture**:
 
@@ -460,7 +465,7 @@ OVERWORLD (macro map)
 1. **Overworld**: Large-scale map of landmarks (cities, dungeons, forests, mountains)
    - Travel between landmarks (possibly with travel time/random encounters)
    - Each landmark is an entry point to a sub-location
-   - `worldmap` command shows overworld
+   - ✅ `worldmap` command shows overworld - IMPLEMENTED
 
 2. **Sub-locations**: Internal areas within each landmark
    - Cities contain: districts, shops, taverns, castles
@@ -632,7 +637,7 @@ Players want a more sophisticated map system with hierarchical locations - an ov
 4. **Map display**
    - Overworld map showing discovered landmarks
    - Local map when inside a sub-location
-   - `map` command shows current layer, `worldmap` shows overworld
+   - ✅ `map` command shows current layer, `worldmap` shows overworld - IMPLEMENTED
 
 **Benefits**:
 - More organized world structure
