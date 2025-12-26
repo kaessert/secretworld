@@ -758,14 +758,20 @@ Player decisions should have lasting impact on the world and story.
 - **Cleric**: Healing spells, `bless` party buffs, `smite` undead, holy symbols
 
 ### Charisma stat & social skills
-**Status**: ACTIVE
+**Status**: RESOLVED
 
-Add meaningful social interactions beyond just talking.
+**Implemented**:
+- ✅ **Charisma (CHA) stat** added to Character model (1-20 range, default 10)
+- ✅ **Class bonuses**: Cleric +2 CHA, Rogue +1 CHA
+- ✅ **CHA price modifiers**: ±1% per CHA from 10 on buy/sell prices
+- ✅ **`persuade` command**: 30% + (CHA × 3%) success, grants 20% shop discount
+- ✅ **`intimidate` command**: 20% + (CHA × 2%) + (kills × 5%) success, affected by NPC willpower
+- ✅ **`bribe <amount>` command**: Threshold 50 - (CHA × 2) gold, min 10 gold
+- ✅ **NPC social attributes**: willpower (1-10), bribeable (bool), persuaded (bool)
+- ✅ **Persistence**: All stats save/load with backward compatibility
+- ✅ **Level up**: CHA +1 on level up like other stats
 
-- **New stat: Charisma (CHA)** - affects prices, NPC reactions, dialogue options
-- `persuade <npc>` - convince NPCs to help (reduce prices, reveal secrets, avoid fights)
-- `intimidate <npc>` - threaten NPCs (works on weak-willed, backfires on strong)
-- `bribe <npc> <amount>` - gold solves problems (success based on amount + CHA)
+**Future Enhancements** (moved to backlog):
 - High CHA unlocks special dialogue options marked with [CHA]
 - Some quests can be resolved through talking instead of fighting
 

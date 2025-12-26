@@ -24,6 +24,9 @@ class NPC:
         ascii_art: ASCII art representation of the NPC
         available_at_night: Whether NPC is available at night (default True)
         is_recruitable: Whether NPC can be recruited as a companion (default False)
+        willpower: Willpower stat (1-10), affects intimidate resistance (default 5)
+        bribeable: Whether NPC can be bribed (default True)
+        persuaded: Whether NPC has been persuaded this session (default False)
     """
 
     name: str
@@ -38,6 +41,9 @@ class NPC:
     ascii_art: str = ""  # ASCII art representation of the NPC
     available_at_night: bool = True  # Whether NPC is available at night
     is_recruitable: bool = False  # Whether NPC can be recruited as a companion
+    willpower: int = 5  # Willpower 1-10, affects intimidate resistance
+    bribeable: bool = True  # Whether NPC can be bribed
+    persuaded: bool = False  # Whether NPC has been persuaded this session
 
     def __post_init__(self):
         """Validate NPC attributes."""
@@ -131,6 +137,9 @@ class NPC:
             "conversation_history": self.conversation_history,
             "available_at_night": self.available_at_night,
             "is_recruitable": self.is_recruitable,
+            "willpower": self.willpower,
+            "bribeable": self.bribeable,
+            "persuaded": self.persuaded,
         }
         # Only include ascii_art if it's not empty
         if self.ascii_art:
@@ -167,4 +176,7 @@ class NPC:
             ascii_art=data.get("ascii_art", ""),
             available_at_night=data.get("available_at_night", True),
             is_recruitable=data.get("is_recruitable", False),
+            willpower=data.get("willpower", 5),  # Default 5 for backward compat
+            bribeable=data.get("bribeable", True),  # Default True for backward compat
+            persuaded=data.get("persuaded", False),  # Default False for backward compat
         )

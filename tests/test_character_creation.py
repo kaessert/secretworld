@@ -95,36 +95,37 @@ class TestGetAllocationMethod:
 class TestGetManualStats:
     """Test manual stat entry."""
     
-    @patch('builtins.input', side_effect=["10", "12", "8"])
+    @patch('builtins.input', side_effect=["10", "12", "8", "14"])
     def test_manual_stats_valid_input(self, mock_input):
         """Test: Accept valid manual stats (spec requirement)"""
         stats = get_manual_stats()
         assert stats == {
             "strength": 10,
             "dexterity": 12,
-            "intelligence": 8
+            "intelligence": 8,
+            "charisma": 14,
         }
     
-    @patch('builtins.input', side_effect=["0", "10", "12", "8"])
+    @patch('builtins.input', side_effect=["0", "10", "12", "8", "10"])
     def test_manual_stats_retry_on_too_low(self, mock_input):
         """Test: Retry prompt on stat too low (spec requirement)"""
         stats = get_manual_stats()
         assert stats["strength"] == 10
-        assert mock_input.call_count == 4
+        assert mock_input.call_count == 5
     
-    @patch('builtins.input', side_effect=["21", "10", "12", "8"])
+    @patch('builtins.input', side_effect=["21", "10", "12", "8", "10"])
     def test_manual_stats_retry_on_too_high(self, mock_input):
         """Test: Retry prompt on stat too high (spec requirement)"""
         stats = get_manual_stats()
         assert stats["strength"] == 10
-        assert mock_input.call_count == 4
+        assert mock_input.call_count == 5
     
-    @patch('builtins.input', side_effect=["abc", "10", "12", "8"])
+    @patch('builtins.input', side_effect=["abc", "10", "12", "8", "10"])
     def test_manual_stats_retry_on_non_numeric(self, mock_input):
         """Test: Retry prompt on non-numeric input (spec requirement)"""
         stats = get_manual_stats()
         assert stats["strength"] == 10
-        assert mock_input.call_count == 4
+        assert mock_input.call_count == 5
     
     @patch('builtins.input', return_value="cancel")
     def test_manual_stats_cancel(self, mock_input):
@@ -143,13 +144,15 @@ class TestGenerateRandomStats:
             assert 8 <= stats["strength"] <= 15
             assert 8 <= stats["dexterity"] <= 15
             assert 8 <= stats["intelligence"] <= 15
-    
+            assert 8 <= stats["charisma"] <= 15
+
     def test_random_stats_has_all_stats(self):
         """Test: Verify all required stats are present"""
         stats = generate_random_stats()
         assert "strength" in stats
         assert "dexterity" in stats
         assert "intelligence" in stats
+        assert "charisma" in stats
 
 
 class TestDisplayCharacterSummary:
@@ -210,18 +213,19 @@ class TestConfirmCreation:
 class TestCreateCharacter:
     """Test full character creation flow (updated for class selection)."""
 
-    @patch('builtins.input', side_effect=["Hero", "1", "1", "10", "12", "8", "yes"])
+    @patch('builtins.input', side_effect=["Hero", "1", "1", "10", "12", "8", "10", "yes"])
     def test_create_character_manual_valid_input(self, mock_input):
         """Test: Complete manual creation with valid inputs (spec requirement)"""
-        # Flow: name -> class -> method -> stats -> confirm
+        # Flow: name -> class -> method -> stats (str, dex, int, cha) -> confirm
         character = create_character()
         assert character is not None
         assert character.name == "Hero"
         assert character.character_class == CharacterClass.WARRIOR
-        # Stats include Warrior bonuses: STR +3, DEX +1, INT 0
+        # Stats include Warrior bonuses: STR +3, DEX +1, INT 0, CHA 0
         assert character.strength == 13  # 10 + 3
         assert character.dexterity == 13  # 12 + 1
         assert character.intelligence == 8  # 8 + 0
+        assert character.charisma == 10  # 10 + 0
 
     @patch('builtins.input', side_effect=["Hero", "2", "2", "yes"])
     def test_create_character_random_generation(self, mock_input):
@@ -235,17 +239,17 @@ class TestCreateCharacter:
         assert character.dexterity >= 9  # min 8 + 1
         assert character.intelligence >= 11  # min 8 + 3
 
-    @patch('builtins.input', side_effect=["H", "Hero", "1", "1", "10", "12", "8", "yes"])
+    @patch('builtins.input', side_effect=["H", "Hero", "1", "1", "10", "12", "8", "10", "yes"])
     def test_create_character_name_retry_on_invalid(self, mock_input):
         """Test: Retry prompt on invalid name (spec requirement)"""
         character = create_character()
         assert character is not None
         assert character.name == "Hero"
 
-    @patch('builtins.input', side_effect=["Hero", "1", "1", "0", "10", "12", "8", "yes"])
+    @patch('builtins.input', side_effect=["Hero", "1", "1", "0", "10", "12", "8", "10", "yes"])
     def test_create_character_stat_retry_on_invalid(self, mock_input):
         """Test: Retry prompt on invalid stat value (spec requirement)"""
-        # Flow: name -> class -> method -> invalid str -> valid str -> dex -> int -> confirm
+        # Flow: name -> class -> method -> invalid str -> valid str -> dex -> int -> cha -> confirm
         character = create_character()
         assert character is not None
         # Warrior bonuses: STR +3
@@ -275,7 +279,7 @@ class TestCreateCharacter:
         character = create_character()
         assert character is None
 
-    @patch('builtins.input', side_effect=["Hero", "1", "1", "10", "12", "8", "no"])
+    @patch('builtins.input', side_effect=["Hero", "1", "1", "10", "12", "8", "10", "no"])
     def test_create_character_cancelled_by_user_at_confirm(self, mock_input):
         """Test: Return None when user cancels at confirm (spec requirement)"""
         character = create_character()
@@ -441,17 +445,18 @@ class TestGetClassSelection:
 class TestCreateCharacterWithClass:
     """Spec: create_character() flow includes class selection step."""
 
-    @patch('builtins.input', side_effect=["Hero", "1", "1", "10", "12", "8", "yes"])
+    @patch('builtins.input', side_effect=["Hero", "1", "1", "10", "12", "8", "10", "yes"])
     def test_create_character_with_warrior_class(self, mock_input):
         """Spec: Character creation includes class selection after name."""
         character = create_character()
         assert character is not None
         assert character.name == "Hero"
         assert character.character_class == CharacterClass.WARRIOR
-        # Warrior bonuses: STR +3, DEX +1, INT 0
+        # Warrior bonuses: STR +3, DEX +1, INT 0, CHA 0
         assert character.strength == 13  # 10 + 3
         assert character.dexterity == 13  # 12 + 1
         assert character.intelligence == 8  # 8 + 0
+        assert character.charisma == 10  # 10 + 0
 
     @patch('builtins.input', side_effect=["Hero", "mage", "2", "yes"])
     def test_create_character_with_mage_class_random_stats(self, mock_input):

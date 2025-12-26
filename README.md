@@ -14,7 +14,7 @@ python -m cli_rpg.main
 
 ## Features
 
-- **Character Creation**: Create custom characters with 5 classes (Warrior, Mage, Rogue, Ranger, Cleric) and customizable attributes (strength, dexterity, intelligence)
+- **Character Creation**: Create custom characters with 5 classes (Warrior, Mage, Rogue, Ranger, Cleric) and customizable attributes (strength, dexterity, intelligence, charisma)
 - **AI-Generated Worlds**: Dynamically generated locations using OpenAI, Anthropic, or Ollama local models (optional)
 - **Turn-Based Combat**: Engage enemies with attack, defend, and flee commands
 - **Inventory & Equipment**: Collect loot from defeated enemies, equip weapons and armor, use consumables
@@ -40,14 +40,15 @@ python -m cli_rpg.main
 2. Choose a character class (each provides stat bonuses):
    - **Warrior**: +3 STR, +1 DEX - melee combat specialists
    - **Mage**: +3 INT, +1 DEX - magic damage dealers
-   - **Rogue**: +3 DEX, +1 STR - agile fighters with stealth and backstab abilities
+   - **Rogue**: +3 DEX, +1 STR, +1 CHA - agile fighters with stealth and backstab abilities
    - **Ranger**: +2 DEX, +1 STR, +1 INT - balanced adventurers
-   - **Cleric**: +2 INT, +1 STR - hybrid support class
+   - **Cleric**: +2 INT, +1 STR, +2 CHA - hybrid support class
 3. Choose your stat allocation method (manual or random)
-4. Set your three core attributes (1-20 each):
+4. Set your four core attributes (1-20 each):
    - **Strength**: Increases attack damage and max HP
    - **Dexterity**: Improves flee chance, dodge chance, and physical critical hit chance
    - **Intelligence**: Increases magic attack damage and magic critical hit chance
+   - **Charisma**: Affects shop prices, persuasion, intimidation, and bribery
 
 **Note:** Constitution is automatically derived from your Strength stat and is used to reduce incoming damage during combat. Class bonuses are applied after your base stat allocation.
 
@@ -69,6 +70,9 @@ python -m cli_rpg.main
 - `shop` - View the current merchant's inventory and prices
 - `buy <item>` - Purchase an item from the current shop
 - `sell <item>` - Sell an item from your inventory for gold
+- `persuade` - Attempt to persuade the current NPC (grants 20% shop discount on success)
+- `intimidate` - Attempt to intimidate the current NPC (success based on CHA and kills)
+- `bribe <amount>` - Attempt to bribe the current NPC with gold
 - `drop <item>` (dr) - Drop an item from your inventory (cannot drop equipped items)
 - `pick <chest>` (lp) - **Rogue only**: Attempt to pick the lock on a treasure chest (requires Lockpick item)
 - `open <chest>` (o) - Open an unlocked treasure chest to collect its contents
@@ -217,6 +221,27 @@ Merchants can be found throughout the world. Interact with them to buy and sell 
 
 **Earning Gold**: Defeat enemies in combat to earn gold (5-15 × enemy level per victory).
 
+**Charisma Price Modifier**: Your Charisma stat affects shop prices. Higher CHA reduces buy prices and increases sell prices (±1% per point from 10).
+
+### Social Skills
+
+Use social skills to influence NPCs during conversations:
+
+1. **Persuade**: Use `persuade` while talking to an NPC
+   - Success chance: 30% + (CHA × 3%), capped at 90%
+   - On success: Grants 20% discount at merchant shops
+   - NPCs can only be persuaded once per session
+
+2. **Intimidate**: Use `intimidate` while talking to an NPC
+   - Success chance: 20% + (CHA × 2%) + (kills × 5%), capped at 85%
+   - NPC willpower reduces your chance (1-10 scale)
+   - On success: Same effect as persuasion (20% discount)
+
+3. **Bribe**: Use `bribe <amount>` while talking to an NPC
+   - Required amount: 50 - (CHA × 2) gold, minimum 10 gold
+   - Not all NPCs are bribeable
+   - On success: Gold is deducted, same effect as persuasion
+
 ### NPC Quests
 
 Quest-giver NPCs can be found throughout the world. Interact with them to receive quests:
@@ -357,8 +382,8 @@ cli-rpg --non-interactive --skip-character-creation < commands.txt
 
 **Character Creation:**
 - By default, reads character creation inputs from stdin (name, class, stat method, stats, confirmation)
-- Use `--skip-character-creation` to use a default character ("Agent") with balanced stats (10/10/10)
-- Manual stats: provide name, class (1-5), "1", str, dex, int, "yes" (one per line)
+- Use `--skip-character-creation` to use a default character ("Agent") with balanced stats (10/10/10/10)
+- Manual stats: provide name, class (1-5), "1", str, dex, int, cha, "yes" (one per line)
 - Random stats: provide name, class (1-5), "2", "yes" (one per line)
 - Invalid inputs return error messages and exit with code 1
 

@@ -58,6 +58,12 @@ def get_command_reference() -> str:
         "  recruit <npc>      - Recruit an NPC to join your party",
         "  dismiss <name>     - Dismiss a companion from your party",
         "  companion-quest <name> - Accept a companion's personal quest",
+        "",
+        "Social Commands (when talking to an NPC):",
+        "  persuade           - Charm NPC for shop discounts (CHA-based)",
+        "  intimidate         - Threaten NPC for benefits (CHA + reputation)",
+        "  bribe <amount>     - Pay gold for guaranteed social success",
+        "",
         "  help (h)           - Display this command reference",
         "  dump-state         - Export full game state as JSON",
         "  save               - Save your game (not available during combat)",
@@ -824,8 +830,15 @@ def handle_exploration_command(game_state: GameState, command: str, args: list[s
                 # No matches - list available items
                 available_items = ", ".join(f"'{si.item.name}'" for si in game_state.current_shop.inventory)
                 return (True, f"\nThe shop doesn't have '{item_name}'. Available: {available_items}")
-        if game_state.current_character.gold < shop_item.buy_price:
-            return (True, f"\nYou can't afford {shop_item.item.name} ({shop_item.buy_price} gold). You have {game_state.current_character.gold} gold.")
+        # Calculate final price with CHA modifier and persuade discount
+        from cli_rpg.social_skills import get_cha_price_modifier
+        cha_modifier = get_cha_price_modifier(game_state.current_character.charisma)
+        final_price = int(shop_item.buy_price * cha_modifier)
+        # Apply 20% persuade discount if NPC was persuaded
+        if game_state.current_npc and game_state.current_npc.persuaded:
+            final_price = int(final_price * 0.8)
+        if game_state.current_character.gold < final_price:
+            return (True, f"\nYou can't afford {shop_item.item.name} ({final_price} gold). You have {game_state.current_character.gold} gold.")
         if game_state.current_character.inventory.is_full():
             return (True, "\nYour inventory is full!")
         # Create a copy of the item for the player
@@ -837,12 +850,12 @@ def handle_exploration_command(game_state: GameState, command: str, args: list[s
             defense_bonus=shop_item.item.defense_bonus,
             heal_amount=shop_item.item.heal_amount
         )
-        game_state.current_character.remove_gold(shop_item.buy_price)
+        game_state.current_character.remove_gold(final_price)
         game_state.current_character.inventory.add_item(new_item)
         # Track quest progress for collect objectives
         quest_messages = game_state.current_character.record_collection(new_item.name)
         autosave(game_state)
-        output = f"\nYou bought {new_item.name} for {shop_item.buy_price} gold."
+        output = f"\nYou bought {new_item.name} for {final_price} gold."
         if quest_messages:
             output += "\n" + "\n".join(quest_messages)
         return (True, output)
@@ -871,8 +884,11 @@ def handle_exploration_command(game_state: GameState, command: str, args: list[s
                     "equipped. Unequip it first with 'unequip armor'.",
                 )
             return (True, f"\nYou don't have '{item_name}' in your inventory.")
-        # Base sell price calculation
-        sell_price = 10 + (item.damage_bonus + item.defense_bonus + item.heal_amount) * 2
+        # Base sell price calculation with CHA modifier
+        from cli_rpg.social_skills import get_cha_sell_modifier
+        base_sell_price = 10 + (item.damage_bonus + item.defense_bonus + item.heal_amount) * 2
+        cha_modifier = get_cha_sell_modifier(game_state.current_character.charisma)
+        sell_price = int(base_sell_price * cha_modifier)
         game_state.current_character.inventory.remove_item(item)
         game_state.current_character.add_gold(sell_price)
         autosave(game_state)
@@ -902,6 +918,40 @@ def handle_exploration_command(game_state: GameState, command: str, args: list[s
             return (True, f"\nYou don't have '{item_name}' in your inventory.")
         game_state.current_character.inventory.remove_item(item)
         return (True, f"\nYou dropped {item.name}.")
+
+    elif command == "persuade":
+        # Social skill: Attempt to persuade the current NPC for benefits
+        from cli_rpg.social_skills import attempt_persuade
+        success, message = attempt_persuade(
+            game_state.current_character, game_state.current_npc
+        )
+        return (True, f"\n{message}")
+
+    elif command == "intimidate":
+        # Social skill: Attempt to intimidate the current NPC
+        from cli_rpg.social_skills import attempt_intimidate
+        # Count kills from choices for reputation bonus
+        kill_count = sum(
+            1 for c in game_state.choices if c.get("choice_type") == "combat_kill"
+        )
+        success, message = attempt_intimidate(
+            game_state.current_character, game_state.current_npc, kill_count
+        )
+        return (True, f"\n{message}")
+
+    elif command == "bribe":
+        # Social skill: Attempt to bribe the current NPC with gold
+        from cli_rpg.social_skills import attempt_bribe
+        amount = None
+        if args:
+            try:
+                amount = int(args[0])
+            except ValueError:
+                return (True, "\nInvalid amount. Usage: bribe <gold amount>")
+        success, message = attempt_bribe(
+            game_state.current_character, game_state.current_npc, amount
+        )
+        return (True, f"\n{message}")
 
     elif command == "accept":
         # Accept a quest from the current NPC

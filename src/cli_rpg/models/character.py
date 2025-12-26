@@ -20,12 +20,13 @@ class CharacterClass(Enum):
 
 
 # Spec: CLASS_BONUSES dict maps each class to stat bonuses
+# Includes CHA bonuses: Cleric +2, Rogue +1, others 0
 CLASS_BONUSES: Dict["CharacterClass", Dict[str, int]] = {
-    CharacterClass.WARRIOR: {"strength": 3, "dexterity": 1, "intelligence": 0},
-    CharacterClass.MAGE: {"strength": 0, "dexterity": 1, "intelligence": 3},
-    CharacterClass.ROGUE: {"strength": 1, "dexterity": 3, "intelligence": 0},
-    CharacterClass.RANGER: {"strength": 1, "dexterity": 2, "intelligence": 1},
-    CharacterClass.CLERIC: {"strength": 1, "dexterity": 0, "intelligence": 2},
+    CharacterClass.WARRIOR: {"strength": 3, "dexterity": 1, "intelligence": 0, "charisma": 0},
+    CharacterClass.MAGE: {"strength": 0, "dexterity": 1, "intelligence": 3, "charisma": 0},
+    CharacterClass.ROGUE: {"strength": 1, "dexterity": 3, "intelligence": 0, "charisma": 1},
+    CharacterClass.RANGER: {"strength": 1, "dexterity": 2, "intelligence": 1, "charisma": 0},
+    CharacterClass.CLERIC: {"strength": 1, "dexterity": 0, "intelligence": 2, "charisma": 2},
 }
 
 if TYPE_CHECKING:
@@ -45,6 +46,7 @@ class Character:
         strength: Strength stat (1-20)
         dexterity: Dexterity stat (1-20)
         intelligence: Intelligence stat (1-20)
+        charisma: Charisma stat (1-20) - affects social skills and shop prices
         level: Character level (default 1)
         health: Current health points
         max_health: Maximum health points (calculated from strength)
@@ -64,6 +66,7 @@ class Character:
     strength: int
     dexterity: int
     intelligence: int
+    charisma: int = 10  # Default charisma for backward compatibility
     character_class: Optional[CharacterClass] = None
     level: int = 1
     health: int = field(init=False)
@@ -95,6 +98,7 @@ class Character:
             ("strength", self.strength),
             ("dexterity", self.dexterity),
             ("intelligence", self.intelligence),
+            ("charisma", self.charisma),
             ("level", self.level)
         ]:
             if not isinstance(stat_value, int):
@@ -110,6 +114,7 @@ class Character:
             self.strength += bonuses["strength"]
             self.dexterity += bonuses["dexterity"]
             self.intelligence += bonuses["intelligence"]
+            self.charisma += bonuses["charisma"]
 
         # Calculate derived stats (after bonuses applied)
         self.max_health = self.BASE_HEALTH + self.strength * self.HEALTH_PER_STRENGTH
@@ -789,10 +794,11 @@ class Character:
         # Play level up sound
         sound_level_up()
 
-        # Increase stats
+        # Increase stats (including charisma)
         self.strength += 1
         self.dexterity += 1
         self.intelligence += 1
+        self.charisma += 1
 
         # Recalculate derived stats
         old_max_health = self.max_health
@@ -807,7 +813,7 @@ class Character:
 
         health_increase = self.max_health - old_max_health
         return (f"Level Up! You are now level {self.level}!\n"
-                f"Stats increased: STR +1, DEX +1, INT +1\n"
+                f"Stats increased: STR +1, DEX +1, INT +1, CHA +1\n"
                 f"Max HP increased by {health_increase}! Health fully restored!")
     
     def to_dict(self) -> dict:
@@ -821,6 +827,7 @@ class Character:
             "strength": self.strength,
             "dexterity": self.dexterity,
             "intelligence": self.intelligence,
+            "charisma": self.charisma,
             "character_class": self.character_class.value if self.character_class else None,
             "level": self.level,
             "health": self.health,
@@ -853,6 +860,8 @@ class Character:
         capped_strength = min(data["strength"], cls.MAX_STAT)
         capped_dexterity = min(data["dexterity"], cls.MAX_STAT)
         capped_intelligence = min(data["intelligence"], cls.MAX_STAT)
+        # Charisma defaults to 10 for backward compatibility with old saves
+        capped_charisma = min(data.get("charisma", 10), cls.MAX_STAT)
 
         # Create character with capped stats to pass validation
         # Note: We pass character_class=None here to avoid re-applying bonuses
@@ -862,6 +871,7 @@ class Character:
             strength=capped_strength,
             dexterity=capped_dexterity,
             intelligence=capped_intelligence,
+            charisma=capped_charisma,
             level=data.get("level", 1),
             character_class=None,  # Don't apply bonuses on load
         )
@@ -879,6 +889,8 @@ class Character:
         character.strength = data["strength"]
         character.dexterity = data["dexterity"]
         character.intelligence = data["intelligence"]
+        # Charisma defaults to 10 for backward compatibility
+        character.charisma = data.get("charisma", 10)
 
         # Recalculate derived stats based on actual strength
         character.max_health = cls.BASE_HEALTH + character.strength * cls.HEALTH_PER_STRENGTH
@@ -949,5 +961,6 @@ class Character:
             f"{colors.stat_header('XP')}: {xp_str}\n"
             f"{colors.stat_header('Strength')}: {self.strength} | "
             f"{colors.stat_header('Dexterity')}: {self.dexterity} | "
-            f"{colors.stat_header('Intelligence')}: {self.intelligence}"
+            f"{colors.stat_header('Intelligence')}: {self.intelligence} | "
+            f"{colors.stat_header('Charisma')}: {self.charisma}"
         )

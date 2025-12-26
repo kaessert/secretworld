@@ -61,6 +61,7 @@ src/cli_rpg/
 ├── hallucinations.py    # Dread hallucinations at 75-99% dread
 ├── brave_rewards.py     # Dread treasure rewards for high-dread exploration
 ├── sound_effects.py     # Terminal bell sound effects for game events
+├── social_skills.py     # CHA-based persuade, intimidate, and bribe mechanics
 └── models/
     ├── character.py     # Player character model
     ├── dread.py         # Dread meter for psychological horror
