@@ -1,119 +1,157 @@
-# Fix: Shop command fails with AI-generated merchants in SubGrid locations
+# Fix: NPCs Show as "???" When Revisiting Locations in WFC Mode
 
 ## Summary
-AI-generated NPCs with "Merchant" in their name don't work with the `shop` command because they lack `is_merchant=True` and a `Shop` object.
+Bug report states that when revisiting a location in WFC mode, NPC names display as "???" instead of actual names. The reproduction steps are: Start at Whispering Woods → Go east → Return west → NPCs now show as "???, ???, ???".
 
-## Root Cause
+## Investigation Findings
 
-**The Problem Flow:**
-1. AI generates NPC data: `{"name": "Tech Merchant", "description": "...", "role": "villager"}`
-2. `_create_npcs_from_data()` in `ai_world.py` creates NPC with `is_merchant=False` (because role != "merchant")
-3. Player uses `shop` command
-4. `main.py` line 1304: `merchant = next((npc for npc in location.npcs if npc.is_merchant and npc.shop), None)`
-5. Returns `None` because NPC has `is_merchant=False` and no `shop` object
-6. User sees "There's no merchant here."
+After thorough analysis:
 
-**Root Causes:**
-1. AI may not always return `"role": "merchant"` for NPCs with merchant-like names
-2. Even when `role="merchant"` is set, no `Shop` object is created for the NPC
-3. `_create_npcs_from_data()` only sets `is_merchant=True` but doesn't create a Shop
+1. **No code generates "???" for NPCs**: The codebase explicitly tests that NPCs should NEVER show as "???" (see `test_weather.py` lines 472-493 and 577-580).
 
-## Solution
+2. **The docstring is outdated**: `test_weather.py` line 361 has a stale comment mentioning "obscures NPC names with '???'" but the actual tests verify this does NOT happen.
 
-Two-part fix:
-1. **Infer role from name**: If NPC name contains merchant-related keywords, set `role="merchant"`
-2. **Create default shop for merchants**: When `is_merchant=True`, create a basic shop if none provided
+3. **NPC serialization is correct**: Both `Location.to_dict()/from_dict()` and `NPC.to_dict()/from_dict()` properly preserve NPC data.
 
-## Implementation Steps
+4. **SubGrid serialization is correct**: NPCs in SubGrid locations are properly preserved.
 
-### 1. Add merchant name inference in `_create_npcs_from_data()` (ai_world.py)
+5. **Fallback locations have no NPCs**: `generate_fallback_location()` creates locations without NPCs, which is intentional.
 
-After extracting role from NPC data (line 51), add name-based inference:
+## Hypothesis
 
-```python
-# Infer merchant role from name if not explicitly set
-if role == "villager":  # Only override default role
-    name_lower = npc_data["name"].lower()
-    merchant_keywords = {"merchant", "trader", "vendor", "shopkeeper", "seller", "dealer"}
-    if any(keyword in name_lower for keyword in merchant_keywords):
-        role = "merchant"
-```
+The bug report may be:
+1. **A user misunderstanding**: The user may have confused exit direction names being hidden in fog with NPC names
+2. **A stale/fixed bug**: This bug may have already been resolved
+3. **A different manifestation**: NPCs might be missing entirely (not showing "???") due to AI generation issues
 
-### 2. Create default shop for AI-generated merchants (ai_world.py)
+## Verification Steps
 
-When creating merchant NPCs, generate a basic shop:
+Before implementing a fix, we need to verify if the bug still exists:
+
+1. Add a regression test that explicitly checks NPC persistence when navigating away and back
+2. Check if any WFC-specific code path could cause NPC loss
+
+## Implementation Plan
+
+### Step 1: Add regression test to verify bug existence
+File: `tests/test_npc_persistence_navigation.py`
 
 ```python
-# Create shop for merchant NPCs without one
-shop = None
-if is_merchant:
-    shop = _create_default_merchant_shop()
+"""Test that NPCs persist when navigating away from and back to a location."""
+
+def test_npcs_persist_after_leaving_and_returning():
+    """NPCs should be present when revisiting a location."""
+    from cli_rpg.game_state import GameState
+    from cli_rpg.models.character import Character
+    from cli_rpg.models.location import Location
+    from cli_rpg.models.npc import NPC
+
+    char = Character(name="Test", strength=10, dexterity=10, intelligence=10)
+
+    # Create two connected locations
+    loc_a = Location(
+        name="Location A",
+        description="Test location A",
+        coordinates=(0, 0),
+        connections={"east": "Location B"}
+    )
+    loc_a.npcs = [NPC(name="TestNPC", description="A test NPC", dialogue="Hello")]
+
+    loc_b = Location(
+        name="Location B",
+        description="Test location B",
+        coordinates=(1, 0),
+        connections={"west": "Location A"}
+    )
+
+    world = {"Location A": loc_a, "Location B": loc_b}
+    game_state = GameState(char, world, starting_location="Location A")
+
+    # Verify NPC is present initially
+    look_result = game_state.look()
+    assert "TestNPC" in look_result
+    assert "???" not in look_result
+
+    # Move east
+    game_state.move("east")
+
+    # Move back west
+    game_state.move("west")
+
+    # Verify NPC is still present
+    look_result = game_state.look()
+    assert "TestNPC" in look_result
+    assert "???" not in look_result
+
+def test_npcs_persist_wfc_fallback_generation():
+    """NPCs persist when navigating through WFC-generated fallback locations."""
+    from cli_rpg.game_state import GameState
+    from cli_rpg.models.character import Character
+    from cli_rpg.models.location import Location
+    from cli_rpg.models.npc import NPC
+    from cli_rpg.wfc_chunks import ChunkManager
+    from cli_rpg.world_tiles import DEFAULT_TILE_REGISTRY
+
+    char = Character(name="Test", strength=10, dexterity=10, intelligence=10)
+
+    # Create starting location with NPC
+    start = Location(
+        name="Start",
+        description="Starting location",
+        coordinates=(0, 0),
+        connections={"east": "Unexplored East"}
+    )
+    start.npcs = [NPC(name="HomeNPC", description="An NPC at home", dialogue="Welcome!")]
+
+    world = {"Start": start}
+    chunk_manager = ChunkManager(tile_registry=DEFAULT_TILE_REGISTRY, world_seed=42)
+    chunk_manager.sync_with_locations(world)
+
+    game_state = GameState(char, world, starting_location="Start", chunk_manager=chunk_manager)
+
+    # Verify NPC is present
+    assert "HomeNPC" in game_state.look()
+
+    # Move east (generates new fallback location)
+    game_state.move("east")
+
+    # Move back west
+    game_state.move("west")
+
+    # Verify original NPC is still present
+    look_result = game_state.look()
+    assert "HomeNPC" in look_result
+    assert "???" not in look_result
 ```
 
-Add helper function:
+### Step 2: Fix docstring in test_weather.py
+Remove outdated reference to "???" for NPCs from line 361.
 
+**Before:**
 ```python
-def _create_default_merchant_shop() -> Shop:
-    """Create a default shop for AI-generated merchant NPCs."""
-    from cli_rpg.models.item import Item, ItemType
-
-    potion = Item(
-        name="Health Potion",
-        description="Restores 25 HP",
-        item_type=ItemType.CONSUMABLE,
-        heal_amount=25
-    )
-    antidote = Item(
-        name="Antidote",
-        description="Cures poison",
-        item_type=ItemType.CONSUMABLE,
-    )
-    rations = Item(
-        name="Travel Rations",
-        description="Sustaining food for journeys",
-        item_type=ItemType.CONSUMABLE,
-        heal_amount=10
-    )
-
-    return Shop(
-        name="Traveling Wares",
-        inventory=[
-            ShopItem(item=potion, buy_price=50),
-            ShopItem(item=antidote, buy_price=40),
-            ShopItem(item=rations, buy_price=20),
-        ]
-    )
+    - Fog: Hides some exits (50% chance each exit hidden), obscures NPC names with "???"
 ```
 
-### 3. Update NPC creation to use the shop (ai_world.py line 55-61)
-
+**After:**
 ```python
-npc = NPC(
-    name=npc_data["name"],
-    description=npc_data["description"],
-    dialogue=npc_data.get("dialogue", "Hello, traveler."),
-    is_merchant=is_merchant,
-    is_quest_giver=is_quest_giver,
-    shop=shop  # Add this
-)
+    - Fog: Hides some exits (50% chance each exit hidden)
 ```
 
-## Test Plan
-
-### New test file: `tests/test_ai_merchant_detection.py`
-
-1. **test_merchant_role_inferred_from_name**: NPC with "Merchant" in name gets `is_merchant=True`
-2. **test_trader_role_inferred_from_name**: NPC with "Trader" in name gets `is_merchant=True`
-3. **test_vendor_role_inferred_from_name**: NPC with "Vendor" in name gets `is_merchant=True`
-4. **test_explicit_merchant_role_preserved**: NPC with `role="merchant"` works regardless of name
-5. **test_non_merchant_names_stay_villager**: NPC named "Guard" stays `is_merchant=False`
-6. **test_ai_merchant_has_default_shop**: Inferred merchant gets a Shop object
-7. **test_ai_merchant_shop_has_items**: Default shop contains buyable items
-8. **test_shop_command_works_with_ai_merchant**: Integration test with full command flow
+### Step 3: If bug is verified, investigate and fix
+If the regression tests fail:
+1. Add debug logging to track NPC list during navigation
+2. Check if world dict is being modified unexpectedly
+3. Check if coordinate-based location lookup is returning a different object
 
 ## Files to Modify
 
 | File | Changes |
 |------|---------|
-| `src/cli_rpg/ai_world.py` | Add `_create_default_merchant_shop()`, update `_create_npcs_from_data()` |
-| `tests/test_ai_merchant_detection.py` | NEW - test merchant name inference and shop creation |
+| `tests/test_npc_persistence_navigation.py` | NEW - Regression tests for NPC persistence |
+| `tests/test_weather.py` | Fix stale docstring about NPC "???" |
+
+## Test Plan
+
+1. Run new regression tests: `pytest tests/test_npc_persistence_navigation.py -v`
+2. If tests pass, the bug may already be fixed or the report was inaccurate
+3. If tests fail, investigate the root cause and implement a fix

@@ -6,12 +6,15 @@ world coordinates.
 """
 
 from dataclasses import dataclass, field
-from typing import Dict, Tuple, Optional, List, Set
+from typing import Dict, Tuple, Optional, List, Set, TYPE_CHECKING
 import random
 from collections import deque
 
 from cli_rpg.wfc import WFCGenerator, WFCCell
 from cli_rpg.world_tiles import TileRegistry, ADJACENCY_RULES
+
+if TYPE_CHECKING:
+    from cli_rpg.models.location import Location
 
 
 @dataclass
@@ -409,6 +412,50 @@ class ChunkManager:
         chunk_y = world_y // self.chunk_size
         chunk = self.get_or_generate_chunk(chunk_x, chunk_y)
         return chunk[(world_x, world_y)]
+
+    def set_tile_at(self, world_x: int, world_y: int, terrain: str) -> None:
+        """Set terrain tile at world coordinates.
+
+        This is used to sync WFC terrain with existing locations.
+        When a location exists at coordinates, its terrain should be
+        set in the chunk to ensure passability checks are consistent.
+
+        Args:
+            world_x: World X coordinate
+            world_y: World Y coordinate
+            terrain: Terrain tile name to set (e.g., "plains", "forest")
+        """
+        chunk_x = world_x // self.chunk_size
+        chunk_y = world_y // self.chunk_size
+        chunk = self.get_or_generate_chunk(chunk_x, chunk_y)
+        chunk[(world_x, world_y)] = terrain
+
+    def sync_with_locations(
+        self, world: Dict[str, "Location"], default_terrain: str = "plains"
+    ) -> None:
+        """Sync WFC terrain with existing location coordinates.
+
+        For each location in the world that has coordinates, ensures the
+        WFC terrain at those coordinates is passable. Uses the location's
+        terrain field if set, otherwise uses the default terrain.
+
+        This should be called after world creation to ensure the WFC terrain
+        matches where locations actually exist.
+
+        Args:
+            world: Dictionary mapping location names to Location objects
+            default_terrain: Fallback terrain if location has no terrain set
+        """
+        from cli_rpg.models.location import Location
+
+        for location in world.values():
+            if location.coordinates is None:
+                continue
+
+            x, y = location.coordinates
+            # Use location's terrain if set, otherwise default to passable terrain
+            terrain = location.terrain if location.terrain else default_terrain
+            self.set_tile_at(x, y, terrain)
 
     def to_dict(self) -> dict:
         """Serialize ChunkManager state for persistence.

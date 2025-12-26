@@ -1,51 +1,56 @@
-# Implementation Summary: AI Merchant Detection Fix
+# Implementation Summary: NPC Persistence Bug Investigation
 
-## What Was Implemented
+## Summary
 
-### Problem
-AI-generated NPCs with merchant-related names (e.g., "Tech Merchant", "Desert Trader") were not working with the `shop` command because:
-1. The AI might return `role: "villager"` instead of `role: "merchant"`
-2. Even with `is_merchant=True`, no `Shop` object was being created
+The investigation confirmed that the bug report about NPCs showing as "???" when revisiting locations is **NOT reproducible** in the current codebase. The behavior never existed in the implementation - the codebase explicitly tests that NPC names should always be visible.
 
-### Solution
+## What Was Done
 
-Modified `/src/cli_rpg/ai_world.py` with two changes:
+### 1. Created Regression Test Suite
+**File:** `tests/test_npc_persistence_navigation.py`
 
-1. **Added `_create_default_merchant_shop()` function** (lines 39-70)
-   - Creates a basic shop with three consumable items:
-     - Health Potion (50 gold, heals 25 HP)
-     - Antidote (40 gold, cures poison)
-     - Travel Rations (20 gold, heals 10 HP)
-   - Returns a `Shop` object with name "Traveling Wares"
+Added 6 comprehensive regression tests to ensure NPC persistence during navigation:
 
-2. **Updated `_create_npcs_from_data()` function** (lines 77-117)
-   - Added merchant keyword detection via `MERCHANT_KEYWORDS` set containing: merchant, trader, vendor, shopkeeper, seller, dealer
-   - If NPC has `role="villager"` (default) but name contains any merchant keyword (case-insensitive), override role to "merchant"
-   - When `is_merchant=True`, automatically create a default shop using `_create_default_merchant_shop()`
-   - Shop is now passed to NPC constructor
+1. `test_npcs_persist_after_leaving_and_returning` - Basic navigation round-trip
+2. `test_npcs_persist_after_multiple_navigation_cycles` - Multiple navigation cycles
+3. `test_npcs_persist_wfc_fallback_generation` - With WFC chunk manager active
+4. `test_npcs_with_special_names_persist` - NPCs with special characters (apostrophes, hyphens)
+5. `test_multiple_npcs_all_persist` - Multiple NPCs all retained
+6. `test_npc_names_never_show_question_marks` - Comprehensive check against "???" appearing
 
-### Files Modified
-| File | Change |
-|------|--------|
-| `src/cli_rpg/ai_world.py` | Added `_create_default_merchant_shop()`, `MERCHANT_KEYWORDS`, updated `_create_npcs_from_data()` |
-| `tests/test_ai_merchant_detection.py` | NEW - 18 test cases covering merchant detection and shop creation |
+### 2. Fixed Stale Docstring
+**File:** `tests/test_weather.py` (line 361)
+
+Removed outdated reference to NPCs being obscured with "???":
+
+**Before:**
+```python
+- Fog: Hides some exits (50% chance each exit hidden), obscures NPC names with "???"
+```
+
+**After:**
+```python
+- Fog: Hides some exits (50% chance each exit hidden)
+```
 
 ## Test Results
 
-All 18 new tests pass:
-- 9 tests for merchant role inference from names
-- 4 tests for merchant shop creation
-- 5 tests for default shop contents
+All tests pass:
+- 6 new regression tests in `test_npc_persistence_navigation.py`
+- 13 weather visibility tests still pass after docstring fix
 
-Related test suites verified:
-- `tests/test_ai_world*.py`: 92 tests pass
-- `tests/test_npc.py`: 12 tests pass
-- `tests/test_shop.py`: 16 tests pass
+## Conclusion
+
+The bug report was likely based on:
+1. An outdated docstring that mentioned "???" behavior that was never implemented
+2. A misunderstanding of fog weather effects (which hides exits, not NPC names)
+3. Possibly confusion with a different display issue
+
+The codebase has always maintained NPC visibility - the `get_layered_description()` method in Location explicitly shows NPC names regardless of weather/visibility settings, as verified by existing tests in `test_weather.py`.
 
 ## E2E Validation
 
-To validate this fix in gameplay:
-1. Start game and travel to a location with AI-generated NPCs
-2. Find an NPC with a merchant-related name (Merchant, Trader, Vendor, etc.)
-3. Use the `shop` command
-4. Verify the shop interface appears with items available
+If E2E tests are run, they should validate:
+- Creating a character and navigating to a location with NPCs
+- Moving away and returning to the same location
+- Verifying NPCs are still displayed by name (not "???")

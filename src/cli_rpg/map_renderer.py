@@ -26,6 +26,9 @@ CATEGORY_MARKERS = {
 # Blocked cell marker (wall/impassable adjacent cell)
 BLOCKED_MARKER = "█"
 
+# Water terrain marker (impassable water from WFC)
+WATER_MARKER = "~"
+
 # Direction deltas for checking adjacent cells
 DIRECTION_DELTAS = {
     "north": (0, 1),
@@ -118,14 +121,57 @@ def render_map(
         assert coords is not None  # We already filtered for non-None coordinates
         coord_to_location[coords] = (name, location)
 
-    # Assign unique letter symbols to non-current locations (alphabetical by name)
+    # Create marker map for coordinates (uncolored for alignment calculations)
+    # Only include locations that are REACHABLE from current location
+    # (adjacent locations without connection are shown as blocked instead)
+    coord_to_marker: dict[tuple[int, int], str] = {}
+    unreachable_locations: set[tuple[int, int]] = set()
+    reachable_names: set[str] = {current_location}  # Current location is always reachable
+
+    for name, location in locations_with_coords:
+        coords = location.coordinates
+        assert coords is not None  # We already filtered for non-None coordinates
+        if name == current_location:
+            coord_to_marker[coords] = "@"
+        else:
+            # Check if this location is adjacent to current location
+            is_adjacent_to_current = False
+            has_connection_from_current = False
+
+            if current_loc.coordinates is not None:
+                cx, cy = current_loc.coordinates
+                lx, ly = coords
+                for direction, (dx, dy) in DIRECTION_DELTAS.items():
+                    if (cx + dx, cy + dy) == coords:
+                        is_adjacent_to_current = True
+                        # Check if current location has connection in this direction
+                        if direction in current_loc.connections:
+                            has_connection_from_current = True
+                        break
+
+            # If adjacent to current but no connection, mark as unreachable
+            if is_adjacent_to_current and not has_connection_from_current:
+                unreachable_locations.add(coords)
+            else:
+                reachable_names.add(name)
+
+    # Assign unique letter symbols only to REACHABLE non-current locations
     SYMBOLS = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz"
-    sorted_names = sorted(name for name, _ in locations_with_coords if name != current_location)
+    sorted_names = sorted(name for name in reachable_names if name != current_location)
     location_symbols = {name: SYMBOLS[i] for i, name in enumerate(sorted_names) if i < len(SYMBOLS)}
 
-    # Build the legend entries (vertical format)
+    # Add markers for reachable locations
+    for name, location in locations_with_coords:
+        if name != current_location and name in reachable_names:
+            coords = location.coordinates
+            assert coords is not None
+            coord_to_marker[coords] = location_symbols.get(name, "?")
+
+    # Build the legend entries (vertical format) - only for reachable locations
     legend_entries = []
     for name, location in locations_with_coords:
+        if name not in reachable_names:
+            continue  # Skip unreachable locations
         if name == current_location:
             # Current location marked with @
             legend_entries.append(f"  {colors.bold_colorize('@', colors.CYAN)} = You ({name})")
@@ -137,16 +183,6 @@ def render_map(
                 legend_entries.append(f"  {symbol} = {category_icon} {name}")
             else:
                 legend_entries.append(f"  {symbol} = {name}")
-
-    # Create marker map for coordinates (uncolored for alignment calculations)
-    coord_to_marker: dict[tuple[int, int], str] = {}
-    for name, location in locations_with_coords:
-        coords = location.coordinates
-        assert coords is not None  # We already filtered for non-None coordinates
-        if name == current_location:
-            coord_to_marker[coords] = "@"
-        else:
-            coord_to_marker[coords] = location_symbols.get(name, "?")
 
     # Calculate column width for alignment (each cell needs space for marker + padding)
     # Use 4 to accommodate emoji markers which are typically 2 characters wide
@@ -167,7 +203,11 @@ def render_map(
         row_parts = [f"{y:>3} "]  # Y-axis label
         for x in range(min_x, max_x + 1):
             coord = (x, y)
-            if coord in coord_to_marker:
+
+            # Check for unreachable locations (adjacent to player but no connection)
+            if coord in unreachable_locations:
+                row_parts.append(pad_marker(BLOCKED_MARKER, cell_width))
+            elif coord in coord_to_marker:
                 marker = coord_to_marker[coord]
                 # Use width-aware padding to handle emoji display widths correctly
                 padded = pad_marker(marker, cell_width)
@@ -177,32 +217,42 @@ def render_map(
                     padded = (" " * (cell_width - 1)) + colors.bold_colorize("@", colors.CYAN)
                 row_parts.append(padded)
             else:
-                # Check if this empty cell is adjacent to an explored location
-                # Mark as blocked only if adjacent to explored location(s) AND
-                # none of those locations have a connection to this cell
-                is_adjacent_to_explored = False
-                is_reachable = False
-                for name, location in locations_with_coords:
-                    if location.coordinates is None:
-                        continue
-                    lx, ly = location.coordinates
-                    # Check if coord is adjacent to this location
-                    for direction, (dx, dy) in DIRECTION_DELTAS.items():
-                        if (lx + dx, ly + dy) == coord:
-                            # coord is adjacent to this explored location
-                            is_adjacent_to_explored = True
-                            # Check if this location has a connection to the cell
-                            if direction in location.connections:
-                                is_reachable = True
-                                break
-                    if is_reachable:
-                        break  # Found a path, no need to check more
+                # Check WFC terrain for water
+                is_water = False
+                if chunk_manager is not None:
+                    terrain = chunk_manager.get_tile_at(x, y)
+                    if terrain == "water":
+                        is_water = True
 
-                # Blocked = adjacent to explored area but no path leads there
-                if is_adjacent_to_explored and not is_reachable:
-                    row_parts.append(pad_marker(BLOCKED_MARKER, cell_width))
+                if is_water:
+                    row_parts.append(pad_marker(WATER_MARKER, cell_width))
                 else:
-                    row_parts.append(" " * cell_width)
+                    # Check if this empty cell is adjacent to an explored location
+                    # Mark as blocked only if adjacent to explored location(s) AND
+                    # none of those locations have a connection to this cell
+                    is_adjacent_to_explored = False
+                    is_reachable = False
+                    for name, location in locations_with_coords:
+                        if location.coordinates is None:
+                            continue
+                        lx, ly = location.coordinates
+                        # Check if coord is adjacent to this location
+                        for direction, (dx, dy) in DIRECTION_DELTAS.items():
+                            if (lx + dx, ly + dy) == coord:
+                                # coord is adjacent to this explored location
+                                is_adjacent_to_explored = True
+                                # Check if this location has a connection to the cell
+                                if direction in location.connections:
+                                    is_reachable = True
+                                    break
+                        if is_reachable:
+                            break  # Found a path, no need to check more
+
+                    # Blocked = adjacent to explored area but no path leads there
+                    if is_adjacent_to_explored and not is_reachable:
+                        row_parts.append(pad_marker(BLOCKED_MARKER, cell_width))
+                    else:
+                        row_parts.append(" " * cell_width)
         map_rows.append("".join(row_parts))
 
     # Get available exits from current location, filtered by WFC terrain passability
@@ -241,6 +291,7 @@ def render_map(
     lines.append("Legend:")
     lines.extend(legend_entries)
     lines.append(f"  {BLOCKED_MARKER} = Blocked/Wall")
+    lines.append(f"  {WATER_MARKER} = Water (impassable)")
     lines.append(exits_line)
 
     return "\n".join(lines)

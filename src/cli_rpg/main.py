@@ -2402,6 +2402,8 @@ def start_game(
             tile_registry=DEFAULT_TILE_REGISTRY,
             world_seed=rnd.randint(0, 2**32 - 1),
         )
+        # Sync WFC terrain with existing location coordinates
+        chunk_manager.sync_with_locations(world)
         print("✓ WFC terrain generation enabled!")
 
     game_state = GameState(
@@ -2514,6 +2516,8 @@ def run_json_mode(
         tile_registry=DEFAULT_TILE_REGISTRY,
         world_seed=rnd.randint(0, 2**32 - 1),
     )
+    # Sync WFC terrain with existing location coordinates
+    chunk_manager.sync_with_locations(world)
 
     game_state = GameState(
         character,
@@ -2729,6 +2733,8 @@ def run_non_interactive(
         tile_registry=DEFAULT_TILE_REGISTRY,
         world_seed=rnd.randint(0, 2**32 - 1),
     )
+    # Sync WFC terrain with existing location coordinates
+    chunk_manager.sync_with_locations(world)
 
     game_state = GameState(
         character,

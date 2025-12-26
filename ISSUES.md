@@ -543,16 +543,11 @@ Issues discovered during WFC mode playtesting (WFC is now enabled by default; up
 
 #### MEDIUM PRIORITY BUGS
 
-1. **NPCs show as "???" when revisiting locations**
-   - After leaving a location and returning, NPC names display as "???" instead of actual names
-   - Reproduction: Start at Whispering Woods → Go east → Return west → NPCs now "???, ???, ???"
-   - May be related to fog/visibility system being too aggressive
-
-2. **Exits disappear/change when revisiting locations**
+1. **Exits disappear/change when revisiting locations**
    - Available exits change inconsistently when revisiting a location
    - Whispering Woods initially shows "east, north, west", later shows "east, west" (north gone)
 
-3. **Wild Boar ASCII art is a cat**
+2. **Wild Boar ASCII art is a cat**
    - The Wild Boar enemy uses ASCII art that clearly depicts a cat:
    ```
       /\_/\
@@ -563,11 +558,11 @@ Issues discovered during WFC mode playtesting (WFC is now enabled by default; up
    ```
    - The `/\_/\` ears and `( o.o )` face is universal ASCII cat pattern
 
-4. **Inconsistent shop pricing message**
+3. **Inconsistent shop pricing message**
    - Shop display shows one price but error message shows different price
    - Shop displays: "Iron Sword - 100 gold", Error says: "99 gold needed"
 
-5. **Load character screen is overwhelming**
+4. **Load character screen is overwhelming**
    - Shows 140+ entries including all autosaves with "(saved: unknown)" timestamps
    - Autosave entries flood the list, making manual saves hard to find
    - **Suggestions**:
@@ -576,7 +571,7 @@ Issues discovered during WFC mode playtesting (WFC is now enabled by default; up
      - Add pagination or search
      - Fix "(saved: unknown)" to show actual timestamps
 
-6. **Can enter any sub-location instead of designated entry point**
+5. **Can enter any sub-location instead of designated entry point**
    - Currently shows multiple "Enter:" options for all sub-locations in an area
    - Player can enter any sub-location directly (e.g., "Enter: Data Glade, Cyber Grove, Neon Orchard, Quantum Glade")
    - **Problem**: This is unrealistic - you shouldn't be able to teleport into any room

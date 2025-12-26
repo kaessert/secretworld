@@ -358,7 +358,7 @@ class TestWeatherVisibility:
     """Tests for weather visibility effects on location descriptions.
 
     Spec: Weather affects what players can see when looking at locations:
-    - Fog: Hides some exits (50% chance each exit hidden), obscures NPC names with "???"
+    - Fog: Hides some exits (50% chance each exit hidden)
     - Storm: Reduces description detail (truncates to first sentence), hides details/secrets layers
     - Rain/Clear: No visibility effects
     - Cave locations (underground) are unaffected by weather
