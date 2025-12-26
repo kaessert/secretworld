@@ -83,7 +83,39 @@ Core service for interacting with LLM APIs.
 - Uses sub-theme hints (mystical forest, ancient ruins, haunted grounds, etc.) for variety
 - Supports caching for performance
 
-### 3.3 WorldGrid
+### 3.3 WorldContext
+
+Cached world theme context for layered AI generation (Layer 1 of the hierarchical generation system).
+
+**Class:** `WorldContext` (`models/world_context.py`)
+
+**Fields:**
+- `theme: str` - Base theme keyword (e.g., "fantasy", "cyberpunk")
+- `theme_essence: str` - AI-generated theme summary describing the world's feel
+- `naming_style: str` - How to name locations/NPCs in this world
+- `tone: str` - Narrative tone (gritty, whimsical, mysterious, etc.)
+- `generated_at: Optional[datetime]` - When context was AI-generated (None if using defaults)
+
+**Methods:**
+- `to_dict() -> dict`: Serializes to dictionary with ISO datetime string
+- `from_dict(data: dict) -> WorldContext`: Deserializes with backward compatibility for missing fields
+- `default(theme: str = "fantasy") -> WorldContext`: Creates fallback context when AI unavailable
+
+**Default Values:**
+Pre-configured defaults for 5 theme types:
+- `fantasy`: Medieval magic, mythic creatures, epic quests
+- `cyberpunk`: Neon-lit dystopia, tech-noir, gritty survival
+- `steampunk`: Victorian industrial, brass and steam, adventure
+- `horror`: Dark atmosphere, psychological dread, survival tension
+- `post-apocalyptic`: Ruined civilization, scavenging, harsh survival
+
+**Usage:**
+- Generated once at world creation (Layer 1)
+- Cached in GameState for reuse across all location/NPC generation
+- Passed to AIService methods to ensure thematic consistency
+- Serialized with game state for persistence across save/load
+
+### 3.4 WorldGrid
 
 Coordinate-based world storage for spatial consistency.
 
@@ -113,7 +145,7 @@ Coordinate-based world storage for spatial consistency.
 - Automatic bidirectional connection management
 - Location coordinates stored as `Tuple[int, int]`
 
-### 3.4 World Generation Functions
+### 3.5 World Generation Functions
 
 **`create_ai_world(ai_service: AIService, theme: str = "fantasy", starting_location_name: str = "Town Square", initial_size: int = 3) -> dict[str, Location]`**
 - Generate initial world on a coordinate grid starting from (0,0)

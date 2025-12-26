@@ -1,55 +1,44 @@
-# Implementation Summary: JSON Repair for Truncated AI Responses
+# Implementation Summary: WorldContext Model
 
-## What was implemented
+## What Was Implemented
 
-Added JSON repair functionality to `ai_service.py` to handle truncated AI responses (Quick Win #3 from HIGH PRIORITY AI Location Generation issue).
+Created the `WorldContext` dataclass model as the foundation for the layered AI generation architecture.
+
+### Files Created
+- `src/cli_rpg/models/world_context.py` - The WorldContext dataclass
+- `tests/test_world_context.py` - 10 test cases covering all functionality
 
 ### Files Modified
+- `src/cli_rpg/models/__init__.py` - Added WorldContext export
 
-1. **`src/cli_rpg/ai_service.py`**:
-   - Added `_repair_truncated_json()` method (lines 366-418) that:
-     - Detects and closes unclosed strings (odd number of unescaped quotes)
-     - Tracks opening brackets `{` and `[` and closes them in correct order
-     - Logs warning when repair is performed
-     - Returns original text if no repair needed
+## WorldContext Model
 
-   - Updated 5 parse methods to use JSON repair on `JSONDecodeError`:
-     - `_parse_location_response()` (line 438-447)
-     - `_parse_area_response()` (line 846-855)
-     - `_parse_enemy_response()` (line 1135-1144)
-     - `_parse_item_response()` (line 1485-1494)
-     - `_parse_quest_response()` (line 1714-1723)
+The model stores cached world theme information with the following fields:
+- `theme: str` - Base theme keyword (e.g., "fantasy", "cyberpunk")
+- `theme_essence: str` - AI-generated theme summary
+- `naming_style: str` - How to name locations/NPCs
+- `tone: str` - Narrative tone
+- `generated_at: Optional[datetime]` - When context was generated (None if not AI-generated)
 
-2. **`tests/test_ai_service.py`**:
-   - Added 7 new tests (lines 2045-2201):
-     - `test_repair_truncated_json_unclosed_object` - Repairs `{"name": "Test"` → `{"name": "Test"}`
-     - `test_repair_truncated_json_unclosed_array` - Repairs `[{"name": "A"}` → `[{"name": "A"}]`
-     - `test_repair_truncated_json_nested_brackets` - Repairs `{"items": [{"a": 1}` → `{"items": [{"a": 1}]}`
-     - `test_repair_truncated_string_value` - Repairs `{"name": "Trunc` → `{"name": "Trunc"}`
-     - `test_repair_json_fails_gracefully` - Unrepairable JSON still raises AIGenerationError
-     - `test_generate_location_with_truncated_response` - Integration test for full flow
-     - `test_repair_truncated_json_returns_original_when_balanced` - No change when balanced
+### Methods
+- `to_dict()` - Serializes to dictionary with ISO datetime string
+- `from_dict(data)` - Deserializes from dictionary with backward compatibility
+- `default(theme="fantasy")` - Creates fallback context when AI unavailable
+
+### Default Values
+The model includes sensible defaults for 5 theme types:
+- fantasy, cyberpunk, steampunk, horror, post-apocalyptic
 
 ## Test Results
 
-All 68 tests in `test_ai_service.py` pass, including 7 new tests:
+All 10 tests pass:
+- Creation tests (2): all fields and minimal instantiation
+- Serialization tests (5): to_dict, from_dict, missing fields, None datetime
+- Default factory tests (2): default and custom theme
+- Round-trip test (1): verifies data preservation
 
-```
-============================== 68 passed in 4.12s ==============================
-```
-
-## Technical Details
-
-The repair algorithm:
-1. First pass: Detect unclosed strings by tracking quote state (handling escaped quotes)
-2. If in unclosed string, append closing quote
-3. Second pass: Track opening brackets, pushing expected closers to a stack
-4. When closing bracket matches expected, pop from stack
-5. Any remaining closers in stack are appended in reverse order
-
-## E2E Validation
-
-When testing with actual AI responses:
-- Truncated location responses from max_tokens limits should now parse successfully
-- Log will show "Repaired truncated JSON response" warning when repair occurs
-- If repair fails (invalid JSON structure), original error is still raised
+## Design Decisions
+- Used dataclasses following existing model patterns (e.g., Faction)
+- Datetime serialized as ISO format string for JSON compatibility
+- Default values use dictionaries with fallback to fantasy theme
+- Backward compatibility: from_dict handles missing optional fields gracefully

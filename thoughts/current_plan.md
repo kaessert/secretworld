@@ -1,112 +1,54 @@
-# Plan: Add JSON Repair for Truncated AI Responses
+# Implementation Plan: WorldContext Model
 
-## Overview
-Add try/except with JSON repair for truncated responses in `ai_service.py`. This is Quick Win #3 from the HIGH PRIORITY AI Location Generation issue.
+## Summary
+Create the `WorldContext` dataclass model as foundation for the layered AI generation architecture (Step 3 from ISSUES.md).
 
 ## Spec
-- When `json.loads()` fails with `JSONDecodeError`, attempt to repair truncated JSON
-- Repair strategies (in order):
-  1. Count unclosed brackets (`{`, `[`) and append matching closers
-  2. Remove trailing incomplete string/value (e.g., truncated `"name": "Foo` -> `"name": "Foo"`)
-- If repair succeeds, return parsed data; if not, raise original error
-- Log repairs for debugging
+`WorldContext` is a dataclass that stores cached world theme information generated once at world creation. It enables consistent AI-generated content by providing theme essence, naming conventions, and tone to all subsequent generation calls.
 
-## Tests (tests/test_ai_service.py)
+Fields:
+- `theme: str` - Base theme keyword (e.g., "fantasy", "cyberpunk")
+- `theme_essence: str` - AI-generated theme summary (e.g., "dark medieval fantasy with corrupted magic")
+- `naming_style: str` - How to name locations/NPCs (e.g., "Old English with Norse influence")
+- `tone: str` - Narrative tone (e.g., "gritty, morally ambiguous")
+- `generated_at: Optional[datetime]` - When context was generated (None if not AI-generated)
 
-1. `test_repair_truncated_json_unclosed_object` - Repairs `{"name": "Test"` -> `{"name": "Test"}`
-2. `test_repair_truncated_json_unclosed_array` - Repairs `[{"name": "A"}` -> `[{"name": "A"}]`
-3. `test_repair_truncated_json_nested_brackets` - Repairs `{"items": [{"a": 1}` -> `{"items": [{"a": 1}]}`
-4. `test_repair_truncated_string_value` - Repairs `{"name": "Trunc` -> `{"name": "Trunc"}`
-5. `test_repair_json_fails_gracefully` - Unrepairable JSON still raises AIGenerationError
-6. `test_generate_location_with_truncated_response` - Integration: truncated location JSON is repaired
+Required methods:
+- `to_dict()` - Serialize for save/load
+- `from_dict()` - Deserialize from save data
+- `default()` - Class method for creating fallback context when AI unavailable
 
 ## Implementation Steps
 
-1. **Add `_repair_truncated_json()` method** in `ai_service.py` (after `_extract_json_from_response`):
-   ```python
-   def _repair_truncated_json(self, json_text: str) -> str:
-       """Attempt to repair truncated JSON by closing unclosed brackets.
+### 1. Create `src/cli_rpg/models/world_context.py`
+```python
+@dataclass
+class WorldContext:
+    theme: str
+    theme_essence: str = ""
+    naming_style: str = ""
+    tone: str = ""
+    generated_at: Optional[datetime] = None
 
-       Args:
-           json_text: Potentially truncated JSON string
+    def to_dict(self) -> dict
+    def from_dict(cls, data: dict) -> "WorldContext"
+    def default(cls, theme: str = "fantasy") -> "WorldContext"
+```
 
-       Returns:
-           Repaired JSON string, or original if repair not possible
-       """
-       # Count unclosed brackets
-       open_braces = json_text.count('{') - json_text.count('}')
-       open_brackets = json_text.count('[') - json_text.count(']')
+### 2. Add to `src/cli_rpg/models/__init__.py`
+Export `WorldContext` from models package.
 
-       if open_braces <= 0 and open_brackets <= 0:
-           return json_text  # No unclosed brackets
+### 3. Create `tests/test_world_context.py`
+Test cases:
+- `test_world_context_creation` - Basic instantiation with all fields
+- `test_world_context_to_dict` - Serialization includes all fields
+- `test_world_context_from_dict` - Deserialization restores all fields
+- `test_world_context_from_dict_missing_fields` - Backward compatibility with partial data
+- `test_world_context_default` - Default factory creates valid context
 
-       repaired = json_text.rstrip()
+## Files to Create
+- `src/cli_rpg/models/world_context.py`
+- `tests/test_world_context.py`
 
-       # Handle truncated string value (ends with unclosed quote)
-       # Pattern: ends with "key": "value without closing quote
-       if repaired and repaired[-1] not in '",}]':
-           # Try to close an unclosed string
-           in_string = False
-           escaped = False
-           for char in repaired:
-               if escaped:
-                   escaped = False
-               elif char == '\\':
-                   escaped = True
-               elif char == '"':
-                   in_string = not in_string
-           if in_string:
-               repaired += '"'
-
-       # Close brackets in reverse order of opening
-       # We need to track the order brackets were opened
-       closers = []
-       for char in json_text:
-           if char == '{':
-               closers.append('}')
-           elif char == '[':
-               closers.append(']')
-           elif char in '}]' and closers and closers[-1] == char:
-               closers.pop()
-
-       repaired += ''.join(reversed(closers))
-       return repaired
-   ```
-
-2. **Update all 5 parse methods** to use repair on JSONDecodeError:
-
-   For each `_parse_*_response()` method, change:
-   ```python
-   try:
-       data = json.loads(json_text)
-   except json.JSONDecodeError as e:
-       raise AIGenerationError(f"Failed to parse response as JSON: {str(e)}") from e
-   ```
-
-   To:
-   ```python
-   try:
-       data = json.loads(json_text)
-   except json.JSONDecodeError as e:
-       # Attempt to repair truncated JSON
-       repaired = self._repair_truncated_json(json_text)
-       if repaired != json_text:
-           try:
-               data = json.loads(repaired)
-               logger.warning(f"Repaired truncated JSON response")
-           except json.JSONDecodeError:
-               raise AIGenerationError(f"Failed to parse response as JSON: {str(e)}") from e
-       else:
-           raise AIGenerationError(f"Failed to parse response as JSON: {str(e)}") from e
-   ```
-
-3. **Methods to update**:
-   - `_parse_location_response()` (line 382-385)
-   - `_parse_area_response()` (line 782-785)
-   - `_parse_enemy_response()` (line 1063-1066)
-   - `_parse_item_response()` (line 1405-1408)
-   - `_parse_quest_response()` (line 1626-1629)
-
-## Files Modified
-- `src/cli_rpg/ai_service.py`: Add repair method, update 5 parse methods
-- `tests/test_ai_service.py`: Add 6 new tests
+## Files to Modify
+- `src/cli_rpg/models/__init__.py` (add export)

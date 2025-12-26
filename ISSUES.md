@@ -87,16 +87,12 @@ Instead of one monolithic prompt, use a hierarchical generation system:
    - Attempt to close truncated arrays/objects
    - Validate against expected schema before use
 
-3. **Create WorldContext model** (`models/world_context.py`):
-   ```python
-   @dataclass
-   class WorldContext:
-       theme: str
-       theme_essence: str  # AI-generated theme summary
-       naming_style: str   # How to name things
-       tone: str           # Narrative tone
-       generated_at: datetime
-   ```
+3. ~~**Create WorldContext model** (`models/world_context.py`)~~ ✓ Completed (2025-12-26):
+   - Created `WorldContext` dataclass with fields: `theme`, `theme_essence`, `naming_style`, `tone`, `generated_at`
+   - Added `to_dict()`/`from_dict()` serialization with backward compatibility
+   - Added `default(theme)` factory for fallback contexts when AI unavailable
+   - Default values for 5 theme types: fantasy, cyberpunk, steampunk, horror, post-apocalyptic
+   - Full test coverage (10 tests) in `tests/test_world_context.py`
 
 4. **Create RegionContext model** (`models/region_context.py`):
    ```python
@@ -138,7 +134,7 @@ Instead of one monolithic prompt, use a hierarchical generation system:
 1. ~~Increase `max_tokens` for location generation (current: 2000, try: 3000)~~ ✓ Completed (2025-12-26) - Default increased to 3000
 2. ~~Add JSON extraction from markdown code blocks~~ ✓ Completed (2025-12-26) - Added `_extract_json_from_response()` to extract JSON from ```json...``` or ```...``` blocks in all 5 parse methods
 3. ~~Add try/except with JSON repair for truncated responses~~ ✓ Completed (2025-12-26) - Added `_repair_truncated_json()` method that closes unclosed strings/brackets; integrated into all 5 parse methods
-4. Log full AI responses on parse failure for debugging
+4. ~~Log full AI responses on parse failure for debugging~~ ✓ Completed (2025-12-26) - Added `_log_parse_failure()` helper that logs full response text with DEBUG level; integrated into all 5 parse methods (location, area, enemy, item, quest)
 
 ---
 
@@ -168,25 +164,11 @@ Issues discovered through comprehensive map system playtesting in non-interactiv
    - Fixed in `src/cli_rpg/main.py` - now passes `game_state.current_sub_grid` to `render_map()`
    - Test added: `test_map_command_inside_subgrid_shows_interior_map`
 
-2. **MEDIUM: Worldmap command fails inside SubGrid locations**
-   - **File**: `src/cli_rpg/main.py`, line 1643
-   - **Problem**: `render_worldmap()` looks up current location in `world` dict, but SubGrid locations aren't stored there
-   - **Current behavior**: Returns "No overworld map available - current location not found."
-   - **Expected behavior**: Show overworld map centered on parent location with message "(You are inside [Parent Location])"
-   - **Fix in main.py** (preferred):
-     ```python
-     elif command == "worldmap":
-         worldmap_location = game_state.current_location
-         if game_state.in_sub_location:
-             current_loc = game_state.get_current_location()
-             if current_loc.parent_location:
-                 worldmap_location = current_loc.parent_location
-         worldmap_output = render_worldmap(game_state.world, worldmap_location)
-         return (True, f"\n{worldmap_output}")
-     ```
-   - **Priority**: P2 - Inconvenient but workaround exists (use `exit` first)
+2. ~~**MEDIUM: Worldmap command fails inside SubGrid locations**~~ (RESOLVED 2025-12-26)
+   - Fixed in `src/cli_rpg/main.py` - now detects `in_sub_location` and uses `parent_location` to center the worldmap
+   - Test added: `test_worldmap_command_inside_subgrid_uses_parent_location`
 
-**Note**: The `render_map()` function in `map_renderer.py` already has full SubGrid rendering support (`_render_sub_grid_map()` with 13 passing tests). The infrastructure is complete - only the main.py integration is missing.
+**Note**: Both map issues are now resolved. The `render_map()` and `render_worldmap()` functions fully support SubGrid locations.
 
 ---
 
@@ -437,48 +419,16 @@ This means players see dreams almost every other rest, which:
 
 ---
 
-### Class-specific combat abilities show "Unknown command" outside combat
-**Status**: ACTIVE
-**Date Discovered**: 2025-12-26
+### ~~Class-specific combat abilities show "Unknown command" outside combat~~
+**Status**: RESOLVED (2025-12-26)
 
-**Problem**: When a player uses class-specific combat abilities (fireball, ice_bolt, heal, bash, bless, smite) outside of combat, they receive "Unknown command. Type 'help' for a list of commands." instead of the clearer "Not in combat." message that basic combat commands give.
+**Problem**: When a player used class-specific combat abilities (fireball, ice_bolt, heal, bash, bless, smite, hide) outside of combat, they received "Unknown command. Type 'help' for a list of commands." instead of the clearer "Not in combat." message that basic combat commands give.
 
-**Reproduction Steps**:
-1. Start game with any class
-2. Outside of combat, type `fireball`, `bash`, `bless`, or other class-specific abilities
-3. Observe error message
-
-**Current behavior**:
-```
-> fireball
-✗ Unknown command. Type 'help' for a list of commands.
-```
-
-**Expected behavior**:
-```
-> fireball
-✗ Not in combat.
-```
-
-Or even better, a class-aware message:
-```
-> fireball
-✗ Can't cast fireball outside of combat.
-```
-
-**Inconsistency**: Basic combat commands (`attack`, `defend`, `block`, `parry`, `flee`, `cast`) correctly show "Not in combat." but class-specific abilities do not.
-
-**Impact**: Users may think:
-- They made a typo
-- The feature is broken or not implemented
-- Their class doesn't have the ability
-
-**Root Cause**: Class-specific combat commands are only registered in the command parser when in combat mode, whereas basic combat commands are registered globally with a combat check.
-
-**Proposed Fix**: Register class-specific abilities as global commands with combat state checks, similar to how basic combat commands work.
-
-**Files to investigate**:
-- `src/cli_rpg/main.py`: Command parsing and routing logic
+**Solution Implemented**:
+- Extended the combat command check in `handle_exploration_command()` to include class-specific abilities
+- Added `fireball`, `ice_bolt`, `heal`, `bash`, `bless`, `smite`, `hide` to the combat commands list
+- All now correctly return "Not in combat." when used outside combat
+- Added comprehensive test coverage in `test_main_coverage.py`
 
 ---
 

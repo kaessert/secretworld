@@ -4,7 +4,16 @@
       "Bash(export:*)",
       "Bash(python:*)",
       "Bash(source venv/bin/activate)",
-      "Bash(cli-rpg:*)"
+      "Bash(cli-rpg:*)",
+      "Bash(for seed in 100 200 300 400 500 600 700 800 900 1000)",
+      "Bash(do echo \"=== SEED $seed ===\" echo -e \"look\\\\ntalk Town Elder\\\\naccept Elder''''s Request\\\\nbye\\\\ngo east\\\\ngo west\\\\ngo east\\\\ngo west\\\\ngo east\\\\ngo west\\\\ngo east\\\\ngo west\\\\ngo east\\\\ngo west\\\\nattack\\\\nattack\\\\nattack\\\\nattack\\\\nattack\\\\nquests\")",
+      "Bash(python3:*)",
+      "Bash(timeout 600 python:*)",
+      "Bash(timeout 30 cli-rpg:*)",
+      "WebSearch",
+      "Bash(timeout 120 python:*)",
+      "Bash(cat:*)",
+      "Bash(timeout 120 cli-rpg:*)"
     ]
   }
 }

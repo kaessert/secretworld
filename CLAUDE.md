@@ -90,7 +90,8 @@ src/cli_rpg/
     ├── weather.py       # Weather system (clear, rain, storm, fog)
     ├── companion.py     # Companion model with bond levels
     ├── weapon_proficiency.py # Weapon proficiency progression system
-    └── faction.py       # Faction reputation system
+    ├── faction.py       # Faction reputation system
+    └── world_context.py # Cached world theme context for layered AI generation
 ```
 
 ## Key Architectural Patterns
