@@ -1,57 +1,63 @@
-# Implementation Summary: Parry Command
+# Implementation Summary: Crafting System Foundation
 
 ## What Was Implemented
 
-Added a new `parry` combat command as a timing-based defensive option with high risk/reward mechanics.
+### 1. New ItemType.RESOURCE enum value (src/cli_rpg/models/item.py)
+- Added `RESOURCE = "resource"` to the ItemType enum
+- This enables resource items to be distinguished from MISC items for future crafting recipes
 
-### Parry Mechanics
-- **Cost**: 8 stamina
-- **Success chance**: 40% base + DEX * 2%, capped at 70%
-- **On success**: Negate incoming damage AND counter-attack for 50% of player attack power
-- **On failure**: Take full damage (no reduction)
-- **Alias**: `pa`
+### 2. New crafting.py module (src/cli_rpg/crafting.py)
+Created a new module with the gather command implementation:
+- **Constants**: `GATHERABLE_CATEGORIES`, `GATHER_BASE_CHANCE` (40%), `GATHER_PER_BONUS` (+2% per PER), `GATHER_COOLDOWN` (1 hour), `GATHER_TIME_HOURS` (1 hour)
+- **Resource templates**: `RESOURCE_BY_CATEGORY` - location-specific resources:
+  - Forest: Wood, Fiber
+  - Wilderness: Stone, Fiber
+  - Cave/Dungeon: Iron Ore, Stone
+  - Ruins: Stone, Iron Ore
+- **Helper functions**: `is_gatherable_location()`, `_generate_resource_item()`
+- **Main command**: `execute_gather()` - handles location checks, cooldown, success roll (PER-based), time advancement, and inventory management
 
-## Files Modified
+### 3. GameState updates (src/cli_rpg/game_state.py)
+- Added `gather_cooldown: int = 0` attribute
+- Added `"gather"` to `KNOWN_COMMANDS` set
+- Added `"ga": "gather"` alias
+- Added serialization in `to_dict()` and deserialization in `from_dict()` with backward compatibility
 
-### 1. `src/cli_rpg/combat.py`
-- Added `self.parrying = False` state in `CombatEncounter.__init__`
-- Added `player_parry()` method (after `player_block()`)
-- Added parry logic in `enemy_turn()` (checks parrying state, calculates success chance, handles success/failure outcomes)
-- Added `self.parrying = False` reset after enemy turn
+### 4. Camping.py updates (src/cli_rpg/camping.py)
+- Updated `decrement_cooldowns()` to also decrement `gather_cooldown`
 
-### 2. `src/cli_rpg/game_state.py`
-- Added `"parry"` to `KNOWN_COMMANDS` set
-- Added `"pa": "parry"` alias
-
-### 3. `src/cli_rpg/main.py`
-- Added parry to help text: `"parry (pa) - Parry attacks for counter (8 stamina, DEX-based)"`
-- Added `elif command == "parry":` handler after block handler
-- Added "parry" to combat command sets for error messages and autocomplete
-- Updated exploration command "Not in combat" list
-
-### 4. `tests/test_combat.py`
-Added `TestPlayerParry` class with 10 tests:
-1. `test_player_parry_sets_parrying_stance` - parry() sets `parrying=True`
-2. `test_player_parry_costs_8_stamina` - deducts 8 stamina
-3. `test_player_parry_fails_without_stamina` - fails if < 8 stamina
-4. `test_parry_success_negates_damage` - player takes 0 damage on success
-5. `test_parry_success_deals_counter_damage` - enemy takes 50% of player attack power
-6. `test_parry_failure_takes_full_damage` - player takes full damage on failure
-7. `test_parry_success_chance_scales_with_dex` - verifies 40% + DEX*2% formula (capped at 70%)
-8. `test_parry_resets_after_enemy_turn` - parrying stance resets
-9. `test_player_parry_fails_when_stunned` - parry fails if stunned
-10. `test_parry_records_action_for_combo` - action recorded as "parry"
+### 5. Main.py updates (src/cli_rpg/main.py)
+- Added `gather (ga)` to command reference help text
+- Added command handler for `gather` that calls `execute_gather()`
 
 ## Test Results
 
-All 3062 tests pass (including 59 combat tests, 10 new parry tests).
+All 11 new tests in tests/test_crafting.py pass:
+1. `test_gather_in_forest_succeeds` - Verifies gather works in forest category
+2. `test_gather_in_town_fails` - Verifies gather fails in safe zones
+3. `test_gather_in_dungeon_succeeds` - Verifies gather works in cave/dungeon
+4. `test_gather_respects_cooldown` - Verifies cooldown enforcement
+5. `test_gather_advances_time` - Verifies 1-hour time advancement
+6. `test_gather_adds_item_to_inventory` - Verifies resource item added on success
+7. `test_gather_fails_when_inventory_full` - Verifies full inventory handling
+8. `test_gather_success_scales_with_per` - Verifies PER bonus calculation
+9. `test_resource_item_serialization` - Verifies RESOURCE items serialize/deserialize
+10. `test_forest_yields_wood_or_fiber` - Verifies forest resource types
+11. `test_cave_yields_ore_or_stone` - Verifies cave resource types
+
+Full test suite: **3073 tests passed**
 
 ## Design Decisions
 
-1. **Parry before Defend in damage reduction checks**: Parry is checked after Block but before Defend since it has higher stakes (full damage on failure vs guaranteed reduction)
+1. **Follows existing patterns**: The gather command mirrors the forage command structure from camping.py
+2. **Location-specific resources**: Different areas yield different resources to encourage exploration
+3. **Future-proof**: The RESOURCE item type and resource templates enable future crafting recipe implementation
+4. **Backward compatible**: gather_cooldown defaults to 0 for loading old saves
 
-2. **DEX scaling with cap**: The 40-70% success range makes parry viable for all builds while rewarding high-DEX characters
+## E2E Tests Should Validate
 
-3. **Counter-attack uses STR**: Counter damage is 50% of player strength, making parry useful for STR/DEX hybrid builds
-
-4. **Messages use color helpers**: Success shows "PARRIED!" in heal color, failure shows damage in enemy color for clear feedback
+1. Player can use `gather` or `ga` command in wilderness/cave locations
+2. Gather fails in towns/villages with appropriate message
+3. Gathered resources appear in inventory as RESOURCE type items
+4. Cooldown prevents immediate re-gathering
+5. Save/load preserves gather_cooldown value

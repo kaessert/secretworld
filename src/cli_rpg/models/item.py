@@ -13,6 +13,7 @@ class ItemType(Enum):
     ARMOR = "armor"
     CONSUMABLE = "consumable"
     MISC = "misc"
+    RESOURCE = "resource"
 
 
 @dataclass

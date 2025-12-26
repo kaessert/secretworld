@@ -983,12 +983,23 @@ NPCs and towns should react to player's reputation and allegiances.
 - Titles and recognition based on achievements
 
 ### Crafting and gathering system
-**Status**: ACTIVE
+**Status**: ACTIVE (Gathering MVP Implemented)
 
 Players should be able to create items, not just buy/find them.
 
-**Desired features**:
-- Gatherable resources in locations (herbs, ore, wood)
+**Implemented**:
+- ✅ `gather` command (alias: `ga`) for resource collection in wilderness/dungeon areas
+- ✅ RESOURCE ItemType for crafting materials (distinguished from MISC items)
+- ✅ Location-specific resources:
+  - Forest/Wilderness: Wood, Fiber
+  - Cave/Dungeon: Iron Ore, Stone
+  - Ruins: Stone, Iron Ore
+- ✅ PER-based success chance: 40% base + 2% per PER point
+- ✅ 1-hour cooldown between gather attempts (advances game time 1 hour)
+- ✅ Gather blocked in safe zones (towns, villages)
+- ✅ Cooldown persistence through save/load
+
+**Remaining features**:
 - Crafting recipes for weapons, armor, potions, and tools
 - Crafting skill progression
 - Rare recipes as quest rewards or discoveries

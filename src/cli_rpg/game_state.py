@@ -60,7 +60,7 @@ KNOWN_COMMANDS: set[str] = {
     "enter", "exit", "leave", "resolve", "pick", "open",
     "persuade", "intimidate", "bribe", "haggle",  # Social skills
     "search",  # Secret discovery
-    "camp", "forage", "hunt",  # Wilderness survival
+    "camp", "forage", "hunt", "gather",  # Wilderness survival
     "track",  # Ranger ability
     "proficiency",  # Weapon proficiency display
 }
@@ -134,7 +134,7 @@ def parse_command(command_str: str) -> tuple[str, list[str]]:
         "n": "go", "w": "go",
         "gn": "go", "gs": "go", "ge": "go", "gw": "go",
         # Wilderness survival aliases
-        "ca": "camp", "fg": "forage", "hu": "hunt",
+        "ca": "camp", "fg": "forage", "hu": "hunt", "ga": "gather",
         # Ranger ability aliases
         "tr": "track",
     }
@@ -258,6 +258,7 @@ class GameState:
         self.haggle_bonus: float = 0.0  # Active haggle bonus (reset after one transaction)
         self.forage_cooldown: int = 0  # Forage command cooldown in hours
         self.hunt_cooldown: int = 0  # Hunt command cooldown in hours
+        self.gather_cooldown: int = 0  # Gather command cooldown in hours
         self.is_sneaking: bool = False  # Rogue exploration sneak mode
 
     @property
@@ -878,6 +879,7 @@ class GameState:
             "companions": [companion.to_dict() for companion in self.companions],
             "forage_cooldown": self.forage_cooldown,
             "hunt_cooldown": self.hunt_cooldown,
+            "gather_cooldown": self.gather_cooldown,
         }
     
     @classmethod
@@ -937,8 +939,9 @@ class GameState:
             for companion_data in data.get("companions", [])
         ]
 
-        # Restore forage/hunt cooldowns (default to 0 for backward compatibility)
+        # Restore forage/hunt/gather cooldowns (default to 0 for backward compatibility)
         game_state.forage_cooldown = data.get("forage_cooldown", 0)
         game_state.hunt_cooldown = data.get("hunt_cooldown", 0)
+        game_state.gather_cooldown = data.get("gather_cooldown", 0)
 
         return game_state

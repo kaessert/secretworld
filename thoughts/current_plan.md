@@ -1,68 +1,109 @@
-# Implementation Plan: Parry Command
+# Implementation Plan: Crafting System Foundation
 
 ## Overview
-Add a `parry` combat command as a timing-based defensive option alongside `block`. Parry has higher risk/reward: on success, negate damage + counter-attack; on failure, take full damage.
+Add the foundation for a crafting system: gatherable resources in wilderness locations and a `gather` command. This leverages the existing `forage` pattern from `camping.py` while introducing a distinct resource collection mechanic for future crafting.
 
 ## Spec
 
-**Parry mechanics:**
-- **Cost**: 8 stamina (between defend's 0 and block's 5)
-- **Success chance**: 40% base + DEX * 2% (capped at 70%)
-- **On success**: Negate incoming damage AND counter-attack for 50% of player attack power
-- **On failure**: Take full damage (no reduction)
-- **Alias**: `pa` (consistent with `bl` for block, `ba` for bash)
+**Gather mechanics:**
+- **Command**: `gather` (alias: `ga`)
+- **Location restriction**: Forest/wilderness only (same as forage/hunt)
+- **Cooldown**: 1 hour (like forage)
+- **Success chance**: 40% base + (PER × 2%) (same formula as forage)
+- **Time cost**: 1 hour
+
+**Resource types (MVP set):**
+- **Iron Ore** - Found in cave/dungeon areas, for weapons/armor
+- **Wood** - Found in forest areas, for tools/handles
+- **Fiber** - Found in wilderness/forest, for rope/cloth
+- **Stone** - Found in cave/dungeon/wilderness, for tools/building
+
+**Resource item:**
+- New `ItemType.RESOURCE` enum value
+- Resources are MISC items with a `resource_type` field (for future crafting recipes)
 
 **Why this design:**
-- Higher skill floor than block (40-70% success vs block's guaranteed 75% reduction)
-- Risk/reward tradeoff: potential full damage negation + counter vs possible full damage taken
-- DEX-scaling rewards agile characters, fits thematically with parrying
-- Stamina cost (8) is moderate - more than block (5) but doesn't cost as much as bash (15)
+- Minimal scope: Uses existing patterns (forage), adds one command
+- Future-proof: Resource type field enables recipe system later
+- Location-specific: Different areas yield different resources (encourages exploration)
+- Compatible: Works with existing inventory, persistence, and shop systems
 
-## Tests (tests/test_combat.py)
+## Tests (tests/test_crafting.py)
 
-Add `TestPlayerParry` class with tests:
-
-1. `test_player_parry_sets_parrying_stance` - parry() should set `parrying=True`
-2. `test_player_parry_costs_8_stamina` - should deduct 8 stamina
-3. `test_player_parry_fails_without_stamina` - fails if < 8 stamina, returns error message
-4. `test_parry_success_negates_damage` - on success (mock random), player takes 0 damage
-5. `test_parry_success_deals_counter_damage` - on success, enemy takes 50% of player attack power
-6. `test_parry_failure_takes_full_damage` - on failure (mock random), player takes full damage
-7. `test_parry_success_chance_scales_with_dex` - verify 40% + DEX*2% formula (capped at 70%)
-8. `test_parry_resets_after_enemy_turn` - parrying stance resets after enemy turn
-9. `test_player_parry_fails_when_stunned` - parry fails if player is stunned
-10. `test_parry_records_action_for_combo` - verify action recorded as "parry"
+1. `test_gather_in_forest_succeeds` - gather in forest category returns resource
+2. `test_gather_in_town_fails` - gather in safe zone returns error
+3. `test_gather_in_dungeon_succeeds` - gather works in dungeon/cave
+4. `test_gather_respects_cooldown` - fails if cooldown active
+5. `test_gather_advances_time` - advances game time by 1 hour
+6. `test_gather_adds_item_to_inventory` - resource added to inventory
+7. `test_gather_fails_when_inventory_full` - returns full message
+8. `test_gather_success_scales_with_per` - higher PER = higher success
+9. `test_resource_item_serialization` - resource items serialize/deserialize
+10. `test_forest_yields_wood_or_fiber` - forest gives wood/fiber resources
+11. `test_cave_yields_ore_or_stone` - cave gives ore/stone resources
 
 ## Implementation Steps
 
-### 1. Add `parrying` state to CombatEncounter (src/cli_rpg/combat.py)
-- Add `self.parrying = False` in `__init__` (line ~354, after `self.blocking = False`)
+### 1. Add `RESOURCE` to ItemType enum (src/cli_rpg/models/item.py)
+- Add `RESOURCE = "resource"` after `MISC = "misc"` (line ~15)
 
-### 2. Add `player_parry()` method to CombatEncounter (src/cli_rpg/combat.py)
-- Add after `player_block()` method (~line 765)
-- Implement:
-  - Check for stun (using `_check_and_consume_stun()`)
-  - Check stamina cost (8 stamina via `use_stamina()`)
-  - Record action for combo tracking
-  - Set `self.parrying = True`
-  - Return success message
+### 2. Create crafting.py module (src/cli_rpg/crafting.py)
+Following the pattern from `camping.py`:
 
-### 3. Modify `enemy_turn()` to handle parry (src/cli_rpg/combat.py)
-- After the blocking damage reduction check (~line 1523), add parry logic:
-  - Calculate success chance: `min(40 + player.dexterity * 2, 70) / 100.0`
-  - Roll for success
-  - On success: negate damage, deal counter-attack (50% of player attack power)
-  - On failure: take full damage
-- Reset `self.parrying = False` after all attacks (~line 1661)
+```python
+"""Crafting and resource gathering system."""
 
-### 4. Add parry command handling (src/cli_rpg/main.py)
-- Add to command reference (~line 83): `  parry (pa)   - Parry attacks for counter (8 stamina, DEX-based)`
-- Add `elif command == "parry":` handler after block handler (~line 445)
-- Add "parry" to combat command sets in suggest_command (~line 972) and error messages
+GATHERABLE_CATEGORIES = {"forest", "wilderness", "cave", "dungeon", "ruins"}
+GATHER_BASE_CHANCE = 40
+GATHER_PER_BONUS = 2
+GATHER_COOLDOWN = 1
+GATHER_TIME_HOURS = 1
 
-### 5. Add parry alias to parse_command (src/cli_rpg/game_state.py)
-- Add `"pa": "parry"` to aliases dict (~line 126)
-- Add `"parry"` to KNOWN_COMMANDS set (~line 53)
+# Resource templates by location category
+RESOURCE_BY_CATEGORY = {
+    "forest": [
+        {"name": "Wood", "description": "A sturdy branch...", "resource_type": "wood"},
+        {"name": "Fiber", "description": "Plant fibers...", "resource_type": "fiber"},
+    ],
+    "wilderness": [
+        {"name": "Stone", "description": "A chunk of rock...", "resource_type": "stone"},
+        {"name": "Fiber", "description": "Plant fibers...", "resource_type": "fiber"},
+    ],
+    "cave": [
+        {"name": "Iron Ore", "description": "Raw iron ore...", "resource_type": "ore"},
+        {"name": "Stone", "description": "A chunk of rock...", "resource_type": "stone"},
+    ],
+    "dungeon": [
+        {"name": "Iron Ore", "description": "Raw iron ore...", "resource_type": "ore"},
+        {"name": "Stone", "description": "A chunk of rock...", "resource_type": "stone"},
+    ],
+    "ruins": [
+        {"name": "Stone", "description": "Ancient masonry...", "resource_type": "stone"},
+        {"name": "Iron Ore", "description": "Rusted ore...", "resource_type": "ore"},
+    ],
+}
 
-### 6. Update ISSUES.md
-- Mark "Defensive options: parry" as MVP IMPLEMENTED with mechanics summary
+def is_gatherable_location(location) -> bool:
+    """Check if location supports resource gathering."""
+
+def execute_gather(game_state) -> Tuple[bool, str]:
+    """Execute the gather command."""
+```
+
+### 3. Add gather_cooldown to GameState (src/cli_rpg/game_state.py)
+- Add `self.gather_cooldown: int = 0` in `__init__` (near forage_cooldown, ~line 248)
+- Add serialization in `to_dict()` and `from_dict()` (with backward compatibility)
+
+### 4. Add gather command to main.py (src/cli_rpg/main.py)
+- Add to command reference (~line 57): `  gather (ga)         - Gather resources in wilderness/caves`
+- Add `elif command == "gather":` handler after hunt handler (import and call execute_gather)
+
+### 5. Add gather to KNOWN_COMMANDS and aliases (src/cli_rpg/game_state.py)
+- Add `"gather"` to KNOWN_COMMANDS set (line ~63)
+- Add `"ga": "gather"` to aliases dict (line ~137)
+
+### 6. Decrement gather_cooldown in camping.py
+- Update `decrement_cooldowns()` to include `game_state.gather_cooldown`
+
+### 7. Update ISSUES.md
+- Add "gather command MVP IMPLEMENTED" under Crafting and gathering system section

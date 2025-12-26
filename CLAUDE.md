@@ -65,6 +65,7 @@ src/cli_rpg/
 ├── social_skills.py     # CHA-based persuade, intimidate, and bribe mechanics
 ├── secrets.py           # PER-based secret discovery and search mechanics
 ├── camping.py           # Wilderness camping, foraging, and hunting system
+├── crafting.py          # Resource gathering system (gather command)
 ├── ranger.py            # Ranger class abilities (track command, wilderness bonus)
 ├── cleric.py            # Cleric class abilities (bless, smite commands)
 └── models/

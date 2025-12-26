@@ -55,6 +55,7 @@ def get_command_reference() -> str:
         "  camp (ca)          - Set up camp to rest in wilderness (requires supplies)",
         "  forage (fg)        - Search for herbs and berries in wilderness",
         "  hunt (hu)          - Hunt for game in wilderness",
+        "  gather (ga)        - Gather resources in wilderness/caves",
         "  quests (q)         - View your quest journal",
         "  quest <name>       - View details of a specific quest",
         "  bestiary (b)       - View defeated enemies",
@@ -2156,6 +2157,11 @@ def handle_exploration_command(game_state: GameState, command: str, args: list[s
     elif command == "hunt":
         from cli_rpg.camping import execute_hunt
         success, msg = execute_hunt(game_state)
+        return (True, f"\n{msg}")
+
+    elif command == "gather":
+        from cli_rpg.crafting import execute_gather
+        success, msg = execute_gather(game_state)
         return (True, f"\n{msg}")
 
     elif command in ["attack", "defend", "block", "parry", "flee", "rest", "cast"]:

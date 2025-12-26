@@ -193,7 +193,7 @@ def is_huntable_location(location: Location) -> bool:
 
 
 def decrement_cooldowns(game_state: "GameState", hours: int = 1) -> None:
-    """Decrement forage and hunt cooldowns by the specified hours.
+    """Decrement forage, hunt, and gather cooldowns by the specified hours.
 
     Args:
         game_state: The current game state
@@ -201,6 +201,7 @@ def decrement_cooldowns(game_state: "GameState", hours: int = 1) -> None:
     """
     game_state.forage_cooldown = max(0, game_state.forage_cooldown - hours)
     game_state.hunt_cooldown = max(0, game_state.hunt_cooldown - hours)
+    game_state.gather_cooldown = max(0, game_state.gather_cooldown - hours)
 
 
 def _generate_forage_item(is_night: bool) -> Item:
