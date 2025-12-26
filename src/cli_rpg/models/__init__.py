@@ -5,6 +5,7 @@ from cli_rpg.models.quest import Quest, QuestStatus, ObjectiveType
 from cli_rpg.models.companion import Companion, BondLevel
 from cli_rpg.models.faction import Faction, ReputationLevel
 from cli_rpg.models.world_context import WorldContext
+from cli_rpg.models.region_context import RegionContext
 
 __all__ = [
     "Location",
@@ -16,4 +17,5 @@ __all__ = [
     "Faction",
     "ReputationLevel",
     "WorldContext",
+    "RegionContext",
 ]

@@ -94,16 +94,12 @@ Instead of one monolithic prompt, use a hierarchical generation system:
    - Default values for 5 theme types: fantasy, cyberpunk, steampunk, horror, post-apocalyptic
    - Full test coverage (10 tests) in `tests/test_world_context.py`
 
-4. **Create RegionContext model** (`models/region_context.py`):
-   ```python
-   @dataclass
-   class RegionContext:
-       name: str
-       theme: str          # Sub-theme for this region
-       danger_level: str   # safe/moderate/dangerous
-       landmarks: list[str]
-       parent_world: str
-   ```
+4. ~~**Create RegionContext model** (`models/region_context.py`)~~ ✓ Completed (2025-12-26):
+   - Created `RegionContext` dataclass with fields: `name`, `theme`, `danger_level`, `landmarks`, `coordinates`, `generated_at`
+   - Added `to_dict()`/`from_dict()` serialization (coordinates as tuple internally, list for JSON)
+   - Added `default(coordinates)` factory for fallback contexts when AI unavailable
+   - Default values for 8 terrain types in `DEFAULT_REGION_THEMES`
+   - Full test coverage (12 tests) in `tests/test_region_context.py`
 
 5. **Split generation prompts** (`ai_config.py`):
    - `WORLD_CONTEXT_PROMPT`: Generate theme essence (once)
@@ -429,6 +425,42 @@ This means players see dreams almost every other rest, which:
 - Added `fireball`, `ice_bolt`, `heal`, `bash`, `bless`, `smite`, `hide` to the combat commands list
 - All now correctly return "Not in combat." when used outside combat
 - Added comprehensive test coverage in `test_main_coverage.py`
+
+---
+
+### Talk command fails in SubGrid sublocations
+**Status**: ACTIVE
+**Date Discovered**: 2025-12-26
+
+**Problem**: The `talk` command does not find NPCs when inside SubGrid sublocations. Despite `look` showing NPCs present (e.g., "NPCs: Merchant"), the `talk` command returns "There are no NPCs here to talk to."
+
+**Root Cause**: In `src/cli_rpg/main.py` line 1154, the talk command uses:
+```python
+location = game_state.world.get(game_state.current_location)
+```
+
+This looks up the location from the main `world` dictionary, but SubGrid sublocations are stored in `game_state.current_sub_grid`, not in `world`. So for sublocations, `world.get()` returns `None`.
+
+**Steps to Reproduce**:
+1. Start new game without AI (to use default world with sublocations)
+2. At Town Square, use `enter Market` to enter Market District sublocation
+3. Use `look` - shows "NPCs: Merchant"
+4. Use `talk Merchant` - returns "There are no NPCs here to talk to."
+
+**Fix**: Replace:
+```python
+location = game_state.world.get(game_state.current_location)
+```
+
+With:
+```python
+location = game_state.get_current_location()
+```
+
+The `get_current_location()` method properly handles both overworld locations (in `world`) and sublocations (in `current_sub_grid`).
+
+**Files to modify**:
+- `src/cli_rpg/main.py`: Line 1154 in the `talk` command handler
 
 ---
 

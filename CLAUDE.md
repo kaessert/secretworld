@@ -91,7 +91,8 @@ src/cli_rpg/
     ├── companion.py     # Companion model with bond levels
     ├── weapon_proficiency.py # Weapon proficiency progression system
     ├── faction.py       # Faction reputation system
-    └── world_context.py # Cached world theme context for layered AI generation
+    ├── world_context.py # Cached world theme context for layered AI generation
+    └── region_context.py # Region-level context for layered AI generation (Layer 2)
 ```
 
 ## Key Architectural Patterns

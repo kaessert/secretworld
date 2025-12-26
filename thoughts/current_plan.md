@@ -1,54 +1,51 @@
-# Implementation Plan: WorldContext Model
+# Plan: Create RegionContext Model
 
-## Summary
-Create the `WorldContext` dataclass model as foundation for the layered AI generation architecture (Step 3 from ISSUES.md).
+**Task**: Implement `RegionContext` model for Layer 2 of the layered query architecture (per ISSUES.md step 4).
 
 ## Spec
-`WorldContext` is a dataclass that stores cached world theme information generated once at world creation. It enables consistent AI-generated content by providing theme essence, naming conventions, and tone to all subsequent generation calls.
 
-Fields:
-- `theme: str` - Base theme keyword (e.g., "fantasy", "cyberpunk")
-- `theme_essence: str` - AI-generated theme summary (e.g., "dark medieval fantasy with corrupted magic")
-- `naming_style: str` - How to name locations/NPCs (e.g., "Old English with Norse influence")
-- `tone: str` - Narrative tone (e.g., "gritty, morally ambiguous")
-- `generated_at: Optional[datetime]` - When context was generated (None if not AI-generated)
+RegionContext caches region-level theme information for consistent AI generation within a geographic area. This is Layer 2 in the hierarchy (WorldContext → RegionContext → Location → NPCs).
 
-Required methods:
-- `to_dict()` - Serialize for save/load
-- `from_dict()` - Deserialize from save data
-- `default()` - Class method for creating fallback context when AI unavailable
+```python
+@dataclass
+class RegionContext:
+    """Stores cached region theme information for consistent AI generation."""
+    name: str                      # Region identifier (e.g., "Industrial District")
+    theme: str                     # Sub-theme (e.g., "factory smoke, rust, labor")
+    danger_level: str              # safe/moderate/dangerous/deadly
+    landmarks: list[str]           # Key POIs (e.g., ["Rust Tower", "The Vats"])
+    coordinates: tuple[int, int]   # Center coordinates of the region
+    generated_at: Optional[datetime] = None  # When context was AI-generated
+```
+
+**Required methods** (following WorldContext pattern):
+- `to_dict()` / `from_dict()` for serialization
+- `default(name, coordinates)` factory for fallback when AI unavailable
 
 ## Implementation Steps
 
-### 1. Create `src/cli_rpg/models/world_context.py`
-```python
-@dataclass
-class WorldContext:
-    theme: str
-    theme_essence: str = ""
-    naming_style: str = ""
-    tone: str = ""
-    generated_at: Optional[datetime] = None
+### 1. Create tests first (`tests/test_region_context.py`)
+- Test creation with all fields
+- Test creation with minimal fields (defaults)
+- Test `to_dict()` serialization
+- Test `from_dict()` deserialization
+- Test `from_dict()` with missing fields (backward compatibility)
+- Test `default()` factory method
+- Test serialization round-trip
 
-    def to_dict(self) -> dict
-    def from_dict(cls, data: dict) -> "WorldContext"
-    def default(cls, theme: str = "fantasy") -> "WorldContext"
-```
+### 2. Create model (`src/cli_rpg/models/region_context.py`)
+- Import from `dataclasses`, `datetime`, `typing`
+- Define `DEFAULT_REGION_THEMES` dict for fallback themes
+- Define `RegionContext` dataclass with fields from spec
+- Implement `to_dict()` method
+- Implement `from_dict()` classmethod
+- Implement `default()` classmethod
 
-### 2. Add to `src/cli_rpg/models/__init__.py`
-Export `WorldContext` from models package.
+### 3. Export from models package (`src/cli_rpg/models/__init__.py`)
+- Add import for `RegionContext`
+- Add to `__all__` list
 
-### 3. Create `tests/test_world_context.py`
-Test cases:
-- `test_world_context_creation` - Basic instantiation with all fields
-- `test_world_context_to_dict` - Serialization includes all fields
-- `test_world_context_from_dict` - Deserialization restores all fields
-- `test_world_context_from_dict_missing_fields` - Backward compatibility with partial data
-- `test_world_context_default` - Default factory creates valid context
-
-## Files to Create
-- `src/cli_rpg/models/world_context.py`
-- `tests/test_world_context.py`
-
-## Files to Modify
-- `src/cli_rpg/models/__init__.py` (add export)
+## Files to Create/Modify
+- `tests/test_region_context.py` (NEW)
+- `src/cli_rpg/models/region_context.py` (NEW)
+- `src/cli_rpg/models/__init__.py` (ADD export)
