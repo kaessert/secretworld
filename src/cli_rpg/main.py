@@ -68,6 +68,7 @@ def get_command_reference() -> str:
         "  dismiss <name>     - Dismiss a companion from your party",
         "  companion-quest <name> - Accept a companion's personal quest",
         "  proficiency (prof) - View your weapon proficiency levels",
+        "  reputation (rep)   - View your faction standings",
         "",
         "Social Commands (when talking to an NPC):",
         "  persuade           - Charm NPC for shop discounts (CHA-based)",
@@ -1806,6 +1807,17 @@ def handle_exploration_command(game_state: GameState, command: str, args: list[s
             lines.append(f"  Recruited at: {companion.recruited_at}")
         return (True, "\n".join(lines))
 
+    elif command == "reputation":
+        if not game_state.factions:
+            return (True, "\nNo factions discovered yet.")
+
+        lines = ["\n=== Faction Reputation ==="]
+        for faction in game_state.factions:
+            lines.append(f"\n{faction.name}")
+            lines.append(f"  {faction.description}")
+            lines.append(f"  {faction.get_reputation_display()}")
+        return (True, "\n".join(lines))
+
     elif command == "recruit":
         if not args:
             return (True, "\nRecruit whom? Specify an NPC name.")
@@ -2319,13 +2331,17 @@ def start_game(
         raise ValueError(f"Starting location '{starting_location}' not found in world")
     
     game_state = GameState(
-        character, 
-        world, 
+        character,
+        world,
         starting_location=starting_location,
-        ai_service=ai_service, 
+        ai_service=ai_service,
         theme=theme
     )
-    
+
+    # Initialize default factions
+    from cli_rpg.world import get_default_factions
+    game_state.factions = get_default_factions()
+
     # Display welcome message
     print("\n" + "=" * 50)
     print(f"Welcome to the adventure, {character.name}!")
@@ -2422,6 +2438,10 @@ def run_json_mode(
         ai_service=ai_service,
         theme="fantasy"
     )
+
+    # Initialize default factions
+    from cli_rpg.world import get_default_factions
+    game_state.factions = get_default_factions()
 
     # Initialize logger if log file specified
     logger: Optional[GameplayLogger] = None
@@ -2623,6 +2643,10 @@ def run_non_interactive(
         ai_service=ai_service,
         theme="fantasy"
     )
+
+    # Initialize default factions
+    from cli_rpg.world import get_default_factions
+    game_state.factions = get_default_factions()
 
     # Initialize logger if log file specified
     logger: Optional[GameplayLogger] = None

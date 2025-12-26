@@ -89,6 +89,7 @@ python -m cli_rpg.main
 - `lore` - Discover AI-generated lore snippets about your current location
 - `bestiary` (b) - View all defeated enemies with ASCII art, kill counts, and stats
 - `proficiency` (prof) - View your weapon proficiency levels, XP progress, and damage bonuses
+- `reputation` (rep) - View your standing with discovered factions
 - `companions` - View your party members with bond levels
 - `recruit <npc>` - Recruit a willing NPC to join your party
 - `dismiss <name>` - Dismiss a companion from your party (requires confirmation; high-bond companions show warning)

@@ -971,12 +971,22 @@ The world feels static. Need ambient events and world dynamics.
 - ✅ Seasonal events and festivals - MVP IMPLEMENTED (4 seasons with dread modifiers, 4 festival types with gameplay bonuses)
 
 ### Reputation and faction system
-**Status**: ACTIVE
+**Status**: ACTIVE (MVP Implemented)
 
 NPCs and towns should react to player's reputation and allegiances.
 
-**Desired features**:
-- Reputation levels with different factions (guilds, towns, races)
+**Implemented**:
+- ✅ **Faction model** (`src/cli_rpg/models/faction.py`) with:
+  - `ReputationLevel` enum: HOSTILE (1-19), UNFRIENDLY (20-39), NEUTRAL (40-59), FRIENDLY (60-79), HONORED (80-100)
+  - `Faction` dataclass with name, description, reputation points (1-100, default 50)
+  - `add_reputation()` / `reduce_reputation()` methods with level-change messages
+  - `get_reputation_display()` visual bar with color coding by level
+  - Full serialization for save/load
+- ✅ **GameState integration**: `factions` list field with backward-compatible persistence
+- ✅ **`reputation` command** (alias: `rep`) to view all faction standings with visual bars
+- ✅ **Default factions**: Town Guard, Merchant Guild, Thieves Guild (all start at Neutral)
+
+**Remaining features**:
 - Actions affect reputation (helping vs. harming, quest choices)
 - Reputation unlocks or blocks content (shops, quests, areas)
 - Faction conflicts where siding with one alienates another

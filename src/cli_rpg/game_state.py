@@ -11,6 +11,7 @@ from cli_rpg.models.npc import NPC
 from cli_rpg.models.shop import Shop
 from cli_rpg.models.weather import Weather
 from cli_rpg.models.companion import Companion
+from cli_rpg.models.faction import Faction
 from cli_rpg.combat import (
     CombatEncounter,
     ai_spawn_enemy,
@@ -63,6 +64,7 @@ KNOWN_COMMANDS: set[str] = {
     "camp", "forage", "hunt", "gather", "craft", "recipes",  # Wilderness survival & crafting
     "track",  # Ranger ability
     "proficiency",  # Weapon proficiency display
+    "reputation",  # Faction reputation display
 }
 
 # Dread increases by location category (darker areas = more dread)
@@ -139,6 +141,8 @@ def parse_command(command_str: str) -> tuple[str, list[str]]:
         "cr": "craft",
         # Ranger ability aliases
         "tr": "track",
+        # Faction reputation alias
+        "rep": "reputation",
     }
     raw_command = command  # Save for movement shortcut detection
     command = aliases.get(command, command)
@@ -262,6 +266,7 @@ class GameState:
         self.hunt_cooldown: int = 0  # Hunt command cooldown in hours
         self.gather_cooldown: int = 0  # Gather command cooldown in hours
         self.is_sneaking: bool = False  # Rogue exploration sneak mode
+        self.factions: list[Faction] = []  # Faction reputation tracking
 
     @property
     def is_in_conversation(self) -> bool:
@@ -879,6 +884,7 @@ class GameState:
             "choices": self.choices,
             "world_events": [event.to_dict() for event in self.world_events],
             "companions": [companion.to_dict() for companion in self.companions],
+            "factions": [faction.to_dict() for faction in self.factions],
             "forage_cooldown": self.forage_cooldown,
             "hunt_cooldown": self.hunt_cooldown,
             "gather_cooldown": self.gather_cooldown,
@@ -939,6 +945,12 @@ class GameState:
         game_state.companions = [
             Companion.from_dict(companion_data)
             for companion_data in data.get("companions", [])
+        ]
+
+        # Restore factions if present (default to empty list for backward compatibility)
+        game_state.factions = [
+            Faction.from_dict(faction_data)
+            for faction_data in data.get("factions", [])
         ]
 
         # Restore forage/hunt/gather cooldowns (default to 0 for backward compatibility)

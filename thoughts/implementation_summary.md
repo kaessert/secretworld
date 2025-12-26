@@ -1,92 +1,79 @@
-# Implementation Summary: Crafting Recipes Feature
+# Implementation Summary: Faction Reputation System MVP
 
 ## What Was Implemented
 
-### New Commands
-1. **`craft <recipe>` command** (alias: `cr`) - Combines gathered resources into useful items
-2. **`recipes` command** - Lists all available crafting recipes with their ingredients
+The Faction Reputation System MVP was **already fully implemented** when this task started. All components outlined in the plan are complete and working:
 
-### Crafting Recipes Added
-| Recipe | Ingredients | Output |
-|--------|-------------|--------|
-| Torch | 1 Wood + 1 Fiber | Torch (consumable, 10 moves of light) |
-| Iron Sword | 2 Iron Ore + 1 Wood | Iron Sword (weapon, +5 damage) |
-| Iron Armor | 3 Iron Ore + 1 Fiber | Iron Armor (armor, +4 defense) |
-| Rope | 2 Fiber | Rope (misc item) |
-| Stone Hammer | 2 Stone + 1 Wood | Stone Hammer (weapon, +3 damage) |
-| **Healing Salve** | 2 Herbs | Healing Salve (consumable, heals 25 HP) |
-| **Bandage** | 2 Fiber | Bandage (consumable, heals 15 HP) |
-| **Wooden Shield** | 2 Wood + 1 Fiber | Wooden Shield (armor, +2 defense) |
+### 1. Faction Model (`src/cli_rpg/models/faction.py`)
+- `ReputationLevel` enum with 5 levels: HOSTILE, UNFRIENDLY, NEUTRAL, FRIENDLY, HONORED
+- `Faction` dataclass with:
+  - `name: str`
+  - `description: str`
+  - `reputation: int = 50` (starts neutral, clamped to 1-100)
+  - `get_reputation_level()` - Returns correct level based on thresholds
+  - `add_reputation(amount)` - Adds rep, returns level-up message if threshold crossed
+  - `reduce_reputation(amount)` - Reduces rep, returns level-down message if threshold crossed
+  - `get_reputation_display()` - Visual bar with color coding by level
+  - `to_dict()` / `from_dict()` - Serialization for save/load
 
-## Latest Changes (New Recipes)
+### 2. GameState Integration (`src/cli_rpg/game_state.py`)
+- `factions: list[Faction] = []` field initialized in `__init__`
+- `"reputation"` added to `KNOWN_COMMANDS` set
+- `"rep"` alias maps to `"reputation"` in `parse_command()`
+- Serialization in `to_dict()` / `from_dict()` with backward compatibility for old saves
 
-Added 3 new recipes that leverage foraged/gathered resources:
+### 3. Reputation Command (`src/cli_rpg/main.py`)
+- Command handler at line 1810 that:
+  - Shows "No factions discovered yet." if empty
+  - Lists all factions with name, description, and visual reputation bar
 
-1. **Healing Salve** - Combines 2 Herbs into a consumable that heals 25 HP
-2. **Bandage** - Combines 2 Fiber into a consumable that heals 15 HP
-3. **Wooden Shield** - Combines 2 Wood + 1 Fiber into armor with +2 defense
+### 4. Default Factions (`src/cli_rpg/world.py`)
+- `get_default_factions()` helper returns 3 starter factions:
+  - Town Guard: "The local militia protecting settlements"
+  - Merchant Guild: "Traders and shopkeepers"
+  - Thieves Guild: "A shadowy network of rogues"
 
-Also fixed `execute_craft()` to include `heal_amount` parameter when creating items.
-
-## Files Modified
-
-### src/cli_rpg/crafting.py
-- Added `CRAFTING_RECIPES` dictionary defining all 8 recipes
-- Added 3 new recipes: healing salve, bandage, wooden shield (lines 151-180)
-- Fixed `execute_craft()` to include `heal_amount` in Item creation (line 358)
-- Added `get_recipes_list()` function - displays available recipes
-- Added `execute_craft()` function:
-  - Case-insensitive recipe lookup
-  - Ingredient verification with specific missing item feedback
-  - Smart inventory space check (accounts for ingredients being consumed)
-  - Consumes ingredients and creates output item
-
-### src/cli_rpg/game_state.py
-- Added `"craft"` and `"recipes"` to `KNOWN_COMMANDS` set
-- Added `"cr": "craft"` alias
-
-### src/cli_rpg/main.py
-- Added command routing for `craft` and `recipes` commands
-- Updated help text with craft and recipes commands
-
-## Tests Added (tests/test_crafting.py)
-
-14 tests for crafting recipes including 4 new tests:
-1. `test_torch_recipe_exists` - Verifies torch recipe structure
-2. `test_iron_sword_recipe_exists` - Verifies iron sword recipe structure
-3. `test_craft_torch_consumes_ingredients` - Ingredients removed on craft
-4. `test_craft_adds_item_to_inventory` - Output item added correctly
-5. `test_craft_torch_has_light_duration` - Torch has correct properties
-6. `test_craft_fails_missing_ingredients` - Error when missing all ingredients
-7. `test_craft_fails_partial_ingredients` - Error when only some ingredients present
-8. `test_craft_fails_unknown_recipe` - Error for invalid recipe names
-9. `test_craft_succeeds_when_ingredients_free_space` - Smart inventory check works
-10. `test_recipes_list_shows_all_recipes` - All recipes displayed
-11. **`test_healing_salve_recipe_exists`** - Verifies healing salve recipe (2 Herbs -> 25 HP)
-12. **`test_bandage_recipe_exists`** - Verifies bandage recipe (2 Fiber -> 15 HP)
-13. **`test_wooden_shield_recipe_exists`** - Verifies wooden shield recipe (2 Wood + 1 Fiber -> +2 defense)
-14. **`test_craft_healing_salve_works`** - End-to-end test for crafting healing salve
+### 5. Faction Initialization (`src/cli_rpg/main.py`)
+- Default factions are assigned to `game_state.factions` in `run_game()` after GameState creation (lines 2342-2343, 2443-2444, 2648-2649)
 
 ## Test Results
 
-- All 25 crafting tests pass
-- No regressions introduced
+All 27 tests pass:
 
-## Design Decisions
+```
+tests/test_faction.py - 27 tests passed
 
-1. **Case-insensitive recipes**: `craft torch`, `craft TORCH`, `craft Torch` all work
-2. **Smart inventory check**: Accounts for ingredients being consumed (2->1 crafts work even at full inventory)
-3. **Specific error messages**: Tells player exactly which ingredients are missing
-4. **Item properties preserved**: Crafted items have correct damage_bonus, defense_bonus, heal_amount, light_duration
+Test Classes:
+- TestFactionCreation (3 tests) - faction creation and reputation clamping
+- TestReputationLevel (5 tests) - threshold verification for all levels
+- TestReputationChanges (8 tests) - add/reduce reputation with level transitions
+- TestReputationDisplay (1 test) - visual bar format verification
+- TestFactionSerialization (3 tests) - to_dict/from_dict roundtrip
+- TestReputationLevelEnum (2 tests) - enum value verification
+- TestGameStateFactions (3 tests) - GameState integration and persistence
+- TestReputationCommand (2 tests) - command recognition and alias
+```
 
-## E2E Tests Should Validate
+## Technical Details
 
-1. Use `recipes` command to view available recipes
-2. Gather Wood and Fiber in forest, then `craft torch`
-3. Verify torch appears in inventory with light_duration=10
-4. Try `craft iron sword` without enough Iron Ore to see error message
-5. Use `cr` alias for craft command
-6. Craft when inventory nearly full to verify smart space check
-7. **Forage Herbs, then `craft healing salve` and use it to heal**
-8. **Gather Fiber, then `craft bandage` and use it to heal**
-9. **Gather Wood+Fiber, then `craft wooden shield` and equip it for +2 defense**
+### Reputation Thresholds
+- HOSTILE: 1-19 points
+- UNFRIENDLY: 20-39 points
+- NEUTRAL: 40-59 points
+- FRIENDLY: 60-79 points
+- HONORED: 80-100 points
+
+### Visual Display Colors
+- HONORED: Green (heal color)
+- FRIENDLY: Gold
+- NEUTRAL: Default
+- UNFRIENDLY: Warning color
+- HOSTILE: Damage color (red)
+
+## E2E Validation
+
+To validate end-to-end:
+1. Start a new game: `cli-rpg`
+2. Run `reputation` or `rep` command
+3. Verify 3 default factions are shown with "Neutral (50%)" status
+4. Save and load the game to verify persistence

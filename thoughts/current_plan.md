@@ -1,96 +1,90 @@
-# Implementation Plan: Add New Crafting Recipes
+# Implementation Plan: Faction Reputation System MVP
 
 ## Spec
 
-Add 3 new crafting recipes to `crafting.py` that leverage existing foraged/hunted resources:
+Add a basic faction reputation system that tracks player standing with different factions. This MVP provides the infrastructure for future faction-based content gating.
 
-1. **Healing Salve** - `{Herbs: 2}` → Consumable, heals 25 HP
-2. **Bandage** - `{Fiber: 2}` → Consumable, heals 15 HP
-3. **Wooden Shield** - `{Wood: 2, Fiber: 1}` → Armor, +2 defense
+**Components:**
+1. `Faction` model: name, description, reputation (1-100 scale)
+2. `ReputationLevel` enum: HOSTILE (1-19), UNFRIENDLY (20-39), NEUTRAL (40-59), FRIENDLY (60-79), HONORED (80-100)
+3. `factions` field on GameState to track player faction standings
+4. `reputation` command to view faction standings
+5. Default factions in starting world
 
-These recipes create a meaningful loop between foraging/gathering and crafting, making wilderness survival more valuable.
+**Reputation levels:**
+- HOSTILE (1-19): Faction members attack on sight
+- UNFRIENDLY (20-39): Won't trade or offer quests
+- NEUTRAL (40-59): Basic interactions available
+- FRIENDLY (60-79): Discounts, additional quests
+- HONORED (80-100): Best prices, exclusive content
 
-## Tests First
+## Tests First (TDD)
 
-Add to `tests/test_crafting.py`:
+### `tests/test_faction.py`
+1. `TestFaction`:
+   - `test_faction_creation`: Create faction with name, description, reputation=50
+   - `test_faction_reputation_clamped`: Reputation clamped to 1-100
+   - `test_get_reputation_level`: Returns correct ReputationLevel for each threshold
+   - `test_add_reputation`: Adds rep, returns level-up message if threshold crossed
+   - `test_reduce_reputation`: Reduces rep, returns level-down message if threshold crossed
+   - `test_reputation_display`: Visual bar like companion bond display
+   - `test_faction_serialization`: `to_dict()` and `from_dict()` work correctly
 
-```python
-def test_healing_salve_recipe_exists():
-    """Spec: healing salve recipe should exist (2 Herbs → 25 HP heal)."""
-    from cli_rpg.crafting import CRAFTING_RECIPES
-    assert "healing salve" in CRAFTING_RECIPES
-    recipe = CRAFTING_RECIPES["healing salve"]
-    assert recipe["ingredients"] == {"Herbs": 2}
-    assert recipe["output"]["heal_amount"] == 25
+2. `TestGameStateFactions`:
+   - `test_factions_field_default_empty`: New GameState has empty factions list
+   - `test_factions_persistence`: Factions saved/loaded correctly
+   - `test_factions_backward_compat`: Old saves without factions load with empty list
 
-def test_bandage_recipe_exists():
-    """Spec: bandage recipe should exist (2 Fiber → 15 HP heal)."""
-    from cli_rpg.crafting import CRAFTING_RECIPES
-    assert "bandage" in CRAFTING_RECIPES
-    recipe = CRAFTING_RECIPES["bandage"]
-    assert recipe["ingredients"] == {"Fiber": 2}
-    assert recipe["output"]["heal_amount"] == 15
+3. `TestReputationCommand`:
+   - `test_reputation_command_no_factions`: Shows "No factions discovered yet"
+   - `test_reputation_command_shows_standings`: Lists all factions with bars
 
-def test_wooden_shield_recipe_exists():
-    """Spec: wooden shield recipe should exist (2 Wood + 1 Fiber → +2 defense)."""
-    from cli_rpg.crafting import CRAFTING_RECIPES
-    assert "wooden shield" in CRAFTING_RECIPES
-    recipe = CRAFTING_RECIPES["wooden shield"]
-    assert recipe["ingredients"] == {"Wood": 2, "Fiber": 1}
-    assert recipe["output"]["defense_bonus"] == 2
+## Implementation Steps
 
-def test_craft_healing_salve_works():
-    """Spec: crafting healing salve consumes 2 Herbs and creates salve."""
-    from cli_rpg.crafting import execute_craft
-    game_state = make_game_state()
-    inv = game_state.current_character.inventory
-    # Add 2 Herbs
-    for _ in range(2):
-        inv.add_item(Item(name="Herbs", description="Healing herbs", item_type=ItemType.CONSUMABLE, heal_amount=10))
-    success, msg = execute_craft(game_state, "healing salve")
-    assert success is True
-    salve = inv.find_item_by_name("Healing Salve")
-    assert salve is not None
-    assert salve.heal_amount == 25
+### Step 1: Create faction model
+**File:** `src/cli_rpg/models/faction.py`
+- `ReputationLevel` enum with 5 levels
+- `Faction` dataclass with:
+  - `name: str`
+  - `description: str`
+  - `reputation: int = 50` (starts neutral)
+  - `get_reputation_level() -> ReputationLevel`
+  - `add_reputation(amount: int) -> Optional[str]`
+  - `reduce_reputation(amount: int) -> Optional[str]`
+  - `get_reputation_display() -> str` (visual bar)
+  - `to_dict() -> dict`
+  - `from_dict(data: dict) -> Faction`
+
+### Step 2: Update models/__init__.py
+**File:** `src/cli_rpg/models/__init__.py`
+- Export `Faction` and `ReputationLevel`
+
+### Step 3: Add factions to GameState
+**File:** `src/cli_rpg/game_state.py`
+- Add `factions: list[Faction] = []` field in `__init__`
+- Add `"reputation"` to `KNOWN_COMMANDS` set
+- Add to `to_dict()`: serialize factions list
+- Add to `from_dict()`: deserialize factions (default empty for backward compat)
+
+### Step 4: Add reputation command to main.py
+**File:** `src/cli_rpg/main.py`
+- Add `reputation` and alias `rep` to command aliases in `parse_command()`
+- Add command handler that displays faction standings
+- Add to `get_command_reference()` help text
+
+### Step 5: Add default factions to world.py
+**File:** `src/cli_rpg/world.py`
+- Create helper `get_default_factions()` returning list of starter factions:
+  - Town Guard (description: "The local militia protecting settlements")
+  - Merchant Guild (description: "Traders and shopkeepers")
+  - Thieves Guild (description: "A shadowy network of rogues")
+
+### Step 6: Initialize factions in game setup
+**File:** `src/cli_rpg/main.py`
+- In `run_game()` after creating GameState, call `get_default_factions()` and assign to `game_state.factions`
+
+### Step 7: Run tests and verify
+```bash
+pytest tests/test_faction.py -v
+pytest --cov=src/cli_rpg --cov-report=term-missing
 ```
-
-## Implementation
-
-Edit `src/cli_rpg/crafting.py` - add 3 new entries to `CRAFTING_RECIPES` dict after `"stone hammer"` (line 150):
-
-```python
-"healing salve": {
-    "name": "Healing Salve",
-    "ingredients": {"Herbs": 2},
-    "output": {
-        "name": "Healing Salve",
-        "description": "A soothing salve made from crushed healing herbs.",
-        "item_type": ItemType.CONSUMABLE,
-        "heal_amount": 25,
-    },
-},
-"bandage": {
-    "name": "Bandage",
-    "ingredients": {"Fiber": 2},
-    "output": {
-        "name": "Bandage",
-        "description": "A simple bandage woven from plant fibers.",
-        "item_type": ItemType.CONSUMABLE,
-        "heal_amount": 15,
-    },
-},
-"wooden shield": {
-    "name": "Wooden Shield",
-    "ingredients": {"Wood": 2, "Fiber": 1},
-    "output": {
-        "name": "Wooden Shield",
-        "description": "A sturdy wooden shield bound with fiber.",
-        "item_type": ItemType.ARMOR,
-        "defense_bonus": 2,
-    },
-},
-```
-
-## Verify
-
-Run: `pytest tests/test_crafting.py -v`

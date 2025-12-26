@@ -129,6 +129,35 @@ except ImportError:
     create_ai_world = None  # type: ignore[assignment]
 
 
+def get_default_factions() -> list:
+    """Create and return the default starter factions.
+
+    Returns:
+        List of Faction instances with default reputation (50 = Neutral)
+
+    The default factions are:
+    - Town Guard: The local militia protecting settlements
+    - Merchant Guild: Traders and shopkeepers
+    - Thieves Guild: A shadowy network of rogues
+    """
+    from cli_rpg.models.faction import Faction
+
+    return [
+        Faction(
+            name="Town Guard",
+            description="The local militia protecting settlements"
+        ),
+        Faction(
+            name="Merchant Guild",
+            description="Traders and shopkeepers"
+        ),
+        Faction(
+            name="Thieves Guild",
+            description="A shadowy network of rogues"
+        ),
+    ]
+
+
 def create_default_world() -> tuple[dict[str, Location], str]:
     """Create and return the default game world with 6 locations.
 

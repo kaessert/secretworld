@@ -84,7 +84,8 @@ src/cli_rpg/
     ├── world_event.py   # World event model for timed events
     ├── weather.py       # Weather system (clear, rain, storm, fog)
     ├── companion.py     # Companion model with bond levels
-    └── weapon_proficiency.py # Weapon proficiency progression system
+    ├── weapon_proficiency.py # Weapon proficiency progression system
+    └── faction.py       # Faction reputation system
 ```
 
 ## Key Architectural Patterns
