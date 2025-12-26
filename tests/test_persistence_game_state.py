@@ -402,3 +402,278 @@ class TestLoadGameState:
         assert loaded_npc.conversation_history[1] == {
             "role": "npc", "content": "I have potions and weapons."
         }
+
+
+class TestSubGridPersistence:
+    """Tests for SubGrid serialization through persistence.
+
+    Spec: When a game state is saved while player is inside a SubGrid:
+    1. in_sub_location: true is persisted
+    2. current_location contains the name of the location within the SubGrid
+    3. Parent location's sub_grid data is persisted with all interior locations
+    4. On load, in_sub_location, current_sub_grid, and current_location are restored
+    5. Player can continue navigating within the SubGrid after load
+    """
+
+    def test_save_game_state_with_subgrid(self, tmp_path):
+        """Test that SubGrid data is included in save file.
+
+        Spec: Parent location's sub_grid data is persisted with all interior locations.
+        """
+        from cli_rpg.world_grid import SubGrid
+
+        character = Character("Hero", strength=10, dexterity=10, intelligence=10)
+
+        # Create a sub-grid for a castle interior
+        castle_interior = SubGrid(parent_name="Castle Entrance")
+        entry = Location("Castle Entrance Hall", "The grand entrance hall")
+        throne = Location("Throne Room", "The king's throne room")
+        castle_interior.add_location(entry, 0, 0)
+        castle_interior.add_location(throne, 0, 1)
+
+        # Create world with parent location containing the sub-grid
+        castle = Location(
+            "Castle Entrance", "A towering castle", coordinates=(0, 0), sub_grid=castle_interior
+        )
+        world = {"Castle Entrance": castle}
+        game_state = GameState(character, world, "Castle Entrance")
+
+        # Save
+        filepath = save_game_state(game_state, str(tmp_path))
+
+        # Verify the save file contains sub_grid data
+        with open(filepath, "r") as f:
+            data = json.load(f)
+
+        assert "sub_grid" in data["world"]["Castle Entrance"]
+        sub_grid_data = data["world"]["Castle Entrance"]["sub_grid"]
+        assert "locations" in sub_grid_data
+        assert len(sub_grid_data["locations"]) == 2
+        assert sub_grid_data["parent_name"] == "Castle Entrance"
+
+        # Verify location names are present
+        location_names = [loc["name"] for loc in sub_grid_data["locations"]]
+        assert "Castle Entrance Hall" in location_names
+        assert "Throne Room" in location_names
+
+    def test_load_game_state_restores_subgrid(self, tmp_path):
+        """Test that SubGrid is restored with locations.
+
+        Spec: On load, parent location's sub_grid is restored with all interior locations.
+        """
+        from cli_rpg.world_grid import SubGrid
+
+        character = Character("Hero", strength=10, dexterity=10, intelligence=10)
+
+        # Create a sub-grid with multiple locations
+        dungeon_interior = SubGrid(parent_name="Dungeon Gate")
+        entry = Location("Dungeon Entry", "Dark entrance")
+        hallway = Location("Dungeon Hallway", "A long corridor")
+        dungeon_interior.add_location(entry, 0, 0)
+        dungeon_interior.add_location(hallway, 1, 0)  # East of entry
+
+        dungeon = Location(
+            "Dungeon Gate", "An ominous gate", coordinates=(0, 0), sub_grid=dungeon_interior
+        )
+        world = {"Dungeon Gate": dungeon}
+        game_state = GameState(character, world, "Dungeon Gate")
+
+        # Save
+        filepath = save_game_state(game_state, str(tmp_path))
+
+        # Load
+        loaded_state = load_game_state(filepath)
+
+        # Verify SubGrid is restored
+        loaded_dungeon = loaded_state.world["Dungeon Gate"]
+        assert loaded_dungeon.sub_grid is not None
+        assert loaded_dungeon.sub_grid.parent_name == "Dungeon Gate"
+
+        # Verify locations within SubGrid are restored
+        entry_loc = loaded_dungeon.sub_grid.get_by_name("Dungeon Entry")
+        hallway_loc = loaded_dungeon.sub_grid.get_by_name("Dungeon Hallway")
+        assert entry_loc is not None
+        assert hallway_loc is not None
+        assert entry_loc.description == "Dark entrance"
+        assert hallway_loc.description == "A long corridor"
+
+    def test_save_load_while_inside_subgrid(self, tmp_path):
+        """Test that player position inside SubGrid persists.
+
+        Spec: in_sub_location: true is persisted; current_location contains SubGrid location.
+        """
+        from cli_rpg.world_grid import SubGrid
+
+        character = Character("Hero", strength=10, dexterity=10, intelligence=10)
+
+        # Create sub-grid
+        tower_interior = SubGrid(parent_name="Tower Base")
+        base = Location("Tower Ground Floor", "Ground floor of the tower")
+        upper = Location("Tower Upper Floor", "Upper floor with a view")
+        tower_interior.add_location(base, 0, 0)
+        tower_interior.add_location(upper, 0, 1)
+
+        tower = Location(
+            "Tower Base", "A tall tower", coordinates=(0, 0), sub_grid=tower_interior
+        )
+        world = {"Tower Base": tower}
+        game_state = GameState(character, world, "Tower Base")
+
+        # Simulate entering the sub-grid and moving within it
+        game_state.in_sub_location = True
+        game_state.current_sub_grid = tower_interior
+        game_state.current_location = "Tower Upper Floor"
+
+        # Save
+        filepath = save_game_state(game_state, str(tmp_path))
+
+        # Verify save file
+        with open(filepath, "r") as f:
+            data = json.load(f)
+
+        assert data["in_sub_location"] is True
+        assert data["current_location"] == "Tower Upper Floor"
+
+        # Load
+        loaded_state = load_game_state(filepath)
+
+        # Verify player is still inside sub-grid at correct location
+        assert loaded_state.in_sub_location is True
+        assert loaded_state.current_location == "Tower Upper Floor"
+        assert loaded_state.current_sub_grid is not None
+        assert loaded_state.current_sub_grid.get_by_name("Tower Upper Floor") is not None
+
+    def test_subgrid_roundtrip_preserves_connections(self, tmp_path):
+        """Test that bidirectional connections within SubGrid survive save/load.
+
+        Spec: Location connections within SubGrid are preserved through persistence.
+        """
+        from cli_rpg.world_grid import SubGrid
+
+        character = Character("Hero", strength=10, dexterity=10, intelligence=10)
+
+        # Create sub-grid with connected locations
+        house_interior = SubGrid(parent_name="House")
+        living = Location("Living Room", "A cozy living room")
+        kitchen = Location("Kitchen", "A small kitchen")
+        bedroom = Location("Bedroom", "A bedroom upstairs")
+        house_interior.add_location(living, 0, 0)
+        house_interior.add_location(kitchen, 1, 0)  # East of living room
+        house_interior.add_location(bedroom, 0, 1)  # North of living room
+
+        house = Location("House", "A small house", coordinates=(0, 0), sub_grid=house_interior)
+        world = {"House": house}
+        game_state = GameState(character, world, "House")
+
+        # Verify connections before save
+        assert living.get_connection("east") == "Kitchen"
+        assert living.get_connection("north") == "Bedroom"
+        assert kitchen.get_connection("west") == "Living Room"
+        assert bedroom.get_connection("south") == "Living Room"
+
+        # Save
+        filepath = save_game_state(game_state, str(tmp_path))
+
+        # Load
+        loaded_state = load_game_state(filepath)
+
+        # Verify connections after load
+        loaded_sub_grid = loaded_state.world["House"].sub_grid
+        loaded_living = loaded_sub_grid.get_by_name("Living Room")
+        loaded_kitchen = loaded_sub_grid.get_by_name("Kitchen")
+        loaded_bedroom = loaded_sub_grid.get_by_name("Bedroom")
+
+        assert loaded_living.get_connection("east") == "Kitchen"
+        assert loaded_living.get_connection("north") == "Bedroom"
+        assert loaded_kitchen.get_connection("west") == "Living Room"
+        assert loaded_bedroom.get_connection("south") == "Living Room"
+
+    def test_subgrid_roundtrip_preserves_exit_points(self, tmp_path):
+        """Test that is_exit_point markers survive save/load.
+
+        Spec: Exit point markers are preserved through persistence.
+        """
+        from cli_rpg.world_grid import SubGrid
+
+        character = Character("Hero", strength=10, dexterity=10, intelligence=10)
+
+        # Create sub-grid with an exit point
+        cave_interior = SubGrid(parent_name="Cave Mouth")
+        entrance = Location("Cave Entrance", "The entrance to the cave", is_exit_point=True)
+        deep = Location("Deep Cave", "The deepest part of the cave")
+        cave_interior.add_location(entrance, 0, 0)
+        cave_interior.add_location(deep, 0, -1)  # South of entrance
+
+        cave = Location("Cave Mouth", "A dark cave", coordinates=(0, 0), sub_grid=cave_interior)
+        world = {"Cave Mouth": cave}
+        game_state = GameState(character, world, "Cave Mouth")
+
+        # Verify exit point before save
+        assert entrance.is_exit_point is True
+        assert deep.is_exit_point is False
+
+        # Save
+        filepath = save_game_state(game_state, str(tmp_path))
+
+        # Load
+        loaded_state = load_game_state(filepath)
+
+        # Verify exit point after load
+        loaded_sub_grid = loaded_state.world["Cave Mouth"].sub_grid
+        loaded_entrance = loaded_sub_grid.get_by_name("Cave Entrance")
+        loaded_deep = loaded_sub_grid.get_by_name("Deep Cave")
+
+        assert loaded_entrance.is_exit_point is True
+        assert loaded_deep.is_exit_point is False
+
+    def test_backward_compat_no_subgrid(self, tmp_path):
+        """Test that old saves without SubGrid still load.
+
+        Spec: Backward compatibility - saves without sub_grid load correctly.
+        """
+        # Create a save file without sub_grid (legacy format)
+        save_data = {
+            "character": {
+                "name": "Hero",
+                "strength": 10,
+                "dexterity": 10,
+                "intelligence": 10,
+                "level": 1,
+                "health": 150,
+                "max_health": 150
+            },
+            "current_location": "Town",
+            "world": {
+                "Town": {
+                    "name": "Town",
+                    "description": "A peaceful town",
+                    "connections": {"north": "Forest"},
+                    "npcs": []
+                    # No sub_grid field
+                },
+                "Forest": {
+                    "name": "Forest",
+                    "description": "A dark forest",
+                    "connections": {"south": "Town"},
+                    "npcs": []
+                }
+            }
+            # No in_sub_location field
+        }
+
+        filepath = tmp_path / "legacy_no_subgrid.json"
+        with open(filepath, "w") as f:
+            json.dump(save_data, f)
+
+        # Load
+        loaded_state = load_game_state(str(filepath))
+
+        # Verify it loads without error
+        assert loaded_state.current_location == "Town"
+        assert "Town" in loaded_state.world
+        assert "Forest" in loaded_state.world
+        # Verify sub_grid is None (not present in legacy saves)
+        assert loaded_state.world["Town"].sub_grid is None
+        assert loaded_state.world["Forest"].sub_grid is None
+        # Verify in_sub_location defaults to False
+        assert loaded_state.in_sub_location is False

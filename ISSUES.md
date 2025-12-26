@@ -461,7 +461,7 @@ class ChunkManager:
 4. ✅ Update map renderer for interior maps - **DONE** (12 tests in `tests/test_map_renderer.py::TestSubGridMapRendering`)
 5. ✅ Fix `ai_world.py` `expand_area()` to use SubGrid - **DONE** (11 tests in `tests/test_ai_world_subgrid.py`)
 6. ✅ Convert default world sub-locations to use SubGrid - **DONE** (34 tests in `tests/test_default_world_subgrid.py`)
-7. Update persistence for SubGrid serialization
+7. ✅ SubGrid persistence serialization - **DONE** (6 tests in `tests/test_persistence_game_state.py::TestSubGridPersistence`)
 8. Write tests
 
 ### Phase 2: WFC Overworld (Enhancement)
