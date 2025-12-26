@@ -758,7 +758,7 @@ Player decisions should have lasting impact on the world and story.
 - **Cleric**: Healing spells, `bless` party buffs, `smite` undead, holy symbols
 
 ### Charisma stat & social skills
-**Status**: RESOLVED
+**Status**: ✅ RESOLVED
 
 **Implemented**:
 - ✅ **Charisma (CHA) stat** added to Character model (1-20 range, default 10)
@@ -1000,6 +1000,38 @@ Text output could be more atmospheric and engaging.
 - Towns/villages: Bandit, Thief, Ruffian, Outlaw
 
 **Note**: Players must be in the correct location type to encounter matching enemies. A quest for "Wolf" (forest enemy) won't progress while fighting in mountains (which spawn Eagle, Mountain Lion, Yeti). Players should explore forest areas to find wolves.
+
+### README direction shortcut documentation is inconsistent
+**Status**: ACTIVE
+
+**Description**: The README documentation for direction shortcuts is misleading. It states:
+```
+- `go <direction>` (g) - Move in a direction (north/n, south/s, east/e, west/w)
+  - Quick shortcuts: `n`, `gn` (north), `w`, `gw` (west), `gs` (south), `ge` (east)
+```
+
+The wording "(north/n, south/s, east/e, west/w)" implies that single-letter shortcuts work for all four directions within the `go` command. However, in practice:
+- `n` works standalone for north
+- `w` works standalone for west
+- `s` is hijacked by `status` command (NOT south)
+- `e` is hijacked by `equip` command (NOT east)
+
+Only `gs` and `ge` work as standalone shortcuts for south and east respectively.
+
+**Steps to reproduce**:
+1. Start the game
+2. Type `n` → goes north ✓
+3. Type `w` → goes west ✓
+4. Type `s` → shows status (NOT south) ✗
+5. Type `e` → prompts "Equip what?" (NOT east) ✗
+6. Type `gs` → goes south ✓
+7. Type `ge` → goes east ✓
+
+**Expected behavior**: Either:
+1. Update the README to clearly indicate that `n` and `w` work as standalone shortcuts but `s` and `e` do NOT (only `gs`/`ge` work), OR
+2. Add `gn` and `gw` to the shortcuts list for consistency (all directions use `g<letter>` format)
+
+**Impact**: Users may get confused when `s` doesn't take them south but instead shows their status.
 
 ### Procedural quest generation
 **Status**: ACTIVE

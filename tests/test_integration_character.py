@@ -71,7 +71,7 @@ class TestCharacterLifecycle:
 class TestCharacterCreationIntegration:
     """Test character creation integration."""
     
-    @patch('builtins.input', side_effect=["Hero", "1", "manual", "15", "12", "10", "yes"])
+    @patch('builtins.input', side_effect=["Hero", "1", "manual", "15", "12", "10", "10", "yes"])
     def test_create_and_use_character(self, mock_input):
         """Test: Create character through creation flow and use it (spec requirement)"""
         # Create character through interactive flow
