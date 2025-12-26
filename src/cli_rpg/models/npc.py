@@ -44,6 +44,8 @@ class NPC:
     willpower: int = 5  # Willpower 1-10, affects intimidate resistance
     bribeable: bool = True  # Whether NPC can be bribed
     persuaded: bool = False  # Whether NPC has been persuaded this session
+    haggleable: bool = True  # Whether merchant allows haggling
+    haggle_cooldown: int = 0  # Turns remaining before haggling allowed again
 
     def __post_init__(self):
         """Validate NPC attributes."""
@@ -140,6 +142,8 @@ class NPC:
             "willpower": self.willpower,
             "bribeable": self.bribeable,
             "persuaded": self.persuaded,
+            "haggleable": self.haggleable,
+            "haggle_cooldown": self.haggle_cooldown,
         }
         # Only include ascii_art if it's not empty
         if self.ascii_art:
@@ -179,4 +183,6 @@ class NPC:
             willpower=data.get("willpower", 5),  # Default 5 for backward compat
             bribeable=data.get("bribeable", True),  # Default True for backward compat
             persuaded=data.get("persuaded", False),  # Default False for backward compat
+            haggleable=data.get("haggleable", True),  # Default True for backward compat
+            haggle_cooldown=data.get("haggle_cooldown", 0),  # Default 0 for backward compat
         )

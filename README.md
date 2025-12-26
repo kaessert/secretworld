@@ -77,6 +77,7 @@ python -m cli_rpg.main
 - `persuade` - Attempt to persuade the current NPC (grants 20% shop discount on success)
 - `intimidate` - Attempt to intimidate the current NPC (success based on CHA and kills)
 - `bribe <amount>` - Attempt to bribe the current NPC with gold
+- `haggle` - Negotiate better prices with merchant (CHA-based, one transaction)
 - `drop <item>` (dr) - Drop an item from your inventory (cannot drop equipped items)
 - `pick <chest>` (lp) - **Rogue only**: Attempt to pick the lock on a treasure chest (requires Lockpick item)
 - `open <chest>` (o) - Open an unlocked treasure chest to collect its contents
@@ -245,6 +246,13 @@ Use social skills to influence NPCs during conversations:
    - Required amount: 50 - (CHA × 2) gold, minimum 10 gold
    - Not all NPCs are bribeable
    - On success: Gold is deducted, same effect as persuasion
+
+4. **Haggle**: Use `haggle` while at a shop to negotiate prices
+   - Success chance: 25% + (CHA × 2%) + 15% if persuaded, capped at 85%
+   - On success: 15% bonus on your next buy or sell transaction
+   - On critical success (roll ≤ 10% of success chance): 25% bonus
+   - On critical failure (roll ≥ 95): Merchant refuses to haggle for 3 turns
+   - Bonus is consumed after one transaction (buy or sell)
 
 ### NPC Quests
 

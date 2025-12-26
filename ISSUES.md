@@ -809,16 +809,24 @@ Reward observant players with hidden content.
 - Secret passages between locations (shortcuts)
 
 ### Haggling at shops
-**Status**: ACTIVE
+**Status**: ✅ RESOLVED
 
 Make shopping more interactive.
 
-- `haggle` command when buying/selling
-- Success lowers buy price or raises sell price by 10-30%
-- Based on CHA + merchant relationship + item type
-- Fail too hard = merchant refuses to trade temporarily
-- Critical success = merchant offers rare item not in normal inventory
-- Some merchants are stubborn (no haggling), others are pushovers
+**Implemented**:
+- ✅ `haggle` command negotiates better buy/sell prices at shops
+- ✅ **Success formula**: 25% base + (CHA × 2%) + 15% if NPC is persuaded, max 85%
+- ✅ **Success**: 15% discount on next buy OR 15% bonus on next sell
+- ✅ **Critical success** (roll ≤ 10% of success chance): 25% discount + merchant hints at rare item
+- ✅ **Failure**: No effect, can try again
+- ✅ **Critical failure** (roll ≥ 95): Merchant refuses to trade for 3 turns (cooldown)
+- ✅ **NPC attributes**: `haggleable: bool = True`, `haggle_cooldown: int = 0`
+- ✅ **GameState tracking**: `haggle_bonus: float = 0.0` (reset after one transaction)
+- ✅ Cooldown decrements on each exploration command
+- ✅ Haggle bonus applied to both buy and sell prices
+- ✅ Persistence: All fields save/load with backward compatibility
+
+**Future Enhancements** (moved to backlog):
 - Reputation affects starting prices (hero = discount, villain = markup)
 
 ### Luck stat affecting outcomes

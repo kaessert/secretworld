@@ -64,6 +64,7 @@ def get_command_reference() -> str:
         "  persuade           - Charm NPC for shop discounts (CHA-based)",
         "  intimidate         - Threaten NPC for benefits (CHA + reputation)",
         "  bribe <amount>     - Pay gold for guaranteed social success",
+        "  haggle             - Negotiate better prices (CHA-based, at shop)",
         "",
         "  help (h)           - Display this command reference",
         "  dump-state         - Export full game state as JSON",
@@ -548,6 +549,12 @@ def handle_exploration_command(game_state: GameState, command: str, args: list[s
     Returns:
         Tuple of (continue_game, message)
     """
+    # Decrement haggle cooldown on current NPC (if any)
+    npc = game_state.current_npc
+    if npc is not None and isinstance(getattr(npc, 'haggle_cooldown', None), int):
+        if npc.haggle_cooldown > 0:
+            npc.haggle_cooldown -= 1
+
     if command == "look":
         return (True, "\n" + game_state.look())
     
@@ -844,6 +851,9 @@ def handle_exploration_command(game_state: GameState, command: str, args: list[s
         # Apply 20% persuade discount if NPC was persuaded
         if game_state.current_npc and game_state.current_npc.persuaded:
             final_price = int(final_price * 0.8)
+        # Apply haggle bonus if active
+        if game_state.haggle_bonus > 0:
+            final_price = int(final_price * (1 - game_state.haggle_bonus))
         if game_state.current_character.gold < final_price:
             return (True, f"\nYou can't afford {shop_item.item.name} ({final_price} gold). You have {game_state.current_character.gold} gold.")
         if game_state.current_character.inventory.is_full():
@@ -861,6 +871,8 @@ def handle_exploration_command(game_state: GameState, command: str, args: list[s
         game_state.current_character.inventory.add_item(new_item)
         # Track quest progress for collect objectives
         quest_messages = game_state.current_character.record_collection(new_item.name)
+        # Consume haggle bonus after purchase
+        game_state.haggle_bonus = 0.0
         autosave(game_state)
         output = f"\nYou bought {new_item.name} for {final_price} gold."
         if quest_messages:
@@ -896,8 +908,13 @@ def handle_exploration_command(game_state: GameState, command: str, args: list[s
         base_sell_price = 10 + (item.damage_bonus + item.defense_bonus + item.heal_amount) * 2
         cha_modifier = get_cha_sell_modifier(game_state.current_character.charisma)
         sell_price = int(base_sell_price * cha_modifier)
+        # Apply haggle bonus if active
+        if game_state.haggle_bonus > 0:
+            sell_price = int(sell_price * (1 + game_state.haggle_bonus))
         game_state.current_character.inventory.remove_item(item)
         game_state.current_character.add_gold(sell_price)
+        # Consume haggle bonus after sale
+        game_state.haggle_bonus = 0.0
         autosave(game_state)
         return (True, f"\nYou sold {item.name} for {sell_price} gold.")
 
@@ -958,6 +975,21 @@ def handle_exploration_command(game_state: GameState, command: str, args: list[s
         success, message = attempt_bribe(
             game_state.current_character, game_state.current_npc, amount
         )
+        return (True, f"\n{message}")
+
+    elif command == "haggle":
+        # Social skill: Attempt to haggle with merchant for better prices
+        if game_state.current_shop is None:
+            return (True, "\nYou're not at a shop. Talk to a merchant first.")
+        from cli_rpg.social_skills import attempt_haggle
+        success, message, bonus, cooldown = attempt_haggle(
+            game_state.current_character, game_state.current_npc
+        )
+        # Apply effects
+        if success:
+            game_state.haggle_bonus = bonus
+        if cooldown > 0:
+            game_state.current_npc.haggle_cooldown = cooldown
         return (True, f"\n{message}")
 
     elif command == "accept":

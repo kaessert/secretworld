@@ -238,3 +238,111 @@ def attempt_bribe(
             f"{npc.name} looks at your meager offering and scoffs. "
             f"\"You'll need to do better than that.\" (Try at least {threshold} gold)",
         )
+
+
+def calculate_haggle_chance(charisma: int, persuaded: bool = False) -> int:
+    """Calculate haggle success chance.
+
+    Formula: 25% base + (CHA × 2%) + 15% if persuaded, max 85%.
+
+    Args:
+        charisma: Character's charisma stat
+        persuaded: Whether NPC has been persuaded already
+
+    Returns:
+        Success chance as percentage (0-85)
+    """
+    chance = 25 + charisma * 2
+    if persuaded:
+        chance += 15
+    return min(chance, 85)
+
+
+def attempt_haggle(
+    character: "Character", npc: Optional["NPC"]
+) -> Tuple[bool, str, float, int]:
+    """Attempt to haggle with a merchant NPC for better prices.
+
+    Args:
+        character: The player character
+        npc: The NPC being haggled with (None if not in conversation)
+
+    Returns:
+        Tuple of (success, message, bonus, cooldown_to_set) where:
+        - success: Whether the haggle was successful
+        - message: Descriptive message for the player
+        - bonus: Price bonus to apply (0.15 for success, 0.25 for crit, 0 for fail)
+        - cooldown_to_set: Cooldown turns to set on NPC (3 for crit fail, 0 otherwise)
+    """
+    if npc is None:
+        return (
+            False,
+            "You're not talking to a merchant. Find a shop first.",
+            0.0,
+            0,
+        )
+
+    # Check if NPC allows haggling
+    if not npc.haggleable:
+        return (
+            False,
+            f"{npc.name} is stubborn and won't haggle. \"My prices are final!\"",
+            0.0,
+            0,
+        )
+
+    # Check cooldown
+    if npc.haggle_cooldown > 0:
+        return (
+            False,
+            f"{npc.name} is still angry from your last haggling attempt. "
+            f"Wait {npc.haggle_cooldown} more turns.",
+            0.0,
+            0,
+        )
+
+    chance = calculate_haggle_chance(character.charisma, npc.persuaded)
+    roll = random.randint(1, 100)
+
+    # Critical success: roll ≤ 10% of success chance
+    crit_threshold = int(chance * 0.1)
+
+    # Critical failure: roll ≥ 95
+    if roll >= 95:
+        return (
+            False,
+            f"Your haggling angers {npc.name}! "
+            f"\"How dare you insult me with such offers! "
+            f"I refuse to trade with you for a while!\"",
+            0.0,
+            3,  # Set 3-turn cooldown
+        )
+
+    # Success
+    if roll <= chance:
+        # Check for critical success
+        if roll <= crit_threshold:
+            return (
+                True,
+                f"Exceptional negotiation! {npc.name} is impressed by your silver tongue. "
+                f"\"You drive a hard bargain! 25% off your next transaction. "
+                f"And between us... I may know where to find a rare item.\"",
+                0.25,
+                0,
+            )
+        # Normal success
+        return (
+            True,
+            f"You successfully haggle with {npc.name}. "
+            f"\"Alright, alright... 15% off your next deal!\"",
+            0.15,
+            0,
+        )
+
+    # Normal failure
+    return (
+        False,
+        f"{npc.name} shakes their head. \"Sorry, my prices are fair. Take it or leave it.\"",
+        0.0,
+        0,
+    )

@@ -55,7 +55,7 @@ KNOWN_COMMANDS: set[str] = {
     "map", "worldmap", "help", "quests", "quest", "accept", "complete", "abandon", "lore", "rest",
     "bestiary", "dump-state", "events", "companions", "recruit", "dismiss", "companion-quest",
     "enter", "exit", "leave", "resolve", "pick", "open",
-    "persuade", "intimidate", "bribe",  # Social skills
+    "persuade", "intimidate", "bribe", "haggle",  # Social skills
     "search"  # Secret discovery
 }
 
@@ -212,6 +212,7 @@ class GameState:
         self.choices: list[dict] = []  # Echo choices: tracking significant player decisions
         self.world_events: list[WorldEvent] = []  # Living world events
         self.companions: list[Companion] = []  # Party companions with bond mechanics
+        self.haggle_bonus: float = 0.0  # Active haggle bonus (reset after one transaction)
 
     @property
     def is_in_conversation(self) -> bool:

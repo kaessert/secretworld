@@ -1,284 +1,88 @@
-# Perception & Secret Discovery System Implementation Plan
+# Implementation Plan: Haggle Command for Shops
 
-## Feature Specification
+## Spec
 
-Add a **Perception (PER) stat** and **secret discovery mechanics** to make exploration more rewarding:
+**Command**: `haggle` - Negotiate better buy/sell prices with merchants
 
-1. **PER Stat**: New character stat (1-20 range, like other stats)
-   - Class bonuses: Rogue +2, Ranger +1, others 0
-   - Increases on level-up like other stats
+**Mechanics**:
+- **Success formula**: 25% base + (CHA × 2%) + (relationship bonus)
+  - If `npc.persuaded`: +15% bonus to success chance
+- **Effects**:
+  - Success: 15% discount on next buy OR 15% bonus on next sell
+  - Critical success (roll ≤ 10% of success chance): 25% discount + merchant offers a rare item hint
+  - Failure: No effect, can try again
+  - Critical failure (roll ≥ 95): Merchant refuses to trade for 3 turns (cooldown)
+- **NPC attributes**:
+  - `haggleable: bool = True` - whether merchant allows haggling
+  - `haggle_cooldown: int = 0` - turns remaining before haggling allowed again
+- **GameState tracking**: `haggle_bonus: float = 0.0` - active bonus (reset after one transaction)
 
-2. **Passive Detection**: On room entry, auto-detect secrets if PER meets threshold
-   - Check location's `hidden_secrets` field against detection threshold
-   - Display discovered secrets inline with room description
+**Constraints**:
+- Only works when `current_shop` is active
+- Cooldown decrements on each exploration command
 
-3. **Active Search Command**: `search` command for manual discovery
-   - PER check with optional bonuses (torch lit, multiple searches)
-   - Reveals hidden doors, treasure, or traps
+## Tests (TDD)
 
-4. **Hidden Content in Locations**: New `hidden_secrets` field on Location model
-   - List of secrets with detection thresholds
-   - Secret types: hidden_door, hidden_treasure, trap, lore_hint
+**File**: `tests/test_haggle.py`
 
----
-
-## Tests First (TDD)
-
-### tests/test_perception.py
-
-```python
-"""Tests for Perception stat and secret discovery system."""
-import pytest
-from cli_rpg.models.character import Character, CharacterClass, CLASS_BONUSES
-from cli_rpg.models.location import Location
-from cli_rpg.secrets import check_passive_detection, perform_active_search, Secret, SecretType
-
-
-class TestPerceptionStat:
-    """Test PER stat on Character model."""
-
-    def test_character_has_perception_stat(self):
-        """Character has perception stat with default value."""
-        char = Character(name="Hero", strength=10, dexterity=10, intelligence=10)
-        assert hasattr(char, "perception")
-        assert char.perception == 10  # Default
-
-    def test_perception_validated_in_range(self):
-        """Perception must be 1-20."""
-        with pytest.raises(ValueError, match="at least 1"):
-            Character(name="Hero", strength=10, dexterity=10, intelligence=10, perception=0)
-        with pytest.raises(ValueError, match="at most 20"):
-            Character(name="Hero", strength=10, dexterity=10, intelligence=10, perception=21)
-
-    def test_rogue_gets_perception_bonus(self):
-        """Rogues get +2 PER from class bonus."""
-        char = Character(name="Scout", strength=10, dexterity=10, intelligence=10,
-                        perception=10, character_class=CharacterClass.ROGUE)
-        assert char.perception == 12  # 10 base + 2 bonus
-
-    def test_ranger_gets_perception_bonus(self):
-        """Rangers get +1 PER from class bonus."""
-        char = Character(name="Tracker", strength=10, dexterity=10, intelligence=10,
-                        perception=10, character_class=CharacterClass.RANGER)
-        assert char.perception == 11  # 10 base + 1 bonus
-
-    def test_perception_increases_on_level_up(self):
-        """PER increases by 1 on level up."""
-        char = Character(name="Hero", strength=10, dexterity=10, intelligence=10, perception=10)
-        initial_per = char.perception
-        char.level_up()
-        assert char.perception == initial_per + 1
-
-    def test_perception_serialization(self):
-        """PER is saved and loaded correctly."""
-        char = Character(name="Hero", strength=10, dexterity=10, intelligence=10, perception=15)
-        data = char.to_dict()
-        loaded = Character.from_dict(data)
-        assert loaded.perception == 15
-
-
-class TestLocationSecrets:
-    """Test hidden_secrets field on Location."""
-
-    def test_location_has_hidden_secrets_field(self):
-        """Location has hidden_secrets list."""
-        loc = Location(name="Dark Cave", description="A dark cave.")
-        assert hasattr(loc, "hidden_secrets")
-        assert loc.hidden_secrets == []
-
-    def test_location_with_secrets(self):
-        """Location can have secrets with thresholds."""
-        secrets = [
-            {"type": "hidden_door", "description": "A hidden passage", "threshold": 12},
-            {"type": "hidden_treasure", "description": "A concealed chest", "threshold": 15}
-        ]
-        loc = Location(name="Ruins", description="Ancient ruins.", hidden_secrets=secrets)
-        assert len(loc.hidden_secrets) == 2
-
-    def test_secrets_serialization(self):
-        """Secrets are saved and loaded correctly."""
-        secrets = [{"type": "trap", "description": "Pressure plate", "threshold": 10}]
-        loc = Location(name="Hall", description="A hall.", hidden_secrets=secrets)
-        data = loc.to_dict()
-        loaded = Location.from_dict(data)
-        assert loaded.hidden_secrets == secrets
-
-
-class TestPassiveDetection:
-    """Test automatic secret detection on room entry."""
-
-    def test_detects_secret_when_per_meets_threshold(self):
-        """Secrets at or below PER are detected."""
-        char = Character(name="Scout", strength=10, dexterity=10, intelligence=10, perception=12)
-        secrets = [{"type": "hidden_door", "description": "A hidden door", "threshold": 12}]
-        loc = Location(name="Room", description="A room.", hidden_secrets=secrets)
-
-        detected = check_passive_detection(char, loc)
-        assert len(detected) == 1
-        assert detected[0]["description"] == "A hidden door"
-
-    def test_misses_secret_when_per_below_threshold(self):
-        """Secrets above PER are not detected."""
-        char = Character(name="Scout", strength=10, dexterity=10, intelligence=10, perception=10)
-        secrets = [{"type": "hidden_door", "description": "Hidden", "threshold": 15}]
-        loc = Location(name="Room", description="A room.", hidden_secrets=secrets)
-
-        detected = check_passive_detection(char, loc)
-        assert len(detected) == 0
-
-    def test_already_discovered_secrets_not_re_detected(self):
-        """Once discovered, secrets don't trigger again."""
-        char = Character(name="Scout", strength=10, dexterity=10, intelligence=10, perception=15)
-        secrets = [{"type": "hidden_door", "description": "Door", "threshold": 10, "discovered": True}]
-        loc = Location(name="Room", description="A room.", hidden_secrets=secrets)
-
-        detected = check_passive_detection(char, loc)
-        assert len(detected) == 0
-
-
-class TestActiveSearch:
-    """Test 'search' command mechanics."""
-
-    def test_search_finds_undiscovered_secrets(self):
-        """Active search can find secrets above passive threshold."""
-        char = Character(name="Scout", strength=10, dexterity=10, intelligence=10, perception=10)
-        secrets = [{"type": "hidden_treasure", "description": "Chest", "threshold": 12}]
-        loc = Location(name="Room", description="A room.", hidden_secrets=secrets)
-
-        # Search gives +5 bonus, so 10+5=15 >= 12
-        found, message = perform_active_search(char, loc)
-        assert found
-        assert "Chest" in message
-
-    def test_search_with_light_bonus(self):
-        """Having light gives +2 to search."""
-        char = Character(name="Scout", strength=10, dexterity=10, intelligence=10, perception=10)
-        char.light_remaining = 5  # Has light
-        secrets = [{"type": "trap", "description": "Pit trap", "threshold": 17}]
-        loc = Location(name="Room", description="A room.", hidden_secrets=secrets)
-
-        # 10 (PER) + 5 (search) + 2 (light) = 17 >= 17
-        found, message = perform_active_search(char, loc)
-        assert found
-
-    def test_search_nothing_to_find(self):
-        """Search when no secrets present."""
-        char = Character(name="Scout", strength=10, dexterity=10, intelligence=10, perception=10)
-        loc = Location(name="Room", description="A room.")
-
-        found, message = perform_active_search(char, loc)
-        assert not found
-        assert "nothing" in message.lower()
-```
-
----
+1. `test_calculate_haggle_chance_base` - 25% + CHA×2% formula
+2. `test_calculate_haggle_chance_with_persuaded_bonus` - +15% when persuaded
+3. `test_haggle_success_grants_discount` - success sets `game_state.haggle_bonus = 0.15`
+4. `test_haggle_critical_success_grants_larger_discount` - 25% bonus on crit
+5. `test_haggle_failure_no_effect` - failed haggle keeps `haggle_bonus = 0`
+6. `test_haggle_critical_failure_sets_cooldown` - roll ≥ 95 sets cooldown = 3
+7. `test_haggle_not_at_shop` - error when `current_shop` is None
+8. `test_haggle_stubborn_merchant` - NPC with `haggleable=False` refuses
+9. `test_haggle_cooldown_blocks_attempt` - can't haggle when cooldown > 0
+10. `test_haggle_cooldown_decrements` - cooldown reduced each command
+11. `test_buy_applies_haggle_bonus` - buy price reduced by haggle_bonus
+12. `test_sell_applies_haggle_bonus` - sell price increased by haggle_bonus
+13. `test_haggle_bonus_consumed_after_buy` - bonus reset to 0 after purchase
+14. `test_haggle_bonus_consumed_after_sell` - bonus reset to 0 after sale
 
 ## Implementation Steps
 
-### Step 1: Add PER stat to Character model
-**File**: `src/cli_rpg/models/character.py`
+### 1. Update NPC model (`src/cli_rpg/models/npc.py`)
+- Add `haggleable: bool = True` field (line ~45)
+- Add `haggle_cooldown: int = 0` field (line ~46)
+- Update `to_dict()`: add both fields
+- Update `from_dict()`: parse with defaults for backward compat
 
-1. Add `perception: int = 10` field after `charisma`
-2. Add `"perception": 0/1/2` to `CLASS_BONUSES` dict (Rogue +2, Ranger +1)
-3. Add perception to `__post_init__` validation loop
-4. Add `self.perception += bonuses.get("perception", 0)` in class bonus application
-5. Add `self.perception += 1` in `level_up()`
-6. Add perception to `to_dict()` and `from_dict()` methods
-7. Add perception to `__str__()` display
-
-### Step 2: Add hidden_secrets to Location model
-**File**: `src/cli_rpg/models/location.py`
-
-1. Add `hidden_secrets: List[dict] = field(default_factory=list)` field
-2. Add to `to_dict()`: include hidden_secrets if present
-3. Add to `from_dict()`: parse hidden_secrets with backward compat
-
-### Step 3: Create secrets module
-**File**: `src/cli_rpg/secrets.py`
-
+### 2. Add haggle functions (`src/cli_rpg/social_skills.py`)
 ```python
-"""Secret discovery mechanics using Perception stat."""
-from enum import Enum
-from typing import List, Tuple, Optional
-from cli_rpg.models.character import Character
-from cli_rpg.models.location import Location
+def calculate_haggle_chance(charisma: int, persuaded: bool = False) -> int:
+    """25% base + CHA×2% + 15% if persuaded, max 85%."""
+    chance = 25 + charisma * 2
+    if persuaded:
+        chance += 15
+    return min(chance, 85)
 
-class SecretType(Enum):
-    HIDDEN_DOOR = "hidden_door"
-    HIDDEN_TREASURE = "hidden_treasure"
-    TRAP = "trap"
-    LORE_HINT = "lore_hint"
-
-SEARCH_BONUS = 5
-LIGHT_BONUS = 2
-
-def check_passive_detection(char: Character, location: Location) -> List[dict]:
-    """Check for automatic secret detection based on PER."""
-    detected = []
-    for secret in location.hidden_secrets:
-        if secret.get("discovered"):
-            continue
-        if char.perception >= secret.get("threshold", 15):
-            secret["discovered"] = True
-            detected.append(secret)
-    return detected
-
-def perform_active_search(char: Character, location: Location) -> Tuple[bool, str]:
-    """Perform active search for hidden secrets."""
-    effective_per = char.perception + SEARCH_BONUS
-    if char.has_active_light():
-        effective_per += LIGHT_BONUS
-
-    undiscovered = [s for s in location.hidden_secrets if not s.get("discovered")]
-    if not undiscovered:
-        return (False, "You search carefully but find nothing hidden.")
-
-    found = []
-    for secret in undiscovered:
-        if effective_per >= secret.get("threshold", 15):
-            secret["discovered"] = True
-            found.append(secret)
-
-    if not found:
-        return (False, "You search but don't notice anything unusual.")
-
-    descriptions = [s["description"] for s in found]
-    return (True, f"You discover: {', '.join(descriptions)}")
+def attempt_haggle(character, npc) -> Tuple[bool, str, float, int]:
+    """Returns (success, message, bonus, cooldown_to_set)."""
 ```
 
-### Step 4: Add search command to game
-**File**: `src/cli_rpg/game_state.py`
+### 3. Update GameState (`src/cli_rpg/game_state.py`)
+- Add `self.haggle_bonus: float = 0.0` to `__init__` (line ~90)
+- Add `"haggle"` to `KNOWN_COMMANDS` (line ~54)
 
-1. Add `"search"` to `KNOWN_COMMANDS` set
+### 4. Add haggle command handler (`src/cli_rpg/main.py`)
+- Add handler after `elif command == "bribe":` block (~line 960)
+- Check: `current_shop` exists, NPC is `haggleable`, cooldown == 0
+- Call `attempt_haggle()`, set `game_state.haggle_bonus`
 
-**File**: `src/cli_rpg/main.py`
+### 5. Modify buy to apply bonus (`src/cli_rpg/main.py`, ~line 843)
+- After CHA/persuade modifiers: `final_price = int(final_price * (1 - game_state.haggle_bonus))`
+- After purchase: `game_state.haggle_bonus = 0.0`
 
-1. Add `"search"` and alias `"sr"` to command help text
-2. Add `elif command == "search":` handler in `handle_exploration_command()`
-3. Call `perform_active_search()` and return result
+### 6. Modify sell to apply bonus (`src/cli_rpg/main.py`, ~line 898)
+- Apply: `sell_price = int(sell_price * (1 + game_state.haggle_bonus))`
+- After sale: `game_state.haggle_bonus = 0.0`
 
-### Step 5: Integrate passive detection into movement
-**File**: `src/cli_rpg/game_state.py`
+### 7. Add cooldown decrement (`src/cli_rpg/main.py`)
+- At start of `handle_exploration_command()`: if `game_state.current_npc` and `haggle_cooldown > 0`, decrement it
 
-1. In `move()` method, after successful move, call `check_passive_detection()`
-2. Append detected secrets to movement message
+### 8. Update help text (`src/cli_rpg/main.py`, ~line 47)
+- Add to shop commands: `"  haggle             - Negotiate better prices (CHA-based)"`
 
-### Step 6: Update character creation
-**File**: `src/cli_rpg/character_creation.py`
-
-1. Add "perception" to `stat_names` list in `get_manual_stats()`
-2. Add `"perception": random.randint(8, 15)` in `generate_random_stats()`
-
----
-
-## Files to Modify
-
-| File | Changes |
-|------|---------|
-| `src/cli_rpg/models/character.py` | Add PER stat, validation, serialization |
-| `src/cli_rpg/models/location.py` | Add hidden_secrets field |
-| `src/cli_rpg/secrets.py` | **NEW** - Detection/search logic |
-| `src/cli_rpg/game_state.py` | Add search to KNOWN_COMMANDS, passive detection in move() |
-| `src/cli_rpg/main.py` | Add search command handler, update help |
-| `src/cli_rpg/character_creation.py` | Add PER to stat allocation |
-| `tests/test_perception.py` | **NEW** - All perception/secret tests |
+### 9. Update ISSUES.md
+- Mark "Haggling at shops" as RESOLVED
