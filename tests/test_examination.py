@@ -137,6 +137,55 @@ class TestLocationLayers:
 class TestLocationLayeredDescription:
     """Tests for Location.get_layered_description() method."""
 
+    # Test: Sub-locations display after exits in look output
+    def test_get_layered_description_shows_sub_locations(self):
+        """Location with sub_locations shows 'Enter: X, Y' line after exits."""
+        loc = Location(
+            name="Town Square",
+            description="A bustling town square.",
+            connections={"north": "Market"},
+            sub_locations=["Market District", "Temple"]
+        )
+        result = loc.get_layered_description(look_count=1)
+
+        assert "Exits: north" in result
+        assert "Enter:" in result
+        assert "Market District" in result
+        assert "Temple" in result
+        # Enter line should come after Exits line
+        exits_pos = result.find("Exits:")
+        enter_pos = result.find("Enter:")
+        assert enter_pos > exits_pos
+
+    # Test: No Enter line when no sub-locations
+    def test_get_layered_description_no_sub_locations_no_enter_line(self):
+        """Location without sub_locations omits Enter line."""
+        loc = Location(
+            name="Test Place",
+            description="A test location.",
+            connections={"south": "Other Place"}
+        )
+        result = loc.get_layered_description(look_count=1)
+
+        assert "Exits: south" in result
+        assert "Enter:" not in result
+
+    # Test: Sub-locations still visible in reduced visibility (storms don't hide sub-locations)
+    def test_get_layered_description_sub_locations_with_visibility_reduced(self):
+        """Sub-locations still shown in reduced visibility (storms don't hide sub-locations)."""
+        loc = Location(
+            name="Storm Town",
+            description="A town during a storm. The rain is heavy.",
+            connections={"north": "Market"},
+            sub_locations=["Tavern", "Smithy"]
+        )
+        result = loc.get_layered_description(look_count=1, visibility="reduced")
+
+        # Even with reduced visibility, sub-locations should be visible
+        assert "Enter:" in result
+        assert "Tavern" in result
+        assert "Smithy" in result
+
     def test_first_look_returns_surface_only(self):
         """First look shows standard description without details/secrets."""
         loc = Location(

@@ -211,6 +211,11 @@ class Location:
         else:
             result += "Exits: None"
 
+        # Show sub-locations if any exist
+        if self.sub_locations:
+            sub_loc_names = [colors.location(name) for name in self.sub_locations]
+            result += f"\nEnter: {', '.join(sub_loc_names)}"
+
         # Add details layer (look_count >= 2) - hidden in reduced visibility
         if visibility != "reduced" and look_count >= 2 and self.details:
             result += f"\n\nUpon closer inspection, you notice:\n{self.details}"
@@ -368,5 +373,8 @@ class Location:
             result += f"Exits: {', '.join(directions)}"
         else:
             result += "Exits: None"
+
+        if self.sub_locations:
+            result += f"\nEnter: {', '.join(self.sub_locations)}"
 
         return result
