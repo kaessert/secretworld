@@ -1919,3 +1919,125 @@ def test_generate_location_npc_role_defaults_to_villager(mock_openai_class, basi
 
     # Verify role defaults to villager
     assert result["npcs"][0]["role"] == "villager"
+
+
+# ========================================================================
+# JSON Extraction from Markdown Code Blocks Tests
+# Spec: Extract JSON from markdown ```json...``` or ```...``` code blocks
+# ========================================================================
+
+
+@patch('cli_rpg.ai_service.OpenAI')
+def test_extract_json_from_markdown_code_block(mock_openai_class, basic_config):
+    """Test _extract_json_from_response extracts JSON from ```json...``` block.
+
+    Spec: When response contains a markdown code block with json language tag,
+    extract the JSON content from inside the block.
+    """
+    mock_client = Mock()
+    mock_openai_class.return_value = mock_client
+
+    service = AIService(basic_config)
+
+    # Test with markdown-wrapped JSON
+    markdown_response = '''Here is the location data:
+
+```json
+{
+    "name": "Test Location",
+    "description": "A test location",
+    "connections": {}
+}
+```
+
+That's the location.'''
+
+    result = service._extract_json_from_response(markdown_response)
+    expected = '''{
+    "name": "Test Location",
+    "description": "A test location",
+    "connections": {}
+}'''
+    assert result == expected
+
+
+@patch('cli_rpg.ai_service.OpenAI')
+def test_extract_json_from_plain_code_block(mock_openai_class, basic_config):
+    """Test _extract_json_from_response extracts JSON from plain ``` block.
+
+    Spec: When response contains a markdown code block without language tag,
+    extract the content from inside the block.
+    """
+    mock_client = Mock()
+    mock_openai_class.return_value = mock_client
+
+    service = AIService(basic_config)
+
+    # Test with plain code block (no language tag)
+    plain_block_response = '''```
+{"name": "Plain Location", "description": "A plain test", "connections": {"north": "Town"}}
+```'''
+
+    result = service._extract_json_from_response(plain_block_response)
+    assert result == '{"name": "Plain Location", "description": "A plain test", "connections": {"north": "Town"}}'
+
+
+@patch('cli_rpg.ai_service.OpenAI')
+def test_extract_json_returns_original_when_no_block(mock_openai_class, basic_config):
+    """Test _extract_json_from_response returns original when no code block.
+
+    Spec: When response does not contain a markdown code block, return the
+    original text stripped of whitespace.
+    """
+    mock_client = Mock()
+    mock_openai_class.return_value = mock_client
+
+    service = AIService(basic_config)
+
+    # Test without code block
+    plain_json = '{"name": "Direct JSON", "description": "No wrapper", "connections": {}}'
+
+    result = service._extract_json_from_response(plain_json)
+    assert result == plain_json
+
+
+@patch('cli_rpg.ai_service.OpenAI')
+def test_generate_location_handles_markdown_wrapped_json(mock_openai_class, basic_config):
+    """Test generate_location handles markdown-wrapped JSON responses.
+
+    Spec: When AI returns JSON wrapped in markdown code blocks, extract the
+    JSON and parse it successfully. This is an integration test for the
+    full flow from API response to parsed location.
+    """
+    mock_client = Mock()
+    mock_openai_class.return_value = mock_client
+
+    # Response wrapped in markdown code block
+    markdown_wrapped = '''Sure! Here's a location for your fantasy world:
+
+```json
+{
+    "name": "Enchanted Grove",
+    "description": "A mystical grove where ancient trees whisper secrets.",
+    "connections": {
+        "north": "Forest Path",
+        "east": "River Bank"
+    }
+}
+```
+
+Hope this helps!'''
+
+    mock_response = Mock()
+    mock_response.choices = [Mock()]
+    mock_response.choices[0].message.content = markdown_wrapped
+    mock_client.chat.completions.create.return_value = mock_response
+
+    service = AIService(basic_config)
+    result = service.generate_location(theme="fantasy")
+
+    # Verify the location was parsed correctly
+    assert result["name"] == "Enchanted Grove"
+    assert result["description"] == "A mystical grove where ancient trees whisper secrets."
+    assert result["connections"]["north"] == "Forest Path"
+    assert result["connections"]["east"] == "River Bank"

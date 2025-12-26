@@ -1,47 +1,51 @@
-# Fix: AI Area Generation - Coordinates Outside SubGrid Bounds
+# Plan: Add JSON Extraction from Markdown Code Blocks
 
-## Problem
-AI area generation fails when generated locations have coordinates outside SubGrid bounds:
-```
-AI area generation failed: Coordinates (0, 4) outside bounds (-3, 3, -3, 3)
-```
+## Overview
+Add a utility function to extract JSON from markdown code blocks (```json...```) in AI responses. This is Quick Win #2 from the HIGH PRIORITY AI Location Generation issue.
 
-The SubGrid has bounds of (-3, 3, -3, 3) = 7x7 grid, but AI generates locations at y=4 which is outside.
+## Spec
+- Create `_extract_json_from_response(response_text: str) -> str` method
+- Detect and extract JSON from markdown fenced code blocks (```json or ```)
+- If no code blocks found, return original text unchanged
+- Apply extraction before `json.loads()` in all parse methods
 
-## Root Cause
-1. `ai_service.py:_build_area_prompt()` doesn't tell the AI about coordinate bounds
-2. `ai_world.py:expand_area()` calls `sub_grid.add_location()` which raises ValueError for out-of-bounds coords
-3. One failed placement crashes the entire area generation
+## Tests (tests/test_ai_service.py)
 
-## Implementation
+1. `test_extract_json_from_markdown_code_block` - Extract from ```json...```
+2. `test_extract_json_from_plain_code_block` - Extract from ```...``` (no language)
+3. `test_extract_json_returns_original_when_no_block` - No code block, return as-is
+4. `test_generate_location_handles_markdown_wrapped_json` - Integration test
 
-### 1. Update area generation prompt with coordinate bounds
-**File**: `src/cli_rpg/ai_service.py`, `_build_area_prompt()` method (lines 657-742)
+## Implementation Steps
 
-Add to the requirements section (around line 705):
-```
-6. Relative coordinates must be within bounds: x from -3 to 3, y from -3 to 3 (7x7 grid max)
-```
+1. **Add `_extract_json_from_response()` method** in `ai_service.py` (~line 349):
+   ```python
+   def _extract_json_from_response(self, response_text: str) -> str:
+       """Extract JSON from markdown code blocks if present."""
+       import re
+       # Match ```json ... ``` or ``` ... ```
+       pattern = r'```(?:json)?\s*\n?([\s\S]*?)\n?```'
+       match = re.search(pattern, response_text)
+       if match:
+           return match.group(1).strip()
+       return response_text.strip()
+   ```
 
-### 2. Add bounds-checking in expand_area() before adding to SubGrid
-**File**: `src/cli_rpg/ai_world.py`, in the sub-locations loop (around line 680-690)
+2. **Update `_parse_location_response()`** (line 349):
+   - Call `_extract_json_from_response()` before `json.loads()`
 
-Before calling `sub_grid.add_location()`, check if coordinates are within SubGrid bounds and skip with warning if out of bounds:
+3. **Update `_parse_area_response()`** (line 745):
+   - Call `_extract_json_from_response()` before `json.loads()`
 
-```python
-# Check SubGrid bounds before adding
-if not sub_grid.is_within_bounds(rel_x, rel_y):
-    logger.warning(
-        f"Skipping {name}: coords ({rel_x}, {rel_y}) outside SubGrid bounds {sub_grid.bounds}"
-    )
-    continue
-```
+4. **Update `_parse_enemy_response()`** (line 1023):
+   - Call `_extract_json_from_response()` before `json.loads()`
 
-### 3. Add test for out-of-bounds coordinate handling
-**File**: `tests/test_ai_world_subgrid.py`
+5. **Update `_parse_item_response()`** (line 1360):
+   - Call `_extract_json_from_response()` before `json.loads()`
 
-Add test `test_expand_area_skips_out_of_bounds_locations` that:
-- Mock AI service returns a location with coords (0, 4) - outside bounds
-- Verify the out-of-bounds location is NOT in SubGrid
-- Verify in-bounds locations still work correctly
-- Verify no exception is raised
+6. **Update `_parse_quest_response()`** (line 1580):
+   - Call `_extract_json_from_response()` before `json.loads()`
+
+## Files Modified
+- `src/cli_rpg/ai_service.py`: Add extraction method, update 5 parse methods
+- `tests/test_ai_service.py`: Add 4 new tests

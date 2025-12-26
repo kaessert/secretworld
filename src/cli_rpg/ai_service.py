@@ -346,6 +346,23 @@ class AIService:
         # Should not reach here, but just in case
         raise AIServiceError(f"API call failed after retries: {str(last_error)}") from last_error  # pragma: no cover
 
+    def _extract_json_from_response(self, response_text: str) -> str:
+        """Extract JSON from markdown code blocks if present.
+
+        Args:
+            response_text: Raw response text from LLM (may contain markdown)
+
+        Returns:
+            Extracted JSON string, or original text if no code block found
+        """
+        import re
+        # Match ```json ... ``` or ``` ... ``` (with optional language tag)
+        pattern = r'```(?:json)?\s*\n?([\s\S]*?)\n?```'
+        match = re.search(pattern, response_text)
+        if match:
+            return match.group(1).strip()
+        return response_text.strip()
+
     def _parse_location_response(self, response_text: str) -> dict:
         """Parse and validate LLM response.
         
@@ -358,12 +375,15 @@ class AIService:
         Raises:
             AIGenerationError: If parsing fails or validation fails
         """
+        # Extract JSON from markdown code blocks if present
+        json_text = self._extract_json_from_response(response_text)
+
         # Try to parse JSON
         try:
-            data = json.loads(response_text)
+            data = json.loads(json_text)
         except json.JSONDecodeError as e:
             raise AIGenerationError(f"Failed to parse response as JSON: {str(e)}") from e
-        
+
         # Validate required fields
         required_fields = ["name", "description", "connections"]
         for field in required_fields:
@@ -755,9 +775,12 @@ Note: Use "EXISTING_WORLD" as placeholder for the connection back to the source 
         Raises:
             AIGenerationError: If parsing fails or validation fails
         """
+        # Extract JSON from markdown code blocks if present
+        json_text = self._extract_json_from_response(response_text)
+
         # Try to parse JSON
         try:
-            data = json.loads(response_text)
+            data = json.loads(json_text)
         except json.JSONDecodeError as e:
             raise AIGenerationError(f"Failed to parse response as JSON: {str(e)}") from e
 
@@ -1033,9 +1056,12 @@ Note: Use "EXISTING_WORLD" as placeholder for the connection back to the source 
         Raises:
             AIGenerationError: If parsing fails or validation fails
         """
+        # Extract JSON from markdown code blocks if present
+        json_text = self._extract_json_from_response(response_text)
+
         # Try to parse JSON
         try:
-            data = json.loads(response_text)
+            data = json.loads(json_text)
         except json.JSONDecodeError as e:
             raise AIGenerationError(f"Failed to parse response as JSON: {str(e)}") from e
 
@@ -1372,9 +1398,12 @@ Note: Use "EXISTING_WORLD" as placeholder for the connection back to the source 
         # Import here to avoid circular import
         from cli_rpg.models.item import Item, ItemType
 
+        # Extract JSON from markdown code blocks if present
+        json_text = self._extract_json_from_response(response_text)
+
         # Try to parse JSON
         try:
-            data = json.loads(response_text)
+            data = json.loads(json_text)
         except json.JSONDecodeError as e:
             raise AIGenerationError(f"Failed to parse response as JSON: {str(e)}") from e
 
@@ -1590,9 +1619,12 @@ Note: Use "EXISTING_WORLD" as placeholder for the connection back to the source 
         Raises:
             AIGenerationError: If parsing fails or validation fails
         """
+        # Extract JSON from markdown code blocks if present
+        json_text = self._extract_json_from_response(response_text)
+
         # Try to parse JSON
         try:
-            data = json.loads(response_text)
+            data = json.loads(json_text)
         except json.JSONDecodeError as e:
             raise AIGenerationError(f"Failed to parse response as JSON: {str(e)}") from e
 

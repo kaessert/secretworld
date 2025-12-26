@@ -108,7 +108,7 @@ Customize other settings in `.env`:
   - Anthropic: `claude-3-5-sonnet-latest`
   - Ollama: `llama3.2`
 - `AI_TEMPERATURE`: Randomness (0.0-2.0, default: 0.7)
-- `AI_MAX_TOKENS`: Response length (default: 2000)
+- `AI_MAX_TOKENS`: Response length (default: 3000)
 - `AI_MAX_RETRIES`: Retry attempts (default: 3)
 - `AI_ENABLE_CACHING`: Enable caching (default: true)
 - `AI_CACHE_FILE`: Custom cache file path (default: `~/.cli_rpg/cache/ai_cache.json`)

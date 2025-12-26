@@ -135,8 +135,8 @@ Instead of one monolithic prompt, use a hierarchical generation system:
 - `src/cli_rpg/ai_world.py`: Use layered generation
 
 **Quick Wins (do first)**:
-1. Increase `max_tokens` for location generation (current: 2000, try: 3000)
-2. Add JSON extraction from markdown code blocks
+1. ~~Increase `max_tokens` for location generation (current: 2000, try: 3000)~~ ✓ Completed (2025-12-26) - Default increased to 3000
+2. ~~Add JSON extraction from markdown code blocks~~ ✓ Completed (2025-12-26) - Added `_extract_json_from_response()` to extract JSON from ```json...``` or ```...``` blocks in all 5 parse methods
 3. Add try/except with JSON repair for truncated responses
 4. Log full AI responses on parse failure for debugging
 

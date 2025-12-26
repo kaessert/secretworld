@@ -23,7 +23,7 @@ Configuration management for AI services.
 - `api_key: str` - API key for LLM provider (required)
 - `model: str` - Model identifier (default: "gpt-3.5-turbo")
 - `temperature: float` - Generation randomness (0.0-2.0, default: 0.7)
-- `max_tokens: int` - Maximum response length (default: 500)
+- `max_tokens: int` - Maximum response length (default: 3000)
 - `max_retries: int` - Retry attempts for API failures (default: 3)
 - `retry_delay: float` - Delay between retries in seconds (default: 1.0)
 - `enable_caching: bool` - Enable response caching (default: True)
