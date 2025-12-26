@@ -95,6 +95,20 @@ Core service for interacting with LLM APIs.
 - Returns `RegionContext` instance
 - Raises `AIGenerationError` on generation failure
 
+`generate_location_with_context(theme: str, world_context: WorldContext, region_context: RegionContext, source_location: Optional[str] = None, direction: Optional[str] = None) -> dict`
+- Generate Layer 3 location using minimal prompt with cached context
+- Uses `location_prompt_minimal` template from AIConfig
+- Returns location dict with empty `npcs` list (NPCs generated separately in Layer 4)
+- Accepts optional `world_context` and `region_context` for thematic consistency
+- Raises `AIGenerationError` on generation failure
+
+`generate_npcs_for_location(theme: str, location_name: str, location_description: str, location_category: str = "") -> list[dict]`
+- Generate Layer 4 NPCs as a separate call
+- Uses `npc_prompt_minimal` template from AIConfig
+- Returns list of validated NPC dicts with fields: `name`, `description`, `dialogue`, `role`
+- Keeps NPC generation isolated for reliable JSON parsing
+- Raises `AIGenerationError` on generation failure
+
 ### 3.3 WorldContext
 
 Cached world theme context for layered AI generation (Layer 1 of the hierarchical generation system).
@@ -233,11 +247,38 @@ Coordinate-based world storage for spatial consistency.
 - Sets hierarchy fields: `is_overworld=True`, `is_safe_zone` based on category
 - Update world dictionary in-place
 - Return updated world
+- Accepts optional `world_context` and `region_context` for layered generation
 
 **`create_world_with_fallback(ai_service: Optional[AIService] = None, theme: str = "fantasy") -> dict[str, Location]`**
 - Attempt AI world generation
 - Fall back to default world on failure
 - Log warnings about fallback
+
+### 3.6 GameState Context Caching
+
+The GameState class manages context caching for the layered generation system.
+
+**Attributes:**
+- `world_context: Optional[WorldContext]` - Cached Layer 1 context (generated once per world)
+- `region_contexts: dict[tuple[int, int], RegionContext]` - Cached Layer 2 contexts by coordinates
+
+**Methods:**
+
+`get_or_create_world_context() -> WorldContext`
+- Returns cached `world_context` if available
+- Generates new WorldContext via `ai_service.generate_world_context()` if AI available
+- Falls back to `WorldContext.default(theme)` if AI unavailable
+- Caches result for future calls
+
+`get_or_create_region_context(coordinates: Tuple[int, int]) -> RegionContext`
+- Returns cached context for coordinates if available
+- Generates new RegionContext via `ai_service.generate_region_context()` if AI available
+- Falls back to `RegionContext.default(coordinates)` if AI unavailable
+- Caches result by coordinate tuple
+
+**Serialization:**
+- `to_dict()`: Serializes `world_context` and `region_contexts` with coordinate keys as strings
+- `from_dict()`: Deserializes contexts with backward compatibility for saves without context data
 
 ## 4. Data Formats
 

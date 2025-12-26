@@ -7,6 +7,8 @@ from cli_rpg.models.location import Location
 from cli_rpg.models.npc import NPC
 from cli_rpg.models.shop import Shop, ShopItem
 from cli_rpg.models.item import Item, ItemType
+from cli_rpg.models.world_context import WorldContext
+from cli_rpg.models.region_context import RegionContext
 from cli_rpg.world_grid import WorldGrid, SubGrid, DIRECTION_OFFSETS
 from cli_rpg.location_art import get_fallback_location_ascii_art
 
@@ -353,7 +355,9 @@ def expand_world(
     from_location: str,
     direction: str,
     theme: str,
-    target_coords: Optional[tuple[int, int]] = None
+    target_coords: Optional[tuple[int, int]] = None,
+    world_context: Optional[WorldContext] = None,
+    region_context: Optional[RegionContext] = None
 ) -> dict[str, Location]:
     """Expand world by generating a new location.
 
@@ -367,6 +371,8 @@ def expand_world(
                        If provided, the new location will be placed at these
                        coordinates. Otherwise, coordinates are calculated from
                        the source location.
+        world_context: Optional Layer 1 context for layered generation
+        region_context: Optional Layer 2 context for layered generation
 
     Returns:
         Updated world dictionary (same object, modified in place)
@@ -385,14 +391,32 @@ def expand_world(
             f"{', '.join(sorted(Location.VALID_DIRECTIONS))}"
         )
 
-    # Generate new location
+    # Generate new location - use layered approach if contexts provided
     logger.info(f"Expanding world: {direction} from {from_location}")
-    location_data = ai_service.generate_location(
-        theme=theme,
-        context_locations=list(world.keys()),
-        source_location=from_location,
-        direction=direction
-    )
+    if world_context is not None and region_context is not None:
+        # Use layered generation (Layer 3 for location, Layer 4 for NPCs)
+        location_data = ai_service.generate_location_with_context(
+            world_context=world_context,
+            region_context=region_context,
+            source_location=from_location,
+            direction=direction
+        )
+        # Generate NPCs separately (Layer 4)
+        npcs_data = ai_service.generate_npcs_for_location(
+            world_context=world_context,
+            location_name=location_data["name"],
+            location_description=location_data["description"],
+            location_category=location_data.get("category")
+        )
+        location_data["npcs"] = npcs_data
+    else:
+        # Use original generation
+        location_data = ai_service.generate_location(
+            theme=theme,
+            context_locations=list(world.keys()),
+            source_location=from_location,
+            direction=direction
+        )
 
     # Generate ASCII art for the new location
     new_ascii_art = _generate_location_ascii_art(
@@ -476,7 +500,9 @@ def expand_area(
     direction: str,
     theme: str,
     target_coords: tuple[int, int],
-    size: int = 5
+    size: int = 5,
+    world_context: Optional[WorldContext] = None,
+    region_context: Optional[RegionContext] = None
 ) -> dict[str, Location]:
     """Expand world by generating an entire thematic area (4-7 locations).
 
@@ -492,6 +518,11 @@ def expand_area(
         theme: World theme for generation
         target_coords: Coordinates where the entry location should be placed
         size: Target number of locations in the area (4-7, default 5)
+        world_context: Optional Layer 1 context for layered generation
+        region_context: Optional Layer 2 context for layered generation
+                       (Note: area generation currently uses generate_area which
+                       doesn't support layered contexts - contexts are passed
+                       through to expand_world fallback)
 
     Returns:
         Updated world dictionary (same object, modified in place)
@@ -538,7 +569,9 @@ def expand_area(
             from_location=from_location,
             direction=direction,
             theme=theme,
-            target_coords=target_coords
+            target_coords=target_coords,
+            world_context=world_context,
+            region_context=region_context
         )
 
     # Place area locations on the grid
@@ -631,7 +664,9 @@ def expand_area(
             from_location=from_location,
             direction=direction,
             theme=theme,
-            target_coords=target_coords
+            target_coords=target_coords,
+            world_context=world_context,
+            region_context=region_context
         )
 
     # Set up hierarchy relationships between entry and sub-locations

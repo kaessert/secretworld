@@ -2402,3 +2402,202 @@ Note: Use "EXISTING_WORLD" as placeholder for the connection back to the source 
             coordinates=coordinates,
             generated_at=datetime.now()
         )
+
+    def generate_location_with_context(
+        self,
+        world_context: "WorldContext",
+        region_context: "RegionContext",
+        source_location: Optional[str] = None,
+        direction: Optional[str] = None
+    ) -> dict:
+        """Generate a new location using layered context (Layer 3).
+
+        This method uses the minimal location prompt that expects world and region
+        context to be provided. It does NOT generate NPCs - use generate_npcs_for_location
+        separately for NPC generation (Layer 4).
+
+        Args:
+            world_context: Layer 1 WorldContext with theme essence, naming style, tone
+            region_context: Layer 2 RegionContext with region name, theme, danger level
+            source_location: Optional location to expand from
+            direction: Optional direction of expansion from source
+
+        Returns:
+            Dictionary with keys: name, description, connections, category, npcs (empty list)
+
+        Raises:
+            AIGenerationError: If generation fails or response is invalid
+            AIServiceError: If API call fails
+            AITimeoutError: If request times out
+        """
+        # Build prompt using minimal template with context
+        prompt = self._build_location_with_context_prompt(
+            world_context=world_context,
+            region_context=region_context,
+            source_location=source_location,
+            direction=direction
+        )
+
+        # Check cache if enabled
+        if self.config.enable_caching:
+            cached_result = self._get_cached(prompt)
+            if cached_result is not None:
+                # Ensure npcs is empty for cached results
+                cached_result["npcs"] = []
+                return cached_result
+
+        # Call LLM
+        response_text = self._call_llm(prompt)
+
+        # Parse and validate response (reuse existing parser)
+        location_data = self._parse_location_response(response_text)
+
+        # Override npcs with empty list (Layer 3 doesn't generate NPCs)
+        location_data["npcs"] = []
+
+        # Cache result if enabled
+        if self.config.enable_caching:
+            self._set_cached(prompt, location_data)
+
+        return location_data
+
+    def _build_location_with_context_prompt(
+        self,
+        world_context: "WorldContext",
+        region_context: "RegionContext",
+        source_location: Optional[str],
+        direction: Optional[str]
+    ) -> str:
+        """Build prompt for location generation using layered context.
+
+        Args:
+            world_context: Layer 1 context
+            region_context: Layer 2 context
+            source_location: Optional location to expand from
+            direction: Optional direction of expansion
+
+        Returns:
+            Formatted prompt string using minimal template
+        """
+        # Format source and direction
+        source_text = source_location if source_location else "None (starting location)"
+        direction_text = direction if direction else "N/A"
+
+        # Use minimal template from config
+        prompt = self.config.location_prompt_minimal.format(
+            theme=world_context.theme,
+            theme_essence=world_context.theme_essence,
+            region_name=region_context.name,
+            region_theme=region_context.theme,
+            source_location=source_text,
+            direction=direction_text
+        )
+
+        return prompt
+
+    def generate_npcs_for_location(
+        self,
+        world_context: "WorldContext",
+        location_name: str,
+        location_description: str,
+        location_category: Optional[str] = None
+    ) -> list[dict]:
+        """Generate NPCs for a location using layered context (Layer 4).
+
+        This is a separate API call for NPC generation, allowing NPCs to be
+        generated after the location is created.
+
+        Args:
+            world_context: Layer 1 WorldContext with theme essence, naming style, tone
+            location_name: Name of the location to generate NPCs for
+            location_description: Description of the location for context
+            location_category: Optional category (town, dungeon, etc.)
+
+        Returns:
+            List of NPC dictionaries: [{name, description, dialogue, role}]
+            Empty list if no NPCs generated or on validation failure
+
+        Raises:
+            AIGenerationError: If generation fails
+            AIServiceError: If API call fails
+            AITimeoutError: If request times out
+        """
+        # Build prompt for NPC generation
+        prompt = self._build_npc_prompt(
+            world_context=world_context,
+            location_name=location_name,
+            location_description=location_description,
+            location_category=location_category
+        )
+
+        # Call LLM
+        response_text = self._call_llm(prompt)
+
+        # Parse and validate NPCs
+        npcs = self._parse_npc_only_response(response_text, location_name)
+
+        return npcs
+
+    def _build_npc_prompt(
+        self,
+        world_context: "WorldContext",
+        location_name: str,
+        location_description: str,
+        location_category: Optional[str]
+    ) -> str:
+        """Build prompt for NPC-only generation.
+
+        Args:
+            world_context: Layer 1 context
+            location_name: Name of the location
+            location_description: Description of the location
+            location_category: Category of the location
+
+        Returns:
+            Formatted prompt string using NPC minimal template
+        """
+        prompt = self.config.npc_prompt_minimal.format(
+            theme=world_context.theme,
+            theme_essence=world_context.theme_essence,
+            naming_style=world_context.naming_style,
+            location_name=location_name,
+            location_description=location_description,
+            location_category=location_category or "unknown"
+        )
+
+        return prompt
+
+    def _parse_npc_only_response(self, response_text: str, location_name: str) -> list[dict]:
+        """Parse and validate LLM response for NPC-only generation.
+
+        Args:
+            response_text: Raw response text from LLM
+            location_name: Name of the location (for logging)
+
+        Returns:
+            List of validated NPC dictionaries
+        """
+        # Extract JSON from markdown code blocks if present
+        json_text = self._extract_json_from_response(response_text)
+
+        # Try to parse JSON, attempting repair if truncated
+        try:
+            data = json.loads(json_text)
+        except json.JSONDecodeError as e:
+            # Attempt to repair truncated JSON
+            repaired = self._repair_truncated_json(json_text)
+            if repaired != json_text:
+                try:
+                    data = json.loads(repaired)
+                except json.JSONDecodeError:
+                    self._log_parse_failure(response_text, e, "npc_only")
+                    return []  # Return empty list on parse failure
+            else:
+                self._log_parse_failure(response_text, e, "npc_only")
+                return []
+
+        # Get npcs list from response
+        npcs_data = data.get("npcs", [])
+
+        # Use existing NPC validation
+        return self._parse_npcs(npcs_data, location_name)

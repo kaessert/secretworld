@@ -109,16 +109,17 @@ Instead of one monolithic prompt, use a hierarchical generation system:
    - Added 4 new AIConfig fields with serialization support
    - Full test coverage (5 new tests) in `tests/test_ai_config.py`
 
-6. ~~**Update AIService** (`ai_service.py`)~~ ✓ Partially Completed (2025-12-26):
+6. ~~**Update AIService** (`ai_service.py`)~~ ✓ Completed (2025-12-26):
    - ~~Add `generate_world_context()` method~~ ✓ Completed - generates WorldContext with theme_essence, naming_style, and tone
-   - ~~Add `generate_region_context()` method~~ ✓ Completed (2025-12-26) - generates RegionContext with name, theme, danger_level, and landmarks; includes danger level mapping (low/medium/high/deadly → safe/moderate/dangerous/deadly)
-   - Refactor `generate_location()` to use layered contexts
-   - Add `generate_npcs_for_location()` as separate call
+   - ~~Add `generate_region_context()` method~~ ✓ Completed - generates RegionContext with name, theme, danger_level, and landmarks; includes danger level mapping (low/medium/high/deadly → safe/moderate/dangerous/deadly)
+   - ~~Add `generate_location_with_context()` method~~ ✓ Completed - uses `location_prompt_minimal` template, accepts world_context and region_context parameters
+   - ~~Add `generate_npcs_for_location()` method~~ ✓ Completed - uses `npc_prompt_minimal` template, returns validated NPC list
 
-7. **Cache contexts in GameState**:
-   - Store WorldContext at game creation
-   - Store RegionContexts as player explores
-   - Pass relevant context to generation calls
+7. ~~**Cache contexts in GameState**~~ ✓ Completed (2025-12-26):
+   - ~~Store WorldContext at game creation~~ ✓ `world_context` attribute + `get_or_create_world_context()` method
+   - ~~Store RegionContexts as player explores~~ ✓ `region_contexts` dict + `get_or_create_region_context()` method
+   - ~~Pass relevant context to generation calls~~ ✓ Wired in `ai_world.py` `expand_world()` and `expand_area()`
+   - ~~Serialize contexts with game state~~ ✓ Added to `to_dict()` and `from_dict()`
 
 **Files to modify**:
 - `src/cli_rpg/ai_config.py`: Split prompts, adjust token limits
@@ -597,4 +598,525 @@ Issues discovered during `--wfc` mode playtesting (updated 2025-12-26):
 - Quest templates with procedural elements
 - Scaling difficulty
 - Quest chains
+
+---
+
+### CRITICAL: Quest System World Integration Failures
+**Status**: HIGH PRIORITY
+**Date Added**: 2025-12-26
+
+**Problem**: Quest generation and world generation are completely decoupled, creating "impossible quests" where targets don't exist in the game world.
+
+#### Root Cause Analysis
+
+Quest generation (`ai_service.py:1639-1689`) receives minimal context:
+- Theme, NPC name, player level, location name
+- **NO** list of existing locations
+- **NO** list of spawnable enemy types
+- **NO** list of existing NPCs
+- **NO** list of obtainable items
+
+The AI generates arbitrary target strings that may not exist anywhere in the game.
+
+#### Issue 1: EXPLORE Quest Targets Don't Match World Locations
+
+**Severity**: HIGH
+
+```
+Quest: "Explore the Obsidian Cathedral"
+World: Contains "Town Square", "Dark Forest", "Mountain Pass"
+Result: IMPOSSIBLE - "Obsidian Cathedral" doesn't exist
+```
+
+**How it fails**:
+- AI generates arbitrary location name in `target` field
+- Progress checked via string match: `quest.target.lower() == location_name.lower()`
+- Player can never visit a location that doesn't exist
+
+**Files**:
+- `src/cli_rpg/ai_service.py:1639-1689` - generates arbitrary targets
+- `src/cli_rpg/models/character.py:625-630` - string matching only
+
+#### Issue 2: KILL Quest Targets Don't Match Spawnable Enemies
+
+**Severity**: HIGH
+
+```
+Quest: "Kill 5 Frost Phoenixes"
+Spawnable: Goblin, Skeleton, Orc, Spider, Wolf, Bear (templates)
+Result: IMPOSSIBLE - "Frost Phoenix" never spawns
+```
+
+**How it fails**:
+- AI generates arbitrary enemy name in `target` field
+- Enemies spawn from templates (`combat.py:2500+`) or AI generation
+- AI-generated enemies use different names than quest targets
+- Quest prompt lists suggested enemies but AI ignores them
+
+**Evidence from prompt** (`ai_config.py:172-177`):
+```
+IMPORTANT for KILL quests - use ONLY these enemy types as targets:
+- Wolf, Bear, Wild Boar, Giant Spider (for forest/wilderness)
+- Bat, Goblin, Troll, Cave Dweller (for caves)
+...
+```
+But this is guidance only - no validation enforces it.
+
+#### Issue 3: TALK Quest Targets Don't Match World NPCs
+
+**Severity**: HIGH
+
+```
+Quest: "Talk to Elder Mage Aldous"
+NPCs in World: Merchant, Guard, Hermit, Town Elder
+Result: IMPOSSIBLE - "Elder Mage Aldous" doesn't exist
+```
+
+**How it fails**:
+- AI generates arbitrary NPC name in `target` field
+- NPCs created via hardcoded defaults (`world.py`) or AI location generation
+- No cross-reference between quest NPCs and world NPCs
+- Player can never find NPC that wasn't generated
+
+#### Issue 4: COLLECT Quest Targets Don't Match Obtainable Items
+
+**Severity**: CRITICAL (most common failure)
+
+```
+Quest: "Collect 3 Dragon Scales"
+Obtainable Items: Health Potion, Iron Sword, Leather Armor (shops + drops)
+Result: IMPOSSIBLE - "Dragon Scales" can't be obtained
+```
+
+**How it fails**:
+- AI generates arbitrary item name in `target` field
+- Items only come from: hardcoded shops, template enemy drops
+- **No AI item generation exists** in the codebase
+- Quest items are pure fiction with no way to obtain them
+
+#### Risk Assessment
+
+| Objective Type | Impossible Quest Risk | Reason |
+|----------------|----------------------|--------|
+| COLLECT | 70% | Items are hardcoded, no AI item generation |
+| KILL | 60% | AI generates exotic enemy names not in templates |
+| TALK | 50% | NPCs generated separately from quests |
+| EXPLORE | 40% | AI generates unique location names |
+
+#### Proposed Solutions
+
+**Solution 1: Validation-Based (Quick Fix)**
+
+Add validation before accepting quests:
+
+```python
+# In main.py when accepting quest
+def validate_quest_target(quest: Quest, game_state: GameState) -> bool:
+    if quest.objective_type == ObjectiveType.EXPLORE:
+        return quest.target.lower() in [loc.lower() for loc in game_state.world.keys()]
+    elif quest.objective_type == ObjectiveType.KILL:
+        return quest.target.lower() in VALID_ENEMY_TYPES
+    elif quest.objective_type == ObjectiveType.TALK:
+        return any(quest.target.lower() == npc.name.lower()
+                   for loc in game_state.world.values()
+                   for npc in loc.npcs)
+    elif quest.objective_type == ObjectiveType.COLLECT:
+        return quest.target.lower() in OBTAINABLE_ITEMS
+    return True
+```
+
+**Solution 2: Context-Aware Generation (Better)**
+
+Pass world state to quest generation:
+
+```python
+def generate_quest(
+    self,
+    theme: str,
+    npc_name: str,
+    player_level: int,
+    location_name: str = "",
+    # NEW: World context for valid targets
+    valid_locations: List[str] = None,
+    valid_enemies: List[str] = None,
+    valid_npcs: List[str] = None,
+    valid_items: List[str] = None,
+) -> dict:
+```
+
+Update prompt to include:
+```
+VALID TARGETS (you MUST use one of these):
+- Locations: {valid_locations}
+- Enemies: {valid_enemies}
+- NPCs: {valid_npcs}
+- Items: {valid_items}
+```
+
+**Solution 3: World-Creating Quests (Best)**
+
+When AI generates a quest target, ensure it gets created:
+
+```python
+# After generating KILL quest for "Shadow Drake"
+# → Add "Shadow Drake" to enemy spawn table for relevant locations
+
+# After generating EXPLORE quest for "Obsidian Cathedral"
+# → Schedule location generation for "Obsidian Cathedral"
+
+# After generating TALK quest for "Elder Mage Aldous"
+# → Create NPC "Elder Mage Aldous" in appropriate location
+
+# After generating COLLECT quest for "Dragon Scales"
+# → Add "Dragon Scales" to loot table or shop inventory
+```
+
+#### Implementation Priority
+
+1. **Immediate**: Add `VALID_ENEMY_TYPES` constant and validate KILL quests (most common type)
+2. **Short-term**: Pass obtainable items list to quest generation for COLLECT quests
+3. **Medium-term**: Implement context-aware generation with all world state
+4. **Long-term**: World-creating quests that guarantee completability
+
+#### Files to Modify
+
+- `src/cli_rpg/ai_service.py`: Accept world state in `generate_quest()`
+- `src/cli_rpg/ai_config.py`: Update `DEFAULT_QUEST_GENERATION_PROMPT` with valid targets
+- `src/cli_rpg/main.py`: Add quest validation before acceptance
+- `src/cli_rpg/combat.py`: Export `VALID_ENEMY_TYPES` constant
+- `src/cli_rpg/models/quest.py`: Add `validated: bool` field (optional)
+
+#### Related Issues
+
+- Links to "World Generation Immersion & Coherence Improvements" - same root cause of disconnected systems
+- Links to "AI Location Generation Failures" - same pattern of AI generating invalid content
+
+---
+
+### Quest System Improvements for Immersion
+**Status**: ACTIVE
+**Date Added**: 2025-12-26
+
+**Analysis Summary**: Deep analysis of the quest system revealed functional but basic mechanics that lack depth for immersive gameplay.
+
+#### Current Limitations
+
+| Feature | Current State | Impact |
+|---------|---------------|--------|
+| Quest context | Minimal (theme, NPC, level only) | Generic, disconnected quests |
+| Quest chains | None | No narrative arcs |
+| Faction integration | None (system exists unused) | No meaningful choices |
+| Time limits | None | No urgency |
+| Branching objectives | None | No moral complexity |
+| Difficulty indicators | None | Player can't gauge appropriateness |
+| Quest memory | None | World doesn't react to outcomes |
+
+#### Proposed Enhancements
+
+**1. Quest Context Integration (HIGH PRIORITY)**
+
+Pass `WorldContext` and `RegionContext` to quest generation:
+
+```python
+def generate_quest(
+    ...
+    world_context: Optional[WorldContext] = None,
+    region_context: Optional[RegionContext] = None,
+    npc_background: str = "",
+    recent_player_actions: List[str] = None,
+) -> dict:
+```
+
+**2. Quest Chains & Prerequisites (HIGH PRIORITY)**
+
+Add chain support to Quest model:
+
+```python
+@dataclass
+class Quest:
+    # ... existing fields ...
+    chain_id: Optional[str] = None
+    chain_position: int = 0
+    prerequisite_quests: List[str] = field(default_factory=list)
+    unlocks_quests: List[str] = field(default_factory=list)
+```
+
+**3. Faction Integration (HIGH PRIORITY)**
+
+Connect quests to existing faction system:
+
+```python
+@dataclass
+class Quest:
+    # ... existing fields ...
+    faction_affiliation: Optional[str] = None
+    faction_reward: int = 0
+    faction_penalty: Optional[Tuple[str, int]] = None
+    required_reputation: int = 0
+```
+
+**4. Quest Difficulty (MEDIUM PRIORITY)**
+
+```python
+class QuestDifficulty(Enum):
+    TRIVIAL = "trivial"
+    EASY = "easy"
+    NORMAL = "normal"
+    CHALLENGING = "challenging"
+    HEROIC = "heroic"
+
+@dataclass
+class Quest:
+    difficulty: QuestDifficulty = QuestDifficulty.NORMAL
+    recommended_level: int = 1
+```
+
+**5. Time-Sensitive Quests (MEDIUM PRIORITY)**
+
+```python
+@dataclass
+class Quest:
+    time_limit_hours: Optional[int] = None
+    accepted_at: Optional[int] = None
+
+    def is_expired(self, current_game_hour: int) -> bool:
+        if self.time_limit_hours is None:
+            return False
+        return (current_game_hour - self.accepted_at) >= self.time_limit_hours
+```
+
+**6. Branching Objectives (HIGH PRIORITY)**
+
+```python
+@dataclass
+class QuestBranch:
+    name: str
+    objective_type: ObjectiveType
+    target: str
+    target_count: int = 1
+    moral_alignment: str = "neutral"  # good/evil/neutral
+    faction_effects: Dict[str, int] = field(default_factory=dict)
+
+@dataclass
+class Quest:
+    alternative_completions: List[QuestBranch] = field(default_factory=list)
+```
+
+Example: "Stop the Bandit Leader"
+- **Path A**: Kill the Bandit Leader (+Militia rep)
+- **Path B**: Convince him to leave (+Outlaw rep)
+- **Path C**: Help him raid (+major Outlaw rep, Militia hostile)
+
+**7. Multi-Stage Objectives (MEDIUM PRIORITY)**
+
+```python
+@dataclass
+class QuestStage:
+    description: str
+    objective_type: ObjectiveType
+    target: str
+    target_count: int = 1
+    current_count: int = 0
+
+@dataclass
+class Quest:
+    stages: List[QuestStage] = field(default_factory=list)
+    current_stage: int = 0
+```
+
+**8. Quest Memory & NPC Reactions (MEDIUM PRIORITY)**
+
+```python
+@dataclass
+class QuestOutcome:
+    quest_name: str
+    completion_method: str
+    timestamp: int
+    affected_npcs: List[str]
+    world_changes: Dict[str, Any]
+
+# In Character model
+completed_quest_outcomes: List[QuestOutcome] = field(default_factory=list)
+```
+
+#### Implementation Priority
+
+| Enhancement | Impact | Effort | Priority |
+|-------------|--------|--------|----------|
+| World/Region context in generation | High | Low | **P0** |
+| Faction integration | High | Medium | **P0** |
+| Quest chains & prerequisites | High | Medium | **P1** |
+| Branching objectives/choices | High | High | **P1** |
+| Difficulty indicators | Medium | Low | **P2** |
+| Time-sensitive quests | Medium | Low | **P2** |
+| Multi-stage objectives | Medium | High | **P2** |
+| Quest memory/NPC reactions | Medium | Medium | **P3** |
+
+#### Files to Modify
+
+- `src/cli_rpg/models/quest.py`: Add new fields (chain, faction, difficulty, branches)
+- `src/cli_rpg/ai_service.py`: Accept context params, generate richer quests
+- `src/cli_rpg/ai_config.py`: Enhanced quest generation prompt
+- `src/cli_rpg/main.py`: Handle branching completion, faction rewards
+- `src/cli_rpg/game_state.py`: Track quest outcomes for memory system
+
+---
+
+### World Generation Immersion & Coherence Improvements
+**Status**: ACTIVE
+**Date Added**: 2025-12-26
+
+**Analysis Summary**: Deep analysis of the world generation system revealed excellent procedural terrain generation (WFC) and solid spatial management (WorldGrid), but critical disconnects that harm immersion.
+
+#### Current Architecture
+
+| Layer | Component | Status |
+|-------|-----------|--------|
+| **Terrain** | WFC algorithm + ChunkManager | ✅ Solid, but isolated |
+| **Locations** | AI or fallback templates | ⚠️ Works, but generic |
+| **Context** | WorldContext + RegionContext | ❌ Models exist, unintegrated |
+
+#### Critical Issues
+
+**1. Terrain ↔ Location Disconnect**
+
+The WFC terrain system (`wfc.py`, `wfc_chunks.py`) generates coherent terrain chunks, but location generation (`ai_world.py`) completely ignores terrain. A "forest clearing" could spawn in a desert chunk.
+
+```
+WFC generates: [forest][forest][plains][water]
+AI generates:  "Desert Oasis" at coordinates (1,1) ← No connection!
+```
+
+**Files involved**:
+- `src/cli_rpg/wfc.py` - WFC algorithm (working correctly)
+- `src/cli_rpg/wfc_chunks.py` - ChunkManager (working correctly)
+- `src/cli_rpg/ai_world.py` - Location generation (doesn't query terrain)
+
+**2. ~~Orphaned Layered Context System~~** ✓ RESOLVED (2025-12-26)
+
+~~Models exist in `models/world_context.py` and `models/region_context.py`, plus generation methods `generate_world_context()` and `generate_region_context()` in `ai_service.py`. But they're **never called**:~~
+
+The layered context system is now fully integrated:
+- `GameState.get_or_create_world_context()` generates/caches WorldContext
+- `GameState.get_or_create_region_context()` generates/caches RegionContext per coordinates
+- `ai_world.py` passes contexts to `expand_world()` and `expand_area()`
+- `generate_location_with_context()` uses minimal prompts with context
+- `generate_npcs_for_location()` generates NPCs separately (Layer 4)
+
+**3. Each Location Generated in Isolation**
+
+The AI prompt for location generation (`ai_config.py`) doesn't include:
+- World theme/essence
+- Regional theme
+- Terrain type at coordinates
+- Neighboring location themes
+
+Result: Locations feel random, not part of a cohesive world.
+
+**4. Minimal NPC/Content Generation**
+
+- Only 0-2 NPCs per AI-generated location
+- No shop inventories generated
+- No quest hooks or faction ties
+- Hardcoded merchants feel out of place in AI worlds
+
+#### Implementation Plan
+
+**Phase 1: High Priority (Integrate existing systems)**
+
+1. ~~**Wire Up the Layer Context System**~~ ✓ COMPLETED (2025-12-26)
+   - [x] Generate `WorldContext` once in `create_ai_world()` at world creation
+   - [x] Store `WorldContext` in `GameState` for persistence
+   - [x] Generate `RegionContext` when player enters new region
+   - [x] Cache `RegionContext` by coordinates in `GameState`
+   - [x] Pass world + region context to location generation prompts
+
+   **Implementation**:
+   - `GameState.get_or_create_world_context()` - generates/caches Layer 1 context
+   - `GameState.get_or_create_region_context()` - generates/caches Layer 2 context per coordinates
+   - `AIService.generate_location_with_context()` - Layer 3 minimal location generation
+   - `AIService.generate_npcs_for_location()` - Layer 4 separate NPC generation
+   - Contexts serialized in `to_dict()`/`from_dict()` for save/load
+
+2. **Connect Terrain to Location Generation**
+   - [ ] Query `chunk_manager.get_tile_at(x, y)` before generating location
+   - [ ] Pass terrain type to AI prompt
+   - [ ] Update prompt template to include terrain hint
+   - [ ] Validate generated location category matches terrain (`world_tiles.py:TERRAIN_LOCATION_TYPES`)
+
+   **Files to modify**:
+   - `src/cli_rpg/ai_world.py`: Query terrain before generation
+   - `src/cli_rpg/ai_config.py`: Add terrain to location prompt template
+   - `src/cli_rpg/ai_service.py`: Accept terrain parameter
+
+3. **Enrich Location Prompts**
+   - [ ] Add `world_theme_essence` from WorldContext to prompt
+   - [ ] Add `region_theme` from RegionContext to prompt
+   - [ ] Add `terrain_type` from ChunkManager to prompt
+   - [ ] Add `neighboring_locations` names/themes for coherence
+
+   **Files to modify**:
+   - `src/cli_rpg/ai_config.py`: Expand `DEFAULT_LOCATION_PROMPT_MINIMAL`
+
+**Phase 2: Medium Priority (New features)**
+
+4. **Region Planning System**
+   - [ ] Divide world into ~16x16 tile regions
+   - [ ] Pre-generate `RegionContext` when player approaches region boundary
+   - [ ] All locations in region share theme, danger level, naming style
+   - [ ] Add region-based lookup: `get_region_context(x, y)` → `RegionContext`
+
+   **Files to modify**:
+   - `src/cli_rpg/game_state.py`: Add region management
+   - `src/cli_rpg/ai_world.py`: Use region context during expansion
+
+5. **Enhanced NPC Generation**
+   - [ ] Request 3-5 NPCs per location with roles (merchant, quest giver, guard, traveler)
+   - [ ] Generate shop inventories for merchants
+   - [ ] Generate quest hooks tied to region theme
+   - [ ] Add faction affiliations
+
+   **Files to modify**:
+   - `src/cli_rpg/ai_service.py`: Enhance NPC generation
+   - `src/cli_rpg/ai_config.py`: Update NPC prompt template
+
+6. **Terrain-Biased WFC**
+   - [ ] Modify chunk generation to respect region themes
+   - [ ] Mountain region → bias WFC toward mountain/foothills/hills
+   - [ ] Swamp region → bias toward swamp/water/forest
+   - [ ] Creates mega-biomes instead of random terrain salad
+
+   **Files to modify**:
+   - `src/cli_rpg/wfc.py`: Add tile weight biasing
+   - `src/cli_rpg/wfc_chunks.py`: Accept region bias parameter
+
+**Phase 3: Lower Priority (Polish)**
+
+7. **Strategic World Expansion**
+   - [ ] Place frontier exits strategically (toward unexplored regions)
+   - [ ] Ensure terrain transitions feel natural (forest → plains → desert, not forest → desert)
+   - [ ] Cluster similar locations together
+
+8. **Configurable SubGrid Bounds**
+   - [ ] Support linear dungeons (1x10 corridors)
+   - [ ] Support large open areas (10x10 plazas)
+   - [ ] Multi-level dungeons with z-coordinate
+
+   **Files to modify**:
+   - `src/cli_rpg/world_grid.py`: Make SubGrid bounds configurable
+
+#### Suggested Implementation Order
+
+1. **Quick win**: Pass terrain type to location AI prompt (changes to `ai_world.py`, `ai_config.py`)
+2. **Core fix**: Generate and cache WorldContext at world creation, include in prompts
+3. **Major improvement**: Implement coordinate-based RegionContext lookup
+4. **Full system**: Region planning with terrain biasing
+
+#### Strengths to Preserve
+
+- **WFC Algorithm** (`wfc.py:45-120`) - Shannon entropy-based collapse with proper constraint propagation
+- **ChunkManager** (`wfc_chunks.py`) - Deterministic seeding, boundary linking, disk persistence
+- **WorldGrid** (`world_grid.py`) - Clean coordinate-based placement with automatic bidirectional connections
+- **SubGrid Architecture** - Bounded interiors for dungeons/buildings separate from overworld
+- **Multi-provider AI** (`ai_service.py`) - Supports OpenAI, Anthropic, Ollama with graceful fallback
 

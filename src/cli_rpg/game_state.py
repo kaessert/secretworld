@@ -16,6 +16,8 @@ from cli_rpg.models.shop import Shop
 from cli_rpg.models.weather import Weather
 from cli_rpg.models.companion import Companion
 from cli_rpg.models.faction import Faction
+from cli_rpg.models.world_context import WorldContext
+from cli_rpg.models.region_context import RegionContext
 from cli_rpg.combat import (
     CombatEncounter,
     ai_spawn_enemy,
@@ -276,6 +278,9 @@ class GameState:
         self.in_sub_location: bool = False  # True when inside a SubGrid
         self.current_sub_grid: Optional["SubGrid"] = None  # Active sub-grid when inside one
         self.chunk_manager = chunk_manager  # Optional WFC chunk manager for terrain
+        # Layered context caching (Step 6-7 of layered query architecture)
+        self.world_context: Optional[WorldContext] = None  # Layer 1: World theme context
+        self.region_contexts: dict[tuple[int, int], RegionContext] = {}  # Layer 2: Region contexts by coords
 
     @property
     def is_in_conversation(self) -> bool:
@@ -984,6 +989,73 @@ class GameState:
         """
         return [c for c in self.choices if c["choice_type"] == choice_type]
 
+    def get_or_create_world_context(self) -> WorldContext:
+        """Get cached world context or generate/create default.
+
+        If world_context is already cached, returns it.
+        If AI service is available, generates using AI.
+        Otherwise, creates a default context for the theme.
+
+        Returns:
+            WorldContext for the current world theme
+        """
+        # Return cached if available
+        if self.world_context is not None:
+            return self.world_context
+
+        # Try AI generation if available
+        if self.ai_service is not None:
+            try:
+                self.world_context = self.ai_service.generate_world_context(self.theme)
+                return self.world_context
+            except Exception as e:
+                logger.warning(f"AI world context generation failed: {e}")
+                # Fall through to default
+
+        # Create default context
+        self.world_context = WorldContext.default(self.theme)
+        return self.world_context
+
+    def get_or_create_region_context(
+        self, coords: tuple[int, int], terrain_hint: str = "wilderness"
+    ) -> RegionContext:
+        """Get cached region context or generate/create default.
+
+        Args:
+            coords: Center coordinates of the region as (x, y) tuple
+            terrain_hint: Terrain type hint for the region (e.g., "mountains", "swamp")
+
+        Returns:
+            RegionContext for the specified coordinates
+        """
+        # Return cached if available
+        if coords in self.region_contexts:
+            return self.region_contexts[coords]
+
+        # Need world context first
+        world_context = self.get_or_create_world_context()
+
+        # Try AI generation if available
+        if self.ai_service is not None:
+            try:
+                region_context = self.ai_service.generate_region_context(
+                    theme=self.theme,
+                    world_context=world_context,
+                    coordinates=coords,
+                    terrain_hint=terrain_hint
+                )
+                self.region_contexts[coords] = region_context
+                return region_context
+            except Exception as e:
+                logger.warning(f"AI region context generation failed: {e}")
+                # Fall through to default
+
+        # Create default context
+        region_name = f"Region {coords[0]},{coords[1]}"
+        region_context = RegionContext.default(region_name, coords)
+        self.region_contexts[coords] = region_context
+        return region_context
+
     def to_dict(self) -> dict:
         """Serialize game state to dictionary.
 
@@ -1012,6 +1084,16 @@ class GameState:
         # Include chunk_manager if present (WFC terrain)
         if self.chunk_manager is not None:
             data["chunk_manager"] = self.chunk_manager.to_dict()
+        # Include world_context if present (Layer 1)
+        if self.world_context is not None:
+            data["world_context"] = self.world_context.to_dict()
+        # Include region_contexts if present (Layer 2)
+        # Serialize as list of [coords, context] pairs for JSON compatibility
+        if self.region_contexts:
+            data["region_contexts"] = [
+                [list(coords), ctx.to_dict()]
+                for coords, ctx in self.region_contexts.items()
+            ]
         return data
     
     @classmethod
@@ -1110,5 +1192,17 @@ class GameState:
             game_state.chunk_manager = ChunkManager.from_dict(
                 data["chunk_manager"], DEFAULT_TILE_REGISTRY
             )
+
+        # Restore world_context if present (Layer 1)
+        if "world_context" in data:
+            game_state.world_context = WorldContext.from_dict(data["world_context"])
+
+        # Restore region_contexts if present (Layer 2)
+        # Serialized as list of [coords, context] pairs
+        if "region_contexts" in data:
+            game_state.region_contexts = {
+                tuple(coords): RegionContext.from_dict(ctx_data)
+                for coords, ctx_data in data["region_contexts"]
+            }
 
         return game_state
