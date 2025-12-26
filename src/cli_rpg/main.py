@@ -2233,7 +2233,8 @@ def handle_exploration_command(game_state: GameState, command: str, args: list[s
         from cli_rpg.crafting import get_recipes_list
         return (True, f"\n{get_recipes_list()}")
 
-    elif command in ["attack", "defend", "block", "parry", "flee", "rest", "cast"]:
+    elif command in ["attack", "defend", "block", "parry", "flee", "rest", "cast",
+                      "fireball", "ice_bolt", "heal", "bash", "bless", "smite", "hide"]:
         return (True, "\n✗ Not in combat.")
     
     elif command == "unknown":

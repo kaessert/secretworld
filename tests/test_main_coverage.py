@@ -594,6 +594,97 @@ class TestExplorationCombatCommandsOutsideCombat:
         assert continue_game is True
         assert "Not in combat" in message
 
+    def test_fireball_command_outside_combat(self):
+        """Spec: Fireball command should say 'Not in combat' when not in combat."""
+        from cli_rpg.main import handle_exploration_command
+
+        character = Character(name="Hero", strength=10, dexterity=10, intelligence=10)
+        world = {"Town": Location(name="Town", description="A town", connections={})}
+        game_state = GameState(character, world, starting_location="Town")
+
+        continue_game, message = handle_exploration_command(game_state, "fireball", [])
+
+        assert continue_game is True
+        assert "Not in combat" in message
+
+    def test_ice_bolt_command_outside_combat(self):
+        """Spec: Ice bolt command should say 'Not in combat' when not in combat."""
+        from cli_rpg.main import handle_exploration_command
+
+        character = Character(name="Hero", strength=10, dexterity=10, intelligence=10)
+        world = {"Town": Location(name="Town", description="A town", connections={})}
+        game_state = GameState(character, world, starting_location="Town")
+
+        continue_game, message = handle_exploration_command(game_state, "ice_bolt", [])
+
+        assert continue_game is True
+        assert "Not in combat" in message
+
+    def test_heal_command_outside_combat(self):
+        """Spec: Heal command should say 'Not in combat' when not in combat."""
+        from cli_rpg.main import handle_exploration_command
+
+        character = Character(name="Hero", strength=10, dexterity=10, intelligence=10)
+        world = {"Town": Location(name="Town", description="A town", connections={})}
+        game_state = GameState(character, world, starting_location="Town")
+
+        continue_game, message = handle_exploration_command(game_state, "heal", [])
+
+        assert continue_game is True
+        assert "Not in combat" in message
+
+    def test_bash_command_outside_combat(self):
+        """Spec: Bash command should say 'Not in combat' when not in combat."""
+        from cli_rpg.main import handle_exploration_command
+
+        character = Character(name="Hero", strength=10, dexterity=10, intelligence=10)
+        world = {"Town": Location(name="Town", description="A town", connections={})}
+        game_state = GameState(character, world, starting_location="Town")
+
+        continue_game, message = handle_exploration_command(game_state, "bash", [])
+
+        assert continue_game is True
+        assert "Not in combat" in message
+
+    def test_bless_command_outside_combat(self):
+        """Spec: Bless command should say 'Not in combat' when not in combat."""
+        from cli_rpg.main import handle_exploration_command
+
+        character = Character(name="Hero", strength=10, dexterity=10, intelligence=10)
+        world = {"Town": Location(name="Town", description="A town", connections={})}
+        game_state = GameState(character, world, starting_location="Town")
+
+        continue_game, message = handle_exploration_command(game_state, "bless", [])
+
+        assert continue_game is True
+        assert "Not in combat" in message
+
+    def test_smite_command_outside_combat(self):
+        """Spec: Smite command should say 'Not in combat' when not in combat."""
+        from cli_rpg.main import handle_exploration_command
+
+        character = Character(name="Hero", strength=10, dexterity=10, intelligence=10)
+        world = {"Town": Location(name="Town", description="A town", connections={})}
+        game_state = GameState(character, world, starting_location="Town")
+
+        continue_game, message = handle_exploration_command(game_state, "smite", [])
+
+        assert continue_game is True
+        assert "Not in combat" in message
+
+    def test_hide_command_outside_combat(self):
+        """Spec: Hide command should say 'Not in combat' when not in combat."""
+        from cli_rpg.main import handle_exploration_command
+
+        character = Character(name="Hero", strength=10, dexterity=10, intelligence=10)
+        world = {"Town": Location(name="Town", description="A town", connections={})}
+        game_state = GameState(character, world, starting_location="Town")
+
+        continue_game, message = handle_exploration_command(game_state, "hide", [])
+
+        assert continue_game is True
+        assert "Not in combat" in message
+
     def test_unknown_command_shows_help_hint(self):
         """Spec: Unknown command should show help hint."""
         from cli_rpg.main import handle_exploration_command
