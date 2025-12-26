@@ -69,11 +69,11 @@ class TestNonInteractiveCharacterCreationManual:
         - Line 1: Character name (string, 2-30 chars)
         - Line 2: Character class ("1" for Warrior)
         - Line 3: Stat allocation method ("1" for manual)
-        - Lines 4-8: strength, dexterity, intelligence, charisma, perception (integers 1-20)
+        - Lines 4-9: strength, dexterity, intelligence, charisma, perception, luck (integers 1-20)
         - Final line: Confirmation ("yes")
         """
-        # Input: name, class (warrior), method (manual), str, dex, int, cha, per, confirmation, then command
-        stdin_input = "TestHero\n1\n1\n15\n12\n10\n8\n10\nyes\nstatus\n"
+        # Input: name, class (warrior), method (manual), str, dex, int, cha, per, luck, confirmation, then command
+        stdin_input = "TestHero\n1\n1\n15\n12\n10\n8\n10\n10\nyes\nstatus\n"
 
         result = subprocess.run(
             [sys.executable, "-m", "cli_rpg.main", "--non-interactive"],
@@ -237,8 +237,8 @@ class TestJsonModeCharacterCreation:
 
         Spec: Same inputs as non-interactive mode, but output is JSON.
         """
-        # Input: name, class (warrior), method (manual), str, dex, int, cha, per, confirmation
-        stdin_input = "TestHero\n1\n1\n15\n12\n10\n8\n10\nyes\n"
+        # Input: name, class (warrior), method (manual), str, dex, int, cha, per, luck, confirmation
+        stdin_input = "TestHero\n1\n1\n15\n12\n10\n8\n10\n10\nyes\n"
 
         result = subprocess.run(
             [sys.executable, "-m", "cli_rpg.main", "--json"],
@@ -292,8 +292,8 @@ class TestNonInteractiveCharacterCreationConfirmation:
 
         Spec: If user does not confirm, character creation is cancelled.
         """
-        # Input: name, class (warrior), method (manual), stats (str, dex, int, cha, per), "no" confirmation
-        stdin_input = "TestHero\n1\n1\n15\n12\n10\n8\n10\nno\n"
+        # Input: name, class (warrior), method (manual), stats (str, dex, int, cha, per, luck), "no" confirmation
+        stdin_input = "TestHero\n1\n1\n15\n12\n10\n8\n10\n10\nno\n"
 
         result = subprocess.run(
             [sys.executable, "-m", "cli_rpg.main", "--non-interactive"],

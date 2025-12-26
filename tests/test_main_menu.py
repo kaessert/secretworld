@@ -22,10 +22,10 @@ class TestShowMainMenu:
 class TestMainFunction:
     """Test main function integration."""
     
-    @patch('builtins.input', side_effect=["1", "Hero", "1", "1", "10", "12", "8", "10", "10", "yes", "quit", "n", "3"])
+    @patch('builtins.input', side_effect=["1", "Hero", "1", "1", "10", "12", "8", "10", "10", "10", "yes", "quit", "n", "3"])
     def test_main_create_character_then_exit(self, mock_input):
         """Test: Main menu character creation integration (spec requirement)
-        Flow: menu(1) -> name -> class(1) -> method(1) -> stats (str, dex, int, cha, per) -> confirm -> quit -> no save -> exit
+        Flow: menu(1) -> name -> class(1) -> method(1) -> stats (str, dex, int, cha, per, luck) -> confirm -> quit -> no save -> exit
         """
         result = main(args=[])
         assert result == 0

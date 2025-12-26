@@ -14,7 +14,7 @@ python -m cli_rpg.main
 
 ## Features
 
-- **Character Creation**: Create custom characters with 5 classes (Warrior, Mage, Rogue, Ranger, Cleric) and customizable attributes (strength, dexterity, intelligence, charisma, perception)
+- **Character Creation**: Create custom characters with 5 classes (Warrior, Mage, Rogue, Ranger, Cleric) and customizable attributes (strength, dexterity, intelligence, charisma, perception, luck)
 - **AI-Generated Worlds**: Dynamically generated locations using OpenAI, Anthropic, or Ollama local models (optional)
 - **Turn-Based Combat**: Engage enemies with attack, defend, and flee commands
 - **Inventory & Equipment**: Collect loot from defeated enemies, equip weapons and armor, use consumables
@@ -41,16 +41,17 @@ python -m cli_rpg.main
 2. Choose a character class (each provides stat bonuses):
    - **Warrior**: +3 STR, +1 DEX - melee combat specialists
    - **Mage**: +3 INT, +1 DEX - magic damage dealers
-   - **Rogue**: +3 DEX, +1 STR, +1 CHA, +2 PER - agile fighters with stealth and backstab abilities
-   - **Ranger**: +2 DEX, +1 STR, +1 INT, +1 PER - balanced adventurers
+   - **Rogue**: +3 DEX, +1 STR, +1 CHA, +2 PER, +2 LCK - agile fighters with stealth and backstab abilities
+   - **Ranger**: +2 DEX, +1 STR, +1 INT, +1 PER, +1 LCK - balanced adventurers
    - **Cleric**: +2 INT, +1 STR, +2 CHA - hybrid support class
 3. Choose your stat allocation method (manual or random)
-4. Set your five core attributes (1-20 each):
+4. Set your six core attributes (1-20 each):
    - **Strength**: Increases attack damage and max HP
    - **Dexterity**: Improves flee chance, dodge chance, and physical critical hit chance
    - **Intelligence**: Increases magic attack damage and magic critical hit chance
    - **Charisma**: Affects shop prices, persuasion, intimidation, and bribery
    - **Perception**: Determines ability to detect hidden secrets, traps, and environmental details
+   - **Luck**: Influences critical hit chance, loot drop rates, loot quality, and gold rewards
 
 **Note:** Constitution is automatically derived from your Strength stat and is used to reduce incoming damage during combat. Class bonuses are applied after your base stat allocation.
 
@@ -142,9 +143,14 @@ Enemy stats (HP, attack, defense) and XP rewards all scale with distance, encour
 **Boss Fights**: Occasionally, you'll encounter powerful boss enemies with enhanced stats (2x health, attack, and defense) and 4x XP rewards. Bosses are guaranteed to drop legendary loot with enhanced stats upon defeat. Boss types vary by location category (Lich Lords in dungeons, Ancient Guardians in ruins, Cave Troll Kings in caves, etc.).
 
 **Critical Hits & Dodge**: Combat includes critical hit and dodge mechanics:
-- **Player Critical Hits**: Base 5% chance + 1% per DEX (physical) or INT (magic), capped at 20%. Crits deal 1.5x damage.
+- **Player Critical Hits**: Base 5% chance + 1% per DEX (physical) or INT (magic) + 0.5% per LCK from 10, capped at 20%. Crits deal 1.5x damage.
 - **Player Dodge**: Base 5% chance + 0.5% per DEX, capped at 15%. Successful dodge negates all damage from an attack.
 - **Enemy Critical Hits**: Flat 5% chance for enemies, dealing 1.5x damage.
+
+**Loot & Gold**: Your Luck stat affects combat rewards:
+- **Loot Drop Rate**: Base 50% chance, modified by ±2% per LCK point from 10
+- **Loot Quality**: Weapon/armor bonuses gain +1 per 5 LCK above 10
+- **Gold Rewards**: Modified by ±5% per LCK point from 10
 
 **Status Effects**: Some enemies can inflict status effects during combat:
 - **Poison**: Certain creatures (spiders, snakes, serpents, vipers) have a chance to poison you on attack. Poison deals damage each turn and wears off after a set duration.

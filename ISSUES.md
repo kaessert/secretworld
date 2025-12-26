@@ -830,14 +830,19 @@ Make shopping more interactive.
 - Reputation affects starting prices (hero = discount, villain = markup)
 
 ### Luck stat affecting outcomes
-**Status**: ACTIVE
+**Status**: ✅ RESOLVED
 
-Add controlled randomness that players can influence.
+**Implemented**:
+- ✅ **Luck (LCK) stat** added to Character model (1-20 range, default 10)
+- ✅ **Class bonuses**: Rogue +2 LCK, Ranger +1 LCK
+- ✅ **Crit chance modifier**: ±0.5% per LCK point from baseline 10
+- ✅ **Loot drop rate**: Base 50% ± 2% per LCK point from 10
+- ✅ **Loot quality**: Weapon/armor bonuses gain +1 per 5 LCK above 10
+- ✅ **Gold rewards**: ±5% per LCK point from 10
+- ✅ **Level up**: LCK +1 on level up like other stats
+- ✅ **Persistence**: Full save/load support with backward compatibility
 
-- **New stat: Luck (LCK)** - subtle influence on RNG
-- Affects: crit chance, loot quality, trap avoidance, coin flip events
-- Lucky players find more gold, better drops, rarer encounters
-- Unlucky players face more traps, worse loot, harder fights
+**Future Enhancements** (moved to backlog):
 - `pray` at temples to temporarily boost luck
 - Cursed items reduce luck, blessed items increase it
 - Some events are pure luck checks ("The bridge looks unstable...")

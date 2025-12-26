@@ -103,10 +103,10 @@ def get_manual_stats() -> Optional[dict[str, int]]:
     """Prompt user for manual stat entry.
 
     Returns:
-        Dictionary with strength, dexterity, intelligence, charisma, perception or None if cancelled
+        Dictionary with strength, dexterity, intelligence, charisma, perception, luck or None if cancelled
     """
     stats = {}
-    stat_names = ["strength", "dexterity", "intelligence", "charisma", "perception"]
+    stat_names = ["strength", "dexterity", "intelligence", "charisma", "perception", "luck"]
     
     for stat_name in stat_names:
         while True:
@@ -139,7 +139,7 @@ def generate_random_stats() -> dict[str, int]:
     """Generate random balanced stats.
 
     Returns:
-        Dictionary with strength, dexterity, intelligence, charisma, perception (8-15 range)
+        Dictionary with strength, dexterity, intelligence, charisma, perception, luck (8-15 range)
     """
     return {
         "strength": random.randint(8, 15),
@@ -147,6 +147,7 @@ def generate_random_stats() -> dict[str, int]:
         "intelligence": random.randint(8, 15),
         "charisma": random.randint(8, 15),
         "perception": random.randint(8, 15),
+        "luck": random.randint(8, 15),
     }
 
 
@@ -270,6 +271,7 @@ def create_character() -> Optional[Character]:
         print(f"Intelligence: {stats['intelligence']}")
         print(f"Charisma: {stats['charisma']}")
         print(f"Perception: {stats['perception']}")
+        print(f"Luck: {stats['luck']}")
 
     # Create character with class
     character = Character(
@@ -279,6 +281,7 @@ def create_character() -> Optional[Character]:
         intelligence=stats["intelligence"],
         charisma=stats["charisma"],
         perception=stats["perception"],
+        luck=stats["luck"],
         character_class=character_class,
     )
 
@@ -372,7 +375,7 @@ def create_character_non_interactive(json_mode: bool = False) -> Tuple[Optional[
     # Step 4: Get stats based on method
     if method == "manual":
         stats = {}
-        stat_names = ["strength", "dexterity", "intelligence", "charisma", "perception"]
+        stat_names = ["strength", "dexterity", "intelligence", "charisma", "perception", "luck"]
 
         for stat_name in stat_names:
             stat_input = read_line()
@@ -401,6 +404,7 @@ def create_character_non_interactive(json_mode: bool = False) -> Tuple[Optional[
             print(f"Intelligence: {stats['intelligence']}")
             print(f"Charisma: {stats['charisma']}")
             print(f"Perception: {stats['perception']}")
+            print(f"Luck: {stats['luck']}")
 
     # Step 5: Read confirmation
     confirm_input = read_line()
@@ -419,6 +423,7 @@ def create_character_non_interactive(json_mode: bool = False) -> Tuple[Optional[
         intelligence=stats["intelligence"],
         charisma=stats["charisma"],
         perception=stats["perception"],
+        luck=stats["luck"],
         character_class=character_class,
     )
 

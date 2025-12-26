@@ -816,12 +816,12 @@ class TestCritDodgeHelperFunctions:
         assert calculate_crit_chance(10) == 0.15
 
     def test_calculate_crit_chance_cap(self):
-        """Spec: Crit chance is capped at 20%."""
+        """Spec: Crit chance is capped at 25% (with luck bonus)."""
         from cli_rpg.combat import calculate_crit_chance
-        # 20 DEX should cap at 20% (not 25%)
-        assert calculate_crit_chance(20) == 0.20
-        # Even higher DEX still caps at 20%
-        assert calculate_crit_chance(50) == 0.20
+        # 20 DEX + luck 10 = 5 + 20 + 0 = 25% capped
+        assert calculate_crit_chance(20) == 0.25
+        # Even higher DEX still caps at 25%
+        assert calculate_crit_chance(50) == 0.25
 
     def test_calculate_dodge_chance_base(self):
         """Spec: Base dodge chance is 5% with 0 DEX."""

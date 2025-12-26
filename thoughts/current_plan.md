@@ -1,88 +1,184 @@
-# Implementation Plan: Haggle Command for Shops
+# Implementation Plan: Luck (LCK) Stat Affecting Outcomes
 
 ## Spec
 
-**Command**: `haggle` - Negotiate better buy/sell prices with merchants
+**New Stat**: Luck (LCK) - subtle influence on RNG outcomes
 
 **Mechanics**:
-- **Success formula**: 25% base + (CHA × 2%) + (relationship bonus)
-  - If `npc.persuaded`: +15% bonus to success chance
-- **Effects**:
-  - Success: 15% discount on next buy OR 15% bonus on next sell
-  - Critical success (roll ≤ 10% of success chance): 25% discount + merchant offers a rare item hint
-  - Failure: No effect, can try again
-  - Critical failure (roll ≥ 95): Merchant refuses to trade for 3 turns (cooldown)
-- **NPC attributes**:
-  - `haggleable: bool = True` - whether merchant allows haggling
-  - `haggle_cooldown: int = 0` - turns remaining before haggling allowed again
-- **GameState tracking**: `haggle_bonus: float = 0.0` - active bonus (reset after one transaction)
+- **Base value**: 10 (same as CHA/PER baseline)
+- **Class bonuses**: Rogue +2, Ranger +1, others 0
+- **Level-up**: +1 LCK per level (like other stats)
+- **Effects** (all relative to LCK 10 baseline):
+  - **Crit chance**: ±0.5% per LCK point (LCK 15 = +2.5% crit bonus)
+  - **Loot quality**: LCK affects weapon/armor bonus rolls (+1 per 5 LCK above 10)
+  - **Gold drops**: ±5% per LCK point from baseline
+  - **Loot drop rate**: ±2% per LCK point (base 50%, LCK 15 = 60%)
 
-**Constraints**:
-- Only works when `current_shop` is active
-- Cooldown decrements on each exploration command
+**Persistence**: Save/load with backward compatibility (default 10)
 
 ## Tests (TDD)
 
-**File**: `tests/test_haggle.py`
+**File**: `tests/test_luck_stat.py`
 
-1. `test_calculate_haggle_chance_base` - 25% + CHA×2% formula
-2. `test_calculate_haggle_chance_with_persuaded_bonus` - +15% when persuaded
-3. `test_haggle_success_grants_discount` - success sets `game_state.haggle_bonus = 0.15`
-4. `test_haggle_critical_success_grants_larger_discount` - 25% bonus on crit
-5. `test_haggle_failure_no_effect` - failed haggle keeps `haggle_bonus = 0`
-6. `test_haggle_critical_failure_sets_cooldown` - roll ≥ 95 sets cooldown = 3
-7. `test_haggle_not_at_shop` - error when `current_shop` is None
-8. `test_haggle_stubborn_merchant` - NPC with `haggleable=False` refuses
-9. `test_haggle_cooldown_blocks_attempt` - can't haggle when cooldown > 0
-10. `test_haggle_cooldown_decrements` - cooldown reduced each command
-11. `test_buy_applies_haggle_bonus` - buy price reduced by haggle_bonus
-12. `test_sell_applies_haggle_bonus` - sell price increased by haggle_bonus
-13. `test_haggle_bonus_consumed_after_buy` - bonus reset to 0 after purchase
-14. `test_haggle_bonus_consumed_after_sell` - bonus reset to 0 after sale
+1. `test_character_has_luck_stat` - Character has `luck` attribute defaulting to 10
+2. `test_luck_stat_validation` - LCK validates 1-20 like other stats
+3. `test_class_bonuses_include_luck` - Rogue +2, Ranger +1 LCK
+4. `test_level_up_increases_luck` - LCK +1 on level up
+5. `test_luck_serialization` - to_dict/from_dict include luck
+6. `test_luck_backward_compat` - from_dict defaults to 10 if missing
+7. `test_character_str_includes_luck` - __str__ displays LCK
+
+**File**: `tests/test_luck_combat.py`
+
+8. `test_crit_chance_with_luck_bonus` - High LCK increases crit chance
+9. `test_crit_chance_with_luck_penalty` - Low LCK decreases crit chance
+10. `test_crit_chance_formula` - ±0.5% per LCK from 10
+
+**File**: `tests/test_luck_loot.py`
+
+11. `test_loot_drop_rate_with_high_luck` - LCK 15 = 60% drop rate
+12. `test_loot_drop_rate_with_low_luck` - LCK 5 = 40% drop rate
+13. `test_gold_reward_with_high_luck` - LCK 15 = +25% gold
+14. `test_gold_reward_with_low_luck` - LCK 5 = -25% gold
+15. `test_weapon_bonus_with_high_luck` - LCK 15 = +1 to damage bonus roll
+16. `test_armor_bonus_with_high_luck` - LCK 15 = +1 to defense bonus roll
 
 ## Implementation Steps
 
-### 1. Update NPC model (`src/cli_rpg/models/npc.py`)
-- Add `haggleable: bool = True` field (line ~45)
-- Add `haggle_cooldown: int = 0` field (line ~46)
-- Update `to_dict()`: add both fields
-- Update `from_dict()`: parse with defaults for backward compat
+### 1. Update Character model (`src/cli_rpg/models/character.py`)
 
-### 2. Add haggle functions (`src/cli_rpg/social_skills.py`)
+**Add luck field** (after `perception: int = 10`, line 81):
 ```python
-def calculate_haggle_chance(charisma: int, persuaded: bool = False) -> int:
-    """25% base + CHA×2% + 15% if persuaded, max 85%."""
-    chance = 25 + charisma * 2
-    if persuaded:
-        chance += 15
-    return min(chance, 85)
-
-def attempt_haggle(character, npc) -> Tuple[bool, str, float, int]:
-    """Returns (success, message, bonus, cooldown_to_set)."""
+luck: int = 10  # Default luck for backward compatibility
 ```
 
-### 3. Update GameState (`src/cli_rpg/game_state.py`)
-- Add `self.haggle_bonus: float = 0.0` to `__init__` (line ~90)
-- Add `"haggle"` to `KNOWN_COMMANDS` (line ~54)
+**Add to CLASS_BONUSES** (lines 25-41):
+- Rogue: add `"luck": 2`
+- Ranger: add `"luck": 1`
+- Others: add `"luck": 0`
 
-### 4. Add haggle command handler (`src/cli_rpg/main.py`)
-- Add handler after `elif command == "bribe":` block (~line 960)
-- Check: `current_shop` exists, NPC is `haggleable`, cooldown == 0
-- Call `attempt_haggle()`, set `game_state.haggle_bonus`
+**Update validation loop** (line 109-122):
+- Add `("luck", self.luck)` to stats list
 
-### 5. Modify buy to apply bonus (`src/cli_rpg/main.py`, ~line 843)
-- After CHA/persuade modifiers: `final_price = int(final_price * (1 - game_state.haggle_bonus))`
-- After purchase: `game_state.haggle_bonus = 0.0`
+**Update __post_init__ class bonus application** (line 131):
+```python
+self.luck += bonuses.get("luck", 0)
+```
 
-### 6. Modify sell to apply bonus (`src/cli_rpg/main.py`, ~line 898)
-- Apply: `sell_price = int(sell_price * (1 + game_state.haggle_bonus))`
-- After sale: `game_state.haggle_bonus = 0.0`
+**Update level_up()** (line 816):
+```python
+self.luck += 1
+```
+Update message (line 831):
+```python
+f"Stats increased: STR +1, DEX +1, INT +1, CHA +1, PER +1, LCK +1\n"
+```
 
-### 7. Add cooldown decrement (`src/cli_rpg/main.py`)
-- At start of `handle_exploration_command()`: if `game_state.current_npc` and `haggle_cooldown > 0`, decrement it
+**Update to_dict()** (line 846):
+```python
+"luck": self.luck,
+```
 
-### 8. Update help text (`src/cli_rpg/main.py`, ~line 47)
-- Add to shop commands: `"  haggle             - Negotiate better prices (CHA-based)"`
+**Update from_dict()** (line 882, 914):
+```python
+capped_luck = min(data.get("luck", 10), cls.MAX_STAT)
+```
+And restore actual luck (line 914):
+```python
+character.luck = data.get("luck", 10)
+```
 
-### 9. Update ISSUES.md
-- Mark "Haggling at shops" as RESOLVED
+**Update __str__()** (line 987):
+```python
+f"{colors.stat_header('Luck')}: {self.luck}"
+```
+
+### 2. Update combat crit calculation (`src/cli_rpg/combat.py`)
+
+**Modify calculate_crit_chance()** (line 101-112):
+```python
+def calculate_crit_chance(stat: int, luck: int = 10) -> float:
+    """Calculate critical hit chance based on a stat and luck.
+
+    Formula: 5% base + 1% per stat point + 0.5% per luck above/below 10, capped at 25%.
+    """
+    base_chance = 5 + stat
+    luck_bonus = (luck - 10) * 0.5
+    return min(base_chance + luck_bonus, 25) / 100.0
+```
+
+**Update player_attack() crit roll** (line 645):
+```python
+crit_chance = calculate_crit_chance(self.player.dexterity, self.player.luck)
+```
+
+**Update player_cast() crit roll** (line 797):
+```python
+crit_chance = calculate_crit_chance(self.player.intelligence, self.player.luck)
+```
+
+### 3. Update loot generation (`src/cli_rpg/combat.py`)
+
+**Modify generate_loot()** (line 1165):
+```python
+def generate_loot(enemy: Enemy, level: int, luck: int = 10) -> Optional[Item]:
+```
+
+**Update drop rate** (line 1176):
+```python
+# Base 50% + 2% per luck above/below 10
+drop_chance = 0.50 + (luck - 10) * 0.02
+if random.random() > drop_chance:
+    return None
+```
+
+**Update weapon damage bonus** (line 1202):
+```python
+luck_bonus = max(0, (luck - 10) // 5)
+damage_bonus = max(1, level + random.randint(1, 3) + luck_bonus)
+```
+
+**Update armor defense bonus** (line 1215):
+```python
+luck_bonus = max(0, (luck - 10) // 5)
+defense_bonus = max(1, level + random.randint(0, 2) + luck_bonus)
+```
+
+### 4. Update gold reward calculation (`src/cli_rpg/combat.py`)
+
+**Modify end_combat()** (line 1086):
+```python
+# Apply luck modifier to gold: ±5% per luck from 10
+luck_modifier = 1.0 + (self.player.luck - 10) * 0.05
+gold_reward = int(random.randint(5, 15) * total_level * luck_modifier)
+```
+
+### 5. Update character creation (`src/cli_rpg/character_creation.py`)
+
+**Update get_manual_stats()** (line 109):
+```python
+stat_names = ["strength", "dexterity", "intelligence", "charisma", "perception", "luck"]
+```
+
+**Update generate_random_stats()** (line 150):
+```python
+"luck": random.randint(8, 15),
+```
+
+**Update display outputs** (lines 268-272, 397-403):
+```python
+print(f"Luck: {stats['luck']}")
+```
+
+### 6. Update character creation non-interactive (line 375):
+Add luck to the stat_names list for manual stats.
+
+### 7. Call site updates
+
+**In CombatEncounter.end_combat()** - pass luck to generate_loot:
+```python
+loot = generate_loot(enemy, self.player.level, self.player.luck)
+```
+
+### 8. Update help/stats display
+- Verify `stats` command displays luck (uses Character.__str__)

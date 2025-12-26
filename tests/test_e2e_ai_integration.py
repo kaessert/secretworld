@@ -279,6 +279,7 @@ def test_complete_e2e_flow_with_mocked_ai(mock_ai_config, mock_ai_service):
         "14",          # Intelligence
         "10",          # Charisma
         "10",          # Perception
+        "10",          # Luck
         "yes",         # Confirm character
         "3",           # Select cyberpunk theme
         "look",        # Look around

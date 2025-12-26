@@ -24,19 +24,19 @@ class CharacterClass(Enum):
 # Includes PER bonuses: Rogue +2, Ranger +1, others 0
 CLASS_BONUSES: Dict["CharacterClass", Dict[str, int]] = {
     CharacterClass.WARRIOR: {
-        "strength": 3, "dexterity": 1, "intelligence": 0, "charisma": 0, "perception": 0
+        "strength": 3, "dexterity": 1, "intelligence": 0, "charisma": 0, "perception": 0, "luck": 0
     },
     CharacterClass.MAGE: {
-        "strength": 0, "dexterity": 1, "intelligence": 3, "charisma": 0, "perception": 0
+        "strength": 0, "dexterity": 1, "intelligence": 3, "charisma": 0, "perception": 0, "luck": 0
     },
     CharacterClass.ROGUE: {
-        "strength": 1, "dexterity": 3, "intelligence": 0, "charisma": 1, "perception": 2
+        "strength": 1, "dexterity": 3, "intelligence": 0, "charisma": 1, "perception": 2, "luck": 2
     },
     CharacterClass.RANGER: {
-        "strength": 1, "dexterity": 2, "intelligence": 1, "charisma": 0, "perception": 1
+        "strength": 1, "dexterity": 2, "intelligence": 1, "charisma": 0, "perception": 1, "luck": 1
     },
     CharacterClass.CLERIC: {
-        "strength": 1, "dexterity": 0, "intelligence": 2, "charisma": 2, "perception": 0
+        "strength": 1, "dexterity": 0, "intelligence": 2, "charisma": 2, "perception": 0, "luck": 0
     },
 }
 
@@ -79,6 +79,7 @@ class Character:
     intelligence: int
     charisma: int = 10  # Default charisma for backward compatibility
     perception: int = 10  # Default perception for backward compatibility
+    luck: int = 10  # Default luck for backward compatibility
     character_class: Optional[CharacterClass] = None
     level: int = 1
     health: int = field(init=False)
@@ -112,6 +113,7 @@ class Character:
             ("intelligence", self.intelligence),
             ("charisma", self.charisma),
             ("perception", self.perception),
+            ("luck", self.luck),
             ("level", self.level)
         ]:
             if not isinstance(stat_value, int):
@@ -129,6 +131,7 @@ class Character:
             self.intelligence += bonuses["intelligence"]
             self.charisma += bonuses["charisma"]
             self.perception += bonuses.get("perception", 0)
+            self.luck += bonuses.get("luck", 0)
 
         # Calculate derived stats (after bonuses applied)
         self.max_health = self.BASE_HEALTH + self.strength * self.HEALTH_PER_STRENGTH
@@ -808,12 +811,13 @@ class Character:
         # Play level up sound
         sound_level_up()
 
-        # Increase stats (including charisma and perception)
+        # Increase stats (including charisma, perception, and luck)
         self.strength += 1
         self.dexterity += 1
         self.intelligence += 1
         self.charisma += 1
         self.perception += 1
+        self.luck += 1
 
         # Recalculate derived stats
         old_max_health = self.max_health
@@ -828,7 +832,7 @@ class Character:
 
         health_increase = self.max_health - old_max_health
         return (f"Level Up! You are now level {self.level}!\n"
-                f"Stats increased: STR +1, DEX +1, INT +1, CHA +1, PER +1\n"
+                f"Stats increased: STR +1, DEX +1, INT +1, CHA +1, PER +1, LCK +1\n"
                 f"Max HP increased by {health_increase}! Health fully restored!")
     
     def to_dict(self) -> dict:
@@ -844,6 +848,7 @@ class Character:
             "intelligence": self.intelligence,
             "charisma": self.charisma,
             "perception": self.perception,
+            "luck": self.luck,
             "character_class": self.character_class.value if self.character_class else None,
             "level": self.level,
             "health": self.health,
@@ -880,6 +885,8 @@ class Character:
         capped_charisma = min(data.get("charisma", 10), cls.MAX_STAT)
         # Perception defaults to 10 for backward compatibility with old saves
         capped_perception = min(data.get("perception", 10), cls.MAX_STAT)
+        # Luck defaults to 10 for backward compatibility with old saves
+        capped_luck = min(data.get("luck", 10), cls.MAX_STAT)
 
         # Create character with capped stats to pass validation
         # Note: We pass character_class=None here to avoid re-applying bonuses
@@ -891,6 +898,7 @@ class Character:
             intelligence=capped_intelligence,
             charisma=capped_charisma,
             perception=capped_perception,
+            luck=capped_luck,
             level=data.get("level", 1),
             character_class=None,  # Don't apply bonuses on load
         )
@@ -912,6 +920,8 @@ class Character:
         character.charisma = data.get("charisma", 10)
         # Perception defaults to 10 for backward compatibility
         character.perception = data.get("perception", 10)
+        # Luck defaults to 10 for backward compatibility
+        character.luck = data.get("luck", 10)
 
         # Recalculate derived stats based on actual strength
         character.max_health = cls.BASE_HEALTH + character.strength * cls.HEALTH_PER_STRENGTH
@@ -984,5 +994,6 @@ class Character:
             f"{colors.stat_header('Dexterity')}: {self.dexterity} | "
             f"{colors.stat_header('Intelligence')}: {self.intelligence} | "
             f"{colors.stat_header('Charisma')}: {self.charisma} | "
-            f"{colors.stat_header('Perception')}: {self.perception}"
+            f"{colors.stat_header('Perception')}: {self.perception} | "
+            f"{colors.stat_header('Luck')}: {self.luck}"
         )

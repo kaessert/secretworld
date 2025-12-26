@@ -98,18 +98,21 @@ def get_distance_multiplier(distance: int) -> float:
     return 1.0 + distance * 0.15
 
 
-def calculate_crit_chance(stat: int) -> float:
-    """Calculate critical hit chance based on a stat (DEX or INT).
+def calculate_crit_chance(stat: int, luck: int = 10) -> float:
+    """Calculate critical hit chance based on a stat (DEX or INT) and luck.
 
-    Formula: 5% base + 1% per stat point, capped at 20%.
+    Formula: 5% base + 1% per stat point + 0.5% per luck above/below 10, capped at 25%.
 
     Args:
         stat: The stat value (dexterity for attacks, intelligence for cast)
+        luck: The luck stat value (default 10 for backward compatibility)
 
     Returns:
-        Critical hit chance as a decimal (0.05 to 0.20)
+        Critical hit chance as a decimal (varies based on stat and luck)
     """
-    return min(5 + stat, 20) / 100.0
+    base_chance = 5 + stat
+    luck_bonus = (luck - 10) * 0.5
+    return min(base_chance + luck_bonus, 25) / 100.0
 
 
 def calculate_dodge_chance(dexterity: int) -> float:
@@ -641,8 +644,8 @@ class CombatEncounter:
         if companion_bonus > 0:
             dmg = int(dmg * (1 + companion_bonus))
 
-        # Check for critical hit (DEX-based)
-        crit_chance = calculate_crit_chance(self.player.dexterity)
+        # Check for critical hit (DEX-based + luck bonus)
+        crit_chance = calculate_crit_chance(self.player.dexterity, self.player.luck)
         is_crit = random.random() < crit_chance
         if is_crit:
             dmg = int(dmg * CRIT_MULTIPLIER)
@@ -793,8 +796,8 @@ class CombatEncounter:
         if companion_bonus > 0:
             dmg = int(dmg * (1 + companion_bonus))
 
-        # Check for critical hit (INT-based for cast)
-        crit_chance = calculate_crit_chance(self.player.intelligence)
+        # Check for critical hit (INT-based for cast + luck bonus)
+        crit_chance = calculate_crit_chance(self.player.intelligence, self.player.luck)
         is_crit = random.random() < crit_chance
         if is_crit:
             dmg = int(dmg * CRIT_MULTIPLIER)
@@ -1081,9 +1084,10 @@ class CombatEncounter:
             xp_messages = self.player.gain_xp(total_xp)
             messages.extend(xp_messages)
 
-            # Award gold based on sum of enemy levels
+            # Award gold based on sum of enemy levels, modified by luck (±5% per luck from 10)
             total_level = sum(e.level for e in self.enemies)
-            gold_reward = random.randint(5, 15) * total_level
+            luck_modifier = 1.0 + (self.player.luck - 10) * 0.05
+            gold_reward = int(random.randint(5, 15) * total_level * luck_modifier)
             self.player.add_gold(gold_reward)
             messages.append(f"You earned {colors.gold(str(gold_reward) + ' gold')}!")
 
@@ -1093,7 +1097,7 @@ class CombatEncounter:
                 if enemy.is_boss:
                     loot = generate_boss_loot(enemy, self.player.level)
                 else:
-                    loot = generate_loot(enemy, self.player.level)
+                    loot = generate_loot(enemy, self.player.level, self.player.luck)
                 if loot is not None:
                     if self.player.inventory.add_item(loot):
                         messages.append(f"You found: {colors.item(loot.name)}!")
@@ -1162,18 +1166,20 @@ class CombatEncounter:
         return "\n".join(lines)
 
 
-def generate_loot(enemy: Enemy, level: int) -> Optional[Item]:
+def generate_loot(enemy: Enemy, level: int, luck: int = 10) -> Optional[Item]:
     """Generate loot item dropped by defeated enemy.
 
     Args:
         enemy: The defeated enemy
         level: Player level for scaling loot stats
+        luck: Player luck stat for drop rate and bonus modifiers (default 10)
 
     Returns:
-        Item if loot dropped, None otherwise (50% drop rate)
+        Item if loot dropped, None otherwise (base 50% drop rate, ±2% per luck from 10)
     """
-    # 50% chance to drop loot
-    if random.random() > 0.5:
+    # Base 50% + 2% per luck above/below 10
+    drop_chance = 0.50 + (luck - 10) * 0.02
+    if random.random() > drop_chance:
         return None
 
     # Choose random item type
@@ -1193,13 +1199,16 @@ def generate_loot(enemy: Enemy, level: int) -> Optional[Item]:
             item_type = itype
             break
 
+    # Calculate luck bonus for equipment stats (+1 per 5 luck above 10)
+    luck_bonus = max(0, (luck - 10) // 5)
+
     # Generate item based on type
     if item_type == ItemType.WEAPON:
         prefixes = ["Rusty", "Iron", "Steel", "Sharp", "Worn", "Old"]
         names = ["Sword", "Dagger", "Axe", "Mace", "Spear"]
         prefix = random.choice(prefixes)
         name = random.choice(names)
-        damage_bonus = max(1, level + random.randint(1, 3))
+        damage_bonus = max(1, level + random.randint(1, 3) + luck_bonus)
         return Item(
             name=f"{prefix} {name}",
             description=f"A {prefix.lower()} {name.lower()} from {enemy.name}",
@@ -1212,7 +1221,7 @@ def generate_loot(enemy: Enemy, level: int) -> Optional[Item]:
         names = ["Armor", "Shield", "Helmet", "Gauntlets", "Boots"]
         prefix = random.choice(prefixes)
         name = random.choice(names)
-        defense_bonus = max(1, level + random.randint(0, 2))
+        defense_bonus = max(1, level + random.randint(0, 2) + luck_bonus)
         return Item(
             name=f"{prefix} {name}",
             description=f"A {prefix.lower()} {name.lower()} from {enemy.name}",
