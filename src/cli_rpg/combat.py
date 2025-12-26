@@ -234,6 +234,18 @@ _ASCII_ART_BOSS_GUARDIAN = r"""
  /  |__|||__|  \
 """
 
+_ASCII_ART_BOSS_STONE_SENTINEL = r"""
+     ___________
+    /  _____   \
+   |  |     |  |
+   |  | O O |  |
+   |  |_____|  |
+   |    ___    |
+   |   |   |   |
+  /|   |   |   |\
+ / |===|   |===| \
+"""
+
 
 def get_fallback_ascii_art(enemy_name: str) -> str:
     """Get fallback ASCII art based on enemy name.
@@ -1307,6 +1319,10 @@ def get_boss_ascii_art(boss_name: str) -> str:
     """
     name_lower = boss_name.lower()
 
+    # Stone Sentinel (mine boss)
+    if any(term in name_lower for term in ["stone sentinel", "sentinel"]):
+        return _ASCII_ART_BOSS_STONE_SENTINEL
+
     # Demon/infernal bosses
     if any(term in name_lower for term in ["demon", "lord", "chaos", "overlord"]):
         return _ASCII_ART_BOSS_DEMON
@@ -1326,7 +1342,8 @@ def get_boss_ascii_art(boss_name: str) -> str:
 def spawn_boss(
     location_name: str,
     level: int,
-    location_category: Optional[str] = None
+    location_category: Optional[str] = None,
+    boss_type: Optional[str] = None
 ) -> Enemy:
     """
     Spawn a boss enemy appropriate for the location and player level.
@@ -1338,10 +1355,41 @@ def spawn_boss(
         level: Player level for scaling
         location_category: Optional category for boss template selection.
                           Valid: dungeon, ruins, cave, or default for unknown.
+        boss_type: Optional specific boss type to spawn (e.g., "stone_sentinel").
+                   When provided, overrides category-based selection.
 
     Returns:
         Enemy instance with is_boss=True
     """
+    # Handle specific boss types
+    if boss_type == "stone_sentinel":
+        # Stone Sentinel: ancient golem awakened by miners
+        # Scale stats: 2x base stats for bosses
+        base_health = (40 + level * 25) * 2
+        base_attack = (5 + level * 3) * 2
+        base_defense = (2 + level * 2) * 2
+        # 4x XP reward for bosses
+        base_xp = (30 + level * 20) * 4
+
+        # Get boss ASCII art
+        ascii_art = get_boss_ascii_art("The Stone Sentinel")
+
+        return Enemy(
+            name="The Stone Sentinel",
+            health=base_health,
+            max_health=base_health,
+            attack_power=base_attack,
+            defense=base_defense,
+            xp_reward=base_xp,
+            level=level,
+            ascii_art=ascii_art,
+            is_boss=True,
+            description="An ancient stone guardian awakened by the miners' greed. Its eyes glow with an inner fire.",
+            attack_flavor="slams down with a massive stone fist",
+            stun_chance=0.20,  # Heavy stone fist can stun
+            stun_duration=1,
+        )
+
     # Boss templates by location type
     boss_templates = {
         "dungeon": ["Lich Lord", "Dark Champion", "Demon Lord"],

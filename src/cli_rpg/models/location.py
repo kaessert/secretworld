@@ -45,6 +45,8 @@ class Location:
     sub_locations: List[str] = field(default_factory=list)  # Child locations
     is_safe_zone: bool = False  # No random encounters if True
     entry_point: Optional[str] = None  # Default sub-location when entering
+    boss_enemy: Optional[str] = None  # Boss template name (e.g., "stone_sentinel")
+    boss_defeated: bool = False  # True if boss has been defeated (prevents respawn)
     
     def __post_init__(self) -> None:
         """Validate location attributes after initialization."""
@@ -296,6 +298,10 @@ class Location:
             data["is_safe_zone"] = self.is_safe_zone
         if self.entry_point is not None:
             data["entry_point"] = self.entry_point
+        if self.boss_enemy is not None:
+            data["boss_enemy"] = self.boss_enemy
+        if self.boss_defeated:
+            data["boss_defeated"] = self.boss_defeated
         return data
     
     @classmethod
@@ -333,6 +339,9 @@ class Location:
         sub_locations = data.get("sub_locations", [])
         is_safe_zone = data.get("is_safe_zone", False)
         entry_point = data.get("entry_point")
+        # Parse boss fields if present (backward compatibility)
+        boss_enemy = data.get("boss_enemy")
+        boss_defeated = data.get("boss_defeated", False)
         return cls(
             name=data["name"],
             description=data["description"],
@@ -347,7 +356,9 @@ class Location:
             parent_location=parent_location,
             sub_locations=sub_locations,
             is_safe_zone=is_safe_zone,
-            entry_point=entry_point
+            entry_point=entry_point,
+            boss_enemy=boss_enemy,
+            boss_defeated=boss_defeated
         )
     
     def __str__(self) -> str:

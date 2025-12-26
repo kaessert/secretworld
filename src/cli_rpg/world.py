@@ -480,11 +480,12 @@ def create_default_world() -> tuple[dict[str, Location], str]:
 
     boss_chamber = Location(
         name="Boss Chamber",
-        description="A vast natural cavern at the deepest point of the mines. Ancient crystals embedded in the walls give off an eerie glow. The bones of unlucky miners litter the ground.",
+        description="A vast natural cavern at the deepest point of the mines. Ancient crystals embedded in the walls give off an eerie glow. The bones of unlucky miners litter the ground. An ancient stone guardian looms in the darkness.",
         parent_location="Abandoned Mines",
         is_safe_zone=False,
         category="dungeon",
-        connections={}  # No cardinal exits for sub-locations
+        connections={},  # No cardinal exits for sub-locations
+        boss_enemy="stone_sentinel",  # Guaranteed boss encounter on first entry
     )
 
     # Create luxury shop for Ironhold Market

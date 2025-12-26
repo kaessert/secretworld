@@ -1,76 +1,60 @@
-# Implementation Plan: Ironhold City
+# Implementation Plan: Boss Encounter in Boss Chamber
+
+## Summary
+Add a boss encounter to the Boss Chamber sub-location in Abandoned Mines, completing the dungeon experience with a unique mine boss, thematic flavor, and special loot.
 
 ## Spec
-Add **Ironhold City** as a new safe zone overworld landmark with 4 sub-locations at coordinates (0, -1) (south of Town Square):
+- Boss Chamber triggers a guaranteed boss fight on first entry (not random 30% chance)
+- New mine-themed boss: "The Stone Sentinel" (ancient guardian awakened by miners)
+- Location tracks if boss has been defeated (prevents respawn)
+- Boss has appropriate stats for dungeon difficulty and thematic abilities
+- Victory unlocks the chamber for safe exploration afterward
 
-- **Ironhold City** (overworld landmark, safe zone)
-  - **Ironhold Market** - entry point, contains a wealthy Merchant NPC
-  - **Castle Ward** - noble district with a Captain of the Guard NPC
-  - **Slums** - contains a Beggar NPC (recruitable)
-  - **Temple Quarter** - contains a Priest NPC
+## Test Plan (TDD)
 
-## Tests First
-Add to `tests/test_world.py`:
+### File: `tests/test_boss_chamber.py`
 
-1. `test_default_world_ironhold_city_exists` - verify location exists
-2. `test_default_world_ironhold_city_is_overworld` - verify is_overworld=True, is_safe_zone=True, 4 sub-locations, entry_point="Ironhold Market"
-3. `test_default_world_ironhold_city_sub_locations_exist` - all 4 sub-locations in world dict
-4. `test_default_world_ironhold_city_sub_locations_have_parent` - parent_location="Ironhold City", is_safe_zone=True
-5. `test_default_world_ironhold_city_sub_locations_no_cardinal_exits` - no cardinal connections
-6. `test_default_world_ironhold_city_connections` - north->Town Square
-7. `test_default_world_town_square_has_south_connection` - south->Ironhold City
-8. `test_default_world_merchant_in_ironhold_market` - wealthy Merchant NPC in Ironhold Market
-9. `test_default_world_captain_in_castle_ward` - Captain of the Guard in Castle Ward
-10. `test_default_world_beggar_in_slums` - Beggar NPC in Slums, is_recruitable=True
-11. `test_default_world_priest_in_temple_quarter` - Priest NPC in Temple Quarter
+1. **test_boss_chamber_triggers_boss_on_first_entry**: Enter Boss Chamber triggers combat with a boss enemy
+2. **test_boss_chamber_boss_is_stone_sentinel**: Verify boss name and is_boss=True
+3. **test_boss_chamber_boss_has_dungeon_stats**: Boss has 2x dungeon category stats
+4. **test_boss_chamber_no_respawn_after_defeat**: After defeating boss, entering doesn't trigger combat
+5. **test_boss_chamber_boss_defeat_persists_in_save**: boss_defeated flag serializes correctly
+6. **test_boss_chamber_safe_after_defeat**: Location becomes safe zone after boss defeated
 
-Update `test_default_world_location_count_with_sublocations` to expect 23 locations (18 + 1 overworld + 4 sub-locations).
+## Implementation Steps
 
-## Implementation
-In `src/cli_rpg/world.py` `create_default_world()`:
+### Step 1: Extend Location Model
+**File**: `src/cli_rpg/models/location.py`
+- Add `boss_enemy: Optional[str] = None` field (boss template name)
+- Add `boss_defeated: bool = False` field
+- Update `to_dict()` and `from_dict()` for serialization
 
-1. **Create Ironhold City overworld location** after Abandoned Mines (~line 192):
-   ```python
-   ironhold_city = Location(
-       name="Ironhold City",
-       description="A massive walled city of stone and steel. Towers rise above fortified walls, and the streets bustle with merchants, soldiers, and citizens from across the realm.",
-       is_overworld=True,
-       is_safe_zone=True,
-       sub_locations=["Ironhold Market", "Castle Ward", "Slums", "Temple Quarter"],
-       entry_point="Ironhold Market"
-   )
-   ```
+### Step 2: Create Stone Sentinel Boss Template
+**File**: `src/cli_rpg/combat.py`
+- Add boss template for "stone_sentinel" in `spawn_boss()`:
+  - Name: "The Stone Sentinel"
+  - Category: dungeon
+  - Special abilities: stun_chance (heavy stone fist)
+  - Flavor text: awakened by miners' greed
+- Add ASCII art for stone/golem boss type
 
-2. **Add to grid** at (0, -1) south of Town Square (~line 208):
-   ```python
-   grid.add_location(ironhold_city, 0, -1)
-   ```
+### Step 3: Add Boss Encounter Trigger in GameState.enter()
+**File**: `src/cli_rpg/game_state.py`
+- In `enter()` method, after moving to sub-location:
+  - Check if location has `boss_enemy` and `not boss_defeated`
+  - If so, spawn boss using `spawn_boss()` with location's category
+  - Start combat encounter
+  - Return combat intro message
 
-3. **Create 4 NPCs** with appropriate dialogue (~after line 438):
-   - Wealthy Merchant (is_merchant=True with luxury shop)
-   - Captain of the Guard
-   - Beggar (is_recruitable=True)
-   - Priest
+### Step 4: Mark Boss Defeated on Victory
+**File**: `src/cli_rpg/game_state.py`
+- After combat ends with victory, check if defeated enemy was location's boss
+- Set `location.boss_defeated = True`
+- Optionally set `location.is_safe_zone = True`
 
-4. **Create luxury shop** for wealthy merchant with high-tier items:
-   - Greater Health Potion (50 HP, 100 gold)
-   - Steel Sword (10 damage, 200 gold)
-   - Plate Armor (10 defense, 350 gold)
-
-5. **Create 4 sub-locations** with parent="Ironhold City", is_safe_zone=True:
-   - Ironhold Market (with Wealthy Merchant)
-   - Castle Ward (with Captain)
-   - Slums (with Beggar)
-   - Temple Quarter (with Priest)
-
-6. **Add sub-locations to world dict** (~after line 496):
-   ```python
-   world["Ironhold Market"] = ironhold_market
-   world["Castle Ward"] = castle_ward
-   world["Slums"] = slums
-   world["Temple Quarter"] = temple_quarter
-   ```
-
-## Files to Modify
-- `tests/test_world.py` - add 11 new tests, update location count test (18 → 23)
-- `src/cli_rpg/world.py` - add Ironhold City and 4 sub-locations with NPCs
+### Step 5: Configure Boss Chamber in World Creation
+**File**: `src/cli_rpg/world.py`
+- Update `boss_chamber` location in `create_default_world()`:
+  - Set `boss_enemy = "stone_sentinel"`
+  - Keep `is_safe_zone = False` (boss makes it dangerous)
+  - Add thematic description mentioning the guardian

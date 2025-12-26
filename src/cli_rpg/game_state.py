@@ -15,6 +15,7 @@ from cli_rpg.combat import (
     CombatEncounter,
     ai_spawn_enemy,
     spawn_enemies,
+    spawn_boss,
     calculate_distance_from_origin,
 )
 from cli_rpg.autosave import autosave
@@ -286,11 +287,22 @@ class GameState:
     
     def is_in_combat(self) -> bool:
         """Check if combat is currently active.
-        
+
         Returns:
             True if in combat, False otherwise
         """
         return self.current_combat is not None and self.current_combat.is_active
+
+    def mark_boss_defeated(self) -> None:
+        """Mark the current location's boss as defeated.
+
+        Called after a boss is defeated in combat. Sets boss_defeated=True
+        and makes the location a safe zone.
+        """
+        location = self.get_current_location()
+        if location.boss_enemy and not location.boss_defeated:
+            location.boss_defeated = True
+            location.is_safe_zone = True
     
     def trigger_encounter(self, location_name: str) -> Optional[str]:
         """Potentially spawn enemies based on location.
@@ -630,6 +642,25 @@ class GameState:
 
         # Build success message with look at new location
         message = f"You enter {colors.location(matched_location)}.\n\n{self.look()}"
+
+        # Check for boss encounter in sub-location
+        sub_location = self.world[matched_location]
+        if sub_location.boss_enemy and not sub_location.boss_defeated:
+            # Spawn the boss
+            boss = spawn_boss(
+                location_name=matched_location,
+                level=self.current_character.level,
+                location_category=sub_location.category,
+                boss_type=sub_location.boss_enemy
+            )
+            self.current_combat = CombatEncounter(
+                self.current_character,
+                enemies=[boss],
+                weather=self.weather,
+                companions=self.companions,
+            )
+            message += f"\n\n{self.current_combat.start()}"
+
         return (True, message)
 
     def exit_location(self) -> tuple[bool, str]:
