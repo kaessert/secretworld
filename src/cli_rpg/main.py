@@ -908,16 +908,9 @@ def handle_combat_command(game_state: GameState, command: str, args: list[str], 
             game_state.current_combat = None
 
             # Trigger companion reaction after combat
-            from cli_rpg.companion_reactions import get_combat_reaction
-
-            reaction = get_combat_reaction(
-                companions=game_state.companions,
-                command=command,
-            )
-            if reaction:
-                companion_name, reaction_text = reaction
-                from cli_rpg import colors
-                output += f"\n\n{colors.npc(companion_name)}: \"{reaction_text}\""
+            reaction_msgs = process_companion_reactions(game_state.companions, "combat_kill")
+            for msg in reaction_msgs:
+                output += f"\n{msg}"
         else:
             # Check if smite was valid (not class/mana/stun error)
             if "Only Clerics" not in message and "mana" not in message.lower() and "stunned" not in message.lower() and "not found" not in message.lower():

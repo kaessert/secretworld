@@ -1,55 +1,55 @@
-# Implementation Summary: `generate_region_context()` for AIService
+# Implementation Summary: Cleric Smite ImportError Bug Fix
 
-## What Was Implemented
+## What Was Fixed
 
-Added Layer 2 Region Context Generation to `AIService` class as part of the Layered Query Architecture (Step 6).
+Fixed an ImportError bug in `src/cli_rpg/main.py` that occurred when a Cleric killed an enemy with the `smite` command. The bug was caused by:
 
-### New Methods in `src/cli_rpg/ai_service.py`:
+1. Importing a non-existent function `get_combat_reaction` from `companion_reactions` module
+2. Calling it with incorrect parameters
 
-1. **`generate_region_context(theme, world_context, coordinates, terrain_hint)`**
-   - Main public method for generating region-level thematic context
-   - Takes Layer 1 `WorldContext` as input for consistency
-   - Returns `RegionContext` with AI-generated name, theme, danger_level, and landmarks
+## Changes Made
 
-2. **`_build_region_context_prompt(theme, world_context, coordinates, terrain_hint)`**
-   - Private helper that formats the prompt using `DEFAULT_REGION_CONTEXT_PROMPT` from `ai_config.py`
-   - Injects world context fields (theme_essence, naming_style, tone) for consistency
+**File**: `src/cli_rpg/main.py` (lines 910-920)
 
-3. **`_parse_region_context_response(response_text, coordinates)`**
-   - Parses and validates LLM JSON response
-   - Handles markdown code blocks extraction
-   - Repairs truncated JSON responses
-   - Validates all field constraints per spec:
-     - `name`: non-empty string, 1-50 chars
-     - `theme`: non-empty string, 1-200 chars
-     - `danger_level`: maps "low/medium/high/deadly" → "safe/moderate/dangerous/deadly"
-     - `landmarks`: list of 0-5 strings, each 1-50 chars
+**Before** (broken code):
+```python
+# Trigger companion reaction after combat
+from cli_rpg.companion_reactions import get_combat_reaction
 
-### Tests Added in `tests/test_ai_service.py`:
+reaction = get_combat_reaction(
+    companions=game_state.companions,
+    command=command,
+)
+if reaction:
+    companion_name, reaction_text = reaction
+    from cli_rpg import colors
+    output += f"\n\n{colors.npc(companion_name)}: \"{reaction_text}\""
+```
 
-6 new tests covering:
-1. `test_generate_region_context_returns_valid_region_context` - Happy path
-2. `test_generate_region_context_validates_required_fields` - Missing field error
-3. `test_generate_region_context_validates_danger_level` - Invalid enum error
-4. `test_generate_region_context_validates_field_lengths` - Length constraint error
-5. `test_generate_region_context_handles_json_in_code_block` - Markdown extraction
-6. `test_generate_region_context_repairs_truncated_json` - JSON repair
+**After** (fixed code):
+```python
+# Trigger companion reaction after combat
+reaction_msgs = process_companion_reactions(game_state.companions, "combat_kill")
+for msg in reaction_msgs:
+    output += f"\n{msg}"
+```
+
+## Why This Fix Works
+
+- `process_companion_reactions` is already imported at line 16 of `main.py`
+- This is the same pattern used elsewhere in the file (lines 395-397, 558-560) for handling companion reactions to combat kills
+- The function properly handles bond level changes and returns formatted reaction messages
 
 ## Test Results
 
-All 85 tests in `test_ai_service.py` pass, including the 6 new tests.
-
-## Design Decisions
-
-1. **Danger level mapping**: The LLM prompt uses "low/medium/high/deadly" terminology (natural language), but `RegionContext` uses "safe/moderate/dangerous/deadly" (internal model). The parser maps between them.
-
-2. **Graceful landmark handling**: Landmarks are optional and validated leniently - invalid entries are silently filtered rather than raising errors, to improve robustness with varied LLM outputs.
-
-3. **Reused infrastructure**: Leverages existing `_extract_json_from_response`, `_repair_truncated_json`, and `_log_parse_failure` helpers for consistency with other generation methods.
+- `pytest tests/test_cleric.py -v`: All 20 tests passed
+- `pytest tests/test_combat.py tests/test_main.py -v`: All 64 tests passed
+- `pytest tests/test_companion_reactions.py -v`: All 14 tests passed
 
 ## E2E Validation
 
-The implementation should be validated by:
-1. Running game with AI enabled and traveling to new regions
-2. Verifying region contexts are generated with valid names, themes, danger levels, and landmarks
-3. Checking that generated content respects the world context (naming style, tone)
+To validate this fix in gameplay:
+1. Create a Cleric character
+2. Find enemies and enter combat
+3. Use the `smite` command to kill an enemy
+4. Verify no ImportError occurs and companion reactions display correctly (if companions are present)

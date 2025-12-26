@@ -466,33 +466,12 @@ The `get_current_location()` method properly handles both overworld locations (i
 
 ---
 
-### CRITICAL: ImportError crashes game on Cleric smite ability
-**Status**: ACTIVE - CRITICAL BUG
-**Date Discovered**: 2025-12-26
+### ~~CRITICAL: ImportError crashes game on Cleric smite ability~~
+**Status**: RESOLVED (2025-12-26)
 
-**Problem**: Game crashes with ImportError when Cleric uses `smite` ability and defeats an enemy.
+**Problem**: Game crashed with ImportError when Cleric used `smite` ability and defeated an enemy.
 
-**Location**: `src/cli_rpg/main.py:911`
-
-**Error**:
-```
-ImportError: cannot import name 'get_combat_reaction' from 'cli_rpg.companion_reactions'
-```
-
-**Root Cause**: Code imports `get_combat_reaction` but the actual function in `companion_reactions.py` is named `get_companion_reaction`.
-
-**Impact**: Game crashes completely, preventing Cleric class from being fully playable in combat.
-
-**Fix**: Change line 911 from:
-```python
-from cli_rpg.companion_reactions import get_combat_reaction
-```
-To:
-```python
-from cli_rpg.companion_reactions import get_companion_reaction
-```
-
-And update line 913 to use the correct function name.
+**Solution**: Replaced incorrect `get_combat_reaction` import with `process_companion_reactions`, which is already imported and used elsewhere in `main.py` for handling companion reactions to combat kills.
 
 ---
 
@@ -503,7 +482,7 @@ Issues discovered during `--wfc` mode playtesting:
 
 #### CRITICAL BUGS
 
-1. **ImportError on Cleric smite** (see above - separate issue)
+1. ~~**ImportError on Cleric smite**~~ (RESOLVED 2025-12-26 - see above)
 
 #### HIGH PRIORITY BUGS
 
