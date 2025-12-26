@@ -983,7 +983,7 @@ NPCs and towns should react to player's reputation and allegiances.
 - Titles and recognition based on achievements
 
 ### Crafting and gathering system
-**Status**: ACTIVE (Gathering MVP Implemented)
+**Status**: ACTIVE (Gathering & Recipes MVP Implemented)
 
 Players should be able to create items, not just buy/find them.
 
@@ -998,9 +998,19 @@ Players should be able to create items, not just buy/find them.
 - ✅ 1-hour cooldown between gather attempts (advances game time 1 hour)
 - ✅ Gather blocked in safe zones (towns, villages)
 - ✅ Cooldown persistence through save/load
+- ✅ `recipes` command to view all available crafting recipes
+- ✅ `craft <recipe>` command (alias: `cr`) to craft items from resources
+- ✅ 5 crafting recipes:
+  - Torch (1 Wood + 1 Fiber): Consumable light source, 10 moves of light
+  - Iron Sword (2 Iron Ore + 1 Wood): Weapon, +5 damage
+  - Iron Armor (3 Iron Ore + 1 Fiber): Armor, +4 defense
+  - Rope (2 Fiber): Misc item
+  - Stone Hammer (2 Stone + 1 Wood): Weapon, +3 damage
+- ✅ Smart inventory space check (accounts for ingredients being consumed)
+- ✅ Case-insensitive recipe names
+- ✅ Specific error messages for missing ingredients
 
 **Remaining features**:
-- Crafting recipes for weapons, armor, potions, and tools
 - Crafting skill progression
 - Rare recipes as quest rewards or discoveries
 - Item enhancement/enchanting system

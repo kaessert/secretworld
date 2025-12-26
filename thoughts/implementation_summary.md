@@ -1,63 +1,71 @@
-# Implementation Summary: Crafting System Foundation
+# Implementation Summary: Crafting Recipes Feature
 
 ## What Was Implemented
 
-### 1. New ItemType.RESOURCE enum value (src/cli_rpg/models/item.py)
-- Added `RESOURCE = "resource"` to the ItemType enum
-- This enables resource items to be distinguished from MISC items for future crafting recipes
+### New Commands
+1. **`craft <recipe>` command** (alias: `cr`) - Combines gathered resources into useful items
+2. **`recipes` command** - Lists all available crafting recipes with their ingredients
 
-### 2. New crafting.py module (src/cli_rpg/crafting.py)
-Created a new module with the gather command implementation:
-- **Constants**: `GATHERABLE_CATEGORIES`, `GATHER_BASE_CHANCE` (40%), `GATHER_PER_BONUS` (+2% per PER), `GATHER_COOLDOWN` (1 hour), `GATHER_TIME_HOURS` (1 hour)
-- **Resource templates**: `RESOURCE_BY_CATEGORY` - location-specific resources:
-  - Forest: Wood, Fiber
-  - Wilderness: Stone, Fiber
-  - Cave/Dungeon: Iron Ore, Stone
-  - Ruins: Stone, Iron Ore
-- **Helper functions**: `is_gatherable_location()`, `_generate_resource_item()`
-- **Main command**: `execute_gather()` - handles location checks, cooldown, success roll (PER-based), time advancement, and inventory management
+### Crafting Recipes Added
+| Recipe | Ingredients | Output |
+|--------|-------------|--------|
+| Torch | 1 Wood + 1 Fiber | Torch (consumable, 10 moves of light) |
+| Iron Sword | 2 Iron Ore + 1 Wood | Iron Sword (weapon, +5 damage) |
+| Iron Armor | 3 Iron Ore + 1 Fiber | Iron Armor (armor, +4 defense) |
+| Rope | 2 Fiber | Rope (misc item) |
+| Stone Hammer | 2 Stone + 1 Wood | Stone Hammer (weapon, +3 damage) |
 
-### 3. GameState updates (src/cli_rpg/game_state.py)
-- Added `gather_cooldown: int = 0` attribute
-- Added `"gather"` to `KNOWN_COMMANDS` set
-- Added `"ga": "gather"` alias
-- Added serialization in `to_dict()` and deserialization in `from_dict()` with backward compatibility
+## Files Modified
 
-### 4. Camping.py updates (src/cli_rpg/camping.py)
-- Updated `decrement_cooldowns()` to also decrement `gather_cooldown`
+### src/cli_rpg/crafting.py
+- Added `CRAFTING_RECIPES` dictionary defining all 5 recipes
+- Added `get_recipes_list()` function - displays available recipes
+- Added `execute_craft()` function:
+  - Case-insensitive recipe lookup
+  - Ingredient verification with specific missing item feedback
+  - Smart inventory space check (accounts for ingredients being consumed)
+  - Consumes ingredients and creates output item
 
-### 5. Main.py updates (src/cli_rpg/main.py)
-- Added `gather (ga)` to command reference help text
-- Added command handler for `gather` that calls `execute_gather()`
+### src/cli_rpg/game_state.py
+- Added `"craft"` and `"recipes"` to `KNOWN_COMMANDS` set
+- Added `"cr": "craft"` alias
+
+### src/cli_rpg/main.py
+- Added command routing for `craft` and `recipes` commands
+- Updated help text with craft and recipes commands
+
+## Tests Added (tests/test_crafting.py)
+
+10 new tests for crafting recipes:
+1. `test_torch_recipe_exists` - Verifies torch recipe structure
+2. `test_iron_sword_recipe_exists` - Verifies iron sword recipe structure
+3. `test_craft_torch_consumes_ingredients` - Ingredients removed on craft
+4. `test_craft_adds_item_to_inventory` - Output item added correctly
+5. `test_craft_torch_has_light_duration` - Torch has correct properties
+6. `test_craft_fails_missing_ingredients` - Error when missing all ingredients
+7. `test_craft_fails_partial_ingredients` - Error when only some ingredients present
+8. `test_craft_fails_unknown_recipe` - Error for invalid recipe names
+9. `test_craft_succeeds_when_ingredients_free_space` - Smart inventory check works
+10. `test_recipes_list_shows_all_recipes` - All recipes displayed
 
 ## Test Results
 
-All 11 new tests in tests/test_crafting.py pass:
-1. `test_gather_in_forest_succeeds` - Verifies gather works in forest category
-2. `test_gather_in_town_fails` - Verifies gather fails in safe zones
-3. `test_gather_in_dungeon_succeeds` - Verifies gather works in cave/dungeon
-4. `test_gather_respects_cooldown` - Verifies cooldown enforcement
-5. `test_gather_advances_time` - Verifies 1-hour time advancement
-6. `test_gather_adds_item_to_inventory` - Verifies resource item added on success
-7. `test_gather_fails_when_inventory_full` - Verifies full inventory handling
-8. `test_gather_success_scales_with_per` - Verifies PER bonus calculation
-9. `test_resource_item_serialization` - Verifies RESOURCE items serialize/deserialize
-10. `test_forest_yields_wood_or_fiber` - Verifies forest resource types
-11. `test_cave_yields_ore_or_stone` - Verifies cave resource types
-
-Full test suite: **3073 tests passed**
+- All 21 crafting tests pass
+- Full test suite: **3083 tests passed**
+- No regressions introduced
 
 ## Design Decisions
 
-1. **Follows existing patterns**: The gather command mirrors the forage command structure from camping.py
-2. **Location-specific resources**: Different areas yield different resources to encourage exploration
-3. **Future-proof**: The RESOURCE item type and resource templates enable future crafting recipe implementation
-4. **Backward compatible**: gather_cooldown defaults to 0 for loading old saves
+1. **Case-insensitive recipes**: `craft torch`, `craft TORCH`, `craft Torch` all work
+2. **Smart inventory check**: Accounts for ingredients being consumed (2->1 crafts work even at full inventory)
+3. **Specific error messages**: Tells player exactly which ingredients are missing
+4. **Item properties preserved**: Crafted items have correct damage_bonus, defense_bonus, light_duration
 
 ## E2E Tests Should Validate
 
-1. Player can use `gather` or `ga` command in wilderness/cave locations
-2. Gather fails in towns/villages with appropriate message
-3. Gathered resources appear in inventory as RESOURCE type items
-4. Cooldown prevents immediate re-gathering
-5. Save/load preserves gather_cooldown value
+1. Use `recipes` command to view available recipes
+2. Gather Wood and Fiber in forest, then `craft torch`
+3. Verify torch appears in inventory with light_duration=10
+4. Try `craft iron sword` without enough Iron Ore to see error message
+5. Use `cr` alias for craft command
+6. Craft when inventory nearly full to verify smart space check

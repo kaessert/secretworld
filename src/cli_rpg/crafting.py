@@ -94,6 +94,62 @@ RESOURCE_BY_CATEGORY = {
     ],
 }
 
+# =============================================================================
+# Crafting recipes
+# =============================================================================
+
+CRAFTING_RECIPES = {
+    "torch": {
+        "name": "Torch",
+        "ingredients": {"Wood": 1, "Fiber": 1},
+        "output": {
+            "name": "Torch",
+            "description": "A wooden torch that provides light in dark places.",
+            "item_type": ItemType.CONSUMABLE,
+            "light_duration": 10,
+        },
+    },
+    "iron sword": {
+        "name": "Iron Sword",
+        "ingredients": {"Iron Ore": 2, "Wood": 1},
+        "output": {
+            "name": "Iron Sword",
+            "description": "A sturdy sword forged from iron ore.",
+            "item_type": ItemType.WEAPON,
+            "damage_bonus": 5,
+        },
+    },
+    "iron armor": {
+        "name": "Iron Armor",
+        "ingredients": {"Iron Ore": 3, "Fiber": 1},
+        "output": {
+            "name": "Iron Armor",
+            "description": "Protective armor crafted from iron plates.",
+            "item_type": ItemType.ARMOR,
+            "defense_bonus": 4,
+        },
+    },
+    "rope": {
+        "name": "Rope",
+        "ingredients": {"Fiber": 2},
+        "output": {
+            "name": "Rope",
+            "description": "A sturdy rope woven from plant fibers.",
+            "item_type": ItemType.MISC,
+        },
+    },
+    "stone hammer": {
+        "name": "Stone Hammer",
+        "ingredients": {"Stone": 2, "Wood": 1},
+        "output": {
+            "name": "Stone Hammer",
+            "description": "A crude but effective hammer made from stone.",
+            "item_type": ItemType.WEAPON,
+            "damage_bonus": 3,
+        },
+    },
+}
+
 
 # =============================================================================
 # Helper functions
@@ -196,3 +252,81 @@ def execute_gather(game_state: "GameState") -> Tuple[bool, str]:
     else:
         # Failure
         return (True, "You search but find nothing useful.")
+
+
+# =============================================================================
+# Crafting command functions
+# =============================================================================
+
+
+def get_recipes_list() -> str:
+    """Return formatted list of available crafting recipes.
+
+    Returns:
+        Formatted string with all recipes and their ingredients
+    """
+    lines = ["Available Crafting Recipes:", "=" * 30]
+    for key, recipe in CRAFTING_RECIPES.items():
+        ingredients = ", ".join(
+            f"{count}x {name}" for name, count in recipe["ingredients"].items()
+        )
+        lines.append(f"  {recipe['name']}: {ingredients}")
+    return "\n".join(lines)
+
+
+def execute_craft(game_state: "GameState", recipe_name: str) -> Tuple[bool, str]:
+    """Execute the craft command.
+
+    Combines gathered resources into useful items according to recipes.
+
+    Args:
+        game_state: The current game state
+        recipe_name: Name of the recipe to craft (case-insensitive)
+
+    Returns:
+        Tuple of (success, message)
+    """
+    # 1. Lookup recipe (case-insensitive)
+    recipe_key = recipe_name.lower()
+    if recipe_key not in CRAFTING_RECIPES:
+        return (False, f"Unknown recipe: {recipe_name}. Use 'recipes' to see available recipes.")
+
+    recipe = CRAFTING_RECIPES[recipe_key]
+    inventory = game_state.current_character.inventory
+
+    # 2. Check all ingredients present
+    missing = []
+    for ingredient_name, required_count in recipe["ingredients"].items():
+        # Count matching items in inventory
+        count = sum(1 for item in inventory.items if item.name == ingredient_name)
+        if count < required_count:
+            missing.append(f"{required_count - count}x {ingredient_name}")
+
+    if missing:
+        return (False, f"Missing ingredients: {', '.join(missing)}")
+
+    # 3. Check inventory not full (we'll remove N ingredients and add 1 item)
+    # Net change = 1 - len(ingredients), so only full if net positive and full
+    ingredient_count = sum(recipe["ingredients"].values())
+    if ingredient_count <= 1 and inventory.is_full():
+        return (False, "Your inventory is full.")
+
+    # 4. Remove ingredients
+    for ingredient_name, required_count in recipe["ingredients"].items():
+        for _ in range(required_count):
+            item = inventory.find_item_by_name(ingredient_name)
+            inventory.remove_item(item)
+
+    # 5. Create and add output item
+    output_data = recipe["output"]
+    crafted_item = Item(
+        name=output_data["name"],
+        description=output_data["description"],
+        item_type=output_data["item_type"],
+        damage_bonus=output_data.get("damage_bonus", 0),
+        defense_bonus=output_data.get("defense_bonus", 0),
+        light_duration=output_data.get("light_duration", 0),
+    )
+    inventory.add_item(crafted_item)
+
+    return (True, f"Crafted {crafted_item.name}!")

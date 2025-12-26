@@ -1,109 +1,206 @@
-# Implementation Plan: Crafting System Foundation
+# Crafting Recipes Implementation Plan
 
-## Overview
-Add the foundation for a crafting system: gatherable resources in wilderness locations and a `gather` command. This leverages the existing `forage` pattern from `camping.py` while introducing a distinct resource collection mechanic for future crafting.
+## Feature Spec
 
-## Spec
+Add a `craft` command that allows players to combine gathered resources (Wood, Fiber, Iron Ore, Stone) into useful items. The system should:
 
-**Gather mechanics:**
-- **Command**: `gather` (alias: `ga`)
-- **Location restriction**: Forest/wilderness only (same as forage/hunt)
-- **Cooldown**: 1 hour (like forage)
-- **Success chance**: 40% base + (PER × 2%) (same formula as forage)
-- **Time cost**: 1 hour
+1. Accept `craft <recipe>` command (alias: `cr`)
+2. Check player has required resources in inventory
+3. Consume resources and produce the crafted item
+4. Provide `recipes` command to list available recipes
 
-**Resource types (MVP set):**
-- **Iron Ore** - Found in cave/dungeon areas, for weapons/armor
-- **Wood** - Found in forest areas, for tools/handles
-- **Fiber** - Found in wilderness/forest, for rope/cloth
-- **Stone** - Found in cave/dungeon/wilderness, for tools/building
+### Initial Recipes
+| Recipe | Ingredients | Output |
+|--------|-------------|--------|
+| Torch | 1 Wood + 1 Fiber | Torch (light source, 10 moves) |
+| Iron Sword | 2 Iron Ore + 1 Wood | Iron Sword (+5 damage weapon) |
+| Iron Armor | 3 Iron Ore + 1 Fiber | Iron Armor (+4 defense armor) |
+| Rope | 2 Fiber | Rope (misc item, quest/puzzle use) |
+| Stone Hammer | 2 Stone + 1 Wood | Stone Hammer (+3 damage weapon) |
 
-**Resource item:**
-- New `ItemType.RESOURCE` enum value
-- Resources are MISC items with a `resource_type` field (for future crafting recipes)
-
-**Why this design:**
-- Minimal scope: Uses existing patterns (forage), adds one command
-- Future-proof: Resource type field enables recipe system later
-- Location-specific: Different areas yield different resources (encourages exploration)
-- Compatible: Works with existing inventory, persistence, and shop systems
-
-## Tests (tests/test_crafting.py)
-
-1. `test_gather_in_forest_succeeds` - gather in forest category returns resource
-2. `test_gather_in_town_fails` - gather in safe zone returns error
-3. `test_gather_in_dungeon_succeeds` - gather works in dungeon/cave
-4. `test_gather_respects_cooldown` - fails if cooldown active
-5. `test_gather_advances_time` - advances game time by 1 hour
-6. `test_gather_adds_item_to_inventory` - resource added to inventory
-7. `test_gather_fails_when_inventory_full` - returns full message
-8. `test_gather_success_scales_with_per` - higher PER = higher success
-9. `test_resource_item_serialization` - resource items serialize/deserialize
-10. `test_forest_yields_wood_or_fiber` - forest gives wood/fiber resources
-11. `test_cave_yields_ore_or_stone` - cave gives ore/stone resources
+---
 
 ## Implementation Steps
 
-### 1. Add `RESOURCE` to ItemType enum (src/cli_rpg/models/item.py)
-- Add `RESOURCE = "resource"` after `MISC = "misc"` (line ~15)
+### 1. Add recipe definitions to `crafting.py`
 
-### 2. Create crafting.py module (src/cli_rpg/crafting.py)
-Following the pattern from `camping.py`:
+**File:** `src/cli_rpg/crafting.py`
 
+Add after `RESOURCE_BY_CATEGORY` constant (~line 95):
 ```python
-"""Crafting and resource gathering system."""
-
-GATHERABLE_CATEGORIES = {"forest", "wilderness", "cave", "dungeon", "ruins"}
-GATHER_BASE_CHANCE = 40
-GATHER_PER_BONUS = 2
-GATHER_COOLDOWN = 1
-GATHER_TIME_HOURS = 1
-
-# Resource templates by location category
-RESOURCE_BY_CATEGORY = {
-    "forest": [
-        {"name": "Wood", "description": "A sturdy branch...", "resource_type": "wood"},
-        {"name": "Fiber", "description": "Plant fibers...", "resource_type": "fiber"},
-    ],
-    "wilderness": [
-        {"name": "Stone", "description": "A chunk of rock...", "resource_type": "stone"},
-        {"name": "Fiber", "description": "Plant fibers...", "resource_type": "fiber"},
-    ],
-    "cave": [
-        {"name": "Iron Ore", "description": "Raw iron ore...", "resource_type": "ore"},
-        {"name": "Stone", "description": "A chunk of rock...", "resource_type": "stone"},
-    ],
-    "dungeon": [
-        {"name": "Iron Ore", "description": "Raw iron ore...", "resource_type": "ore"},
-        {"name": "Stone", "description": "A chunk of rock...", "resource_type": "stone"},
-    ],
-    "ruins": [
-        {"name": "Stone", "description": "Ancient masonry...", "resource_type": "stone"},
-        {"name": "Iron Ore", "description": "Rusted ore...", "resource_type": "ore"},
-    ],
+CRAFTING_RECIPES = {
+    "torch": {
+        "name": "Torch",
+        "ingredients": {"Wood": 1, "Fiber": 1},
+        "output": {
+            "name": "Torch",
+            "description": "A wooden torch that provides light in dark places.",
+            "item_type": ItemType.CONSUMABLE,
+            "light_duration": 10,
+        },
+    },
+    "iron sword": {
+        "name": "Iron Sword",
+        "ingredients": {"Iron Ore": 2, "Wood": 1},
+        "output": {
+            "name": "Iron Sword",
+            "description": "A sturdy sword forged from iron ore.",
+            "item_type": ItemType.WEAPON,
+            "damage_bonus": 5,
+        },
+    },
+    "iron armor": {
+        "name": "Iron Armor",
+        "ingredients": {"Iron Ore": 3, "Fiber": 1},
+        "output": {
+            "name": "Iron Armor",
+            "description": "Protective armor crafted from iron plates.",
+            "item_type": ItemType.ARMOR,
+            "defense_bonus": 4,
+        },
+    },
+    "rope": {
+        "name": "Rope",
+        "ingredients": {"Fiber": 2},
+        "output": {
+            "name": "Rope",
+            "description": "A sturdy rope woven from plant fibers.",
+            "item_type": ItemType.MISC,
+        },
+    },
+    "stone hammer": {
+        "name": "Stone Hammer",
+        "ingredients": {"Stone": 2, "Wood": 1},
+        "output": {
+            "name": "Stone Hammer",
+            "description": "A crude but effective hammer made from stone.",
+            "item_type": ItemType.WEAPON,
+            "damage_bonus": 3,
+        },
+    },
 }
-
-def is_gatherable_location(location) -> bool:
-    """Check if location supports resource gathering."""
-
-def execute_gather(game_state) -> Tuple[bool, str]:
-    """Execute the gather command."""
 ```
 
-### 3. Add gather_cooldown to GameState (src/cli_rpg/game_state.py)
-- Add `self.gather_cooldown: int = 0` in `__init__` (near forage_cooldown, ~line 248)
-- Add serialization in `to_dict()` and `from_dict()` (with backward compatibility)
+### 2. Add crafting functions to `crafting.py`
 
-### 4. Add gather command to main.py (src/cli_rpg/main.py)
-- Add to command reference (~line 57): `  gather (ga)         - Gather resources in wilderness/caves`
-- Add `elif command == "gather":` handler after hunt handler (import and call execute_gather)
+**File:** `src/cli_rpg/crafting.py`
 
-### 5. Add gather to KNOWN_COMMANDS and aliases (src/cli_rpg/game_state.py)
-- Add `"gather"` to KNOWN_COMMANDS set (line ~63)
-- Add `"ga": "gather"` to aliases dict (line ~137)
+Add after `execute_gather` function:
 
-### 6. Decrement gather_cooldown in camping.py
-- Update `decrement_cooldowns()` to include `game_state.gather_cooldown`
+```python
+def get_recipes_list() -> str:
+    """Return formatted list of available crafting recipes."""
+    lines = ["Available Crafting Recipes:", "=" * 30]
+    for key, recipe in CRAFTING_RECIPES.items():
+        ingredients = ", ".join(f"{count}x {name}" for name, count in recipe["ingredients"].items())
+        lines.append(f"  {recipe['name']}: {ingredients}")
+    return "\n".join(lines)
 
-### 7. Update ISSUES.md
-- Add "gather command MVP IMPLEMENTED" under Crafting and gathering system section
+
+def execute_craft(game_state: "GameState", recipe_name: str) -> Tuple[bool, str]:
+    """Execute the craft command."""
+    # 1. Lookup recipe (case-insensitive)
+    recipe_key = recipe_name.lower()
+    if recipe_key not in CRAFTING_RECIPES:
+        return (False, f"Unknown recipe: {recipe_name}. Use 'recipes' to see available recipes.")
+
+    recipe = CRAFTING_RECIPES[recipe_key]
+    inventory = game_state.current_character.inventory
+
+    # 2. Check all ingredients present
+    missing = []
+    for ingredient_name, required_count in recipe["ingredients"].items():
+        # Count matching items in inventory
+        count = sum(1 for item in inventory.items if item.name == ingredient_name)
+        if count < required_count:
+            missing.append(f"{required_count - count}x {ingredient_name}")
+
+    if missing:
+        return (False, f"Missing ingredients: {', '.join(missing)}")
+
+    # 3. Check inventory not full
+    if inventory.is_full():
+        return (False, "Your inventory is full.")
+
+    # 4. Remove ingredients
+    for ingredient_name, required_count in recipe["ingredients"].items():
+        for _ in range(required_count):
+            item = inventory.find_item_by_name(ingredient_name)
+            inventory.remove_item(item)
+
+    # 5. Create and add output item
+    output_data = recipe["output"]
+    crafted_item = Item(
+        name=output_data["name"],
+        description=output_data["description"],
+        item_type=output_data["item_type"],
+        damage_bonus=output_data.get("damage_bonus", 0),
+        defense_bonus=output_data.get("defense_bonus", 0),
+        light_duration=output_data.get("light_duration", 0),
+    )
+    inventory.add_item(crafted_item)
+
+    return (True, f"Crafted {crafted_item.name}!")
+```
+
+### 3. Register commands in `game_state.py`
+
+**File:** `src/cli_rpg/game_state.py`
+
+- Add `"craft"`, `"recipes"` to `KNOWN_COMMANDS` set (line ~52-66)
+- Add alias `"cr": "craft"` to aliases dict (line ~121-140)
+
+### 4. Add command routing in `main.py`
+
+**File:** `src/cli_rpg/main.py`
+
+After the `elif command == "gather":` block (~line 2162-2165), add:
+```python
+elif command == "craft":
+    from cli_rpg.crafting import execute_craft
+    if not args:
+        return (True, "\nCraft what? Use 'recipes' to see available recipes.")
+    recipe_name = " ".join(args)
+    success, msg = execute_craft(game_state, recipe_name)
+    return (True, f"\n{msg}")
+
+elif command == "recipes":
+    from cli_rpg.crafting import get_recipes_list
+    return (True, f"\n{get_recipes_list()}")
+```
+
+### 5. Update help text in `main.py`
+
+**File:** `src/cli_rpg/main.py`
+
+In `get_command_reference()` (~line 58), add after `gather` line:
+```python
+"  craft (cr) <recipe> - Craft an item from gathered resources",
+"  recipes             - List available crafting recipes",
+```
+
+---
+
+## Test Plan
+
+**File:** `tests/test_crafting.py`
+
+Add tests after existing gather tests (~line 280):
+
+### Recipe existence tests
+- `test_torch_recipe_exists` - Verify torch recipe defined with correct ingredients
+- `test_iron_sword_recipe_exists` - Verify iron sword recipe defined
+
+### Crafting success tests
+- `test_craft_torch_consumes_ingredients` - Craft torch, verify Wood/Fiber removed
+- `test_craft_adds_item_to_inventory` - Verify crafted item added with correct type
+- `test_craft_torch_has_light_duration` - Torch item has light_duration=10
+
+### Crafting failure tests
+- `test_craft_fails_missing_ingredients` - Error when missing all resources
+- `test_craft_fails_partial_ingredients` - Error when only some resources present
+- `test_craft_fails_unknown_recipe` - Error for invalid recipe name
+- `test_craft_fails_inventory_full` - Error when no room for output
+
+### Recipe list test
+- `test_recipes_list_shows_all_recipes` - Verify get_recipes_list() output contains all recipes

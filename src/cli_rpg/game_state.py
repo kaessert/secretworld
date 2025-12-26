@@ -60,7 +60,7 @@ KNOWN_COMMANDS: set[str] = {
     "enter", "exit", "leave", "resolve", "pick", "open",
     "persuade", "intimidate", "bribe", "haggle",  # Social skills
     "search",  # Secret discovery
-    "camp", "forage", "hunt", "gather",  # Wilderness survival
+    "camp", "forage", "hunt", "gather", "craft", "recipes",  # Wilderness survival & crafting
     "track",  # Ranger ability
     "proficiency",  # Weapon proficiency display
 }
@@ -135,6 +135,8 @@ def parse_command(command_str: str) -> tuple[str, list[str]]:
         "gn": "go", "gs": "go", "ge": "go", "gw": "go",
         # Wilderness survival aliases
         "ca": "camp", "fg": "forage", "hu": "hunt", "ga": "gather",
+        # Crafting alias
+        "cr": "craft",
         # Ranger ability aliases
         "tr": "track",
     }

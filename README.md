@@ -101,6 +101,8 @@ python -m cli_rpg.main
 - `hunt` (hu) - Hunt game for meat and pelts (forest/wilderness only; DEX/PER-based success chance; 2-hour cooldown)
 - `track` (tr) - **Ranger only**: Detect enemies in adjacent locations (costs 10 stamina; success rate: 50% + 3% per PER point)
 - `gather` (ga) - Gather resources in wilderness areas (forest/wilderness yields wood and fiber; cave/dungeon yields iron ore and stone; PER-based success chance; 1-hour cooldown)
+- `recipes` - View all available crafting recipes with their ingredients
+- `craft <recipe>` (cr) - Craft an item from gathered resources (e.g., `craft torch`, `craft iron sword`)
 - `events` - View active world events and their status
 - `resolve [event]` - Attempt to resolve an active world event (without args: lists events with requirements)
 - `save` - Save complete game state including world, location, and theme (not available during combat)

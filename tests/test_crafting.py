@@ -277,3 +277,201 @@ def test_cave_yields_ore_or_stone():
 
     assert "ore" in resource_types
     assert "stone" in resource_types
+
+
+# =============================================================================
+# Tests for crafting recipes - existence
+# =============================================================================
+
+
+def test_torch_recipe_exists():
+    """Spec: torch recipe should exist with correct ingredients (1 Wood + 1 Fiber)."""
+    from cli_rpg.crafting import CRAFTING_RECIPES
+
+    assert "torch" in CRAFTING_RECIPES
+    recipe = CRAFTING_RECIPES["torch"]
+    assert recipe["ingredients"] == {"Wood": 1, "Fiber": 1}
+    assert recipe["output"]["name"] == "Torch"
+
+
+def test_iron_sword_recipe_exists():
+    """Spec: iron sword recipe should exist with correct ingredients (2 Iron Ore + 1 Wood)."""
+    from cli_rpg.crafting import CRAFTING_RECIPES
+
+    assert "iron sword" in CRAFTING_RECIPES
+    recipe = CRAFTING_RECIPES["iron sword"]
+    assert recipe["ingredients"] == {"Iron Ore": 2, "Wood": 1}
+    assert recipe["output"]["name"] == "Iron Sword"
+
+
+# =============================================================================
+# Tests for crafting - success cases
+# =============================================================================
+
+
+def test_craft_torch_consumes_ingredients():
+    """Spec: crafting torch should consume 1 Wood and 1 Fiber from inventory."""
+    from cli_rpg.crafting import execute_craft
+
+    game_state = make_game_state()
+    inv = game_state.current_character.inventory
+
+    # Add ingredients
+    wood = Item(name="Wood", description="Wood for crafting", item_type=ItemType.RESOURCE)
+    fiber = Item(name="Fiber", description="Fiber for crafting", item_type=ItemType.RESOURCE)
+    inv.add_item(wood)
+    inv.add_item(fiber)
+
+    success, msg = execute_craft(game_state, "torch")
+
+    assert success is True
+    assert "Crafted" in msg or "crafted" in msg
+
+    # Verify ingredients consumed
+    assert inv.find_item_by_name("Wood") is None
+    assert inv.find_item_by_name("Fiber") is None
+
+
+def test_craft_adds_item_to_inventory():
+    """Spec: crafting should add the output item to inventory."""
+    from cli_rpg.crafting import execute_craft
+
+    game_state = make_game_state()
+    inv = game_state.current_character.inventory
+
+    # Add ingredients for torch
+    wood = Item(name="Wood", description="Wood for crafting", item_type=ItemType.RESOURCE)
+    fiber = Item(name="Fiber", description="Fiber for crafting", item_type=ItemType.RESOURCE)
+    inv.add_item(wood)
+    inv.add_item(fiber)
+
+    initial_count = len(inv.items)
+    execute_craft(game_state, "torch")
+
+    # 2 ingredients removed, 1 item added = net -1
+    assert len(inv.items) == initial_count - 1
+
+    # Verify the torch was added
+    torch = inv.find_item_by_name("Torch")
+    assert torch is not None
+    assert torch.item_type == ItemType.CONSUMABLE
+
+
+def test_craft_torch_has_light_duration():
+    """Spec: crafted torch should have light_duration of 10."""
+    from cli_rpg.crafting import execute_craft
+
+    game_state = make_game_state()
+    inv = game_state.current_character.inventory
+
+    # Add ingredients
+    wood = Item(name="Wood", description="Wood for crafting", item_type=ItemType.RESOURCE)
+    fiber = Item(name="Fiber", description="Fiber for crafting", item_type=ItemType.RESOURCE)
+    inv.add_item(wood)
+    inv.add_item(fiber)
+
+    execute_craft(game_state, "torch")
+
+    torch = inv.find_item_by_name("Torch")
+    assert torch is not None
+    assert torch.light_duration == 10
+
+
+# =============================================================================
+# Tests for crafting - failure cases
+# =============================================================================
+
+
+def test_craft_fails_missing_ingredients():
+    """Spec: crafting should fail with error when missing all ingredients."""
+    from cli_rpg.crafting import execute_craft
+
+    game_state = make_game_state()
+
+    success, msg = execute_craft(game_state, "torch")
+
+    assert success is False
+    assert "Missing" in msg or "missing" in msg
+
+
+def test_craft_fails_partial_ingredients():
+    """Spec: crafting should fail when only some ingredients are present."""
+    from cli_rpg.crafting import execute_craft
+
+    game_state = make_game_state()
+    inv = game_state.current_character.inventory
+
+    # Only add wood (missing fiber)
+    wood = Item(name="Wood", description="Wood for crafting", item_type=ItemType.RESOURCE)
+    inv.add_item(wood)
+
+    success, msg = execute_craft(game_state, "torch")
+
+    assert success is False
+    assert "Missing" in msg or "missing" in msg
+    assert "Fiber" in msg  # Should mention what's missing
+
+
+def test_craft_fails_unknown_recipe():
+    """Spec: crafting should fail with error for invalid recipe name."""
+    from cli_rpg.crafting import execute_craft
+
+    game_state = make_game_state()
+
+    success, msg = execute_craft(game_state, "magic wand")
+
+    assert success is False
+    assert "Unknown" in msg or "unknown" in msg
+
+
+def test_craft_succeeds_when_ingredients_free_space():
+    """Spec: crafting should succeed when removing ingredients frees enough space.
+
+    For a 2-ingredient recipe like torch, even a full inventory works because
+    we remove 2 items and add 1.
+    """
+    from cli_rpg.crafting import execute_craft
+
+    character = make_character()
+    inv = character.inventory
+
+    # Add ingredients first
+    wood = Item(name="Wood", description="Wood for crafting", item_type=ItemType.RESOURCE)
+    fiber = Item(name="Fiber", description="Fiber for crafting", item_type=ItemType.RESOURCE)
+    inv.add_item(wood)
+    inv.add_item(fiber)
+
+    # Fill remaining capacity with junk (inventory now full)
+    remaining = inv.capacity - 2
+    for i in range(remaining):
+        inv.add_item(
+            Item(name=f"Junk {i}", description="Filler item", item_type=ItemType.MISC)
+        )
+
+    location = make_location()
+    game_state = make_game_state(character=character, location=location)
+
+    # Torch: 2 ingredients -> 1 item, so we free 1 slot
+    success, msg = execute_craft(game_state, "torch")
+
+    assert success is True  # Should succeed because net space freed
+    assert "Crafted" in msg or "crafted" in msg
+
+
+# =============================================================================
+# Tests for recipe list
+# =============================================================================
+
+
+def test_recipes_list_shows_all_recipes():
+    """Spec: get_recipes_list should include all defined recipes."""
+    from cli_rpg.crafting import get_recipes_list, CRAFTING_RECIPES
+
+    output = get_recipes_list()
+
+    # Check header is present
+    assert "Available" in output or "Recipes" in output
+
+    # Check each recipe appears in output
+    for key, recipe in CRAFTING_RECIPES.items():
+        assert recipe["name"] in output
