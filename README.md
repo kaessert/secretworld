@@ -180,6 +180,7 @@ Status effects are cleared when combat ends.
 - `attack [target]` (a) - Attack an enemy (damage based on your strength vs enemy defense). Specify a target name when facing multiple enemies, or attacks the first living enemy.
 - `defend` (d) - Take a defensive stance, reducing incoming damage by 50% from all enemies
 - `block` (bl) - Take a blocking stance for stronger defense (costs 5 stamina, reduces incoming damage by 75%)
+- `parry` (pa) - Attempt to parry and counter-attack (costs 8 stamina, 40% + DEX×2% success capped at 70%; success negates damage and counters for 50% of your attack power; failure takes full damage)
 - `stance [style]` (st) - View or change your fighting stance. Available stances:
   - **Balanced** (default): +5% critical hit chance
   - **Aggressive**: +20% damage dealt, -10% defense

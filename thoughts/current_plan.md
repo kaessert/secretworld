@@ -1,302 +1,68 @@
-# Implementation Plan: Elemental Strengths and Weaknesses
+# Implementation Plan: Parry Command
 
-## Summary
+## Overview
+Add a `parry` combat command as a timing-based defensive option alongside `block`. Parry has higher risk/reward: on success, negate damage + counter-attack; on failure, take full damage.
 
-Add elemental damage types and resistance/weakness modifiers to the combat system. Fire creatures take extra damage from ice, ice creatures take extra damage from fire, etc.
+## Spec
 
-## Specification
+**Parry mechanics:**
+- **Cost**: 8 stamina (between defend's 0 and block's 5)
+- **Success chance**: 40% base + DEX * 2% (capped at 70%)
+- **On success**: Negate incoming damage AND counter-attack for 50% of player attack power
+- **On failure**: Take full damage (no reduction)
+- **Alias**: `pa` (consistent with `bl` for block, `ba` for bash)
 
-### Element Types
-- **FIRE**: Fire creatures, dragons, flame elementals
-- **ICE**: Yetis, frost creatures, ice elementals
-- **POISON**: Spiders, snakes, serpents, vipers
-- **PHYSICAL**: Default for non-elemental creatures
+**Why this design:**
+- Higher skill floor than block (40-70% success vs block's guaranteed 75% reduction)
+- Risk/reward tradeoff: potential full damage negation + counter vs possible full damage taken
+- DEX-scaling rewards agile characters, fits thematically with parrying
+- Stamina cost (8) is moderate - more than block (5) but doesn't cost as much as bash (15)
 
-### Damage Modifiers
-| Attacker Element | Defender Element | Modifier |
-|-----------------|------------------|----------|
-| FIRE            | ICE              | 1.5x (strong) |
-| ICE             | FIRE             | 1.5x (strong) |
-| FIRE            | FIRE             | 0.5x (resist) |
-| ICE             | ICE              | 0.5x (resist) |
-| POISON          | POISON           | 0.5x (resist) |
-| Any             | Any (same)       | 0.5x (resist) |
-| Any             | Any (different, non-opposing) | 1.0x (neutral) |
+## Tests (tests/test_combat.py)
 
-### Application Points
-1. **Fireball spell** (fire damage) → bonus vs ice enemies, reduced vs fire enemies
-2. **Ice Bolt spell** (ice damage) → bonus vs fire enemies, reduced vs ice enemies
-3. **Burn DOT damage** → reduced on fire-resistant enemies
-4. **Freeze duration** → extended on fire-weak enemies, shortened on ice-resistant enemies
-5. **Enemy elemental attacks** → bonus/reduced vs player elemental buffs (future)
+Add `TestPlayerParry` class with tests:
+
+1. `test_player_parry_sets_parrying_stance` - parry() should set `parrying=True`
+2. `test_player_parry_costs_8_stamina` - should deduct 8 stamina
+3. `test_player_parry_fails_without_stamina` - fails if < 8 stamina, returns error message
+4. `test_parry_success_negates_damage` - on success (mock random), player takes 0 damage
+5. `test_parry_success_deals_counter_damage` - on success, enemy takes 50% of player attack power
+6. `test_parry_failure_takes_full_damage` - on failure (mock random), player takes full damage
+7. `test_parry_success_chance_scales_with_dex` - verify 40% + DEX*2% formula (capped at 70%)
+8. `test_parry_resets_after_enemy_turn` - parrying stance resets after enemy turn
+9. `test_player_parry_fails_when_stunned` - parry fails if player is stunned
+10. `test_parry_records_action_for_combo` - verify action recorded as "parry"
 
 ## Implementation Steps
 
-### Step 1: Create ElementType enum and add to Enemy model
-**File**: `src/cli_rpg/models/enemy.py`
+### 1. Add `parrying` state to CombatEncounter (src/cli_rpg/combat.py)
+- Add `self.parrying = False` in `__init__` (line ~354, after `self.blocking = False`)
 
-```python
-from enum import Enum
+### 2. Add `player_parry()` method to CombatEncounter (src/cli_rpg/combat.py)
+- Add after `player_block()` method (~line 765)
+- Implement:
+  - Check for stun (using `_check_and_consume_stun()`)
+  - Check stamina cost (8 stamina via `use_stamina()`)
+  - Record action for combo tracking
+  - Set `self.parrying = True`
+  - Return success message
 
-class ElementType(Enum):
-    PHYSICAL = "physical"  # Default
-    FIRE = "fire"
-    ICE = "ice"
-    POISON = "poison"
-```
+### 3. Modify `enemy_turn()` to handle parry (src/cli_rpg/combat.py)
+- After the blocking damage reduction check (~line 1523), add parry logic:
+  - Calculate success chance: `min(40 + player.dexterity * 2, 70) / 100.0`
+  - Roll for success
+  - On success: negate damage, deal counter-attack (50% of player attack power)
+  - On failure: take full damage
+- Reset `self.parrying = False` after all attacks (~line 1661)
 
-- Add `element_type: ElementType = ElementType.PHYSICAL` field to Enemy dataclass
-- Update `to_dict()` and `from_dict()` for serialization (backward compatible)
+### 4. Add parry command handling (src/cli_rpg/main.py)
+- Add to command reference (~line 83): `  parry (pa)   - Parry attacks for counter (8 stamina, DEX-based)`
+- Add `elif command == "parry":` handler after block handler (~line 445)
+- Add "parry" to combat command sets in suggest_command (~line 972) and error messages
 
-### Step 2: Create elemental damage calculation module
-**File**: `src/cli_rpg/elements.py` (new file)
+### 5. Add parry alias to parse_command (src/cli_rpg/game_state.py)
+- Add `"pa": "parry"` to aliases dict (~line 126)
+- Add `"parry"` to KNOWN_COMMANDS set (~line 53)
 
-```python
-from cli_rpg.models.enemy import ElementType
-
-# Weakness relations: attacker → list of weak defender types
-WEAKNESSES = {
-    ElementType.FIRE: [ElementType.ICE],
-    ElementType.ICE: [ElementType.FIRE],
-}
-
-# Resistance: same element resists itself
-RESISTANCES = {
-    ElementType.FIRE: [ElementType.FIRE],
-    ElementType.ICE: [ElementType.ICE],
-    ElementType.POISON: [ElementType.POISON],
-}
-
-WEAKNESS_MULTIPLIER = 1.5
-RESISTANCE_MULTIPLIER = 0.5
-
-def calculate_elemental_modifier(
-    attacker_element: ElementType,
-    defender_element: ElementType
-) -> tuple[float, str]:
-    """
-    Calculate damage modifier and message based on elemental interaction.
-
-    Returns:
-        Tuple of (modifier, message) where message describes the interaction
-    """
-    if defender_element in WEAKNESSES.get(attacker_element, []):
-        return WEAKNESS_MULTIPLIER, "It's super effective!"
-    if defender_element in RESISTANCES.get(attacker_element, []):
-        return RESISTANCE_MULTIPLIER, "It's not very effective..."
-    return 1.0, ""
-```
-
-### Step 3: Assign element types in spawn_enemy
-**File**: `src/cli_rpg/combat.py` (modify `spawn_enemy` function ~line 1979)
-
-Add element type inference based on enemy name patterns (same patterns used for status effects):
-```python
-# After existing status effect assignment code (~line 2010)
-element_type = ElementType.PHYSICAL  # default
-if any(term in enemy_name_lower for term in ["fire", "dragon", "elemental", "flame", "inferno"]):
-    element_type = ElementType.FIRE
-elif any(term in enemy_name_lower for term in ["yeti", "ice", "frost", "frozen", "blizzard"]):
-    element_type = ElementType.ICE
-elif any(term in enemy_name_lower for term in ["spider", "snake", "serpent", "viper"]):
-    element_type = ElementType.POISON
-```
-
-### Step 4: Apply elemental modifiers to Fireball
-**File**: `src/cli_rpg/combat.py` (modify `player_fireball` ~line 1061)
-
-```python
-# After base damage calculation
-from cli_rpg.elements import calculate_elemental_modifier, ElementType
-
-# Calculate elemental modifier
-elem_mod, elem_msg = calculate_elemental_modifier(ElementType.FIRE, enemy.element_type)
-dmg = int(dmg * elem_mod)
-
-# Add message if there was an elemental effect
-if elem_msg:
-    message += f" {elem_msg}"
-```
-
-### Step 5: Apply elemental modifiers to Ice Bolt
-**File**: `src/cli_rpg/combat.py` (modify `player_ice_bolt` ~line 1137)
-
-Same pattern as Fireball but with `ElementType.ICE`.
-
-### Step 6: Write tests
-**File**: `tests/test_elements.py` (new file)
-
-```python
-"""Tests for elemental damage system."""
-
-import pytest
-from cli_rpg.models.enemy import Enemy, ElementType
-from cli_rpg.elements import calculate_elemental_modifier, WEAKNESS_MULTIPLIER, RESISTANCE_MULTIPLIER
-from cli_rpg.combat import spawn_enemy
-
-class TestElementType:
-    """Tests for ElementType enum on Enemy model."""
-
-    def test_enemy_default_element_is_physical(self):
-        """Enemies default to PHYSICAL element."""
-        enemy = Enemy(name="Wolf", health=50, max_health=50, attack_power=10, defense=2, xp_reward=30)
-        assert enemy.element_type == ElementType.PHYSICAL
-
-    def test_enemy_element_serialization(self):
-        """Element type serializes and deserializes correctly."""
-        enemy = Enemy(name="Fire Elemental", health=50, max_health=50, attack_power=10, defense=2, xp_reward=30, element_type=ElementType.FIRE)
-        data = enemy.to_dict()
-        assert data["element_type"] == "fire"
-        restored = Enemy.from_dict(data)
-        assert restored.element_type == ElementType.FIRE
-
-    def test_enemy_element_backward_compatible(self):
-        """Old saves without element_type load as PHYSICAL."""
-        data = {"name": "Wolf", "health": 50, "max_health": 50, "attack_power": 10, "defense": 2, "xp_reward": 30}
-        restored = Enemy.from_dict(data)
-        assert restored.element_type == ElementType.PHYSICAL
-
-
-class TestElementalModifiers:
-    """Tests for elemental damage calculation."""
-
-    def test_fire_strong_vs_ice(self):
-        """Fire deals bonus damage to ice enemies."""
-        mod, msg = calculate_elemental_modifier(ElementType.FIRE, ElementType.ICE)
-        assert mod == WEAKNESS_MULTIPLIER
-        assert msg != ""
-
-    def test_ice_strong_vs_fire(self):
-        """Ice deals bonus damage to fire enemies."""
-        mod, msg = calculate_elemental_modifier(ElementType.ICE, ElementType.FIRE)
-        assert mod == WEAKNESS_MULTIPLIER
-
-    def test_fire_resists_fire(self):
-        """Fire enemies resist fire damage."""
-        mod, msg = calculate_elemental_modifier(ElementType.FIRE, ElementType.FIRE)
-        assert mod == RESISTANCE_MULTIPLIER
-
-    def test_ice_resists_ice(self):
-        """Ice enemies resist ice damage."""
-        mod, msg = calculate_elemental_modifier(ElementType.ICE, ElementType.ICE)
-        assert mod == RESISTANCE_MULTIPLIER
-
-    def test_poison_resists_poison(self):
-        """Poison enemies resist poison damage."""
-        mod, msg = calculate_elemental_modifier(ElementType.POISON, ElementType.POISON)
-        assert mod == RESISTANCE_MULTIPLIER
-
-    def test_physical_neutral_vs_all(self):
-        """Physical damage is neutral against all types."""
-        for element in ElementType:
-            mod, msg = calculate_elemental_modifier(ElementType.PHYSICAL, element)
-            assert mod == 1.0
-            assert msg == ""
-
-
-class TestSpawnEnemyElements:
-    """Tests for element type assignment in spawn_enemy."""
-
-    def test_fire_enemy_gets_fire_element(self):
-        """Fire enemies are assigned FIRE element."""
-        enemy = spawn_enemy("dungeon", 1, location_category="dungeon")
-        # Force a fire enemy name for testing
-        enemy.name = "Fire Elemental"
-        # Re-test with actual spawn
-        for _ in range(100):
-            enemy = spawn_enemy("volcano", 1, location_category="dungeon")
-            if "fire" in enemy.name.lower() or "flame" in enemy.name.lower():
-                assert enemy.element_type == ElementType.FIRE
-                return
-
-    def test_ice_enemy_gets_ice_element(self):
-        """Ice enemies are assigned ICE element."""
-        for _ in range(100):
-            enemy = spawn_enemy("tundra", 1, location_category="mountain")
-            if "yeti" in enemy.name.lower() or "frost" in enemy.name.lower() or "ice" in enemy.name.lower():
-                assert enemy.element_type == ElementType.ICE
-                return
-```
-
-### Step 7: Integration tests for combat
-**File**: `tests/test_elements.py` (add to same file)
-
-```python
-class TestCombatElementalDamage:
-    """Integration tests for elemental damage in combat."""
-
-    @pytest.fixture
-    def mage(self):
-        from cli_rpg.models.character import Character, CharacterClass
-        char = Character(name="TestMage", strength=10, dexterity=10, intelligence=15)
-        char.character_class = CharacterClass.MAGE
-        char.mana = 100
-        char.max_mana = 100
-        return char
-
-    @pytest.fixture
-    def ice_enemy(self):
-        return Enemy(name="Frost Giant", health=100, max_health=100, attack_power=10, defense=2, xp_reward=50, element_type=ElementType.ICE)
-
-    @pytest.fixture
-    def fire_enemy(self):
-        return Enemy(name="Fire Elemental", health=100, max_health=100, attack_power=10, defense=2, xp_reward=50, element_type=ElementType.FIRE)
-
-    def test_fireball_bonus_damage_vs_ice(self, mage, ice_enemy):
-        """Fireball deals 1.5x damage to ice enemies."""
-        from cli_rpg.combat import CombatEncounter
-        combat = CombatEncounter(player=mage, enemy=ice_enemy)
-        combat.start()
-        initial_health = ice_enemy.health
-        combat.player_fireball()
-        damage = initial_health - ice_enemy.health
-        # Base damage: INT * 2.5 = 15 * 2.5 = 37.5 -> 37
-        # With 1.5x modifier: 37 * 1.5 = 55.5 -> 55
-        assert damage >= 50  # Should be significantly higher than base
-
-    def test_fireball_reduced_vs_fire(self, mage, fire_enemy):
-        """Fireball deals 0.5x damage to fire enemies."""
-        from cli_rpg.combat import CombatEncounter
-        combat = CombatEncounter(player=mage, enemy=fire_enemy)
-        combat.start()
-        initial_health = fire_enemy.health
-        combat.player_fireball()
-        damage = initial_health - fire_enemy.health
-        # Base damage: 37, with 0.5x: 18
-        assert damage <= 25  # Should be lower than base
-
-    def test_ice_bolt_bonus_damage_vs_fire(self, mage, fire_enemy):
-        """Ice Bolt deals 1.5x damage to fire enemies."""
-        from cli_rpg.combat import CombatEncounter
-        combat = CombatEncounter(player=mage, enemy=fire_enemy)
-        combat.start()
-        initial_health = fire_enemy.health
-        combat.player_ice_bolt()
-        damage = initial_health - fire_enemy.health
-        # Base: INT * 2.0 = 30, with 1.5x: 45
-        assert damage >= 40
-```
-
-## File Summary
-
-| File | Action | Description |
-|------|--------|-------------|
-| `src/cli_rpg/models/enemy.py` | Modify | Add ElementType enum and element_type field |
-| `src/cli_rpg/elements.py` | Create | New module for elemental calculations |
-| `src/cli_rpg/combat.py` | Modify | Apply modifiers in Fireball, Ice Bolt, spawn_enemy |
-| `tests/test_elements.py` | Create | Comprehensive test suite |
-
-## Test Verification
-
-Run tests after implementation:
-```bash
-pytest tests/test_elements.py -v
-pytest tests/test_status_effects.py -v  # Ensure no regressions
-pytest tests/test_combat.py -v  # Ensure no regressions
-```
-
-## Notes
-
-- ElementType is separate from status effect capabilities (an enemy can be FIRE element AND apply burn)
-- Physical attacks remain neutral - only spells/abilities with explicit element types benefit
-- Future: Add elemental weapons, player elemental buffs, more element types (lightning, earth)
+### 6. Update ISSUES.md
+- Mark "Defensive options: parry" as MVP IMPLEMENTED with mechanics summary

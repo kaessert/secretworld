@@ -81,6 +81,7 @@ def get_command_reference() -> str:
         "  attack (a) [target] - Attack an enemy (default: first living enemy)",
         "  defend (d)    - Take a defensive stance (50% damage reduction)",
         "  block (bl)    - Actively block attacks (5 stamina, 75% reduction)",
+        "  parry (pa)    - Parry attacks for counter (8 stamina, DEX-based)",
         "  cast (c) [target]  - Cast a magic spell (default: first living enemy)",
         "  fireball (fb) [target] - Cast Fireball (Mage only, 20 mana, burn chance)",
         "  ice_bolt (ib) [target] - Cast Ice Bolt (Mage only, 15 mana, freeze chance)",
@@ -441,6 +442,26 @@ def handle_combat_command(game_state: GameState, command: str, args: list[str], 
         output = f"\n{message}"
 
         # If block failed (not enough stamina or stunned), don't trigger enemy turn
+        if "Not enough stamina" not in message and "stunned" not in message.lower():
+            # Enemy attacks
+            enemy_message = combat.enemy_turn()
+            output += f"\n{enemy_message}"
+
+            # Check if player died
+            if not game_state.current_character.is_alive():
+                death_message = combat.end_combat(victory=False)
+                output += f"\n{death_message}"
+                output += "\n\n=== GAME OVER ==="
+                sound_death()
+                game_state.current_combat = None
+
+        return (True, output)
+
+    elif command == "parry":
+        _, message = combat.player_parry()
+        output = f"\n{message}"
+
+        # If parry failed (not enough stamina or stunned), don't trigger enemy turn
         if "Not enough stamina" not in message and "stunned" not in message.lower():
             # Enemy attacks
             enemy_message = combat.enemy_turn()
@@ -969,15 +990,15 @@ def handle_combat_command(game_state: GameState, command: str, args: list[str], 
 
     elif command == "unknown":
         # Provide "did you mean?" suggestion during combat
-        combat_commands = {"attack", "defend", "block", "cast", "fireball", "ice_bolt", "heal", "bless", "smite", "flee", "sneak", "bash", "hide", "stance", "use", "status", "help", "quit"}
+        combat_commands = {"attack", "defend", "block", "parry", "cast", "fireball", "ice_bolt", "heal", "bless", "smite", "flee", "sneak", "bash", "hide", "stance", "use", "status", "help", "quit"}
         if args and args[0]:
             suggestion = suggest_command(args[0], combat_commands)
             if suggestion:
                 return (True, f"\n✗ Unknown command '{args[0]}'. Did you mean '{suggestion}'?")
-        return (True, "\n✗ Can't do that during combat! Use: attack, defend, block, cast, flee, sneak, hide, use, status, help, or quit")
+        return (True, "\n✗ Can't do that during combat! Use: attack, defend, block, parry, cast, flee, sneak, hide, use, status, help, or quit")
 
     else:
-        return (True, "\n✗ Can't do that during combat! Use: attack, defend, block, cast, flee, sneak, hide, use, status, help, or quit")
+        return (True, "\n✗ Can't do that during combat! Use: attack, defend, block, parry, cast, flee, sneak, hide, use, status, help, or quit")
 
 
 def handle_exploration_command(game_state: GameState, command: str, args: list[str], non_interactive: bool = False) -> tuple[bool, str]:
@@ -2137,7 +2158,7 @@ def handle_exploration_command(game_state: GameState, command: str, args: list[s
         success, msg = execute_hunt(game_state)
         return (True, f"\n{msg}")
 
-    elif command in ["attack", "defend", "block", "flee", "rest", "cast"]:
+    elif command in ["attack", "defend", "block", "parry", "flee", "rest", "cast"]:
         return (True, "\n✗ Not in combat.")
     
     elif command == "unknown":
@@ -2395,7 +2416,7 @@ def run_json_mode(
     def get_available_commands() -> list[str]:
         """Get list of available commands based on current state."""
         if game_state.is_in_combat():
-            return ["attack", "defend", "block", "cast", "flee", "use", "status", "help", "quit"]
+            return ["attack", "defend", "block", "parry", "cast", "flee", "use", "status", "help", "quit"]
         return list(KNOWN_COMMANDS)
 
     def emit_current_state() -> None:

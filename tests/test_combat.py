@@ -1057,3 +1057,235 @@ class TestCombatTypewriterDisplay:
 
         # Combat delay should be 0.025 (faster than dreams' 0.04)
         assert COMBAT_TYPEWRITER_DELAY == 0.025
+
+
+class TestPlayerParry:
+    """Test player_parry() method - timing-based defensive option."""
+
+    def test_player_parry_sets_parrying_stance(self):
+        """Spec: player_parry() should set parrying stance for parry attempt."""
+        player = Character(name="Hero", strength=10, dexterity=10, intelligence=10, level=1)
+        player.stamina = 20  # Ensure enough stamina
+        enemy = Enemy(
+            name="Goblin",
+            health=30,
+            max_health=30,
+            attack_power=5,
+            defense=2,
+            xp_reward=25
+        )
+        combat = CombatEncounter(player=player, enemy=enemy)
+        combat.start()
+
+        victory, message = combat.player_parry()
+
+        assert victory is False
+        assert combat.parrying is True
+        assert "parry" in message.lower()
+
+    def test_player_parry_costs_8_stamina(self):
+        """Spec: player_parry() should cost 8 stamina."""
+        player = Character(name="Hero", strength=10, dexterity=10, intelligence=10, level=1)
+        player.stamina = 20
+        initial_stamina = player.stamina
+        enemy = Enemy(
+            name="Goblin",
+            health=30,
+            max_health=30,
+            attack_power=5,
+            defense=2,
+            xp_reward=25
+        )
+        combat = CombatEncounter(player=player, enemy=enemy)
+        combat.start()
+
+        combat.player_parry()
+
+        assert player.stamina == initial_stamina - 8
+
+    def test_player_parry_fails_without_stamina(self):
+        """Spec: player_parry() should fail if player has < 8 stamina."""
+        player = Character(name="Hero", strength=10, dexterity=10, intelligence=10, level=1)
+        player.stamina = 5  # Less than 8 stamina
+        initial_stamina = player.stamina
+        enemy = Enemy(
+            name="Goblin",
+            health=30,
+            max_health=30,
+            attack_power=5,
+            defense=2,
+            xp_reward=25
+        )
+        combat = CombatEncounter(player=player, enemy=enemy)
+        combat.start()
+
+        victory, message = combat.player_parry()
+
+        assert victory is False
+        assert combat.parrying is False
+        assert player.stamina == initial_stamina  # Unchanged
+        assert "stamina" in message.lower()
+
+    def test_parry_success_negates_damage(self):
+        """Spec: Successful parry should negate all incoming damage."""
+        player = Character(name="Hero", strength=10, dexterity=15, intelligence=10, level=1)
+        player.stamina = 20
+        player.constitution = 0  # No defense from CON
+        enemy = Enemy(
+            name="Goblin",
+            health=30,
+            max_health=30,
+            attack_power=20,  # High attack to ensure visible damage if not parried
+            defense=2,
+            xp_reward=25
+        )
+        combat = CombatEncounter(player=player, enemy=enemy)
+        combat.start()
+
+        combat.parrying = True
+        initial_health = player.health
+
+        # Mock random to ensure: no dodge (0.99), no enemy crit (0.99), successful parry (0.3 < 70%)
+        with patch('cli_rpg.combat.random.random', return_value=0.3):
+            combat.enemy_turn()
+
+        # Player should take 0 damage on successful parry
+        assert player.health == initial_health
+
+    def test_parry_success_deals_counter_damage(self):
+        """Spec: Successful parry should deal 50% of player attack power as counter damage."""
+        player = Character(name="Hero", strength=10, dexterity=15, intelligence=10, level=1)
+        player.stamina = 20
+        player.constitution = 0
+        enemy = Enemy(
+            name="Goblin",
+            health=100,
+            max_health=100,
+            attack_power=20,
+            defense=0,  # No enemy defense to simplify calculation
+            xp_reward=25
+        )
+        combat = CombatEncounter(player=player, enemy=enemy)
+        combat.start()
+
+        combat.parrying = True
+        initial_enemy_health = enemy.health
+
+        # Mock random to ensure successful parry (0.3 < 70%)
+        with patch('cli_rpg.combat.random.random', return_value=0.3):
+            combat.enemy_turn()
+
+        # Counter damage = 50% of player strength = 10 * 0.5 = 5
+        expected_counter_damage = player.strength // 2
+        assert enemy.health == initial_enemy_health - expected_counter_damage
+
+    def test_parry_failure_takes_full_damage(self):
+        """Spec: Failed parry should result in full damage to player."""
+        player = Character(name="Hero", strength=10, dexterity=10, intelligence=10, level=1)
+        player.stamina = 20
+        player.constitution = 0  # No defense from CON
+        enemy = Enemy(
+            name="Goblin",
+            health=30,
+            max_health=30,
+            attack_power=20,  # 20 attack = 20 base damage
+            defense=2,
+            xp_reward=25
+        )
+        combat = CombatEncounter(player=player, enemy=enemy)
+        combat.start()
+
+        combat.parrying = True
+        initial_health = player.health
+
+        # Mock random to ensure: no dodge (0.99), no crit (0.99), failed parry (0.8 > 70%)
+        with patch('cli_rpg.combat.random.random', return_value=0.8):
+            combat.enemy_turn()
+
+        # Should take full damage (20) since parry failed
+        assert player.health == initial_health - 20
+
+    def test_parry_success_chance_scales_with_dex(self):
+        """Spec: Parry success chance should be 40% base + DEX*2%, capped at 70%."""
+        # Test formula: min(40 + DEX * 2, 70) / 100.0
+
+        # DEX 0: 40% chance
+        assert min(40 + 0 * 2, 70) == 40
+
+        # DEX 10: 60% chance
+        assert min(40 + 10 * 2, 70) == 60
+
+        # DEX 15: 70% chance (cap)
+        assert min(40 + 15 * 2, 70) == 70
+
+        # DEX 20: still 70% (capped)
+        assert min(40 + 20 * 2, 70) == 70
+
+    def test_parry_resets_after_enemy_turn(self):
+        """Spec: Parrying stance should reset after enemy turn."""
+        player = Character(name="Hero", strength=10, dexterity=10, intelligence=10, level=1)
+        player.stamina = 20
+        enemy = Enemy(
+            name="Goblin",
+            health=30,
+            max_health=30,
+            attack_power=5,
+            defense=2,
+            xp_reward=25
+        )
+        combat = CombatEncounter(player=player, enemy=enemy)
+        combat.start()
+
+        combat.parrying = True
+        assert combat.parrying is True
+
+        with patch('cli_rpg.combat.random.random', return_value=0.99):
+            combat.enemy_turn()
+
+        assert combat.parrying is False
+
+    def test_player_parry_fails_when_stunned(self):
+        """Spec: player_parry() should fail if player is stunned."""
+        from cli_rpg.models.status_effect import StatusEffect
+
+        player = Character(name="Hero", strength=10, dexterity=10, intelligence=10, level=1)
+        player.stamina = 20
+        enemy = Enemy(
+            name="Goblin",
+            health=30,
+            max_health=30,
+            attack_power=5,
+            defense=2,
+            xp_reward=25
+        )
+        combat = CombatEncounter(player=player, enemy=enemy)
+        combat.start()
+
+        # Apply stun effect
+        stun = StatusEffect(name="Stun", effect_type="stun", damage_per_turn=0, duration=1)
+        player.apply_status_effect(stun)
+
+        victory, message = combat.player_parry()
+
+        assert victory is False
+        assert combat.parrying is False
+        assert "stunned" in message.lower()
+
+    def test_parry_records_action_for_combo(self):
+        """Spec: Parry action should be recorded in action history for combo tracking."""
+        player = Character(name="Hero", strength=10, dexterity=10, intelligence=10, level=1)
+        player.stamina = 20
+        enemy = Enemy(
+            name="Goblin",
+            health=30,
+            max_health=30,
+            attack_power=5,
+            defense=2,
+            xp_reward=25
+        )
+        combat = CombatEncounter(player=player, enemy=enemy)
+        combat.start()
+
+        combat.player_parry()
+
+        assert "parry" in combat.action_history

@@ -949,7 +949,7 @@ Combat is too simple - attack until enemy dies. Core status effect system has be
 **Remaining features**:
 - ✅ Elemental strengths and weaknesses - MVP IMPLEMENTED (enemies have element types: PHYSICAL, FIRE, ICE, POISON; Fireball deals 1.5x damage to ICE enemies, 0.5x to FIRE; Ice Bolt deals 1.5x damage to FIRE enemies, 0.5x to ICE; effectiveness messages displayed in combat)
 - ✅ Defensive options: `block` command - MVP IMPLEMENTED (costs 5 stamina, 75% damage reduction vs defend's 50%)
-- Defensive options: parry (not yet implemented)
+- ✅ Defensive options: `parry` command - MVP IMPLEMENTED (costs 8 stamina, 40% + DEX×2% success capped at 70%; success negates damage and counters for 50% attack power; failure takes full damage)
 - Enemy attack patterns and telegraphed special moves
 - ✅ Critical hits and miss chances based on stats - MVP IMPLEMENTED (Player crits: 5% + 1% per DEX/INT capped at 20%, 1.5x damage; Player dodge: 5% + 0.5% per DEX capped at 15%; Enemy crits: flat 5%, 1.5x damage)
 - ✅ Combat stances or modes - MVP IMPLEMENTED (see "Weapon proficiencies & fighting styles" section above; `stance` command with Balanced/Aggressive/Defensive/Berserker options)

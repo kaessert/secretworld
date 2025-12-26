@@ -1,65 +1,57 @@
-# Implementation Summary: Elemental Strengths and Weaknesses
+# Implementation Summary: Parry Command
 
 ## What Was Implemented
 
-Added elemental damage types and resistance/weakness modifiers to the combat system. Fire creatures take extra damage from ice, ice creatures take extra damage from fire, etc.
+Added a new `parry` combat command as a timing-based defensive option with high risk/reward mechanics.
 
-### Files Modified
+### Parry Mechanics
+- **Cost**: 8 stamina
+- **Success chance**: 40% base + DEX * 2%, capped at 70%
+- **On success**: Negate incoming damage AND counter-attack for 50% of player attack power
+- **On failure**: Take full damage (no reduction)
+- **Alias**: `pa`
 
-1. **`src/cli_rpg/models/enemy.py`**
-   - Added `ElementType` enum with values: `PHYSICAL`, `FIRE`, `ICE`, `POISON`
-   - Added `element_type: ElementType` field to `Enemy` dataclass (defaults to `PHYSICAL`)
-   - Updated `to_dict()` to serialize element type as string value
-   - Updated `from_dict()` to deserialize element type with backward compatibility for old saves
+## Files Modified
 
-2. **`src/cli_rpg/elements.py`** (NEW FILE)
-   - Created elemental damage calculation module
-   - Defined `WEAKNESSES` dict: FIRE strong vs ICE, ICE strong vs FIRE
-   - Defined `RESISTANCES` dict: Same element resists itself (FIRE, ICE, POISON)
-   - Implemented `calculate_elemental_modifier()` returning (multiplier, message) tuple
-   - `WEAKNESS_MULTIPLIER = 1.5`, `RESISTANCE_MULTIPLIER = 0.5`
+### 1. `src/cli_rpg/combat.py`
+- Added `self.parrying = False` state in `CombatEncounter.__init__`
+- Added `player_parry()` method (after `player_block()`)
+- Added parry logic in `enemy_turn()` (checks parrying state, calculates success chance, handles success/failure outcomes)
+- Added `self.parrying = False` reset after enemy turn
 
-3. **`src/cli_rpg/combat.py`**
-   - Added import for `ElementType` from enemy module
-   - Modified `spawn_enemy()` to assign element types based on enemy name patterns:
-     - Fire terms: "fire", "dragon", "elemental", "flame", "inferno" → `FIRE`
-     - Ice terms: "yeti", "ice", "frost", "frozen", "blizzard" → `ICE`
-     - Poison terms: "spider", "snake", "serpent", "viper" → `POISON`
-     - Default → `PHYSICAL`
-   - Modified `player_fireball()` to apply elemental modifier (FIRE vs enemy element)
-   - Modified `player_ice_bolt()` to apply elemental modifier (ICE vs enemy element)
-   - Added elemental effectiveness messages ("It's super effective!", "It's not very effective...")
+### 2. `src/cli_rpg/game_state.py`
+- Added `"parry"` to `KNOWN_COMMANDS` set
+- Added `"pa": "parry"` alias
 
-4. **`tests/test_elements.py`** (NEW FILE)
-   - 23 comprehensive tests covering:
-     - ElementType enum existence and values
-     - Enemy default element (PHYSICAL)
-     - Element serialization/deserialization
-     - Backward compatibility for old saves
-     - All elemental modifier calculations (weakness, resistance, neutral)
-     - Integration tests for Fireball and Ice Bolt with elemental enemies
+### 3. `src/cli_rpg/main.py`
+- Added parry to help text: `"parry (pa) - Parry attacks for counter (8 stamina, DEX-based)"`
+- Added `elif command == "parry":` handler after block handler
+- Added "parry" to combat command sets for error messages and autocomplete
+- Updated exploration command "Not in combat" list
 
-5. **`tests/test_enemy.py`**
-   - Updated serialization test to include `element_type` field
+### 4. `tests/test_combat.py`
+Added `TestPlayerParry` class with 10 tests:
+1. `test_player_parry_sets_parrying_stance` - parry() sets `parrying=True`
+2. `test_player_parry_costs_8_stamina` - deducts 8 stamina
+3. `test_player_parry_fails_without_stamina` - fails if < 8 stamina
+4. `test_parry_success_negates_damage` - player takes 0 damage on success
+5. `test_parry_success_deals_counter_damage` - enemy takes 50% of player attack power
+6. `test_parry_failure_takes_full_damage` - player takes full damage on failure
+7. `test_parry_success_chance_scales_with_dex` - verifies 40% + DEX*2% formula (capped at 70%)
+8. `test_parry_resets_after_enemy_turn` - parrying stance resets
+9. `test_player_parry_fails_when_stunned` - parry fails if stunned
+10. `test_parry_records_action_for_combo` - action recorded as "parry"
 
 ## Test Results
 
-- All 23 new elemental tests pass
-- All 3052 tests in the full test suite pass
-- No regressions in existing combat or status effect tests
+All 3062 tests pass (including 59 combat tests, 10 new parry tests).
 
 ## Design Decisions
 
-1. **Element type is separate from status effects**: An enemy can be FIRE element AND apply burn status effect
-2. **Physical attacks remain neutral**: Only spells with explicit element types benefit from elemental modifiers
-3. **Backward compatibility**: Old saves without `element_type` default to `PHYSICAL`
-4. **Messages are styled**: Uses existing color system for effectiveness messages
+1. **Parry before Defend in damage reduction checks**: Parry is checked after Block but before Defend since it has higher stakes (full damage on failure vs guaranteed reduction)
 
-## E2E Tests Should Validate
+2. **DEX scaling with cap**: The 40-70% success range makes parry viable for all builds while rewarding high-DEX characters
 
-1. Casting Fireball on an ice enemy (Yeti, Frost Giant) shows increased damage and "super effective" message
-2. Casting Fireball on a fire enemy (Fire Elemental, Dragon) shows reduced damage and "not very effective" message
-3. Casting Ice Bolt on a fire enemy shows increased damage
-4. Casting Ice Bolt on an ice enemy shows reduced damage
-5. Save/load cycle preserves enemy element types
-6. Old saves without element_type load correctly (defaulting to physical)
+3. **Counter-attack uses STR**: Counter damage is 50% of player strength, making parry useful for STR/DEX hybrid builds
+
+4. **Messages use color helpers**: Success shows "PARRIED!" in heal color, failure shows damage in enemy color for clear feedback

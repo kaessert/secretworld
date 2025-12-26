@@ -352,6 +352,7 @@ class CombatEncounter:
         self.is_active = False
         self.defending = False
         self.blocking = False
+        self.parrying = False
 
         # Combo system state
         self.action_history: list[str] = []
@@ -762,6 +763,37 @@ class CombatEncounter:
 
         self.blocking = True
         message = "You raise your guard, bracing to block the enemy's attack!"
+        return False, message
+
+    def player_parry(self) -> Tuple[bool, str]:
+        """
+        Player attempts to parry incoming attacks.
+
+        Costs 8 stamina. High risk/reward: on success, negate damage and
+        counter-attack for 50% of player attack power. On failure, take
+        full damage.
+
+        Success chance: 40% base + DEX * 2%, capped at 70%.
+
+        Returns:
+            Tuple of (victory, message)
+            - victory: Always False (combat continues)
+            - message: Description of parry action or error
+        """
+        # Check if player is stunned
+        stun_msg = self._check_and_consume_stun()
+        if stun_msg:
+            return False, stun_msg
+
+        # Check stamina cost (8 stamina)
+        if not self.player.use_stamina(8):
+            return False, f"Not enough stamina to parry! ({self.player.stamina}/{self.player.max_stamina})"
+
+        # Record action for combo tracking
+        self._record_action("parry")
+
+        self.parrying = True
+        message = "You prepare to parry, timing the enemy's strike!"
         return False, message
 
     def player_sneak(self) -> Tuple[bool, str]:
@@ -1534,6 +1566,32 @@ class CombatEncounter:
                         f"{colors.enemy(enemy.name)} attacks! You block the blow, "
                         f"taking only {colors.damage(str(dmg))} damage!"
                     )
+            # Parry attempt: high risk/reward - success negates damage + counter
+            elif self.parrying:
+                # Success chance: 40% base + DEX*2%, capped at 70%
+                parry_chance = min(40 + self.player.dexterity * 2, 70) / 100.0
+                if random.random() < parry_chance:
+                    # Successful parry - negate damage and counter-attack
+                    dmg = 0
+                    counter_damage = self.player.strength // 2
+                    enemy.take_damage(counter_damage)
+                    msg = (
+                        f"{colors.heal('PARRIED!')} You deflect {colors.enemy(enemy.name)}'s "
+                        f"attack and counter for {colors.damage(str(counter_damage))} damage!"
+                    )
+                else:
+                    # Failed parry - take full damage
+                    dmg = base_damage
+                    if is_crit:
+                        msg = (
+                            f"{colors.damage('CRITICAL HIT!')} {colors.enemy(enemy.name)} "
+                            f"breaks through your parry for {colors.damage(str(dmg))} damage!"
+                        )
+                    else:
+                        msg = (
+                            f"{colors.enemy(enemy.name)} breaks through your parry! "
+                            f"You take {colors.damage(str(dmg))} damage!"
+                        )
             # Apply defense reduction if player is defending (50%)
             elif self.defending:
                 dmg = max(1, base_damage // 2)  # Half damage when defending
@@ -1659,6 +1717,7 @@ class CombatEncounter:
         # Reset defensive stance after all attacks
         self.defending = False
         self.blocking = False
+        self.parrying = False
 
         # Regenerate stamina (1 per enemy turn)
         self.player.regen_stamina(1)
