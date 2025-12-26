@@ -466,14 +466,14 @@ class ChunkManager:
 
 ### Phase 2: WFC Overworld (Enhancement)
 
-1. Create `wfc.py` with core algorithm
-2. Create `world_tiles.py` with tile/adjacency definitions
+1. ✅ Create `wfc.py` with core algorithm - **DONE** (WFCCell dataclass, WFCGenerator class with Shannon entropy, weighted tile selection, constraint propagation, contradiction recovery)
+2. ✅ Create `world_tiles.py` with tile/adjacency definitions - **DONE** (TileRegistry with 9 terrain types, ADJACENCY_RULES, terrain weights)
 3. Create `wfc_chunks.py` with chunk manager
 4. Integrate with GameState movement
 5. Add terrain-aware location generation
 6. Add persistence for WFC state
 7. Add `--wfc` flag for optional enablement
-8. Write tests
+8. ✅ Write tests - **DONE** (17 tests in `tests/test_wfc.py`)
 
 ---
 
@@ -505,11 +505,16 @@ class ChunkManager:
 - ✅ First sub-location marked as exit point
 - ✅ Relative coordinates preserved in SubGrid placement
 
-### `tests/test_wfc.py`
-- All cells collapse to valid tiles
-- Adjacent cells respect adjacency rules
-- Same seed produces same chunk
-- Contradiction handling/recovery
+### `tests/test_wfc.py` ✅ CREATED (17 tests)
+- ✅ WFCCell dataclass creation and defaults
+- ✅ WFCGenerator initialization and deterministic seeding
+- ✅ Shannon entropy calculation (single and multiple options)
+- ✅ Minimum entropy cell selection
+- ✅ Cell collapse with weighted random selection
+- ✅ Constraint propagation with chain reactions
+- ✅ Contradiction detection
+- ✅ Full chunk generation with adjacency validation
+- ✅ Contradiction handling/recovery
 
 ### `tests/test_wfc_chunks.py`
 - Chunk boundary consistency

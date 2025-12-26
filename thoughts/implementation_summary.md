@@ -1,49 +1,64 @@
-# Implementation Summary: Fix Confusing Camp Error Message
+# WFC Core Algorithm Implementation Summary
 
 ## What Was Implemented
 
-Fixed the confusing error message when a player tries to `camp` at an overworld landmark with sub-locations.
+### New Files Created
 
-### Changes Made
+1. **`src/cli_rpg/wfc.py`** - Wave Function Collapse algorithm implementation
+   - `WFCCell` dataclass: Represents a single cell with coords, possible tiles, collapsed state, and final tile
+   - `WFCGenerator` class: Main WFC algorithm implementation
 
-**1. `src/cli_rpg/camping.py`**
+2. **`tests/test_wfc.py`** - 17 comprehensive tests covering:
+   - WFCCell dataclass creation and defaults
+   - WFCGenerator initialization and deterministic seeding
+   - Shannon entropy calculation
+   - Minimum entropy cell selection
+   - Cell collapse with weighted random selection
+   - Constraint propagation with chain reactions
+   - Contradiction detection
+   - Full chunk generation with adjacency validation
 
-- Modified `is_campable_location()` function (lines 155-158) to return `False` for overworld locations that have sub-locations. This prevents camping at overworld landmarks where the player should instead use `enter` to access a sub-location.
+### Algorithm Details
 
-- Modified `execute_camp()` function (lines 336-343) to show an improved error message when camping fails at an overworld location with sub-locations. The new message:
-  - Mentions `'enter <name>'` to guide the user
-  - Lists all available sub-locations (e.g., "Forest Edge, Deep Woods")
+The WFC implementation follows the classic algorithm:
 
-**2. `tests/test_camping.py`**
+1. **Initialization**: Create grid of cells, each with all possible terrain types
+2. **Loop until complete**:
+   - Find cell with minimum Shannon entropy (using tile weights)
+   - Collapse cell using weighted random selection
+   - Propagate constraints to neighbors using BFS
+   - Restart on contradiction (cell with 0 options)
+3. **Return**: Dictionary mapping coordinates to terrain tile names
 
-- Added new test class `TestOverworldErrorMessage` with test `test_camp_at_overworld_shows_enter_hint` that verifies:
-  - Camp command fails at an overworld location with sub-locations
-  - Error message contains "enter" hint
-  - Error message lists available sub-locations
+### Key Features
 
-### New Error Message
-
-Before:
-```
-You can't camp here. Find a wilderness location.
-```
-
-After (for overworld with sub-locations):
-```
-You can't camp at overworld landmarks. Use 'enter <name>' to find a suitable campsite in: Forest Edge, Deep Woods.
-```
+- **Deterministic generation**: Same seed always produces same output
+- **Weighted tile selection**: Uses `TileRegistry.get_weight()` for biased selection
+- **Arc consistency propagation**: BFS-based constraint propagation
+- **Contradiction recovery**: Automatic restart with different RNG state (up to 100 attempts)
+- **Bidirectional adjacency check**: Ensures both tiles accept each other as neighbors
 
 ## Test Results
 
-```
-tests/test_camping.py: 45 passed
-```
+All 17 WFC tests pass:
+- Basic tests (4): Cell creation, defaults, generator creation, determinism
+- Entropy tests (3): Single option, multiple options, minimum selection
+- Collapse tests (3): Reduction, weight respecting, flag setting
+- Propagation tests (3): Neighbor reduction, chain reaction, contradiction detection
+- Generation tests (4): All collapsed, adjacency respected, correct size, contradiction handling
 
-All 45 camping tests pass, including the new test.
+Full test suite: 3311 tests pass (no regressions)
 
 ## E2E Validation
 
-To validate manually:
-1. Navigate to an overworld location with sub-locations (e.g., "Forest" with "Forest Edge", "Deep Woods")
-2. Run `camp` command
-3. Should see the new helpful error message mentioning `enter` and listing sub-locations
+To validate the WFC system works correctly:
+1. Generate multiple chunks with different seeds and verify all adjacency constraints are satisfied
+2. Verify chunk generation is deterministic (same seed = same result)
+3. Verify higher-weight terrains (plains, forest) appear more frequently than low-weight ones (beach, swamp)
+4. Verify water tiles are always adjacent only to water/beach/swamp (most constrained tile)
+
+## Integration Notes
+
+The WFC generator is ready to be integrated with the world grid system. It uses:
+- `TileRegistry` from `world_tiles.py` for tile definitions and weights
+- `ADJACENCY_RULES` from `world_tiles.py` for constraint propagation

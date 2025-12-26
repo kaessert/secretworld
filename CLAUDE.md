@@ -31,6 +31,8 @@ src/cli_rpg/
 ├── game_state.py        # Core game state management
 ├── world.py             # World generation and navigation
 ├── world_grid.py        # Grid-based spatial world system
+├── world_tiles.py       # Terrain tile definitions and adjacency rules
+├── wfc.py               # Wave Function Collapse terrain generation
 ├── map_renderer.py      # ASCII map display for explored locations
 ├── combat.py            # Combat mechanics
 ├── elements.py          # Elemental damage type system (fire, ice, poison)
