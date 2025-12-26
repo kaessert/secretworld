@@ -468,11 +468,13 @@ Issues discovered during `--wfc` mode playtesting (updated 2025-12-26):
 
 #### HIGH PRIORITY BUGS
 
-1. **AI generation should retry, not fallback to templates**
-   - Currently when AI generation fails, it silently falls back to template generation
-   - "[AI world generation temporarily unavailable. Using template generation.]"
-   - **Expected behavior**: Should retry AI generation, and if still failing, prompt user or stop
-   - This creates inconsistent world feel when AI locations mix with template locations
+1. ~~**AI generation should retry, not fallback to templates**~~ (RESOLVED 2025-12-26)
+   - Implemented `generation_max_retries` config field (default: 2, = 3 total attempts)
+   - Added `_generate_with_retry()` wrapper in `AIService` for generation-level retries
+   - Retries `AIGenerationError` (parse/validation failures) with exponential backoff
+   - Does NOT retry `AIServiceError` or `AITimeoutError` (already have API-level retries)
+   - Updated `generate_location()`, `generate_area()`, and `generate_location_with_context()` to use retry wrapper
+   - Full test coverage added (9 new tests in `test_ai_service.py`)
 
 2. ~~**Case-sensitive location names for `enter` command**~~ (RESOLVED 2025-12-26)
    - ~~Location names displayed with "Enter: Spectral Grove" but `enter` command converts to lowercase~~
@@ -551,6 +553,23 @@ Issues discovered during `--wfc` mode playtesting (updated 2025-12-26):
 6. ~~**"enter" command with no argument silently fails**~~ (RESOLVED 2025-12-26)
    - ~~Typing `enter` without a location name gives no feedback~~
    - **Solution**: Improved error handling now shows "Available: Tavern, Market" when entering invalid location names, or "There are no locations to enter here." when no sub-locations exist. Implemented in `game_state.py:809-822`.
+
+7. ~~**Map shows reachable cells as blocked**~~ (RESOLVED 2025-12-26)
+   - Map displayed `█` (blocked) for cells that had valid exits from the current location
+   - Example: Player at (1,0) with "south" exit, but cell (1,-1) showed as blocked
+   - **Root cause**: Map logic marked cell as blocked if ANY adjacent explored location lacked a connection, instead of checking if ANY adjacent location HAD a connection
+   - **Solution**: Fixed logic in `map_renderer.py:175-201` to only mark cells blocked when NO adjacent explored locations have connections to them
+
+8. **Can enter any sub-location instead of designated entry point**
+   - Currently shows multiple "Enter:" options for all sub-locations in an area
+   - Player can enter any sub-location directly (e.g., "Enter: Data Glade, Cyber Grove, Neon Orchard, Quantum Glade")
+   - **Problem**: This is unrealistic - you shouldn't be able to teleport into any room
+   - **Expected behavior**: Only show the single entry point location (the one with `is_exit_point=True`)
+   - Example: "Enter: Data Glade" (the designated entrance), then navigate internally to other rooms
+   - **Files to investigate**:
+     - `src/cli_rpg/game_state.py`: `get_enterable_locations()` or similar
+     - `src/cli_rpg/main.py`: `enter` command handling
+     - `src/cli_rpg/models/location.py`: `sub_grid` and entry point logic
 
 #### LOW PRIORITY / UX ISSUES
 

@@ -119,7 +119,8 @@ Customize other settings in `.env`:
   - Ollama: `llama3.2`
 - `AI_TEMPERATURE`: Randomness (0.0-2.0, default: 0.7)
 - `AI_MAX_TOKENS`: Response length (default: 3000)
-- `AI_MAX_RETRIES`: Retry attempts (default: 3)
+- `AI_MAX_RETRIES`: API-level retry attempts (default: 3)
+- `AI_GENERATION_MAX_RETRIES`: Generation/parsing retry attempts before fallback (default: 2)
 - `AI_ENABLE_CACHING`: Enable caching (default: true)
 - `AI_CACHE_FILE`: Custom cache file path (default: `~/.cli_rpg/cache/ai_cache.json`)
 - `CLI_RPG_REQUIRE_AI`: Strict mode for AI generation (default: true)

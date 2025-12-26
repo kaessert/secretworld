@@ -421,6 +421,7 @@ class AIConfig:
         max_tokens: Maximum response length (default: 2000)
         max_retries: Retry attempts for API failures (default: 3)
         retry_delay: Delay between retries in seconds (default: 1.0)
+        generation_max_retries: Retry attempts for generation parse failures (default: 2)
         enable_caching: Enable response caching (default: True)
         cache_ttl: Cache time-to-live in seconds (default: 3600)
         cache_file: Path to persistent cache file (default: ~/.cli_rpg/cache/ai_cache.json when caching enabled)
@@ -435,6 +436,7 @@ class AIConfig:
     max_tokens: int = 3000
     max_retries: int = 3
     retry_delay: float = 1.0
+    generation_max_retries: int = 2
     enable_caching: bool = True
     cache_ttl: int = 3600
     cache_file: Optional[str] = None
@@ -474,6 +476,10 @@ class AIConfig:
         if self.max_retries < 0:
             raise AIConfigError("max_retries must be non-negative")
 
+        # Validate generation_max_retries
+        if self.generation_max_retries < 0:
+            raise AIConfigError("generation_max_retries must be non-negative")
+
         # Validate retry_delay
         if self.retry_delay <= 0:
             raise AIConfigError("retry_delay must be positive")
@@ -493,8 +499,9 @@ class AIConfig:
             AI_MODEL: Model identifier
             AI_TEMPERATURE: Temperature value
             AI_MAX_TOKENS: Maximum tokens
-            AI_MAX_RETRIES: Maximum retry attempts
+            AI_MAX_RETRIES: Maximum retry attempts for API failures
             AI_RETRY_DELAY: Retry delay in seconds
+            AI_GENERATION_MAX_RETRIES: Maximum retry attempts for generation parse failures
             AI_ENABLE_CACHING: Enable caching (true/false)
             AI_CACHE_TTL: Cache TTL in seconds
 
@@ -563,6 +570,7 @@ class AIConfig:
         max_tokens = int(os.getenv("AI_MAX_TOKENS", "3000"))
         max_retries = int(os.getenv("AI_MAX_RETRIES", "3"))
         retry_delay = float(os.getenv("AI_RETRY_DELAY", "1.0"))
+        generation_max_retries = int(os.getenv("AI_GENERATION_MAX_RETRIES", "2"))
         enable_caching = os.getenv("AI_ENABLE_CACHING", "true").lower() == "true"
         cache_ttl = int(os.getenv("AI_CACHE_TTL", "3600"))
         cache_file = os.getenv("AI_CACHE_FILE")  # None if not set, __post_init__ will set default
@@ -575,6 +583,7 @@ class AIConfig:
             max_tokens=max_tokens,
             max_retries=max_retries,
             retry_delay=retry_delay,
+            generation_max_retries=generation_max_retries,
             enable_caching=enable_caching,
             cache_ttl=cache_ttl,
             cache_file=cache_file,
@@ -595,6 +604,7 @@ class AIConfig:
             "max_tokens": self.max_tokens,
             "max_retries": self.max_retries,
             "retry_delay": self.retry_delay,
+            "generation_max_retries": self.generation_max_retries,
             "enable_caching": self.enable_caching,
             "cache_ttl": self.cache_ttl,
             "cache_file": self.cache_file,
@@ -638,6 +648,7 @@ class AIConfig:
             max_tokens=data.get("max_tokens", 3000),
             max_retries=data.get("max_retries", 3),
             retry_delay=data.get("retry_delay", 1.0),
+            generation_max_retries=data.get("generation_max_retries", 2),
             enable_caching=data.get("enable_caching", True),
             cache_ttl=data.get("cache_ttl", 3600),
             cache_file=data.get("cache_file"),

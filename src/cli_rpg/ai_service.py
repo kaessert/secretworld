@@ -3,7 +3,7 @@
 import json
 import hashlib
 import time
-from typing import Any, Optional, TYPE_CHECKING
+from typing import Any, Callable, Optional, TYPE_CHECKING
 
 if TYPE_CHECKING:  # pragma: no cover
     from cli_rpg.models.item import ItemType  # pragma: no cover
@@ -109,16 +109,16 @@ class AIService:
         direction: Optional[str] = None
     ) -> dict:
         """Generate a new location based on context.
-        
+
         Args:
             theme: World theme (e.g., "fantasy", "sci-fi")
             context_locations: List of existing location names
             source_location: Location to expand from
             direction: Direction of expansion from source
-        
+
         Returns:
             Dictionary with keys: name, description, connections
-        
+
         Raises:
             AIGenerationError: If generation fails or response is invalid
             AIServiceError: If API call fails
@@ -126,7 +126,7 @@ class AIService:
         """
         if context_locations is None:
             context_locations = []
-        
+
         # Build prompt
         prompt = self._build_location_prompt(
             theme=theme,
@@ -134,23 +134,25 @@ class AIService:
             source_location=source_location,
             direction=direction
         )
-        
+
         # Check cache if enabled
         if self.config.enable_caching:
             cached_result = self._get_cached(prompt)
             if cached_result is not None:
                 return cached_result
-        
-        # Call LLM
-        response_text = self._call_llm(prompt)
-        
-        # Parse and validate response
-        location_data = self._parse_location_response(response_text)
-        
+
+        # Define the generation function that will be retried on parse failures
+        def _do_generate() -> dict:
+            response_text = self._call_llm(prompt)
+            return self._parse_location_response(response_text)
+
+        # Call with retry wrapper for parse/validation failures
+        location_data = self._generate_with_retry(_do_generate)
+
         # Cache result if enabled
         if self.config.enable_caching:
             self._set_cached(prompt, location_data)
-        
+
         return location_data
     
     def _build_location_prompt(
@@ -345,6 +347,59 @@ class AIService:
 
         # Should not reach here, but just in case
         raise AIServiceError(f"API call failed after retries: {str(last_error)}") from last_error  # pragma: no cover
+
+    def _generate_with_retry(
+        self,
+        generation_func: Callable[..., Any],
+        *args: Any,
+        **kwargs: Any
+    ) -> Any:
+        """Wrap a generation function with retry logic for parse/validation failures.
+
+        This method retries on AIGenerationError (parse/validation failures) but NOT
+        on AIServiceError (API failures), as those already have API-level retries.
+
+        Args:
+            generation_func: The generation function to call (must return the result)
+            *args: Positional arguments to pass to generation_func
+            **kwargs: Keyword arguments to pass to generation_func
+
+        Returns:
+            Result from generation_func
+
+        Raises:
+            AIGenerationError: If all retries fail
+            AIServiceError: If API call fails (passed through without retry)
+            AITimeoutError: If request times out (passed through without retry)
+        """
+        last_error: Optional[AIGenerationError] = None
+        max_retries = self.config.generation_max_retries
+
+        for attempt in range(max_retries + 1):  # 1 initial + max_retries
+            try:
+                return generation_func(*args, **kwargs)
+            except AIGenerationError as e:
+                last_error = e
+                if attempt < max_retries:
+                    # Exponential backoff: 0.5s, 1s, 2s, ...
+                    delay = 0.5 * (2 ** attempt)
+                    logger.debug(
+                        f"Generation attempt {attempt + 1}/{max_retries + 1} failed: {e}. "
+                        f"Retrying in {delay}s..."
+                    )
+                    time.sleep(delay)
+                    continue
+                # Final failure - log full error
+                logger.warning(
+                    f"Generation failed after {max_retries + 1} attempts: {e}"
+                )
+                raise
+            except (AIServiceError, AITimeoutError):
+                # Don't retry API-level errors - they already have their own retry logic
+                raise
+
+        # Should not reach here, but just in case
+        raise last_error  # type: ignore[misc]  # pragma: no cover
 
     def _extract_json_from_response(self, response_text: str) -> str:
         """Extract JSON from markdown code blocks if present.
@@ -757,11 +812,13 @@ class AIService:
             if cached_result is not None:
                 return cached_result
 
-        # Call LLM
-        response_text = self._call_llm(prompt)
+        # Define the generation function that will be retried on parse failures
+        def _do_generate() -> list[dict]:
+            response_text = self._call_llm(prompt)
+            return self._parse_area_response(response_text, size)
 
-        # Parse and validate response
-        area_data = self._parse_area_response(response_text, size)
+        # Call with retry wrapper for parse/validation failures
+        area_data = self._generate_with_retry(_do_generate)
 
         # Cache result if enabled
         if self.config.enable_caching:
@@ -2473,14 +2530,16 @@ Note: Use "EXISTING_WORLD" as placeholder for the connection back to the source 
                 cached_result["npcs"] = []
                 return cached_result
 
-        # Call LLM
-        response_text = self._call_llm(prompt)
+        # Define the generation function that will be retried on parse failures
+        def _do_generate() -> dict:
+            response_text = self._call_llm(prompt)
+            result = self._parse_location_response(response_text)
+            # Override npcs with empty list (Layer 3 doesn't generate NPCs)
+            result["npcs"] = []
+            return result
 
-        # Parse and validate response (reuse existing parser)
-        location_data = self._parse_location_response(response_text)
-
-        # Override npcs with empty list (Layer 3 doesn't generate NPCs)
-        location_data["npcs"] = []
+        # Call with retry wrapper for parse/validation failures
+        location_data = self._generate_with_retry(_do_generate)
 
         # Cache result if enabled
         if self.config.enable_caching:

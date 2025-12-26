@@ -1,184 +1,114 @@
-# Implementation Plan: Strip Markdown Code Fences from ASCII Art
+# Implementation Plan: AI Generation Retry Before Fallback
 
-## Summary
-Fix `_parse_location_ascii_art_response`, `_parse_ascii_art_response`, and `_parse_npc_ascii_art_response` methods in `ai_service.py` to strip markdown code fences from AI-generated ASCII art, matching how `_extract_json_from_code_block` handles JSON responses.
+## Problem Summary
+When AI location generation fails, the game silently falls back to template generation, showing "[AI world generation temporarily unavailable. Using template generation.]". This creates inconsistent world feel when AI locations mix with template locations.
 
-## The Bug
-AI may return ASCII art wrapped in markdown code fences like:
-```
-```
-   /\
-  /  \
- /____\
-```
-```
-This renders incorrectly in the game, breaking immersion.
+**Current behavior:**
+1. `game_state.py:518-543` calls `expand_area()` once
+2. On exception, sets `ai_fallback_used = True` and immediately uses `generate_fallback_location()`
+3. `ai_service.py:230-285` already has retry logic at the LLM API call level (`_call_openai`/`_call_anthropic`), but...
+4. High-level generation functions (`generate_location`, `generate_area`) catch exceptions and bubble them up as single failures
+
+**Problem**: The retry logic in `ai_service.py` only handles transient API errors (timeout, rate limit). It does NOT retry on:
+- JSON parsing failures (`AIGenerationError`)
+- Validation failures (name too short, missing fields)
+- Truncated responses that can't be repaired
+
+## Solution Design
+
+Add retry logic at the **location generation level** (not API call level), with configurable retry count. This allows:
+1. Second attempt with the same prompt (may succeed if first was unlucky truncation)
+2. Different AI response on each retry (probabilistic success)
+3. User visibility into retry attempts
 
 ## Implementation Steps
 
-### Step 1: Add tests for code fence stripping
+### 1. Add retry configuration to AIConfig (`ai_config.py`)
+- Add `generation_max_retries: int = 2` field (separate from API `max_retries`)
+- This controls retries at generation level, not API call level
+- Default: 2 retries = 3 total attempts before fallback
 
-**File: `tests/test_ascii_art.py`**
+### 2. Add retry wrapper to AIService (`ai_service.py`)
+- Create `_generate_with_retry()` method that wraps generation methods
+- On `AIGenerationError` (parse/validation), retry up to `generation_max_retries`
+- Log each retry attempt at DEBUG level
+- Return final exception if all retries fail
 
-Add to `TestAsciiArtFirstLineAlignment` class (around line 434):
+### 3. Update location generation methods to use retry wrapper
+- `generate_location()` → wrap LLM call + parse in retry logic
+- `generate_area()` → wrap LLM call + parse in retry logic
+- `generate_location_with_context()` → wrap LLM call + parse in retry logic
 
-```python
-def test_parse_location_ascii_art_strips_code_fences(self):
-    """Verify location art parsing strips markdown code fences."""
-    from cli_rpg.ai_service import AIService
-    from cli_rpg.ai_config import AIConfig
+### 4. Update game_state.py move() to retry AI generation
+- Before setting `ai_fallback_used = True`, retry `expand_area()` call
+- Use `AIConfig.generation_max_retries` for retry count
+- Log retry attempts and final failure reason
 
-    config = AIConfig(api_key="test-key", provider="openai", enable_caching=False)
-    service = AIService(config)
+### 5. Add tests for retry behavior
+- Test that generation retries on `AIGenerationError`
+- Test that retries are limited to `generation_max_retries`
+- Test that API-level retries still work for transient errors
+- Test that fallback still works after all retries exhausted
 
-    # Response wrapped in code fences
-    response = """```
-     /\\
-    /  \\
-   /    \\
-  /______\\
-```"""
+## Files to Modify
 
-    art = service._parse_location_ascii_art_response(response)
+1. `src/cli_rpg/ai_config.py`:
+   - Add `generation_max_retries: int = 2` field
+   - Add to `to_dict()` / `from_dict()` serialization
 
-    # Should not contain backticks
-    assert "```" not in art
-    # First line should be the art
-    first_line = art.splitlines()[0]
-    assert first_line == "     /\\"
+2. `src/cli_rpg/ai_service.py`:
+   - Add `_generate_with_retry()` wrapper method
+   - Update `generate_location()`, `generate_area()`, `generate_location_with_context()` to use retry wrapper
 
-def test_parse_enemy_ascii_art_strips_code_fences(self):
-    """Verify enemy art parsing strips markdown code fences."""
-    from cli_rpg.ai_service import AIService
-    from cli_rpg.ai_config import AIConfig
+3. `src/cli_rpg/game_state.py`:
+   - No changes needed - retries happen inside AIService
 
-    config = AIConfig(api_key="test-key", provider="openai", enable_caching=False)
-    service = AIService(config)
+4. `tests/test_ai_service.py`:
+   - Add test for retry on AIGenerationError
+   - Add test for retry count limit
+   - Add test for successful retry after initial failure
 
-    response = """```ascii
-   /\\ /\\
-  (  V  )
-  /|   |\\
-```"""
-
-    art = service._parse_ascii_art_response(response)
-
-    assert "```" not in art
-    first_line = art.splitlines()[0]
-    assert first_line == "   /\\ /\\"
-
-def test_parse_npc_ascii_art_strips_code_fences(self):
-    """Verify NPC art parsing strips markdown code fences."""
-    from cli_rpg.ai_service import AIService
-    from cli_rpg.ai_config import AIConfig
-
-    config = AIConfig(api_key="test-key", provider="openai", enable_caching=False)
-    service = AIService(config)
-
-    response = """```
-    O
-   /|\\
-   / \\
-```"""
-
-    art = service._parse_npc_ascii_art_response(response)
-
-    assert "```" not in art
-    first_line = art.splitlines()[0]
-    assert first_line == "    O"
-```
-
-### Step 2: Add helper method for code fence extraction
-
-**File: `src/cli_rpg/ai_service.py`**
-
-Add new helper method (after `_extract_json_from_code_block` at line 364):
+## Test Plan
 
 ```python
-def _extract_ascii_art_from_code_block(self, response_text: str) -> str:
-    """Extract ASCII art from markdown code fence if present.
+# Test: Retry on parse failure
+def test_generate_location_retries_on_parse_failure(mock_ai_service):
+    """First call returns invalid JSON, second returns valid."""
+    mock_ai_service.client.chat.completions.create.side_effect = [
+        Mock(choices=[Mock(message=Mock(content="invalid json"))]),
+        Mock(choices=[Mock(message=Mock(content='{"name": "Test", ...}'))])
+    ]
+    result = mock_ai_service.generate_location(theme="fantasy")
+    assert result["name"] == "Test"
+    assert mock_ai_service.client.chat.completions.create.call_count == 2
 
-    Args:
-        response_text: Raw response text that may contain code fences
-
-    Returns:
-        Extracted content without code fences, or original text if no fence found
-    """
-    import re
-    # Match ```<optional-lang> ... ``` (handles ascii, text, or no language tag)
-    pattern = r'```(?:\w*)?\s*\n?([\s\S]*?)\n?```'
-    match = re.search(pattern, response_text)
-    if match:
-        return match.group(1)
-    return response_text
+# Test: Retry limit respected
+def test_generate_location_respects_retry_limit(mock_ai_service):
+    """All retries fail, should raise AIGenerationError."""
+    mock_ai_service.config.generation_max_retries = 2
+    mock_ai_service.client.chat.completions.create.return_value = Mock(
+        choices=[Mock(message=Mock(content="invalid json"))]
+    )
+    with pytest.raises(AIGenerationError):
+        mock_ai_service.generate_location(theme="fantasy")
+    assert mock_ai_service.client.chat.completions.create.call_count == 3  # 1 + 2 retries
 ```
 
-### Step 3: Update `_parse_ascii_art_response` (enemy art)
+## Implementation Notes
 
-**File: `src/cli_rpg/ai_service.py` (line 1294-1295)**
+- Retry only on `AIGenerationError` (parse/validation failures)
+- Do NOT retry on `AIServiceError` (API failures) - those already have API-level retries
+- Add exponential backoff between retries (0.5s, 1s) to avoid rate limiting
+- Log full response on final failure for debugging
 
-Change:
-```python
-# Strip only trailing whitespace, preserve first line's leading spaces
-art = response_text.rstrip()
-```
+## Scope Boundaries
 
-To:
-```python
-# Extract from code fence if present
-art = self._extract_ascii_art_from_code_block(response_text)
-# Strip only trailing whitespace, preserve first line's leading spaces
-art = art.rstrip()
-```
+**In scope:**
+- Retry logic for location/area generation parse failures
+- Configuration for retry count
+- Logging of retry attempts
 
-### Step 4: Update `_parse_location_ascii_art_response`
-
-**File: `src/cli_rpg/ai_service.py` (line 1391-1392)**
-
-Change:
-```python
-# Strip only trailing whitespace, preserve first line's leading spaces
-art = response_text.rstrip()
-```
-
-To:
-```python
-# Extract from code fence if present
-art = self._extract_ascii_art_from_code_block(response_text)
-# Strip only trailing whitespace, preserve first line's leading spaces
-art = art.rstrip()
-```
-
-### Step 5: Update `_parse_npc_ascii_art_response`
-
-**File: `src/cli_rpg/ai_service.py` (line 1995-1996)**
-
-Change:
-```python
-# Strip only trailing whitespace, preserve first line's leading spaces
-art = response_text.rstrip()
-```
-
-To:
-```python
-# Extract from code fence if present
-art = self._extract_ascii_art_from_code_block(response_text)
-# Strip only trailing whitespace, preserve first line's leading spaces
-art = art.rstrip()
-```
-
-## Code Changes Summary
-
-| File | Change |
-|------|--------|
-| `src/cli_rpg/ai_service.py` | Add `_extract_ascii_art_from_code_block` helper method |
-| `src/cli_rpg/ai_service.py` | Update `_parse_ascii_art_response` to use helper (line 1294) |
-| `src/cli_rpg/ai_service.py` | Update `_parse_location_ascii_art_response` to use helper (line 1391) |
-| `src/cli_rpg/ai_service.py` | Update `_parse_npc_ascii_art_response` to use helper (line 1995) |
-| `tests/test_ascii_art.py` | Add 3 tests for code fence stripping |
-
-## Verification
-
-1. Run ASCII art tests: `pytest tests/test_ascii_art.py -v`
-2. Run full AI service tests: `pytest tests/test_ai_service.py -v`
-3. Run full suite: `pytest`
+**Out of scope:**
+- Changing the fallback behavior (still falls back after all retries)
+- User prompting on failure (would break non-interactive mode)
+- Retry for other generation types (enemies, items, quests) - can add later

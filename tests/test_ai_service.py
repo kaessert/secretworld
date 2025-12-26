@@ -2779,3 +2779,376 @@ def test_generate_region_context_repairs_truncated_json(mock_openai_class, basic
     assert result.theme == "A misty valley."
     assert result.danger_level == "safe"  # 'low' maps to 'safe'
     assert result.coordinates == (3, 7)
+
+
+# ========================================================================
+# Generation Retry Tests - spec: retry on parse/validation failures
+# ========================================================================
+
+# Test: generate_location retries on parse failure (AIGenerationError)
+@patch('cli_rpg.ai_service.OpenAI')
+def test_generate_location_retries_on_parse_failure(mock_openai_class, tmp_path):
+    """Test generate_location retries when first response fails to parse.
+
+    Spec: When AI returns invalid JSON, retry up to generation_max_retries times
+    before raising AIGenerationError.
+    """
+    config = AIConfig(
+        api_key="test-key",
+        generation_max_retries=2,
+        retry_delay=0.01,  # Fast retry for tests
+        cache_file=str(tmp_path / "test_cache.json")
+    )
+
+    mock_client = Mock()
+    mock_openai_class.return_value = mock_client
+
+    # Valid response to return on retry
+    valid_response = {
+        "name": "Test Location",
+        "description": "A test location that works.",
+        "connections": {"north": "Other Place"}
+    }
+
+    mock_response_invalid = Mock()
+    mock_response_invalid.choices = [Mock()]
+    mock_response_invalid.choices[0].message.content = "invalid json garbage"
+
+    mock_response_valid = Mock()
+    mock_response_valid.choices = [Mock()]
+    mock_response_valid.choices[0].message.content = json.dumps(valid_response)
+
+    # First call fails with invalid JSON, second succeeds
+    mock_client.chat.completions.create.side_effect = [
+        mock_response_invalid,
+        mock_response_valid
+    ]
+
+    service = AIService(config)
+    result = service.generate_location(theme="fantasy")
+
+    # Should succeed after retry
+    assert result["name"] == "Test Location"
+    assert mock_client.chat.completions.create.call_count == 2
+
+
+# Test: generate_location respects generation_max_retries limit
+@patch('cli_rpg.ai_service.OpenAI')
+def test_generate_location_respects_retry_limit(mock_openai_class, tmp_path):
+    """Test generate_location raises AIGenerationError after retry limit exhausted.
+
+    Spec: After generation_max_retries + 1 attempts (1 initial + N retries),
+    raise AIGenerationError if all attempts fail to parse.
+    """
+    config = AIConfig(
+        api_key="test-key",
+        generation_max_retries=2,  # 1 initial + 2 retries = 3 total attempts
+        retry_delay=0.01,
+        cache_file=str(tmp_path / "test_cache.json")
+    )
+
+    mock_client = Mock()
+    mock_openai_class.return_value = mock_client
+
+    mock_response = Mock()
+    mock_response.choices = [Mock()]
+    mock_response.choices[0].message.content = "invalid json"
+    mock_client.chat.completions.create.return_value = mock_response
+
+    service = AIService(config)
+
+    with pytest.raises(AIGenerationError, match="parse"):
+        service.generate_location(theme="fantasy")
+
+    # Should have tried 1 + generation_max_retries times
+    assert mock_client.chat.completions.create.call_count == 3  # 1 + 2 retries
+
+
+# Test: generate_location does NOT retry on API errors (AIServiceError)
+@patch('cli_rpg.ai_service.OpenAI')
+def test_generate_location_does_not_retry_api_errors(mock_openai_class, tmp_path):
+    """Test that AIServiceError (API failures) are NOT retried at generation level.
+
+    Spec: API-level errors like authentication failures should be passed through
+    without generation-level retry (they already have API-level retry).
+    """
+    config = AIConfig(
+        api_key="test-key",
+        generation_max_retries=3,  # Would allow 3 generation retries
+        max_retries=0,  # No API retries to speed up test
+        retry_delay=0.01,
+        cache_file=str(tmp_path / "test_cache.json")
+    )
+
+    mock_client = Mock()
+    mock_openai_class.return_value = mock_client
+
+    # Simulate authentication error (not retried)
+    import openai
+    mock_client.chat.completions.create.side_effect = openai.AuthenticationError(
+        "Invalid API key", response=Mock(), body=None
+    )
+
+    service = AIService(config)
+
+    with pytest.raises(AIServiceError, match="Authentication failed"):
+        service.generate_location(theme="fantasy")
+
+    # Should only be called once (no generation-level retry for API errors)
+    assert mock_client.chat.completions.create.call_count == 1
+
+
+# Test: generate_area retries on parse failure
+@patch('cli_rpg.ai_service.OpenAI')
+def test_generate_area_retries_on_parse_failure(mock_openai_class, tmp_path):
+    """Test generate_area retries when first response fails to parse.
+
+    Spec: When AI returns invalid JSON for area generation, retry up to
+    generation_max_retries times before raising AIGenerationError.
+    """
+    config = AIConfig(
+        api_key="test-key",
+        generation_max_retries=2,
+        retry_delay=0.01,
+        cache_file=str(tmp_path / "test_cache.json")
+    )
+
+    mock_client = Mock()
+    mock_openai_class.return_value = mock_client
+
+    # Valid area response
+    valid_area_response = [
+        {
+            "name": "Entry Point",
+            "description": "The entrance to the area.",
+            "relative_coords": [0, 0],
+            "connections": {"south": "EXISTING_WORLD", "north": "Inner Area"}
+        },
+        {
+            "name": "Inner Area",
+            "description": "Deep within the area.",
+            "relative_coords": [0, 1],
+            "connections": {"south": "Entry Point"}
+        },
+        {
+            "name": "Hidden Spot",
+            "description": "A hidden location.",
+            "relative_coords": [1, 0],
+            "connections": {"west": "Entry Point"}
+        },
+        {
+            "name": "Final Room",
+            "description": "The final destination.",
+            "relative_coords": [1, 1],
+            "connections": {"west": "Inner Area"}
+        }
+    ]
+
+    mock_response_invalid = Mock()
+    mock_response_invalid.choices = [Mock()]
+    mock_response_invalid.choices[0].message.content = "not valid json at all"
+
+    mock_response_valid = Mock()
+    mock_response_valid.choices = [Mock()]
+    mock_response_valid.choices[0].message.content = json.dumps(valid_area_response)
+
+    # First call fails, second succeeds
+    mock_client.chat.completions.create.side_effect = [
+        mock_response_invalid,
+        mock_response_valid
+    ]
+
+    service = AIService(config)
+    result = service.generate_area(
+        theme="fantasy",
+        sub_theme_hint="ruins",
+        entry_direction="north",
+        context_locations=["Town"],
+        size=4
+    )
+
+    assert len(result) == 4
+    assert result[0]["name"] == "Entry Point"
+    assert mock_client.chat.completions.create.call_count == 2
+
+
+# Test: generate_location_with_context retries on parse failure
+@patch('cli_rpg.ai_service.OpenAI')
+def test_generate_location_with_context_retries_on_parse_failure(mock_openai_class, tmp_path):
+    """Test generate_location_with_context retries on parse failure.
+
+    Spec: Layered generation (Layer 3) should also retry on parse failures.
+    """
+    from cli_rpg.models.world_context import WorldContext
+    from cli_rpg.models.region_context import RegionContext
+
+    config = AIConfig(
+        api_key="test-key",
+        generation_max_retries=2,
+        retry_delay=0.01,
+        cache_file=str(tmp_path / "test_cache.json")
+    )
+
+    mock_client = Mock()
+    mock_openai_class.return_value = mock_client
+
+    valid_response = {
+        "name": "Contextual Location",
+        "description": "A location generated with context.",
+        "connections": {"west": "Origin"},
+        "category": "wilderness"
+    }
+
+    mock_response_invalid = Mock()
+    mock_response_invalid.choices = [Mock()]
+    mock_response_invalid.choices[0].message.content = "{broken json..."
+
+    mock_response_valid = Mock()
+    mock_response_valid.choices = [Mock()]
+    mock_response_valid.choices[0].message.content = json.dumps(valid_response)
+
+    # First fails, second succeeds
+    mock_client.chat.completions.create.side_effect = [
+        mock_response_invalid,
+        mock_response_valid
+    ]
+
+    service = AIService(config)
+    world_context = WorldContext.default("fantasy")
+    region_context = RegionContext(
+        name="Test Region",
+        theme="A test region",
+        danger_level="safe",
+        landmarks=[],
+        coordinates=(0, 0)
+    )
+
+    result = service.generate_location_with_context(
+        world_context=world_context,
+        region_context=region_context,
+        source_location="Origin",
+        direction="east"
+    )
+
+    assert result["name"] == "Contextual Location"
+    assert result["npcs"] == []  # Layer 3 doesn't generate NPCs
+    assert mock_client.chat.completions.create.call_count == 2
+
+
+# Test: generation_max_retries=0 disables generation-level retry
+@patch('cli_rpg.ai_service.OpenAI')
+def test_generation_max_retries_zero_disables_retry(mock_openai_class, tmp_path):
+    """Test that setting generation_max_retries=0 disables generation retry.
+
+    Spec: With generation_max_retries=0, parse failures should immediately raise
+    AIGenerationError without any retry.
+    """
+    config = AIConfig(
+        api_key="test-key",
+        generation_max_retries=0,  # No generation retries
+        retry_delay=0.01,
+        cache_file=str(tmp_path / "test_cache.json")
+    )
+
+    mock_client = Mock()
+    mock_openai_class.return_value = mock_client
+
+    mock_response = Mock()
+    mock_response.choices = [Mock()]
+    mock_response.choices[0].message.content = "invalid json"
+    mock_client.chat.completions.create.return_value = mock_response
+
+    service = AIService(config)
+
+    with pytest.raises(AIGenerationError):
+        service.generate_location(theme="fantasy")
+
+    # Should only be called once (no retry)
+    assert mock_client.chat.completions.create.call_count == 1
+
+
+# Test: Retry on validation failure (name too short)
+@patch('cli_rpg.ai_service.OpenAI')
+def test_generate_location_retries_on_validation_failure(mock_openai_class, tmp_path):
+    """Test generate_location retries when response fails validation.
+
+    Spec: When AI returns valid JSON but validation fails (e.g., name too short),
+    retry up to generation_max_retries times.
+    """
+    config = AIConfig(
+        api_key="test-key",
+        generation_max_retries=2,
+        retry_delay=0.01,
+        cache_file=str(tmp_path / "test_cache.json")
+    )
+
+    mock_client = Mock()
+    mock_openai_class.return_value = mock_client
+
+    # Invalid response (name too short - must be >= 2 chars)
+    invalid_response = {
+        "name": "X",  # Too short
+        "description": "A valid description here.",
+        "connections": {}
+    }
+
+    # Valid response
+    valid_response = {
+        "name": "Valid Location",
+        "description": "A valid description here.",
+        "connections": {}
+    }
+
+    mock_response_invalid = Mock()
+    mock_response_invalid.choices = [Mock()]
+    mock_response_invalid.choices[0].message.content = json.dumps(invalid_response)
+
+    mock_response_valid = Mock()
+    mock_response_valid.choices = [Mock()]
+    mock_response_valid.choices[0].message.content = json.dumps(valid_response)
+
+    mock_client.chat.completions.create.side_effect = [
+        mock_response_invalid,
+        mock_response_valid
+    ]
+
+    service = AIService(config)
+    result = service.generate_location(theme="fantasy")
+
+    assert result["name"] == "Valid Location"
+    assert mock_client.chat.completions.create.call_count == 2
+
+
+# Test: AIConfig generation_max_retries serialization
+def test_ai_config_generation_max_retries_serialization():
+    """Test generation_max_retries is serialized and deserialized correctly.
+
+    Spec: The new generation_max_retries field should be included in to_dict()
+    and restored from from_dict().
+    """
+    config = AIConfig(
+        api_key="test-key",
+        generation_max_retries=5
+    )
+
+    # Serialize
+    config_dict = config.to_dict()
+    assert config_dict["generation_max_retries"] == 5
+
+    # Deserialize
+    restored_config = AIConfig.from_dict(config_dict)
+    assert restored_config.generation_max_retries == 5
+
+
+# Test: AIConfig generation_max_retries from environment
+def test_ai_config_generation_max_retries_from_env(monkeypatch):
+    """Test generation_max_retries can be set via environment variable.
+
+    Spec: AI_GENERATION_MAX_RETRIES environment variable should set the config value.
+    """
+    monkeypatch.setenv("OPENAI_API_KEY", "test-key")
+    monkeypatch.setenv("AI_GENERATION_MAX_RETRIES", "4")
+
+    config = AIConfig.from_env()
+
+    assert config.generation_max_retries == 4
