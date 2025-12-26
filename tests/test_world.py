@@ -45,12 +45,12 @@ class TestCreateDefaultWorld:
         assert starting_location in world
     
     def test_default_world_location_count_with_sublocations(self):
-        """Test that default world has 18 locations: 5 overworld + 3 Town sub + 3 Forest sub + 3 Millbrook sub + 4 Mines sub.
+        """Test that default world has 23 locations: 6 overworld + 3 Town sub + 3 Forest sub + 3 Millbrook sub + 4 Mines sub + 4 Ironhold sub.
 
-        Spec: World has 18 locations total (5 main + 3 Town sub-locations + 3 Forest sub-locations + 3 Millbrook sub-locations + 4 Mines sub-locations)
+        Spec: World has 23 locations total (6 main + 3 Town sub-locations + 3 Forest sub-locations + 3 Millbrook sub-locations + 4 Mines sub-locations + 4 Ironhold sub-locations)
         """
         world, _ = create_default_world()
-        assert len(world) == 18
+        assert len(world) == 23
     
     def test_default_world_location_names(self):
         """Test that default world has correct location names.
@@ -379,6 +379,121 @@ class TestCreateDefaultWorld:
         old_miner = mine_entrance.find_npc_by_name("Old Miner")
         assert old_miner is not None
 
+    # Ironhold City hierarchical sub-location tests
+
+    def test_default_world_ironhold_city_exists(self):
+        """Ironhold City exists in world dict.
+
+        Spec: Ironhold City is a location in the default world
+        """
+        world, _ = create_default_world()
+        assert "Ironhold City" in world
+
+    def test_default_world_ironhold_city_is_overworld(self):
+        """Ironhold City is an overworld landmark with 4 sub-locations.
+
+        Spec: Ironhold City is overworld safe zone with 4 sub-locations, entry_point="Ironhold Market"
+        """
+        world, _ = create_default_world()
+        ironhold = world["Ironhold City"]
+        assert ironhold.is_overworld is True
+        assert ironhold.is_safe_zone is True
+        assert len(ironhold.sub_locations) == 4
+        assert ironhold.entry_point == "Ironhold Market"
+
+    def test_default_world_ironhold_city_sub_locations_exist(self):
+        """All Ironhold City sub-locations exist in world dict.
+
+        Spec: Sub-locations listed in ironhold.sub_locations are in world
+        """
+        world, _ = create_default_world()
+        ironhold = world["Ironhold City"]
+        for sub_name in ironhold.sub_locations:
+            assert sub_name in world, f"Sub-location '{sub_name}' not in world"
+
+    def test_default_world_ironhold_city_sub_locations_have_parent(self):
+        """Ironhold City sub-locations reference Ironhold City as parent and are safe zones.
+
+        Spec: Each sub-location has parent_location="Ironhold City" and is_safe_zone=True
+        """
+        world, _ = create_default_world()
+        ironhold = world["Ironhold City"]
+        for sub_name in ironhold.sub_locations:
+            sub = world[sub_name]
+            assert sub.parent_location == "Ironhold City"
+            assert sub.is_safe_zone is True
+
+    def test_default_world_ironhold_city_sub_locations_no_cardinal_exits(self):
+        """Ironhold City sub-locations have no n/s/e/w exits (only enter/exit).
+
+        Spec: Ironhold City sub-locations have no cardinal connections
+        """
+        world, _ = create_default_world()
+        ironhold = world["Ironhold City"]
+        for sub_name in ironhold.sub_locations:
+            sub = world[sub_name]
+            assert len(sub.connections) == 0
+
+    def test_default_world_ironhold_city_connections(self):
+        """Ironhold City has north connection to Town Square.
+
+        Spec: Ironhold City has north->Town Square
+        """
+        world, _ = create_default_world()
+        ironhold = world["Ironhold City"]
+        assert ironhold.get_connection("north") == "Town Square"
+
+    def test_default_world_town_square_has_south_connection(self):
+        """Town Square has south connection to Ironhold City.
+
+        Spec: Town Square has south->Ironhold City
+        """
+        world, _ = create_default_world()
+        town_square = world["Town Square"]
+        assert town_square.get_connection("south") == "Ironhold City"
+
+    def test_default_world_merchant_in_ironhold_market(self):
+        """Wealthy Merchant NPC is in Ironhold Market.
+
+        Spec: Wealthy Merchant NPC in Ironhold Market with is_merchant=True
+        """
+        world, _ = create_default_world()
+        market = world["Ironhold Market"]
+        merchant = market.find_npc_by_name("Wealthy Merchant")
+        assert merchant is not None
+        assert merchant.is_merchant is True
+
+    def test_default_world_captain_in_castle_ward(self):
+        """Captain of the Guard NPC is in Castle Ward.
+
+        Spec: Captain of the Guard NPC exists in Castle Ward sub-location
+        """
+        world, _ = create_default_world()
+        castle_ward = world["Castle Ward"]
+        captain = castle_ward.find_npc_by_name("Captain of the Guard")
+        assert captain is not None
+
+    def test_default_world_beggar_in_slums(self):
+        """Beggar NPC is in Slums and is recruitable.
+
+        Spec: Beggar NPC in Slums with is_recruitable=True
+        """
+        world, _ = create_default_world()
+        slums = world["Slums"]
+        beggar = slums.find_npc_by_name("Beggar")
+        assert beggar is not None
+        assert beggar.is_recruitable is True
+
+    def test_default_world_priest_in_temple_quarter(self):
+        """Priest NPC is in Temple Quarter.
+
+        Spec: Priest NPC exists in Temple Quarter sub-location
+        """
+        world, _ = create_default_world()
+        temple_quarter = world["Temple Quarter"]
+        priest = temple_quarter.find_npc_by_name("Priest")
+        assert priest is not None
+
     def test_default_world_all_valid_locations(self):
         """Test that all values in world dict are Location instances.
         
@@ -441,8 +556,9 @@ class TestCreateDefaultWorld:
         assert world1["Town Square"] is not world2["Town Square"]
 
         # Modifying one shouldn't affect the other
-        world1["Town Square"].add_connection("south", "Somewhere")
-        assert world2["Town Square"].get_connection("south") is None
+        # Use Cave which only has west and north connections
+        world1["Cave"].add_connection("south", "Somewhere")
+        assert world2["Cave"].get_connection("south") is None
 
     def test_default_world_locations_have_coordinates(self):
         """Test that default world locations have grid coordinates.

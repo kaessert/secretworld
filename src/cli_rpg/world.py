@@ -190,6 +190,16 @@ def create_default_world() -> tuple[dict[str, Location], str]:
         entry_point="Mine Entrance"
     )
 
+    # Create Ironhold City as overworld landmark with sub-locations (safe zone)
+    ironhold_city = Location(
+        name="Ironhold City",
+        description="A massive walled city of stone and steel. Towers rise above fortified walls, and the streets bustle with merchants, soldiers, and citizens from across the realm.",
+        is_overworld=True,
+        is_safe_zone=True,
+        sub_locations=["Ironhold Market", "Castle Ward", "Slums", "Temple Quarter"],
+        entry_point="Ironhold Market"
+    )
+
     cave = Location(
         name="Cave",
         description="A dark cave with damp walls. You can hear water dripping somewhere deeper inside."
@@ -206,6 +216,8 @@ def create_default_world() -> tuple[dict[str, Location], str]:
     grid.add_location(millbrook, -1, 0)
     # Abandoned Mines is north of Cave (1, 1)
     grid.add_location(abandoned_mines, 1, 1)
+    # Ironhold City is south of Town Square (0, -1)
+    grid.add_location(ironhold_city, 0, -1)
 
     # Create default merchant shop
     potion = Item(
@@ -475,6 +487,117 @@ def create_default_world() -> tuple[dict[str, Location], str]:
         connections={}  # No cardinal exits for sub-locations
     )
 
+    # Create luxury shop for Ironhold Market
+    greater_health_potion = Item(
+        name="Greater Health Potion",
+        description="Restores 50 HP",
+        item_type=ItemType.CONSUMABLE,
+        heal_amount=50
+    )
+    fine_steel_sword = Item(
+        name="Steel Sword",
+        description="A masterfully forged blade of the finest steel",
+        item_type=ItemType.WEAPON,
+        damage_bonus=10
+    )
+    plate_armor = Item(
+        name="Plate Armor",
+        description="Heavy plate armor offering excellent protection",
+        item_type=ItemType.ARMOR,
+        defense_bonus=10
+    )
+    luxury_shop_items = [
+        ShopItem(item=greater_health_potion, buy_price=100),
+        ShopItem(item=fine_steel_sword, buy_price=200),
+        ShopItem(item=plate_armor, buy_price=350),
+    ]
+    luxury_shop = Shop(name="Ironhold Emporium", inventory=luxury_shop_items)
+
+    # Create NPCs for Ironhold City
+    wealthy_merchant = NPC(
+        name="Wealthy Merchant",
+        description="A richly dressed merchant dealing in fine goods and luxury items",
+        dialogue="Welcome to Ironhold! Only the finest wares for discerning customers.",
+        is_merchant=True,
+        shop=luxury_shop,
+        greetings=[
+            "Welcome to Ironhold! Only the finest wares for discerning customers.",
+            "Ah, you have the look of someone with coin to spend.",
+            "My goods are the best in the realm. Quality comes at a price, of course.",
+        ]
+    )
+
+    captain_of_guard = NPC(
+        name="Captain of the Guard",
+        description="A stern, battle-scarred officer in gleaming armor",
+        dialogue="Ironhold stands strong. We keep the peace here, adventurer.",
+        greetings=[
+            "Ironhold stands strong. We keep the peace here, adventurer.",
+            "The city walls have never been breached. Not on my watch.",
+            "Report any suspicious activity to the guard post immediately.",
+        ]
+    )
+
+    beggar = NPC(
+        name="Beggar",
+        description="A ragged figure huddled in the shadows, eyes sharp despite appearances",
+        dialogue="Spare a coin? I know things, traveler... things that might interest you.",
+        is_recruitable=True,
+        greetings=[
+            "Spare a coin? I know things, traveler... things that might interest you.",
+            "The streets see everything, friend. I could be useful to you.",
+            "Don't let the rags fool you. I've survived these alleys for years.",
+        ]
+    )
+
+    priest = NPC(
+        name="Priest",
+        description="A serene figure in white robes, offering blessings and comfort to all",
+        dialogue="May the light guide your path, traveler. The temple welcomes all.",
+        greetings=[
+            "May the light guide your path, traveler. The temple welcomes all.",
+            "Peace be upon you, child. Have you come seeking healing?",
+            "The divine watches over Ironhold. And over you, should you wish it.",
+        ]
+    )
+
+    # Create sub-locations for Ironhold City (all safe zones)
+    ironhold_market = Location(
+        name="Ironhold Market",
+        description="A grand marketplace beneath towering stone arches. Merchants from distant lands hawk exotic goods while city guards patrol the crowded stalls.",
+        parent_location="Ironhold City",
+        is_safe_zone=True,
+        connections={}  # No cardinal exits for sub-locations
+    )
+    ironhold_market.npcs.append(wealthy_merchant)
+
+    castle_ward = Location(
+        name="Castle Ward",
+        description="The noble district of Ironhold, where magnificent mansions line cobblestone streets. The city garrison is headquartered here.",
+        parent_location="Ironhold City",
+        is_safe_zone=True,
+        connections={}  # No cardinal exits for sub-locations
+    )
+    castle_ward.npcs.append(captain_of_guard)
+
+    slums = Location(
+        name="Slums",
+        description="A maze of narrow alleys and ramshackle buildings. The poor and desperate eke out a living in the shadow of the city's wealth.",
+        parent_location="Ironhold City",
+        is_safe_zone=True,
+        connections={}  # No cardinal exits for sub-locations
+    )
+    slums.npcs.append(beggar)
+
+    temple_quarter = Location(
+        name="Temple Quarter",
+        description="A peaceful district of temples and shrines. Incense smoke drifts through the air, and the sound of hymns echoes from within the grand cathedral.",
+        parent_location="Ironhold City",
+        is_safe_zone=True,
+        connections={}  # No cardinal exits for sub-locations
+    )
+    temple_quarter.npcs.append(priest)
+
     # Build world dictionary from grid plus sub-locations
     world = grid.as_dict()
     # Town Square sub-locations
@@ -494,6 +617,11 @@ def create_default_world() -> tuple[dict[str, Location], str]:
     world["Upper Tunnels"] = upper_tunnels
     world["Flooded Level"] = flooded_level
     world["Boss Chamber"] = boss_chamber
+    # Ironhold City sub-locations
+    world["Ironhold Market"] = ironhold_market
+    world["Castle Ward"] = castle_ward
+    world["Slums"] = slums
+    world["Temple Quarter"] = temple_quarter
 
     # Return world dictionary and starting location (backward compatible)
     return (world, "Town Square")

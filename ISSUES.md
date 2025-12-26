@@ -481,11 +481,11 @@ OVERWORLD (macro map)
   │     ├── Inn (with Innkeeper NPC, recruitable)
   │     └── Blacksmith (with Blacksmith NPC, merchant)
   │
-  ├── 🏰 Ironhold City (SAFE - no random encounters)
-  │     ├── Market District
-  │     ├── Castle Ward
-  │     ├── Slums
-  │     └── Temple Quarter
+  ├── ✅ 🏰 Ironhold City (SAFE) - IMPLEMENTED
+  │     ├── Ironhold Market (with Wealthy Merchant)
+  │     ├── Castle Ward (with Captain of the Guard)
+  │     ├── Slums (with Beggar, recruitable)
+  │     └── Temple Quarter (with Priest)
   │
   └── ✅ ⛏️ Abandoned Mines (DUNGEON) - IMPLEMENTED
         ├── Mine Entrance (with Old Miner NPC)
@@ -1079,73 +1079,34 @@ This check occurs before any coordinate-based movement or new location generatio
 **Fix**: Fixed world generation to ensure all locations have at least one valid exit. Commit: 8d7f56f.
 
 ### ASCII art first line alignment off
-**Status**: ACTIVE
+**Status**: RESOLVED
 
-**Description**: ASCII art for locations and enemies sometimes has the first line misaligned (missing leading spaces), breaking the visual presentation.
+**Description**: ASCII art for locations, enemies, and NPCs had the first line misaligned (missing leading spaces), breaking the visual presentation.
 
-**Example (current - broken)**:
-```
-/\ /\
-  (  V  )
-  /|   |\
- / |   | \
-(___|___|_)
-```
+**Cause**: In `src/cli_rpg/ai_service.py`, three parsing functions used `art = response_text.strip()` which removed ALL leading whitespace, including the critical indentation on the first line that makes ASCII art align properly.
 
-**Expected (fixed)**:
-```
-   /\ /\
-  (  V  )
-  /|   |\
- / |   | \
-(___|___|_)
+**Fix**: Changed from `art = response_text.strip()` to:
+```python
+# Strip only trailing whitespace, preserve first line's leading spaces
+art = response_text.rstrip()
+# Remove leading empty lines
+while art.startswith("\n"):
+    art = art[1:]
 ```
 
-The issue also affects location ASCII art like "Cybernetic Tundra" where the first line is missing its leading space.
+This preserves the first line's indentation while still removing trailing whitespace and leading empty lines (common in LLM responses).
 
-**Cause**: Likely a string processing issue where leading whitespace is being trimmed from the first line during AI generation response parsing or template loading.
+**Files modified**:
+- `src/cli_rpg/ai_service.py` - Fixed 3 methods: `_parse_ascii_art_response`, `_parse_location_ascii_art_response`, `_parse_npc_ascii_art_response`
 
-**Files to check**:
-- `src/cli_rpg/ai_service.py` - AI response parsing
-- `src/cli_rpg/location_art.py` - Location art templates
-- `src/cli_rpg/npc_art.py` - NPC/enemy art templates
+**Tests added**: 5 new tests in `tests/test_ascii_art.py` class `TestAsciiArtFirstLineAlignment`
 
 ### Sub-locations not shown in look command output
-**Status**: ACTIVE
+**Status**: RESOLVED
 
 **Description**: When a player uses the `look` command at a location with sub-locations (like Town Square), the output only shows directional exits (e.g., "Exits: east, north, west") but does NOT show available sub-locations that can be entered.
 
-**Steps to Reproduce**:
-1. Start a new game with `--skip-character-creation`
-2. At Town Square, type `look` multiple times
-3. Observe output only shows "Exits: east, north, west"
-4. Type `enter` - suddenly you're in "Market District"
-
-**Expected Behavior**: The `look` command should display available sub-locations, e.g.:
-```
-Town Square
-A bustling town square with a fountain in the center. Pathways lead to various districts.
-Exits: east, north, west
-Sub-locations: Market District
-```
-
-Or alternatively:
-```
-Exits: east, north, west
-Enter: Market District
-```
-
-**Actual Behavior**: No indication that sub-locations exist. The description mentions "Pathways lead to various districts" but this is flavor text, not actionable information. Users have no way to discover that `enter` works or what locations they can enter.
-
-**Impact**:
-- Users may never discover the `enter` command works
-- Users cannot make informed decisions about which sub-location to enter
-- The `map` and `worldmap` commands also don't show sub-locations
-- Breaks discoverability of hierarchical world content
-
-**Files to fix**:
-- `src/cli_rpg/game_state.py` - `look` command should include sub-location list
-- `src/cli_rpg/map_renderer.py` - Consider showing sub-locations in map output
+**Fix**: Updated `Location.get_layered_description()` and `Location.__str__()` methods in `src/cli_rpg/models/location.py` to display an "Enter:" line after the exits line, showing available sub-locations. The line uses color formatting consistent with location names and is shown regardless of visibility level (weather doesn't hide buildings/areas you can enter).
 
 ### Map locations all use same symbol - impossible to distinguish
 **Status**: RESOLVED
