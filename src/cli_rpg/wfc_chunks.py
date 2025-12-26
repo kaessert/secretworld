@@ -330,7 +330,7 @@ class ChunkManager:
         if len(cell.possible_tiles) == 0:
             raise ValueError(f"Cannot collapse cell {cell.coords} with no options")
 
-        tiles = list(cell.possible_tiles)
+        tiles = sorted(cell.possible_tiles)
         weights = [self.tile_registry.get_weight(tile) for tile in tiles]
 
         selected = rng.choices(tiles, weights=weights, k=1)[0]

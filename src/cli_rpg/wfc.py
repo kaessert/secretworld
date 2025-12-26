@@ -192,8 +192,8 @@ class WFCGenerator:
         if len(cell.possible_tiles) == 0:
             raise ValueError(f"Cannot collapse cell {cell.coords} with no options")
 
-        # Build weighted list
-        tiles = list(cell.possible_tiles)
+        # Build weighted list (sorted for deterministic iteration order)
+        tiles = sorted(cell.possible_tiles)
         weights = [self.tile_registry.get_weight(tile) for tile in tiles]
 
         # Weighted random selection
