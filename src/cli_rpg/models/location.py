@@ -52,6 +52,7 @@ class Location:
     hidden_secrets: List[dict] = field(default_factory=list)  # Secrets with detection thresholds
     is_exit_point: bool = False  # Only these rooms allow 'exit' command
     sub_grid: Optional["SubGrid"] = None  # Interior grid for landmarks (overworld only)
+    terrain: Optional[str] = None  # WFC terrain type (forest, plains, etc.)
 
     def __post_init__(self) -> None:
         """Validate location attributes after initialization."""
@@ -315,6 +316,8 @@ class Location:
             data["is_exit_point"] = self.is_exit_point
         if self.sub_grid is not None:
             data["sub_grid"] = self.sub_grid.to_dict()
+        if self.terrain is not None:
+            data["terrain"] = self.terrain
         return data
     
     @classmethod
@@ -366,6 +369,8 @@ class Location:
         if "sub_grid" in data:
             from cli_rpg.world_grid import SubGrid
             sub_grid = SubGrid.from_dict(data["sub_grid"])
+        # Parse terrain if present (backward compatibility)
+        terrain = data.get("terrain")
         return cls(
             name=data["name"],
             description=data["description"],
@@ -386,7 +391,8 @@ class Location:
             treasures=treasures,
             hidden_secrets=hidden_secrets,
             is_exit_point=is_exit_point,
-            sub_grid=sub_grid
+            sub_grid=sub_grid,
+            terrain=terrain,
         )
     
     def __str__(self) -> str:

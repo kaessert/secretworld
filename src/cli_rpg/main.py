@@ -2315,7 +2315,8 @@ def start_game(
     character: Character,
     ai_service: Optional[AIService] = None,
     theme: str = "fantasy",
-    strict: bool = True
+    strict: bool = True,
+    use_wfc: bool = False,
 ) -> None:
     """Start the gameplay loop with the given character.
 
@@ -2325,6 +2326,7 @@ def start_game(
         theme: World theme for generation (default: "fantasy")
         strict: If True (default), AI generation failures raise exceptions.
                 If False, falls back to default world on AI error.
+        use_wfc: If True, enable WFC terrain generation for procedural world
     """
     # Create game state with AI-powered or default world
     try:
@@ -2346,7 +2348,7 @@ def start_game(
             if choice == "1":
                 # Retry with same parameters
                 return start_game(
-                    character, ai_service=ai_service, theme=theme, strict=strict
+                    character, ai_service=ai_service, theme=theme, strict=strict, use_wfc=use_wfc
                 )
             elif choice == "2":
                 # Use default world (non-strict mode)
@@ -2367,13 +2369,26 @@ def start_game(
     # Validate starting location exists in world
     if starting_location not in world:
         raise ValueError(f"Starting location '{starting_location}' not found in world")
-    
+
+    # Initialize WFC ChunkManager if enabled
+    chunk_manager = None
+    if use_wfc:
+        import random as rnd
+        from cli_rpg.wfc_chunks import ChunkManager
+        from cli_rpg.world_tiles import DEFAULT_TILE_REGISTRY
+        chunk_manager = ChunkManager(
+            tile_registry=DEFAULT_TILE_REGISTRY,
+            world_seed=rnd.randint(0, 2**32 - 1),
+        )
+        print("✓ WFC terrain generation enabled!")
+
     game_state = GameState(
         character,
         world,
         starting_location=starting_location,
         ai_service=ai_service,
-        theme=theme
+        theme=theme,
+        chunk_manager=chunk_manager,
     )
 
     # Initialize default factions
@@ -2817,6 +2832,11 @@ def main(args: Optional[list] = None) -> int:
         action="store_true",
         help="Skip character creation and use default character (non-interactive/JSON modes only)"
     )
+    parser.add_argument(
+        "--wfc",
+        action="store_true",
+        help="Enable WFC terrain generation for infinite procedural world"
+    )
     parsed_args = parser.parse_args(args)
 
     if parsed_args.seed is not None:
@@ -2851,6 +2871,7 @@ def main(args: Optional[list] = None) -> int:
     ai_config = load_ai_config()
     ai_service = None
     strict_mode = is_ai_strict_mode()
+    use_wfc = parsed_args.wfc
 
     if ai_config:
         try:
@@ -2886,7 +2907,7 @@ def main(args: Optional[list] = None) -> int:
 
                 # Start the game with AI service and theme
                 start_game(
-                    character, ai_service=ai_service, theme=theme, strict=strict_mode
+                    character, ai_service=ai_service, theme=theme, strict=strict_mode, use_wfc=use_wfc
                 )
                 
         elif choice == "2":
@@ -2917,7 +2938,7 @@ def main(args: Optional[list] = None) -> int:
                 # start a new game with that character
                 print("\n✓ Starting new adventure with loaded character...")
                 start_game(
-                    character, ai_service=ai_service, theme="fantasy", strict=strict_mode
+                    character, ai_service=ai_service, theme="fantasy", strict=strict_mode, use_wfc=use_wfc
                 )
                 
         elif choice == "3":

@@ -8,6 +8,7 @@ from cli_rpg.models.character import Character
 
 if TYPE_CHECKING:
     from cli_rpg.world_grid import SubGrid
+    from cli_rpg.wfc_chunks import ChunkManager
 from cli_rpg.models.game_time import GameTime
 from cli_rpg.models.location import Location
 from cli_rpg.models.npc import NPC
@@ -214,17 +215,19 @@ class GameState:
         world: dict[str, Location],
         starting_location: str = "Town Square",
         ai_service: Optional["AIService"] = None,
-        theme: str = "fantasy"
+        theme: str = "fantasy",
+        chunk_manager: Optional["ChunkManager"] = None,
     ):
         """Initialize game state.
-        
+
         Args:
             character: The player's character
             world: Dictionary mapping location names to Location objects
             starting_location: Name of starting location (default: "Town Square")
             ai_service: Optional AIService for dynamic world generation
             theme: World theme for AI generation (default: "fantasy")
-            
+            chunk_manager: Optional ChunkManager for WFC terrain generation
+
         Raises:
             TypeError: If character is not a Character instance
             ValueError: If world is empty, starting_location not in world,
@@ -272,6 +275,7 @@ class GameState:
         self.factions: list[Faction] = []  # Faction reputation tracking
         self.in_sub_location: bool = False  # True when inside a SubGrid
         self.current_sub_grid: Optional["SubGrid"] = None  # Active sub-grid when inside one
+        self.chunk_manager = chunk_manager  # Optional WFC chunk manager for terrain
 
     @property
     def is_in_conversation(self) -> bool:
@@ -494,7 +498,17 @@ class GameState:
                 if not current.has_connection(direction):
                     current.add_connection(direction, target_location.name)
             else:
-                # No location at target - generate one (AI or fallback)
+                # No location at target - check WFC terrain and generate
+                terrain = None
+                if self.chunk_manager is not None:
+                    # Get terrain from WFC
+                    terrain = self.chunk_manager.get_tile_at(*target_coords)
+                    # Check if terrain is passable
+                    from cli_rpg.world_tiles import TERRAIN_PASSABLE
+                    if not TERRAIN_PASSABLE.get(terrain, True):
+                        self.is_sneaking = False
+                        return (False, f"The {terrain} ahead is impassable.")
+
                 ai_succeeded = False
                 if self.ai_service is not None and AI_AVAILABLE and expand_area is not None:
                     try:
@@ -512,6 +526,9 @@ class GameState:
                         # Find the newly generated location
                         target_location = self._get_location_by_coordinates(target_coords)
                         if target_location:
+                            # Set terrain if from WFC
+                            if terrain is not None:
+                                target_location.terrain = terrain
                             self.current_location = target_location.name
                             ai_succeeded = True
                     except Exception as e:
@@ -528,7 +545,8 @@ class GameState:
                         new_location = generate_fallback_location(
                             direction=direction,
                             source_location=current,
-                            target_coords=target_coords
+                            target_coords=target_coords,
+                            terrain=terrain,
                         )
                         # Add to world
                         self.world[new_location.name] = new_location
@@ -970,9 +988,9 @@ class GameState:
         """Serialize game state to dictionary.
 
         Returns:
-            Dictionary containing character, current_location, world data, theme, game_time, weather, choices, world_events, and companions
+            Dictionary containing character, current_location, world data, theme, game_time, weather, choices, world_events, companions, and chunk_manager
         """
-        return {
+        data = {
             "character": self.current_character.to_dict(),
             "current_location": self.current_location,
             "world": {
@@ -991,6 +1009,10 @@ class GameState:
             "gather_cooldown": self.gather_cooldown,
             "in_sub_location": self.in_sub_location,
         }
+        # Include chunk_manager if present (WFC terrain)
+        if self.chunk_manager is not None:
+            data["chunk_manager"] = self.chunk_manager.to_dict()
+        return data
     
     @classmethod
     def from_dict(cls, data: dict, ai_service: Optional["AIService"] = None) -> "GameState":
@@ -1080,5 +1102,13 @@ class GameState:
         game_state.forage_cooldown = data.get("forage_cooldown", 0)
         game_state.hunt_cooldown = data.get("hunt_cooldown", 0)
         game_state.gather_cooldown = data.get("gather_cooldown", 0)
+
+        # Restore chunk_manager if present (WFC terrain)
+        if "chunk_manager" in data:
+            from cli_rpg.wfc_chunks import ChunkManager
+            from cli_rpg.world_tiles import DEFAULT_TILE_REGISTRY
+            game_state.chunk_manager = ChunkManager.from_dict(
+                data["chunk_manager"], DEFAULT_TILE_REGISTRY
+            )
 
         return game_state

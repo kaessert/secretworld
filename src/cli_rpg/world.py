@@ -58,10 +58,88 @@ FALLBACK_LOCATION_TEMPLATES = [
 ]
 
 
+# Terrain-specific templates for WFC-based generation
+TERRAIN_TEMPLATES = {
+    "forest": {
+        "name_patterns": ["Dark Forest", "Ancient Woods", "Whispering Trees", "Shadowed Grove"],
+        "descriptions": [
+            "Towering trees block out the sun. Strange sounds echo through the underbrush.",
+            "Ancient oaks and twisted elms crowd the path. The air smells of moss and decay.",
+            "Dense woodland surrounds you. Shafts of light pierce the canopy above.",
+        ],
+        "category": "forest",
+    },
+    "plains": {
+        "name_patterns": ["Open Plains", "Windswept Fields", "Rolling Grasslands", "Vast Prairie"],
+        "descriptions": [
+            "Tall grass waves in the endless wind. The horizon stretches in all directions.",
+            "A sea of green and gold surrounds you. The sky seems impossibly vast.",
+            "Wildflowers dot the open expanse. A lonely bird circles overhead.",
+        ],
+        "category": "wilderness",
+    },
+    "mountain": {
+        "name_patterns": ["Mountain Pass", "Rocky Heights", "Stone Peak", "Craggy Summit"],
+        "descriptions": [
+            "Jagged peaks rise around you. The air is thin and cold.",
+            "Steep cliffs and loose scree make travel treacherous.",
+            "The mountain looms above, its peak lost in clouds.",
+        ],
+        "category": "mountain",
+    },
+    "hills": {
+        "name_patterns": ["Rolling Hills", "Grassy Knolls", "Heather Heights", "Gentle Slopes"],
+        "descriptions": [
+            "Green hills roll gently into the distance. Sheep graze on the slopes.",
+            "The landscape rises and falls in soft waves. A cool breeze blows.",
+            "Wildflowers carpet the hillsides. Birds sing from scattered trees.",
+        ],
+        "category": "wilderness",
+    },
+    "swamp": {
+        "name_patterns": ["Murky Swamp", "Fetid Marsh", "Bog of Shadows", "Stagnant Mire"],
+        "descriptions": [
+            "Thick fog hangs over stagnant water. The ground squelches underfoot.",
+            "Twisted trees rise from the muck. Strange lights dance in the distance.",
+            "The air reeks of rot. Insects swarm in clouds.",
+        ],
+        "category": "swamp",
+    },
+    "desert": {
+        "name_patterns": ["Scorched Sands", "Endless Dunes", "Burning Wastes", "Sun-Blasted Expanse"],
+        "descriptions": [
+            "Shifting sands stretch to the horizon. The sun beats down mercilessly.",
+            "Wind-carved dunes rise like frozen waves. Heat shimmers in the air.",
+            "Bleached bones mark where others have fallen. The desert is unforgiving.",
+        ],
+        "category": "desert",
+    },
+    "beach": {
+        "name_patterns": ["Sandy Shore", "Coastal Beach", "Driftwood Coast", "Sea's Edge"],
+        "descriptions": [
+            "Waves crash against the sandy shore. Salt spray fills the air.",
+            "Seashells and driftwood litter the beach. Gulls cry overhead.",
+            "The tide pools teem with life. The ocean stretches to the horizon.",
+        ],
+        "category": "beach",
+    },
+    "foothills": {
+        "name_patterns": ["Mountain Foothills", "Rocky Slopes", "Highland Edge", "Stone Steps"],
+        "descriptions": [
+            "The land rises toward the distant peaks. Scrub brush dots the rocky soil.",
+            "Boulders and loose stones make the path challenging.",
+            "The air grows cooler as elevation increases. Mountain goats watch from above.",
+        ],
+        "category": "mountain",
+    },
+}
+
+
 def generate_fallback_location(
     direction: str,
     source_location: Location,
-    target_coords: Tuple[int, int]
+    target_coords: Tuple[int, int],
+    terrain: Optional[str] = None,
 ) -> Location:
     """Generate a fallback location when AI is unavailable.
 
@@ -73,12 +151,16 @@ def generate_fallback_location(
         direction: The direction of travel from source (e.g., "north")
         source_location: The location the player is coming from
         target_coords: The (x, y) coordinates for the new location
+        terrain: Optional WFC terrain type (e.g., "forest", "plains")
 
     Returns:
         A new Location instance with proper connections
     """
-    # Select a random template
-    template = random.choice(FALLBACK_LOCATION_TEMPLATES)
+    # Select template based on terrain if provided, otherwise random
+    if terrain is not None and terrain in TERRAIN_TEMPLATES:
+        template = TERRAIN_TEMPLATES[terrain]
+    else:
+        template = random.choice(FALLBACK_LOCATION_TEMPLATES)
 
     # Generate unique name with coordinate suffix to ensure uniqueness
     base_name = random.choice(template["name_patterns"])
@@ -91,12 +173,17 @@ def generate_fallback_location(
     # Calculate back connection direction
     back_direction = OPPOSITE_DIRECTIONS[direction]
 
+    # Determine category from terrain template or use default
+    category = template.get("category", None)
+
     # Create the new location
     new_location = Location(
         name=location_name,
         description=description,
         connections={back_direction: source_location.name},
-        coordinates=target_coords
+        coordinates=target_coords,
+        category=category,
+        terrain=terrain,
     )
 
     # Add at least one frontier exit for future expansion

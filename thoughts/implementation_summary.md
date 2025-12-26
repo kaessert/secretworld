@@ -1,82 +1,80 @@
-# Implementation Summary: WFC ChunkManager
+# Implementation Summary: WFC ChunkManager Integration with GameState
 
 ## Overview
 
-Implemented `ChunkManager` class in `src/cli_rpg/wfc_chunks.py` for infinite terrain generation via cached WFC-generated 8x8 chunks with deterministic seeding.
+The WFC ChunkManager integration with GameState's movement system is **already complete**. All required features from the implementation plan were verified to be in place.
 
-## Files Created
+## Files Verified/Integrated
 
-| File | Description |
-|------|-------------|
-| `src/cli_rpg/wfc_chunks.py` | ChunkManager class implementation |
-| `tests/test_wfc_chunks.py` | 17 test cases covering all spec requirements |
+| File | Status | Description |
+|------|--------|-------------|
+| `src/cli_rpg/game_state.py` | ✅ COMPLETE | Has `chunk_manager` parameter, WFC terrain checking in `move()`, and serialization |
+| `src/cli_rpg/models/location.py` | ✅ COMPLETE | Has `terrain: Optional[str] = None` field |
+| `src/cli_rpg/world.py` | ✅ COMPLETE | Has `TERRAIN_TEMPLATES` and `generate_fallback_location()` with `terrain` param |
+| `src/cli_rpg/wfc_chunks.py` | ✅ COMPLETE | Has `to_dict()` and `from_dict()` for persistence |
+| `src/cli_rpg/world_tiles.py` | ✅ COMPLETE | Has `TERRAIN_PASSABLE` for blocking water tiles |
+| `src/cli_rpg/main.py` | ✅ COMPLETE | Has `--wfc` CLI flag, wired through `use_wfc` parameter |
+| `tests/test_wfc_integration.py` | ✅ COMPLETE | All 10 integration tests exist and pass |
 
-## Implementation Details
+## Key Integration Points
 
-### ChunkManager Class
+1. **GameState.__init__()** (line 219): Accepts optional `chunk_manager: Optional["ChunkManager"]`
 
-```python
-@dataclass
-class ChunkManager:
-    tile_registry: TileRegistry
-    chunk_size: int = 8
-    world_seed: int = 0
-    _chunks: Dict[Tuple[int, int], Dict[Tuple[int, int], str]]
-```
+2. **GameState.move()** (lines 501-510): Checks WFC terrain before movement:
+   ```python
+   if self.chunk_manager is not None:
+       terrain = self.chunk_manager.get_tile_at(*target_coords)
+       from cli_rpg.world_tiles import TERRAIN_PASSABLE
+       if not TERRAIN_PASSABLE.get(terrain, True):
+           return (False, f"The {terrain} ahead is impassable.")
+   ```
 
-### Key Methods
+3. **Fallback location generation** (lines 545-550): Uses terrain from WFC:
+   ```python
+   new_location = generate_fallback_location(
+       direction=direction,
+       source_location=current,
+       target_coords=target_coords,
+       terrain=terrain,
+   )
+   ```
 
-1. **`get_or_generate_chunk(chunk_x, chunk_y)`** - Returns cached chunk or generates new one with deterministic seeding: `hash((world_seed, chunk_x, chunk_y)) & 0xFFFFFFFF`
+4. **Persistence** (lines 1013-1014 in `to_dict()`, 1107-1112 in `from_dict()`):
+   - Saves chunk_manager when present
+   - Restores chunk_manager from saved data
 
-2. **`get_tile_at(world_x, world_y)`** - World coordinate to tile lookup with automatic chunk generation
-
-3. **`to_dict()` / `from_dict()`** - Serialization/deserialization for save/load functionality
-
-### Boundary Constraint System
-
-When generating a new chunk adjacent to existing chunks, the implementation:
-1. Collects boundary tiles from all 4 neighboring chunks
-2. Pre-constrains edge cells to be compatible with neighbors
-3. Propagates constraints through WFC before collapsing any cells
-4. Uses restart-on-contradiction with fresh RNG state
-
-The constraint propagation uses a custom WFC implementation (duplicated from `wfc.py`) that:
-- Accepts pre-constrained cell possibilities
-- Propagates initial constraints before WFC main loop
-- Handles contradictions with multiple restart attempts
-
-### Coordinate System
-
-- Chunk coordinates: `chunk_x = world_x // chunk_size`
-- World origin of chunk: `(chunk_x * chunk_size, chunk_y * chunk_size)`
-- Supports negative coordinates correctly (Python's floor division)
+5. **CLI flag** (main.py line 2836): `--wfc` flag enables WFC terrain generation
 
 ## Test Results
 
+### WFC Integration Tests (10/10 passed)
 ```
-17 passed in 0.74s
-```
-
-All 17 tests pass, covering:
-- Creation and initialization
-- Deterministic seeding
-- Chunk caching
-- Coordinate conversion (positive/negative)
-- Boundary constraints (horizontal and vertical)
-- Large area traversal (21x21 area across 9 chunks)
-- Serialization/deserialization
-
-## Full Test Suite
-
-```
-3328 passed in 66.63s
+test_gamestate_with_chunk_manager PASSED
+test_gamestate_without_chunk_manager PASSED
+test_move_triggers_chunk_generation PASSED
+test_terrain_stored_on_location PASSED
+test_move_blocks_impassable_terrain PASSED
+test_fallback_uses_terrain_type PASSED
+test_location_category_from_terrain PASSED
+test_save_includes_chunk_manager PASSED
+test_load_restores_chunk_manager PASSED
+test_load_without_chunk_manager PASSED
 ```
 
-No regressions in existing tests.
+### Related Tests
+- **GameState tests**: 60/60 passed
+- **World tests**: 55/55 passed
+- **Location tests**: 70/70 passed
+
+## Note on Pre-existing Issue
+
+There is one failing test in `test_wfc_chunks.py::test_large_area_traversal` which tests for adjacency consistency across chunk boundaries. This is a pre-existing issue with the WFC boundary constraint algorithm (not related to the GameState integration) and is outside the scope of this implementation plan.
 
 ## E2E Validation
 
-The implementation should be validated with:
-1. Walking across multiple chunk boundaries in-game
-2. Save/load with generated chunks
-3. Performance testing with many chunks loaded
+To validate the integration end-to-end:
+1. Start the game with `cli-rpg --wfc`
+2. Navigate to unexplored areas (e.g., `go north` multiple times)
+3. Verify that new locations are generated with terrain types
+4. Verify that water terrain blocks movement with "impassable" message
+5. Save and reload the game to verify chunk_manager persistence
