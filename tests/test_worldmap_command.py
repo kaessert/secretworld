@@ -201,3 +201,50 @@ class TestWorldmapExplorationCommand:
         assert "WORLD MAP" in message.upper()
         # Current location should be marked
         assert "@" in message or "[*]" in message
+
+    def test_worldmap_command_inside_subgrid_uses_parent_location(self):
+        """Test worldmap command inside SubGrid uses parent location.
+
+        Spec: When player is inside a SubGrid, 'worldmap' command should render
+        the overworld map centered on the parent location.
+        """
+        from cli_rpg.main import handle_exploration_command
+        from cli_rpg.world_grid import SubGrid
+
+        character = Character("Hero", strength=10, dexterity=10, intelligence=10)
+
+        # Create main world with overworld location
+        town = Location(
+            "Town Square",
+            "A busy town square",
+            {},
+            coordinates=(0, 0),
+            is_overworld=True,
+        )
+        town.sub_grid = SubGrid(parent_name="Town Square", bounds=(-2, 2, -2, 2))
+
+        # Create interior location with parent reference
+        market = Location(
+            "Market Stall",
+            "A market stall",
+            {},
+            parent_location="Town Square",
+        )
+        town.sub_grid.add_location(market, 0, 0)
+
+        world = {"Town Square": town}
+
+        # Set up game state - start at Town Square, then simulate entering SubGrid
+        game_state = GameState(character, world, "Town Square")
+        # Simulate being inside the SubGrid (normally done by enter())
+        game_state.in_sub_location = True
+        game_state.current_sub_grid = town.sub_grid
+        game_state.current_location = "Market Stall"
+
+        continue_game, message = handle_exploration_command(game_state, "worldmap", [])
+
+        assert continue_game is True
+        # Should show WORLD MAP (not fail)
+        assert "WORLD MAP" in message.upper(), f"Expected 'WORLD MAP' in output. Got:\n{message}"
+        # Should not show the error message about location not found
+        assert "not found" not in message.lower()

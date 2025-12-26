@@ -1640,7 +1640,12 @@ def handle_exploration_command(game_state: GameState, command: str, args: list[s
         return (True, f"\n{map_output}")
 
     elif command == "worldmap":
-        worldmap_output = render_worldmap(game_state.world, game_state.current_location)
+        worldmap_location = game_state.current_location
+        if game_state.in_sub_location:
+            current_loc = game_state.get_current_location()
+            if current_loc.parent_location:
+                worldmap_location = current_loc.parent_location
+        worldmap_output = render_worldmap(game_state.world, worldmap_location)
         return (True, f"\n{worldmap_output}")
 
     elif command == "quests":
