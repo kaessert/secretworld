@@ -10,7 +10,7 @@ from cli_rpg.world import create_world
 from cli_rpg.config import load_ai_config, is_ai_strict_mode
 from cli_rpg.ai_service import AIService
 from cli_rpg.autosave import autosave
-from cli_rpg.map_renderer import render_map
+from cli_rpg.map_renderer import render_map, render_worldmap
 from cli_rpg.input_handler import init_readline, get_input, set_completer_context
 from cli_rpg.dreams import maybe_trigger_dream, display_dream
 from cli_rpg.companion_reactions import process_companion_reactions
@@ -44,6 +44,7 @@ def get_command_reference() -> str:
         "  buy <item>         - Buy an item from the shop",
         "  sell <item>        - Sell an item to the shop",
         "  map (m)            - Display a map of explored areas",
+        "  worldmap (wm)      - Display the overworld map",
         "  lore               - Discover lore about your current location",
         "  rest (r)           - Rest to recover health (25% of max HP)",
         "  quests (q)         - View your quest journal",
@@ -980,6 +981,10 @@ def handle_exploration_command(game_state: GameState, command: str, args: list[s
     elif command == "map":
         map_output = render_map(game_state.world, game_state.current_location)
         return (True, f"\n{map_output}")
+
+    elif command == "worldmap":
+        worldmap_output = render_worldmap(game_state.world, game_state.current_location)
+        return (True, f"\n{worldmap_output}")
 
     elif command == "quests":
         quests = game_state.current_character.quests

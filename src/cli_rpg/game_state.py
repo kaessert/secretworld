@@ -51,7 +51,7 @@ logger = logging.getLogger(__name__)
 KNOWN_COMMANDS: set[str] = {
     "look", "go", "save", "quit", "attack", "defend", "flee", "status", "cast",
     "inventory", "equip", "unequip", "use", "drop", "talk", "buy", "sell", "shop",
-    "map", "help", "quests", "quest", "accept", "complete", "abandon", "lore", "rest",
+    "map", "worldmap", "help", "quests", "quest", "accept", "complete", "abandon", "lore", "rest",
     "bestiary", "dump-state", "events", "companions", "recruit", "dismiss", "companion-quest",
     "enter", "exit", "leave"
 }
@@ -112,7 +112,7 @@ def parse_command(command_str: str) -> tuple[str, list[str]]:
     aliases = {
         "g": "go", "l": "look", "a": "attack", "c": "cast",
         "d": "defend", "f": "flee", "s": "status", "i": "inventory",
-        "m": "map", "h": "help", "t": "talk", "u": "use", "e": "equip",
+        "m": "map", "wm": "worldmap", "h": "help", "t": "talk", "u": "use", "e": "equip",
         "q": "quests", "dr": "drop", "r": "rest", "stats": "status",
         "b": "bestiary",
         # Ultra-short movement shortcuts

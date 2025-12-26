@@ -221,3 +221,60 @@ def render_map(world: dict[str, Location], current_location: str) -> str:
     lines.append(exits_line)
 
     return "\n".join(lines)
+
+
+def render_worldmap(world: dict[str, Location], current_location: str) -> str:
+    """Render an ASCII map showing only overworld locations.
+
+    Filters the world to only is_overworld=True locations and displays
+    those on a map. When the player is in a sub-location, uses the parent
+    location for positioning and shows a context message.
+
+    Args:
+        world: Dictionary mapping location names to Location objects
+        current_location: Name of the player's current location
+
+    Returns:
+        ASCII string representation of the overworld map with legend
+    """
+    # Get current location
+    current_loc = world.get(current_location)
+    if current_loc is None:
+        return "No overworld map available - current location not found."
+
+    # Check if player is in a sub-location
+    parent_context_message = ""
+    map_center_location = current_location
+
+    if not current_loc.is_overworld and current_loc.parent_location:
+        # Player is in a sub-location - use parent for map centering
+        parent_name = current_loc.parent_location
+        parent_loc = world.get(parent_name)
+        if parent_loc and parent_loc.is_overworld:
+            parent_context_message = f"(You are inside {parent_name})\n\n"
+            map_center_location = parent_name
+
+    # Filter world to only overworld locations
+    overworld_locations = {
+        name: loc for name, loc in world.items() if loc.is_overworld
+    }
+
+    # Check if any overworld locations exist
+    if not overworld_locations:
+        return "No overworld map available - no overworld locations discovered."
+
+    # Call render_map with filtered world, then replace header
+    map_output = render_map(overworld_locations, map_center_location)
+
+    # Replace header to indicate this is the world map
+    map_output = map_output.replace("=== MAP ===", "=== WORLD MAP ===")
+
+    # Add parent context message if applicable
+    if parent_context_message:
+        # Insert after the header
+        lines = map_output.split("\n")
+        if lines and lines[0] == "=== WORLD MAP ===":
+            lines.insert(1, parent_context_message.strip())
+            map_output = "\n".join(lines)
+
+    return map_output
