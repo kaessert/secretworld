@@ -95,6 +95,8 @@ class Character:
     look_counts: Dict[str, int] = field(default_factory=dict)
     dread_meter: DreadMeter = field(default_factory=DreadMeter)
     light_remaining: int = 0
+    mana: int = field(init=False)
+    max_mana: int = field(init=False)
 
     def __post_init__(self):
         """Validate attributes and calculate derived stats."""
@@ -138,6 +140,15 @@ class Character:
         self.health = self.max_health
         self.xp_to_next_level = self.level * 100
         self.constitution = self.strength  # Constitution based on strength
+
+        # Calculate max_mana based on class
+        # Mages get higher mana: 50 + INT * 5
+        # Other classes: 20 + INT * 2
+        if self.character_class == CharacterClass.MAGE:
+            self.max_mana = 50 + self.intelligence * 5
+        else:
+            self.max_mana = 20 + self.intelligence * 2
+        self.mana = self.max_mana
 
         # Initialize inventory
         from cli_rpg.models.inventory import Inventory
@@ -185,12 +196,34 @@ class Character:
     
     def heal(self, amount: int) -> None:
         """Increase health by heal amount, maximum max_health.
-        
+
         Args:
             amount: Amount of health to restore
         """
         self.health = min(self.max_health, self.health + amount)
-    
+
+    def use_mana(self, amount: int) -> bool:
+        """Attempt to use mana.
+
+        Args:
+            amount: Amount of mana to use
+
+        Returns:
+            True if mana was successfully used, False if insufficient mana
+        """
+        if self.mana < amount:
+            return False
+        self.mana -= amount
+        return True
+
+    def restore_mana(self, amount: int) -> None:
+        """Restore mana, capped at max_mana.
+
+        Args:
+            amount: Amount of mana to restore
+        """
+        self.mana = min(self.max_mana, self.mana + amount)
+
     def is_alive(self) -> bool:
         """Check if character is alive.
 
@@ -281,6 +314,22 @@ class Character:
             # Record item use for quest progress
             quest_messages = self.record_use(item.name)
             message = f"You used {item.name} and healed {healed} health!"
+            if quest_messages:
+                message += "\n" + "\n".join(quest_messages)
+            return (True, message)
+
+        # Handle mana restoration items
+        if item.mana_restore > 0:
+            # Check if already at full mana
+            if self.mana >= self.max_mana:
+                return (False, "You're already at full mana!")
+            old_mana = self.mana
+            self.restore_mana(item.mana_restore)
+            restored = self.mana - old_mana
+            self.inventory.remove_item(item)
+            # Record item use for quest progress
+            quest_messages = self.record_use(item.name)
+            message = f"You used {item.name} and restored {restored} mana!"
             if quest_messages:
                 message += "\n" + "\n".join(quest_messages)
             return (True, message)
@@ -824,6 +873,13 @@ class Character:
         self.max_health = self.BASE_HEALTH + self.strength * self.HEALTH_PER_STRENGTH
         self.constitution = self.strength
 
+        # Recalculate max_mana based on class (INT increased)
+        if self.character_class == CharacterClass.MAGE:
+            self.max_mana = 50 + self.intelligence * 5
+        else:
+            self.max_mana = 20 + self.intelligence * 2
+        self.mana = self.max_mana  # Restore mana to new maximum
+
         # Restore health to new maximum
         self.health = self.max_health
 
@@ -833,7 +889,7 @@ class Character:
         health_increase = self.max_health - old_max_health
         return (f"Level Up! You are now level {self.level}!\n"
                 f"Stats increased: STR +1, DEX +1, INT +1, CHA +1, PER +1, LCK +1\n"
-                f"Max HP increased by {health_increase}! Health fully restored!")
+                f"Max HP increased by {health_increase}! Health and mana fully restored!")
     
     def to_dict(self) -> dict:
         """Serialize character to dictionary.
@@ -853,6 +909,8 @@ class Character:
             "level": self.level,
             "health": self.health,
             "max_health": self.max_health,
+            "mana": self.mana,
+            "max_mana": self.max_mana,
             "xp": self.xp,
             "inventory": self.inventory.to_dict(),
             "gold": self.gold,
@@ -931,6 +989,18 @@ class Character:
         if "health" in data:
             character.health = min(data["health"], character.max_health)
 
+        # Recalculate max_mana based on class (backward compat: calculate if not saved)
+        if character.character_class == CharacterClass.MAGE:
+            character.max_mana = 50 + character.intelligence * 5
+        else:
+            character.max_mana = 20 + character.intelligence * 2
+
+        # Restore mana from save or default to max_mana
+        if "mana" in data:
+            character.mana = min(data["mana"], character.max_mana)
+        else:
+            character.mana = character.max_mana
+
         # Restore XP
         if "xp" in data:
             character.xp = data["xp"]
@@ -980,6 +1050,15 @@ class Character:
         else:
             health_str = colors.damage(f"{self.health}/{self.max_health}")
 
+        # Color mana based on percentage
+        mana_pct = self.mana / self.max_mana if self.max_mana > 0 else 0
+        if mana_pct > 0.5:
+            mana_str = colors.location(f"{self.mana}/{self.max_mana}")
+        elif mana_pct > 0.25:
+            mana_str = colors.gold(f"{self.mana}/{self.max_mana}")
+        else:
+            mana_str = colors.damage(f"{self.mana}/{self.max_mana}")
+
         xp_str = colors.location(f"{self.xp}/{self.xp_to_next_level}")
 
         # Include class in title line if present
@@ -988,6 +1067,7 @@ class Character:
         return (
             f"{self.name}{class_str} (Level {self.level}) - {status}\n"
             f"{colors.stat_header('Health')}: {health_str} | "
+            f"{colors.stat_header('Mana')}: {mana_str} | "
             f"{colors.stat_header('Gold')}: {gold_str} | "
             f"{colors.stat_header('XP')}: {xp_str}\n"
             f"{colors.stat_header('Strength')}: {self.strength} | "

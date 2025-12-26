@@ -1,50 +1,73 @@
-# Implementation Summary: Luck (LCK) Stat
+# Implementation Summary: Mana Resource System
 
 ## What Was Implemented
 
-The Luck (LCK) stat has been fully implemented across the codebase. The implementation was already complete in the source files when I began, but several integration tests needed to be updated to include the new luck stat in their mock input sequences.
+### Character Model (`src/cli_rpg/models/character.py`)
+1. **Added mana fields**:
+   - `mana: int` and `max_mana: int` as `field(init=False)`
 
-### Files Modified (Test Fixes)
-- `tests/test_integration_character.py` - Added luck value to mock input sequence for `test_create_and_use_character`
-- `tests/test_main_menu.py` - Added luck value to mock input sequence for `test_main_create_character_then_exit`
-- `tests/test_e2e_ai_integration.py` - Added luck value to mock input sequence for `test_complete_e2e_flow_with_mocked_ai`
+2. **Mana calculation in `__post_init__`**:
+   - Mages: `50 + intelligence * 5`
+   - Other classes: `20 + intelligence * 2`
+   - Mana starts at max_mana
 
-### Already Implemented Features (Verified Working)
+3. **New methods**:
+   - `use_mana(amount: int) -> bool`: Attempts to use mana, returns False if insufficient
+   - `restore_mana(amount: int)`: Restores mana, capped at max_mana
 
-1. **Character Model (`src/cli_rpg/models/character.py`)**:
-   - `luck: int = 10` field with default for backward compatibility
-   - Validation (1-20 range) in `__post_init__`
-   - Class bonuses: Rogue +2, Ranger +1, others +0
-   - Level up increases luck by +1
-   - `to_dict()` / `from_dict()` serialization with backward compatibility
-   - `__str__()` displays luck stat
+4. **Updated `level_up()`**:
+   - Recalculates max_mana based on new INT
+   - Restores mana to new maximum on level up
 
-2. **Combat Crit Chance (`src/cli_rpg/combat.py`)**:
-   - `calculate_crit_chance(stat, luck=10)` - ±0.5% per luck from baseline 10
-   - `player_attack()` and `player_cast()` pass player luck to crit calculation
+5. **Serialization**:
+   - `to_dict()`: Includes `mana` and `max_mana`
+   - `from_dict()`: Backward compatible - calculates defaults for old saves
 
-3. **Loot Generation (`src/cli_rpg/combat.py`)**:
-   - `generate_loot(enemy, level, luck=10)` - luck affects drop rate
-   - Drop rate: base 50% ± 2% per luck from 10
-   - Weapon/armor bonus: +1 per 5 luck above 10
-   - Gold reward: ±5% per luck from 10 (in `end_combat`)
+6. **Display**:
+   - `__str__()`: Shows mana bar with color coding (like health)
 
-4. **Character Creation (`src/cli_rpg/character_creation.py`)**:
-   - Manual stat entry includes luck
-   - Random stat generation includes luck (8-15 range)
-   - Non-interactive creation includes luck
+7. **Item usage**:
+   - `use_item()`: Now handles `mana_restore` items
+
+### Item Model (`src/cli_rpg/models/item.py`)
+1. Added `mana_restore: int = 0` field
+2. Added validation in `__post_init__`
+3. Updated `to_dict()` and `from_dict()` for serialization
+4. Updated `__str__()` to show "restores X mana" when applicable
+
+### Combat System (`src/cli_rpg/combat.py`)
+1. **Updated `player_cast()`**:
+   - Normal cast costs 10 mana
+   - Arcane Burst combo costs 25 mana (not 3×10)
+   - Returns failure message with current/max mana if insufficient
+
+### Test File (`tests/test_mana.py`)
+Created comprehensive test suite with 16 tests covering:
+- Mage vs non-mage max_mana calculations
+- `use_mana()` and `restore_mana()` methods
+- Mana costs in combat (cast and Arcane Burst)
+- Mana potion usage
+- Serialization and backward compatibility
+- Status display
+
+### Updated Existing Tests (`tests/test_combo_combat.py`)
+Fixed Arcane Burst tests to ensure player has sufficient mana for the combo.
 
 ## Test Results
+- All 16 new mana tests pass
+- All 2793 total tests pass
+- No regressions
 
-All 2777 tests pass, including:
-- 31 dedicated luck stat tests (test_luck_stat.py, test_luck_combat.py, test_luck_loot.py)
-- All character, combat, and character creation integration tests
+## Design Decisions
+1. **Mana costs are checked before damage is dealt** - If you can't afford the spell, no action happens
+2. **Arcane Burst costs 25 mana** - This is a special combo cost, not 3×10 (30)
+3. **Backward compatibility** - Old saves without mana fields get calculated defaults based on class/INT
+4. **Mana potions** - Work similarly to health potions with `mana_restore` field
 
-## E2E Validation
-
-The luck stat should be validated through:
-1. Creating a Rogue character and verifying they start with luck 12 (base 10 + 2 class bonus)
-2. Creating a Ranger character and verifying they start with luck 11 (base 10 + 1 class bonus)
-3. Leveling up and confirming luck increases by 1
-4. Saving and loading a game to verify luck persists
-5. Observing loot drops with high-luck vs low-luck characters over many battles
+## What E2E Tests Should Validate
+1. A Mage character has higher max_mana than other classes
+2. Cast command consumes mana and fails when mana is depleted
+3. Mana potions restore mana when used
+4. Rest command restores 25% of max_mana (already tested in rest functionality)
+5. Status display shows mana bar
+6. Saving and loading preserves mana state

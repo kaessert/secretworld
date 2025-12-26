@@ -860,15 +860,22 @@ Make long journeys more interesting than just `rest`.
 - Campfire reduces dread, attracts wandering NPCs (traders, storytellers)
 
 ### Mana/stamina resource system
-**Status**: ACTIVE
+**Status**: ACTIVE (Mana MVP Implemented)
 
 Special abilities should cost resources, not be free.
 
-- **Mana**: Powers spells (mages), regenerates on rest or potions
+**Mana System - Implemented**:
+- ✅ **Mana pool**: Mages get `50 + INT * 5`, other classes get `20 + INT * 2`
+- ✅ **Cast costs mana**: Normal cast costs 10 mana, Arcane Burst combo costs 25 mana
+- ✅ **Mana potions**: Items with `mana_restore` field restore mana when used
+- ✅ **Level up**: Max mana recalculates based on new INT, mana fully restored
+- ✅ **Status display**: Mana bar shown with color coding (like health)
+- ✅ **Persistence**: Full serialization with backward compatibility for old saves
+
+**Remaining Features**:
 - **Stamina**: Powers physical skills (warriors/rogues), regenerates each turn slowly
 - Powerful abilities cost more: `fireball` = 20 mana, `power strike` = 15 stamina
 - Running out = can only use basic attack
-- Items and food can restore resources mid-combat
 - Some enemies drain mana/stamina with attacks
 
 ### Weapon proficiencies & fighting styles

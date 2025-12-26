@@ -365,6 +365,8 @@ class TestArcaneBurstCombo:
     def test_arcane_burst_double_damage(self):
         """Spec: Arcane Burst cast deals 2x magic damage."""
         player = create_test_player(intelligence=20)
+        # Ensure player has enough mana for 3 casts (10 each) + Arcane Burst (25)
+        player.mana = 100
         enemy = create_test_enemy(health=200, defense=0)
         combat = CombatEncounter(player=player, enemy=enemy)
         combat.start()
@@ -391,6 +393,8 @@ class TestArcaneBurstCombo:
     def test_arcane_burst_message(self):
         """Spec: Message mentions 'arcane' or 'burst' or 'explodes'."""
         player = create_test_player(intelligence=10)
+        # Ensure player has enough mana for 3 casts (10 each) + Arcane Burst (25)
+        player.mana = 100
         enemy = create_test_enemy(health=200)
         combat = CombatEncounter(player=player, enemy=enemy)
         combat.start()

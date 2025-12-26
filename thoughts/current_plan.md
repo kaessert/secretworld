@@ -1,184 +1,87 @@
-# Implementation Plan: Luck (LCK) Stat Affecting Outcomes
+# Implementation Plan: Mana Resource System
+
+## Overview
+Add a mana resource system for magic users. This is a prerequisite for Mage-specific spells and creates the foundation for class-specific resource management.
 
 ## Spec
 
-**New Stat**: Luck (LCK) - subtle influence on RNG outcomes
+### Mana Stat
+- Add `mana: int` and `max_mana: int` fields to Character model
+- Mages get higher max_mana (50 + INT × 5); other classes get base 20 + INT × 2
+- Mana regenerates on `rest` command (+25% of max_mana)
+- Mana displayed in status command for characters with mana > 0
 
-**Mechanics**:
-- **Base value**: 10 (same as CHA/PER baseline)
-- **Class bonuses**: Rogue +2, Ranger +1, others 0
-- **Level-up**: +1 LCK per level (like other stats)
-- **Effects** (all relative to LCK 10 baseline):
-  - **Crit chance**: ±0.5% per LCK point (LCK 15 = +2.5% crit bonus)
-  - **Loot quality**: LCK affects weapon/armor bonus rolls (+1 per 5 LCK above 10)
-  - **Gold drops**: ±5% per LCK point from baseline
-  - **Loot drop rate**: ±2% per LCK point (base 50%, LCK 15 = 60%)
+### Mana Costs
+- `cast` command now costs 10 mana per use
+- Casting without sufficient mana fails with message: "Not enough mana! (X/Y)"
+- Arcane Burst combo costs 25 mana (not 3 × 10)
 
-**Persistence**: Save/load with backward compatibility (default 10)
+### Mana Potions
+- Add `mana_restore: int` field to Item model (similar to `heal_amount`)
+- Add Mana Potion consumable (restores 25 mana)
+- Mana potions can drop from loot (10% of consumable drops)
+- Shop sells Mana Potions for 35 gold
+
+### Persistence
+- Save/load mana and max_mana with backward compatibility (default to calculated values)
+
+---
 
 ## Tests (TDD)
 
-**File**: `tests/test_luck_stat.py`
+### File: `tests/test_mana.py`
 
-1. `test_character_has_luck_stat` - Character has `luck` attribute defaulting to 10
-2. `test_luck_stat_validation` - LCK validates 1-20 like other stats
-3. `test_class_bonuses_include_luck` - Rogue +2, Ranger +1 LCK
-4. `test_level_up_increases_luck` - LCK +1 on level up
-5. `test_luck_serialization` - to_dict/from_dict include luck
-6. `test_luck_backward_compat` - from_dict defaults to 10 if missing
-7. `test_character_str_includes_luck` - __str__ displays LCK
+1. **test_mage_has_higher_max_mana** - Mage with INT 15 gets 50 + 15×5 = 125 max_mana
+2. **test_warrior_has_lower_max_mana** - Warrior with INT 10 gets 20 + 10×2 = 40 max_mana
+3. **test_cast_deducts_mana** - Casting reduces mana by 10
+4. **test_cast_fails_without_mana** - Cast with 0 mana returns failure message
+5. **test_rest_regenerates_mana** - Rest restores 25% of max_mana
+6. **test_mana_capped_at_max** - Mana cannot exceed max_mana
+7. **test_mana_potion_restores_mana** - Using Mana Potion adds mana_restore amount
+8. **test_arcane_burst_costs_25_mana** - Combo costs 25, not 30
+9. **test_mana_serialization** - to_dict/from_dict preserve mana
+10. **test_mana_backward_compat** - Old saves without mana load with defaults
+11. **test_status_shows_mana** - Status display includes mana bar
+12. **test_item_mana_restore_field** - Item with mana_restore serializes correctly
 
-**File**: `tests/test_luck_combat.py`
-
-8. `test_crit_chance_with_luck_bonus` - High LCK increases crit chance
-9. `test_crit_chance_with_luck_penalty` - Low LCK decreases crit chance
-10. `test_crit_chance_formula` - ±0.5% per LCK from 10
-
-**File**: `tests/test_luck_loot.py`
-
-11. `test_loot_drop_rate_with_high_luck` - LCK 15 = 60% drop rate
-12. `test_loot_drop_rate_with_low_luck` - LCK 5 = 40% drop rate
-13. `test_gold_reward_with_high_luck` - LCK 15 = +25% gold
-14. `test_gold_reward_with_low_luck` - LCK 5 = -25% gold
-15. `test_weapon_bonus_with_high_luck` - LCK 15 = +1 to damage bonus roll
-16. `test_armor_bonus_with_high_luck` - LCK 15 = +1 to defense bonus roll
+---
 
 ## Implementation Steps
 
-### 1. Update Character model (`src/cli_rpg/models/character.py`)
+### Step 1: Character Model (`src/cli_rpg/models/character.py`)
+1. Add `mana: int` and `max_mana: int` fields with `field(init=False)`
+2. Calculate max_mana in `__post_init__`:
+   - Mage: `50 + intelligence * 5`
+   - Others: `20 + intelligence * 2`
+3. Initialize `mana = max_mana`
+4. Add `use_mana(amount: int) -> bool` method (returns False if insufficient)
+5. Add `restore_mana(amount: int)` method (capped at max_mana)
+6. Update `level_up()` to recalculate max_mana and restore mana
+7. Update `to_dict()` to include mana/max_mana
+8. Update `from_dict()` with backward-compatible defaults
+9. Update `__str__()` to show mana in status
 
-**Add luck field** (after `perception: int = 10`, line 81):
-```python
-luck: int = 10  # Default luck for backward compatibility
-```
+### Step 2: Item Model (`src/cli_rpg/models/item.py`)
+1. Add `mana_restore: int = 0` field
+2. Update `to_dict()` and `from_dict()` for mana_restore
+3. Update `__str__()` to show "restores X mana" when mana_restore > 0
 
-**Add to CLASS_BONUSES** (lines 25-41):
-- Rogue: add `"luck": 2`
-- Ranger: add `"luck": 1`
-- Others: add `"luck": 0`
+### Step 3: Character use_item (`src/cli_rpg/models/character.py`)
+1. Update `use_item()` to handle mana_restore items
+2. Add mana restoration logic similar to heal_amount
 
-**Update validation loop** (line 109-122):
-- Add `("luck", self.luck)` to stats list
+### Step 4: Combat cast (`src/cli_rpg/combat.py`)
+1. Update `player_cast()` to check and deduct mana
+2. Return failure message if mana insufficient
+3. Update Arcane Burst combo to cost 25 mana
 
-**Update __post_init__ class bonus application** (line 131):
-```python
-self.luck += bonuses.get("luck", 0)
-```
+### Step 5: Rest command (`src/cli_rpg/game_state.py`)
+1. Update rest handler to restore 25% max_mana
 
-**Update level_up()** (line 816):
-```python
-self.luck += 1
-```
-Update message (line 831):
-```python
-f"Stats increased: STR +1, DEX +1, INT +1, CHA +1, PER +1, LCK +1\n"
-```
+### Step 6: Loot & Shop (`src/cli_rpg/combat.py`, `src/cli_rpg/world.py`)
+1. Add 10% chance for Mana Potion in consumable loot
+2. Add Mana Potion to shop inventory (35 gold)
 
-**Update to_dict()** (line 846):
-```python
-"luck": self.luck,
-```
-
-**Update from_dict()** (line 882, 914):
-```python
-capped_luck = min(data.get("luck", 10), cls.MAX_STAT)
-```
-And restore actual luck (line 914):
-```python
-character.luck = data.get("luck", 10)
-```
-
-**Update __str__()** (line 987):
-```python
-f"{colors.stat_header('Luck')}: {self.luck}"
-```
-
-### 2. Update combat crit calculation (`src/cli_rpg/combat.py`)
-
-**Modify calculate_crit_chance()** (line 101-112):
-```python
-def calculate_crit_chance(stat: int, luck: int = 10) -> float:
-    """Calculate critical hit chance based on a stat and luck.
-
-    Formula: 5% base + 1% per stat point + 0.5% per luck above/below 10, capped at 25%.
-    """
-    base_chance = 5 + stat
-    luck_bonus = (luck - 10) * 0.5
-    return min(base_chance + luck_bonus, 25) / 100.0
-```
-
-**Update player_attack() crit roll** (line 645):
-```python
-crit_chance = calculate_crit_chance(self.player.dexterity, self.player.luck)
-```
-
-**Update player_cast() crit roll** (line 797):
-```python
-crit_chance = calculate_crit_chance(self.player.intelligence, self.player.luck)
-```
-
-### 3. Update loot generation (`src/cli_rpg/combat.py`)
-
-**Modify generate_loot()** (line 1165):
-```python
-def generate_loot(enemy: Enemy, level: int, luck: int = 10) -> Optional[Item]:
-```
-
-**Update drop rate** (line 1176):
-```python
-# Base 50% + 2% per luck above/below 10
-drop_chance = 0.50 + (luck - 10) * 0.02
-if random.random() > drop_chance:
-    return None
-```
-
-**Update weapon damage bonus** (line 1202):
-```python
-luck_bonus = max(0, (luck - 10) // 5)
-damage_bonus = max(1, level + random.randint(1, 3) + luck_bonus)
-```
-
-**Update armor defense bonus** (line 1215):
-```python
-luck_bonus = max(0, (luck - 10) // 5)
-defense_bonus = max(1, level + random.randint(0, 2) + luck_bonus)
-```
-
-### 4. Update gold reward calculation (`src/cli_rpg/combat.py`)
-
-**Modify end_combat()** (line 1086):
-```python
-# Apply luck modifier to gold: ±5% per luck from 10
-luck_modifier = 1.0 + (self.player.luck - 10) * 0.05
-gold_reward = int(random.randint(5, 15) * total_level * luck_modifier)
-```
-
-### 5. Update character creation (`src/cli_rpg/character_creation.py`)
-
-**Update get_manual_stats()** (line 109):
-```python
-stat_names = ["strength", "dexterity", "intelligence", "charisma", "perception", "luck"]
-```
-
-**Update generate_random_stats()** (line 150):
-```python
-"luck": random.randint(8, 15),
-```
-
-**Update display outputs** (lines 268-272, 397-403):
-```python
-print(f"Luck: {stats['luck']}")
-```
-
-### 6. Update character creation non-interactive (line 375):
-Add luck to the stat_names list for manual stats.
-
-### 7. Call site updates
-
-**In CombatEncounter.end_combat()** - pass luck to generate_loot:
-```python
-loot = generate_loot(enemy, self.player.level, self.player.luck)
-```
-
-### 8. Update help/stats display
-- Verify `stats` command displays luck (uses Character.__str__)
+### Step 7: Tests
+1. Create `tests/test_mana.py` with all test cases above
+2. Run full test suite to ensure no regressions

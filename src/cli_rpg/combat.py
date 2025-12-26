@@ -744,6 +744,7 @@ class CombatEncounter:
 
         Magic damage is based on intelligence and ignores enemy defense.
         Formula: intelligence * 1.5 (minimum 1)
+        Costs 10 mana per cast (Arcane Burst costs 25 mana).
 
         Args:
             target: Target enemy name (partial match). Empty = first living enemy.
@@ -763,8 +764,12 @@ class CombatEncounter:
         if enemy is None:
             return False, error or "No target found."
 
-        # Check for Arcane Burst combo (Cast x3 -> 2x magic damage)
+        # Check for Arcane Burst combo (Cast x3 -> 2x magic damage, costs 25 mana)
         if self.pending_combo == "arcane_burst":
+            # Arcane Burst costs 25 mana (not 3 × 10)
+            if not self.player.use_mana(25):
+                return False, f"Not enough mana! ({self.player.mana}/{self.player.max_mana})"
+
             dmg = max(1, int(self.player.intelligence * 1.5)) * 2
             enemy.take_damage(dmg)
             message = (
@@ -784,6 +789,10 @@ class CombatEncounter:
                 message += f"\n{colors.enemy(enemy.name)} has {enemy.health}/{enemy.max_health} HP remaining."
 
             return False, message
+
+        # Check mana cost for normal cast (10 mana)
+        if not self.player.use_mana(10):
+            return False, f"Not enough mana! ({self.player.mana}/{self.player.max_mana})"
 
         # Normal cast - record action for combo tracking
         self._record_action("cast")

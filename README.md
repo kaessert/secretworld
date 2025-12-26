@@ -14,7 +14,7 @@ python -m cli_rpg.main
 
 ## Features
 
-- **Character Creation**: Create custom characters with 5 classes (Warrior, Mage, Rogue, Ranger, Cleric) and customizable attributes (strength, dexterity, intelligence, charisma, perception, luck)
+- **Character Creation**: Create custom characters with 5 classes (Warrior, Mage, Rogue, Ranger, Cleric) and customizable attributes (strength, dexterity, intelligence, charisma, perception, luck). Mages have a larger mana pool for casting spells
 - **AI-Generated Worlds**: Dynamically generated locations using OpenAI, Anthropic, or Ollama local models (optional)
 - **Turn-Based Combat**: Engage enemies with attack, defend, and flee commands
 - **Inventory & Equipment**: Collect loot from defeated enemies, equip weapons and armor, use consumables
@@ -165,7 +165,7 @@ Status effects are cleared when combat ends.
 - `attack [target]` (a) - Attack an enemy (damage based on your strength vs enemy defense). Specify a target name when facing multiple enemies, or attacks the first living enemy.
 - `defend` (d) - Take a defensive stance, reducing incoming damage by 50% from all enemies
 - `flee` (f) - Attempt to escape (chance based on dexterity)
-- `cast [target]` (c) - Cast a magic attack at an enemy (damage based on intelligence). Targeting works like `attack`.
+- `cast [target]` (c) - Cast a magic attack at an enemy (costs 10 mana, damage based on intelligence). Targeting works like `attack`.
 - `sneak` (sn) - **Rogue only**: Enter stealth mode for 1 turn. Next attack deals 1.5x backstab damage. Higher DEX increases dodge chance while stealthed (DEX × 5%, capped at 75%). Stealth breaks if you take damage.
 - `use <item>` (u) - Use a consumable item (e.g., health potion) - counts as your turn
 - `status` (s, stats) - View combat status (HP of you and all enemies, action history, pending combos)
@@ -175,7 +175,7 @@ Status effects are cleared when combat ends.
 **Combo System**: Chain specific action sequences to unlock powerful combo attacks:
 - **Frenzy** (Attack → Attack → Attack): Triple hit dealing ~1.5x total damage
 - **Revenge** (Defend → Defend → Attack): Counter-attack dealing damage equal to damage taken while defending
-- **Arcane Burst** (Cast → Cast → Cast): Empowered spell dealing 2x magic damage
+- **Arcane Burst** (Cast → Cast → Cast): Empowered spell dealing 2x magic damage (costs 25 mana total)
 
 The combat status shows your last actions (e.g., "Last actions: [Attack] → [Defend]"). When a combo pattern is complete, you'll see "COMBO AVAILABLE: Frenzy!" - perform the matching action to trigger the combo. Fleeing clears your action history.
 
@@ -215,7 +215,7 @@ Companion reactions appear as flavor text after combat resolution.
 Defeated enemies have a chance to drop loot. Items include:
 - **Weapons**: Increase attack damage when equipped
 - **Armor**: Reduce incoming damage when equipped
-- **Consumables**: Health potions that restore HP when used
+- **Consumables**: Health potions that restore HP, mana potions that restore mana
 - **Misc Items**: Flavor items like gold coins and monster parts
 
 Your inventory has a capacity of 20 items. Use `inventory` to view your items, `equip <item>` to equip weapons/armor, `unequip weapon|armor` to remove equipment, and `use <item>` for consumables. Equipped items apply their bonuses automatically during combat.
