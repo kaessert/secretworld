@@ -118,6 +118,7 @@ def test_theme_selection_flow_with_ai(mock_ai_config, mock_ai_service):
     inputs = [
         "1",           # Create new character
         "TestHero",    # Character name
+        "1",           # Select Warrior class
         "2",           # Random stats
         "yes",         # Confirm character
         "2",           # Select sci-fi theme
@@ -271,6 +272,7 @@ def test_complete_e2e_flow_with_mocked_ai(mock_ai_config, mock_ai_service):
     inputs = [
         "1",           # Create new character
         "Hero",        # Character name
+        "1",           # Select Warrior class
         "1",           # Manual stats
         "12",          # Strength
         "10",          # Dexterity

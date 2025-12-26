@@ -1,107 +1,87 @@
-# Character Classes Implementation Plan
+# Fix E2E Test Failures After Character Class System Addition
 
-## Spec: Character Class System (MVP)
+## Problem
+Two E2E tests in `test_e2e_ai_integration.py` are failing because they're missing the class selection input that was added to the character creation flow in commit ba1b3bc.
 
-Add character classes at creation that provide:
-- Unique starting stat bonuses
-- Class identity stored on Character model
-- Foundation for future class-specific abilities (mana/stamina, special commands)
+The character creation flow now requires an additional input for class selection (after name, before stat allocation method).
 
-### Classes (5 total)
-| Class   | STR Bonus | DEX Bonus | INT Bonus | Theme |
-|---------|-----------|-----------|-----------|-------|
-| Warrior | +3        | +1        | 0         | Melee damage/tank |
-| Mage    | 0         | +1        | +3        | Magic damage |
-| Rogue   | +1        | +3        | 0         | Speed/crits |
-| Ranger  | +1        | +2        | +1        | Balanced/wilderness |
-| Cleric  | +1        | 0         | +2        | Support/healing |
+## Failing Tests
+1. `test_theme_selection_flow_with_ai` - runs out of inputs (StopIteration on mock)
+2. `test_complete_e2e_flow_with_mocked_ai` - runs out of inputs (StopIteration on mock)
 
----
+## Fix
 
-## Tests First
+### 1. Update `test_theme_selection_flow_with_ai` (lines 118-127)
 
-### File: `tests/test_character_class.py`
-
-1. **CharacterClass enum exists** with 5 values (WARRIOR, MAGE, ROGUE, RANGER, CLERIC)
-2. **CLASS_BONUSES dict** maps each class to stat bonuses
-3. **Character model** accepts optional `character_class` field (default: None for backward compat)
-4. **Character.from_dict/to_dict** serialize class correctly
-5. **get_class_selection()** returns valid class from input (1-5 or name)
-6. **create_character() flow** includes class selection step
-7. **Stats apply bonuses** - Warrior with STR 10 gets effective STR 13
-
----
-
-## Implementation Steps
-
-### Step 1: Add CharacterClass enum and bonuses
-**File**: `src/cli_rpg/models/character.py`
-
+**Current inputs:**
 ```python
-from enum import Enum
-
-class CharacterClass(Enum):
-    WARRIOR = "Warrior"
-    MAGE = "Mage"
-    ROGUE = "Rogue"
-    RANGER = "Ranger"
-    CLERIC = "Cleric"
-
-CLASS_BONUSES = {
-    CharacterClass.WARRIOR: {"strength": 3, "dexterity": 1, "intelligence": 0},
-    CharacterClass.MAGE: {"strength": 0, "dexterity": 1, "intelligence": 3},
-    CharacterClass.ROGUE: {"strength": 1, "dexterity": 3, "intelligence": 0},
-    CharacterClass.RANGER: {"strength": 1, "dexterity": 2, "intelligence": 1},
-    CharacterClass.CLERIC: {"strength": 1, "dexterity": 0, "intelligence": 2},
-}
+inputs = [
+    "1",           # Create new character
+    "TestHero",    # Character name
+    "2",           # Random stats  <- WRONG: this is now class selection
+    "yes",         # Confirm character
+    "2",           # Select sci-fi theme
+    "quit",        # Quit game
+    "n",           # Don't save
+    "3"            # Exit main menu
+]
 ```
 
-### Step 2: Add class field to Character dataclass
-**File**: `src/cli_rpg/models/character.py`
-
-- Add `character_class: Optional[CharacterClass] = None` field
-- Update `__post_init__` to apply class bonuses to base stats
-- Update `to_dict()` to serialize class as string
-- Update `from_dict()` to deserialize class (with backward compat for None)
-- Update `__str__()` to display class name
-
-### Step 3: Add class selection to character creation
-**File**: `src/cli_rpg/character_creation.py`
-
-Add `get_class_selection()` function:
+**Fixed inputs:**
 ```python
-def get_class_selection() -> Optional[CharacterClass]:
-    """Prompt user for class selection.
-
-    Returns:
-        CharacterClass or None if cancelled
-    """
+inputs = [
+    "1",           # Create new character
+    "TestHero",    # Character name
+    "1",           # Select Warrior class (NEW)
+    "2",           # Random stats
+    "yes",         # Confirm character
+    "2",           # Select sci-fi theme
+    "quit",        # Quit game
+    "n",           # Don't save
+    "3"            # Exit main menu
+]
 ```
 
-Update `create_character()`:
-- Add class selection step after name, before stat allocation
-- Pass class to Character constructor
+### 2. Update `test_complete_e2e_flow_with_mocked_ai` (lines 271-284)
 
-### Step 4: Update non-interactive character creation
-**File**: `src/cli_rpg/character_creation.py`
+**Current inputs:**
+```python
+inputs = [
+    "1",           # Create new character
+    "Hero",        # Character name
+    "1",           # Manual stats  <- WRONG: this is now class selection
+    "12",          # Strength
+    "10",          # Dexterity
+    "14",          # Intelligence
+    "yes",         # Confirm character
+    "3",           # Select cyberpunk theme
+    "look",        # Look around
+    "quit",        # Quit game
+    "n",           # Don't save
+    "3"            # Exit main menu
+]
+```
 
-Update `create_character_non_interactive()`:
-- Read class input (1-5 or class name) after name
-- Validate and pass to Character constructor
-
----
+**Fixed inputs:**
+```python
+inputs = [
+    "1",           # Create new character
+    "Hero",        # Character name
+    "1",           # Select Warrior class (NEW)
+    "1",           # Manual stats
+    "12",          # Strength
+    "10",          # Dexterity
+    "14",          # Intelligence
+    "yes",         # Confirm character
+    "3",           # Select cyberpunk theme
+    "look",        # Look around
+    "quit",        # Quit game
+    "n",           # Don't save
+    "3"            # Exit main menu
+]
+```
 
 ## Verification
+Run: `pytest tests/test_e2e_ai_integration.py -v`
 
-Run tests:
-```bash
-pytest tests/test_character_class.py -v
-pytest tests/test_character_creation.py -v
-pytest tests/test_character.py -v
-```
-
-Manual verification:
-```bash
-cli-rpg  # Interactive: verify class selection appears
-echo -e "TestHero\n1\n2\n10\n10\n10\nyes" | cli-rpg --non-interactive  # Non-interactive
-```
+All tests should pass after adding the class selection input to both test cases.
