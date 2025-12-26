@@ -649,22 +649,22 @@ The AI generates arbitrary target strings that may not exist anywhere in the gam
 
 #### Issue 1: EXPLORE Quest Targets Don't Match World Locations
 
-**Severity**: HIGH
+**Severity**: ✅ RESOLVED (2025-12-26)
 
+**Solution Implemented**:
+- Added `valid_locations: Optional[set[str]]` parameter to `generate_quest()` and `_parse_quest_response()` in `ai_service.py`
+- When `objective_type == "explore"` and `valid_locations` is provided, validates that `target.lower()` exists in the set
+- Invalid targets raise `AIGenerationError`, forcing quest regeneration with a valid location
+- `main.py` passes `valid_locations` (from `game_state.world.keys()`) when generating quests via the talk command
+- Case-insensitive matching maintains consistency with KILL quest validation
+- 7 new tests in `tests/test_explore_quest_validation.py` verify the validation
+
+**Original Problem**:
 ```
 Quest: "Explore the Obsidian Cathedral"
 World: Contains "Town Square", "Dark Forest", "Mountain Pass"
 Result: IMPOSSIBLE - "Obsidian Cathedral" doesn't exist
 ```
-
-**How it fails**:
-- AI generates arbitrary location name in `target` field
-- Progress checked via string match: `quest.target.lower() == location_name.lower()`
-- Player can never visit a location that doesn't exist
-
-**Files**:
-- `src/cli_rpg/ai_service.py:1639-1689` - generates arbitrary targets
-- `src/cli_rpg/models/character.py:625-630` - string matching only
 
 #### Issue 2: KILL Quest Targets Don't Match Spawnable Enemies
 
@@ -723,7 +723,7 @@ Result: IMPOSSIBLE - "Dragon Scales" can't be obtained
 | COLLECT | 70% | Items are hardcoded, no AI item generation |
 | KILL | ✅ 0% | Validated against `VALID_ENEMY_TYPES` (fixed 2025-12-26) |
 | TALK | 50% | NPCs generated separately from quests |
-| EXPLORE | 40% | AI generates unique location names |
+| EXPLORE | ✅ 0% | Validated against known locations (fixed 2025-12-26) |
 
 #### Proposed Solutions
 
@@ -796,9 +796,10 @@ When AI generates a quest target, ensure it gets created:
 #### Implementation Priority
 
 1. ~~**Immediate**: Add `VALID_ENEMY_TYPES` constant and validate KILL quests (most common type)~~ ✅ DONE (2025-12-26)
-2. **Short-term**: Pass obtainable items list to quest generation for COLLECT quests
-3. **Medium-term**: Implement context-aware generation with all world state
-4. **Long-term**: World-creating quests that guarantee completability
+2. ~~**Immediate**: Validate EXPLORE quests against known location names~~ ✅ DONE (2025-12-26)
+3. **Short-term**: Pass obtainable items list to quest generation for COLLECT quests
+4. **Medium-term**: Implement context-aware generation with all world state
+5. **Long-term**: World-creating quests that guarantee completability
 
 #### Files to Modify
 

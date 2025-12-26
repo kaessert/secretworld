@@ -1720,7 +1720,8 @@ Note: Use "EXISTING_WORLD" as placeholder for the connection back to the source 
         theme: str,
         npc_name: str,
         player_level: int,
-        location_name: str = ""
+        location_name: str = "",
+        valid_locations: Optional[set[str]] = None
     ) -> dict:
         """Generate a quest with AI.
 
@@ -1729,6 +1730,8 @@ Note: Use "EXISTING_WORLD" as placeholder for the connection back to the source 
             npc_name: Name of the NPC giving the quest
             player_level: Player's current level for scaling rewards
             location_name: Name of the current location for context
+            valid_locations: Optional set of valid location names (lowercase) for
+                EXPLORE quest validation. If None, EXPLORE validation is skipped.
 
         Returns:
             Dictionary with: name, description, objective_type, target,
@@ -1759,7 +1762,9 @@ Note: Use "EXISTING_WORLD" as placeholder for the connection back to the source 
         response_text = self._call_llm(prompt)
 
         # Parse and validate response
-        quest_data = self._parse_quest_response(response_text, npc_name)
+        quest_data = self._parse_quest_response(
+            response_text, npc_name, valid_locations=valid_locations
+        )
 
         # Cache result if enabled
         if self.config.enable_caching:
@@ -1792,12 +1797,19 @@ Note: Use "EXISTING_WORLD" as placeholder for the connection back to the source 
             location_name=location_name or "unknown location"
         )
 
-    def _parse_quest_response(self, response_text: str, npc_name: str) -> dict:
+    def _parse_quest_response(
+        self,
+        response_text: str,
+        npc_name: str,
+        valid_locations: Optional[set[str]] = None
+    ) -> dict:
         """Parse and validate LLM response for quest generation.
 
         Args:
             response_text: Raw response text from LLM
             npc_name: Name of the NPC giving the quest (added to result)
+            valid_locations: Optional set of valid location names (lowercase) for
+                EXPLORE quest validation. If None, EXPLORE validation is skipped.
 
         Returns:
             Dictionary with validated quest data
@@ -1872,6 +1884,13 @@ Note: Use "EXISTING_WORLD" as placeholder for the connection back to the source 
             if target.lower() not in VALID_ENEMY_TYPES:
                 raise AIGenerationError(
                     f"Invalid KILL quest target '{target}'. Must be a spawnable enemy type."
+                )
+
+        # Validate EXPLORE quest targets against known locations
+        if objective_type == "explore" and valid_locations is not None:
+            if target.lower() not in valid_locations:
+                raise AIGenerationError(
+                    f"Invalid EXPLORE quest target '{target}'. Must be an existing location."
                 )
 
         # Validate target_count >= 1
