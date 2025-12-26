@@ -680,6 +680,14 @@ def expand_area(
             loc = data["location"]
             rel_x, rel_y = data["relative_coords"]
 
+            # Check SubGrid bounds before adding
+            if not sub_grid.is_within_bounds(rel_x, rel_y):
+                logger.warning(
+                    f"Skipping {name}: coords ({rel_x}, {rel_y}) outside SubGrid bounds "
+                    f"{sub_grid.bounds}"
+                )
+                continue
+
             # Clear overworld coordinates (sub-locations get SubGrid coords)
             loc.coordinates = None
 

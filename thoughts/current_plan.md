@@ -1,53 +1,47 @@
-# Implementation Plan: Fix WFC Chunk Boundary Adjacency Bug
+# Fix: AI Area Generation - Coordinates Outside SubGrid Bounds
 
 ## Problem
-The `test_large_area_traversal` test in `test_wfc_chunks.py` is flaky - it sometimes fails with invalid adjacencies at chunk boundaries (e.g., `swamp -> desert`, `forest -> beach`).
+AI area generation fails when generated locations have coordinates outside SubGrid bounds:
+```
+AI area generation failed: Coordinates (0, 4) outside bounds (-3, 3, -3, 3)
+```
+
+The SubGrid has bounds of (-3, 3, -3, 3) = 7x7 grid, but AI generates locations at y=4 which is outside.
 
 ## Root Cause
-**Non-deterministic set iteration** causes WFC to generate different terrain each run, even with the same seed:
+1. `ai_service.py:_build_area_prompt()` doesn't tell the AI about coordinate bounds
+2. `ai_world.py:expand_area()` calls `sub_grid.add_location()` which raises ValueError for out-of-bounds coords
+3. One failed placement crashes the entire area generation
 
-1. `_collapse_cell()` in both `wfc.py` (line 196) and `wfc_chunks.py` (line 333) converts `cell.possible_tiles` (a `Set[str]`) to a list via `list(cell.possible_tiles)`
-2. Python's hash randomization causes set iteration order to vary between runs
-3. This causes `random.choices()` to associate different weights with different tiles, producing different results
+## Implementation
 
-When incompatible tiles are randomly generated at chunk boundaries, there's no mechanism to correct them.
+### 1. Update area generation prompt with coordinate bounds
+**File**: `src/cli_rpg/ai_service.py`, `_build_area_prompt()` method (lines 657-742)
 
-## Fix Strategy
-Sort all sets before iteration to ensure deterministic order. This makes WFC generation reproducible with a given seed.
+Add to the requirements section (around line 705):
+```
+6. Relative coordinates must be within bounds: x from -3 to 3, y from -3 to 3 (7x7 grid max)
+```
 
-## Files to Modify
-| File | Lines | Change |
-|------|-------|--------|
-| `src/cli_rpg/wfc.py` | 196 | `list(cell.possible_tiles)` → `sorted(cell.possible_tiles)` |
-| `src/cli_rpg/wfc_chunks.py` | 333 | `list(cell.possible_tiles)` → `sorted(cell.possible_tiles)` |
+### 2. Add bounds-checking in expand_area() before adding to SubGrid
+**File**: `src/cli_rpg/ai_world.py`, in the sub-locations loop (around line 680-690)
 
-## Implementation Steps
+Before calling `sub_grid.add_location()`, check if coordinates are within SubGrid bounds and skip with warning if out of bounds:
 
-### 1. Fix `wfc.py:_collapse_cell()`
 ```python
-# Line 196: Change
-tiles = list(cell.possible_tiles)
-# To:
-tiles = sorted(cell.possible_tiles)
+# Check SubGrid bounds before adding
+if not sub_grid.is_within_bounds(rel_x, rel_y):
+    logger.warning(
+        f"Skipping {name}: coords ({rel_x}, {rel_y}) outside SubGrid bounds {sub_grid.bounds}"
+    )
+    continue
 ```
 
-### 2. Fix `wfc_chunks.py:_collapse_cell()`
-```python
-# Line 333: Change
-tiles = list(cell.possible_tiles)
-# To:
-tiles = sorted(cell.possible_tiles)
-```
+### 3. Add test for out-of-bounds coordinate handling
+**File**: `tests/test_ai_world_subgrid.py`
 
-## Tests
-The existing test `test_large_area_traversal` should pass consistently after the fix. Verify with multiple runs:
-
-```bash
-# Run the specific test multiple times to verify no flakiness
-for i in {1..20}; do pytest tests/test_wfc_chunks.py::test_large_area_traversal -v; done
-```
-
-Also run the full WFC test suite:
-```bash
-pytest tests/test_wfc_chunks.py tests/test_wfc.py -v
-```
+Add test `test_expand_area_skips_out_of_bounds_locations` that:
+- Mock AI service returns a location with coords (0, 4) - outside bounds
+- Verify the out-of-bounds location is NOT in SubGrid
+- Verify in-bounds locations still work correctly
+- Verify no exception is raised

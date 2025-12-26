@@ -142,69 +142,19 @@ Instead of one monolithic prompt, use a hierarchical generation system:
 
 ---
 
-### AI Area Generation - Coordinates Outside SubGrid Bounds
-**Status**: HIGH PRIORITY
+### ~~AI Area Generation - Coordinates Outside SubGrid Bounds~~
+**Status**: RESOLVED (2025-12-26)
 
-**Problem**: AI area generation fails when generated locations have coordinates outside SubGrid bounds:
+**Problem**: AI area generation was failing when generated locations had coordinates outside SubGrid bounds:
 
 ```
 AI area generation failed: Coordinates (0, 4) outside bounds (-3, 3, -3, 3)
 ```
 
-The SubGrid has bounds of (-3, 3, -3, 3) = 7x7 grid, but AI is generating locations at y=4 which is outside.
-
-**Root Cause**:
-
-In `ai_world.py:expand_area()`, the AI generates relative coordinates for sub-locations, but:
-1. The prompt doesn't specify coordinate bounds to the AI
-2. SubGrid enforces bounds strictly, causing placement to fail
-3. One failed placement crashes the entire area generation
-
-**Current Code** (`ai_world.py`):
-```python
-sub_grid.bounds = (-3, 3, -3, 3)  # 7x7 grid
-
-for loc_data in area_data:
-    rel_x, rel_y = loc_data["relative_coords"]
-    # AI might return (0, 4) which is outside bounds!
-    sub_grid.add_location(interior_loc, rel_x, rel_y)  # CRASH
-```
-
-**Fix Options**:
-
-1. **Clamp coordinates to bounds** (quick fix):
-   ```python
-   min_x, max_x, min_y, max_y = sub_grid.bounds
-   rel_x = max(min_x, min(max_x, rel_x))  # Clamp to bounds
-   rel_y = max(min_y, min(max_y, rel_y))
-   ```
-
-2. **Expand bounds dynamically** (flexible):
-   ```python
-   # Auto-expand bounds to fit all locations
-   sub_grid.expand_bounds_to_fit(rel_x, rel_y)
-   ```
-
-3. **Skip out-of-bounds locations** (graceful degradation):
-   ```python
-   if not sub_grid.is_within_bounds(rel_x, rel_y):
-       logger.warning(f"Skipping {loc_data['name']}: coords ({rel_x}, {rel_y}) outside bounds")
-       continue
-   ```
-
-4. **Update AI prompt** (proper fix):
-   - Tell AI the coordinate bounds in the prompt
-   - Request coordinates within (-3, 3) range
-   - Add to `DEFAULT_AREA_GENERATION_PROMPT` in `ai_config.py`
-
-**Recommended Approach**: Combine options 3 and 4:
-- Update prompt to specify bounds (reduces failures)
-- Skip out-of-bounds as fallback (handles edge cases)
-- Log warnings for debugging
-
-**Files to modify**:
-- `src/cli_rpg/ai_world.py`: Add bounds checking/clamping in `expand_area()`
-- `src/cli_rpg/ai_config.py`: Update area generation prompt with coordinate constraints
+**Solution Implemented**: Combined defense-in-depth approach:
+1. **Prompt guidance** (`ai_service.py`): Updated area generation prompt to inform AI about coordinate bounds (-3 to 3 for both x and y)
+2. **Runtime bounds checking** (`ai_world.py`): Added `is_within_bounds()` check before adding locations - out-of-bounds locations are skipped with a warning log instead of crashing
+3. **Test coverage** (`test_ai_world_subgrid.py`): Added test `test_expand_area_skips_out_of_bounds_locations` to verify graceful degradation
 
 ---
 
@@ -445,6 +395,45 @@ Players want a more sophisticated map system with hierarchical locations.
 - Sound effects via terminal bell
 - Dramatic pauses
 - Stylized borders/frames
+
+---
+
+### Dream sequences trigger too frequently
+**Status**: ACTIVE
+
+**Problem**: Players report dreams happen too often, becoming annoying rather than atmospheric. Current trigger rates:
+- 25% chance on `rest` command
+- 40% chance during `camp` command
+
+This means players see dreams almost every other rest, which:
+- Breaks gameplay flow
+- Makes dreams feel mundane instead of special
+- Adds unwanted delay when trying to heal quickly
+
+**Proposed Fix**:
+
+1. **Reduce base trigger rates**:
+   - `rest`: 25% → 10%
+   - `camp`: 40% → 15%
+
+2. **Add cooldown between dreams**:
+   - Track `last_dream_time` in GameState
+   - Minimum 3-4 rests between dreams
+   - Cooldown resets on significant events (level up, quest complete, boss kill)
+
+3. **Make dreams contextual** (only trigger when meaningful):
+   - High dread (50%+): Nightmare more likely
+   - After major event: Prophetic dream
+   - Low activity: Skip dreams entirely
+
+4. **Add player control**:
+   - `rest --quick` or `r!` to skip dream check entirely
+   - Settings option to disable dreams
+
+**Files to modify**:
+- `src/cli_rpg/dreams.py`: Add cooldown logic, reduce rates
+- `src/cli_rpg/game_state.py`: Track `last_dream_time`
+- `src/cli_rpg/camping.py`: Reduce dream rate during camp
 
 ---
 

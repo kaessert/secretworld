@@ -457,3 +457,58 @@ class TestExpandAreaSubGrid:
 
         entry = basic_world["Fortress Gate"]
         assert entry.sub_grid.parent_name == "Fortress Gate"
+
+    def test_expand_area_skips_out_of_bounds_locations(self, mock_ai_service, basic_world):
+        """Out-of-bounds sub-locations should be skipped without raising exception.
+
+        Spec: AI may generate coords outside SubGrid bounds (-3,3,-3,3).
+        These should be logged and skipped, not crash generation.
+        """
+        mock_ai_service.generate_area.return_value = [
+            {
+                "name": "Cavern Entrance",
+                "description": "The entrance to a vast cavern.",
+                "relative_coords": [0, 0],
+                "connections": {"south": "EXISTING_WORLD", "north": "Cavern Hall"},
+                "category": "cave"
+            },
+            {
+                "name": "Cavern Hall",
+                "description": "A grand hall in the cavern.",
+                "relative_coords": [0, 1],
+                "connections": {"south": "Cavern Entrance", "north": "Far Cavern"},
+                "category": "cave"
+            },
+            {
+                # This location has y=4 which is outside bounds (-3, 3)
+                "name": "Far Cavern",
+                "description": "A distant part of the cavern.",
+                "relative_coords": [0, 4],
+                "connections": {"south": "Cavern Hall"},
+                "category": "cave"
+            }
+        ]
+
+        # Should not raise exception
+        expand_area(
+            world=basic_world,
+            ai_service=mock_ai_service,
+            from_location="Town Square",
+            direction="north",
+            theme="fantasy",
+            target_coords=(0, 1)
+        )
+
+        # Entry location should be in world
+        assert "Cavern Entrance" in basic_world
+
+        entry = basic_world["Cavern Entrance"]
+        assert entry.sub_grid is not None
+
+        # In-bounds sub-location should be in SubGrid
+        hall = entry.sub_grid.get_by_name("Cavern Hall")
+        assert hall is not None, "In-bounds sub-location should be in SubGrid"
+
+        # Out-of-bounds sub-location should NOT be in SubGrid
+        far_cavern = entry.sub_grid.get_by_name("Far Cavern")
+        assert far_cavern is None, "Out-of-bounds sub-location should be skipped"

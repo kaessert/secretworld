@@ -702,12 +702,13 @@ Requirements:
 3. Each location needs a vivid description (1-500 characters)
 4. The FIRST location is the entry point at relative coordinates [0, 0]
 5. Use relative coordinates: north = +y, south = -y, east = +x, west = -x
-6. All locations must be connected to at least one other location in the area
-7. The entry location MUST have a "{back_direction}" exit (to connect back to the existing world)
-8. Valid directions: north, south, east, west (no up/down for this area)
-9. Ensure internal consistency: if A connects north to B, then B must connect south to A
-10. Include a category for each location (one of: town, dungeon, wilderness, settlement, ruins, cave, forest, mountain, village)
-11. Optionally include 0-2 NPCs per location appropriate to that location
+6. Relative coordinates must be within bounds: x from -3 to 3, y from -3 to 3 (7x7 grid max)
+7. All locations must be connected to at least one other location in the area
+8. The entry location MUST have a "{back_direction}" exit (to connect back to the existing world)
+9. Valid directions: north, south, east, west (no up/down for this area)
+10. Ensure internal consistency: if A connects north to B, then B must connect south to A
+11. Include a category for each location (one of: town, dungeon, wilderness, settlement, ruins, cave, forest, mountain, village)
+12. Optionally include 0-2 NPCs per location appropriate to that location
    - Each NPC needs: name (2-30 chars), description (1-200 chars), dialogue (a greeting), role (villager, merchant, or quest_giver)
 
 Respond with valid JSON array (no additional text):
