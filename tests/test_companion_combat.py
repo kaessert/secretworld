@@ -151,10 +151,11 @@ class TestCombatWithCompanions:
 
         combat = CombatEncounter(player, enemy=weak_enemy, companions=[companion])
 
-        # Cast spell
+        # Cast spell (patch random to prevent critical hits)
         # Base magic damage = int(intelligence * 1.5) = int(10 * 1.5) = 15
         # With companion: 15 * 1.10 = 16.5 -> 16 (int truncation)
-        combat.player_cast()
+        with patch('cli_rpg.combat.random.random', return_value=0.50):
+            combat.player_cast()
         expected_health = 100 - 16
         assert weak_enemy.health == expected_health
 
@@ -181,9 +182,10 @@ class TestCombatWithCompanions:
             player, enemy=weak_enemy, companions=[companion1, companion2]
         )
 
-        # Attack
+        # Attack (patch random to prevent critical hits)
         # Base damage = 10, with +20% bonus = 12
-        combat.player_attack()
+        with patch('cli_rpg.combat.random.random', return_value=0.50):
+            combat.player_attack()
         expected_health = 100 - 12
         assert weak_enemy.health == expected_health
 
@@ -191,8 +193,9 @@ class TestCombatWithCompanions:
         """Combat without companions should work normally (no bonus applied)."""
         combat = CombatEncounter(player, enemy=weak_enemy)
 
-        # Attack should deal base damage only
-        combat.player_attack()
+        # Attack should deal base damage only (patch random to prevent critical hits)
+        with patch('cli_rpg.combat.random.random', return_value=0.50):
+            combat.player_attack()
         # Base damage = 10 (strength) - 0 (defense) = 10
         expected_health = 100 - 10
         assert weak_enemy.health == expected_health
@@ -238,8 +241,9 @@ class TestCombatWithCompanions:
         """Passing an empty companions list should work correctly."""
         combat = CombatEncounter(player, enemy=weak_enemy, companions=[])
 
-        # Attack should deal base damage
-        combat.player_attack()
+        # Attack should deal base damage (patch random to prevent critical hits)
+        with patch('cli_rpg.combat.random.random', return_value=0.50):
+            combat.player_attack()
         expected_health = 100 - 10
         assert weak_enemy.health == expected_health
 
