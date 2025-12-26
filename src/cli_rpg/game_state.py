@@ -332,7 +332,7 @@ class GameState:
 
         Weather affects visibility:
         - Storm: Reduced visibility (truncated description, no details/secrets)
-        - Fog: Obscured visibility (some exits hidden, NPC names as "???")
+        - Fog: Obscured visibility (some exits hidden)
         - Cave locations are unaffected by weather visibility effects
 
         At 75%+ dread on 3rd+ look, player may discover "dread treasures" -

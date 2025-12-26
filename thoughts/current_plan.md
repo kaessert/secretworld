@@ -1,83 +1,64 @@
-# Fix Fallback Location Names Including Coordinates
+# Implementation Plan: NPCs shown as "???" in fog weather (HIGH PRIORITY BUG #3)
 
-**Issue**: WFC Playtesting Issues #4 - HIGH PRIORITY
-**Problem**: Location names like "Vast Prairie (-1, 0)" expose internal coordinates to players, breaking immersion.
+## Bug Summary
+NPC names display as "???" at the player's current location during fog conditions. Players should be able to see NPCs they're standing next to - fog should only obscure NPCs at distant locations, not at the player's current position.
 
-## Spec
+## Root Cause
+In `models/location.py` line 204-207, when `visibility == "obscured"`, ALL NPC names are replaced with "???". This applies even to the player's current location via `game_state.look()`.
 
-When AI generation fails and fallback location generation is used, location names should be immersive (not include coordinates). Names must still be unique within the world to avoid collisions.
+## Design Decision
+**NPC names should always be visible at the player's current location regardless of fog.** The fog "obscured" effect should NOT hide NPC names at the player's position - only exits should be partially hidden in fog.
 
-**Approach**: Use direction-based suffixes for uniqueness instead of coordinates:
-- First location: "Vast Prairie"
-- Same base name at different location: "Vast Prairie East", "Vast Prairie North", etc.
-- If direction suffix already used: "Vast Prairie Far East", "Vast Prairie Northern", etc.
+## Implementation Steps
 
-## Changes
+### 1. Update test to reflect correct behavior
+**File:** `tests/test_weather.py`
 
-### 1. Add test for coordinate-free names
-**File**: `tests/test_infinite_world_without_ai.py`
+Modify `test_location_obscured_visibility_obscures_npc_names` (line 472-493) to assert that NPC names ARE visible even in obscured visibility, since `get_layered_description` is used for the player's current location.
 
-Add test to `TestGenerateFallbackLocation`:
+### 2. Update test `test_look_in_fog_obscures_visibility`
+**File:** `tests/test_weather.py`
+
+Modify the test at line 554-579 to assert that NPC names ARE visible in fog at the player's current location.
+
+### 3. Fix NPC visibility in fog
+**File:** `src/cli_rpg/models/location.py`
+
+Change lines 202-210 to always show NPC names, removing the "obscured" special case for NPCs:
+
 ```python
-def test_fallback_location_name_excludes_coordinates(self):
-    """Fallback names should NOT include coordinates (immersion).
+# Before (line 202-210):
+if self.npcs:
+    if visibility == "obscured":
+        # Show "???" for each NPC instead of their names
+        obscured_names = [colors.npc("???") for _ in self.npcs]
+        result += f"NPCs: {', '.join(obscured_names)}\n"
+    else:
+        npc_names = [colors.npc(npc.name) for npc in self.npcs]
+        result += f"NPCs: {', '.join(npc_names)}\n"
 
-    Spec: Location names must not expose internal grid coordinates.
-    """
-    source = Location(
-        name="Town Square",
-        description="A town square.",
-        coordinates=(0, 0)
-    )
-
-    new_location = generate_fallback_location(
-        direction="north",
-        source_location=source,
-        target_coords=(0, 1)
-    )
-
-    # Name should not contain coordinate patterns like "(0, 1)" or "(-1, 2)"
-    import re
-    coord_pattern = r'\(-?\d+,\s*-?\d+\)'
-    assert not re.search(coord_pattern, new_location.name), \
-        f"Location name '{new_location.name}' should not include coordinates"
+# After:
+if self.npcs:
+    # NPCs are always visible at the player's current location
+    npc_names = [colors.npc(npc.name) for npc in self.npcs]
+    result += f"NPCs: {', '.join(npc_names)}\n"
 ```
 
-### 2. Modify generate_fallback_location in world.py
-**File**: `src/cli_rpg/world.py`
+### 4. Update docstrings
+Update the visibility docstring in `models/location.py` line 181 to remove reference to NPC names being obscured.
 
-Replace lines 165-168:
-```python
-# Generate unique name with coordinate suffix to ensure uniqueness
-base_name = random.choice(template["name_patterns"])
-# Add coordinate suffix for uniqueness (e.g., "Wilderness (1, 2)")
-location_name = f"{base_name} ({target_coords[0]}, {target_coords[1]})"
-```
+Update the docstring in `game_state.py` line 335 to remove reference to NPC names.
 
-With direction-based naming:
-```python
-# Generate name with direction suffix for uniqueness (no coordinates)
-base_name = random.choice(template["name_patterns"])
+Update the comment in `models/weather.py` line 53 to remove reference to NPC names.
 
-# Direction suffixes for uniqueness without exposing coordinates
-DIRECTION_SUFFIXES = {
-    "north": " North",
-    "south": " South",
-    "east": " East",
-    "west": " West",
-    "northeast": " Northeast",
-    "northwest": " Northwest",
-    "southeast": " Southeast",
-    "southwest": " Southwest",
-}
-
-# Use direction as suffix if provided, otherwise just use base name
-suffix = DIRECTION_SUFFIXES.get(direction, "")
-location_name = f"{base_name}{suffix}"
-```
-
-## Test Command
-
+### 5. Run tests
 ```bash
-pytest tests/test_infinite_world_without_ai.py::TestGenerateFallbackLocation -v
+pytest tests/test_weather.py -v
+pytest -x
 ```
+
+## Files to Modify
+1. `tests/test_weather.py` - Update 2 tests
+2. `src/cli_rpg/models/location.py` - Remove NPC obscuring logic, update docstring
+3. `src/cli_rpg/game_state.py` - Update docstring comment
+4. `src/cli_rpg/models/weather.py` - Update visibility level comment

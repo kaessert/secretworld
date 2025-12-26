@@ -469,9 +469,9 @@ class TestLocationVisibilityEffects:
         # Some exits should be hidden (not all 4 visible)
         assert visible_count < 4 or "???" in exits_text, "Fog should hide some exits"
 
-    # Spec: Fog obscures NPC names with "???"
-    def test_location_obscured_visibility_obscures_npc_names(self):
-        """Obscured visibility (fog) shows NPC names as '???'."""
+    # Spec: NPCs at player's current location are always visible, even in fog
+    def test_location_obscured_visibility_shows_npc_names(self):
+        """Obscured visibility (fog) still shows NPC names at player's current location."""
         from cli_rpg.models.location import Location
         from cli_rpg.models.npc import NPC
 
@@ -486,11 +486,11 @@ class TestLocationVisibilityEffects:
 
         result = loc.get_layered_description(look_count=1, visibility="obscured")
 
-        # NPC names should be hidden
-        assert "Marcus" not in result
-        assert "Elena" not in result
-        # Should show ??? for each NPC
-        assert "???" in result
+        # NPC names should be visible at the player's current location
+        assert "Marcus" in result
+        assert "Elena" in result
+        # Should NOT show ???
+        assert "???" not in result
 
     # Spec: Full visibility shows everything normally
     def test_location_full_visibility_unchanged(self):
@@ -551,9 +551,9 @@ class TestGameStateLookVisibility:
         assert "The grass sways in the wind" not in result  # Truncated
         assert "animal tracks" not in result  # Details hidden
 
-    # Spec: look in fog uses obscured visibility
-    def test_look_in_fog_obscures_visibility(self):
-        """look() in fog weather uses obscured visibility."""
+    # Spec: look in fog shows NPCs at player's location, hides some exits
+    def test_look_in_fog_shows_npcs_at_current_location(self):
+        """look() in fog weather still shows NPC names at player's current location."""
         from cli_rpg.game_state import GameState
         from cli_rpg.models.character import Character
         from cli_rpg.models.location import Location
@@ -574,9 +574,10 @@ class TestGameStateLookVisibility:
 
         result = game_state.look()
 
-        # NPC names should be obscured
-        assert "Old Farmer" not in result
-        assert "???" in result
+        # NPC names should be visible at player's current location
+        assert "Old Farmer" in result
+        # Should NOT show ??? for NPCs
+        assert "???" not in result
 
     # Spec: Caves are unaffected by weather
     def test_look_in_cave_unaffected_by_weather(self):

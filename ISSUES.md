@@ -411,10 +411,94 @@ This means players see dreams almost every other rest, which:
    - `rest --quick` or `r!` to skip dream check entirely
    - Settings option to disable dreams
 
-**Files to modify**:
-- `src/cli_rpg/dreams.py`: Add cooldown logic, reduce rates
-- `src/cli_rpg/game_state.py`: Track `last_dream_time`
-- `src/cli_rpg/camping.py`: Reduce dream rate during camp
+---
+
+### Tiredness stat for realistic sleep/rest mechanics
+**Status**: PROPOSED
+**Date Added**: 2025-12-26
+
+**Problem**: Falling asleep during rest is currently random, which feels arbitrary and unrealistic.
+
+**Proposed Feature**: Add a **Tiredness** stat that determines when the player falls asleep.
+
+#### Tiredness Mechanic Design
+
+**Stat Properties**:
+- Range: 0-100 (0 = fully rested, 100 = exhausted)
+- Display: Could show in status bar like stamina/dread
+
+**Tiredness Increases From**:
+- Traveling between locations (+2-5 per move)
+- Combat (+5-10 per fight, more for longer fights)
+- Time passing (+1 per game hour)
+- Using abilities/spells (+1-3 per use)
+- Carrying heavy load (+1 per move if encumbered)
+
+**Tiredness Decreases From**:
+- Resting at inn/safe location (-50 to -100)
+- Camping (-30 to -50)
+- Quick rest command (-10 to -20)
+- Consuming food/drink items (-5 to -15)
+
+**Sleep/Dream Connection**:
+- Tiredness < 30: Cannot fall asleep, no dreams
+- Tiredness 30-60: May fall asleep (low chance), light dreams
+- Tiredness 60-80: Will fall asleep, normal dreams
+- Tiredness > 80: Deep sleep guaranteed, vivid/prophetic dreams more likely
+- Tiredness 100: Forced rest - character collapses, vulnerability period
+
+**Gameplay Effects of High Tiredness**:
+- Combat penalties (slower reactions, reduced accuracy)
+- Reduced perception (miss secrets, ambushed more easily)
+- Dialogue options limited (too tired to negotiate)
+- Movement speed reduced
+
+**Implementation**:
+
+```python
+# In models/character.py or new models/tiredness.py
+@dataclass
+class Tiredness:
+    current: int = 0  # 0-100
+
+    def increase(self, amount: int) -> Optional[str]:
+        """Increase tiredness, return warning if getting exhausted."""
+        self.current = min(100, self.current + amount)
+        if self.current >= 80:
+            return "You're exhausted and need rest soon."
+        elif self.current >= 60:
+            return "You're feeling tired."
+        return None
+
+    def decrease(self, amount: int) -> None:
+        self.current = max(0, self.current - amount)
+
+    def can_sleep(self) -> bool:
+        return self.current >= 30
+
+    def sleep_quality(self) -> str:
+        if self.current >= 80:
+            return "deep"  # Vivid dreams, full recovery
+        elif self.current >= 60:
+            return "normal"
+        else:
+            return "light"  # Restless, partial recovery
+```
+
+**Files to Create/Modify**:
+- `src/cli_rpg/models/tiredness.py`: NEW - Tiredness model
+- `src/cli_rpg/models/character.py`: Add tiredness field
+- `src/cli_rpg/game_state.py`: Track tiredness changes on actions
+- `src/cli_rpg/dreams.py`: Use tiredness instead of random chance
+- `src/cli_rpg/combat.py`: Apply tiredness penalties
+- `src/cli_rpg/main.py`: Display tiredness in status, handle collapse
+
+**Benefits**:
+- More realistic and immersive
+- Player agency - manage tiredness strategically
+- Dreams feel earned, not random
+- Adds resource management depth
+- Natural pacing mechanism (can't grind indefinitely)
 
 ---
 
@@ -491,23 +575,22 @@ Issues discovered during `--wfc` mode playtesting (updated 2025-12-26):
    - ~~Coordinates in names break immersion~~
    - **Solution**: Replaced coordinate-based naming with direction-based suffixes (e.g., "Stone Ridge North", "Dark Forest East"). Supports all 8 cardinal/ordinal directions. Test added in `test_infinite_world_without_ai.py`.
 
-3. **NPCs shown as "???" in fog weather**
-   - When fog reduces visibility, NPC names display as "???" even at the player's location
-   - You should recognize NPCs you're standing next to in fog
+3. ~~**NPCs shown as "???" in fog weather**~~ (RESOLVED 2025-12-26)
+   - Fixed: NPCs at the player's current location are now always visible regardless of fog
+   - The fog "obscured" visibility effect only hides some exits (50% chance each)
 
-4. **SubGrid bounds warning shown to user**
-   - "Skipping Forgotten Graveyard: coords (0, 4) outside SubGrid bounds (-3, 3, -3, 3)"
-   - This internal warning shouldn't be displayed to user
+4. ~~**SubGrid bounds warning shown to user**~~ (RESOLVED 2025-12-26)
+   - Added NullHandler to cli_rpg package logger to prevent log messages leaking to stderr
+   - Internal warnings now silenced from user output
 
-5. **AI ASCII art generation failure shown to user**
-   - "AI location ASCII art generation failed, using fallback: Location ASCII art too short (min 3 lines)"
-   - This should be logged internally, not printed to user
+5. ~~**AI ASCII art generation failure shown to user**~~ (RESOLVED 2025-12-26)
+   - Added NullHandler to cli_rpg package logger to prevent log messages leaking to stderr
+   - Internal warnings now silenced from user output
 
-6. **Debug messages shown to players**
-   - Various internal messages displayed during normal gameplay:
-     - "Skipping duplicate location name: Mystic Valley"
-     - "AI area generation failed: Failed to parse response as JSON..."
-   - These should be logged internally, not printed to stdout
+6. ~~**Debug messages shown to players**~~ (RESOLVED 2025-12-26)
+   - Added NullHandler to cli_rpg package logger in `src/cli_rpg/__init__.py`
+   - Follows Python logging best practices for library packages
+   - Applications can still configure handlers if they want to see log output (e.g., via `--verbose` flag)
 
 7. **Shop price inconsistency**
    - Shop display: "Health Potion - 50 gold"
@@ -546,6 +629,33 @@ Issues discovered during `--wfc` mode playtesting (updated 2025-12-26):
      - `src/cli_rpg/main.py`: `shop` command handler
      - `src/cli_rpg/ai_world.py`: NPC generation for SubGrid locations
      - `src/cli_rpg/models/npc.py`: NPC role field
+
+10. **Caravan world event doesn't provide shop access**
+    - "A merchant caravan is present in Shadowed Dell!" message displays
+    - `events` command shows "Traveling Traders [CARAVAN]" active at location
+    - But `shop` command says "There's no merchant here."
+    - Reproduction:
+      1. Wait for or trigger a CARAVAN world event
+      2. Travel to the event location
+      3. Run `shop` command → "There's no merchant here."
+    - **Expected**: Caravan events should provide a temporary shop with special items
+    - **Files to investigate**:
+      - `src/cli_rpg/world_events.py`: Caravan event definition
+      - `src/cli_rpg/main.py`: `shop` command - doesn't check for active caravan events
+      - `src/cli_rpg/models/world_event.py`: Event model
+
+11. **"Can't go that way" even though map shows valid exits**
+    - Map displays "Exits: east, south, west" but movement fails with "You can't go that way."
+    - Location "Dim Glade North" at (1, 11) shows exits but they don't work
+    - **Possible causes**:
+      - Location connections don't match displayed exits
+      - WFC terrain blocking not reflected in exit list
+      - Connection target location doesn't exist or has invalid coordinates
+      - Desync between `location.connections` and actual traversability
+    - **Files to investigate**:
+      - `src/cli_rpg/game_state.py`: `move()` method - what blocks movement
+      - `src/cli_rpg/models/location.py`: `get_available_directions()` vs actual connections
+      - `src/cli_rpg/map_renderer.py`: How exits are determined for display
 
 #### MEDIUM PRIORITY BUGS
 

@@ -50,7 +50,7 @@ WEATHER_DISPLAY = {
 # Visibility levels for each weather type
 # - "full": No visibility reduction (clear/rain)
 # - "reduced": Truncated descriptions, no details/secrets (storm)
-# - "obscured": Some exits hidden, NPC names obscured (fog)
+# - "obscured": Some exits hidden (fog)
 VISIBILITY_LEVELS = {
     "clear": "full",
     "rain": "full",

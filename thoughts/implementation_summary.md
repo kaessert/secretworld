@@ -1,52 +1,34 @@
-# Implementation Summary: Fix Fallback Location Names
+# Implementation Summary: NPCs Visible at Current Location in Fog
 
-## What was implemented
+## What Was Implemented
 
-**Issue**: WFC Playtesting Issues #4 - HIGH PRIORITY
-**Problem**: Location names like "Vast Prairie (-1, 0)" exposed internal coordinates to players, breaking immersion.
+Fixed bug #3 (HIGH PRIORITY): NPCs were incorrectly shown as "???" at the player's current location during fog weather conditions.
 
-### Changes Made
+### The Fix
+NPCs at the player's current location are now always visible regardless of fog. The fog "obscured" visibility effect now only hides some exits (50% chance each), not NPCs.
 
-1. **Modified `src/cli_rpg/world.py`** (lines 165-182):
-   - Replaced coordinate-based naming with direction-based suffixes
-   - Location names now use immersive direction suffixes (e.g., "Stone Ridge North", "Dark Forest East")
-   - Supports all 8 cardinal/ordinal directions
+## Files Modified
 
-2. **Added test in `tests/test_infinite_world_without_ai.py`**:
-   - `test_fallback_location_name_excludes_coordinates` - verifies names don't contain coordinate patterns
+1. **`src/cli_rpg/models/location.py`** (lines 202-205)
+   - Removed the conditional logic that obscured NPC names with "???" in fog
+   - NPCs are now always shown with their actual names at the player's location
+   - Updated docstring to reflect that "obscured" visibility only affects exits
+
+2. **`src/cli_rpg/game_state.py`** (line 335)
+   - Updated docstring in `look()` method to remove reference to NPC names being obscured
+
+3. **`src/cli_rpg/models/weather.py`** (line 53)
+   - Updated visibility levels comment to remove reference to NPC name obscuring
+
+4. **`tests/test_weather.py`** (lines 472-493, 554-580)
+   - Updated `test_location_obscured_visibility_shows_npc_names` to verify NPCs ARE visible in fog
+   - Updated `test_look_in_fog_shows_npcs_at_current_location` to verify NPCs ARE visible via GameState.look()
 
 ## Test Results
 
-All 17 tests in `test_infinite_world_without_ai.py` pass:
-- 6 TestGenerateFallbackLocation tests (including new coordinate exclusion test)
-- 4 TestMoveToUnexploredDirection tests
-- 3 TestWorldNeverBecomesClosed tests
-- 4 TestInfiniteWorldIntegration tests
+- All 39 weather tests pass
+- Full test suite: 3453 tests pass
 
-## Technical Details
+## Design Decision
 
-Before:
-```python
-location_name = f"{base_name} ({target_coords[0]}, {target_coords[1]})"
-# Result: "Stone Ridge (0, 1)"
-```
-
-After:
-```python
-DIRECTION_SUFFIXES = {
-    "north": " North", "south": " South",
-    "east": " East", "west": " West",
-    "northeast": " Northeast", "northwest": " Northwest",
-    "southeast": " Southeast", "southwest": " Southwest",
-}
-suffix = DIRECTION_SUFFIXES.get(direction, "")
-location_name = f"{base_name}{suffix}"
-# Result: "Stone Ridge North"
-```
-
-## E2E Validation
-
-- Start game without AI service
-- Explore in multiple directions (north, south, east, west)
-- Verify all generated location names use direction suffixes
-- Confirm no coordinates appear in location names anywhere in UI
+The fog weather effect is intended to reduce visibility of distant locations (hidden exits), not obscure things the player is standing directly next to. Players should always be able to see NPCs at their current location.

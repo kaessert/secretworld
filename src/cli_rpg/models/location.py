@@ -178,7 +178,7 @@ class Location:
             visibility: Visibility level affecting what's shown:
                 - "full": Everything shown normally
                 - "reduced": Description truncated to first sentence, no details/secrets
-                - "obscured": Some exits hidden (50% each), NPC names shown as "???"
+                - "obscured": Some exits hidden (50% each)
 
         Returns:
             Formatted string with name, description, and appropriate detail layers
@@ -199,15 +199,10 @@ class Location:
                     break
         result += f"{description}\n"
 
-        # Handle NPCs based on visibility
+        # NPCs are always visible at the player's current location
         if self.npcs:
-            if visibility == "obscured":
-                # Show "???" for each NPC instead of their names
-                obscured_names = [colors.npc("???") for _ in self.npcs]
-                result += f"NPCs: {', '.join(obscured_names)}\n"
-            else:
-                npc_names = [colors.npc(npc.name) for npc in self.npcs]
-                result += f"NPCs: {', '.join(npc_names)}\n"
+            npc_names = [colors.npc(npc.name) for npc in self.npcs]
+            result += f"NPCs: {', '.join(npc_names)}\n"
 
         # Handle exits based on visibility
         if self.connections:
