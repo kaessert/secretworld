@@ -325,11 +325,12 @@ def create_default_world() -> tuple[dict[str, Location], str]:
 
     ancient_grove = Location(
         name="Ancient Grove",
-        description="A mystical clearing surrounded by impossibly old trees. Soft moss covers the ground, and a weathered stone shrine sits at the center.",
+        description="A mystical clearing surrounded by impossibly old trees. An ancient presence watches from the shadows, and the air thrums with primal power.",
         parent_location="Forest",
         is_safe_zone=False,
         category="forest",
-        connections={}  # No cardinal exits for sub-locations
+        connections={},  # No cardinal exits for sub-locations
+        boss_enemy="elder_treant"
     )
 
     # Create Hermit NPC (recruitable)

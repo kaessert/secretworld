@@ -246,6 +246,17 @@ _ASCII_ART_BOSS_STONE_SENTINEL = r"""
  / |===|   |===| \
 """
 
+_ASCII_ART_BOSS_TREANT = r"""
+     /\  ||  /\
+    /  \ || /  \
+   /    \||/    \
+  |  O   ||   O  |
+  |______||______|
+      |  ||  |
+     /|  ||  |\
+    / |__||__| \
+"""
+
 
 def get_fallback_ascii_art(enemy_name: str) -> str:
     """Get fallback ASCII art based on enemy name.
@@ -1323,6 +1334,10 @@ def get_boss_ascii_art(boss_name: str) -> str:
     if any(term in name_lower for term in ["stone sentinel", "sentinel"]):
         return _ASCII_ART_BOSS_STONE_SENTINEL
 
+    # Treant/forest bosses
+    if any(term in name_lower for term in ["treant", "tree", "forest", "dryad", "grove"]):
+        return _ASCII_ART_BOSS_TREANT
+
     # Demon/infernal bosses
     if any(term in name_lower for term in ["demon", "lord", "chaos", "overlord"]):
         return _ASCII_ART_BOSS_DEMON
@@ -1390,11 +1405,41 @@ def spawn_boss(
             stun_duration=1,
         )
 
+    if boss_type == "elder_treant":
+        # Elder Treant: ancient tree spirit guardian of the forest
+        # Scale stats: 2x base stats for bosses
+        base_health = (40 + level * 25) * 2
+        base_attack = (5 + level * 3) * 2
+        base_defense = (2 + level * 2) * 2
+        # 4x XP reward for bosses
+        base_xp = (30 + level * 20) * 4
+
+        # Get boss ASCII art
+        ascii_art = get_boss_ascii_art("The Elder Treant")
+
+        return Enemy(
+            name="The Elder Treant",
+            health=base_health,
+            max_health=base_health,
+            attack_power=base_attack,
+            defense=base_defense,
+            xp_reward=base_xp,
+            level=level,
+            ascii_art=ascii_art,
+            is_boss=True,
+            description="An ancient tree spirit, guardian of the forest since time immemorial. Its bark is gnarled with age, and poison sap drips from its branches.",
+            attack_flavor="lashes out with gnarled branches",
+            poison_chance=0.25,  # Nature's corruption
+            poison_damage=5,
+            poison_duration=3,
+        )
+
     # Boss templates by location type
     boss_templates = {
         "dungeon": ["Lich Lord", "Dark Champion", "Demon Lord"],
         "ruins": ["Ancient Guardian", "Cursed Pharaoh", "Shadow King"],
         "cave": ["Cave Troll King", "Elder Wyrm", "Crystal Golem"],
+        "forest": ["Elder Treant", "Grove Guardian", "Ancient Dryad"],
         "default": ["Archdemon", "Overlord", "Chaos Beast"]
     }
 

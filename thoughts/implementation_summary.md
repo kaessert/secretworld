@@ -1,61 +1,48 @@
-# Implementation Summary: Boss Encounter in Boss Chamber
+# Implementation Summary: Forest Boss (Elder Treant) in Ancient Grove
 
 ## What Was Implemented
 
-### 1. Location Model Extensions (`src/cli_rpg/models/location.py`)
-- Added `boss_enemy: Optional[str] = None` field - stores the boss template name (e.g., "stone_sentinel")
-- Added `boss_defeated: bool = False` field - tracks whether the boss has been defeated
-- Updated `to_dict()` to serialize boss fields (only when non-default)
-- Updated `from_dict()` to deserialize boss fields with backward compatibility
+Added a forest-themed boss encounter to the Ancient Grove location in the Forest area, following the existing pattern established by the Stone Sentinel boss in the Abandoned Mines' Boss Chamber.
 
-### 2. Stone Sentinel Boss Template (`src/cli_rpg/combat.py`)
-- Added new boss-specific ASCII art `_ASCII_ART_BOSS_STONE_SENTINEL`
-- Updated `get_boss_ascii_art()` to return Stone Sentinel art for "sentinel" bosses
-- Extended `spawn_boss()` function with new `boss_type` parameter
-- Implemented "stone_sentinel" boss type:
-  - Name: "The Stone Sentinel"
-  - Stats: 2x base stats (same formula as other bosses)
-  - Special ability: 20% stun chance (heavy stone fist)
-  - Thematic description and attack flavor text
+### Files Modified
 
-### 3. Boss Encounter Trigger (`src/cli_rpg/game_state.py`)
-- Added `spawn_boss` to imports
-- Modified `enter()` method to check for boss encounters in sub-locations:
-  - Checks if location has `boss_enemy` and `not boss_defeated`
-  - Spawns the boss using `spawn_boss()` with the location's category and boss type
-  - Creates `CombatEncounter` and starts combat
-  - Appends combat intro message to the enter message
-- Added `mark_boss_defeated()` method:
-  - Sets `boss_defeated = True` on current location
-  - Sets `is_safe_zone = True` to make the chamber safe after boss defeat
+1. **`src/cli_rpg/combat.py`**
+   - Added `_ASCII_ART_BOSS_TREANT` constant (tree-shaped ASCII art)
+   - Updated `get_boss_ascii_art()` to recognize treant/forest keywords: `["treant", "tree", "forest", "dryad", "grove"]`
+   - Added `elder_treant` boss type handler in `spawn_boss()` with:
+     - 2x base stats (standard boss scaling)
+     - Poison ability: 25% chance, 5 damage, 3 turn duration (nature's corruption theme)
+     - Thematic description and attack flavor
+   - Added "forest" category to `boss_templates` dict: `["Elder Treant", "Grove Guardian", "Ancient Dryad"]`
 
-### 4. Boss Chamber Configuration (`src/cli_rpg/world.py`)
-- Updated Boss Chamber location in `create_default_world()`:
-  - Added `boss_enemy="stone_sentinel"` field
-  - Enhanced description to hint at the stone guardian
-  - Keeps `is_safe_zone=False` and `category="dungeon"`
+2. **`src/cli_rpg/world.py`**
+   - Updated `ancient_grove` Location to include `boss_enemy="elder_treant"`
+   - Updated description to hint at the guardian presence
+
+### Files Created
+
+1. **`tests/test_forest_boss.py`** - 17 tests covering:
+   - Ancient Grove configuration (boss_enemy, category, safe zone)
+   - Boss encounter triggering on entry
+   - Elder Treant boss properties (name, is_boss, poison ability, stats, ASCII art)
+   - `get_boss_ascii_art()` keyword matching
+   - No respawn after defeat
+   - Safe zone conversion after defeat
+   - Save/load persistence
 
 ## Test Results
 
-All 16 new tests in `tests/test_boss_chamber.py` pass:
-- `TestBossChamberTriggersEncounter`: 3 tests for combat triggering
-- `TestBossChamberNoRespawn`: 3 tests for defeat tracking and persistence
-- `TestLocationBossFields`: 4 tests for Location model fields
-- `TestStoneSentinelBoss`: 3 tests for boss template
-- `TestBossChamberConfiguration`: 3 tests for world setup
+- All 17 new tests in `tests/test_forest_boss.py` pass
+- All 35 existing boss tests pass (test_boss_chamber.py and test_boss_combat.py)
+- Full test suite: 2567 tests pass
 
-Full test suite: 2550 tests passed
+## E2E Validation Points
 
-## E2E Validation Checklist
-
-1. **Enter Boss Chamber from Abandoned Mines**: Should trigger boss combat with Stone Sentinel
-2. **Boss has correct stats**: 2x base stats, stun ability, unique ASCII art
-3. **Defeat boss and exit**: Chamber becomes safe zone
-4. **Re-enter Boss Chamber**: No boss spawns (boss_defeated = True)
-5. **Save/Load game**: boss_defeated flag persists correctly
-
-## Technical Notes
-
-- The `mark_boss_defeated()` method must be called by game code after combat ends with victory. This is intentionally not automatic in `CombatEncounter.end_combat()` to keep combat logic separate from world state management.
-- The boss_type parameter in `spawn_boss()` takes precedence over location_category-based selection, allowing specific bosses for specific locations.
-- Backward compatibility is maintained - old save files without boss fields will load with defaults (boss_enemy=None, boss_defeated=False).
+To validate in-game:
+1. Navigate to Forest location
+2. Enter "Ancient Grove" sub-location
+3. Verify boss combat triggers with "The Elder Treant"
+4. Verify boss has poison ability (may apply poison status during combat)
+5. Defeat boss and exit location
+6. Re-enter Ancient Grove - should be peaceful (no combat)
+7. Save/load game - boss_defeated should persist
