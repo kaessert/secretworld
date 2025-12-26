@@ -242,6 +242,21 @@ Requirements:
 Respond with ONLY the ASCII art, no explanation or formatting."""
 
 
+# Default prompt template for whisper generation
+DEFAULT_WHISPER_GENERATION_PROMPT = """Generate a single atmospheric whisper for a {theme} RPG.
+
+Location Category: {location_category}
+
+Requirements:
+1. Write exactly ONE short, evocative sentence (10-100 characters)
+2. The whisper should hint at hidden secrets, atmosphere, or subtle danger
+3. Match the {theme} setting and {location_category} location type
+4. Be atmospheric and mysterious, not direct or obvious
+5. Use second person perspective is optional
+
+Respond with ONLY the whisper text, no quotes or formatting."""
+
+
 # Default prompt template for dream generation
 DEFAULT_DREAM_GENERATION_PROMPT = """Generate a short, atmospheric dream sequence for a {theme} RPG.
 
@@ -326,6 +341,7 @@ class AIConfig:
     location_ascii_art_generation_prompt: str = field(default=DEFAULT_LOCATION_ASCII_ART_PROMPT)
     npc_ascii_art_generation_prompt: str = field(default=DEFAULT_NPC_ASCII_ART_PROMPT)
     dream_generation_prompt: str = field(default=DEFAULT_DREAM_GENERATION_PROMPT)
+    whisper_generation_prompt: str = field(default=DEFAULT_WHISPER_GENERATION_PROMPT)
 
     def __post_init__(self) -> None:
         """Validate configuration after initialization."""
@@ -481,6 +497,7 @@ class AIConfig:
             "location_ascii_art_generation_prompt": self.location_ascii_art_generation_prompt,
             "npc_ascii_art_generation_prompt": self.npc_ascii_art_generation_prompt,
             "dream_generation_prompt": self.dream_generation_prompt,
+            "whisper_generation_prompt": self.whisper_generation_prompt,
         }
     
     @classmethod
@@ -526,5 +543,8 @@ class AIConfig:
             ),
             dream_generation_prompt=data.get(
                 "dream_generation_prompt", DEFAULT_DREAM_GENERATION_PROMPT
+            ),
+            whisper_generation_prompt=data.get(
+                "whisper_generation_prompt", DEFAULT_WHISPER_GENERATION_PROMPT
             ),
         )

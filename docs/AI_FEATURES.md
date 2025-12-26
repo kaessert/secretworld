@@ -396,6 +396,17 @@ pytest tests/test_e2e_world_expansion.py -v
 - Graceful fallback to template dreams when AI is unavailable or generation fails
 - Dreams display with decorative borders and typewriter effect
 
+### 12. AI-Generated Whispers
+- `AIService.generate_whisper()` creates atmospheric ambient whispers as players explore
+- Triggered with 30% chance when entering new locations
+- Parameters: `theme` (world theme), `location_category` (dungeon, forest, town, etc.)
+- Context-aware generation based on:
+  - **World theme**: Whispers fit the game's theme (fantasy, sci-fi, etc.)
+  - **Location category**: Whispers reflect the type of area (eerie for dungeons, peaceful for towns)
+- Validates response length (10-100 characters, single sentence)
+- Graceful fallback to template whispers when AI is unavailable or generation fails
+- Whispers display with typewriter effect for atmospheric presentation
+
 ### Future Enhancements
 - Advanced world consistency validation
 - Additional local model providers

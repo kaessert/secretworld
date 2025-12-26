@@ -1908,6 +1908,61 @@ Note: Use "EXISTING_WORLD" as placeholder for the connection back to the source 
 
         return dream
 
+    def generate_whisper(
+        self,
+        theme: str,
+        location_category: Optional[str] = None
+    ) -> str:
+        """Generate an atmospheric whisper with AI.
+
+        Args:
+            theme: World theme (e.g., "fantasy", "sci-fi")
+            location_category: Category of the current location (e.g., "dungeon", "town")
+
+        Returns:
+            Generated whisper text string (10-100 chars)
+
+        Raises:
+            AIGenerationError: If generation fails or response is too short
+            AIServiceError: If API call fails
+        """
+        prompt = self._build_whisper_prompt(
+            theme=theme,
+            location_category=location_category
+        )
+
+        response_text = self._call_llm(prompt)
+
+        # Clean and validate response
+        whisper = response_text.strip().strip('"').strip("'")
+
+        if len(whisper) < 10:
+            raise AIGenerationError("Generated whisper too short (min 10 chars)")
+
+        if len(whisper) > 100:
+            whisper = whisper[:97] + "..."
+
+        return whisper
+
+    def _build_whisper_prompt(
+        self,
+        theme: str,
+        location_category: Optional[str]
+    ) -> str:
+        """Build prompt for whisper generation.
+
+        Args:
+            theme: World theme
+            location_category: Category of the current location
+
+        Returns:
+            Formatted prompt string
+        """
+        return self.config.whisper_generation_prompt.format(
+            theme=theme,
+            location_category=location_category or "mysterious"
+        )
+
     def _build_dream_prompt(
         self,
         theme: str,

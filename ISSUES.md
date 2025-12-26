@@ -33,7 +33,7 @@ You enter the Forgotten Chapel...
 **Future Enhancements**:
 - **Hidden lore fragments** revealed to players who `look` multiple times or `wait`
 - **Foreshadowing**: Whispers hint at dangers ahead, secrets nearby, or story beats
-- **AI-generated whispers**: Dynamic whisper content via AI service (stub implemented)
+- ✅ **AI-generated whispers**: Dynamic whisper content via AI service - MVP IMPLEMENTED (context-aware whispers generated using world theme and location category; graceful fallback to template whispers on error)
 
 ---
 

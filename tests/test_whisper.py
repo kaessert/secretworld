@@ -390,3 +390,135 @@ class TestDisplayWhisper:
     def test_whisper_typewriter_delay_value(self):
         """Spec: WHISPER_TYPEWRITER_DELAY is 0.03 (slightly faster than dreams)."""
         assert WHISPER_TYPEWRITER_DELAY == 0.03
+
+
+class TestAIWhisperGeneration:
+    """Tests for AI-generated whispers.
+
+    Spec: AI can generate dynamic, context-aware atmospheric whispers
+    """
+
+    def test_generate_whisper_exists_in_ai_service(self):
+        """Spec: AIService has generate_whisper method."""
+        from cli_rpg.ai_service import AIService
+        assert hasattr(AIService, 'generate_whisper')
+        assert callable(getattr(AIService, 'generate_whisper'))
+
+    def test_whisper_generation_prompt_in_config(self):
+        """Spec: AIConfig has whisper_generation_prompt field."""
+        from cli_rpg.ai_config import AIConfig, DEFAULT_WHISPER_GENERATION_PROMPT
+
+        # Check default prompt exists
+        assert DEFAULT_WHISPER_GENERATION_PROMPT is not None
+        assert len(DEFAULT_WHISPER_GENERATION_PROMPT) > 50
+
+        # Check config has the field
+        config = AIConfig(api_key="test-key")
+        assert hasattr(config, 'whisper_generation_prompt')
+        assert config.whisper_generation_prompt == DEFAULT_WHISPER_GENERATION_PROMPT
+
+    def test_get_whisper_uses_ai_when_available(self):
+        """Spec: When ai_service is available, attempts AI generation."""
+        from cli_rpg.ai_service import AIService
+        from cli_rpg.ai_config import AIConfig
+
+        config = AIConfig(api_key="test-key", enable_caching=False)
+        ai_service = AIService(config)
+
+        # Create whisper service with AI
+        service = WhisperService(ai_service=ai_service)
+
+        # Mock generate_whisper to return a whisper
+        generated_whisper = "Ancient secrets lurk in the shadows..."
+        with patch.object(ai_service, 'generate_whisper', return_value=generated_whisper):
+            with patch("cli_rpg.whisper.random.random", return_value=0.1):  # Force trigger
+                result = service.get_whisper("dungeon", theme="dark fantasy")
+
+                # Result should be the AI-generated whisper
+                assert result == generated_whisper
+
+    def test_get_whisper_falls_back_on_ai_failure(self):
+        """Spec: Falls back to template when AI raises exception."""
+        from cli_rpg.ai_service import AIService, AIGenerationError
+        from cli_rpg.ai_config import AIConfig
+
+        config = AIConfig(api_key="test-key", enable_caching=False)
+        ai_service = AIService(config)
+
+        # Create whisper service with AI
+        service = WhisperService(ai_service=ai_service)
+
+        # Mock generate_whisper to raise an error
+        with patch.object(ai_service, 'generate_whisper', side_effect=AIGenerationError("Test error")):
+            with patch("cli_rpg.whisper.random.random", return_value=0.1):  # Force trigger
+                result = service.get_whisper("dungeon", theme="fantasy")
+
+                # Should still return a whisper (from templates)
+                assert result is not None
+                # Should be from template pools
+                assert result in CATEGORY_WHISPERS["dungeon"]
+
+    def test_ai_whisper_content_is_validated(self):
+        """Spec: AI-generated whisper text is validated (length 10-100 chars)."""
+        from cli_rpg.ai_service import AIService, AIGenerationError
+        from cli_rpg.ai_config import AIConfig
+
+        config = AIConfig(api_key="test-key", enable_caching=False)
+        ai_service = AIService(config)
+
+        # Test too short (should raise error)
+        with patch.object(ai_service, '_call_llm', return_value="Short"):
+            with pytest.raises(AIGenerationError):
+                ai_service.generate_whisper(theme="fantasy", location_category="dungeon")
+
+    def test_ai_whisper_truncated_if_too_long(self):
+        """Spec: AI-generated whisper is truncated if over 100 chars."""
+        from cli_rpg.ai_service import AIService
+        from cli_rpg.ai_config import AIConfig
+
+        config = AIConfig(api_key="test-key", enable_caching=False)
+        ai_service = AIService(config)
+
+        # Generate a response that's too long (150 chars)
+        long_response = "A" * 150
+        with patch.object(ai_service, '_call_llm', return_value=long_response):
+            result = ai_service.generate_whisper(theme="fantasy", location_category="dungeon")
+            # Should be truncated to 100 chars with ellipsis
+            assert len(result) <= 100
+            assert result.endswith("...")
+
+    def test_ai_whisper_prompt_includes_context(self):
+        """Spec: AI whisper prompt includes theme and category context."""
+        from cli_rpg.ai_service import AIService
+        from cli_rpg.ai_config import AIConfig
+
+        config = AIConfig(api_key="test-key", enable_caching=False)
+        ai_service = AIService(config)
+
+        # Mock _call_llm to capture the prompt
+        valid_whisper = "The darkness here whispers ancient truths..."
+        with patch.object(ai_service, '_call_llm', return_value=valid_whisper) as mock_llm:
+            ai_service.generate_whisper(
+                theme="dark fantasy",
+                location_category="cave"
+            )
+
+            # Check the prompt includes context
+            prompt = mock_llm.call_args[0][0]
+            assert "dark fantasy" in prompt
+            assert "cave" in prompt
+
+    def test_ai_config_whisper_prompt_serialization(self):
+        """Spec: whisper_generation_prompt is serialized in to_dict/from_dict."""
+        from cli_rpg.ai_config import AIConfig, DEFAULT_WHISPER_GENERATION_PROMPT
+
+        config = AIConfig(api_key="test-key")
+
+        # Check to_dict includes whisper_generation_prompt
+        config_dict = config.to_dict()
+        assert "whisper_generation_prompt" in config_dict
+        assert config_dict["whisper_generation_prompt"] == DEFAULT_WHISPER_GENERATION_PROMPT
+
+        # Check from_dict restores it
+        restored_config = AIConfig.from_dict(config_dict)
+        assert restored_config.whisper_generation_prompt == DEFAULT_WHISPER_GENERATION_PROMPT

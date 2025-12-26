@@ -213,19 +213,19 @@ class WhisperService:
             category: Location category for context
             theme: World theme for generation
 
+        Returns:
+            Generated whisper string from AI service
+
         Raises:
-            NotImplementedError: AI whisper generation not yet implemented
+            Any exception from ai_service.generate_whisper (handled by caller)
         """
-        # Simple prompt - can be enhanced later
-        prompt = (
-            f"Generate a single atmospheric whisper (one sentence) for a "
-            f"{category or 'mysterious'} location in a {theme} world. "
-            f"The whisper should be evocative and hint at hidden secrets or atmosphere. "
-            f"Return only the whisper text, no quotes."
+        if self.ai_service is None:
+            raise RuntimeError("AI service not available")
+
+        return self.ai_service.generate_whisper(
+            theme=theme,
+            location_category=category
         )
-        # For now, fall back to template
-        # AI generation can be implemented when the AI service supports raw completion
-        raise NotImplementedError("AI whisper generation not yet implemented")
 
 
 def format_whisper(whisper_text: str) -> str:

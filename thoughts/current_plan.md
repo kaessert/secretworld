@@ -1,61 +1,47 @@
-# Implementation Plan: Add Boss Encounter to Flooded Level
+# Implementation Plan: AI-Generated Whispers
 
 ## Summary
-Add a water/mine-themed boss encounter to the "Flooded Level" sub-location in Abandoned Mines. This creates a mid-dungeon challenge before the final Boss Chamber, following the established boss encounter pattern.
+Implement AI-generated whispers for the Whisper System. The `_generate_ai_whisper()` method is currently stubbed with `NotImplementedError`. This feature adds dynamic, context-aware atmospheric whispers via the AI service.
 
 ## Spec
-- **Flooded Level**: Add a mine-themed water boss ("drowned_overseer" - an undead former mine foreman)
-- **Boss template**: Has bleed ability (rusted mining tools) + freeze chance (icy water)
-- **Behavior**: Triggers on first entry, no respawn after defeat, location becomes safe zone
-- **Thematic fit**: An overseer who drowned when the mines flooded, now risen as undead guardian
+- AI-generated whispers are single-sentence atmospheric text (10-100 characters)
+- Context-aware: uses location category and world theme
+- Graceful fallback to templates on AI failure (already handled in caller)
+- Follows existing AI service patterns (prompt template, response parsing, error handling)
 
 ## Implementation Steps
 
-### Step 1: Add Drowned Overseer ASCII Art Template
-**File**: `src/cli_rpg/combat.py` (after `_ASCII_ART_BOSS_TREANT`, ~line 258)
-```python
-_ASCII_ART_BOSS_DROWNED_OVERSEER = r"""
-     .-~~~-.
-    ( ~   ~ )
-    /|  <>  |\
-   / | ~~~~ | \
-  |  | |==| |  |
-  |  | |  | |  |
-  /__| |__| |__\
-"""
-```
+### 1. Add whisper prompt to ai_config.py
+**File**: `src/cli_rpg/ai_config.py`
+- Add `DEFAULT_WHISPER_GENERATION_PROMPT` constant (similar to dream/lore prompts)
+- Add `whisper_generation_prompt` field to `AIConfig` dataclass
+- Update `to_dict()` and `from_dict()` methods
 
-### Step 2: Update get_boss_ascii_art() for Drowned Overseer
-**File**: `src/cli_rpg/combat.py` (in `get_boss_ascii_art()` function, ~line 1350)
-- Add check for drowned/overseer/flooded keywords to return `_ASCII_ART_BOSS_DROWNED_OVERSEER`
+### 2. Add generate_whisper() to AIService
+**File**: `src/cli_rpg/ai_service.py`
+- Add `generate_whisper(theme, location_category)` method
+- Build prompt using config template
+- Call LLM and validate response (10-100 chars)
+- Return whisper string
 
-### Step 3: Add Drowned Overseer Boss Type Handler
-**File**: `src/cli_rpg/combat.py` in `spawn_boss()` function (after elder_treant handler, ~line 1435)
-- Add `if boss_type == "drowned_overseer":` handler
-- Stats: 2x base like other bosses
-- Special abilities:
-  - bleed_chance=0.20, bleed_damage=4, bleed_duration=3 (rusted pickaxe)
-  - freeze_chance=0.15, freeze_duration=2 (icy water touch)
-- Description: "The former overseer of these mines, drowned when the waters rose. Now he guards the depths with rusted tools and icy hatred."
-- attack_flavor: "swings a corroded pickaxe"
+### 3. Implement _generate_ai_whisper() in whisper.py
+**File**: `src/cli_rpg/whisper.py`
+- Remove `NotImplementedError`
+- Call `self.ai_service.generate_whisper(theme, category)`
+- Return generated whisper string
 
-### Step 4: Configure Flooded Level with Boss
-**File**: `src/cli_rpg/world.py` (line ~479, flooded_level location)
-- Update `flooded_level` Location to add:
-  - `boss_enemy="drowned_overseer"`
-  - Keep existing description (already thematic)
+### 4. Write tests
+**File**: `tests/test_whisper.py`
+- Test AI whisper generation when AI service available
+- Test fallback behavior when AI returns short/long text
+- Test error handling when AI raises exception
 
-### Step 5: Add Tests
-**File**: `tests/test_flooded_level_boss.py` (new file)
-- Test Flooded Level has boss_enemy = "drowned_overseer"
-- Test entering Flooded Level triggers boss combat
-- Test boss has is_boss=True
-- Test boss has bleed and freeze abilities
-- Test boss doesn't respawn after defeat
-- Test boss_defeated persists in save/load
-- Test spawn_boss with drowned_overseer returns correct enemy
+**File**: `tests/test_ai_service.py`
+- Test `generate_whisper()` method with mocked LLM
+- Test response validation (length checks)
 
-## Test Command
+## Test Commands
 ```bash
-pytest tests/test_flooded_level_boss.py -v
+pytest tests/test_whisper.py tests/test_ai_service.py -v
+pytest --cov=src/cli_rpg -k "whisper"
 ```
