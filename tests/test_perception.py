@@ -191,3 +191,75 @@ class TestActiveSearch:
         found, message = perform_active_search(char, loc)
         assert not found
         assert "unusual" in message.lower()  # "don't notice anything unusual"
+
+
+class TestDefaultWorldSecrets:
+    """Test that default world locations have secrets for the search command."""
+
+    def test_default_world_has_secrets(self):
+        """Verify at least 5 locations have hidden secrets."""
+        # Spec: Default world should have secrets to find
+        from cli_rpg.world import create_default_world
+        world, _ = create_default_world()
+
+        locations_with_secrets = [
+            name for name, loc in world.items()
+            if loc.hidden_secrets
+        ]
+        assert len(locations_with_secrets) >= 5, \
+            f"Expected at least 5 locations with secrets, found {len(locations_with_secrets)}: {locations_with_secrets}"
+
+    def test_secrets_have_valid_format(self):
+        """Verify all secrets have required fields: type, description, threshold."""
+        # Spec: Secrets must have type, description, threshold fields
+        from cli_rpg.world import create_default_world
+        world, _ = create_default_world()
+
+        for loc_name, loc in world.items():
+            for i, secret in enumerate(loc.hidden_secrets):
+                assert "type" in secret, \
+                    f"Secret {i} in {loc_name} missing 'type'"
+                assert "description" in secret, \
+                    f"Secret {i} in {loc_name} missing 'description'"
+                assert "threshold" in secret, \
+                    f"Secret {i} in {loc_name} missing 'threshold'"
+                # Type should be a valid SecretType value
+                valid_types = {"hidden_door", "hidden_treasure", "trap", "lore_hint"}
+                assert secret["type"] in valid_types, \
+                    f"Secret {i} in {loc_name} has invalid type '{secret['type']}'"
+
+    def test_secrets_have_varied_thresholds(self):
+        """Verify secrets have a range of thresholds (10-18)."""
+        # Spec: Secrets should range from easy (10) to hard (18)
+        from cli_rpg.world import create_default_world
+        world, _ = create_default_world()
+
+        all_thresholds = []
+        for loc in world.values():
+            for secret in loc.hidden_secrets:
+                all_thresholds.append(secret["threshold"])
+
+        assert len(all_thresholds) > 0, "No secrets found in world"
+        min_threshold = min(all_thresholds)
+        max_threshold = max(all_thresholds)
+
+        # Should have easy secrets (threshold <= 12) and hard secrets (threshold >= 15)
+        assert min_threshold <= 12, \
+            f"Expected easy secrets (threshold <= 12), lowest is {min_threshold}"
+        assert max_threshold >= 15, \
+            f"Expected hard secrets (threshold >= 15), highest is {max_threshold}"
+
+    def test_secrets_have_varied_types(self):
+        """Verify multiple secret types are used across the world."""
+        # Spec: Should use multiple secret types for variety
+        from cli_rpg.world import create_default_world
+        world, _ = create_default_world()
+
+        secret_types = set()
+        for loc in world.values():
+            for secret in loc.hidden_secrets:
+                secret_types.add(secret["type"])
+
+        # Should have at least 3 different secret types
+        assert len(secret_types) >= 3, \
+            f"Expected at least 3 secret types, found {len(secret_types)}: {secret_types}"

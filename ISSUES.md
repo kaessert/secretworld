@@ -1047,31 +1047,35 @@ Text output could be more atmospheric and engaging.
 **Note**: Players must be in the correct location type to encounter matching enemies. A quest for "Wolf" (forest enemy) won't progress while fighting in mountains (which spawn Eagle, Mountain Lion, Yeti). Players should explore forest areas to find wolves.
 
 ### Default world has no hidden secrets for search command
-**Status**: ACTIVE
+**Status**: ✅ RESOLVED
 
 **Description**: The `search` command is documented in the README as a major feature ("Secret Discovery: PER-based check with +5 bonus; light sources provide additional +2") and the Perception & secret discovery system is marked as RESOLVED in ISSUES.md. However, no locations in the default world actually have any hidden secrets defined.
 
-**Steps to reproduce**:
-1. Start a new game with `--skip-character-creation`
-2. Use `search` command in any location (Town Square, Cave, Market District, Forest, Mines, etc.)
-3. Always get: "You search carefully but find nothing hidden."
-4. Even with PER 22 (way above max), still find nothing
+**Resolution**: Added `hidden_secrets` to 14 default world locations in `src/cli_rpg/world.py`:
 
-**Tested locations** (all returned "nothing hidden"):
-- Town Square, Market District, Guard Post, Town Well
-- Forest, Forest Edge, Deep Woods
-- Cave
-- Millbrook Village
-- Abandoned Mines, Mine Entrance
+| Location | Secret Type | Threshold | Description |
+|----------|------------|-----------|-------------|
+| Town Well | hidden_treasure | 10 | Loose stone with coins |
+| Guard Post | lore_hint | 12 | Monster sighting tallies |
+| Forest Edge | trap | 12 | Concealed snare trap |
+| Deep Woods | hidden_door | 14 | Overgrown path to clearing |
+| Ancient Grove | lore_hint | 15 | Ancient runes about guardian |
+| Cave | hidden_treasure | 13 | Gemstone in crack |
+| Village Square | lore_hint | 10 | Well inscription |
+| Blacksmith | hidden_treasure | 12 | Coins in forge ashes |
+| Upper Tunnels | trap | 14 | Unstable ceiling section |
+| Flooded Level | hidden_treasure | 16 | Submerged payroll cache |
+| Boss Chamber | lore_hint | 18 | Crystal warning inscription |
+| Castle Ward | lore_hint | 16 | Coded noble's letter |
+| Slums | hidden_door | 14 | Thieves' underground passage |
+| Temple Quarter | hidden_treasure | 11 | Forgotten offering box |
 
-**Expected behavior**: At least some locations should have hidden secrets that can be discovered through the search command. Players who read the documentation and invest in the Perception stat should be rewarded.
+Secrets are distributed by difficulty:
+- Easy (threshold ≤12): Town areas, Millbrook Village
+- Medium (threshold 13-14): Forest, Cave, Slums
+- Hard (threshold ≥15): Abandoned Mines, Ironhold City
 
-**User impact**:
-- Players following documentation will be frustrated by a feature that never succeeds
-- No way to distinguish "no secrets here" from "secrets exist but I failed the check"
-- The PER stat and light source bonuses are untestable
-
-**Suggested fix**: Add `hidden_secrets` to default world locations (secrets.py shows the data model exists but nothing populates it in the default world).
+Tests added in `tests/test_perception.py` (TestDefaultWorldSecrets class).
 
 ### Procedural quest generation
 **Status**: ACTIVE

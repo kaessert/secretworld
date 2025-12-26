@@ -202,7 +202,15 @@ def create_default_world() -> tuple[dict[str, Location], str]:
 
     cave = Location(
         name="Cave",
-        description="A dark cave with damp walls. You can hear water dripping somewhere deeper inside."
+        description="A dark cave with damp walls. You can hear water dripping somewhere deeper inside.",
+        hidden_secrets=[
+            {
+                "type": "hidden_treasure",
+                "description": "A glinting gemstone wedged in a crack in the cave wall.",
+                "threshold": 13,
+                "discovered": False
+            }
+        ]
     )
 
     # Place locations on grid (coordinates determine connections automatically)
@@ -313,7 +321,15 @@ def create_default_world() -> tuple[dict[str, Location], str]:
         description="A fortified stone building where the town guard keeps watch. Weapons and armor hang on the walls.",
         parent_location="Town Square",
         is_safe_zone=True,
-        connections={}  # No cardinal exits for sub-locations
+        connections={},  # No cardinal exits for sub-locations
+        hidden_secrets=[
+            {
+                "type": "lore_hint",
+                "description": "Scratched tally marks on the wall count recent monster sightings in the forest.",
+                "threshold": 12,
+                "discovered": False
+            }
+        ]
     )
     guard_post.npcs.append(guard)
 
@@ -322,7 +338,15 @@ def create_default_world() -> tuple[dict[str, Location], str]:
         description="An ancient stone well in a quiet corner of town. Moss grows between the weathered stones.",
         parent_location="Town Square",
         is_safe_zone=True,
-        connections={}  # No cardinal exits for sub-locations
+        connections={},  # No cardinal exits for sub-locations
+        hidden_secrets=[
+            {
+                "type": "hidden_treasure",
+                "description": "A loose stone conceals a small pouch of forgotten coins.",
+                "threshold": 10,
+                "discovered": False
+            }
+        ]
     )
 
     # Create sub-locations for Forest (all danger zones)
@@ -332,7 +356,15 @@ def create_default_world() -> tuple[dict[str, Location], str]:
         parent_location="Forest",
         is_safe_zone=False,
         category="forest",
-        connections={}  # No cardinal exits for sub-locations
+        connections={},  # No cardinal exits for sub-locations
+        hidden_secrets=[
+            {
+                "type": "trap",
+                "description": "A concealed snare trap lies hidden among the fallen leaves.",
+                "threshold": 12,
+                "discovered": False
+            }
+        ]
     )
 
     deep_woods = Location(
@@ -341,7 +373,15 @@ def create_default_world() -> tuple[dict[str, Location], str]:
         parent_location="Forest",
         is_safe_zone=False,
         category="forest",
-        connections={}  # No cardinal exits for sub-locations
+        connections={},  # No cardinal exits for sub-locations
+        hidden_secrets=[
+            {
+                "type": "hidden_door",
+                "description": "An overgrown path, nearly invisible, leads to a hidden clearing.",
+                "threshold": 14,
+                "discovered": False
+            }
+        ]
     )
 
     ancient_grove = Location(
@@ -364,6 +404,14 @@ def create_default_world() -> tuple[dict[str, Location], str]:
                     {"name": "Health Potion", "description": "Restores 25 HP", "item_type": "consumable", "heal_amount": 25}
                 ],
                 "requires_key": None
+            }
+        ],
+        hidden_secrets=[
+            {
+                "type": "lore_hint",
+                "description": "Ancient runes carved into the bark tell of a guardian spirit bound to protect this grove.",
+                "threshold": 15,
+                "discovered": False
             }
         ]
     )
@@ -479,7 +527,15 @@ def create_default_world() -> tuple[dict[str, Location], str]:
         description="A humble village square with a weathered wooden well at its center. Villagers go about their daily routines.",
         parent_location="Millbrook Village",
         is_safe_zone=True,
-        connections={}  # No cardinal exits for sub-locations
+        connections={},  # No cardinal exits for sub-locations
+        hidden_secrets=[
+            {
+                "type": "lore_hint",
+                "description": "A worn inscription on the well reads: 'May the harvest never fail.'",
+                "threshold": 10,
+                "discovered": False
+            }
+        ]
     )
     village_square.npcs.append(elder)
 
@@ -497,7 +553,15 @@ def create_default_world() -> tuple[dict[str, Location], str]:
         description="A hot, smoky workshop filled with weapons, armor, and tools. The forge glows orange.",
         parent_location="Millbrook Village",
         is_safe_zone=True,
-        connections={}  # No cardinal exits for sub-locations
+        connections={},  # No cardinal exits for sub-locations
+        hidden_secrets=[
+            {
+                "type": "hidden_treasure",
+                "description": "Coins hidden in the cold ashes of an unused corner of the forge.",
+                "threshold": 12,
+                "discovered": False
+            }
+        ]
     )
     blacksmith_loc.npcs.append(blacksmith_npc)
 
@@ -544,7 +608,15 @@ def create_default_world() -> tuple[dict[str, Location], str]:
         parent_location="Abandoned Mines",
         is_safe_zone=False,
         category="dungeon",
-        connections={}  # No cardinal exits for sub-locations
+        connections={},  # No cardinal exits for sub-locations
+        hidden_secrets=[
+            {
+                "type": "trap",
+                "description": "An unstable section of ceiling ready to collapse at the slightest disturbance.",
+                "threshold": 14,
+                "discovered": False
+            }
+        ]
     )
 
     flooded_level = Location(
@@ -555,6 +627,14 @@ def create_default_world() -> tuple[dict[str, Location], str]:
         category="dungeon",
         connections={},  # No cardinal exits for sub-locations
         boss_enemy="drowned_overseer",  # Drowned mine overseer boss encounter
+        hidden_secrets=[
+            {
+                "type": "hidden_treasure",
+                "description": "A waterproof cache submerged beneath a loose plank contains mining payroll.",
+                "threshold": 16,
+                "discovered": False
+            }
+        ]
     )
 
     boss_chamber = Location(
@@ -565,6 +645,14 @@ def create_default_world() -> tuple[dict[str, Location], str]:
         category="dungeon",
         connections={},  # No cardinal exits for sub-locations
         boss_enemy="stone_sentinel",  # Guaranteed boss encounter on first entry
+        hidden_secrets=[
+            {
+                "type": "lore_hint",
+                "description": "An ancient warning etched into the crystal reads: 'Disturb not the guardian's slumber.'",
+                "threshold": 18,
+                "discovered": False
+            }
+        ]
     )
 
     # Create luxury shop for Ironhold Market
@@ -656,7 +744,15 @@ def create_default_world() -> tuple[dict[str, Location], str]:
         description="The noble district of Ironhold, where magnificent mansions line cobblestone streets. The city garrison is headquartered here.",
         parent_location="Ironhold City",
         is_safe_zone=True,
-        connections={}  # No cardinal exits for sub-locations
+        connections={},  # No cardinal exits for sub-locations
+        hidden_secrets=[
+            {
+                "type": "lore_hint",
+                "description": "A coded message in a noble's dropped letter hints at political intrigue.",
+                "threshold": 16,
+                "discovered": False
+            }
+        ]
     )
     castle_ward.npcs.append(captain_of_guard)
 
@@ -665,7 +761,15 @@ def create_default_world() -> tuple[dict[str, Location], str]:
         description="A maze of narrow alleys and ramshackle buildings. The poor and desperate eke out a living in the shadow of the city's wealth.",
         parent_location="Ironhold City",
         is_safe_zone=True,
-        connections={}  # No cardinal exits for sub-locations
+        connections={},  # No cardinal exits for sub-locations
+        hidden_secrets=[
+            {
+                "type": "hidden_door",
+                "description": "A secret passage behind a loose board leads to the thieves' underground network.",
+                "threshold": 14,
+                "discovered": False
+            }
+        ]
     )
     slums.npcs.append(beggar)
 
@@ -674,7 +778,15 @@ def create_default_world() -> tuple[dict[str, Location], str]:
         description="A peaceful district of temples and shrines. Incense smoke drifts through the air, and the sound of hymns echoes from within the grand cathedral.",
         parent_location="Ironhold City",
         is_safe_zone=True,
-        connections={}  # No cardinal exits for sub-locations
+        connections={},  # No cardinal exits for sub-locations
+        hidden_secrets=[
+            {
+                "type": "hidden_treasure",
+                "description": "An old offering box behind a loose flagstone contains forgotten donations.",
+                "threshold": 11,
+                "discovered": False
+            }
+        ]
     )
     temple_quarter.npcs.append(priest)
 
