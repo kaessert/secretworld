@@ -1636,7 +1636,7 @@ def handle_exploration_command(game_state: GameState, command: str, args: list[s
         return (True, f"\n{message}")
 
     elif command == "map":
-        map_output = render_map(game_state.world, game_state.current_location)
+        map_output = render_map(game_state.world, game_state.current_location, game_state.current_sub_grid)
         return (True, f"\n{map_output}")
 
     elif command == "worldmap":

@@ -214,22 +214,9 @@ for loc_data in area_data:
 
 Issues discovered through comprehensive map system playtesting in non-interactive mode:
 
-1. **CRITICAL: Map command fails inside SubGrid locations**
-   - **File**: `src/cli_rpg/main.py`, line 1639
-   - **Problem**: `render_map()` is called WITHOUT the `sub_grid` parameter, even when player is inside a sub-location
-   - **Current code**:
-     ```python
-     elif command == "map":
-         map_output = render_map(game_state.world, game_state.current_location)
-         return (True, f"\n{map_output}")
-     ```
-   - **Impact**: When player enters a dungeon/building interior, running `map` shows "No map available - current location does not have coordinates" instead of the interior map
-   - **Root cause**: Sub-locations are stored in `SubGrid`, not in `game_state.world`. The `render_map()` function HAS correct SubGrid rendering (via `_render_sub_grid_map()`), but main.py never passes the `sub_grid` parameter
-   - **Fix**: Pass `game_state.current_sub_grid` as third argument:
-     ```python
-     map_output = render_map(game_state.world, game_state.current_location, game_state.current_sub_grid)
-     ```
-   - **Priority**: P1 - Core feature completely broken for dungeons/interiors
+1. ~~**CRITICAL: Map command fails inside SubGrid locations**~~ (RESOLVED 2025-12-26)
+   - Fixed in `src/cli_rpg/main.py` - now passes `game_state.current_sub_grid` to `render_map()`
+   - Test added: `test_map_command_inside_subgrid_shows_interior_map`
 
 2. **MEDIUM: Worldmap command fails inside SubGrid locations**
    - **File**: `src/cli_rpg/main.py`, line 1643

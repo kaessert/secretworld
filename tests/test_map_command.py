@@ -152,3 +152,39 @@ class TestMapExplorationCommand:
         assert "MAP" in message.upper() or "===" in message
         # Current location should be marked
         assert "@" in message or "[*]" in message
+
+    def test_map_command_inside_subgrid_shows_interior_map(self):
+        """Test map command inside SubGrid shows interior map.
+
+        Spec: When player is inside a SubGrid (dungeon/interior), 'map' command
+        should render the interior map with 'INTERIOR MAP' header.
+        """
+        from cli_rpg.main import handle_exploration_command
+        from cli_rpg.world_grid import SubGrid
+
+        character = Character("Hero", strength=10, dexterity=10, intelligence=10)
+
+        # Create main world with a dungeon entrance
+        dungeon_entrance = Location("Dungeon Entrance", "Dark entrance", {}, coordinates=(0, 0))
+        world = {"Dungeon Entrance": dungeon_entrance}
+
+        # Create SubGrid for dungeon interior
+        sub_grid = SubGrid(parent_name="Dark Dungeon", bounds=(-1, 1, -1, 1))
+        entry_hall = Location("Entry Hall", "The entry hall of the dungeon", {})
+        sub_grid.add_location(entry_hall, 0, 0)
+        treasure_room = Location("Treasure Room", "Room with treasure", {}, is_exit_point=True)
+        sub_grid.add_location(treasure_room, 1, 0)
+
+        # Set up game state - start at dungeon entrance then simulate entering
+        game_state = GameState(character, world, "Dungeon Entrance")
+        # Simulate having entered the SubGrid
+        game_state.current_location = "Entry Hall"
+        game_state.current_sub_grid = sub_grid
+
+        continue_game, message = handle_exploration_command(game_state, "map", [])
+
+        assert continue_game is True
+        # Should show interior map header, not regular overworld map
+        assert "INTERIOR MAP" in message, f"Expected 'INTERIOR MAP' in output. Got:\n{message}"
+        # Should show parent dungeon name
+        assert "Dark Dungeon" in message, f"Expected parent name 'Dark Dungeon'. Got:\n{message}"
