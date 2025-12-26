@@ -14,7 +14,7 @@ python -m cli_rpg.main
 
 ## Features
 
-- **Character Creation**: Create custom characters with 5 classes (Warrior, Mage, Rogue, Ranger, Cleric) and customizable attributes (strength, dexterity, intelligence, charisma)
+- **Character Creation**: Create custom characters with 5 classes (Warrior, Mage, Rogue, Ranger, Cleric) and customizable attributes (strength, dexterity, intelligence, charisma, perception)
 - **AI-Generated Worlds**: Dynamically generated locations using OpenAI, Anthropic, or Ollama local models (optional)
 - **Turn-Based Combat**: Engage enemies with attack, defend, and flee commands
 - **Inventory & Equipment**: Collect loot from defeated enemies, equip weapons and armor, use consumables
@@ -28,6 +28,7 @@ python -m cli_rpg.main
 - **Dread System**: Psychological horror element that tracks your fear level (0-100%). Dangerous areas build dread; high dread causes paranoid whispers and combat penalties. At 75-99% dread, hallucinations may appear during travel (30% chance) - spectral enemies that dissipate when attacked, providing catharsis (-5 dread) but no rewards. At 100% dread, a Shadow Creature manifests and attacks you - defeating it reduces your dread by 50%. Reduce dread by resting, visiting towns, or talking to NPCs. Light sources (e.g., Torches from merchants) reduce dread buildup by 50% and negate the night dread bonus while active. **Dread Treasures**: Brave players who maintain 75%+ dread may discover powerful treasures when examining their surroundings (30% chance on 3rd+ look) - including Shadow Essence, Veil of Courage, Dread Blade, and Darklight Torch.
 - **Grid-Based World**: Navigate a spatially consistent world where directions are reliable (going north then south returns you to the same place)
 - **Lockpicking & Treasure Chests**: Rogues can pick locked chests using DEX-based skill checks. Treasure chests contain valuable items and can be found throughout the world
+- **Secret Discovery**: Use the `search` command to actively search for hidden secrets. Perception (PER) stat determines what you can find - hidden doors, buried treasure, traps, and lore hints await observant players
 - **Experience System**: Level up by defeating enemies
 - **Colorized Output**: Color-coded terminal output for improved readability (enemies in red, locations in cyan, items in green, etc.)
 - **Tab Completion**: Auto-complete commands and contextual arguments (directions, NPCs, items) with Tab key
@@ -40,20 +41,22 @@ python -m cli_rpg.main
 2. Choose a character class (each provides stat bonuses):
    - **Warrior**: +3 STR, +1 DEX - melee combat specialists
    - **Mage**: +3 INT, +1 DEX - magic damage dealers
-   - **Rogue**: +3 DEX, +1 STR, +1 CHA - agile fighters with stealth and backstab abilities
-   - **Ranger**: +2 DEX, +1 STR, +1 INT - balanced adventurers
+   - **Rogue**: +3 DEX, +1 STR, +1 CHA, +2 PER - agile fighters with stealth and backstab abilities
+   - **Ranger**: +2 DEX, +1 STR, +1 INT, +1 PER - balanced adventurers
    - **Cleric**: +2 INT, +1 STR, +2 CHA - hybrid support class
 3. Choose your stat allocation method (manual or random)
-4. Set your four core attributes (1-20 each):
+4. Set your five core attributes (1-20 each):
    - **Strength**: Increases attack damage and max HP
    - **Dexterity**: Improves flee chance, dodge chance, and physical critical hit chance
    - **Intelligence**: Increases magic attack damage and magic critical hit chance
    - **Charisma**: Affects shop prices, persuasion, intimidation, and bribery
+   - **Perception**: Determines ability to detect hidden secrets, traps, and environmental details
 
 **Note:** Constitution is automatically derived from your Strength stat and is used to reduce incoming damage during combat. Class bonuses are applied after your base stat allocation.
 
 ### Exploration Commands
 - `look` (l) - Examine your current location (use multiple times to reveal environmental details and hidden secrets)
+- `search` (sr) - Actively search the area for hidden secrets (PER-based check with +5 bonus; light sources provide additional +2)
 - `go <direction>` (g) - Move in a direction (north, south, east, west)
   - Quick shortcuts: `n`, `gn` (north), `w`, `gw` (west), `gs` (south), `ge` (east)
   - Note: `s` runs `status` and `e` runs `equip`, so use `gs`/`ge` for south/east

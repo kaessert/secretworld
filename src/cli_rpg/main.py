@@ -38,6 +38,7 @@ def get_command_reference() -> str:
         "  drop (dr) <item>   - Drop an item from your inventory",
         "  pick (lp) <chest>  - Pick a lock on a chest (Rogue only, requires Lockpick)",
         "  open (o) <chest>   - Open an unlocked chest",
+        "  search (sr)        - Search the area for hidden secrets (PER-based)",
         "  talk (t) <npc>     - Talk to an NPC (then chat freely, 'bye' to leave)",
         "  accept <quest>     - Accept a quest from the current NPC",
         "  complete <quest>   - Turn in a completed quest to the current NPC",
@@ -571,6 +572,12 @@ def handle_exploration_command(game_state: GameState, command: str, args: list[s
 
     elif command in ("exit", "leave"):
         success, message = game_state.exit_location()
+        return (True, f"\n{message}")
+
+    elif command == "search":
+        from cli_rpg.secrets import perform_active_search
+        location = game_state.get_current_location()
+        found, message = perform_active_search(game_state.current_character, location)
         return (True, f"\n{message}")
 
     elif command == "status":

@@ -62,6 +62,7 @@ src/cli_rpg/
 ├── brave_rewards.py     # Dread treasure rewards for high-dread exploration
 ├── sound_effects.py     # Terminal bell sound effects for game events
 ├── social_skills.py     # CHA-based persuade, intimidate, and bribe mechanics
+├── secrets.py           # PER-based secret discovery and search mechanics
 └── models/
     ├── character.py     # Player character model
     ├── dread.py         # Dread meter for psychological horror

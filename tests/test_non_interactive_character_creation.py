@@ -63,17 +63,17 @@ class TestNonInteractiveCharacterCreationManual:
     """Test manual stat allocation in non-interactive character creation."""
 
     def test_non_interactive_character_creation_manual_stats(self):
-        """Provide name, class, "1", str/dex/int, "yes" → custom character with manual stats.
+        """Provide name, class, "1", str/dex/int/cha/per, "yes" → custom character with manual stats.
 
         Spec: Character creation inputs for manual allocation:
         - Line 1: Character name (string, 2-30 chars)
         - Line 2: Character class ("1" for Warrior)
         - Line 3: Stat allocation method ("1" for manual)
-        - Lines 4-7: strength, dexterity, intelligence, charisma (integers 1-20)
+        - Lines 4-8: strength, dexterity, intelligence, charisma, perception (integers 1-20)
         - Final line: Confirmation ("yes")
         """
-        # Input: name, class (warrior), method (manual), str, dex, int, cha, confirmation, then command
-        stdin_input = "TestHero\n1\n1\n15\n12\n10\n8\nyes\nstatus\n"
+        # Input: name, class (warrior), method (manual), str, dex, int, cha, per, confirmation, then command
+        stdin_input = "TestHero\n1\n1\n15\n12\n10\n8\n10\nyes\nstatus\n"
 
         result = subprocess.run(
             [sys.executable, "-m", "cli_rpg.main", "--non-interactive"],
@@ -237,8 +237,8 @@ class TestJsonModeCharacterCreation:
 
         Spec: Same inputs as non-interactive mode, but output is JSON.
         """
-        # Input: name, class (warrior), method (manual), str, dex, int, cha, confirmation
-        stdin_input = "TestHero\n1\n1\n15\n12\n10\n8\nyes\n"
+        # Input: name, class (warrior), method (manual), str, dex, int, cha, per, confirmation
+        stdin_input = "TestHero\n1\n1\n15\n12\n10\n8\n10\nyes\n"
 
         result = subprocess.run(
             [sys.executable, "-m", "cli_rpg.main", "--json"],
@@ -292,8 +292,8 @@ class TestNonInteractiveCharacterCreationConfirmation:
 
         Spec: If user does not confirm, character creation is cancelled.
         """
-        # Input: name, class (warrior), method (manual), stats (str, dex, int, cha), "no" confirmation
-        stdin_input = "TestHero\n1\n1\n15\n12\n10\n8\nno\n"
+        # Input: name, class (warrior), method (manual), stats (str, dex, int, cha, per), "no" confirmation
+        stdin_input = "TestHero\n1\n1\n15\n12\n10\n8\n10\nno\n"
 
         result = subprocess.run(
             [sys.executable, "-m", "cli_rpg.main", "--non-interactive"],

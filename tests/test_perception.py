@@ -1,37 +1,8 @@
-# Perception & Secret Discovery System Implementation Plan
-
-## Feature Specification
-
-Add a **Perception (PER) stat** and **secret discovery mechanics** to make exploration more rewarding:
-
-1. **PER Stat**: New character stat (1-20 range, like other stats)
-   - Class bonuses: Rogue +2, Ranger +1, others 0
-   - Increases on level-up like other stats
-
-2. **Passive Detection**: On room entry, auto-detect secrets if PER meets threshold
-   - Check location's `hidden_secrets` field against detection threshold
-   - Display discovered secrets inline with room description
-
-3. **Active Search Command**: `search` command for manual discovery
-   - PER check with optional bonuses (torch lit, multiple searches)
-   - Reveals hidden doors, treasure, or traps
-
-4. **Hidden Content in Locations**: New `hidden_secrets` field on Location model
-   - List of secrets with detection thresholds
-   - Secret types: hidden_door, hidden_treasure, trap, lore_hint
-
----
-
-## Tests First (TDD)
-
-### tests/test_perception.py
-
-```python
 """Tests for Perception stat and secret discovery system."""
 import pytest
 from cli_rpg.models.character import Character, CharacterClass, CLASS_BONUSES
 from cli_rpg.models.location import Location
-from cli_rpg.secrets import check_passive_detection, perform_active_search, Secret, SecretType
+from cli_rpg.secrets import check_passive_detection, perform_active_search, SecretType
 
 
 class TestPerceptionStat:
@@ -52,18 +23,21 @@ class TestPerceptionStat:
 
     def test_rogue_gets_perception_bonus(self):
         """Rogues get +2 PER from class bonus."""
+        # Spec: Rogues get +2 PER from class bonus
         char = Character(name="Scout", strength=10, dexterity=10, intelligence=10,
                         perception=10, character_class=CharacterClass.ROGUE)
         assert char.perception == 12  # 10 base + 2 bonus
 
     def test_ranger_gets_perception_bonus(self):
         """Rangers get +1 PER from class bonus."""
+        # Spec: Rangers get +1 PER from class bonus
         char = Character(name="Tracker", strength=10, dexterity=10, intelligence=10,
                         perception=10, character_class=CharacterClass.RANGER)
         assert char.perception == 11  # 10 base + 1 bonus
 
     def test_perception_increases_on_level_up(self):
         """PER increases by 1 on level up."""
+        # Spec: PER increases by 1 on level up
         char = Character(name="Hero", strength=10, dexterity=10, intelligence=10, perception=10)
         initial_per = char.perception
         char.level_up()
@@ -71,10 +45,20 @@ class TestPerceptionStat:
 
     def test_perception_serialization(self):
         """PER is saved and loaded correctly."""
+        # Spec: PER is saved and loaded correctly
         char = Character(name="Hero", strength=10, dexterity=10, intelligence=10, perception=15)
         data = char.to_dict()
         loaded = Character.from_dict(data)
         assert loaded.perception == 15
+
+    def test_perception_in_class_bonuses(self):
+        """CLASS_BONUSES dict includes perception bonuses."""
+        # Spec: Rogue +2, Ranger +1, others 0
+        assert CLASS_BONUSES[CharacterClass.ROGUE].get("perception", 0) == 2
+        assert CLASS_BONUSES[CharacterClass.RANGER].get("perception", 0) == 1
+        assert CLASS_BONUSES[CharacterClass.WARRIOR].get("perception", 0) == 0
+        assert CLASS_BONUSES[CharacterClass.MAGE].get("perception", 0) == 0
+        assert CLASS_BONUSES[CharacterClass.CLERIC].get("perception", 0) == 0
 
 
 class TestLocationSecrets:
@@ -82,12 +66,14 @@ class TestLocationSecrets:
 
     def test_location_has_hidden_secrets_field(self):
         """Location has hidden_secrets list."""
+        # Spec: Location has hidden_secrets list, defaults to empty
         loc = Location(name="Dark Cave", description="A dark cave.")
         assert hasattr(loc, "hidden_secrets")
         assert loc.hidden_secrets == []
 
     def test_location_with_secrets(self):
         """Location can have secrets with thresholds."""
+        # Spec: Secrets have type, description, and threshold
         secrets = [
             {"type": "hidden_door", "description": "A hidden passage", "threshold": 12},
             {"type": "hidden_treasure", "description": "A concealed chest", "threshold": 15}
@@ -97,6 +83,7 @@ class TestLocationSecrets:
 
     def test_secrets_serialization(self):
         """Secrets are saved and loaded correctly."""
+        # Spec: Secrets are serialized/deserialized properly
         secrets = [{"type": "trap", "description": "Pressure plate", "threshold": 10}]
         loc = Location(name="Hall", description="A hall.", hidden_secrets=secrets)
         data = loc.to_dict()
@@ -109,6 +96,7 @@ class TestPassiveDetection:
 
     def test_detects_secret_when_per_meets_threshold(self):
         """Secrets at or below PER are detected."""
+        # Spec: Passive detection when PER >= threshold
         char = Character(name="Scout", strength=10, dexterity=10, intelligence=10, perception=12)
         secrets = [{"type": "hidden_door", "description": "A hidden door", "threshold": 12}]
         loc = Location(name="Room", description="A room.", hidden_secrets=secrets)
@@ -119,6 +107,7 @@ class TestPassiveDetection:
 
     def test_misses_secret_when_per_below_threshold(self):
         """Secrets above PER are not detected."""
+        # Spec: Secrets above PER are not passively detected
         char = Character(name="Scout", strength=10, dexterity=10, intelligence=10, perception=10)
         secrets = [{"type": "hidden_door", "description": "Hidden", "threshold": 15}]
         loc = Location(name="Room", description="A room.", hidden_secrets=secrets)
@@ -128,6 +117,7 @@ class TestPassiveDetection:
 
     def test_already_discovered_secrets_not_re_detected(self):
         """Once discovered, secrets don't trigger again."""
+        # Spec: Discovered secrets are not re-detected
         char = Character(name="Scout", strength=10, dexterity=10, intelligence=10, perception=15)
         secrets = [{"type": "hidden_door", "description": "Door", "threshold": 10, "discovered": True}]
         loc = Location(name="Room", description="A room.", hidden_secrets=secrets)
@@ -141,6 +131,7 @@ class TestActiveSearch:
 
     def test_search_finds_undiscovered_secrets(self):
         """Active search can find secrets above passive threshold."""
+        # Spec: Search gives +5 bonus to perception
         char = Character(name="Scout", strength=10, dexterity=10, intelligence=10, perception=10)
         secrets = [{"type": "hidden_treasure", "description": "Chest", "threshold": 12}]
         loc = Location(name="Room", description="A room.", hidden_secrets=secrets)
@@ -152,6 +143,7 @@ class TestActiveSearch:
 
     def test_search_with_light_bonus(self):
         """Having light gives +2 to search."""
+        # Spec: Light gives +2 to active search
         char = Character(name="Scout", strength=10, dexterity=10, intelligence=10, perception=10)
         char.light_remaining = 5  # Has light
         secrets = [{"type": "trap", "description": "Pit trap", "threshold": 17}]
@@ -163,122 +155,39 @@ class TestActiveSearch:
 
     def test_search_nothing_to_find(self):
         """Search when no secrets present."""
+        # Spec: Message when no secrets to find
         char = Character(name="Scout", strength=10, dexterity=10, intelligence=10, perception=10)
         loc = Location(name="Room", description="A room.")
 
         found, message = perform_active_search(char, loc)
         assert not found
         assert "nothing" in message.lower()
-```
 
----
+    def test_search_marks_secret_as_discovered(self):
+        """Active search marks found secrets as discovered."""
+        # Spec: Discovered secrets marked to prevent re-discovery
+        char = Character(name="Scout", strength=10, dexterity=10, intelligence=10, perception=10)
+        secrets = [{"type": "hidden_treasure", "description": "Gold", "threshold": 10}]
+        loc = Location(name="Room", description="A room.", hidden_secrets=secrets)
 
-## Implementation Steps
+        # First search finds it
+        found, _ = perform_active_search(char, loc)
+        assert found
+        assert secrets[0].get("discovered") is True
 
-### Step 1: Add PER stat to Character model
-**File**: `src/cli_rpg/models/character.py`
+        # Second search finds nothing (already discovered)
+        found2, message2 = perform_active_search(char, loc)
+        assert not found2
+        assert "nothing" in message2.lower() or "unusual" in message2.lower()
 
-1. Add `perception: int = 10` field after `charisma`
-2. Add `"perception": 0/1/2` to `CLASS_BONUSES` dict (Rogue +2, Ranger +1)
-3. Add perception to `__post_init__` validation loop
-4. Add `self.perception += bonuses.get("perception", 0)` in class bonus application
-5. Add `self.perception += 1` in `level_up()`
-6. Add perception to `to_dict()` and `from_dict()` methods
-7. Add perception to `__str__()` display
+    def test_search_cannot_find_high_threshold_secret(self):
+        """Search fails for secrets with threshold too high."""
+        # Spec: Still can't find secrets with threshold > PER + bonuses
+        char = Character(name="Scout", strength=10, dexterity=10, intelligence=10, perception=10)
+        secrets = [{"type": "trap", "description": "Deadly trap", "threshold": 20}]
+        loc = Location(name="Room", description="A room.", hidden_secrets=secrets)
 
-### Step 2: Add hidden_secrets to Location model
-**File**: `src/cli_rpg/models/location.py`
-
-1. Add `hidden_secrets: List[dict] = field(default_factory=list)` field
-2. Add to `to_dict()`: include hidden_secrets if present
-3. Add to `from_dict()`: parse hidden_secrets with backward compat
-
-### Step 3: Create secrets module
-**File**: `src/cli_rpg/secrets.py`
-
-```python
-"""Secret discovery mechanics using Perception stat."""
-from enum import Enum
-from typing import List, Tuple, Optional
-from cli_rpg.models.character import Character
-from cli_rpg.models.location import Location
-
-class SecretType(Enum):
-    HIDDEN_DOOR = "hidden_door"
-    HIDDEN_TREASURE = "hidden_treasure"
-    TRAP = "trap"
-    LORE_HINT = "lore_hint"
-
-SEARCH_BONUS = 5
-LIGHT_BONUS = 2
-
-def check_passive_detection(char: Character, location: Location) -> List[dict]:
-    """Check for automatic secret detection based on PER."""
-    detected = []
-    for secret in location.hidden_secrets:
-        if secret.get("discovered"):
-            continue
-        if char.perception >= secret.get("threshold", 15):
-            secret["discovered"] = True
-            detected.append(secret)
-    return detected
-
-def perform_active_search(char: Character, location: Location) -> Tuple[bool, str]:
-    """Perform active search for hidden secrets."""
-    effective_per = char.perception + SEARCH_BONUS
-    if char.has_active_light():
-        effective_per += LIGHT_BONUS
-
-    undiscovered = [s for s in location.hidden_secrets if not s.get("discovered")]
-    if not undiscovered:
-        return (False, "You search carefully but find nothing hidden.")
-
-    found = []
-    for secret in undiscovered:
-        if effective_per >= secret.get("threshold", 15):
-            secret["discovered"] = True
-            found.append(secret)
-
-    if not found:
-        return (False, "You search but don't notice anything unusual.")
-
-    descriptions = [s["description"] for s in found]
-    return (True, f"You discover: {', '.join(descriptions)}")
-```
-
-### Step 4: Add search command to game
-**File**: `src/cli_rpg/game_state.py`
-
-1. Add `"search"` to `KNOWN_COMMANDS` set
-
-**File**: `src/cli_rpg/main.py`
-
-1. Add `"search"` and alias `"sr"` to command help text
-2. Add `elif command == "search":` handler in `handle_exploration_command()`
-3. Call `perform_active_search()` and return result
-
-### Step 5: Integrate passive detection into movement
-**File**: `src/cli_rpg/game_state.py`
-
-1. In `move()` method, after successful move, call `check_passive_detection()`
-2. Append detected secrets to movement message
-
-### Step 6: Update character creation
-**File**: `src/cli_rpg/character_creation.py`
-
-1. Add "perception" to `stat_names` list in `get_manual_stats()`
-2. Add `"perception": random.randint(8, 15)` in `generate_random_stats()`
-
----
-
-## Files to Modify
-
-| File | Changes |
-|------|---------|
-| `src/cli_rpg/models/character.py` | Add PER stat, validation, serialization |
-| `src/cli_rpg/models/location.py` | Add hidden_secrets field |
-| `src/cli_rpg/secrets.py` | **NEW** - Detection/search logic |
-| `src/cli_rpg/game_state.py` | Add search to KNOWN_COMMANDS, passive detection in move() |
-| `src/cli_rpg/main.py` | Add search command handler, update help |
-| `src/cli_rpg/character_creation.py` | Add PER to stat allocation |
-| `tests/test_perception.py` | **NEW** - All perception/secret tests |
+        # 10 (PER) + 5 (search) = 15 < 20
+        found, message = perform_active_search(char, loc)
+        assert not found
+        assert "unusual" in message.lower()  # "don't notice anything unusual"

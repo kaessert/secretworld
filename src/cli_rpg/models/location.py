@@ -48,6 +48,7 @@ class Location:
     boss_enemy: Optional[str] = None  # Boss template name (e.g., "stone_sentinel")
     boss_defeated: bool = False  # True if boss has been defeated (prevents respawn)
     treasures: List[dict] = field(default_factory=list)  # Treasure chests with loot
+    hidden_secrets: List[dict] = field(default_factory=list)  # Secrets with detection thresholds
     
     def __post_init__(self) -> None:
         """Validate location attributes after initialization."""
@@ -305,6 +306,8 @@ class Location:
             data["boss_defeated"] = self.boss_defeated
         if self.treasures:
             data["treasures"] = self.treasures.copy()
+        if self.hidden_secrets:
+            data["hidden_secrets"] = [secret.copy() for secret in self.hidden_secrets]
         return data
     
     @classmethod
@@ -347,6 +350,8 @@ class Location:
         boss_defeated = data.get("boss_defeated", False)
         # Parse treasures if present (backward compatibility)
         treasures = data.get("treasures", [])
+        # Parse hidden_secrets if present (backward compatibility)
+        hidden_secrets = data.get("hidden_secrets", [])
         return cls(
             name=data["name"],
             description=data["description"],
@@ -364,7 +369,8 @@ class Location:
             entry_point=entry_point,
             boss_enemy=boss_enemy,
             boss_defeated=boss_defeated,
-            treasures=treasures
+            treasures=treasures,
+            hidden_secrets=hidden_secrets
         )
     
     def __str__(self) -> str:

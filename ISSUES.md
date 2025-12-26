@@ -788,14 +788,22 @@ Let players avoid combat through cunning.
 - Stealth kills grant bonus XP ("clean kill" bonus)
 
 ### Perception & secret discovery
-**Status**: ACTIVE
+**Status**: ✅ RESOLVED
 
 Reward observant players with hidden content.
 
-- **New stat: Perception (PER)** or use INT
-- Auto-detect secrets when entering rooms (if PER high enough)
-- `search` command to actively look for hidden things
-- Hidden doors, buried treasure, concealed switches, invisible text
+**Implemented**:
+- ✅ **Perception (PER) stat** added to Character model (1-20 range, default 10)
+- ✅ **Class bonuses**: Rogue +2 PER, Ranger +1 PER
+- ✅ **`search` command** (alias: `sr`) for active searching with +5 PER bonus (+2 with light source)
+- ✅ **Hidden secrets on locations**: `hidden_secrets` field with type, description, threshold, discovered status
+- ✅ **Secret types**: HIDDEN_DOOR, HIDDEN_TREASURE, TRAP, LORE_HINT
+- ✅ **Passive detection**: Auto-detect secrets when PER >= threshold
+- ✅ **Active search**: Manual search for harder-to-find secrets
+- ✅ **Persistence**: All stats save/load with backward compatibility
+- ✅ **Level up**: PER +1 on level up like other stats
+
+**Future Enhancements** (moved to backlog):
 - Traps can be spotted before triggering (PER check)
 - Some NPC lies can be detected ("You sense they're not being truthful...")
 - Secret passages between locations (shortcuts)
