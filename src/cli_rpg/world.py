@@ -179,6 +179,17 @@ def create_default_world() -> tuple[dict[str, Location], str]:
         entry_point="Village Square"
     )
 
+    # Create Abandoned Mines as overworld dungeon with sub-locations (danger zone)
+    abandoned_mines = Location(
+        name="Abandoned Mines",
+        description="A dark entrance yawns in the hillside, wooden beams rotting at the threshold. The clang of pickaxes once echoed here, but now only silence and the occasional rumble from deep below.",
+        is_overworld=True,
+        is_safe_zone=False,  # Danger zone
+        category="dungeon",
+        sub_locations=["Mine Entrance", "Upper Tunnels", "Flooded Level", "Boss Chamber"],
+        entry_point="Mine Entrance"
+    )
+
     cave = Location(
         name="Cave",
         description="A dark cave with damp walls. You can hear water dripping somewhere deeper inside."
@@ -193,6 +204,8 @@ def create_default_world() -> tuple[dict[str, Location], str]:
     grid.add_location(cave, 1, 0)
     # Millbrook Village is west of Town Square (-1, 0)
     grid.add_location(millbrook, -1, 0)
+    # Abandoned Mines is north of Cave (1, 1)
+    grid.add_location(abandoned_mines, 1, 1)
 
     # Create default merchant shop
     potion = Item(
@@ -412,6 +425,56 @@ def create_default_world() -> tuple[dict[str, Location], str]:
     )
     blacksmith_loc.npcs.append(blacksmith_npc)
 
+    # Create Old Miner NPC for Abandoned Mines
+    old_miner = NPC(
+        name="Old Miner",
+        description="A grizzled old man with coal-stained hands and haunted eyes",
+        dialogue="These mines... they took everything from us. Something woke up down there.",
+        greetings=[
+            "These mines... they took everything from us. Something woke up down there.",
+            "You're not thinking of going deeper, are you? Foolish...",
+            "I was the last one out. I still hear the screams some nights.",
+        ]
+    )
+
+    # Create sub-locations for Abandoned Mines (all danger zones)
+    mine_entrance = Location(
+        name="Mine Entrance",
+        description="The first chamber inside the mines. Abandoned mining equipment rusts in the corners, and old torches hang unlit on the walls. A cold draft blows from deeper within.",
+        parent_location="Abandoned Mines",
+        is_safe_zone=False,
+        category="dungeon",
+        connections={}  # No cardinal exits for sub-locations
+    )
+    mine_entrance.npcs.append(old_miner)
+
+    upper_tunnels = Location(
+        name="Upper Tunnels",
+        description="Narrow passages carved through solid rock. The ceiling is low, and the walls are marked with old chisel strikes. Occasional cave-ins have blocked some paths.",
+        parent_location="Abandoned Mines",
+        is_safe_zone=False,
+        category="dungeon",
+        connections={}  # No cardinal exits for sub-locations
+    )
+
+    flooded_level = Location(
+        name="Flooded Level",
+        description="The lower tunnels have flooded with dark, stagnant water. Wooden walkways float precariously, and the sound of dripping echoes endlessly. Something moves beneath the surface.",
+        parent_location="Abandoned Mines",
+        is_safe_zone=False,
+        category="dungeon",
+        connections={}  # No cardinal exits for sub-locations
+    )
+
+    boss_chamber = Location(
+        name="Boss Chamber",
+        description="A vast natural cavern at the deepest point of the mines. Ancient crystals embedded in the walls give off an eerie glow. The bones of unlucky miners litter the ground.",
+        parent_location="Abandoned Mines",
+        is_safe_zone=False,
+        category="dungeon",
+        connections={}  # No cardinal exits for sub-locations
+    )
+
     # Build world dictionary from grid plus sub-locations
     world = grid.as_dict()
     # Town Square sub-locations
@@ -426,6 +489,11 @@ def create_default_world() -> tuple[dict[str, Location], str]:
     world["Village Square"] = village_square
     world["Inn"] = inn
     world["Blacksmith"] = blacksmith_loc
+    # Abandoned Mines sub-locations
+    world["Mine Entrance"] = mine_entrance
+    world["Upper Tunnels"] = upper_tunnels
+    world["Flooded Level"] = flooded_level
+    world["Boss Chamber"] = boss_chamber
 
     # Return world dictionary and starting location (backward compatible)
     return (world, "Town Square")

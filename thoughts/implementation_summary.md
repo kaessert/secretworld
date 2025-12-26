@@ -1,35 +1,69 @@
-# Implementation Summary: Millbrook Village Hierarchical Location
+# Implementation Summary: Abandoned Mines Hierarchical Dungeon
 
 ## What Was Implemented
 
-Added Millbrook Village as a new overworld location west of Town Square with 3 sub-locations, following the established hierarchical pattern from Town Square and Forest.
+Added the Abandoned Mines as a new overworld dungeon location with 4 sub-locations, validating that the danger-zone hierarchy system works correctly for dungeons.
 
-### Files Modified
+### New Locations Added
 
-1. **`src/cli_rpg/world.py`** - Added:
-   - Millbrook Village overworld location at coordinates (-1, 0)
-   - 3 sub-locations: Village Square, Inn, Blacksmith
-   - 3 NPCs: Elder, Innkeeper (recruitable), Blacksmith (merchant)
-   - Blacksmith shop with Steel Sword, Chainmail, and Iron Helmet items
+1. **Abandoned Mines** (overworld dungeon at coordinates (1, 1))
+   - `is_overworld=True`, `is_safe_zone=False`, `category="dungeon"`
+   - 4 sub-locations with entry point at "Mine Entrance"
+   - Connected south to Cave, west to Forest (via grid)
 
-2. **`tests/test_world.py`** - Added 11 new tests:
-   - `test_default_world_millbrook_village_exists`
-   - `test_default_world_millbrook_village_is_overworld`
-   - `test_default_world_millbrook_village_sub_locations_exist`
-   - `test_default_world_millbrook_village_sub_locations_have_parent`
-   - `test_default_world_millbrook_village_sub_locations_no_cardinal_exits`
-   - `test_default_world_millbrook_village_connections`
-   - `test_default_world_town_square_has_west_connection`
-   - `test_default_world_elder_in_village_square`
-   - `test_default_world_innkeeper_in_inn`
-   - `test_default_world_blacksmith_in_blacksmith`
-   - Updated `test_default_world_location_count_with_sublocations` (9 -> 13)
+2. **Mine Entrance** (sub-location)
+   - Entry point for the dungeon
+   - Contains Old Miner NPC (quest giver)
+   - `parent_location="Abandoned Mines"`, `is_safe_zone=False`, `category="dungeon"`
 
-3. **`tests/test_gameplay_integration.py`** - Updated:
-   - `test_gameplay_initialization` - Updated location count from 9 to 13
-   - `test_gameplay_move_blocked_without_connection` - Changed test direction from "west" to "south" (west now connects to Millbrook Village)
+3. **Upper Tunnels** (sub-location)
+   - Danger zone for hostile encounters
+   - `parent_location="Abandoned Mines"`, `is_safe_zone=False`, `category="dungeon"`
 
-### World Structure After Implementation
+4. **Flooded Level** (sub-location)
+   - Environmental hazard flavor area
+   - `parent_location="Abandoned Mines"`, `is_safe_zone=False`, `category="dungeon"`
+
+5. **Boss Chamber** (sub-location)
+   - Final area for potential boss encounter
+   - `parent_location="Abandoned Mines"`, `is_safe_zone=False`, `category="dungeon"`
+
+### New NPC Added
+
+- **Old Miner**: Located in Mine Entrance, serves as quest giver with lore about the mines. Not recruitable, not a merchant.
+
+### Grid Placement
+
+- Abandoned Mines at (1, 1) - north of Cave (1, 0)
+- Automatically creates bidirectional connections: Cave <-> Abandoned Mines (north/south)
+- Also connects west to Forest at (0, 1)
+
+## Files Modified
+
+1. **src/cli_rpg/world.py**
+   - Added Abandoned Mines location definition
+   - Added grid placement for Abandoned Mines at (1, 1)
+   - Added Old Miner NPC
+   - Added 4 sub-locations (Mine Entrance, Upper Tunnels, Flooded Level, Boss Chamber)
+   - Added sub-locations to world dictionary
+
+2. **tests/test_world.py**
+   - Updated `test_default_world_location_count_with_sublocations` from 13 to 18
+   - Added 10 new tests for Abandoned Mines:
+     - `test_default_world_abandoned_mines_exists`
+     - `test_default_world_abandoned_mines_is_overworld`
+     - `test_default_world_abandoned_mines_sub_locations_exist`
+     - `test_default_world_abandoned_mines_sub_locations_have_parent`
+     - `test_default_world_abandoned_mines_sub_locations_have_dungeon_category`
+     - `test_default_world_abandoned_mines_sub_locations_no_cardinal_exits`
+     - `test_default_world_abandoned_mines_connections`
+     - `test_default_world_cave_has_north_connection`
+     - `test_default_world_old_miner_in_mine_entrance`
+
+3. **tests/test_gameplay_integration.py**
+   - Updated world size assertion from 13 to 18
+
+## World Structure After Implementation
 
 ```
 Town Square (SAFE, overworld at 0, 0)
@@ -38,49 +72,46 @@ Town Square (SAFE, overworld at 0, 0)
 ├── Town Well (atmospheric)
 ├── north -> Forest
 ├── east -> Cave
-└── west -> Millbrook Village (NEW)
+└── west -> Millbrook Village
 
 Forest (DANGER, overworld at 0, 1)
 ├── Forest Edge (entry_point)
 ├── Deep Woods
 ├── Ancient Grove (with Hermit NPC, recruitable)
-└── south -> Town Square
+├── south -> Town Square
+└── east -> Abandoned Mines
 
 Cave (DANGER at 1, 0)
-└── west -> Town Square
+├── west -> Town Square
+└── north -> Abandoned Mines
 
-Millbrook Village (NEW - SAFE, overworld at -1, 0)
+Millbrook Village (SAFE, overworld at -1, 0)
 ├── Village Square (entry_point, with Elder NPC)
 ├── Inn (with Innkeeper NPC, recruitable)
 ├── Blacksmith (with Blacksmith NPC, merchant)
 └── east -> Town Square
+
+Abandoned Mines (NEW - DANGER, overworld dungeon at 1, 1)
+├── Mine Entrance (entry_point, with Old Miner NPC)
+├── Upper Tunnels
+├── Flooded Level
+├── Boss Chamber
+├── south -> Cave
+└── west -> Forest
 ```
-
-### NPCs Added
-
-| NPC | Location | Features |
-|-----|----------|----------|
-| Elder | Village Square | Wisdom/lore dialogue |
-| Innkeeper | Inn | `is_recruitable=True` |
-| Blacksmith | Blacksmith | `is_merchant=True` with shop |
-
-### Blacksmith Shop Inventory
-
-| Item | Type | Bonus | Price |
-|------|------|-------|-------|
-| Steel Sword | Weapon | +8 damage | 150g |
-| Chainmail | Armor | +6 defense | 200g |
-| Iron Helmet | Armor | +2 defense | 75g |
 
 ## Test Results
 
-All 2506 tests pass (47 in test_world.py, 2459 in other test files).
+- All 2515 tests pass
+- 56 tests in test_world.py pass (10 new for Abandoned Mines)
+- Full test suite runs in ~64 seconds
 
-## E2E Validation
+## E2E Validation Points
 
-To validate the implementation in-game:
-1. Start the game and go west from Town Square to reach Millbrook Village
-2. Use `enter Village Square`, `enter Inn`, `enter Blacksmith` to visit sub-locations
-3. Use `talk Elder`, `talk Innkeeper`, `talk Blacksmith` to interact with NPCs
-4. Use `recruit Innkeeper` to test companion recruitment
-5. Use `shop` or `buy` at Blacksmith location to test merchant functionality
+1. Player can travel north from Cave to reach Abandoned Mines
+2. Player can `enter` Abandoned Mines to be placed in Mine Entrance
+3. Player can talk to Old Miner in Mine Entrance
+4. Player can navigate between all 4 sub-locations within the dungeon
+5. Player can `exit` from any sub-location back to Abandoned Mines
+6. All sub-locations correctly show as danger zones (is_safe_zone=False)
+7. Dungeon category is correctly set on all sub-locations

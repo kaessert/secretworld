@@ -23,7 +23,7 @@ class TestGameplayIntegration:
         
         assert game_state.current_character == character
         assert game_state.current_location == "Town Square"
-        assert len(game_state.world) == 13  # 4 main + 3 Town Square sub + 3 Forest sub + 3 Millbrook sub
+        assert len(game_state.world) == 18  # 5 main + 3 Town sub + 3 Forest sub + 3 Millbrook sub + 4 Mines sub
     
     def test_gameplay_look_command(self):
         """Test that look command displays location.

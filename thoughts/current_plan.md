@@ -1,136 +1,134 @@
-# Implementation Plan: Add Millbrook Village Hierarchical Location
+# Implementation Plan: Add Abandoned Mines Hierarchical Dungeon
 
 ## Summary
-Add Millbrook Village as a new overworld location with 3 sub-locations (Village Square, Inn, Blacksmith), following the established pattern from Town Square and Forest.
+Add Abandoned Mines as a new overworld dungeon location with 4 sub-locations (Mine Entrance, Upper Tunnels, Flooded Level, Boss Chamber), validating that danger-zone hierarchy works for dungeons before adding the more complex depth/floor system.
 
 ## Spec
 
-### Millbrook Village Structure
+### Abandoned Mines Structure
 ```
-🏠 Millbrook Village (SAFE, overworld at -1, 0 - west of Town Square)
-├── Village Square (entry_point, with Elder NPC)
-├── Inn (with Innkeeper NPC, recruitable)
-└── Blacksmith (with Blacksmith NPC, merchant with weapons/armor)
+⛏️ Abandoned Mines (DANGER, overworld at 1, 1 - northeast of Cave)
+├── Mine Entrance (entry_point, with Old Miner NPC - quest giver)
+├── Upper Tunnels (danger zone, with occasional hostile spawns)
+├── Flooded Level (danger zone, environmental hazard flavor)
+└── Boss Chamber (danger zone, with Mine Foreman boss enemy potential)
 ```
 
 ### Location Fields
-- **Millbrook Village**: `is_overworld=True`, `is_safe_zone=True`, `sub_locations=["Village Square", "Inn", "Blacksmith"]`, `entry_point="Village Square"`, `coordinates=(-1, 0)`
-- **Sub-locations**: `parent_location="Millbrook Village"`, `is_safe_zone=True`, `connections={}`
+- **Abandoned Mines**: `is_overworld=True`, `is_safe_zone=False`, `category="dungeon"`, `sub_locations=["Mine Entrance", "Upper Tunnels", "Flooded Level", "Boss Chamber"]`, `entry_point="Mine Entrance"`, `coordinates=(1, 1)`
+- **Sub-locations**: `parent_location="Abandoned Mines"`, `is_safe_zone=False`, `category="dungeon"`, `connections={}`
+
+### Grid Placement
+- Cave is at (1, 0)
+- Abandoned Mines at (1, 1) - north of Cave
+- Creates connection: Cave has north->Abandoned Mines, Abandoned Mines has south->Cave
 
 ### NPCs
-1. **Elder** (Village Square): Wisdom/lore dialogue, not recruitable
-2. **Innkeeper** (Inn): Friendly dialogue, `is_recruitable=True`
-3. **Blacksmith** (Blacksmith): `is_merchant=True` with weapon/armor shop
+1. **Old Miner** (Mine Entrance): Quest giver with lore about the mines, not recruitable, not merchant
 
 ## Tests
 
 ### File: `tests/test_world.py` (add to TestCreateDefaultWorld)
 
-1. **test_default_world_has_12_locations** - Update count from 9 to 12
-2. **test_default_world_millbrook_village_exists** - Village in world dict
-3. **test_default_world_millbrook_village_is_overworld** - `is_overworld=True`, `is_safe_zone=True`, `sub_locations` length, `entry_point`
-4. **test_default_world_millbrook_village_sub_locations_exist** - All 3 sub-locations in world
-5. **test_default_world_millbrook_village_sub_locations_have_parent** - `parent_location="Millbrook Village"`, `is_safe_zone=True`
-6. **test_default_world_millbrook_village_sub_locations_no_cardinal_exits** - Empty `connections`
-7. **test_default_world_millbrook_village_connections** - `east->Town Square`
-8. **test_default_world_town_square_has_west_connection** - `west->Millbrook Village`
-9. **test_default_world_elder_in_village_square** - Elder NPC exists
-10. **test_default_world_innkeeper_in_inn** - Innkeeper NPC, `is_recruitable=True`
-11. **test_default_world_blacksmith_in_blacksmith** - Blacksmith NPC, `is_merchant=True`
+1. **test_default_world_location_count_with_sublocations** - Update from 13 to 17 (4 new)
+2. **test_default_world_abandoned_mines_exists** - Mines in world dict
+3. **test_default_world_abandoned_mines_is_overworld** - `is_overworld=True`, `is_safe_zone=False`, `sub_locations` length=4, `entry_point="Mine Entrance"`
+4. **test_default_world_abandoned_mines_sub_locations_exist** - All 4 sub-locations in world
+5. **test_default_world_abandoned_mines_sub_locations_have_parent** - `parent_location="Abandoned Mines"`, `is_safe_zone=False`
+6. **test_default_world_abandoned_mines_sub_locations_have_dungeon_category** - `category="dungeon"`
+7. **test_default_world_abandoned_mines_sub_locations_no_cardinal_exits** - Empty `connections`
+8. **test_default_world_abandoned_mines_connections** - `south->Cave`
+9. **test_default_world_cave_has_north_connection** - `north->Abandoned Mines`
+10. **test_default_world_old_miner_in_mine_entrance** - Old Miner NPC exists
 
 ## Implementation Steps
 
 ### Step 1: Write tests first
 **File: `tests/test_world.py`**
-- Update `test_default_world_location_count_with_sublocations` from 9 to 12
-- Add 10 new test methods for Millbrook Village
+- Update `test_default_world_location_count_with_sublocations` from 13 to 17
+- Add 9 new test methods for Abandoned Mines
 
-### Step 2: Add Millbrook Village to world.py
+### Step 2: Add Abandoned Mines to world.py
 **File: `src/cli_rpg/world.py`**
 
-1. Create Millbrook Village Location (~line 170, after Forest):
+1. Create Abandoned Mines Location (~line 180, after Millbrook):
 ```python
-millbrook = Location(
-    name="Millbrook Village",
-    description="A small rural village surrounded by wheat fields. Smoke rises from cottage chimneys, and the sound of a blacksmith's hammer echoes through the air.",
+abandoned_mines = Location(
+    name="Abandoned Mines",
+    description="A dark entrance yawns in the hillside, wooden beams rotting at the threshold. The clang of pickaxes once echoed here, but now only silence and the occasional rumble from deep below.",
     is_overworld=True,
-    is_safe_zone=True,
-    sub_locations=["Village Square", "Inn", "Blacksmith"],
-    entry_point="Village Square"
+    is_safe_zone=False,  # Danger zone
+    category="dungeon",
+    sub_locations=["Mine Entrance", "Upper Tunnels", "Flooded Level", "Boss Chamber"],
+    entry_point="Mine Entrance"
 )
 ```
 
-2. Add to grid at (-1, 0) - west of Town Square (~line 183):
+2. Add to grid at (1, 1) - north of Cave (~line 197):
 ```python
-grid.add_location(millbrook, -1, 0)
+grid.add_location(abandoned_mines, 1, 1)
 ```
 
-3. Create NPCs (~line 241, after Guard NPC):
+3. Create Old Miner NPC (~line 325, after Blacksmith NPC):
 ```python
-# Elder NPC
-elder = NPC(
-    name="Elder",
-    description="A wise old woman who has lived in Millbrook all her life",
-    dialogue="The old ways are not forgotten here, traveler.",
-    greetings=[...]
-)
-
-# Innkeeper NPC
-innkeeper = NPC(
-    name="Innkeeper",
-    description="A jovial man with a hearty laugh who runs the village inn",
-    dialogue="Rest your weary bones, friend!",
-    is_recruitable=True,
-    greetings=[...]
-)
-
-# Blacksmith NPC with shop
-blacksmith_shop = Shop(name="Village Smithy", inventory=[...])
-blacksmith = NPC(
-    name="Blacksmith",
-    description="A muscular woman covered in soot, working the forge",
-    dialogue="Looking for steel? You've come to the right place.",
-    is_merchant=True,
-    shop=blacksmith_shop,
-    greetings=[...]
+old_miner = NPC(
+    name="Old Miner",
+    description="A grizzled old man with coal-stained hands and haunted eyes",
+    dialogue="These mines... they took everything from us. Something woke up down there.",
+    greetings=[
+        "These mines... they took everything from us. Something woke up down there.",
+        "You're not thinking of going deeper, are you? Foolish...",
+        "I was the last one out. I still hear the screams some nights.",
+    ]
 )
 ```
 
-4. Create sub-locations (~line 300, after Forest sub-locations):
+4. Create sub-locations (~line 430, after Blacksmith sub-location):
 ```python
-village_square = Location(
-    name="Village Square",
-    description="A humble village square with a weathered wooden well at its center. Villagers go about their daily routines.",
-    parent_location="Millbrook Village",
-    is_safe_zone=True,
+mine_entrance = Location(
+    name="Mine Entrance",
+    description="The first chamber inside the mines. Abandoned mining equipment rusts in the corners, and old torches hang unlit on the walls. A cold draft blows from deeper within.",
+    parent_location="Abandoned Mines",
+    is_safe_zone=False,
+    category="dungeon",
     connections={}
 )
-village_square.npcs.append(elder)
+mine_entrance.npcs.append(old_miner)
 
-inn = Location(
-    name="Inn",
-    description="A cozy inn with a roaring fireplace. The smell of fresh bread and ale fills the air.",
-    parent_location="Millbrook Village",
-    is_safe_zone=True,
+upper_tunnels = Location(
+    name="Upper Tunnels",
+    description="Narrow passages carved through solid rock. The ceiling is low, and the walls are marked with old chisel strikes. Occasional cave-ins have blocked some paths.",
+    parent_location="Abandoned Mines",
+    is_safe_zone=False,
+    category="dungeon",
     connections={}
 )
-inn.npcs.append(innkeeper)
 
-blacksmith_loc = Location(
-    name="Blacksmith",
-    description="A hot, smoky workshop filled with weapons, armor, and tools. The forge glows orange.",
-    parent_location="Millbrook Village",
-    is_safe_zone=True,
+flooded_level = Location(
+    name="Flooded Level",
+    description="The lower tunnels have flooded with dark, stagnant water. Wooden walkways float precariously, and the sound of dripping echoes endlessly. Something moves beneath the surface.",
+    parent_location="Abandoned Mines",
+    is_safe_zone=False,
+    category="dungeon",
     connections={}
 )
-blacksmith_loc.npcs.append(blacksmith)
+
+boss_chamber = Location(
+    name="Boss Chamber",
+    description="A vast natural cavern at the deepest point of the mines. Ancient crystals embedded in the walls give off an eerie glow. The bones of unlucky miners litter the ground.",
+    parent_location="Abandoned Mines",
+    is_safe_zone=False,
+    category="dungeon",
+    connections={}
+)
 ```
 
-5. Add sub-locations to world dict (~line 320):
+5. Add sub-locations to world dict (~line 435):
 ```python
-world["Village Square"] = village_square
-world["Inn"] = inn
-world["Blacksmith"] = blacksmith_loc
+world["Mine Entrance"] = mine_entrance
+world["Upper Tunnels"] = upper_tunnels
+world["Flooded Level"] = flooded_level
+world["Boss Chamber"] = boss_chamber
 ```
 
 ### Step 3: Run tests

@@ -412,7 +412,7 @@ Your vision fades... but this is not the end.
 ---
 
 ### OVERWORLD & SUB-LOCATION REWORK - Hierarchical World System
-**Status**: IN PROGRESS (Core Infrastructure Complete, 1 BLOCKER remaining)
+**Status**: IN PROGRESS (Core Infrastructure Complete, Dungeon Hierarchy Validated)
 
 **Problem**: The current flat world grid doesn't support meaningful world structure. Players wander an endless grid with random combat everywhere. There's no sense of safe havens, no cities to explore internally, no dungeons with depth.
 
@@ -435,8 +435,14 @@ Your vision fades... but this is not the end.
   - 3 sub-locations: Forest Edge, Deep Woods, Ancient Grove
   - All sub-locations have `parent_location="Forest"`, `is_safe_zone=False`, `category="forest"`
   - Hermit NPC in Ancient Grove (`is_recruitable=True`)
+- ✅ **Abandoned Mines dungeon** (IMPLEMENTED): First dungeon with hierarchical sub-locations:
+  - Abandoned Mines at (1, 1) with `is_overworld=True`, `is_safe_zone=False`, `category="dungeon"`
+  - 4 sub-locations: Mine Entrance (entry point), Upper Tunnels, Flooded Level, Boss Chamber
+  - All sub-locations have `parent_location="Abandoned Mines"`, `is_safe_zone=False`, `category="dungeon"`
+  - Old Miner NPC in Mine Entrance (quest giver)
+  - Connected south to Cave, west to Forest via grid system
 
-**🚧 BLOCKERS - Must Fix Before Feature Complete**:
+**🚧 FUTURE ENHANCEMENTS**:
 
 1. ~~**BLOCKER: AI World Generation Ignores Hierarchy (CRITICAL)**~~ ✅ RESOLVED
    - **File**: `src/cli_rpg/ai_world.py`
@@ -448,12 +454,12 @@ Your vision fades... but this is not the end.
      - `expand_area()` properly sets parent-child relationships for sub-locations
    - **Tests**: 26 tests in `tests/test_ai_world_hierarchy.py`
 
-2. **BLOCKER: No Dungeon Depth/Floor System (DESIGN GAP)**
-   - **Problem**: Cannot create multi-floor dungeons (Mine Entrance → Upper Tunnels → Boss Chamber)
-   - **Impact**: Dungeons are flat, no vertical navigation
-   - **Required fix**: Add `depth` field to Location, implement `up`/`down` navigation
+2. **ENHANCEMENT: Vertical Dungeon Navigation (DESIGN GAP)**
+   - **Problem**: No `up`/`down` commands for multi-floor vertical dungeons
+   - **Current state**: Dungeons work with horizontal sub-location hierarchy (Abandoned Mines implemented with 4 sub-locations using `enter`/`exit`)
+   - **Future enhancement**: Add `depth` field to Location, implement `up`/`down` navigation for vertical dungeons
    - **Effort**: 8-12 hours (future milestone)
-   - **Status**: Deferred - complete horizontal hierarchy first
+   - **Status**: Deferred - horizontal hierarchy sufficient for current content
 
 **Remaining Architecture**:
 
@@ -481,8 +487,8 @@ OVERWORLD (macro map)
   │     ├── Slums
   │     └── Temple Quarter
   │
-  └── ⛏️ Abandoned Mines (DUNGEON)
-        ├── Mine Entrance
+  └── ✅ ⛏️ Abandoned Mines (DUNGEON) - IMPLEMENTED
+        ├── Mine Entrance (with Old Miner NPC)
         ├── Upper Tunnels
         ├── Flooded Level
         └── Boss Chamber
@@ -1103,6 +1109,43 @@ The issue also affects location ASCII art like "Cybernetic Tundra" where the fir
 - `src/cli_rpg/ai_service.py` - AI response parsing
 - `src/cli_rpg/location_art.py` - Location art templates
 - `src/cli_rpg/npc_art.py` - NPC/enemy art templates
+
+### Sub-locations not shown in look command output
+**Status**: ACTIVE
+
+**Description**: When a player uses the `look` command at a location with sub-locations (like Town Square), the output only shows directional exits (e.g., "Exits: east, north, west") but does NOT show available sub-locations that can be entered.
+
+**Steps to Reproduce**:
+1. Start a new game with `--skip-character-creation`
+2. At Town Square, type `look` multiple times
+3. Observe output only shows "Exits: east, north, west"
+4. Type `enter` - suddenly you're in "Market District"
+
+**Expected Behavior**: The `look` command should display available sub-locations, e.g.:
+```
+Town Square
+A bustling town square with a fountain in the center. Pathways lead to various districts.
+Exits: east, north, west
+Sub-locations: Market District
+```
+
+Or alternatively:
+```
+Exits: east, north, west
+Enter: Market District
+```
+
+**Actual Behavior**: No indication that sub-locations exist. The description mentions "Pathways lead to various districts" but this is flavor text, not actionable information. Users have no way to discover that `enter` works or what locations they can enter.
+
+**Impact**:
+- Users may never discover the `enter` command works
+- Users cannot make informed decisions about which sub-location to enter
+- The `map` and `worldmap` commands also don't show sub-locations
+- Breaks discoverability of hierarchical world content
+
+**Files to fix**:
+- `src/cli_rpg/game_state.py` - `look` command should include sub-location list
+- `src/cli_rpg/map_renderer.py` - Consider showing sub-locations in map output
 
 ### Map locations all use same symbol - impossible to distinguish
 **Status**: RESOLVED

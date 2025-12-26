@@ -45,12 +45,12 @@ class TestCreateDefaultWorld:
         assert starting_location in world
     
     def test_default_world_location_count_with_sublocations(self):
-        """Test that default world has 13 locations: 4 overworld + 3 Town sub + 3 Forest sub + 3 Millbrook sub.
+        """Test that default world has 18 locations: 5 overworld + 3 Town sub + 3 Forest sub + 3 Millbrook sub + 4 Mines sub.
 
-        Spec: World has 13 locations total (4 main + 3 Town sub-locations + 3 Forest sub-locations + 3 Millbrook sub-locations)
+        Spec: World has 18 locations total (5 main + 3 Town sub-locations + 3 Forest sub-locations + 3 Millbrook sub-locations + 4 Mines sub-locations)
         """
         world, _ = create_default_world()
-        assert len(world) == 13
+        assert len(world) == 18
     
     def test_default_world_location_names(self):
         """Test that default world has correct location names.
@@ -284,6 +284,100 @@ class TestCreateDefaultWorld:
         blacksmith = blacksmith_loc.find_npc_by_name("Blacksmith")
         assert blacksmith is not None
         assert blacksmith.is_merchant is True
+
+    # Abandoned Mines hierarchical dungeon tests
+
+    def test_default_world_abandoned_mines_exists(self):
+        """Abandoned Mines exists in world dict.
+
+        Spec: Abandoned Mines is a location in the default world
+        """
+        world, _ = create_default_world()
+        assert "Abandoned Mines" in world
+
+    def test_default_world_abandoned_mines_is_overworld(self):
+        """Abandoned Mines is an overworld dungeon with sub-locations.
+
+        Spec: Abandoned Mines is overworld danger zone with 4 sub-locations
+        """
+        world, _ = create_default_world()
+        mines = world["Abandoned Mines"]
+        assert mines.is_overworld is True
+        assert mines.is_safe_zone is False  # Danger zone
+        assert len(mines.sub_locations) == 4
+        assert mines.entry_point == "Mine Entrance"
+
+    def test_default_world_abandoned_mines_sub_locations_exist(self):
+        """All Abandoned Mines sub-locations exist in world dict.
+
+        Spec: Sub-locations listed in abandoned_mines.sub_locations are in world
+        """
+        world, _ = create_default_world()
+        mines = world["Abandoned Mines"]
+        for sub_name in mines.sub_locations:
+            assert sub_name in world, f"Sub-location '{sub_name}' not in world"
+
+    def test_default_world_abandoned_mines_sub_locations_have_parent(self):
+        """Abandoned Mines sub-locations reference Abandoned Mines as parent and are danger zones.
+
+        Spec: Each sub-location has parent_location="Abandoned Mines" and is_safe_zone=False
+        """
+        world, _ = create_default_world()
+        mines = world["Abandoned Mines"]
+        for sub_name in mines.sub_locations:
+            sub = world[sub_name]
+            assert sub.parent_location == "Abandoned Mines"
+            assert sub.is_safe_zone is False  # All danger zones
+
+    def test_default_world_abandoned_mines_sub_locations_have_dungeon_category(self):
+        """Abandoned Mines sub-locations have category="dungeon".
+
+        Spec: All Mines sub-locations have category="dungeon"
+        """
+        world, _ = create_default_world()
+        mines = world["Abandoned Mines"]
+        for sub_name in mines.sub_locations:
+            sub = world[sub_name]
+            assert sub.category == "dungeon"
+
+    def test_default_world_abandoned_mines_sub_locations_no_cardinal_exits(self):
+        """Abandoned Mines sub-locations have no n/s/e/w exits (only enter/exit).
+
+        Spec: Mines sub-locations have no cardinal connections
+        """
+        world, _ = create_default_world()
+        mines = world["Abandoned Mines"]
+        for sub_name in mines.sub_locations:
+            sub = world[sub_name]
+            assert len(sub.connections) == 0
+
+    def test_default_world_abandoned_mines_connections(self):
+        """Abandoned Mines has south connection to Cave.
+
+        Spec: Abandoned Mines has south->Cave
+        """
+        world, _ = create_default_world()
+        mines = world["Abandoned Mines"]
+        assert mines.get_connection("south") == "Cave"
+
+    def test_default_world_cave_has_north_connection(self):
+        """Cave has north connection to Abandoned Mines.
+
+        Spec: Cave has north->Abandoned Mines
+        """
+        world, _ = create_default_world()
+        cave = world["Cave"]
+        assert cave.get_connection("north") == "Abandoned Mines"
+
+    def test_default_world_old_miner_in_mine_entrance(self):
+        """Old Miner NPC is in Mine Entrance.
+
+        Spec: Old Miner NPC exists in Mine Entrance sub-location
+        """
+        world, _ = create_default_world()
+        mine_entrance = world["Mine Entrance"]
+        old_miner = mine_entrance.find_npc_by_name("Old Miner")
+        assert old_miner is not None
 
     def test_default_world_all_valid_locations(self):
         """Test that all values in world dict are Location instances.
