@@ -233,7 +233,19 @@ def check_for_random_encounter(game_state: "GameState") -> Optional[str]:
     # Don't trigger in safe zones (towns, villages, etc.)
     location = game_state.get_current_location()
     if location.is_safe_zone:
+        game_state.is_sneaking = False  # Clear sneaking in safe zones
         return None
+
+    # Check sneaking mode (Rogue exploration sneak)
+    if game_state.is_sneaking:
+        from cli_rpg.game_state import calculate_sneak_success_chance
+        success_chance = calculate_sneak_success_chance(game_state.current_character)
+        game_state.is_sneaking = False  # Clear after check (consumed on move)
+
+        if random.random() * 100 < success_chance:
+            # Successfully avoided potential encounter
+            return None
+        # Sneak failed - continue with normal encounter check
 
     # Roll for encounter
     if random.random() > RANDOM_ENCOUNTER_CHANCE:

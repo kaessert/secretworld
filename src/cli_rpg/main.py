@@ -40,6 +40,7 @@ def get_command_reference() -> str:
         "  open (o) <chest>   - Open an unlocked chest",
         "  search (sr)        - Search the area for hidden secrets (PER-based)",
         "  track (tr)         - Track enemies in adjacent areas (Ranger only)",
+        "  sneak (sn)         - Move stealthily to avoid encounters (Rogue only, 10 stamina)",
         "  talk (t) <npc>     - Talk to an NPC (then chat freely, 'bye' to leave)",
         "  accept <quest>     - Accept a quest from the current NPC",
         "  complete <quest>   - Turn in a completed quest to the current NPC",
@@ -1032,6 +1033,26 @@ def handle_exploration_command(game_state: GameState, command: str, args: list[s
         from cli_rpg.ranger import execute_track
         success, message = execute_track(game_state)
         return (True, f"\n{message}")
+
+    elif command == "sneak":
+        # Exploration sneak for Rogues (separate from combat sneak)
+        from cli_rpg.models.character import CharacterClass
+        from cli_rpg.game_state import calculate_sneak_success_chance
+
+        # Rogue-only check
+        if game_state.current_character.character_class != CharacterClass.ROGUE:
+            return (True, "\nOnly Rogues can sneak past encounters!")
+
+        # Stamina check (10 stamina cost)
+        if not game_state.current_character.use_stamina(10):
+            stamina = game_state.current_character.stamina
+            max_stamina = game_state.current_character.max_stamina
+            return (True, f"\nNot enough stamina to sneak! ({stamina}/{max_stamina})")
+
+        # Enable sneaking mode
+        game_state.is_sneaking = True
+        success_chance = calculate_sneak_success_chance(game_state.current_character)
+        return (True, f"\nYou move carefully into the shadows... ({success_chance}% chance to avoid encounters on next move)")
 
     elif command == "stance":
         # Handle stance command - works in and out of combat

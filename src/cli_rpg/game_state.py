@@ -162,6 +162,33 @@ def parse_command(command_str: str) -> tuple[str, list[str]]:
     return (command, args)
 
 
+def calculate_sneak_success_chance(character: "Character") -> int:
+    """Calculate sneak success percentage for exploration.
+
+    Formula: 50% + (DEX * 2%) - (armor defense * 5%) - (15% if lit)
+    Capped between 10% and 90%.
+
+    Args:
+        character: The player character
+
+    Returns:
+        Success chance as integer percentage (10-90)
+    """
+    base_chance = 50
+    dex_bonus = character.dexterity * 2
+
+    # Armor penalty
+    armor_penalty = 0
+    if character.inventory.equipped_armor:
+        armor_penalty = character.inventory.equipped_armor.defense_bonus * 5
+
+    # Light penalty
+    light_penalty = 15 if character.light_remaining > 0 else 0
+
+    total = base_chance + dex_bonus - armor_penalty - light_penalty
+    return max(10, min(90, total))
+
+
 class GameState:
     """Manages the current game state including character, location, and world.
     
@@ -231,6 +258,7 @@ class GameState:
         self.haggle_bonus: float = 0.0  # Active haggle bonus (reset after one transaction)
         self.forage_cooldown: int = 0  # Forage command cooldown in hours
         self.hunt_cooldown: int = 0  # Hunt command cooldown in hours
+        self.is_sneaking: bool = False  # Rogue exploration sneak mode
 
     @property
     def is_in_conversation(self) -> bool:
@@ -414,10 +442,12 @@ class GameState:
         # Check if direction is valid (north, south, east, west)
         valid_game_directions = {"north", "south", "east", "west"}
         if direction not in valid_game_directions:
+            self.is_sneaking = False  # Clear sneaking mode on any move attempt
             return (False, "Invalid direction. Use: north, south, east, or west.")
 
         # Block movement if no connection exists in that direction
         if not current.has_connection(direction):
+            self.is_sneaking = False  # Clear sneaking mode on any move attempt
             return (False, "You can't go that way.")
 
         # Track if AI generation was attempted but failed (to inform player)
@@ -483,10 +513,12 @@ class GameState:
                         self.current_location = new_location.name
                     except Exception as e:
                         logger.error(f"Fallback location generation also failed: {e}")
+                        self.is_sneaking = False  # Clear sneaking mode on any move attempt
                         return (False, "The path is blocked by an impassable barrier.")
         else:
             # Legacy fallback: use connection-based movement
             if not current.has_connection(direction):
+                self.is_sneaking = False  # Clear sneaking mode on any move attempt
                 return (False, "You can't go that way.")
 
             destination_name = current.get_connection(direction)
@@ -509,11 +541,14 @@ class GameState:
                     except Exception as e:
                         # Log error for debugging but don't expose to player
                         logger.warning(f"AI location generation failed: {e}")
+                        self.is_sneaking = False  # Clear sneaking mode on any move attempt
                         return (False, "The path is blocked by an impassable barrier.")
                 else:
+                    self.is_sneaking = False  # Clear sneaking mode on any move attempt
                     return (False, "The path is blocked by an impassable barrier.")
 
             if destination_name is None:
+                self.is_sneaking = False  # Clear sneaking mode on any move attempt
                 return (False, "Failed to determine destination.")
             self.current_location = destination_name
 

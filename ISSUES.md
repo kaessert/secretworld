@@ -753,7 +753,7 @@ Player decisions should have lasting impact on the world and story.
 **Future enhancements** (class-specific abilities):
 - **Warrior**: ✅ `bash` command MVP IMPLEMENTED (shield bash costs 15 stamina, deals 0.75x damage, stuns target for 1 turn); Future: unlocks heavy armor
 - **Mage**: ✅ `fireball` command MVP IMPLEMENTED (costs 20 mana, INT × 2.5 damage ignores defense, 25% Burn chance); ✅ `ice_bolt` command MVP IMPLEMENTED (costs 15 mana, INT × 2.0 damage ignores defense, 30% Freeze chance); ✅ `heal` command MVP IMPLEMENTED (costs 25 mana, restores INT × 2 HP); Future: weak armor restrictions
-- **Rogue**: ✅ `sneak` command MVP IMPLEMENTED (stealth mode in combat, 1.5x backstab damage, DEX-based dodge while stealthed); ✅ `pick` command MVP IMPLEMENTED (lockpicking for treasure chests); Future: `sneak` past encounters
+- **Rogue**: ✅ `sneak` command MVP IMPLEMENTED (stealth mode in combat, 1.5x backstab damage, DEX-based dodge while stealthed); ✅ `sneak` exploration MVP IMPLEMENTED (avoid random encounters, costs 10 stamina, success based on DEX/armor/light); ✅ `pick` command MVP IMPLEMENTED (lockpicking for treasure chests)
 - **Ranger**: ✅ `track` command MVP IMPLEMENTED (costs 10 stamina, detects enemies in adjacent locations, success rate 50% + 3% per PER); ✅ wilderness damage bonus MVP IMPLEMENTED (+15% attack damage in forest/wilderness locations); Future: animal companion
 - **Cleric**: ✅ `bless` command MVP IMPLEMENTED (costs 20 mana, +25% attack buff for 3 turns to player and companions); ✅ `smite` command MVP IMPLEMENTED (costs 15 mana, INT×2.5 damage ignores defense, INT×5.0 vs undead, 30% stun chance on undead); Future: holy symbols
 
@@ -781,13 +781,12 @@ Player decisions should have lasting impact on the world and story.
 Let players avoid combat through cunning.
 
 **Implemented**:
-- ✅ `sneak` command for Rogues to enter stealth mode (costs 10 stamina, 1.5x backstab damage, DEX-based dodge)
+- ✅ `sneak` command for Rogues to enter stealth mode in combat (costs 10 stamina, 1.5x backstab damage, DEX-based dodge)
 - ✅ `hide` command in combat to become untargetable for 1 turn (costs 10 stamina, available to all classes)
+- ✅ `sneak` command for exploration (Rogue only, costs 10 stamina): Chance to avoid random encounters on next move. Success formula: 50% + (DEX × 2%) - (armor defense × 5%) - (15% if lit), capped 10-90%. Effect consumed on move.
 
 **Remaining features**:
-- `sneak` command to avoid encounters when exploring (based on DEX, armor weight, light level)
 - Enemies have perception stats - some are blind, some have keen senses
-- Heavy armor makes noise, light sources reveal you
 - Stealth kills grant bonus XP ("clean kill" bonus)
 
 ### Perception & secret discovery

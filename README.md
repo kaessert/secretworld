@@ -41,7 +41,7 @@ python -m cli_rpg.main
 2. Choose a character class (each provides stat bonuses):
    - **Warrior**: +3 STR, +1 DEX - melee combat specialists
    - **Mage**: +3 INT, +1 DEX - magic damage dealers
-   - **Rogue**: +3 DEX, +1 STR, +1 CHA, +2 PER, +2 LCK - agile fighters with stealth and backstab abilities
+   - **Rogue**: +3 DEX, +1 STR, +1 CHA, +2 PER, +2 LCK - agile fighters with stealth (combat and exploration), backstab, and lockpicking abilities
    - **Ranger**: +2 DEX, +1 STR, +1 INT, +1 PER, +1 LCK - wilderness specialists with tracking abilities and +15% damage in forest/wilderness
    - **Cleric**: +2 INT, +1 STR, +2 CHA - hybrid support class
 3. Choose your stat allocation method (manual or random)
@@ -94,6 +94,7 @@ python -m cli_rpg.main
 - `dismiss <name>` - Dismiss a companion from your party (requires confirmation; high-bond companions show warning)
 - `companion-quest <name>` - Accept a companion's personal quest (requires TRUSTED bond level)
 - `dump-state` - Export complete game state as JSON for programmatic inspection
+- `sneak` (sn) - **Rogue only**: Move stealthily to avoid random encounters (costs 10 stamina). Success chance: 50% + (DEX × 2%) - (armor defense × 5%) - (15% if lit), capped 10-90%. Effect consumed on next move.
 - `rest` (r) - Rest to recover health and stamina (restores 25% of max HP and 25% of max stamina, advances time by 4 hours, reduces dread, may trigger dreams; not available during combat)
 - `camp` (ca) - Set up camp in wilderness areas (requires Camping Supplies; heals 50% HP, reduces dread by 30-40, advances time 8 hours; campfire cooks raw meat and may attract friendly visitors)
 - `forage` (fg) - Search for herbs and berries (forest/wilderness only; PER-based success chance; 1-hour cooldown)
@@ -133,6 +134,8 @@ When moving between locations, you have a 15% chance to trigger a random encount
 Merchants and wanderers are added to your current location and can be interacted with normally.
 
 **Safe Zones**: Towns, villages, and other safe locations (marked as `is_safe_zone`) are protected from random encounters, allowing you to shop and rest without interruption.
+
+**Rogue Sneak**: Rogues can use the `sneak` command before moving to attempt to avoid random encounters. Success depends on DEX, armor weight, and whether carrying a light source.
 
 ### Combat System
 Combat encounters occur randomly as you explore. You may face multiple enemies at once (1-2 enemies at lower levels, up to 3 at level 4+). Enemies display ASCII art when combat begins.
