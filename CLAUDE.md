@@ -69,6 +69,7 @@ src/cli_rpg/
 ├── ranger.py            # Ranger class abilities (track command, wilderness bonus)
 ├── cleric.py            # Cleric class abilities (bless, smite commands)
 ├── faction_combat.py    # Faction reputation changes from combat outcomes
+├── faction_shop.py      # Faction-based shop price modifiers
 └── models/
     ├── character.py     # Player character model
     ├── dread.py         # Dread meter for psychological horror

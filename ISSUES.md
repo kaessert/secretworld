@@ -991,8 +991,17 @@ NPCs and towns should react to player's reputation and allegiances.
   - Killing affiliated enemies: +3 reputation with opposing faction (faction rivalries)
   - Reputation change messages displayed after combat victory
 
+- ✅ **Merchant Guild shop prices** (`src/cli_rpg/faction_shop.py`):
+  - HOSTILE (1-19): Merchants refuse to trade
+  - UNFRIENDLY (20-39): +15% buy / -15% sell prices
+  - NEUTRAL (40-59): No modifier
+  - FRIENDLY (60-79): -10% buy / +10% sell prices
+  - HONORED (80-100): -20% buy / +20% sell prices
+  - Modifiers stack multiplicatively with CHA modifiers
+  - 28 tests in `tests/test_faction_shop_prices.py`
+
 **Remaining features**:
-- Reputation unlocks or blocks content (shops, quests, areas)
+- Additional faction-based content unlocks (quests, areas)
 - Additional faction conflicts and quest-based reputation changes
 - Titles and recognition based on achievements
 

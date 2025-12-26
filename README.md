@@ -274,6 +274,15 @@ Merchants can be found throughout the world. Interact with them to buy and sell 
 
 **Charisma Price Modifier**: Your Charisma stat affects shop prices. Higher CHA reduces buy prices and increases sell prices (±1% per point from 10).
 
+**Merchant Guild Reputation**: Your standing with the Merchant Guild faction affects shop prices:
+- **HOSTILE** (1-19): Merchants refuse to trade with you
+- **UNFRIENDLY** (20-39): +15% buy prices, -15% sell prices
+- **NEUTRAL** (40-59): Standard prices (no modifier)
+- **FRIENDLY** (60-79): -10% buy prices, +10% sell prices
+- **HONORED** (80-100): -20% buy prices, +20% sell prices
+
+Faction modifiers stack multiplicatively with CHA modifiers.
+
 ### Social Skills
 
 Use social skills to influence NPCs during conversations:

@@ -1315,8 +1315,26 @@ def handle_exploration_command(game_state: GameState, command: str, args: list[s
             if game_state.game_time.is_night() and not merchant.available_at_night:
                 return (True, "\nThe shop is closed for the night.")
             game_state.current_shop = merchant.shop
+        # Check faction reputation and show status message
+        from cli_rpg.faction_shop import (
+            get_faction_price_modifiers,
+            get_merchant_guild_faction,
+            get_faction_price_message,
+        )
+        faction_buy_mod, faction_sell_mod, trade_refused = get_faction_price_modifiers(
+            game_state.factions
+        )
+        if trade_refused:
+            return (True, "\nThe merchants eye you with hostility and refuse to serve you.")
         shop = game_state.current_shop
         lines = [f"\n=== {shop.name} ===", f"Your gold: {game_state.current_character.gold}", ""]
+        # Add reputation status message if not neutral
+        merchant_guild = get_merchant_guild_faction(game_state.factions)
+        if merchant_guild is not None:
+            rep_message = get_faction_price_message(merchant_guild.get_reputation_level())
+            if rep_message:
+                lines.append(rep_message)
+                lines.append("")
         for si in shop.inventory:
             lines.append(f"  {si.item.name} - {si.buy_price} gold")
         return (True, "\n".join(lines))
@@ -1324,6 +1342,13 @@ def handle_exploration_command(game_state: GameState, command: str, args: list[s
     elif command == "buy":
         if game_state.current_shop is None:
             return (True, "\nYou're not at a shop. Talk to a merchant first.")
+        # Check faction reputation before allowing purchase
+        from cli_rpg.faction_shop import get_faction_price_modifiers
+        faction_buy_mod, faction_sell_mod, trade_refused = get_faction_price_modifiers(
+            game_state.factions
+        )
+        if trade_refused:
+            return (True, "\nThe merchants refuse to trade with you due to your poor reputation.")
         if not args:
             return (True, "\nBuy what? Specify an item name.")
         item_name = " ".join(args)
@@ -1344,6 +1369,9 @@ def handle_exploration_command(game_state: GameState, command: str, args: list[s
         from cli_rpg.social_skills import get_cha_price_modifier
         cha_modifier = get_cha_price_modifier(game_state.current_character.charisma)
         final_price = int(shop_item.buy_price * cha_modifier)
+        # Apply faction reputation modifier
+        if faction_buy_mod is not None:
+            final_price = int(final_price * faction_buy_mod)
         # Apply 20% persuade discount if NPC was persuaded
         if game_state.current_npc and game_state.current_npc.persuaded:
             final_price = int(final_price * 0.8)
@@ -1378,6 +1406,13 @@ def handle_exploration_command(game_state: GameState, command: str, args: list[s
     elif command == "sell":
         if game_state.current_shop is None:
             return (True, "\nYou're not at a shop. Talk to a merchant first.")
+        # Check faction reputation before allowing sale
+        from cli_rpg.faction_shop import get_faction_price_modifiers
+        faction_buy_mod, faction_sell_mod, trade_refused = get_faction_price_modifiers(
+            game_state.factions
+        )
+        if trade_refused:
+            return (True, "\nThe merchants refuse to trade with you due to your poor reputation.")
         if not args:
             return (True, "\nSell what? Specify an item name.")
         item_name = " ".join(args)
@@ -1404,6 +1439,9 @@ def handle_exploration_command(game_state: GameState, command: str, args: list[s
         base_sell_price = 10 + (item.damage_bonus + item.defense_bonus + item.heal_amount) * 2
         cha_modifier = get_cha_sell_modifier(game_state.current_character.charisma)
         sell_price = int(base_sell_price * cha_modifier)
+        # Apply faction reputation modifier
+        if faction_sell_mod is not None:
+            sell_price = int(sell_price * faction_sell_mod)
         # Apply haggle bonus if active
         if game_state.haggle_bonus > 0:
             sell_price = int(sell_price * (1 + game_state.haggle_bonus))

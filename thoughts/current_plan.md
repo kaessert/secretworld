@@ -1,94 +1,106 @@
-# Implementation Plan: Faction Reputation Consequences for Combat
+# Implementation Plan: Faction Reputation Effects on Shop Prices
 
 ## Spec
 
-Wire faction reputation changes into combat outcomes. When the player defeats enemies affiliated with a faction, their reputation with that faction decreases, while reputation with opposing factions increases.
+Make faction reputation meaningful for trading by applying price modifiers based on the player's standing with the **Merchant Guild** faction:
 
-**Design:**
-- Add `faction_affiliation: Optional[str]` field to Enemy model (name matches a faction)
-- Create `FACTION_ENEMIES` mapping: enemy name patterns → faction affiliations
-- Create `FACTION_RIVALRIES` mapping: when a faction enemy is killed, rival factions gain rep
-- On combat victory in `CombatEncounter.end_combat()`, apply reputation changes via GameState
-- Display reputation change messages to player
+| Reputation Level | Buy Price | Sell Price | Trade Allowed |
+|------------------|-----------|------------|---------------|
+| HOSTILE (1-19)   | N/A       | N/A        | **REFUSED**   |
+| UNFRIENDLY (20-39) | +15%    | -15%       | Yes           |
+| NEUTRAL (40-59)  | +0%       | +0%        | Yes           |
+| FRIENDLY (60-79) | -10%      | +10%       | Yes           |
+| HONORED (80-100) | -20%      | +20%       | Yes           |
 
-**Faction Mappings (MVP):**
-| Enemy Pattern | Affiliated Faction | Opposing Faction |
-|---------------|-------------------|------------------|
-| Bandit, Thief, Ruffian, Outlaw | Thieves Guild | Town Guard |
-| Guard, Soldier, Knight, Captain | Town Guard | Thieves Guild |
-
-**Reputation Changes:**
-- Kill affiliated enemy: -5 reputation with that faction
-- Kill affiliated enemy: +3 reputation with opposing faction
+**Design Decisions:**
+- Use **Merchant Guild** faction (already exists) as the sole faction affecting shop prices
+- Price modifiers stack with existing CHA, persuade, and haggle modifiers (applied last)
+- HOSTILE blocks all trading entirely (shops refuse service)
+- Messages explain reputation effects when relevant
 
 ## Tests First (TDD)
 
-### `tests/test_faction_combat.py`
+### `tests/test_faction_shop_prices.py`
 
-1. `TestEnemyFactionAffiliation`:
-   - `test_enemy_faction_affiliation_default_none`: Enemy has no faction by default
-   - `test_enemy_faction_affiliation_set`: Can set faction_affiliation on Enemy
-   - `test_enemy_faction_affiliation_serialization`: Faction persists through to_dict/from_dict
+1. `TestGetFactionPriceModifiers`:
+   - `test_hostile_buy_modifier_refuses`: HOSTILE returns (None, None, refused=True)
+   - `test_unfriendly_buy_modifier`: UNFRIENDLY returns 1.15 buy, 0.85 sell
+   - `test_neutral_no_modifier`: NEUTRAL returns 1.0, 1.0
+   - `test_friendly_discount`: FRIENDLY returns 0.90 buy, 1.10 sell
+   - `test_honored_discount`: HONORED returns 0.80 buy, 1.20 sell
 
-2. `TestFactionEnemyMapping`:
-   - `test_get_enemy_faction_bandit`: Returns "Thieves Guild" for bandit-type enemies
-   - `test_get_enemy_faction_guard`: Returns "Town Guard" for guard-type enemies
-   - `test_get_enemy_faction_none`: Returns None for unaffiliated enemies (e.g., "Goblin")
+2. `TestBuyCommandWithFactionReputation`:
+   - `test_buy_hostile_faction_refuses_trade`: HOSTILE rep blocks buy command
+   - `test_buy_unfriendly_pays_premium`: UNFRIENDLY pays 15% more
+   - `test_buy_friendly_gets_discount`: FRIENDLY pays 10% less
+   - `test_buy_honored_gets_best_discount`: HONORED pays 20% less
+   - `test_buy_stacks_with_cha_modifier`: Faction + CHA modifiers stack correctly
 
-3. `TestCombatReputationChanges`:
-   - `test_combat_victory_reduces_faction_rep`: Killing bandit reduces Thieves Guild rep by 5
-   - `test_combat_victory_increases_rival_rep`: Killing bandit increases Town Guard rep by 3
-   - `test_combat_victory_no_faction_no_rep_change`: Killing unaffiliated enemy has no effect
-   - `test_combat_victory_displays_rep_messages`: Victory message includes rep change info
-   - `test_combat_victory_multiple_enemies`: Each affiliated enemy contributes rep changes
+3. `TestSellCommandWithFactionReputation`:
+   - `test_sell_hostile_faction_refuses_trade`: HOSTILE rep blocks sell command
+   - `test_sell_unfriendly_gets_less`: UNFRIENDLY receives 15% less gold
+   - `test_sell_friendly_gets_bonus`: FRIENDLY receives 10% more gold
+   - `test_sell_honored_gets_best_bonus`: HONORED receives 20% more gold
 
 ## Implementation Steps
 
-### Step 1: Add faction_affiliation to Enemy model
-**File:** `src/cli_rpg/models/enemy.py`
-- Add `faction_affiliation: Optional[str] = None` field
-- Update `to_dict()` to include `faction_affiliation`
-- Update `from_dict()` to restore `faction_affiliation`
+### Step 1: Create faction shop module
+**File:** `src/cli_rpg/faction_shop.py`
 
-### Step 2: Create faction combat module
-**File:** `src/cli_rpg/faction_combat.py`
-- Constants:
-  - `FACTION_REPUTATION_LOSS = 5` (killing affiliated enemy)
-  - `FACTION_REPUTATION_GAIN = 3` (rival faction bonus)
-- `FACTION_ENEMIES`: dict mapping enemy name patterns to faction names
-  ```python
-  FACTION_ENEMIES = {
-      "bandit": "Thieves Guild",
-      "thief": "Thieves Guild",
-      "ruffian": "Thieves Guild",
-      "outlaw": "Thieves Guild",
-      "guard": "Town Guard",
-      "soldier": "Town Guard",
-      "knight": "Town Guard",
-      "captain": "Town Guard",
-  }
-  ```
-- `FACTION_RIVALRIES`: dict mapping faction to its rival
-  ```python
-  FACTION_RIVALRIES = {
-      "Thieves Guild": "Town Guard",
-      "Town Guard": "Thieves Guild",
-  }
-  ```
-- `get_enemy_faction(enemy_name: str) -> Optional[str]`: Check enemy name against patterns
-- `apply_combat_reputation(game_state, enemies: list[Enemy]) -> list[str]`: Apply all rep changes
+```python
+"""Faction reputation effects on shop prices."""
+from typing import Optional, Tuple
+from cli_rpg.models.faction import Faction, ReputationLevel
 
-### Step 3: Wire into CombatEncounter.end_combat()
-**File:** `src/cli_rpg/combat.py`
-- Add optional `game_state` parameter to `CombatEncounter.__init__()` for faction access
-- In `end_combat(victory=True)`, after XP/loot:
-  - Import and call `apply_combat_reputation(self.game_state, self.enemies)`
-  - Append returned messages to victory output
-- Update `GameState.trigger_encounter()` to pass `game_state=self` to CombatEncounter
+# Price modifiers by reputation level (buy_modifier, sell_modifier)
+# Buy: <1.0 is discount, >1.0 is premium
+# Sell: <1.0 is penalty, >1.0 is bonus
+FACTION_PRICE_MODIFIERS = {
+    ReputationLevel.HOSTILE: (None, None),  # Trade refused
+    ReputationLevel.UNFRIENDLY: (1.15, 0.85),
+    ReputationLevel.NEUTRAL: (1.0, 1.0),
+    ReputationLevel.FRIENDLY: (0.90, 1.10),
+    ReputationLevel.HONORED: (0.80, 1.20),
+}
 
-### Step 4: Run tests and verify
+def get_merchant_guild_faction(factions: list[Faction]) -> Optional[Faction]:
+    """Find the Merchant Guild faction."""
+
+def get_faction_price_modifiers(factions: list[Faction]) -> Tuple[Optional[float], Optional[float], bool]:
+    """Get buy/sell modifiers and whether trade is refused."""
+
+def get_faction_price_message(level: ReputationLevel) -> str:
+    """Get a message describing the price effect (for display)."""
+```
+
+### Step 2: Integrate into buy command
+**File:** `src/cli_rpg/main.py` (buy command, ~line 1324)
+
+Before calculating final_price:
+1. Call `get_faction_price_modifiers(game_state.factions)`
+2. If trade_refused, return early with message: "The merchants refuse to trade with you due to your poor reputation."
+3. Otherwise, multiply final_price by buy_modifier after other modifiers
+
+### Step 3: Integrate into sell command
+**File:** `src/cli_rpg/main.py` (sell command, ~line 1378)
+
+Before calculating sell_price:
+1. Call `get_faction_price_modifiers(game_state.factions)`
+2. If trade_refused, return early with same refusal message
+3. Otherwise, multiply sell_price by sell_modifier after other modifiers
+
+### Step 4: Update shop display (optional enhancement)
+**File:** `src/cli_rpg/main.py` (shop command, ~line 1306)
+
+Add reputation status message if not NEUTRAL:
+- HOSTILE: "The merchants eye you with hostility and refuse to serve you."
+- UNFRIENDLY: "(Prices are 15% higher due to your reputation)"
+- FRIENDLY: "(You receive a 10% discount for your good standing)"
+- HONORED: "(You receive a 20% discount as an honored customer)"
+
+### Step 5: Run tests
 ```bash
-pytest tests/test_faction_combat.py -v
-pytest tests/test_faction.py -v
+pytest tests/test_faction_shop_prices.py -v
+pytest tests/test_shop_commands.py -v
 pytest --cov=src/cli_rpg --cov-report=term-missing
 ```
