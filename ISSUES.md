@@ -1,5 +1,517 @@
 ## Active Issues
 
+---
+---
+---
+
+# ⚠️⚠️⚠️ BLOCKING CRITICAL ⚠️⚠️⚠️
+# SUB-LOCATION GRID SYSTEM & WFC OVERWORLD
+# THIS IS THE MOST IMPORTANT ISSUE - DROP EVERYTHING ELSE
+
+---
+---
+---
+
+**Status**: 🚨 CRITICAL - MUST FIX IMMEDIATELY 🚨
+**Priority**: P0 - BLOCKS ALL OTHER WORK
+**Impact**: Game is fundamentally broken without this fix
+
+> **ALL OTHER ISSUES IN THIS FILE ARE LOWER PRIORITY THAN THIS ONE.**
+> **DO NOT WORK ON ANYTHING ELSE UNTIL THIS IS RESOLVED.**
+
+---
+
+## The Problem: Sub-locations are BROKEN
+
+AI-generated areas place sub-locations on the SAME grid as overworld locations. This is a **fundamental architectural bug** in `ai_world.py:667-668`.
+
+### What's happening:
+
+```python
+# ai_world.py line 667-668 - THE BUG
+for name, data in placed_locations.items():
+    world[name] = data["location"]  # ALL locations added to same grid!
+```
+
+### Observed symptoms:
+
+1. **`worldmap` shows only ONE location** when player is in AI-generated world
+2. **Sub-locations have grid coordinates** when they shouldn't
+3. **Cardinal movement bypasses enter/exit** - players can `go north` between what should be interior rooms
+4. **Complete confusion** between overworld and interior navigation
+
+### Evidence from actual gameplay:
+
+```
+> wm
+=== WORLD MAP ===
+┌────────────────────────────────────────┐
+│  6                █   @   █            │  ← ONLY ONE LOCATION!
+└────────────────────────────────────────┘
+Legend:
+  @ = You (Waveswept Beach)    ← Where are all the other locations?!
+  █ = Blocked/Wall
+Exits: north, south
+
+> m
+=== MAP ===
+┌────────────────────────────────────────┐
+│  8                █   F   C   █        │
+│  7                █   @   █            │  ← 7 LOCATIONS on same grid!
+│  6                █   E   █            │
+│  5                █   A   █            │
+│  4                █   B   █            │
+│  3                █   D   █            │
+└────────────────────────────────────────┘
+Legend:
+  D = Sunken Shipwreck
+  B = Kelp Forest
+  A = Crystal Caverns         ← These should be INTERIOR locations!
+  E = Waveswept Beach
+  @ = You (Mistral Cliffs)    ← This is a SUB-LOCATION with coords!
+  F = Whispering Coves
+  C = Sunken Grotto
+
+> exit
+You exit to Waveswept Beach.
+Enter: Mistral Cliffs, Whispering Coves, Sunken Grotto  ← They're sub-locations!
+```
+
+**This makes the game unplayable for exploration.**
+
+---
+
+## The Solution: Separate Sub-Location Grids
+
+### Architecture Overview
+
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│                         OVERWORLD GRID                              │
+│   Infinite, expandable, uses WFC for terrain generation            │
+│                                                                     │
+│   ┌───────────┐     ┌───────────┐     ┌───────────┐                │
+│   │  Forest   │─────│   Town    │─────│  Mountain │                │
+│   │  (0, 1)   │     │  (0, 0)   │     │  (1, 0)   │                │
+│   └─────┬─────┘     └─────┬─────┘     └─────┬─────┘                │
+│         │                 │                 │                       │
+│         │ enter           │ enter           │ enter                 │
+│         ▼                 ▼                 ▼                       │
+│   ┌───────────┐     ┌───────────┐     ┌───────────┐                │
+│   │ SUB-GRID  │     │ SUB-GRID  │     │ SUB-GRID  │                │
+│   │  Forest   │     │   Town    │     │   Cave    │                │
+│   │ Interior  │     │ Interior  │     │ Interior  │                │
+│   │           │     │           │     │           │                │
+│   │ Bounded   │     │ Bounded   │     │ Bounded   │                │
+│   │ Finite    │     │ Finite    │     │ Finite    │                │
+│   │ Own (0,0) │     │ Own (0,0) │     │ Own (0,0) │                │
+│   └───────────┘     └───────────┘     └───────────┘                │
+└─────────────────────────────────────────────────────────────────────┘
+```
+
+### Key Design Decisions
+
+| Decision | Choice | Rationale |
+|----------|--------|-----------|
+| Sub-location coordinates | Own (0,0) system | Entry point at origin, not polluting overworld |
+| Sub-location size | Finite, bounded | Not infinite like overworld - dungeons have walls |
+| Exit mechanism | Specific exit rooms | Only `is_exit_point=True` rooms allow `exit` command |
+| Map display | Context-aware | `map` shows current grid (overworld OR interior) |
+| Overworld display | Always available | `worldmap` always shows overworld, even from inside |
+| Overworld generation | Wave Function Collapse | Coherent terrain, infinite expansion via chunks |
+
+---
+
+## Implementation Plan
+
+### Part 1: SubGrid Class (`src/cli_rpg/world_grid.py`)
+
+Create a new `SubGrid` dataclass for bounded interior grids:
+
+```python
+@dataclass
+class SubGrid:
+    """Bounded grid for sub-location interiors.
+
+    Unlike WorldGrid which is infinite, SubGrid has defined bounds.
+    Entry is always at (0, 0).
+    """
+
+    _grid: Dict[Tuple[int, int], Location] = field(default_factory=dict)
+    _by_name: Dict[str, Location] = field(default_factory=dict)
+    bounds: Tuple[int, int, int, int] = (-2, 2, -2, 2)  # 5x5 default
+    parent_name: str = ""
+
+    def add_location(self, location: Location, x: int, y: int) -> None:
+        """Add location within bounds. Raises ValueError if outside."""
+        min_x, max_x, min_y, max_y = self.bounds
+        if not (min_x <= x <= max_x and min_y <= y <= max_y):
+            raise ValueError(f"Coordinates ({x}, {y}) outside bounds {self.bounds}")
+
+        location.coordinates = (x, y)
+        location.parent_location = self.parent_name
+        self._grid[(x, y)] = location
+        self._by_name[location.name] = location
+        self._create_connections(location, x, y)
+
+    def get_by_coordinates(self, x: int, y: int) -> Optional[Location]
+    def get_by_name(self, name: str) -> Optional[Location]
+    def is_within_bounds(self, x: int, y: int) -> bool
+    def to_dict(self) -> dict  # Serialization
+    def from_dict(cls, data: dict) -> "SubGrid"  # Deserialization
+```
+
+### Part 2: Location Model Updates (`src/cli_rpg/models/location.py`)
+
+Add two new fields:
+
+```python
+@dataclass
+class Location:
+    # ... existing fields ...
+
+    # NEW: Exit point marker
+    is_exit_point: bool = False  # Only these rooms allow 'exit' command
+
+    # NEW: Interior grid for landmarks
+    sub_grid: Optional["SubGrid"] = None  # Interior grid (overworld only)
+```
+
+Update `to_dict()` and `from_dict()` for serialization.
+
+### Part 3: GameState Updates (`src/cli_rpg/game_state.py`)
+
+Add sub-location tracking:
+
+```python
+class GameState:
+    def __init__(self, ...):
+        # ... existing init ...
+        self.in_sub_location: bool = False
+        self.current_sub_grid: Optional[SubGrid] = None
+```
+
+Update navigation methods:
+
+**`enter()` method (~line 665)**:
+```python
+def enter(self, target_name: Optional[str] = None) -> tuple[bool, str]:
+    current = self.get_current_location()
+
+    if current.sub_grid is not None:
+        # Use sub_grid-based entry
+        self.in_sub_location = True
+        self.current_sub_grid = current.sub_grid
+
+        # Entry point is at (0, 0) or use target_name
+        if target_name:
+            entry_loc = current.sub_grid.get_by_name(target_name)
+        else:
+            entry_loc = current.sub_grid.get_by_coordinates(0, 0)
+
+        self.current_location = entry_loc.name
+        # ... boss encounter check, etc.
+```
+
+**`exit_location()` method (~line 734)**:
+```python
+def exit_location(self) -> tuple[bool, str]:
+    current = self.get_current_location()
+
+    # CHECK: Must be at an exit point!
+    if self.in_sub_location and not current.is_exit_point:
+        return (False, "You cannot exit from here. Find an exit point.")
+
+    self.current_location = current.parent_location
+    self.in_sub_location = False
+    self.current_sub_grid = None
+```
+
+**`move()` method (~line 426)**:
+```python
+def move(self, direction: str) -> tuple[bool, str]:
+    current = self.get_current_location()
+
+    # Handle movement inside sub-location grid
+    if self.in_sub_location and self.current_sub_grid is not None:
+        return self._move_in_sub_grid(direction, current)
+
+    # ... existing overworld movement ...
+```
+
+### Part 4: Map Renderer Updates (`src/cli_rpg/map_renderer.py`)
+
+Add interior map rendering:
+
+```python
+def render_map(
+    world: dict[str, Location],
+    current_location: str,
+    sub_grid: Optional["SubGrid"] = None  # NEW parameter
+) -> str:
+    if sub_grid is not None:
+        return _render_sub_grid_map(sub_grid, current_location)
+    # ... existing overworld rendering ...
+
+def _render_sub_grid_map(sub_grid: "SubGrid", current_location: str) -> str:
+    """Render bounded interior map with exit markers."""
+    # Header: "=== INTERIOR MAP ==="
+    # Show bounded grid with E markers for exit points
+    # Legend includes exit point indicator
+```
+
+### Part 5: Fix AI World Generation (`src/cli_rpg/ai_world.py`)
+
+**FIX `expand_area()` (~line 472)**:
+
+```python
+def expand_area(...):
+    # Generate the area
+    area_data = ai_service.generate_area(...)
+
+    # Create SubGrid for interior - NOT on overworld!
+    sub_grid = SubGrid()
+    sub_grid.parent_name = from_location
+    sub_grid.bounds = (-3, 3, -3, 3)  # 7x7 for dungeons
+
+    for loc_data in area_data:
+        rel_x, rel_y = loc_data["relative_coords"]
+        is_entry = (rel_x == 0 and rel_y == 0)
+
+        if is_entry:
+            # Entry location goes on OVERWORLD at target_coords
+            entry_loc = Location(...)
+            entry_loc.is_exit_point = True
+            world[entry_loc.name] = entry_loc  # Only entry on overworld!
+        else:
+            # Interior locations go in sub_grid ONLY
+            interior_loc = Location(...)
+            interior_loc.is_exit_point = False
+            sub_grid.add_location(interior_loc, rel_x, rel_y)
+
+    # Attach sub_grid to entry
+    entry_loc.sub_grid = sub_grid
+```
+
+### Part 6: Convert Default World (`src/cli_rpg/world.py`)
+
+Convert existing sub-locations to use SubGrid:
+
+```python
+# Town Square interior
+town_square_grid = SubGrid()
+town_square_grid.parent_name = "Town Square"
+town_square_grid.bounds = (-1, 1, -1, 1)  # 3x3
+
+market_district = Location(name="Market District", ..., is_exit_point=True)
+town_square_grid.add_location(market_district, 0, 0)
+
+guard_post = Location(name="Guard Post", ..., is_exit_point=False)
+town_square_grid.add_location(guard_post, 1, 0)
+
+town_well = Location(name="Town Well", ..., is_exit_point=True)
+town_square_grid.add_location(town_well, 0, 1)
+
+town_square.sub_grid = town_square_grid
+```
+
+---
+
+## Part 2: Wave Function Collapse Overworld
+
+### New Files to Create
+
+| File | Purpose |
+|------|---------|
+| `src/cli_rpg/wfc.py` | Core WFC algorithm |
+| `src/cli_rpg/world_tiles.py` | Tile definitions and adjacency rules |
+| `src/cli_rpg/wfc_chunks.py` | Chunk manager for infinite world |
+
+### Tile Definitions (`world_tiles.py`)
+
+```python
+TERRAIN_TYPES = [
+    "forest", "mountain", "plains", "water",
+    "desert", "swamp", "hills", "beach", "foothills"
+]
+
+ADJACENCY_RULES = {
+    "forest": {"forest", "plains", "hills", "swamp"},
+    "mountain": {"mountain", "hills", "foothills"},
+    "plains": {"plains", "forest", "hills", "desert", "beach"},
+    "water": {"water", "beach", "swamp"},
+    "desert": {"desert", "plains", "hills"},
+    "swamp": {"swamp", "forest", "water"},
+    "hills": {"hills", "forest", "plains", "mountain", "foothills"},
+    "beach": {"beach", "water", "plains", "forest"},
+    "foothills": {"foothills", "hills", "mountain", "plains"},
+}
+
+TERRAIN_TO_LOCATIONS = {
+    "forest": ["ruins", "grove", "hermit_hut", "bandit_camp"],
+    "mountain": ["cave", "mine", "peak", "monastery"],
+    "plains": ["village", "farm", "crossroads", "tower"],
+    "water": [],  # Impassable
+    "desert": ["oasis", "tomb", "abandoned_outpost"],
+    "swamp": ["witch_hut", "sunken_ruins", "fishing_village"],
+    "hills": ["watchtower", "shepherd_camp", "ancient_stones"],
+    "beach": ["dock", "shipwreck", "lighthouse"],
+    "foothills": ["pass", "inn", "mining_camp"],
+}
+```
+
+### WFC Algorithm (`wfc.py`)
+
+```python
+@dataclass
+class WFCCell:
+    coords: Tuple[int, int]
+    possible_tiles: Set[str]  # Starts with ALL tiles
+    collapsed: bool = False
+    tile: Optional[str] = None
+
+class WFCGenerator:
+    def __init__(self, tile_registry: TileRegistry, seed: int):
+        self.tiles = tile_registry
+        self.rng = random.Random(seed)
+
+    def generate_chunk(self, origin: Tuple[int, int]) -> Dict[Tuple[int,int], str]:
+        """Generate 8x8 chunk of terrain tiles."""
+        # 1. Initialize all cells with all possible tiles
+        # 2. While uncollapsed cells exist:
+        #    a. Find cell with minimum entropy (fewest options)
+        #    b. Collapse it (pick random tile weighted by frequency)
+        #    c. Propagate constraints to neighbors
+        #    d. If contradiction, backtrack or restart
+        # 3. Return collapsed grid
+
+    def _calculate_entropy(self, cell: WFCCell) -> float:
+        """Shannon entropy for cell selection."""
+
+    def _collapse_cell(self, cell: WFCCell) -> str:
+        """Pick tile from possibilities using weighted random."""
+
+    def _propagate(self, chunk, collapsed_cell) -> bool:
+        """Remove invalid options from neighbors. Returns False on contradiction."""
+```
+
+### Chunk Manager (`wfc_chunks.py`)
+
+```python
+@dataclass
+class ChunkManager:
+    chunk_size: int = 8  # 8x8 tiles per chunk
+    chunks: Dict[Tuple[int, int], Dict] = field(default_factory=dict)
+    generator: WFCGenerator = None
+    world_seed: int = 0
+
+    def get_or_generate_chunk(self, chunk_x: int, chunk_y: int) -> Dict:
+        """Get cached chunk or generate new one."""
+        key = (chunk_x, chunk_y)
+        if key not in self.chunks:
+            # Derive deterministic seed from world seed + chunk coords
+            chunk_seed = hash((self.world_seed, chunk_x, chunk_y)) & 0xFFFFFFFF
+            self.chunks[key] = self.generator.generate_chunk(key)
+        return self.chunks[key]
+
+    def get_tile_at(self, world_x: int, world_y: int) -> str:
+        """Get terrain tile at world coordinates."""
+        chunk_x = world_x // self.chunk_size
+        chunk_y = world_y // self.chunk_size
+        local_x = world_x % self.chunk_size
+        local_y = world_y % self.chunk_size
+        chunk = self.get_or_generate_chunk(chunk_x, chunk_y)
+        return chunk[(local_x, local_y)]
+
+    def _apply_boundary_constraints(self, new_chunk, neighbors):
+        """Constrain edge cells based on adjacent chunks."""
+```
+
+---
+
+## Files to Modify/Create
+
+| File | Action | Description |
+|------|--------|-------------|
+| `src/cli_rpg/world_grid.py` | MODIFY | Add `SubGrid` class |
+| `src/cli_rpg/models/location.py` | MODIFY | Add `sub_grid`, `is_exit_point` fields |
+| `src/cli_rpg/game_state.py` | MODIFY | Track sub-location state, update navigation |
+| `src/cli_rpg/map_renderer.py` | MODIFY | Add interior map rendering |
+| `src/cli_rpg/ai_world.py` | MODIFY | Fix `expand_area()` to use SubGrid |
+| `src/cli_rpg/world.py` | MODIFY | Convert default world to use SubGrid |
+| `src/cli_rpg/persistence.py` | MODIFY | Serialize SubGrid and WFC state |
+| `src/cli_rpg/wfc.py` | CREATE | Core WFC algorithm |
+| `src/cli_rpg/world_tiles.py` | CREATE | Tile definitions and adjacency rules |
+| `src/cli_rpg/wfc_chunks.py` | CREATE | Chunk manager for infinite world |
+| `tests/test_sub_grid.py` | CREATE | SubGrid unit tests |
+| `tests/test_exit_points.py` | CREATE | Exit command restriction tests |
+| `tests/test_wfc.py` | CREATE | WFC algorithm tests |
+| `tests/test_wfc_chunks.py` | CREATE | Chunk boundary tests |
+| `tests/test_wfc_integration.py` | CREATE | Full integration tests |
+
+---
+
+## Implementation Order
+
+### Phase 1: Sub-Location Grids (PRIORITY - fixes the bug)
+
+1. ✅ Create `SubGrid` class in `world_grid.py` - **DONE** (90 lines, 23 tests)
+2. Add `is_exit_point` and `sub_grid` to Location model
+3. Update GameState `enter()`, `exit_location()`, `move()`, `get_current_location()`
+4. Update map renderer for interior maps
+5. Fix `ai_world.py` `expand_area()` to use SubGrid
+6. Convert default world sub-locations to use SubGrid
+7. Update persistence for SubGrid serialization
+8. Write tests
+
+### Phase 2: WFC Overworld (Enhancement)
+
+1. Create `wfc.py` with core algorithm
+2. Create `world_tiles.py` with tile/adjacency definitions
+3. Create `wfc_chunks.py` with chunk manager
+4. Integrate with GameState movement
+5. Add terrain-aware location generation
+6. Add persistence for WFC state
+7. Add `--wfc` flag for optional enablement
+8. Write tests
+
+---
+
+## Tests to Create
+
+### `tests/test_sub_grid.py` ✅ CREATED (23 tests)
+- ✅ SubGrid creation with bounds
+- ✅ Adding locations within bounds
+- ✅ Rejecting locations outside bounds
+- ✅ Bidirectional connections created
+- ✅ Serialization/deserialization
+- ✅ Entry point at (0, 0)
+
+### `tests/test_exit_points.py`
+- `exit` allowed from `is_exit_point=True` rooms
+- `exit` blocked from `is_exit_point=False` rooms
+- Error message guides player to find exit
+
+### `tests/test_wfc.py`
+- All cells collapse to valid tiles
+- Adjacent cells respect adjacency rules
+- Same seed produces same chunk
+- Contradiction handling/recovery
+
+### `tests/test_wfc_chunks.py`
+- Chunk boundary consistency
+- Deterministic chunk generation from seed
+- Chunk caching works correctly
+
+### `tests/test_wfc_integration.py`
+- Terrain affects location generation
+- Water blocks movement
+- Save/load preserves terrain state
+
+---
+---
+---
+
 ### VISION: Transformative Features for a Mesmerizing Experience
 **Status**: ACTIVE (VISION)
 

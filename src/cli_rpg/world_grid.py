@@ -23,6 +23,158 @@ OPPOSITE_DIRECTIONS: Dict[str, str] = {
 
 
 @dataclass
+class SubGrid:
+    """Bounded grid for sub-location interiors.
+
+    Unlike WorldGrid which is infinite, SubGrid has defined bounds.
+    Entry is always at (0, 0). Used for interior spaces like castles,
+    dungeons, or buildings that have their own coordinate system
+    separate from the overworld.
+
+    Attributes:
+        _grid: Internal storage mapping (x, y) coordinates to locations
+        _by_name: Name-based lookup for convenience
+        bounds: Tuple of (min_x, max_x, min_y, max_y) defining grid limits
+        parent_name: Name of the parent location for exit navigation
+    """
+
+    _grid: Dict[Tuple[int, int], Location] = field(default_factory=dict)
+    _by_name: Dict[str, Location] = field(default_factory=dict)
+    bounds: Tuple[int, int, int, int] = (-2, 2, -2, 2)  # min_x, max_x, min_y, max_y
+    parent_name: str = ""
+
+    def add_location(self, location: Location, x: int, y: int) -> None:
+        """Add a location within bounds.
+
+        This method:
+        1. Validates coordinates are within bounds
+        2. Places the location at the given coordinates
+        3. Sets the location's coordinates and parent_location fields
+        4. Creates bidirectional connections with adjacent locations
+
+        Args:
+            location: The Location instance to add
+            x: X coordinate (east/west axis)
+            y: Y coordinate (north/south axis)
+
+        Raises:
+            ValueError: If coordinates outside bounds or name already exists
+        """
+        if not self.is_within_bounds(x, y):
+            raise ValueError(f"Coordinates ({x}, {y}) outside bounds {self.bounds}")
+
+        if location.name in self._by_name:
+            raise ValueError(f"Location '{location.name}' already exists in sub-grid")
+
+        # Set coordinates and parent on the location
+        location.coordinates = (x, y)
+        location.parent_location = self.parent_name
+
+        # Add to both indices
+        self._grid[(x, y)] = location
+        self._by_name[location.name] = location
+
+        # Create bidirectional connections with adjacent locations
+        self._create_connections(location, x, y)
+
+    def _create_connections(self, location: Location, x: int, y: int) -> None:
+        """Create bidirectional connections with adjacent locations.
+
+        Args:
+            location: The newly added location
+            x: X coordinate of the location
+            y: Y coordinate of the location
+        """
+        for direction, (dx, dy) in DIRECTION_OFFSETS.items():
+            neighbor_coords = (x + dx, y + dy)
+            if neighbor_coords in self._grid:
+                neighbor = self._grid[neighbor_coords]
+                opposite = OPPOSITE_DIRECTIONS[direction]
+
+                # Add connection from this location to neighbor
+                location.add_connection(direction, neighbor.name)
+
+                # Add reverse connection from neighbor to this location
+                neighbor.add_connection(opposite, location.name)
+
+    def get_by_coordinates(self, x: int, y: int) -> Optional[Location]:
+        """Get location at specific coordinates.
+
+        Args:
+            x: X coordinate
+            y: Y coordinate
+
+        Returns:
+            Location at coordinates, or None if empty
+        """
+        return self._grid.get((x, y))
+
+    def get_by_name(self, name: str) -> Optional[Location]:
+        """Get location by name.
+
+        Args:
+            name: Location name
+
+        Returns:
+            Location with given name, or None if not found
+        """
+        return self._by_name.get(name)
+
+    def is_within_bounds(self, x: int, y: int) -> bool:
+        """Check if coordinates are within grid bounds.
+
+        Args:
+            x: X coordinate
+            y: Y coordinate
+
+        Returns:
+            True if within bounds, False otherwise
+        """
+        min_x, max_x, min_y, max_y = self.bounds
+        return min_x <= x <= max_x and min_y <= y <= max_y
+
+    def to_dict(self) -> dict:
+        """Serialize the sub-grid to a dictionary.
+
+        Returns:
+            Dictionary representation with locations, bounds, and parent_name
+        """
+        locations = []
+        for location in self._by_name.values():
+            locations.append(location.to_dict())
+
+        return {
+            "locations": locations,
+            "bounds": list(self.bounds),
+            "parent_name": self.parent_name,
+        }
+
+    @classmethod
+    def from_dict(cls, data: dict) -> "SubGrid":
+        """Create a SubGrid from a serialized dictionary.
+
+        Args:
+            data: Dictionary containing serialized sub-grid data
+
+        Returns:
+            SubGrid instance with restored locations
+        """
+        grid = cls()
+        grid.bounds = tuple(data.get("bounds", [-2, 2, -2, 2]))
+        grid.parent_name = data.get("parent_name", "")
+
+        for loc_data in data.get("locations", []):
+            location = Location.from_dict(loc_data)
+            if location.coordinates is not None:
+                x, y = location.coordinates
+                # Bypass add_location to preserve existing connections
+                grid._grid[(x, y)] = location
+                grid._by_name[location.name] = location
+
+        return grid
+
+
+@dataclass
 class WorldGrid:
     """Grid-based world representation with spatial consistency.
 
