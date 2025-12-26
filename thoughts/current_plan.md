@@ -1,47 +1,49 @@
-# Implementation Plan: AI-Generated Whispers
+# Verification: `dismiss <name>` Command
 
 ## Summary
-Implement AI-generated whispers for the Whisper System. The `_generate_ai_whisper()` method is currently stubbed with `NotImplementedError`. This feature adds dynamic, context-aware atmospheric whispers via the AI service.
+The `dismiss <name>` command is **already fully implemented and tested**. No implementation work needed.
 
-## Spec
-- AI-generated whispers are single-sentence atmospheric text (10-100 characters)
-- Context-aware: uses location category and world theme
-- Graceful fallback to templates on AI failure (already handled in caller)
-- Follows existing AI service patterns (prompt template, response parsing, error handling)
+## Evidence
 
-## Implementation Steps
+### Implementation (src/cli_rpg/main.py:1133-1148)
+- Command parses companion name argument
+- Case-insensitive name matching
+- Removes companion from `game_state.companions`
+- Returns success/error messages
 
-### 1. Add whisper prompt to ai_config.py
-**File**: `src/cli_rpg/ai_config.py`
-- Add `DEFAULT_WHISPER_GENERATION_PROMPT` constant (similar to dream/lore prompts)
-- Add `whisper_generation_prompt` field to `AIConfig` dataclass
-- Update `to_dict()` and `from_dict()` methods
+### Features Present
+- ✅ Basic dismiss functionality (removes companion)
+- ✅ Case-insensitive name matching
+- ✅ Error handling for missing name
+- ✅ Error handling for companion not in party
+- ✅ Confirmation dialog for high-bond companions (TRUSTED/DEVOTED)
+- ✅ `non_interactive=True` mode skips confirmation
+- ✅ Command registered in `KNOWN_COMMANDS` (game_state.py:56)
+- ✅ Listed in help output (main.py:56)
 
-### 2. Add generate_whisper() to AIService
-**File**: `src/cli_rpg/ai_service.py`
-- Add `generate_whisper(theme, location_category)` method
-- Build prompt using config template
-- Call LLM and validate response (10-100 chars)
-- Return whisper string
+### Test Coverage (tests/test_companion_commands.py)
+- `TestDismissCommand` class (4 tests):
+  - `test_dismiss_no_companion_specified`
+  - `test_dismiss_companion_not_in_party`
+  - `test_dismiss_success_removes_companion`
+  - `test_dismiss_case_insensitive`
+- `TestDismissConfirmation` class (5 tests):
+  - `test_dismiss_high_bond_requires_confirmation`
+  - `test_dismiss_low_bond_shows_basic_confirmation`
+  - `test_dismiss_cancelled_on_no`
+  - `test_dismiss_non_interactive_skips_confirmation`
+  - `test_dismiss_devoted_shows_strong_warning`
 
-### 3. Implement _generate_ai_whisper() in whisper.py
-**File**: `src/cli_rpg/whisper.py`
-- Remove `NotImplementedError`
-- Call `self.ai_service.generate_whisper(theme, category)`
-- Return generated whisper string
+---
 
-### 4. Write tests
-**File**: `tests/test_whisper.py`
-- Test AI whisper generation when AI service available
-- Test fallback behavior when AI returns short/long text
-- Test error handling when AI raises exception
+# Suggested Next Priority
 
-**File**: `tests/test_ai_service.py`
-- Test `generate_whisper()` method with mocked LLM
-- Test response validation (length checks)
+Since `dismiss` is complete, here are the smallest actionable increments from ISSUES.md:
 
-## Test Commands
-```bash
-pytest tests/test_whisper.py tests/test_ai_service.py -v
-pytest --cov=src/cli_rpg -k "whisper"
-```
+1. **Add more recruitable NPCs** - Currently only 3 exist (Hermit, Innkeeper, Beggar). Could add 2-3 more in different location types (tavern barkeep, wandering warrior, etc.)
+
+2. **Add companion personality to existing recruitable NPCs** - The `Companion` model supports `personality` field for combat reactions, but current recruitable NPCs don't have personalities set.
+
+3. **Add personal quests to existing recruitable NPCs** - The companion quest system exists but recruitable NPCs don't have `personal_quest` defined.
+
+The smallest valuable increment would be **#2 or #3** - adding personality/quests to the existing 3 recruitable NPCs to make the companion system more meaningful without adding new content.
