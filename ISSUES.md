@@ -412,7 +412,7 @@ Your vision fades... but this is not the end.
 ---
 
 ### OVERWORLD & SUB-LOCATION REWORK - Hierarchical World System
-**Status**: IN PROGRESS (Core Infrastructure Complete)
+**Status**: IN PROGRESS (Core Infrastructure Complete, 3 BLOCKERS remaining)
 
 **Problem**: The current flat world grid doesn't support meaningful world structure. Players wander an endless grid with random combat everywhere. There's no sense of safe havens, no cities to explore internally, no dungeons with depth.
 
@@ -435,6 +435,40 @@ Your vision fades... but this is not the end.
   - 3 sub-locations: Forest Edge, Deep Woods, Ancient Grove
   - All sub-locations have `parent_location="Forest"`, `is_safe_zone=False`, `category="forest"`
   - Hermit NPC in Ancient Grove (`is_recruitable=True`)
+
+**🚧 BLOCKERS - Must Fix Before Feature Complete**:
+
+1. **BLOCKER: AI World Generation Ignores Hierarchy (CRITICAL)**
+   - **File**: `src/cli_rpg/ai_world.py`
+   - **Problem**: `expand_world()` and `expand_area()` create Location objects WITHOUT setting hierarchy fields
+   - **Impact**: All AI-generated areas are flat, non-hierarchical, can't use `enter`/`exit` commands
+   - **Current code** (broken):
+     ```python
+     location = Location(
+         name=..., description=..., connections=...,
+         # MISSING: is_overworld, parent_location, sub_locations, is_safe_zone, entry_point
+     )
+     ```
+   - **Required fix**:
+     - Update AI prompts to request hierarchy metadata
+     - Parse and set `is_overworld=True` for landmark locations (cities, dungeons, forests)
+     - Set `is_safe_zone=True` for safe locations (towns, inns, shops)
+     - Generate sub-locations with proper `parent_location` references
+   - **Effort**: 4-6 hours
+
+2. **BLOCKER: combat.trigger_encounter() Bypasses Safe Zone Check (MODERATE)**
+   - **File**: `src/cli_rpg/game_state.py` lines 295-348
+   - **Problem**: Old NPC encounter system doesn't check `is_safe_zone` flag
+   - **Impact**: Inconsistent behavior; could cause combat in safe zones if old code path used
+   - **Required fix**: Add `if location.is_safe_zone: return None` check
+   - **Effort**: 1 hour
+
+3. **BLOCKER: No Dungeon Depth/Floor System (DESIGN GAP)**
+   - **Problem**: Cannot create multi-floor dungeons (Mine Entrance → Upper Tunnels → Boss Chamber)
+   - **Impact**: Dungeons are flat, no vertical navigation
+   - **Required fix**: Add `depth` field to Location, implement `up`/`down` navigation
+   - **Effort**: 8-12 hours (future milestone)
+   - **Status**: Deferred - complete horizontal hierarchy first
 
 **Remaining Architecture**:
 
@@ -524,11 +558,11 @@ OVERWORLD (macro map)
 **Files to modify**:
 - ✅ `src/cli_rpg/models/location.py`: Add hierarchy fields - DONE
 - ✅ `src/cli_rpg/random_encounters.py`: Check `is_safe_zone` before triggering encounters - DONE
-- `src/cli_rpg/game_state.py`: Rework movement for enter/exit/travel
-- `src/cli_rpg/world.py`: Generate hierarchical world structure
-- `src/cli_rpg/ai_world.py`: AI generates landmarks with sub-locations
-- `src/cli_rpg/map_renderer.py`: Separate overworld and local map rendering
-- `src/cli_rpg/combat.py`: Check `is_safe_zone` before spawning combat encounters
+- ✅ `src/cli_rpg/game_state.py`: Enter/exit commands - DONE
+- ✅ `src/cli_rpg/world.py`: Default hierarchical world structure - DONE
+- ✅ `src/cli_rpg/map_renderer.py`: Separate overworld and local map rendering - DONE
+- 🚧 `src/cli_rpg/ai_world.py`: AI generates landmarks with sub-locations - **BLOCKER #1**
+- 🚧 `src/cli_rpg/game_state.py`: trigger_encounter() safe zone check - **BLOCKER #2**
 
 ### Non-interactive mode bugs
 **Status**: ACTIVE
@@ -583,41 +617,47 @@ The basic `--non-interactive` mode has been implemented. The following enhanceme
    - ~~Deterministic mode option (fixed RNG seed)~~ (DONE - `--seed` option implemented)
 
 ### Long-running AI simulation test suite
-**Status**: ACTIVE
+**Status**: ✅ RESOLVED
 
-Once non-interactive mode is fully implemented, set up periodic long-running simulations to catch bugs and evaluate gameplay quality.
+AI agent player and simulation framework have been implemented.
 
-**Goals**:
-- Discover edge cases and crashes through extended play
-- Evaluate AI-generated content quality over time
-- Catch gameplay dead-ends or stuck states
-- Measure game balance (combat difficulty, economy, progression)
-- Build regression test corpus from successful runs
+**Implemented Components** (in `scripts/` directory):
 
-**Implementation**:
+1. **`scripts/state_parser.py`** - JSON output parsing utilities
+   - `AgentState` dataclass for tracking game state (location, health, gold, inventory, dread, quests, combat status)
+   - Parses all JSON message types: `state`, `combat`, `actions`, `dump_state`
 
-1. **AI agent player**
-   - Script or agent that plays the game autonomously
-   - Makes contextual decisions (explore, fight, shop, quest)
-   - Varies playstyles (aggressive, cautious, completionist)
+2. **`scripts/ai_agent.py`** - Heuristic-based agent implementation
+   - `SessionStats` dataclass for collecting simulation statistics
+   - `Agent` class with priority-based decision engine:
+     - Combat: Flee at <25% HP, use potion at <50% HP, attack otherwise
+     - Exploration: Rest if HP <50% or dread >60%, buy potions, complete quests, explore exits
+   - `GameSession` class for subprocess management with threaded I/O
 
-2. **Scheduled runs**
-   - CI/cron job running simulations periodically (nightly, weekly)
-   - Multiple concurrent sessions with different seeds
-   - Configurable session length (commands, time, or milestones)
+3. **`scripts/run_simulation.py`** - CLI entry point
+   - Args: `--seed`, `--max-commands`, `--timeout`, `--output`, `--verbose`
+   - Outputs summary statistics and optional JSON report
 
-3. **Reporting and analysis**
-   - Aggregate logs from simulation runs
-   - Flag anomalies: crashes, infinite loops, stuck states, empty responses
-   - Track metrics: locations visited, quests completed, deaths, gold earned
-   - Generate summary reports for review
+4. **`tests/test_ai_agent.py`** - Comprehensive test suite (31 tests)
+   - Unit tests for state parsing and agent decisions
+   - Integration tests running 50-100 commands
 
-4. **Reproducibility**
-   - Save RNG seeds and full command logs
-   - Replay failed sessions to debug issues
-   - Snapshot game state at intervals for analysis
+**Usage**:
+```bash
+# Run simulation with default settings (1000 commands)
+python -m scripts.run_simulation
 
-**Depends on**: Non-interactive mode enhancements (structured output, logging)
+# Run with specific seed and command limit
+python -m scripts.run_simulation --seed=42 --max-commands=100 --verbose
+
+# Save JSON report
+python -m scripts.run_simulation --output=report.json
+```
+
+**Future Enhancements** (moved to backlog):
+- Scheduled CI/cron runs for periodic testing
+- LLM-based agent variant for more dynamic playstyles
+- Regression test corpus from successful runs
 
 ### Overworld map with cities and sub-locations
 **Status**: ACTIVE

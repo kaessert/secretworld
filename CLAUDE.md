@@ -20,6 +20,12 @@ pytest --cov=src/cli_rpg
 ## Project Structure
 
 ```
+scripts/
+├── __init__.py          # Package initialization
+├── state_parser.py      # JSON output parsing for agent state
+├── ai_agent.py          # Heuristic-based AI agent for playtesting
+└── run_simulation.py    # CLI entry point for running simulations
+
 src/cli_rpg/
 ├── main.py              # Entry point
 ├── game_state.py        # Core game state management
