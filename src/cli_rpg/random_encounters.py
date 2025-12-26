@@ -230,6 +230,11 @@ def check_for_random_encounter(game_state: "GameState") -> Optional[str]:
     if game_state.is_in_combat():
         return None
 
+    # Don't trigger in safe zones (towns, villages, etc.)
+    location = game_state.get_current_location()
+    if location.is_safe_zone:
+        return None
+
     # Roll for encounter
     if random.random() > RANDOM_ENCOUNTER_CHANCE:
         return None

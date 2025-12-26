@@ -503,11 +503,12 @@ OVERWORLD (macro map)
 
 **Files to modify**:
 - ✅ `src/cli_rpg/models/location.py`: Add hierarchy fields - DONE
+- ✅ `src/cli_rpg/random_encounters.py`: Check `is_safe_zone` before triggering encounters - DONE
 - `src/cli_rpg/game_state.py`: Rework movement for enter/exit/travel
 - `src/cli_rpg/world.py`: Generate hierarchical world structure
 - `src/cli_rpg/ai_world.py`: AI generates landmarks with sub-locations
 - `src/cli_rpg/map_renderer.py`: Separate overworld and local map rendering
-- `src/cli_rpg/combat.py`: Check `is_safe_zone` before spawning encounters
+- `src/cli_rpg/combat.py`: Check `is_safe_zone` before spawning combat encounters
 
 ### Non-interactive mode bugs
 **Status**: ACTIVE
@@ -959,27 +960,14 @@ Quests should be dynamically generated to keep gameplay fresh.
 - Quest chains that build on each other
 - Emergent storylines from completed quests
 
-### `cast` command gives wrong error message outside combat
-**Status**: ACTIVE
-
-**Description**: When a player uses the `cast` command (or its `c` shortcut) outside of combat, the game displays "Unknown command" instead of "Not in combat" like all other combat commands (`attack`/`a`, `defend`/`d`, `flee`/`f`).
-
-**Steps to reproduce**:
-1. Start the game
-2. When not in combat, enter `cast` or `c`
-3. Observe error message
-
-**Expected behavior**: "Not in combat." (matching other combat commands)
-
-**Actual behavior**: "Unknown command. Type 'help' for a list of commands."
-
-**Impact**: Confusing UX - users will think the `cast` command doesn't exist instead of understanding it's only available during combat. This is inconsistent with the behavior of other combat commands.
-
-**Related**: The `help` command correctly lists `cast (c)` as a combat command.
-
----
-
 ## Resolved Issues
+
+### `cast` command gives wrong error message outside combat
+**Status**: RESOLVED
+
+**Description**: When a player used the `cast` command (or its `c` shortcut) outside of combat, the game displayed "Unknown command" instead of "Not in combat" like all other combat commands (`attack`/`a`, `defend`/`d`, `flee`/`f`).
+
+**Fix**: Added "cast" to the list of combat commands in `main.py` (line 1300) that show "Not in combat." when used outside combat. Changed `["attack", "defend", "flee", "rest"]` to `["attack", "defend", "flee", "rest", "cast"]`. Test added: `test_cast_command_outside_combat` in `tests/test_main_coverage.py`.
 
 ### `companion-quest` command missing from help output
 **Status**: RESOLVED

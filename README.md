@@ -94,6 +94,8 @@ When moving between locations, you have a 15% chance to trigger a random encount
 
 Merchants and wanderers are added to your current location and can be interacted with normally.
 
+**Safe Zones**: Towns, villages, and other safe locations (marked as `is_safe_zone`) are protected from random encounters, allowing you to shop and rest without interruption.
+
 ### Combat System
 Combat encounters occur randomly as you explore. You may face multiple enemies at once (1-2 enemies at lower levels, up to 3 at level 4+). Enemies display ASCII art when combat begins.
 

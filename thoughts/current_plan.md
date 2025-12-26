@@ -1,115 +1,107 @@
-# Implementation Plan: Add Hierarchy Fields to Location Model
-
-## Summary
-Add 5 new fields to the Location model (`is_overworld`, `parent_location`, `sub_locations`, `is_safe_zone`, `entry_point`) with backward-compatible defaults. This foundational change enables the hierarchical world system without breaking existing functionality.
+# Implementation Plan: Safe Zone Checking for Random Encounters
 
 ## Spec
 
-**New Fields for `Location` class:**
-| Field | Type | Default | Description |
-|-------|------|---------|-------------|
-| `is_overworld` | `bool` | `False` | True if this is an overworld landmark |
-| `parent_location` | `Optional[str]` | `None` | Name of parent landmark (for sub-locations) |
-| `sub_locations` | `List[str]` | `[]` | Names of child locations (for landmarks) |
-| `is_safe_zone` | `bool` | `False` | No random encounters if True |
-| `entry_point` | `Optional[str]` | `None` | Default sub-location when entering |
+**Goal**: Locations marked with `is_safe_zone=True` should not trigger random hostile encounters.
 
-**Backward Compatibility:**
-- All fields have defaults that preserve existing behavior
-- Old save files (without these fields) load without error
-- Existing locations behave identically (not overworld, not safe, no hierarchy)
+**Behavior**:
+- In `check_for_random_encounter()`, skip ALL random encounters (hostile, merchant, wanderer) when `is_safe_zone=True`
+- This prevents combat interruptions in safe zones (towns, villages, inns, temples)
+- Non-hostile encounters (merchants, wanderers) are also skipped since safe zones are populated areas with existing NPCs
 
-## Test Cases
+## Tests First
 
-### 1. Field Defaults (`tests/test_location.py`)
-- `test_location_hierarchy_fields_default_values` - All 5 fields have correct defaults
-- `test_location_is_overworld_default_false` - `is_overworld` defaults to False
-- `test_location_parent_location_default_none` - `parent_location` defaults to None
-- `test_location_sub_locations_default_empty_list` - `sub_locations` defaults to `[]`
-- `test_location_is_safe_zone_default_false` - `is_safe_zone` defaults to False
-- `test_location_entry_point_default_none` - `entry_point` defaults to None
+Add to `tests/test_random_encounters.py`:
 
-### 2. Field Assignment
-- `test_location_creation_with_hierarchy_fields` - Can create location with all 5 new fields
-- `test_location_overworld_landmark_creation` - Create a typical overworld landmark
-- `test_location_sub_location_creation` - Create a sub-location with parent reference
-
-### 3. Serialization (`to_dict`)
-- `test_location_to_dict_excludes_default_hierarchy_fields` - Defaults not serialized (backward compat)
-- `test_location_to_dict_includes_is_overworld_when_true` - `is_overworld: true` serialized
-- `test_location_to_dict_includes_parent_location_when_set` - `parent_location` serialized when not None
-- `test_location_to_dict_includes_sub_locations_when_non_empty` - `sub_locations` serialized when not empty
-- `test_location_to_dict_includes_is_safe_zone_when_true` - `is_safe_zone: true` serialized
-- `test_location_to_dict_includes_entry_point_when_set` - `entry_point` serialized when not None
-
-### 4. Deserialization (`from_dict`)
-- `test_location_from_dict_missing_hierarchy_fields_uses_defaults` - Old saves load fine
-- `test_location_from_dict_with_is_overworld` - Deserialize `is_overworld`
-- `test_location_from_dict_with_parent_location` - Deserialize `parent_location`
-- `test_location_from_dict_with_sub_locations` - Deserialize `sub_locations`
-- `test_location_from_dict_with_is_safe_zone` - Deserialize `is_safe_zone`
-- `test_location_from_dict_with_entry_point` - Deserialize `entry_point`
-
-### 5. Roundtrip Serialization
-- `test_location_hierarchy_roundtrip_serialization` - All fields preserved through to_dict/from_dict
-
-## Implementation Steps
-
-### Step 1: Write tests first
-**File**: `tests/test_location.py`
-**Action**: Add new test class `TestLocationHierarchy` with all tests from spec above
-
-### Step 2: Add fields to Location dataclass
-**File**: `src/cli_rpg/models/location.py`
-**Location**: After line 41 (`secrets: Optional[str] = None`)
-**Add**:
 ```python
-# Hierarchy fields for overworld/sub-location system
-is_overworld: bool = False          # Is this an overworld landmark?
-parent_location: Optional[str] = None  # Parent landmark (for sub-locations)
-sub_locations: List[str] = field(default_factory=list)  # Child locations
-is_safe_zone: bool = False          # No random encounters if True
-entry_point: Optional[str] = None   # Default sub-location when entering
+class TestSafeZoneEncounters:
+    """Tests for safe zone encounter behavior."""
+
+    @pytest.fixture
+    def game_state_with_safe_zone(self, monkeypatch):
+        """Create game state with a safe zone location."""
+        monkeypatch.setattr("cli_rpg.game_state.autosave", lambda gs: None)
+
+        character = Character("Hero", strength=10, dexterity=10, intelligence=10)
+        world = {
+            "Town": Location(
+                "Town Square", "A safe town square",
+                {"north": "Road"}, coordinates=(0, 0), is_safe_zone=True
+            ),
+            "Road": Location(
+                "Road", "A dangerous road",
+                {"south": "Town"}, coordinates=(0, 1), is_safe_zone=False
+            ),
+        }
+        return GameState(character, world, "Town")
+
+    def test_no_encounter_in_safe_zone(self, game_state_with_safe_zone, monkeypatch):
+        """No random encounters in safe zones.
+
+        Spec: is_safe_zone=True prevents all random encounters
+        """
+        # Mock random to always trigger encounter (if not blocked)
+        mock_random = MagicMock(return_value=0.05)  # Would trigger encounter
+        monkeypatch.setattr("cli_rpg.random_encounters.random.random", mock_random)
+
+        result = check_for_random_encounter(game_state_with_safe_zone)
+
+        # Should be None because we're in a safe zone
+        assert result is None
+        assert not game_state_with_safe_zone.is_in_combat()
+
+    def test_encounter_allowed_in_non_safe_zone(self, game_state_with_safe_zone, monkeypatch):
+        """Random encounters work in non-safe zones.
+
+        Spec: is_safe_zone=False allows normal encounter behavior
+        """
+        # Move to the dangerous road first
+        game_state_with_safe_zone.current_location = "Road"
+
+        # Mock to trigger hostile encounter
+        random_values = [0.05, 0.30]  # trigger=True, type=hostile
+        mock_random = MagicMock(side_effect=random_values)
+        monkeypatch.setattr("cli_rpg.random_encounters.random.random", mock_random)
+        monkeypatch.setattr("cli_rpg.combat.random.choice", lambda x: x[0])
+        monkeypatch.setattr("cli_rpg.combat.random.randint", lambda a, b: a)
+
+        result = check_for_random_encounter(game_state_with_safe_zone)
+
+        # Should trigger encounter in non-safe zone
+        assert result is not None
+        assert "[Random Encounter!]" in result
 ```
 
-### Step 3: Update `to_dict()` method
-**File**: `src/cli_rpg/models/location.py`
-**Location**: After line 276 (secrets serialization)
-**Add** (same pattern as other optional fields):
+## Implementation
+
+**File**: `src/cli_rpg/random_encounters.py`
+
+**Change**: Add safe zone check at the start of `check_for_random_encounter()` function (after line 230, before the RNG roll):
+
 ```python
-# Only include hierarchy fields if non-default (backward compatibility)
-if self.is_overworld:
-    data["is_overworld"] = self.is_overworld
-if self.parent_location is not None:
-    data["parent_location"] = self.parent_location
-if self.sub_locations:
-    data["sub_locations"] = self.sub_locations.copy()
-if self.is_safe_zone:
-    data["is_safe_zone"] = self.is_safe_zone
-if self.entry_point is not None:
-    data["entry_point"] = self.entry_point
+def check_for_random_encounter(game_state: "GameState") -> Optional[str]:
+    # ... existing docstring ...
+
+    # Don't trigger if already in combat
+    if game_state.is_in_combat():
+        return None
+
+    # Don't trigger in safe zones (towns, villages, etc.)
+    location = game_state.get_current_location()
+    if location.is_safe_zone:
+        return None
+
+    # Roll for encounter
+    if random.random() > RANDOM_ENCOUNTER_CHANCE:
+        return None
+
+    # ... rest of function unchanged ...
 ```
 
-### Step 4: Update `from_dict()` classmethod
-**File**: `src/cli_rpg/models/location.py`
-**Location**: In `from_dict()`, before the return statement (around line 307)
-**Add**:
-```python
-# Parse hierarchy fields if present (backward compatibility)
-is_overworld = data.get("is_overworld", False)
-parent_location = data.get("parent_location")
-sub_locations = data.get("sub_locations", [])
-is_safe_zone = data.get("is_safe_zone", False)
-entry_point = data.get("entry_point")
-```
-**Update return statement** to include new fields
+**Location**: Insert the safe zone check between line 231 and 233 (after combat check, before RNG roll).
 
-### Step 5: Run tests
-```bash
-pytest tests/test_location.py -v
-```
+## Verification
 
-### Step 6: Run full test suite
-```bash
-pytest
-```
+1. Run existing tests to ensure no regressions: `pytest tests/test_random_encounters.py -v`
+2. Run new safe zone tests: `pytest tests/test_random_encounters.py::TestSafeZoneEncounters -v`
+3. Run full test suite: `pytest`
