@@ -1297,7 +1297,7 @@ def handle_exploration_command(game_state: GameState, command: str, args: list[s
 
         return (True, result_message)
 
-    elif command in ["attack", "defend", "flee", "rest"]:
+    elif command in ["attack", "defend", "flee", "rest", "cast"]:
         return (True, "\n✗ Not in combat.")
     
     elif command == "unknown":

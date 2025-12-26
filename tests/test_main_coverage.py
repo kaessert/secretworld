@@ -578,6 +578,20 @@ class TestExplorationCombatCommandsOutsideCombat:
         assert continue_game is True
         assert "Not in combat" in message
 
+    def test_cast_command_outside_combat(self):
+        """Spec: Cast command should say 'Not in combat' when not in combat."""
+        from cli_rpg.main import handle_exploration_command
+
+        character = Character(name="Hero", strength=10, dexterity=10, intelligence=10)
+        world = {"Town": Location(name="Town", description="A town", connections={})}
+        game_state = GameState(character, world, starting_location="Town")
+        game_state.current_combat = None
+
+        continue_game, message = handle_exploration_command(game_state, "cast", [])
+
+        assert continue_game is True
+        assert "Not in combat" in message
+
     def test_unknown_command_shows_help_hint(self):
         """Spec: Unknown command should show help hint."""
         from cli_rpg.main import handle_exploration_command
