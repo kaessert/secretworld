@@ -4,7 +4,7 @@ import logging
 import random
 from typing import Optional, Tuple, Union, TYPE_CHECKING
 from cli_rpg.models.character import Character
-from cli_rpg.models.enemy import Enemy
+from cli_rpg.models.enemy import Enemy, ElementType
 from cli_rpg.models.item import Item, ItemType
 from cli_rpg.models.status_effect import StatusEffect
 from cli_rpg.models.weather import Weather
@@ -1064,12 +1064,21 @@ class CombatEncounter:
         stance_modifier = self.player.get_stance_damage_modifier()
         dmg = int(dmg * stance_modifier)
 
+        # Apply elemental damage modifier (fire vs enemy element)
+        from cli_rpg.elements import calculate_elemental_modifier
+        elem_mod, elem_msg = calculate_elemental_modifier(ElementType.FIRE, enemy.element_type)
+        dmg = int(dmg * elem_mod)
+
         enemy.take_damage(dmg)
 
         message = (
             f"You hurl a {colors.damage('FIREBALL')} at {colors.enemy(enemy.name)} "
             f"for {colors.damage(str(dmg))} fire damage!"
         )
+
+        # Add elemental effectiveness message if applicable
+        if elem_msg:
+            message += f" {elem_msg}"
 
         # 25% chance to apply Burn effect
         if random.random() < 0.25:
@@ -1140,12 +1149,21 @@ class CombatEncounter:
         stance_modifier = self.player.get_stance_damage_modifier()
         dmg = int(dmg * stance_modifier)
 
+        # Apply elemental damage modifier (ice vs enemy element)
+        from cli_rpg.elements import calculate_elemental_modifier
+        elem_mod, elem_msg = calculate_elemental_modifier(ElementType.ICE, enemy.element_type)
+        dmg = int(dmg * elem_mod)
+
         enemy.take_damage(dmg)
 
         message = (
             f"You launch an {colors.location('ICE BOLT')} at {colors.enemy(enemy.name)} "
             f"for {colors.damage(str(dmg))} ice damage!"
         )
+
+        # Add elemental effectiveness message if applicable
+        if elem_msg:
+            message += f" {elem_msg}"
 
         # 30% chance to apply Freeze effect
         if random.random() < 0.30:
@@ -2020,6 +2038,15 @@ def spawn_enemy(
         bleed_damage = 3
         bleed_duration = 4
 
+    # Assign element type based on enemy name
+    element_type = ElementType.PHYSICAL  # default
+    if any(term in enemy_name_lower for term in ["fire", "dragon", "elemental", "flame", "inferno"]):
+        element_type = ElementType.FIRE
+    elif any(term in enemy_name_lower for term in ["yeti", "ice", "frost", "frozen", "blizzard"]):
+        element_type = ElementType.ICE
+    elif any(term in enemy_name_lower for term in ["spider", "snake", "serpent", "viper"]):
+        element_type = ElementType.POISON
+
     return Enemy(
         name=enemy_name,
         health=scaled_health,
@@ -2042,6 +2069,7 @@ def spawn_enemy(
         bleed_chance=bleed_chance,
         bleed_damage=bleed_damage,
         bleed_duration=bleed_duration,
+        element_type=element_type,
     )
 
 

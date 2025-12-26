@@ -229,6 +229,7 @@ class TestEnemySerialization:
             "bleed_damage": 0,
             "bleed_duration": 0,
             "is_hallucination": False,
+            "element_type": "physical",
             "status_effects": [],
         }
 

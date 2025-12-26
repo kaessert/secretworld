@@ -33,6 +33,7 @@ src/cli_rpg/
 ├── world_grid.py        # Grid-based spatial world system
 ├── map_renderer.py      # ASCII map display for explored locations
 ├── combat.py            # Combat mechanics
+├── elements.py          # Elemental damage type system (fire, ice, poison)
 ├── character_creation.py # Player character setup
 ├── persistence.py       # Save/load game state
 ├── autosave.py          # Automatic save functionality

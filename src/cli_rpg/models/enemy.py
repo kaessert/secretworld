@@ -1,10 +1,26 @@
 """Enemy model for combat encounters."""
 
 from dataclasses import dataclass, field
+from enum import Enum
 from typing import Dict, List, TYPE_CHECKING
 
 if TYPE_CHECKING:
     from cli_rpg.models.status_effect import StatusEffect
+
+
+class ElementType(Enum):
+    """Element types for elemental damage system.
+
+    Elements interact with each other according to weaknesses and resistances:
+    - FIRE is strong vs ICE, resists FIRE
+    - ICE is strong vs FIRE, resists ICE
+    - POISON resists POISON
+    - PHYSICAL is neutral to all
+    """
+    PHYSICAL = "physical"  # Default - no elemental affinity
+    FIRE = "fire"          # Fire creatures, dragons, flame elementals
+    ICE = "ice"            # Yetis, frost creatures, ice elementals
+    POISON = "poison"      # Spiders, snakes, serpents, vipers
 
 
 @dataclass
@@ -36,6 +52,7 @@ class Enemy:
     bleed_damage: int = 0  # Damage per turn if bleed is applied
     bleed_duration: int = 0  # Duration of bleed in turns
     is_hallucination: bool = False  # True if this is a dread-induced hallucination
+    element_type: ElementType = ElementType.PHYSICAL  # Elemental affinity for damage modifiers
     status_effects: List = field(default_factory=list)  # Active status effects on this enemy
 
     def __post_init__(self):
@@ -189,6 +206,7 @@ class Enemy:
             "bleed_damage": self.bleed_damage,
             "bleed_duration": self.bleed_duration,
             "is_hallucination": self.is_hallucination,
+            "element_type": self.element_type.value,
             "status_effects": [e.to_dict() for e in self.status_effects],
         }
     
@@ -209,6 +227,10 @@ class Enemy:
         status_effects = [
             StatusEffect.from_dict(e) for e in data.get("status_effects", [])
         ]
+
+        # Deserialize element type with backward compatibility
+        element_type_str = data.get("element_type", "physical")
+        element_type = ElementType(element_type_str)
 
         return Enemy(
             name=data["name"],
@@ -236,5 +258,6 @@ class Enemy:
             bleed_damage=data.get("bleed_damage", 0),
             bleed_duration=data.get("bleed_duration", 0),
             is_hallucination=data.get("is_hallucination", False),
+            element_type=element_type,
             status_effects=status_effects,
         )

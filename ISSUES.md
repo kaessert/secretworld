@@ -947,7 +947,7 @@ Combat is too simple - attack until enemy dies. Core status effect system has be
 - ✅ Buff/debuff serialization with backward compatibility
 
 **Remaining features**:
-- Elemental strengths and weaknesses
+- ✅ Elemental strengths and weaknesses - MVP IMPLEMENTED (enemies have element types: PHYSICAL, FIRE, ICE, POISON; Fireball deals 1.5x damage to ICE enemies, 0.5x to FIRE; Ice Bolt deals 1.5x damage to FIRE enemies, 0.5x to ICE; effectiveness messages displayed in combat)
 - ✅ Defensive options: `block` command - MVP IMPLEMENTED (costs 5 stamina, 75% damage reduction vs defend's 50%)
 - Defensive options: parry (not yet implemented)
 - Enemy attack patterns and telegraphed special moves
