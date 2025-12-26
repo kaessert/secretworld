@@ -257,6 +257,16 @@ _ASCII_ART_BOSS_TREANT = r"""
     / |__||__| \
 """
 
+_ASCII_ART_BOSS_DROWNED_OVERSEER = r"""
+     .-~~~-.
+    ( ~   ~ )
+    /|  <>  |\
+   / | ~~~~ | \
+  |  | |==| |  |
+  |  | |  | |  |
+  /__| |__| |__\
+"""
+
 
 def get_fallback_ascii_art(enemy_name: str) -> str:
     """Get fallback ASCII art based on enemy name.
@@ -1334,6 +1344,10 @@ def get_boss_ascii_art(boss_name: str) -> str:
     if any(term in name_lower for term in ["stone sentinel", "sentinel"]):
         return _ASCII_ART_BOSS_STONE_SENTINEL
 
+    # Drowned Overseer (flooded mine boss)
+    if any(term in name_lower for term in ["drowned", "overseer", "flooded"]):
+        return _ASCII_ART_BOSS_DROWNED_OVERSEER
+
     # Treant/forest bosses
     if any(term in name_lower for term in ["treant", "tree", "forest", "dryad", "grove"]):
         return _ASCII_ART_BOSS_TREANT
@@ -1432,6 +1446,37 @@ def spawn_boss(
             poison_chance=0.25,  # Nature's corruption
             poison_damage=5,
             poison_duration=3,
+        )
+
+    if boss_type == "drowned_overseer":
+        # Drowned Overseer: undead mine foreman who drowned when the mines flooded
+        # Scale stats: 2x base stats for bosses
+        base_health = (40 + level * 25) * 2
+        base_attack = (5 + level * 3) * 2
+        base_defense = (2 + level * 2) * 2
+        # 4x XP reward for bosses
+        base_xp = (30 + level * 20) * 4
+
+        # Get boss ASCII art
+        ascii_art = get_boss_ascii_art("The Drowned Overseer")
+
+        return Enemy(
+            name="The Drowned Overseer",
+            health=base_health,
+            max_health=base_health,
+            attack_power=base_attack,
+            defense=base_defense,
+            xp_reward=base_xp,
+            level=level,
+            ascii_art=ascii_art,
+            is_boss=True,
+            description="The former overseer of these mines, drowned when the waters rose. Now he guards the depths with rusted tools and icy hatred.",
+            attack_flavor="swings a corroded pickaxe",
+            bleed_chance=0.20,  # Rusted pickaxe causes bleeding
+            bleed_damage=4,
+            bleed_duration=3,
+            freeze_chance=0.15,  # Icy water touch can freeze
+            freeze_duration=2,
         )
 
     # Boss templates by location type

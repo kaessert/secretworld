@@ -476,7 +476,8 @@ def create_default_world() -> tuple[dict[str, Location], str]:
         parent_location="Abandoned Mines",
         is_safe_zone=False,
         category="dungeon",
-        connections={}  # No cardinal exits for sub-locations
+        connections={},  # No cardinal exits for sub-locations
+        boss_enemy="drowned_overseer",  # Drowned mine overseer boss encounter
     )
 
     boss_chamber = Location(
