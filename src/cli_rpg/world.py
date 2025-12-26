@@ -256,6 +256,12 @@ def create_default_world() -> tuple[dict[str, Location], str]:
         item_type=ItemType.CONSUMABLE,
         heal_amount=0
     )
+    stamina_potion = Item(
+        name="Stamina Potion",
+        description="A refreshing brew that restores physical energy",
+        item_type=ItemType.CONSUMABLE,
+        stamina_restore=25
+    )
 
     shop_items = [
         ShopItem(item=potion, buy_price=50),
@@ -264,6 +270,7 @@ def create_default_world() -> tuple[dict[str, Location], str]:
         ShopItem(item=torch, buy_price=15),
         ShopItem(item=lockpick, buy_price=30),
         ShopItem(item=camping_supplies, buy_price=40),  # Spec: 40 gold in Market District
+        ShopItem(item=stamina_potion, buy_price=30),  # Spec: 30 gold, 25 stamina restore
     ]
     shop = Shop(name="General Store", inventory=shop_items)
     merchant = NPC(

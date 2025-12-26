@@ -723,6 +723,10 @@ class CombatEncounter:
         if self.player.character_class != CharacterClass.ROGUE:
             return False, "Only Rogues can sneak!"
 
+        # Check stamina cost (10 stamina)
+        if not self.player.use_stamina(10):
+            return False, f"Not enough stamina! ({self.player.stamina}/{self.player.max_stamina})"
+
         # Record action for combo tracking
         self._record_action("sneak")
 
@@ -1038,6 +1042,9 @@ class CombatEncounter:
 
         # Reset defensive stance after all attacks
         self.defending = False
+
+        # Regenerate stamina (1 per enemy turn)
+        self.player.regen_stamina(1)
 
         # Tick status effects on player (DOT damage, expiration)
         status_messages = self.player.tick_status_effects()

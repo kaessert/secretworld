@@ -37,6 +37,7 @@ class Item:
     defense_bonus: int = 0
     heal_amount: int = 0
     mana_restore: int = 0
+    stamina_restore: int = 0
     light_duration: int = 0
     is_cure: bool = False  # True for items that can cure plagues/events
 
@@ -65,6 +66,8 @@ class Item:
             raise ValueError("heal_amount cannot be negative")
         if self.mana_restore < 0:
             raise ValueError("mana_restore cannot be negative")
+        if self.stamina_restore < 0:
+            raise ValueError("stamina_restore cannot be negative")
         if self.light_duration < 0:
             raise ValueError("light_duration cannot be negative")
 
@@ -82,6 +85,7 @@ class Item:
             "defense_bonus": self.defense_bonus,
             "heal_amount": self.heal_amount,
             "mana_restore": self.mana_restore,
+            "stamina_restore": self.stamina_restore,
             "light_duration": self.light_duration,
             "is_cure": self.is_cure
         }
@@ -104,6 +108,7 @@ class Item:
             defense_bonus=data.get("defense_bonus", 0),
             heal_amount=data.get("heal_amount", 0),
             mana_restore=data.get("mana_restore", 0),
+            stamina_restore=data.get("stamina_restore", 0),
             light_duration=data.get("light_duration", 0),
             is_cure=data.get("is_cure", False)
         )
@@ -125,6 +130,8 @@ class Item:
             stat_parts.append(f"heals {self.heal_amount} HP")
         if self.mana_restore > 0:
             stat_parts.append(f"restores {self.mana_restore} mana")
+        if self.stamina_restore > 0:
+            stat_parts.append(f"restores {self.stamina_restore} stamina")
         if self.light_duration > 0:
             stat_parts.append(f"{self.light_duration} moves of light")
         if self.is_cure:

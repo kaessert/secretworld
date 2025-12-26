@@ -869,7 +869,7 @@ Make shopping more interactive.
 - Repair gear at camp
 
 ### Mana/stamina resource system
-**Status**: ACTIVE (Mana MVP Implemented)
+**Status**: ✅ RESOLVED
 
 Special abilities should cost resources, not be free.
 
@@ -881,8 +881,15 @@ Special abilities should cost resources, not be free.
 - ✅ **Status display**: Mana bar shown with color coding (like health)
 - ✅ **Persistence**: Full serialization with backward compatibility for old saves
 
-**Remaining Features**:
-- **Stamina**: Powers physical skills (warriors/rogues), regenerates each turn slowly
+**Stamina System - Implemented**:
+- ✅ **Stamina pool**: Warriors/Rangers get `50 + STR * 5`, other classes get `20 + STR * 2`
+- ✅ **Sneak costs stamina**: Rogue sneak ability costs 10 stamina
+- ✅ **Stamina regeneration**: 1 stamina per combat turn (in enemy_turn), 25% max stamina restored on rest
+- ✅ **Stamina potions**: Items with `stamina_restore` field restore stamina when used (Stamina Potion: 30 gold, 25 stamina restore)
+- ✅ **Status display**: Stamina bar shown with color coding (like health/mana)
+- ✅ **Persistence**: Full serialization with backward compatibility for old saves
+
+**Future Enhancements** (moved to backlog):
 - Powerful abilities cost more: `fireball` = 20 mana, `power strike` = 15 stamina
 - Running out = can only use basic attack
 - Some enemies drain mana/stamina with attacks

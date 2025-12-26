@@ -14,7 +14,7 @@ python -m cli_rpg.main
 
 ## Features
 
-- **Character Creation**: Create custom characters with 5 classes (Warrior, Mage, Rogue, Ranger, Cleric) and customizable attributes (strength, dexterity, intelligence, charisma, perception, luck). Mages have a larger mana pool for casting spells
+- **Character Creation**: Create custom characters with 5 classes (Warrior, Mage, Rogue, Ranger, Cleric) and customizable attributes (strength, dexterity, intelligence, charisma, perception, luck). Mages have a larger mana pool for casting spells; Warriors and Rangers have larger stamina pools for physical abilities
 - **AI-Generated Worlds**: Dynamically generated locations using OpenAI, Anthropic, or Ollama local models (optional)
 - **Turn-Based Combat**: Engage enemies with attack, defend, and flee commands
 - **Inventory & Equipment**: Collect loot from defeated enemies, equip weapons and armor, use consumables
@@ -93,7 +93,7 @@ python -m cli_rpg.main
 - `dismiss <name>` - Dismiss a companion from your party (requires confirmation; high-bond companions show warning)
 - `companion-quest <name>` - Accept a companion's personal quest (requires TRUSTED bond level)
 - `dump-state` - Export complete game state as JSON for programmatic inspection
-- `rest` (r) - Rest to recover health (restores 25% of max HP, advances time by 4 hours, reduces dread, may trigger dreams; not available during combat)
+- `rest` (r) - Rest to recover health and stamina (restores 25% of max HP and 25% of max stamina, advances time by 4 hours, reduces dread, may trigger dreams; not available during combat)
 - `camp` (ca) - Set up camp in wilderness areas (requires Camping Supplies; heals 50% HP, reduces dread by 30-40, advances time 8 hours; campfire cooks raw meat and may attract friendly visitors)
 - `forage` (fg) - Search for herbs and berries (forest/wilderness only; PER-based success chance; 1-hour cooldown)
 - `hunt` (hu) - Hunt game for meat and pelts (forest/wilderness only; DEX/PER-based success chance; 2-hour cooldown)
@@ -169,7 +169,7 @@ Status effects are cleared when combat ends.
 - `defend` (d) - Take a defensive stance, reducing incoming damage by 50% from all enemies
 - `flee` (f) - Attempt to escape (chance based on dexterity)
 - `cast [target]` (c) - Cast a magic attack at an enemy (costs 10 mana, damage based on intelligence). Targeting works like `attack`.
-- `sneak` (sn) - **Rogue only**: Enter stealth mode for 1 turn. Next attack deals 1.5x backstab damage. Higher DEX increases dodge chance while stealthed (DEX × 5%, capped at 75%). Stealth breaks if you take damage.
+- `sneak` (sn) - **Rogue only**: Enter stealth mode for 1 turn (costs 10 stamina). Next attack deals 1.5x backstab damage. Higher DEX increases dodge chance while stealthed (DEX × 5%, capped at 75%). Stealth breaks if you take damage.
 - `use <item>` (u) - Use a consumable item (e.g., health potion) - counts as your turn
 - `status` (s, stats) - View combat status (HP of you and all enemies, action history, pending combos)
 - `help` (h) - Display the full command reference
@@ -218,7 +218,7 @@ Companion reactions appear as flavor text after combat resolution.
 Defeated enemies have a chance to drop loot. Items include:
 - **Weapons**: Increase attack damage when equipped
 - **Armor**: Reduce incoming damage when equipped
-- **Consumables**: Health potions that restore HP, mana potions that restore mana
+- **Consumables**: Health potions that restore HP, mana potions that restore mana, stamina potions that restore stamina
 - **Misc Items**: Flavor items like gold coins and monster parts
 
 Your inventory has a capacity of 20 items. Use `inventory` to view your items, `equip <item>` to equip weapons/armor, `unequip weapon|armor` to remove equipment, and `use <item>` for consumables. Equipped items apply their bonuses automatically during combat.

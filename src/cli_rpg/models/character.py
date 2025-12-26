@@ -97,6 +97,8 @@ class Character:
     light_remaining: int = 0
     mana: int = field(init=False)
     max_mana: int = field(init=False)
+    stamina: int = field(init=False)
+    max_stamina: int = field(init=False)
 
     def __post_init__(self):
         """Validate attributes and calculate derived stats."""
@@ -149,6 +151,15 @@ class Character:
         else:
             self.max_mana = 20 + self.intelligence * 2
         self.mana = self.max_mana
+
+        # Calculate max_stamina based on class
+        # Warriors/Rangers get higher stamina: 50 + STR * 5
+        # Other classes: 20 + STR * 2
+        if self.character_class in (CharacterClass.WARRIOR, CharacterClass.RANGER):
+            self.max_stamina = 50 + self.strength * 5
+        else:
+            self.max_stamina = 20 + self.strength * 2
+        self.stamina = self.max_stamina
 
         # Initialize inventory
         from cli_rpg.models.inventory import Inventory
@@ -223,6 +234,36 @@ class Character:
             amount: Amount of mana to restore
         """
         self.mana = min(self.max_mana, self.mana + amount)
+
+    def use_stamina(self, amount: int) -> bool:
+        """Attempt to use stamina.
+
+        Args:
+            amount: Amount of stamina to use
+
+        Returns:
+            True if stamina was successfully used, False if insufficient stamina
+        """
+        if self.stamina < amount:
+            return False
+        self.stamina -= amount
+        return True
+
+    def restore_stamina(self, amount: int) -> None:
+        """Restore stamina, capped at max_stamina.
+
+        Args:
+            amount: Amount of stamina to restore
+        """
+        self.stamina = min(self.max_stamina, self.stamina + amount)
+
+    def regen_stamina(self, amount: int = 1) -> None:
+        """Regenerate stamina during combat.
+
+        Args:
+            amount: Amount of stamina to regenerate (default 1)
+        """
+        self.stamina = min(self.max_stamina, self.stamina + amount)
 
     def is_alive(self) -> bool:
         """Check if character is alive.
@@ -330,6 +371,22 @@ class Character:
             # Record item use for quest progress
             quest_messages = self.record_use(item.name)
             message = f"You used {item.name} and restored {restored} mana!"
+            if quest_messages:
+                message += "\n" + "\n".join(quest_messages)
+            return (True, message)
+
+        # Handle stamina restoration items
+        if item.stamina_restore > 0:
+            # Check if already at full stamina
+            if self.stamina >= self.max_stamina:
+                return (False, "You're already at full stamina!")
+            old_stamina = self.stamina
+            self.restore_stamina(item.stamina_restore)
+            restored = self.stamina - old_stamina
+            self.inventory.remove_item(item)
+            # Record item use for quest progress
+            quest_messages = self.record_use(item.name)
+            message = f"You used {item.name} and restored {restored} stamina!"
             if quest_messages:
                 message += "\n" + "\n".join(quest_messages)
             return (True, message)
@@ -880,6 +937,13 @@ class Character:
             self.max_mana = 20 + self.intelligence * 2
         self.mana = self.max_mana  # Restore mana to new maximum
 
+        # Recalculate max_stamina based on class (STR increased)
+        if self.character_class in (CharacterClass.WARRIOR, CharacterClass.RANGER):
+            self.max_stamina = 50 + self.strength * 5
+        else:
+            self.max_stamina = 20 + self.strength * 2
+        self.stamina = self.max_stamina  # Restore stamina to new maximum
+
         # Restore health to new maximum
         self.health = self.max_health
 
@@ -911,6 +975,8 @@ class Character:
             "max_health": self.max_health,
             "mana": self.mana,
             "max_mana": self.max_mana,
+            "stamina": self.stamina,
+            "max_stamina": self.max_stamina,
             "xp": self.xp,
             "inventory": self.inventory.to_dict(),
             "gold": self.gold,
@@ -1001,6 +1067,18 @@ class Character:
         else:
             character.mana = character.max_mana
 
+        # Recalculate max_stamina based on class (backward compat: calculate if not saved)
+        if character.character_class in (CharacterClass.WARRIOR, CharacterClass.RANGER):
+            character.max_stamina = 50 + character.strength * 5
+        else:
+            character.max_stamina = 20 + character.strength * 2
+
+        # Restore stamina from save or default to max_stamina
+        if "stamina" in data:
+            character.stamina = min(data["stamina"], character.max_stamina)
+        else:
+            character.stamina = character.max_stamina
+
         # Restore XP
         if "xp" in data:
             character.xp = data["xp"]
@@ -1059,6 +1137,15 @@ class Character:
         else:
             mana_str = colors.damage(f"{self.mana}/{self.max_mana}")
 
+        # Color stamina based on percentage
+        stamina_pct = self.stamina / self.max_stamina if self.max_stamina > 0 else 0
+        if stamina_pct > 0.5:
+            stamina_str = colors.heal(f"{self.stamina}/{self.max_stamina}")
+        elif stamina_pct > 0.25:
+            stamina_str = colors.gold(f"{self.stamina}/{self.max_stamina}")
+        else:
+            stamina_str = colors.damage(f"{self.stamina}/{self.max_stamina}")
+
         xp_str = colors.location(f"{self.xp}/{self.xp_to_next_level}")
 
         # Include class in title line if present
@@ -1068,6 +1155,7 @@ class Character:
             f"{self.name}{class_str} (Level {self.level}) - {status}\n"
             f"{colors.stat_header('Health')}: {health_str} | "
             f"{colors.stat_header('Mana')}: {mana_str} | "
+            f"{colors.stat_header('Stamina')}: {stamina_str} | "
             f"{colors.stat_header('Gold')}: {gold_str} | "
             f"{colors.stat_header('XP')}: {xp_str}\n"
             f"{colors.stat_header('Strength')}: {self.strength} | "

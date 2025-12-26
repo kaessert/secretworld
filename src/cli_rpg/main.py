@@ -1542,13 +1542,14 @@ def handle_exploration_command(game_state: GameState, command: str, args: list[s
             return (True, "\n=== Ancient Lore ===\nThe mysteries of this place remain hidden...")
 
     elif command == "rest":
-        # Check if already at full health and dread
+        # Check if already at full health, stamina, and dread
         char = game_state.current_character
         at_full_health = char.health >= char.max_health
+        at_full_stamina = char.stamina >= char.max_stamina
         no_dread = char.dread_meter.dread == 0
 
-        if at_full_health and no_dread:
-            return (True, "\nYou're already at full health and feeling calm!")
+        if at_full_health and at_full_stamina and no_dread:
+            return (True, "\nYou're already at full health, stamina, and feeling calm!")
 
         messages = []
 
@@ -1558,6 +1559,15 @@ def handle_exploration_command(game_state: GameState, command: str, args: list[s
             actual_heal = min(heal_amount, char.max_health - char.health)
             char.heal(actual_heal)
             messages.append(f"You rest and recover {actual_heal} health.")
+
+        # Calculate stamina restore: 25% of max stamina, minimum 1
+        if not at_full_stamina:
+            stamina_amount = max(1, char.max_stamina // 4)
+            old_stamina = char.stamina
+            char.restore_stamina(stamina_amount)
+            actual_restore = char.stamina - old_stamina
+            if actual_restore > 0:
+                messages.append(f"You recover {actual_restore} stamina.")
 
         # Reduce dread by 20
         if not no_dread:

@@ -207,7 +207,8 @@ class TestDreadRestIntegration:
         success, message = handle_exploration_command(game_state, "rest", [])
 
         assert success
-        assert "already at full health and feeling calm" in message
+        assert "already at full health" in message
+        assert "feeling calm" in message
 
 
 class TestDreadTalkIntegration:
