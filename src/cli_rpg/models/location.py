@@ -8,6 +8,7 @@ from cli_rpg import colors
 
 if TYPE_CHECKING:
     from cli_rpg.models.npc import NPC
+    from cli_rpg.world_grid import SubGrid
 
 
 @dataclass
@@ -49,7 +50,9 @@ class Location:
     boss_defeated: bool = False  # True if boss has been defeated (prevents respawn)
     treasures: List[dict] = field(default_factory=list)  # Treasure chests with loot
     hidden_secrets: List[dict] = field(default_factory=list)  # Secrets with detection thresholds
-    
+    is_exit_point: bool = False  # Only these rooms allow 'exit' command
+    sub_grid: Optional["SubGrid"] = None  # Interior grid for landmarks (overworld only)
+
     def __post_init__(self) -> None:
         """Validate location attributes after initialization."""
         # Validate and normalize name
@@ -308,6 +311,10 @@ class Location:
             data["treasures"] = self.treasures.copy()
         if self.hidden_secrets:
             data["hidden_secrets"] = [secret.copy() for secret in self.hidden_secrets]
+        if self.is_exit_point:
+            data["is_exit_point"] = self.is_exit_point
+        if self.sub_grid is not None:
+            data["sub_grid"] = self.sub_grid.to_dict()
         return data
     
     @classmethod
@@ -352,6 +359,13 @@ class Location:
         treasures = data.get("treasures", [])
         # Parse hidden_secrets if present (backward compatibility)
         hidden_secrets = data.get("hidden_secrets", [])
+        # Parse is_exit_point if present (backward compatibility)
+        is_exit_point = data.get("is_exit_point", False)
+        # Parse sub_grid if present (backward compatibility)
+        sub_grid = None
+        if "sub_grid" in data:
+            from cli_rpg.world_grid import SubGrid
+            sub_grid = SubGrid.from_dict(data["sub_grid"])
         return cls(
             name=data["name"],
             description=data["description"],
@@ -370,7 +384,9 @@ class Location:
             boss_enemy=boss_enemy,
             boss_defeated=boss_defeated,
             treasures=treasures,
-            hidden_secrets=hidden_secrets
+            hidden_secrets=hidden_secrets,
+            is_exit_point=is_exit_point,
+            sub_grid=sub_grid
         )
     
     def __str__(self) -> str:

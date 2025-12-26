@@ -1,70 +1,58 @@
-# Telegraphed Enemy Attacks - Implementation Summary
+# Implementation Summary: Add `is_exit_point` and `sub_grid` to Location Model
 
 ## What Was Implemented
 
-The telegraphed enemy attacks feature was already fully implemented. This implementation verification confirmed:
+Added two new fields to the `Location` model to support the SubGrid-based sub-location system:
 
-### Model Layer (`src/cli_rpg/models/enemy.py`)
+### New Fields (in `src/cli_rpg/models/location.py`)
 
-1. **SpecialAttack dataclass** (lines 11-52):
-   - `name`: Attack identifier (e.g., "Crushing Blow")
-   - `damage_multiplier`: Multiplier for damage calculation (e.g., 2.0 = 100% more)
-   - `telegraph_message`: Warning shown to player turn before execution
-   - `hit_message`: Flavor text when attack executes
-   - `effect_type`: Optional status effect ("stun", "poison", "freeze")
-   - `effect_damage`, `effect_duration`, `effect_chance`: Effect configuration
-   - `to_dict()` / `from_dict()`: Serialization for save/load persistence
+1. **`is_exit_point: bool = False`**
+   - Marks locations where the `exit` command is allowed
+   - Defaults to `False` (interior rooms that don't allow exit)
+   - Only serialized when `True` for minimal save file size
 
-2. **Enemy dataclass additions**:
-   - `special_attacks: List[SpecialAttack]` - Boss's available special attacks
-   - `telegraphed_attack: Optional[str]` - Pending special attack name for next turn
-   - Updated `to_dict()` / `from_dict()` for persistence
+2. **`sub_grid: Optional["SubGrid"] = None`**
+   - Contains the bounded interior grid for overworld landmarks
+   - Uses forward reference with `TYPE_CHECKING` to avoid circular imports
+   - Only serialized when not `None` for backward compatibility
 
-### Combat Layer (`src/cli_rpg/combat.py`)
+### Changes Made
 
-1. **`_execute_special_attack()`** (lines 1483-1563):
-   - Calculates damage with multiplier
-   - Applies block (75%) and defend (50%) mitigation
-   - Applies status effects based on `effect_chance`
+1. **Forward Reference Import** (line 11)
+   - Added `from cli_rpg.world_grid import SubGrid` under `TYPE_CHECKING`
 
-2. **`_maybe_telegraph_special()`** (lines 1565-1586):
-   - Only triggers for bosses with special attacks
-   - 30% chance per turn to telegraph
-   - Sets `telegraphed_attack` and returns warning message
+2. **Field Definitions** (lines 53-54, after `hidden_secrets`)
+   - Added `is_exit_point: bool = False`
+   - Added `sub_grid: Optional["SubGrid"] = None`
 
-3. **`enemy_turn()` integration** (lines 1619-1639, 1848-1851):
-   - Checks for pending telegraphed attack at start of each boss's turn
-   - Executes special attack if one is pending, then clears it
-   - Appends telegraph warnings at end of turn (color-highlighted)
+3. **Serialization in `to_dict()`** (lines 314-317)
+   - Conditionally includes `is_exit_point` only when `True`
+   - Conditionally includes `sub_grid` only when not `None`
 
-4. **`spawn_boss()` boss definitions** (lines 2318-2517):
-   - Stone Sentinel: "Crushing Blow" (2x damage, 75% stun chance)
-   - Elder Treant: "Nature's Wrath" (1.5x damage, guaranteed poison 8dmg/4turns)
-   - Drowned Overseer: "Tidal Surge" (1.5x damage, 90% freeze 2 turns)
-   - Generic bosses: "Devastating Strike" (1.75x damage)
+4. **Deserialization in `from_dict()`** (lines 362-368, 388-389)
+   - Parses `is_exit_point` with default `False`
+   - Parses `sub_grid` using `SubGrid.from_dict()` when present
+   - Added both fields to constructor call
 
-### Test Coverage (`tests/test_telegraphed_attacks.py`)
+### Tests Created
 
-14 tests covering the spec:
-- **TestSpecialAttackModel**: Dataclass creation, effects, Enemy integration
-- **TestSpecialAttackSerialization**: to_dict/from_dict persistence
-- **TestTelegraphMechanic**: Telegraph triggering, execution, damage multiplier, clearing
-- **TestDefensiveMitigation**: Defend (50%) and block (75%) reduction of special damage
-- **TestNonBossEnemies**: Regular enemies never telegraph
-- **TestSpecialAttackEffects**: Stun and poison effect application
+New test file: `tests/test_exit_points.py` with 16 tests covering:
+
+- `TestIsExitPointField` (6 tests): Default value, setting value, serialization/deserialization
+- `TestSubGridField` (5 tests): Default value, setting SubGrid, serialization/deserialization
+- `TestBackwardCompatibility` (2 tests): Old saves without new fields still load correctly
+- `TestRoundTrip` (3 tests): Full serialization cycle preserves all data
 
 ## Test Results
 
-```
-tests/test_telegraphed_attacks.py: 14 passed
-tests/test_combat.py: 59 passed
-```
+- **New tests**: 16 passed
+- **Existing Location tests**: 58 passed (no regressions)
+- **SubGrid tests**: 23 passed (no regressions)
+- **Full test suite**: 3209 passed
 
-## E2E Validation Points
+## E2E Tests Should Validate
 
-To validate this feature end-to-end:
-1. Encounter a boss enemy (use `spawn_boss()` with any type)
-2. During combat, after normal enemy attacks, watch for telegraph warnings like "The Stone Sentinel raises its massive fist high above its head..."
-3. On the next turn, the special attack should execute with multiplied damage
-4. Using `defend` or `block` before the special lands should reduce damage significantly
-5. Saving and loading mid-combat should preserve the pending telegraph state
+1. Creating a location with `is_exit_point=True` and saving/loading the game
+2. Creating an overworld location with a `sub_grid` containing interior rooms
+3. Loading old saves without the new fields (backward compatibility)
+4. Entering a landmark and having the sub_grid available for navigation
