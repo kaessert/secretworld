@@ -15,6 +15,25 @@ from cli_rpg.location_art import get_fallback_location_ascii_art
 logger = logging.getLogger(__name__)
 
 
+# Safe zone categories (no random encounters)
+SAFE_ZONE_CATEGORIES = {"town", "village", "settlement"}
+
+
+def _infer_hierarchy_from_category(category: Optional[str]) -> tuple[bool, bool]:
+    """Infer hierarchy fields from location category.
+
+    Args:
+        category: Location category (town, dungeon, forest, etc.)
+
+    Returns:
+        Tuple of (is_overworld, is_safe_zone):
+        - is_overworld: True for all AI-generated locations (overworld by default)
+        - is_safe_zone: True for safe categories (town, village, settlement)
+    """
+    is_safe = category in SAFE_ZONE_CATEGORIES if category else False
+    return (True, is_safe)
+
+
 def _create_npcs_from_data(npcs_data: list[dict]) -> list[NPC]:
     """Create NPC objects from parsed NPC data.
 
@@ -155,13 +174,19 @@ def create_ai_world(
         theme=theme
     )
 
+    # Infer hierarchy fields from category
+    starting_category = starting_data.get("category")
+    is_overworld, is_safe_zone = _infer_hierarchy_from_category(starting_category)
+
     # Create starting location at origin (0, 0)
     starting_location = Location(
         name=starting_data["name"],
         description=starting_data["description"],
         connections={},  # WorldGrid will add connections
-        category=starting_data.get("category"),
-        ascii_art=starting_ascii_art
+        category=starting_category,
+        ascii_art=starting_ascii_art,
+        is_overworld=is_overworld,
+        is_safe_zone=is_safe_zone
     )
     grid.add_location(starting_location, 0, 0)
 
@@ -261,13 +286,19 @@ def create_ai_world(
                 theme=theme
             )
 
+            # Infer hierarchy fields from category
+            new_category = location_data.get("category")
+            new_is_overworld, new_is_safe_zone = _infer_hierarchy_from_category(new_category)
+
             # Create location
             new_location = Location(
                 name=location_data["name"],
                 description=location_data["description"],
                 connections={},
-                category=location_data.get("category"),
-                ascii_art=new_ascii_art
+                category=new_category,
+                ascii_art=new_ascii_art,
+                is_overworld=new_is_overworld,
+                is_safe_zone=new_is_safe_zone
             )
 
             # Add AI-generated NPCs to the new location
@@ -384,14 +415,20 @@ def expand_world(
     else:
         new_coordinates = None
 
+    # Infer hierarchy fields from category
+    new_category = location_data.get("category")
+    new_is_overworld, new_is_safe_zone = _infer_hierarchy_from_category(new_category)
+
     # Create new location with coordinates
     new_location = Location(
         name=location_data["name"],
         description=location_data["description"],
         connections={},
         coordinates=new_coordinates,
-        category=location_data.get("category"),
-        ascii_art=new_ascii_art
+        category=new_category,
+        ascii_art=new_ascii_art,
+        is_overworld=new_is_overworld,
+        is_safe_zone=new_is_safe_zone
     )
 
     # Add AI-generated NPCs to the new location
@@ -540,14 +577,26 @@ def expand_area(
             location_name=loc_data["name"]
         )
 
-        # Create the location
+        # Infer hierarchy fields from category
+        loc_category = loc_data.get("category")
+        _, loc_is_safe_zone = _infer_hierarchy_from_category(loc_category)
+
+        # Determine if this is the entry location (at relative 0,0)
+        is_entry = (rel_x == 0 and rel_y == 0)
+
+        # Entry location is overworld, sub-locations are not
+        loc_is_overworld = is_entry
+
+        # Create the location with hierarchy fields
         new_loc = Location(
             name=loc_data["name"],
             description=loc_data["description"],
             connections={},
             coordinates=(abs_x, abs_y),
-            category=loc_data.get("category"),
-            ascii_art=loc_ascii_art
+            category=loc_category,
+            ascii_art=loc_ascii_art,
+            is_overworld=loc_is_overworld,
+            is_safe_zone=loc_is_safe_zone
         )
 
         # Add AI-generated NPCs to the location
@@ -558,17 +607,21 @@ def expand_area(
         placed_locations[loc_data["name"]] = {
             "location": new_loc,
             "connections": loc_data["connections"],
-            "coords": (abs_x, abs_y)
+            "coords": (abs_x, abs_y),
+            "is_entry": is_entry
         }
 
         # Track entry location (at relative 0,0)
-        if rel_x == 0 and rel_y == 0:
+        if is_entry:
             entry_name = loc_data["name"]
 
     # If no entry location was placed, fall back to single location expansion
     if entry_name is None and placed_locations:
         # Use first placed location as entry
         entry_name = next(iter(placed_locations.keys()))
+        # Mark first location as entry (overworld)
+        placed_locations[entry_name]["location"].is_overworld = True
+        placed_locations[entry_name]["is_entry"] = True
     elif not placed_locations:
         logger.warning("No locations could be placed, falling back to single location")
         return expand_world(
@@ -579,6 +632,22 @@ def expand_area(
             theme=theme,
             target_coords=target_coords
         )
+
+    # Set up hierarchy relationships between entry and sub-locations
+    if entry_name is not None:
+        entry_loc = placed_locations[entry_name]["location"]
+        sub_location_names = []
+
+        for name, data in placed_locations.items():
+            if not data.get("is_entry", False):
+                # This is a sub-location - set parent reference
+                data["location"].parent_location = entry_name
+                sub_location_names.append(name)
+
+        # Set entry's sub_locations list and entry_point
+        entry_loc.sub_locations = sub_location_names
+        if sub_location_names:
+            entry_loc.entry_point = sub_location_names[0]
 
     # Second pass: add connections
     for name, data in placed_locations.items():

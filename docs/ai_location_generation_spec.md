@@ -119,6 +119,10 @@ Coordinate-based world storage for spatial consistency.
 - Generate initial world on a coordinate grid starting from (0,0)
 - Locations are placed using WorldGrid with spatial coordinates
 - Validate all connections are bidirectional
+- Sets hierarchy fields based on location category:
+  - `is_overworld=True` for all AI-generated locations
+  - `is_safe_zone=True` for safe categories (town, village, settlement)
+  - `is_safe_zone=False` for danger categories (dungeon, wilderness, ruins, cave, forest, mountain)
 - Return Location dictionary compatible with GameState (via `WorldGrid.as_dict()`)
 
 **`expand_area(world: dict[str, Location], ai_service: AIService, from_location: str, direction: str, theme: str, target_coords: Tuple[int, int]) -> dict[str, Location]`**
@@ -129,6 +133,10 @@ Coordinate-based world storage for spatial consistency.
 - Handles coordinate conflicts and duplicate names gracefully
 - Falls back to single-location expansion (`expand_world`) if needed
 - Randomly selects sub-theme hints for variety (mystical forest, ancient ruins, haunted grounds, etc.)
+- Sets hierarchy fields for parent-child relationships:
+  - Entry location (rel 0,0): `is_overworld=True`, `sub_locations` populated, `entry_point` set
+  - Sub-locations: `is_overworld=False`, `parent_location` set to entry name
+  - All locations get `is_safe_zone` based on category
 - Return updated world
 
 **`expand_world(world: dict[str, Location], ai_service: AIService, from_location: str, direction: str, theme: str) -> dict[str, Location]`**
@@ -138,6 +146,7 @@ Coordinate-based world storage for spatial consistency.
 - Add bidirectional connections based on spatial positions
 - Guarantee at least one dangling connection for future exploration (prevents dead-ends)
 - If AI returns only a back-connection, auto-add a dangling connection (format: "Unexplored {Direction}")
+- Sets hierarchy fields: `is_overworld=True`, `is_safe_zone` based on category
 - Update world dictionary in-place
 - Return updated world
 
@@ -360,6 +369,12 @@ The E2E test suite (`tests/test_e2e_world_expansion.py`) validates dynamic world
   - `find_unreachable_exits` detects orphan exits
   - `validate_border_closure` verification
   - `get_frontier_locations` returns correct locations
+- **Hierarchy field tests** (`tests/test_ai_world_hierarchy.py`):
+  - `_infer_hierarchy_from_category()` helper function
+  - `create_ai_world()` sets `is_overworld` and `is_safe_zone` based on category
+  - `expand_world()` sets hierarchy fields on expanded locations
+  - `expand_area()` sets parent-child relationships for sub-locations
+  - Graceful defaults when AI omits hierarchy fields
 
 **Test Infrastructure:**
 - Fixtures for different world configurations

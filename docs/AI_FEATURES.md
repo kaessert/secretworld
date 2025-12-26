@@ -226,6 +226,8 @@ loaded_game.ai_service = ai_service
    - `expand_world()`: Single-location fallback expansion
    - Manages connections via WorldGrid
    - Handles fallbacks gracefully
+   - **Hierarchy support**: Sets `is_overworld`, `is_safe_zone`, `parent_location`, `sub_locations`, and `entry_point` fields based on location category
+   - Safe zone categories (town, village, settlement) get `is_safe_zone=True`; danger zones (dungeon, wilderness, ruins, cave, forest, mountain) get `is_safe_zone=False`
 
 4. **WorldGrid** (`world_grid.py`)
    - Coordinate-based world storage

@@ -412,7 +412,7 @@ Your vision fades... but this is not the end.
 ---
 
 ### OVERWORLD & SUB-LOCATION REWORK - Hierarchical World System
-**Status**: IN PROGRESS (Core Infrastructure Complete, 2 BLOCKERS remaining)
+**Status**: IN PROGRESS (Core Infrastructure Complete, 1 BLOCKER remaining)
 
 **Problem**: The current flat world grid doesn't support meaningful world structure. Players wander an endless grid with random combat everywhere. There's no sense of safe havens, no cities to explore internally, no dungeons with depth.
 
@@ -438,23 +438,15 @@ Your vision fades... but this is not the end.
 
 **🚧 BLOCKERS - Must Fix Before Feature Complete**:
 
-1. **BLOCKER: AI World Generation Ignores Hierarchy (CRITICAL)**
+1. ~~**BLOCKER: AI World Generation Ignores Hierarchy (CRITICAL)**~~ ✅ RESOLVED
    - **File**: `src/cli_rpg/ai_world.py`
-   - **Problem**: `expand_world()` and `expand_area()` create Location objects WITHOUT setting hierarchy fields
-   - **Impact**: All AI-generated areas are flat, non-hierarchical, can't use `enter`/`exit` commands
-   - **Current code** (broken):
-     ```python
-     location = Location(
-         name=..., description=..., connections=...,
-         # MISSING: is_overworld, parent_location, sub_locations, is_safe_zone, entry_point
-     )
-     ```
-   - **Required fix**:
-     - Update AI prompts to request hierarchy metadata
-     - Parse and set `is_overworld=True` for landmark locations (cities, dungeons, forests)
-     - Set `is_safe_zone=True` for safe locations (towns, inns, shops)
-     - Generate sub-locations with proper `parent_location` references
-   - **Effort**: 4-6 hours
+   - **Resolution**: Updated `create_ai_world()`, `expand_world()`, and `expand_area()` to set hierarchy fields based on location category
+   - **Implementation**:
+     - Added `SAFE_ZONE_CATEGORIES` constant defining safe location categories (town, village, settlement)
+     - Added `_infer_hierarchy_from_category()` helper function that maps categories to hierarchy fields
+     - All AI-generated locations now get `is_overworld=True` and appropriate `is_safe_zone` based on category
+     - `expand_area()` properly sets parent-child relationships for sub-locations
+   - **Tests**: 26 tests in `tests/test_ai_world_hierarchy.py`
 
 2. **BLOCKER: No Dungeon Depth/Floor System (DESIGN GAP)**
    - **Problem**: Cannot create multi-floor dungeons (Mine Entrance → Upper Tunnels → Boss Chamber)
@@ -554,7 +546,7 @@ OVERWORLD (macro map)
 - ✅ `src/cli_rpg/game_state.py`: Enter/exit commands - DONE
 - ✅ `src/cli_rpg/world.py`: Default hierarchical world structure - DONE
 - ✅ `src/cli_rpg/map_renderer.py`: Separate overworld and local map rendering - DONE
-- 🚧 `src/cli_rpg/ai_world.py`: AI generates landmarks with sub-locations - **BLOCKER #1**
+- ✅ `src/cli_rpg/ai_world.py`: AI generates landmarks with sub-locations - DONE
 - ✅ `src/cli_rpg/game_state.py`: trigger_encounter() safe zone check - DONE
 
 ### Non-interactive mode bugs
