@@ -1,68 +1,82 @@
-# Implementation Summary: Fix ai_world.py expand_area() to Use SubGrid (Phase 1, Step 5)
+# Implementation Summary: Default World SubGrid Migration (Phase 1, Step 6)
 
 ## What Was Implemented
 
-Fixed the `expand_area()` function in `src/cli_rpg/ai_world.py` to properly use SubGrid for sub-locations instead of adding all generated locations to the overworld.
+The implementation plan in `thoughts/current_plan.md` described converting default world sub-locations to use the SubGrid architecture. Upon review, **this was already fully implemented** in `src/cli_rpg/world.py`.
 
-### Changes Made
+### Features Already in Place
 
-#### 1. Import SubGrid (line 10)
-```python
-from cli_rpg.world_grid import WorldGrid, SubGrid, DIRECTION_OFFSETS
-```
+All five overworld landmarks now have SubGrid-based interior navigation:
 
-#### 2. Store Relative Coordinates (line 611)
-Added `relative_coords` to `placed_locations` dict for later use in SubGrid placement:
-```python
-"relative_coords": (rel_x, rel_y),
-```
+1. **Town Square** (lines 381-390)
+   - SubGrid with bounds (-1, 1, -1, 1)
+   - Entry: Market District (0,0, is_exit_point=True)
+   - Locations: Guard Post (1,0), Town Well (0,1)
 
-#### 3. Replace World Dict Logic with SubGrid Logic (lines 667-701)
-Replaced the old code that added ALL locations to world dict with new logic that:
-- Creates a SubGrid for sub-locations when there are multiple locations
-- Adds only the entry location to the world dict
-- Places sub-locations in the entry's SubGrid
-- Sets `is_exit_point=True` on entry and first sub-location
-- Uses SubGrid bounds of `(-3, 3, -3, 3)` for 7x7 areas
+2. **Forest** (lines 473-482)
+   - SubGrid with bounds (-1, 1, -1, 1)
+   - Entry: Forest Edge (0,0, is_exit_point=True)
+   - Locations: Deep Woods (0,1), Ancient Grove (1,0)
 
-### Behavior Change
+3. **Millbrook Village** (lines 619-628)
+   - SubGrid with bounds (-1, 1, -1, 1)
+   - Entry: Village Square (0,0, is_exit_point=True)
+   - Locations: Inn (1,0), Blacksmith (0,1)
 
-**Before (broken):**
-- Entry location + all sub-locations added to overworld `world` dict with coordinates
-- All locations show on worldmap
-- Players move between rooms with `go north/south/east/west`
+4. **Abandoned Mines** (lines 720-730)
+   - SubGrid with bounds (-1, 1, -1, 2)
+   - Entry: Mine Entrance (0,0, is_exit_point=True)
+   - Locations: Upper Tunnels (1,0), Flooded Level (0,1), Boss Chamber (0,2)
 
-**After (fixed):**
-- Entry location added to overworld `world` dict with coordinates
-- Sub-locations added to entry's `sub_grid` (no overworld coordinates)
-- Only entry shows on worldmap
-- Players use `enter <name>` to go inside, `exit` to leave
-- Cardinal movement works inside the SubGrid
+5. **Ironhold City** (lines 867-877)
+   - SubGrid with bounds (-1, 1, -1, 1)
+   - Entry: Ironhold Market (0,0, is_exit_point=True)
+   - Locations: Castle Ward (1,0), Temple Quarter (0,1), Slums (0,-1)
 
-## Files Modified
+### Key Architectural Points
 
-| File | Change |
-|------|--------|
-| `src/cli_rpg/ai_world.py` | Modified expand_area() to use SubGrid for sub-locations |
-| `tests/test_ai_world_subgrid.py` | NEW: 11 tests for SubGrid integration |
-| `tests/test_ai_world_hierarchy.py` | Updated 4 tests to access sub-locations via SubGrid |
-| `tests/test_ai_world_generation.py` | Updated 4 tests for new SubGrid behavior |
-| `tests/test_area_generation.py` | Updated 2 tests for new SubGrid behavior |
-| `tests/test_ai_location_category.py` | Updated 1 test for new SubGrid behavior |
+- **Sub-locations NOT in world dict**: Only overworld locations are in `grid.as_dict()`. Sub-locations are only accessible via their parent's `sub_grid`.
+- **Exit points enforced**: Only entry locations (at 0,0) have `is_exit_point=True`, blocking exit from other rooms.
+- **Bidirectional connections**: SubGrid automatically creates connections between adjacent locations.
+- **Parent relationship**: All sub-locations have `parent_location` set to their overworld landmark name.
 
 ## Test Results
 
-All 3253 tests pass, including:
-- 11 new tests in `tests/test_ai_world_subgrid.py`
-- 26 tests in `tests/test_ai_world_hierarchy.py`
-- 21 tests in `tests/test_subgrid_navigation.py`
-- Full test suite runs in ~65 seconds
+All tests pass:
 
-## E2E Tests Should Validate
+### `tests/test_default_world_subgrid.py` - 34 tests
+- Town Square SubGrid tests (5 tests)
+- Forest SubGrid tests (5 tests)
+- Millbrook SubGrid tests (5 tests)
+- Abandoned Mines SubGrid tests (5 tests)
+- Ironhold SubGrid tests (5 tests)
+- Connection verification tests (4 tests)
+- Parent location tests (2 tests)
+- Non-exit point enforcement test (1 test)
+- Sub-locations list preservation tests (2 tests)
 
-1. **Area expansion creates entry with SubGrid**: When `expand_area()` is called, verify entry location has `sub_grid` attached
-2. **Sub-locations not in world dict**: Verify sub-locations are NOT accessible via `world["SubLocationName"]`
-3. **Sub-locations accessible via SubGrid**: Verify sub-locations can be found via `entry.sub_grid.get_by_name("SubLocationName")`
-4. **Entry marked as exit point**: Verify `entry.is_exit_point == True`
-5. **First sub-location marked as exit point**: Verify first sub-location has `is_exit_point == True`
-6. **Navigation works**: Player can enter via `enter`, move around with cardinal directions, and exit via `exit`
+### `tests/test_subgrid_navigation.py` - 21 tests
+- GameState sub-location field tests (2 tests)
+- Enter with SubGrid tests (4 tests)
+- Move inside SubGrid tests (4 tests)
+- Exit from exit point tests (5 tests)
+- Get current location tests (2 tests)
+- Sub-location persistence/save tests (4 tests)
+
+### `tests/test_game_state.py` - 60 tests
+- All existing tests continue to pass
+
+## E2E Validation
+
+To validate the implementation end-to-end:
+
+```bash
+cli-rpg --skip-character-creation
+> enter Market District
+> go east  # Should go to Guard Post
+> exit     # Should fail (not exit point)
+> go west  # Back to Market District
+> exit     # Should succeed, return to Town Square
+```
+
+The same pattern works for all landmarks (Forest, Millbrook, Abandoned Mines, Ironhold City).

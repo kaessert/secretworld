@@ -193,6 +193,18 @@ class TestActiveSearch:
         assert "unusual" in message.lower()  # "don't notice anything unusual"
 
 
+def get_all_locations(world):
+    """Get all locations including those in SubGrids."""
+    all_locs = {}
+    for name, loc in world.items():
+        all_locs[name] = loc
+        # Include sub-grid locations if present
+        if loc.sub_grid is not None:
+            for sub_name in loc.sub_grid._by_name:
+                all_locs[sub_name] = loc.sub_grid.get_by_name(sub_name)
+    return all_locs
+
+
 class TestDefaultWorldSecrets:
     """Test that default world locations have secrets for the search command."""
 
@@ -202,8 +214,9 @@ class TestDefaultWorldSecrets:
         from cli_rpg.world import create_default_world
         world, _ = create_default_world()
 
+        all_locs = get_all_locations(world)
         locations_with_secrets = [
-            name for name, loc in world.items()
+            name for name, loc in all_locs.items()
             if loc.hidden_secrets
         ]
         assert len(locations_with_secrets) >= 5, \
@@ -215,7 +228,8 @@ class TestDefaultWorldSecrets:
         from cli_rpg.world import create_default_world
         world, _ = create_default_world()
 
-        for loc_name, loc in world.items():
+        all_locs = get_all_locations(world)
+        for loc_name, loc in all_locs.items():
             for i, secret in enumerate(loc.hidden_secrets):
                 assert "type" in secret, \
                     f"Secret {i} in {loc_name} missing 'type'"
@@ -234,8 +248,9 @@ class TestDefaultWorldSecrets:
         from cli_rpg.world import create_default_world
         world, _ = create_default_world()
 
+        all_locs = get_all_locations(world)
         all_thresholds = []
-        for loc in world.values():
+        for loc in all_locs.values():
             for secret in loc.hidden_secrets:
                 all_thresholds.append(secret["threshold"])
 
@@ -255,8 +270,9 @@ class TestDefaultWorldSecrets:
         from cli_rpg.world import create_default_world
         world, _ = create_default_world()
 
+        all_locs = get_all_locations(world)
         secret_types = set()
-        for loc in world.values():
+        for loc in all_locs.values():
             for secret in loc.hidden_secrets:
                 secret_types.add(secret["type"])
 

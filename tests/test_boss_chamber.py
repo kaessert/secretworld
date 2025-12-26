@@ -69,20 +69,37 @@ class TestBossChamberNoRespawn:
         player = Character(name="Hero", strength=10, dexterity=10, intelligence=10)
         game_state = GameState(player, world, starting_location="Abandoned Mines")
 
-        # Enter Boss Chamber - triggers boss
-        success, _ = game_state.enter("Boss Chamber")
-        assert game_state.is_in_combat()
+        # Navigate through dungeon to Boss Chamber via sub-grid
+        # Enter at Mine Entrance (entry point)
+        success, _ = game_state.enter("Mine Entrance")
+        assert success, "Failed to enter Mine Entrance"
 
-        # Defeat the boss
+        # Navigate to Flooded Level (north from entrance) - has drowned_overseer boss
+        success, _ = game_state.move("north")
+        assert success, "Failed to move to Flooded Level"
+        # Defeat Flooded Level boss first
+        if game_state.is_in_combat():
+            boss = game_state.current_combat.enemies[0]
+            boss.take_damage(boss.health)
+            game_state.current_combat.end_combat(victory=True)
+            game_state.mark_boss_defeated()
+            game_state.current_combat = None
+
+        # Navigate to Boss Chamber (north from flooded level)
+        success, _ = game_state.move("north")
+        assert success, "Failed to move to Boss Chamber"
+        assert game_state.is_in_combat(), "Should trigger Stone Sentinel boss combat"
+
+        # Defeat the Stone Sentinel boss
         boss = game_state.current_combat.enemies[0]
         boss.take_damage(boss.health)  # Kill the boss
         game_state.current_combat.end_combat(victory=True)
         game_state.mark_boss_defeated()  # Mark boss as defeated
         game_state.current_combat = None
 
-        # Exit and re-enter
-        game_state.exit_location()  # Back to Abandoned Mines
-        success, _ = game_state.enter("Boss Chamber")
+        # Navigate back and re-enter Boss Chamber
+        game_state.move("south")  # Back to Flooded Level
+        success, _ = game_state.move("north")  # Back to Boss Chamber
 
         # Should NOT trigger combat again
         assert success
@@ -106,8 +123,9 @@ class TestBossChamberNoRespawn:
         data = game_state.to_dict()
         restored_state = GameState.from_dict(data)
 
-        # boss_defeated should be preserved
-        boss_chamber = restored_state.world["Boss Chamber"]
+        # boss_defeated should be preserved (access via sub_grid)
+        mines = restored_state.world["Abandoned Mines"]
+        boss_chamber = mines.sub_grid.get_by_name("Boss Chamber")
         assert boss_chamber.boss_defeated is True
 
     def test_boss_chamber_safe_after_defeat(self):
@@ -116,8 +134,9 @@ class TestBossChamberNoRespawn:
         player = Character(name="Hero", strength=10, dexterity=10, intelligence=10)
         game_state = GameState(player, world, starting_location="Abandoned Mines")
 
-        # Initially not a safe zone
-        boss_chamber = game_state.world["Boss Chamber"]
+        # Initially not a safe zone (access via sub_grid)
+        mines = game_state.world["Abandoned Mines"]
+        boss_chamber = mines.sub_grid.get_by_name("Boss Chamber")
         assert boss_chamber.is_safe_zone is False
 
         # Enter Boss Chamber and defeat boss
@@ -212,17 +231,20 @@ class TestBossChamberConfiguration:
     def test_boss_chamber_has_boss_enemy(self):
         """Boss Chamber has boss_enemy = 'stone_sentinel'."""
         world, _ = create_default_world()
-        boss_chamber = world["Boss Chamber"]
+        mines = world["Abandoned Mines"]
+        boss_chamber = mines.sub_grid.get_by_name("Boss Chamber")
         assert boss_chamber.boss_enemy == "stone_sentinel"
 
     def test_boss_chamber_is_not_safe_zone(self):
         """Boss Chamber is not a safe zone (boss makes it dangerous)."""
         world, _ = create_default_world()
-        boss_chamber = world["Boss Chamber"]
+        mines = world["Abandoned Mines"]
+        boss_chamber = mines.sub_grid.get_by_name("Boss Chamber")
         assert boss_chamber.is_safe_zone is False
 
     def test_boss_chamber_has_dungeon_category(self):
         """Boss Chamber has dungeon category."""
         world, _ = create_default_world()
-        boss_chamber = world["Boss Chamber"]
+        mines = world["Abandoned Mines"]
+        boss_chamber = mines.sub_grid.get_by_name("Boss Chamber")
         assert boss_chamber.category == "dungeon"

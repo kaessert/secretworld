@@ -7,7 +7,7 @@ from cli_rpg.models.location import Location
 from cli_rpg.models.item import Item, ItemType
 from cli_rpg.models.shop import Shop, ShopItem
 from cli_rpg.models.npc import NPC
-from cli_rpg.world_grid import WorldGrid, OPPOSITE_DIRECTIONS
+from cli_rpg.world_grid import WorldGrid, SubGrid, OPPOSITE_DIRECTIONS
 
 logger = logging.getLogger(__name__)
 
@@ -378,6 +378,17 @@ def create_default_world() -> tuple[dict[str, Location], str]:
         ]
     )
 
+    # Create SubGrid for Town Square interiors
+    town_square_grid = SubGrid(bounds=(-1, 1, -1, 1), parent_name="Town Square")
+    # Mark entry location as exit point
+    market_district.is_exit_point = True
+    # Add locations to SubGrid (entry at 0,0)
+    town_square_grid.add_location(market_district, 0, 0)
+    town_square_grid.add_location(guard_post, 1, 0)
+    town_square_grid.add_location(town_well, 0, 1)
+    # Attach SubGrid to overworld landmark
+    town_square.sub_grid = town_square_grid
+
     # Create sub-locations for Forest (all danger zones)
     forest_edge = Location(
         name="Forest Edge",
@@ -458,6 +469,17 @@ def create_default_world() -> tuple[dict[str, Location], str]:
         ]
     )
     ancient_grove.npcs.append(hermit)
+
+    # Create SubGrid for Forest interiors
+    forest_grid = SubGrid(bounds=(-1, 1, -1, 1), parent_name="Forest")
+    # Mark entry location as exit point
+    forest_edge.is_exit_point = True
+    # Add locations to SubGrid
+    forest_grid.add_location(forest_edge, 0, 0)
+    forest_grid.add_location(deep_woods, 0, 1)
+    forest_grid.add_location(ancient_grove, 1, 0)
+    # Attach SubGrid
+    forest.sub_grid = forest_grid
 
     # Create NPCs for Millbrook Village
     elder = NPC(
@@ -594,6 +616,17 @@ def create_default_world() -> tuple[dict[str, Location], str]:
     )
     blacksmith_loc.npcs.append(blacksmith_npc)
 
+    # Create SubGrid for Millbrook Village interiors
+    millbrook_grid = SubGrid(bounds=(-1, 1, -1, 1), parent_name="Millbrook Village")
+    # Mark entry location as exit point
+    village_square.is_exit_point = True
+    # Add locations to SubGrid
+    millbrook_grid.add_location(village_square, 0, 0)
+    millbrook_grid.add_location(inn, 1, 0)
+    millbrook_grid.add_location(blacksmith_loc, 0, 1)
+    # Attach SubGrid
+    millbrook.sub_grid = millbrook_grid
+
     # Create Old Miner NPC for Abandoned Mines
     old_miner = NPC(
         name="Old Miner",
@@ -683,6 +716,18 @@ def create_default_world() -> tuple[dict[str, Location], str]:
             }
         ]
     )
+
+    # Create SubGrid for Abandoned Mines interiors
+    mines_grid = SubGrid(bounds=(-1, 1, -1, 2), parent_name="Abandoned Mines")
+    # Mark entry location as exit point
+    mine_entrance.is_exit_point = True
+    # Add locations to SubGrid (linear dungeon progression)
+    mines_grid.add_location(mine_entrance, 0, 0)
+    mines_grid.add_location(upper_tunnels, 1, 0)
+    mines_grid.add_location(flooded_level, 0, 1)
+    mines_grid.add_location(boss_chamber, 0, 2)
+    # Attach SubGrid
+    abandoned_mines.sub_grid = mines_grid
 
     # Create luxury shop for Ironhold Market
     greater_health_potion = Item(
@@ -819,30 +864,20 @@ def create_default_world() -> tuple[dict[str, Location], str]:
     )
     temple_quarter.npcs.append(priest)
 
-    # Build world dictionary from grid plus sub-locations
+    # Create SubGrid for Ironhold City interiors
+    ironhold_grid = SubGrid(bounds=(-1, 1, -1, 1), parent_name="Ironhold City")
+    # Mark entry location as exit point
+    ironhold_market.is_exit_point = True
+    # Add locations to SubGrid
+    ironhold_grid.add_location(ironhold_market, 0, 0)
+    ironhold_grid.add_location(castle_ward, 1, 0)
+    ironhold_grid.add_location(temple_quarter, 0, 1)
+    ironhold_grid.add_location(slums, 0, -1)
+    # Attach SubGrid
+    ironhold_city.sub_grid = ironhold_grid
+
+    # Build world dictionary from grid (sub-locations accessed via sub_grid only)
     world = grid.as_dict()
-    # Town Square sub-locations
-    world["Market District"] = market_district
-    world["Guard Post"] = guard_post
-    world["Town Well"] = town_well
-    # Forest sub-locations
-    world["Forest Edge"] = forest_edge
-    world["Deep Woods"] = deep_woods
-    world["Ancient Grove"] = ancient_grove
-    # Millbrook Village sub-locations
-    world["Village Square"] = village_square
-    world["Inn"] = inn
-    world["Blacksmith"] = blacksmith_loc
-    # Abandoned Mines sub-locations
-    world["Mine Entrance"] = mine_entrance
-    world["Upper Tunnels"] = upper_tunnels
-    world["Flooded Level"] = flooded_level
-    world["Boss Chamber"] = boss_chamber
-    # Ironhold City sub-locations
-    world["Ironhold Market"] = ironhold_market
-    world["Castle Ward"] = castle_ward
-    world["Slums"] = slums
-    world["Temple Quarter"] = temple_quarter
 
     # Return world dictionary and starting location (backward compatible)
     return (world, "Town Square")

@@ -45,26 +45,28 @@ class TestCreateDefaultWorld:
         assert starting_location in world
     
     def test_default_world_location_count_with_sublocations(self):
-        """Test that default world has 23 locations: 6 overworld + 3 Town sub + 3 Forest sub + 3 Millbrook sub + 4 Mines sub + 4 Ironhold sub.
+        """Test that default world has 6 overworld locations (sub-locations in sub_grids).
 
-        Spec: World has 23 locations total (6 main + 3 Town sub-locations + 3 Forest sub-locations + 3 Millbrook sub-locations + 4 Mines sub-locations + 4 Ironhold sub-locations)
+        Spec: World dict has 6 overworld locations. Sub-locations accessed via sub_grid.
         """
         world, _ = create_default_world()
-        assert len(world) == 23
+        # Only overworld locations are in world dict now
+        assert len(world) == 6
     
     def test_default_world_location_names(self):
         """Test that default world has correct location names.
 
-        Spec: Locations should be "Town Square", "Forest", "Cave" + sub-locations
+        Spec: Locations should be "Town Square", "Forest", "Cave" (sub-locations in sub_grid)
         """
         world, _ = create_default_world()
         assert "Town Square" in world
         assert "Forest" in world
         assert "Cave" in world
-        # Sub-locations should also exist
-        assert "Market District" in world
-        assert "Guard Post" in world
-        assert "Town Well" in world
+        # Sub-locations are now in sub_grid, not world dict
+        town_square = world["Town Square"]
+        assert town_square.sub_grid.get_by_name("Market District") is not None
+        assert town_square.sub_grid.get_by_name("Guard Post") is not None
+        assert town_square.sub_grid.get_by_name("Town Well") is not None
 
     def test_default_world_town_square_is_overworld(self):
         """Town Square is an overworld landmark with sub-locations.
@@ -79,14 +81,15 @@ class TestCreateDefaultWorld:
         assert town_square.entry_point in town_square.sub_locations
 
     def test_default_world_sub_locations_exist(self):
-        """All Town Square sub-locations exist in world dict.
+        """All Town Square sub-locations exist in sub_grid.
 
-        Spec: Sub-locations listed in town_square.sub_locations are in world
+        Spec: Sub-locations listed in town_square.sub_locations are in sub_grid
         """
         world, _ = create_default_world()
         town_square = world["Town Square"]
         for sub_name in town_square.sub_locations:
-            assert sub_name in world, f"Sub-location '{sub_name}' not in world"
+            sub = town_square.sub_grid.get_by_name(sub_name)
+            assert sub is not None, f"Sub-location '{sub_name}' not in sub_grid"
 
     def test_default_world_sub_locations_have_parent(self):
         """Sub-locations reference Town Square as parent.
@@ -96,20 +99,21 @@ class TestCreateDefaultWorld:
         world, _ = create_default_world()
         town_square = world["Town Square"]
         for sub_name in town_square.sub_locations:
-            sub = world[sub_name]
+            sub = town_square.sub_grid.get_by_name(sub_name)
             assert sub.parent_location == "Town Square"
             assert sub.is_safe_zone is True
 
     def test_default_world_sub_locations_have_no_cardinal_connections(self):
-        """Sub-locations have no n/s/e/w exits (only enter/exit navigation).
+        """Sub-locations have internal SubGrid connections (not overworld exits).
 
-        Spec: Sub-locations have no cardinal connections
+        Spec: Sub-locations have internal SubGrid connections, not overworld exits
         """
         world, _ = create_default_world()
         town_square = world["Town Square"]
-        for sub_name in town_square.sub_locations:
-            sub = world[sub_name]
-            assert len(sub.connections) == 0
+        # Entry point (Market District) should have connections to other sub-locations
+        entry = town_square.sub_grid.get_by_name("Market District")
+        # With SubGrid, entry connects to adjacent rooms (Guard Post at east, Town Well at north)
+        assert len(entry.connections) >= 2  # Has internal SubGrid connections
 
     def test_default_world_merchant_in_market_district(self):
         """Merchant NPC is in Market District sub-location.
@@ -117,7 +121,8 @@ class TestCreateDefaultWorld:
         Spec: Merchant NPC moved to Market District with is_merchant=True
         """
         world, _ = create_default_world()
-        market = world["Market District"]
+        town_square = world["Town Square"]
+        market = town_square.sub_grid.get_by_name("Market District")
         merchant = market.find_npc_by_name("Merchant")
         assert merchant is not None
         assert merchant.is_merchant is True
@@ -137,14 +142,15 @@ class TestCreateDefaultWorld:
         assert forest.entry_point in forest.sub_locations
 
     def test_default_world_forest_sub_locations_exist(self):
-        """All Forest sub-locations exist in world dict.
+        """All Forest sub-locations exist in sub_grid.
 
-        Spec: Sub-locations listed in forest.sub_locations are in world
+        Spec: Sub-locations listed in forest.sub_locations are in sub_grid
         """
         world, _ = create_default_world()
         forest = world["Forest"]
         for sub_name in forest.sub_locations:
-            assert sub_name in world, f"Sub-location '{sub_name}' not in world"
+            sub = forest.sub_grid.get_by_name(sub_name)
+            assert sub is not None, f"Sub-location '{sub_name}' not in sub_grid"
 
     def test_default_world_forest_sub_locations_have_parent(self):
         """Forest sub-locations reference Forest as parent and are danger zones.
@@ -154,20 +160,20 @@ class TestCreateDefaultWorld:
         world, _ = create_default_world()
         forest = world["Forest"]
         for sub_name in forest.sub_locations:
-            sub = world[sub_name]
+            sub = forest.sub_grid.get_by_name(sub_name)
             assert sub.parent_location == "Forest"
             assert sub.is_safe_zone is False  # All danger zones
 
     def test_default_world_forest_sub_locations_no_cardinal_exits(self):
-        """Forest sub-locations have no n/s/e/w exits (only enter/exit).
+        """Forest sub-locations have internal SubGrid connections.
 
-        Spec: Forest sub-locations have no cardinal connections
+        Spec: Forest sub-locations have internal SubGrid connections
         """
         world, _ = create_default_world()
         forest = world["Forest"]
-        for sub_name in forest.sub_locations:
-            sub = world[sub_name]
-            assert len(sub.connections) == 0
+        # Entry point (Forest Edge) should have internal connections
+        entry = forest.sub_grid.get_by_name("Forest Edge")
+        assert len(entry.connections) >= 2  # Has internal SubGrid connections
 
     def test_default_world_hermit_in_ancient_grove(self):
         """Hermit NPC is in Ancient Grove and is recruitable.
@@ -175,7 +181,8 @@ class TestCreateDefaultWorld:
         Spec: Hermit NPC in Ancient Grove with is_recruitable=True
         """
         world, _ = create_default_world()
-        grove = world["Ancient Grove"]
+        forest = world["Forest"]
+        grove = forest.sub_grid.get_by_name("Ancient Grove")
         hermit = grove.find_npc_by_name("Hermit")
         assert hermit is not None
         assert hermit.is_recruitable is True
@@ -203,14 +210,15 @@ class TestCreateDefaultWorld:
         assert millbrook.entry_point in millbrook.sub_locations
 
     def test_default_world_millbrook_village_sub_locations_exist(self):
-        """All Millbrook Village sub-locations exist in world dict.
+        """All Millbrook Village sub-locations exist in sub_grid.
 
-        Spec: Sub-locations listed in millbrook.sub_locations are in world
+        Spec: Sub-locations listed in millbrook.sub_locations are in sub_grid
         """
         world, _ = create_default_world()
         millbrook = world["Millbrook Village"]
         for sub_name in millbrook.sub_locations:
-            assert sub_name in world, f"Sub-location '{sub_name}' not in world"
+            sub = millbrook.sub_grid.get_by_name(sub_name)
+            assert sub is not None, f"Sub-location '{sub_name}' not in sub_grid"
 
     def test_default_world_millbrook_village_sub_locations_have_parent(self):
         """Millbrook Village sub-locations reference Millbrook Village as parent and are safe zones.
@@ -220,20 +228,20 @@ class TestCreateDefaultWorld:
         world, _ = create_default_world()
         millbrook = world["Millbrook Village"]
         for sub_name in millbrook.sub_locations:
-            sub = world[sub_name]
+            sub = millbrook.sub_grid.get_by_name(sub_name)
             assert sub.parent_location == "Millbrook Village"
             assert sub.is_safe_zone is True
 
     def test_default_world_millbrook_village_sub_locations_no_cardinal_exits(self):
-        """Millbrook Village sub-locations have no n/s/e/w exits (only enter/exit).
+        """Millbrook Village sub-locations have internal SubGrid connections.
 
-        Spec: Millbrook Village sub-locations have no cardinal connections
+        Spec: Millbrook Village sub-locations have internal SubGrid connections
         """
         world, _ = create_default_world()
         millbrook = world["Millbrook Village"]
-        for sub_name in millbrook.sub_locations:
-            sub = world[sub_name]
-            assert len(sub.connections) == 0
+        # Entry point (Village Square) should have internal connections
+        entry = millbrook.sub_grid.get_by_name("Village Square")
+        assert len(entry.connections) >= 2  # Has internal SubGrid connections
 
     def test_default_world_millbrook_village_connections(self):
         """Millbrook Village has east connection to Town Square.
@@ -259,7 +267,8 @@ class TestCreateDefaultWorld:
         Spec: Elder NPC exists in Village Square sub-location
         """
         world, _ = create_default_world()
-        village_square = world["Village Square"]
+        millbrook = world["Millbrook Village"]
+        village_square = millbrook.sub_grid.get_by_name("Village Square")
         elder = village_square.find_npc_by_name("Elder")
         assert elder is not None
 
@@ -269,7 +278,8 @@ class TestCreateDefaultWorld:
         Spec: Innkeeper NPC in Inn with is_recruitable=True
         """
         world, _ = create_default_world()
-        inn = world["Inn"]
+        millbrook = world["Millbrook Village"]
+        inn = millbrook.sub_grid.get_by_name("Inn")
         innkeeper = inn.find_npc_by_name("Innkeeper")
         assert innkeeper is not None
         assert innkeeper.is_recruitable is True
@@ -280,7 +290,8 @@ class TestCreateDefaultWorld:
         Spec: Blacksmith NPC in Blacksmith with is_merchant=True
         """
         world, _ = create_default_world()
-        blacksmith_loc = world["Blacksmith"]
+        millbrook = world["Millbrook Village"]
+        blacksmith_loc = millbrook.sub_grid.get_by_name("Blacksmith")
         blacksmith = blacksmith_loc.find_npc_by_name("Blacksmith")
         assert blacksmith is not None
         assert blacksmith.is_merchant is True
@@ -308,14 +319,15 @@ class TestCreateDefaultWorld:
         assert mines.entry_point == "Mine Entrance"
 
     def test_default_world_abandoned_mines_sub_locations_exist(self):
-        """All Abandoned Mines sub-locations exist in world dict.
+        """All Abandoned Mines sub-locations exist in sub_grid.
 
-        Spec: Sub-locations listed in abandoned_mines.sub_locations are in world
+        Spec: Sub-locations listed in abandoned_mines.sub_locations are in sub_grid
         """
         world, _ = create_default_world()
         mines = world["Abandoned Mines"]
         for sub_name in mines.sub_locations:
-            assert sub_name in world, f"Sub-location '{sub_name}' not in world"
+            sub = mines.sub_grid.get_by_name(sub_name)
+            assert sub is not None, f"Sub-location '{sub_name}' not in sub_grid"
 
     def test_default_world_abandoned_mines_sub_locations_have_parent(self):
         """Abandoned Mines sub-locations reference Abandoned Mines as parent and are danger zones.
@@ -325,7 +337,7 @@ class TestCreateDefaultWorld:
         world, _ = create_default_world()
         mines = world["Abandoned Mines"]
         for sub_name in mines.sub_locations:
-            sub = world[sub_name]
+            sub = mines.sub_grid.get_by_name(sub_name)
             assert sub.parent_location == "Abandoned Mines"
             assert sub.is_safe_zone is False  # All danger zones
 
@@ -337,19 +349,19 @@ class TestCreateDefaultWorld:
         world, _ = create_default_world()
         mines = world["Abandoned Mines"]
         for sub_name in mines.sub_locations:
-            sub = world[sub_name]
+            sub = mines.sub_grid.get_by_name(sub_name)
             assert sub.category == "dungeon"
 
     def test_default_world_abandoned_mines_sub_locations_no_cardinal_exits(self):
-        """Abandoned Mines sub-locations have no n/s/e/w exits (only enter/exit).
+        """Abandoned Mines sub-locations have internal SubGrid connections.
 
-        Spec: Mines sub-locations have no cardinal connections
+        Spec: Mines sub-locations have internal SubGrid connections (dungeon progression)
         """
         world, _ = create_default_world()
         mines = world["Abandoned Mines"]
-        for sub_name in mines.sub_locations:
-            sub = world[sub_name]
-            assert len(sub.connections) == 0
+        # Entry point (Mine Entrance) should have internal connections
+        entry = mines.sub_grid.get_by_name("Mine Entrance")
+        assert len(entry.connections) >= 2  # Has internal SubGrid connections
 
     def test_default_world_abandoned_mines_connections(self):
         """Abandoned Mines has south connection to Cave.
@@ -375,7 +387,8 @@ class TestCreateDefaultWorld:
         Spec: Old Miner NPC exists in Mine Entrance sub-location
         """
         world, _ = create_default_world()
-        mine_entrance = world["Mine Entrance"]
+        mines = world["Abandoned Mines"]
+        mine_entrance = mines.sub_grid.get_by_name("Mine Entrance")
         old_miner = mine_entrance.find_npc_by_name("Old Miner")
         assert old_miner is not None
 
@@ -402,14 +415,15 @@ class TestCreateDefaultWorld:
         assert ironhold.entry_point == "Ironhold Market"
 
     def test_default_world_ironhold_city_sub_locations_exist(self):
-        """All Ironhold City sub-locations exist in world dict.
+        """All Ironhold City sub-locations exist in sub_grid.
 
-        Spec: Sub-locations listed in ironhold.sub_locations are in world
+        Spec: Sub-locations listed in ironhold.sub_locations are in sub_grid
         """
         world, _ = create_default_world()
         ironhold = world["Ironhold City"]
         for sub_name in ironhold.sub_locations:
-            assert sub_name in world, f"Sub-location '{sub_name}' not in world"
+            sub = ironhold.sub_grid.get_by_name(sub_name)
+            assert sub is not None, f"Sub-location '{sub_name}' not in sub_grid"
 
     def test_default_world_ironhold_city_sub_locations_have_parent(self):
         """Ironhold City sub-locations reference Ironhold City as parent and are safe zones.
@@ -419,20 +433,20 @@ class TestCreateDefaultWorld:
         world, _ = create_default_world()
         ironhold = world["Ironhold City"]
         for sub_name in ironhold.sub_locations:
-            sub = world[sub_name]
+            sub = ironhold.sub_grid.get_by_name(sub_name)
             assert sub.parent_location == "Ironhold City"
             assert sub.is_safe_zone is True
 
     def test_default_world_ironhold_city_sub_locations_no_cardinal_exits(self):
-        """Ironhold City sub-locations have no n/s/e/w exits (only enter/exit).
+        """Ironhold City sub-locations have internal SubGrid connections.
 
-        Spec: Ironhold City sub-locations have no cardinal connections
+        Spec: Ironhold City sub-locations have internal SubGrid connections
         """
         world, _ = create_default_world()
         ironhold = world["Ironhold City"]
-        for sub_name in ironhold.sub_locations:
-            sub = world[sub_name]
-            assert len(sub.connections) == 0
+        # Entry point (Ironhold Market) should have internal connections
+        entry = ironhold.sub_grid.get_by_name("Ironhold Market")
+        assert len(entry.connections) >= 3  # Has 3 internal SubGrid connections (4-way)
 
     def test_default_world_ironhold_city_connections(self):
         """Ironhold City has north connection to Town Square.
@@ -458,7 +472,8 @@ class TestCreateDefaultWorld:
         Spec: Wealthy Merchant NPC in Ironhold Market with is_merchant=True
         """
         world, _ = create_default_world()
-        market = world["Ironhold Market"]
+        ironhold = world["Ironhold City"]
+        market = ironhold.sub_grid.get_by_name("Ironhold Market")
         merchant = market.find_npc_by_name("Wealthy Merchant")
         assert merchant is not None
         assert merchant.is_merchant is True
@@ -469,7 +484,8 @@ class TestCreateDefaultWorld:
         Spec: Captain of the Guard NPC exists in Castle Ward sub-location
         """
         world, _ = create_default_world()
-        castle_ward = world["Castle Ward"]
+        ironhold = world["Ironhold City"]
+        castle_ward = ironhold.sub_grid.get_by_name("Castle Ward")
         captain = castle_ward.find_npc_by_name("Captain of the Guard")
         assert captain is not None
 
@@ -479,7 +495,8 @@ class TestCreateDefaultWorld:
         Spec: Beggar NPC in Slums with is_recruitable=True
         """
         world, _ = create_default_world()
-        slums = world["Slums"]
+        ironhold = world["Ironhold City"]
+        slums = ironhold.sub_grid.get_by_name("Slums")
         beggar = slums.find_npc_by_name("Beggar")
         assert beggar is not None
         assert beggar.is_recruitable is True
@@ -490,7 +507,8 @@ class TestCreateDefaultWorld:
         Spec: Priest NPC exists in Temple Quarter sub-location
         """
         world, _ = create_default_world()
-        temple_quarter = world["Temple Quarter"]
+        ironhold = world["Ironhold City"]
+        temple_quarter = ironhold.sub_grid.get_by_name("Temple Quarter")
         priest = temple_quarter.find_npc_by_name("Priest")
         assert priest is not None
 

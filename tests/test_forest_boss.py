@@ -21,21 +21,24 @@ class TestAncientGroveConfiguration:
     def test_ancient_grove_has_boss_enemy(self):
         """Ancient Grove has boss_enemy = 'elder_treant'."""
         world, _ = create_default_world()
-        ancient_grove = world["Ancient Grove"]
+        forest = world["Forest"]
+        ancient_grove = forest.sub_grid.get_by_name("Ancient Grove")
         assert ancient_grove.boss_enemy == "elder_treant"
 
     # Spec: Ancient Grove uses forest category
     def test_ancient_grove_has_forest_category(self):
         """Ancient Grove has forest category."""
         world, _ = create_default_world()
-        ancient_grove = world["Ancient Grove"]
+        forest = world["Forest"]
+        ancient_grove = forest.sub_grid.get_by_name("Ancient Grove")
         assert ancient_grove.category == "forest"
 
     # Spec: Boss location starts as not safe
     def test_ancient_grove_is_not_safe_zone(self):
         """Ancient Grove is not a safe zone (boss makes it dangerous)."""
         world, _ = create_default_world()
-        ancient_grove = world["Ancient Grove"]
+        forest = world["Forest"]
+        ancient_grove = forest.sub_grid.get_by_name("Ancient Grove")
         assert ancient_grove.is_safe_zone is False
 
 
@@ -151,9 +154,15 @@ class TestAncientGroveNoRespawn:
         player = Character(name="Hero", strength=10, dexterity=10, intelligence=10)
         game_state = GameState(player, world, starting_location="Forest")
 
-        # Enter Ancient Grove - triggers boss
-        success, _ = game_state.enter("Ancient Grove")
-        assert game_state.is_in_combat()
+        # First enter Forest Edge (entry point for Forest)
+        success, _ = game_state.enter("Forest Edge")
+        assert success, "Failed to enter Forest Edge"
+
+        # Navigate to Ancient Grove via the SubGrid
+        # Forest Edge (0,0) -> Ancient Grove (1,0) is east
+        success, _ = game_state.move("east")
+        assert success, "Failed to move to Ancient Grove"
+        assert game_state.is_in_combat(), "Should trigger boss combat"
 
         # Defeat the boss
         boss = game_state.current_combat.enemies[0]
@@ -163,8 +172,8 @@ class TestAncientGroveNoRespawn:
         game_state.current_combat = None
 
         # Exit and re-enter
-        game_state.exit_location()  # Back to Forest
-        success, _ = game_state.enter("Ancient Grove")
+        game_state.move("west")  # Back to Forest Edge
+        success, _ = game_state.move("east")  # Back to Ancient Grove
 
         # Should NOT trigger combat again
         assert success
@@ -177,12 +186,16 @@ class TestAncientGroveNoRespawn:
         player = Character(name="Hero", strength=10, dexterity=10, intelligence=10)
         game_state = GameState(player, world, starting_location="Forest")
 
-        # Initially not a safe zone
-        ancient_grove = game_state.world["Ancient Grove"]
+        # Get Ancient Grove via SubGrid
+        forest = game_state.world["Forest"]
+        ancient_grove = forest.sub_grid.get_by_name("Ancient Grove")
         assert ancient_grove.is_safe_zone is False
 
-        # Enter Ancient Grove and defeat boss
-        success, _ = game_state.enter("Ancient Grove")
+        # Enter Forest Edge, then move to Ancient Grove
+        game_state.enter("Forest Edge")
+        game_state.move("east")  # To Ancient Grove
+
+        # Defeat boss
         boss = game_state.current_combat.enemies[0]
         boss.take_damage(boss.health)
         game_state.current_combat.end_combat(victory=True)
@@ -203,8 +216,11 @@ class TestAncientGrovePersistence:
         player = Character(name="Hero", strength=10, dexterity=10, intelligence=10)
         game_state = GameState(player, world, starting_location="Forest")
 
-        # Enter Ancient Grove and defeat boss
-        success, _ = game_state.enter("Ancient Grove")
+        # Enter Forest Edge, then move to Ancient Grove
+        game_state.enter("Forest Edge")
+        game_state.move("east")  # To Ancient Grove
+
+        # Defeat boss
         boss = game_state.current_combat.enemies[0]
         boss.take_damage(boss.health)
         game_state.current_combat.end_combat(victory=True)
@@ -215,8 +231,9 @@ class TestAncientGrovePersistence:
         data = game_state.to_dict()
         restored_state = GameState.from_dict(data)
 
-        # boss_defeated should be preserved
-        ancient_grove = restored_state.world["Ancient Grove"]
+        # boss_defeated should be preserved - access via SubGrid
+        forest = restored_state.world["Forest"]
+        ancient_grove = forest.sub_grid.get_by_name("Ancient Grove")
         assert ancient_grove.boss_defeated is True
 
 

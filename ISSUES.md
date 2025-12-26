@@ -460,7 +460,7 @@ class ChunkManager:
 3. ✅ Update GameState `enter()`, `exit_location()`, `move()`, `get_current_location()` - **DONE** (21 tests in `tests/test_subgrid_navigation.py`)
 4. ✅ Update map renderer for interior maps - **DONE** (12 tests in `tests/test_map_renderer.py::TestSubGridMapRendering`)
 5. ✅ Fix `ai_world.py` `expand_area()` to use SubGrid - **DONE** (11 tests in `tests/test_ai_world_subgrid.py`)
-6. Convert default world sub-locations to use SubGrid
+6. ✅ Convert default world sub-locations to use SubGrid - **DONE** (34 tests in `tests/test_default_world_subgrid.py`)
 7. Update persistence for SubGrid serialization
 8. Write tests
 

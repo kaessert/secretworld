@@ -711,6 +711,25 @@ class GameState:
         # Advance time by 1 hour for movement inside buildings
         self.game_time.advance(1)
 
+        # Check for boss encounter at destination
+        if destination.boss_enemy and not destination.boss_defeated:
+            boss = spawn_boss(
+                destination.name,
+                level=self.current_character.level,
+                location_category=destination.category,
+                boss_type=destination.boss_enemy
+            )
+            self.current_combat = CombatEncounter(
+                self.current_character,
+                enemies=[boss],
+                weather=self.weather,
+                companions=self.companions,
+                location_category=destination.category,
+                game_state=self,
+            )
+            combat_message = self.current_combat.start()
+            return (True, f"You head {direction} to {colors.location(self.current_location)}.\n{combat_message}")
+
         return (True, f"You head {direction} to {colors.location(self.current_location)}.")
 
     def enter(self, target_name: Optional[str] = None) -> tuple[bool, str]:

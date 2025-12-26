@@ -21,21 +21,24 @@ class TestFloodedLevelConfiguration:
     def test_flooded_level_has_boss_enemy(self):
         """Flooded Level has boss_enemy = 'drowned_overseer'."""
         world, _ = create_default_world()
-        flooded_level = world["Flooded Level"]
+        mines = world["Abandoned Mines"]
+        flooded_level = mines.sub_grid.get_by_name("Flooded Level")
         assert flooded_level.boss_enemy == "drowned_overseer"
 
     # Spec: Flooded Level uses dungeon category
     def test_flooded_level_has_dungeon_category(self):
         """Flooded Level has dungeon category."""
         world, _ = create_default_world()
-        flooded_level = world["Flooded Level"]
+        mines = world["Abandoned Mines"]
+        flooded_level = mines.sub_grid.get_by_name("Flooded Level")
         assert flooded_level.category == "dungeon"
 
     # Spec: Boss location starts as not safe
     def test_flooded_level_is_not_safe_zone(self):
         """Flooded Level is not a safe zone (boss makes it dangerous)."""
         world, _ = create_default_world()
-        flooded_level = world["Flooded Level"]
+        mines = world["Abandoned Mines"]
+        flooded_level = mines.sub_grid.get_by_name("Flooded Level")
         assert flooded_level.is_safe_zone is False
 
 
@@ -152,9 +155,15 @@ class TestFloodedLevelNoRespawn:
         player = Character(name="Hero", strength=10, dexterity=10, intelligence=10)
         game_state = GameState(player, world, starting_location="Abandoned Mines")
 
-        # Enter Flooded Level - triggers boss
-        success, _ = game_state.enter("Flooded Level")
-        assert game_state.is_in_combat()
+        # Navigate through dungeon to Flooded Level via sub-grid
+        # Enter at Mine Entrance (entry point)
+        success, _ = game_state.enter("Mine Entrance")
+        assert success, "Failed to enter Mine Entrance"
+
+        # Navigate to Flooded Level (north from entrance)
+        success, _ = game_state.move("north")
+        assert success, "Failed to move to Flooded Level"
+        assert game_state.is_in_combat(), "Should trigger boss combat"
 
         # Defeat the boss
         boss = game_state.current_combat.enemies[0]
@@ -163,9 +172,9 @@ class TestFloodedLevelNoRespawn:
         game_state.mark_boss_defeated()  # Mark boss as defeated
         game_state.current_combat = None
 
-        # Exit and re-enter
-        game_state.exit_location()  # Back to Abandoned Mines
-        success, _ = game_state.enter("Flooded Level")
+        # Navigate back and re-enter Flooded Level
+        game_state.move("south")  # Back to Mine Entrance
+        success, _ = game_state.move("north")  # Back to Flooded Level
 
         # Should NOT trigger combat again
         assert success
@@ -178,12 +187,16 @@ class TestFloodedLevelNoRespawn:
         player = Character(name="Hero", strength=10, dexterity=10, intelligence=10)
         game_state = GameState(player, world, starting_location="Abandoned Mines")
 
-        # Initially not a safe zone
-        flooded_level = game_state.world["Flooded Level"]
+        # Get Flooded Level via SubGrid
+        mines = game_state.world["Abandoned Mines"]
+        flooded_level = mines.sub_grid.get_by_name("Flooded Level")
         assert flooded_level.is_safe_zone is False
 
-        # Enter Flooded Level and defeat boss
-        success, _ = game_state.enter("Flooded Level")
+        # Navigate to Flooded Level via sub-grid
+        game_state.enter("Mine Entrance")
+        game_state.move("north")  # To Flooded Level
+
+        # Defeat boss
         boss = game_state.current_combat.enemies[0]
         boss.take_damage(boss.health)
         game_state.current_combat.end_combat(victory=True)
@@ -204,8 +217,11 @@ class TestFloodedLevelPersistence:
         player = Character(name="Hero", strength=10, dexterity=10, intelligence=10)
         game_state = GameState(player, world, starting_location="Abandoned Mines")
 
-        # Enter Flooded Level and defeat boss
-        success, _ = game_state.enter("Flooded Level")
+        # Navigate to Flooded Level via sub-grid
+        game_state.enter("Mine Entrance")
+        game_state.move("north")  # To Flooded Level
+
+        # Defeat boss
         boss = game_state.current_combat.enemies[0]
         boss.take_damage(boss.health)
         game_state.current_combat.end_combat(victory=True)
@@ -216,6 +232,7 @@ class TestFloodedLevelPersistence:
         data = game_state.to_dict()
         restored_state = GameState.from_dict(data)
 
-        # boss_defeated should be preserved
-        flooded_level = restored_state.world["Flooded Level"]
+        # boss_defeated should be preserved - access via SubGrid
+        mines = restored_state.world["Abandoned Mines"]
+        flooded_level = mines.sub_grid.get_by_name("Flooded Level")
         assert flooded_level.boss_defeated is True

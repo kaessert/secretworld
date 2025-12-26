@@ -93,6 +93,7 @@ src/cli_rpg/
 ## Key Architectural Patterns
 
 - **Grid-based world** (`world_grid.py`): Spatial consistency with coordinate-based navigation
+- **SubGrid architecture**: Interior locations use bounded SubGrid instances (not the main world dict). Entry points marked with `is_exit_point=True` allow exiting back to overworld.
 - **Location model**: Each location has coordinates, connections to adjacent locations, NPCs, and hierarchical navigation (overworld/sub-location relationships via `enter`/`exit` commands)
 - **GameState**: Central manager for character, world, combat, and shop state
 - **AI service**: Optional integration with graceful fallback when unavailable

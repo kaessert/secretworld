@@ -23,7 +23,9 @@ class TestGameplayIntegration:
         
         assert game_state.current_character == character
         assert game_state.current_location == "Town Square"
-        assert len(game_state.world) == 23  # 6 main + 3 Town sub + 3 Forest sub + 3 Millbrook sub + 4 Mines sub + 4 Ironhold sub
+        # World dict now only contains 6 overworld locations
+        # Sub-locations are accessed via parent.sub_grid
+        assert len(game_state.world) == 6  # 6 overworld locations
     
     def test_gameplay_look_command(self):
         """Test that look command displays location.
