@@ -7,14 +7,15 @@ The bond system tracks the player's relationship with companions:
 - Higher bond levels unlock companion abilities and dialogue options
 """
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from enum import Enum
-from typing import Optional, TYPE_CHECKING
+from typing import List, Optional, TYPE_CHECKING
 
 from cli_rpg import colors
 
 if TYPE_CHECKING:
     from cli_rpg.models.quest import Quest
+    from cli_rpg.models.status_effect import StatusEffect
 
 
 class BondLevel(Enum):
@@ -67,6 +68,7 @@ class Companion:
         recruited_at: Name of location where the companion was recruited
         bond_points: Current bond points (0-100)
         personality: Personality type affecting reactions (warrior, pacifist, pragmatic)
+        status_effects: Active status effects on this companion (buffs/debuffs)
     """
 
     name: str
@@ -75,6 +77,22 @@ class Companion:
     bond_points: int = 0
     personality: str = "pragmatic"
     personal_quest: Optional["Quest"] = None
+    status_effects: List["StatusEffect"] = field(default_factory=list)
+
+    def apply_status_effect(self, effect: "StatusEffect") -> None:
+        """Apply a status effect to the companion.
+
+        Args:
+            effect: StatusEffect to apply
+        """
+        self.status_effects.append(effect)
+
+    def clear_status_effects(self) -> None:
+        """Clear all status effects from the companion.
+
+        Called when combat ends.
+        """
+        self.status_effects.clear()
 
     def get_bond_level(self) -> BondLevel:
         """Compute the bond level from current bond points.
@@ -168,6 +186,7 @@ class Companion:
             "recruited_at": self.recruited_at,
             "bond_points": self.bond_points,
             "personality": self.personality,
+            "status_effects": [e.to_dict() for e in self.status_effects],
         }
         if self.personal_quest is not None:
             data["personal_quest"] = self.personal_quest.to_dict()
@@ -186,10 +205,16 @@ class Companion:
             Companion instance
         """
         from cli_rpg.models.quest import Quest
+        from cli_rpg.models.status_effect import StatusEffect
 
         personal_quest = None
         if data.get("personal_quest") is not None:
             personal_quest = Quest.from_dict(data["personal_quest"])
+
+        # Restore status_effects (backward compat: default to empty list)
+        status_effects = [
+            StatusEffect.from_dict(e) for e in data.get("status_effects", [])
+        ]
 
         return cls(
             name=data["name"],
@@ -198,4 +223,5 @@ class Companion:
             bond_points=data.get("bond_points", 0),
             personality=data.get("personality", "pragmatic"),
             personal_quest=personal_quest,
+            status_effects=status_effects,
         )

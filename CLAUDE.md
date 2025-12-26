@@ -65,6 +65,7 @@ src/cli_rpg/
 ├── secrets.py           # PER-based secret discovery and search mechanics
 ├── camping.py           # Wilderness camping, foraging, and hunting system
 ├── ranger.py            # Ranger class abilities (track command, wilderness bonus)
+├── cleric.py            # Cleric class abilities (bless, smite commands)
 └── models/
     ├── character.py     # Player character model
     ├── dread.py         # Dread meter for psychological horror

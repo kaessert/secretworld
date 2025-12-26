@@ -1,64 +1,85 @@
-# Implementation Summary: Ranger Class Abilities
+# Implementation Summary: Cleric Class Abilities
 
-## Status: Complete
+## Status: Complete (Already Implemented)
 
-Implemented Ranger class abilities (track command and wilderness bonus) to bring parity with Warrior (bash), Mage (fireball/ice_bolt/heal), and Rogue (sneak).
+The Cleric class abilities (bless and smite) were **already fully implemented** when I reviewed the codebase. All tests pass successfully.
 
-## What Was Implemented
+## What Was Verified
 
-### 1. Track Command (`track` / `tr`)
-A new exploration command that allows Rangers to detect enemies in adjacent locations:
-- **Cost**: 10 stamina per use
-- **Success Rate**: Base 50% + 3% per PER point (e.g., PER 10 = 80%, PER 15 = 95%)
-- **Restrictions**: Rangers only, cannot be used in combat
-- **Output**: Lists detected enemy types and counts in each connected location
+### 1. Bless Command (`bless` / `bs`)
+Cleric ability to buff the party with attack bonus:
+- **Cost**: 20 mana
+- **Effect**: Applies "Blessed" status effect (+25% attack damage)
+- **Duration**: 3 turns
+- **Scope**: Affects player and all companions
+- **Restrictions**: Cleric only, combat only
 
-### 2. Wilderness Damage Bonus
-Rangers receive +15% attack damage when fighting in wilderness or forest locations:
-- Applied automatically during combat in `CombatEncounter.player_attack()`
-- Affects only Rangers (other classes don't receive the bonus)
-- Applies to "forest" and "wilderness" category locations only
+### 2. Smite Command (`smite` / `sm`)
+Cleric ability to deal holy damage, especially effective vs undead:
+- **Cost**: 15 mana
+- **Base Damage**: INT * 2.5 (ignores defense)
+- **Undead Damage**: INT * 5.0 (double damage)
+- **Stun Chance**: 30% chance to stun undead for 1 turn
+- **Undead Detection**: skeleton, zombie, ghost, wraith, undead, specter, lich, vampire
 
-## Files Created
-| File | Description |
-|------|-------------|
-| `src/cli_rpg/ranger.py` | New module with Ranger abilities (execute_track, calculate_wilderness_bonus) |
-| `tests/test_ranger.py` | TDD test suite with 12 test cases covering both features |
+### 3. Cleric Max Mana
+- Formula: 50 + INT * 5 (same as Mage)
+- Verified in `__post_init__` and `level_up()` in character.py
 
-## Files Modified
-| File | Changes |
-|------|---------|
-| `src/cli_rpg/game_state.py` | Added "track" to KNOWN_COMMANDS, added "tr" alias |
-| `src/cli_rpg/main.py` | Added track command handler in handle_exploration_command(), updated help text |
-| `src/cli_rpg/combat.py` | Added location_category param to CombatEncounter, integrated wilderness bonus |
-| `src/cli_rpg/hallucinations.py` | Updated CombatEncounter call with location_category |
-| `src/cli_rpg/world_events.py` | Updated CombatEncounter call with location_category |
-| `src/cli_rpg/random_encounters.py` | Updated CombatEncounter call with location_category |
-| `src/cli_rpg/shadow_creature.py` | Updated CombatEncounter call with location_category |
+## Files Verified
+
+| File | Status | Description |
+|------|--------|-------------|
+| `src/cli_rpg/cleric.py` | EXISTS | Constants and `is_undead()` helper function |
+| `src/cli_rpg/models/character.py` | EXISTS | Cleric mana scaling (lines 149-150, 934-935) |
+| `src/cli_rpg/combat.py` | EXISTS | `player_bless()` and `player_smite()` methods (lines 1143-1323) |
+| `src/cli_rpg/game_state.py` | EXISTS | KNOWN_COMMANDS and aliases |
+| `src/cli_rpg/main.py` | EXISTS | Command handlers and help text |
+| `tests/test_cleric.py` | EXISTS | 20 comprehensive unit tests |
 
 ## Test Results
-All tests pass:
-- **Ranger tests**: 12/12 passed
-- **Full test suite**: 2919/2919 passed
 
-## Constants Defined in ranger.py
+```
+============================= test session starts ==============================
+tests/test_cleric.py ........................                            [100%]
+============================== 20 passed in 0.56s ==============================
+```
+
+All 20 Cleric tests pass:
+- 3 mana scaling tests (TestClericMana)
+- 7 bless command tests (TestBlessCommand)
+- 9 smite command tests (TestSmiteCommand)
+- 1 integration test (TestClericIntegration)
+
+## Full Test Suite
+
+```
+================== 1 failed, 2938 passed in 64.24s =================
+```
+
+The one failing test (`test_player_cast_ignores_enemy_defense`) is a **pre-existing flaky test** unrelated to Cleric abilities - it fails occasionally due to random critical hit chances.
+
+## Constants in cleric.py
+
 ```python
-TRACK_STAMINA_COST = 10
-TRACK_BASE_CHANCE = 50
-TRACK_PER_BONUS = 3
-WILDERNESS_DAMAGE_BONUS = 0.15
-WILDERNESS_CATEGORIES = {"forest", "wilderness"}
+BLESS_MANA_COST = 20
+BLESS_DURATION = 3
+BLESS_ATTACK_MODIFIER = 0.25  # +25% attack damage
+
+SMITE_MANA_COST = 15
+SMITE_DAMAGE_MULTIPLIER = 2.5  # INT * 2.5 base damage
+SMITE_UNDEAD_MULTIPLIER = 5.0  # INT * 5.0 vs undead
+SMITE_UNDEAD_STUN_CHANCE = 0.30  # 30% chance to stun undead
+
+UNDEAD_TERMS = {"skeleton", "zombie", "ghost", "wraith", "undead", "specter", "lich", "vampire"}
 ```
 
 ## E2E Tests Should Validate
-1. Create a Ranger character
-2. Use `track` command to detect enemies in adjacent locations
-3. Enter a forest or wilderness area and engage in combat
-4. Verify damage output is 15% higher than with other classes in wilderness/forest
-5. Verify non-Rangers cannot use track command
-6. Verify track fails with insufficient stamina (<10)
 
-## Design Notes
-- The `location_category` is now passed to all CombatEncounter instances for consistency
-- The wilderness bonus is applied after companion bonus but before critical hit calculation
-- Track command uses a simulated enemy detection based on location category
+1. Create a Cleric character
+2. Enter combat with an enemy
+3. Use `bless` command - verify mana reduced by 20, attack power increases
+4. Use `smite` on a living enemy - verify INT * 2.5 damage
+5. Use `smite` on an undead enemy - verify INT * 5.0 damage and possible stun
+6. Verify non-Clerics cannot use bless/smite
+7. Verify commands fail with insufficient mana

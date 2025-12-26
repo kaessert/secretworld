@@ -1140,6 +1140,188 @@ class CombatEncounter:
 
         return False, message
 
+    def player_bless(self) -> Tuple[bool, str]:
+        """
+        Cleric casts Bless - buff party with attack bonus.
+
+        Cleric-only ability. Cost: 20 mana.
+        Applies "Blessed" status effect (+25% attack damage) for 3 turns.
+        Affects player and all companions.
+
+        Returns:
+            Tuple of (victory, message)
+            - victory: Always False (combat continues)
+            - message: Description of the blessing
+        """
+        from cli_rpg.models.character import CharacterClass
+        from cli_rpg.cleric import (
+            BLESS_MANA_COST,
+            BLESS_DURATION,
+            BLESS_ATTACK_MODIFIER,
+        )
+
+        # Check if player is stunned
+        stun_msg = self._check_and_consume_stun()
+        if stun_msg:
+            return False, stun_msg
+
+        # Only Clerics can bless
+        if self.player.character_class != CharacterClass.CLERIC:
+            return False, "Only Clerics can bless!"
+
+        # Check mana cost (20 mana)
+        if not self.player.use_mana(BLESS_MANA_COST):
+            return False, f"Not enough mana! ({self.player.mana}/{self.player.max_mana})"
+
+        # Record action for combo tracking
+        self._record_action("cast")
+
+        # Create Blessed status effect
+        blessed_effect = StatusEffect(
+            name="Blessed",
+            effect_type="buff_attack",
+            damage_per_turn=0,
+            duration=BLESS_DURATION,
+            stat_modifier=BLESS_ATTACK_MODIFIER,
+        )
+
+        # Apply to player
+        self.player.apply_status_effect(blessed_effect)
+
+        # Apply to companions (if game_state is available)
+        blessed_targets = [self.player.name]
+        if hasattr(self, 'game_state') and self.game_state is not None:
+            for companion in self.game_state.companions:
+                companion_blessed = StatusEffect(
+                    name="Blessed",
+                    effect_type="buff_attack",
+                    damage_per_turn=0,
+                    duration=BLESS_DURATION,
+                    stat_modifier=BLESS_ATTACK_MODIFIER,
+                )
+                companion.apply_status_effect(companion_blessed)
+                blessed_targets.append(companion.name)
+        elif self.companions:
+            # Fallback: use combat's companions list
+            for companion in self.companions:
+                companion_blessed = StatusEffect(
+                    name="Blessed",
+                    effect_type="buff_attack",
+                    damage_per_turn=0,
+                    duration=BLESS_DURATION,
+                    stat_modifier=BLESS_ATTACK_MODIFIER,
+                )
+                companion.apply_status_effect(companion_blessed)
+                blessed_targets.append(companion.name)
+
+        if len(blessed_targets) == 1:
+            message = (
+                f"You invoke a {colors.heal('BLESSING')}! "
+                f"Your attacks are empowered (+25% damage for {BLESS_DURATION} turns)."
+            )
+        else:
+            message = (
+                f"You invoke a {colors.heal('BLESSING')} upon your party! "
+                f"All attacks are empowered (+25% damage for {BLESS_DURATION} turns)."
+            )
+
+        return False, message
+
+    def player_smite(self, target: str = "") -> Tuple[bool, str]:
+        """
+        Cleric casts Smite - holy damage, extra effective vs undead.
+
+        Cleric-only ability. Cost: 15 mana.
+        Damage: INT * 2.5 (base) or INT * 5.0 (vs undead).
+        30% chance to stun undead for 1 turn.
+
+        Args:
+            target: Target enemy name (partial match). Empty = first living enemy.
+
+        Returns:
+            Tuple of (victory, message)
+            - victory: True if ALL enemies defeated, False otherwise
+            - message: Description of the smite
+        """
+        from cli_rpg.models.character import CharacterClass
+        from cli_rpg.cleric import (
+            SMITE_MANA_COST,
+            SMITE_DAMAGE_MULTIPLIER,
+            SMITE_UNDEAD_MULTIPLIER,
+            SMITE_UNDEAD_STUN_CHANCE,
+            is_undead,
+        )
+
+        # Check if player is stunned
+        stun_msg = self._check_and_consume_stun()
+        if stun_msg:
+            return False, stun_msg
+
+        # Only Clerics can smite
+        if self.player.character_class != CharacterClass.CLERIC:
+            return False, "Only Clerics can smite!"
+
+        # Check mana cost (15 mana)
+        if not self.player.use_mana(SMITE_MANA_COST):
+            return False, f"Not enough mana! ({self.player.mana}/{self.player.max_mana})"
+
+        # Get target enemy
+        enemy, error = self._get_target(target)
+        if enemy is None:
+            # Refund mana since we couldn't target
+            self.player.restore_mana(SMITE_MANA_COST)
+            return False, error or "No target found."
+
+        # Record action for combo tracking
+        self._record_action("cast")
+
+        # Check if target is undead
+        target_is_undead = is_undead(enemy.name)
+
+        # Calculate damage: INT * 2.5 (or 5.0 vs undead)
+        if target_is_undead:
+            dmg = max(1, int(self.player.intelligence * SMITE_UNDEAD_MULTIPLIER))
+        else:
+            dmg = max(1, int(self.player.intelligence * SMITE_DAMAGE_MULTIPLIER))
+
+        # Apply damage
+        enemy.take_damage(dmg)
+
+        # Build message
+        if target_is_undead:
+            message = (
+                f"You unleash a {colors.heal('HOLY SMITE')} upon {colors.enemy(enemy.name)}! "
+                f"The undead creature takes {colors.damage(str(dmg))} holy damage!"
+            )
+            # 30% chance to stun undead
+            if enemy.is_alive() and random.random() < SMITE_UNDEAD_STUN_CHANCE:
+                stun = StatusEffect(
+                    name="Stun",
+                    effect_type="stun",
+                    damage_per_turn=0,
+                    duration=1,
+                )
+                enemy.apply_status_effect(stun)
+                message += f" {colors.enemy(enemy.name)} is {colors.warning('stunned')}!"
+        else:
+            message = (
+                f"You unleash a {colors.heal('SMITE')} upon {colors.enemy(enemy.name)} "
+                f"for {colors.damage(str(dmg))} holy damage!"
+            )
+
+        if not enemy.is_alive():
+            message += f"\n{colors.enemy(enemy.name)} has been defeated!"
+
+        # Check if all enemies are dead
+        if not self.get_living_enemies():
+            message += f" {colors.heal('Victory!')}"
+            return True, message
+
+        if enemy.is_alive():
+            message += f"\n{colors.enemy(enemy.name)} has {enemy.health}/{enemy.max_health} HP remaining."
+
+        return False, message
+
     def player_flee(self) -> Tuple[bool, str]:
         """
         Attempt to flee from combat.

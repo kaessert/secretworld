@@ -83,6 +83,8 @@ def get_command_reference() -> str:
         "  fireball (fb) [target] - Cast Fireball (Mage only, 20 mana, burn chance)",
         "  ice_bolt (ib) [target] - Cast Ice Bolt (Mage only, 15 mana, freeze chance)",
         "  heal (hl)     - Cast Heal on self (Mage only, 25 mana)",
+        "  bless (bs)    - Bless party with +25% attack (Cleric only, 20 mana)",
+        "  smite (sm) [target] - Holy damage, 2x vs undead (Cleric only, 15 mana)",
         "  sneak (sn)    - Enter stealth mode (Rogue only)",
         "  bash (ba) [target] - Stun an enemy (Warrior only, 15 stamina)",
         "  flee (f)      - Attempt to flee from combat",
@@ -724,6 +726,93 @@ def handle_combat_command(game_state: GameState, command: str, args: list[str], 
 
         return (True, output)
 
+    elif command == "bless":
+        # Bless has no target, it buffs player and companions
+        victory, message = combat.player_bless()
+        output = f"\n{message}"
+
+        # Bless is never a victory (buff ability)
+        # Check if bless was valid
+        if "Only Clerics" not in message and "mana" not in message.lower() and "stunned" not in message.lower():
+            # Valid bless - enemies attack back
+            enemy_message = combat.enemy_turn()
+            output += f"\n{enemy_message}"
+
+            # Check if player died
+            if not game_state.current_character.is_alive():
+                death_message = combat.end_combat(victory=False)
+                output += f"\n{death_message}"
+                output += "\n\n=== GAME OVER ==="
+                sound_death()
+                game_state.current_combat = None
+
+        return (True, output)
+
+    elif command == "smite":
+        # Parse target from args (e.g., "smite skeleton")
+        target = " ".join(args) if args else ""
+        victory, message = combat.player_smite(target=target)
+        output = f"\n{message}"
+
+        if victory:
+            # Check if this was a hallucination-only fight
+            all_hallucinations = all(e.is_hallucination for e in combat.enemies)
+            if all_hallucinations:
+                # Hallucination dispelled - reduce dread, skip XP/bestiary
+                from cli_rpg.hallucinations import DREAD_REDUCTION_ON_DISPEL
+                from cli_rpg import colors
+                game_state.current_character.dread_meter.reduce_dread(DREAD_REDUCTION_ON_DISPEL)
+                output += f"\n{colors.heal('Your mind clears slightly as the illusion fades.')}"
+                game_state.current_combat = None
+                return (True, output)
+
+            # All enemies defeated - record each in bestiary
+            for enemy in combat.enemies:
+                game_state.current_character.record_enemy_defeat(enemy)
+
+            # Quest progress: record kills for all enemies
+            for enemy in combat.enemies:
+                quest_messages = game_state.current_character.record_kill(enemy.name)
+                for msg in quest_messages:
+                    output += f"\n{msg}"
+
+            # Check if this was a boss fight
+            if any(e.is_boss for e in combat.enemies):
+                game_state.mark_boss_defeated()
+
+            # Combat ends with victory - award XP and loot
+            victory_message = combat.end_combat(victory=True)
+            output += f"\n{victory_message}"
+            game_state.current_combat = None
+
+            # Trigger companion reaction after combat
+            from cli_rpg.companion_reactions import get_combat_reaction
+
+            reaction = get_combat_reaction(
+                companions=game_state.companions,
+                command=command,
+            )
+            if reaction:
+                companion_name, reaction_text = reaction
+                from cli_rpg import colors
+                output += f"\n\n{colors.npc(companion_name)}: \"{reaction_text}\""
+        else:
+            # Check if smite was valid (not class/mana/stun error)
+            if "Only Clerics" not in message and "mana" not in message.lower() and "stunned" not in message.lower() and "not found" not in message.lower():
+                # Valid smite - enemies attack back
+                enemy_message = combat.enemy_turn()
+                output += f"\n{enemy_message}"
+
+                # Check if player died
+                if not game_state.current_character.is_alive():
+                    death_message = combat.end_combat(victory=False)
+                    output += f"\n{death_message}"
+                    output += "\n\n=== GAME OVER ==="
+                    sound_death()
+                    game_state.current_combat = None
+
+        return (True, output)
+
     elif command == "status":
         return (True, "\n" + combat.get_status())
 
@@ -779,7 +868,7 @@ def handle_combat_command(game_state: GameState, command: str, args: list[str], 
 
     elif command == "unknown":
         # Provide "did you mean?" suggestion during combat
-        combat_commands = {"attack", "defend", "block", "cast", "fireball", "ice_bolt", "heal", "flee", "sneak", "bash", "use", "status", "help", "quit"}
+        combat_commands = {"attack", "defend", "block", "cast", "fireball", "ice_bolt", "heal", "bless", "smite", "flee", "sneak", "bash", "use", "status", "help", "quit"}
         if args and args[0]:
             suggestion = suggest_command(args[0], combat_commands)
             if suggestion:

@@ -144,9 +144,9 @@ class Character:
         self.constitution = self.strength  # Constitution based on strength
 
         # Calculate max_mana based on class
-        # Mages get higher mana: 50 + INT * 5
+        # Mages and Clerics get higher mana: 50 + INT * 5
         # Other classes: 20 + INT * 2
-        if self.character_class == CharacterClass.MAGE:
+        if self.character_class in (CharacterClass.MAGE, CharacterClass.CLERIC):
             self.max_mana = 50 + self.intelligence * 5
         else:
             self.max_mana = 20 + self.intelligence * 2
@@ -931,7 +931,7 @@ class Character:
         self.constitution = self.strength
 
         # Recalculate max_mana based on class (INT increased)
-        if self.character_class == CharacterClass.MAGE:
+        if self.character_class in (CharacterClass.MAGE, CharacterClass.CLERIC):
             self.max_mana = 50 + self.intelligence * 5
         else:
             self.max_mana = 20 + self.intelligence * 2
@@ -1056,7 +1056,7 @@ class Character:
             character.health = min(data["health"], character.max_health)
 
         # Recalculate max_mana based on class (backward compat: calculate if not saved)
-        if character.character_class == CharacterClass.MAGE:
+        if character.character_class in (CharacterClass.MAGE, CharacterClass.CLERIC):
             character.max_mana = 50 + character.intelligence * 5
         else:
             character.max_mana = 20 + character.intelligence * 2
