@@ -754,7 +754,7 @@ Player decisions should have lasting impact on the world and story.
 - **Warrior**: ✅ `bash` command MVP IMPLEMENTED (shield bash costs 15 stamina, deals 0.75x damage, stuns target for 1 turn); Future: unlocks heavy armor
 - **Mage**: ✅ `fireball` command MVP IMPLEMENTED (costs 20 mana, INT × 2.5 damage ignores defense, 25% Burn chance); ✅ `ice_bolt` command MVP IMPLEMENTED (costs 15 mana, INT × 2.0 damage ignores defense, 30% Freeze chance); ✅ `heal` command MVP IMPLEMENTED (costs 25 mana, restores INT × 2 HP); Future: weak armor restrictions
 - **Rogue**: ✅ `sneak` command MVP IMPLEMENTED (stealth mode in combat, 1.5x backstab damage, DEX-based dodge while stealthed); ✅ `pick` command MVP IMPLEMENTED (lockpicking for treasure chests); Future: `sneak` past encounters
-- **Ranger**: `track` enemies, bonus in wilderness, animal companion
+- **Ranger**: ✅ `track` command MVP IMPLEMENTED (costs 10 stamina, detects enemies in adjacent locations, success rate 50% + 3% per PER); ✅ wilderness damage bonus MVP IMPLEMENTED (+15% attack damage in forest/wilderness locations); Future: animal companion
 - **Cleric**: Healing spells, `bless` party buffs, `smite` undead, holy symbols
 
 ### Charisma stat & social skills

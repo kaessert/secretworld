@@ -313,7 +313,8 @@ class CombatEncounter:
         enemies: Optional[Union[list[Enemy], Enemy]] = None,
         enemy: Optional[Enemy] = None,
         weather: Optional[Weather] = None,
-        companions: Optional[list[Companion]] = None
+        companions: Optional[list[Companion]] = None,
+        location_category: Optional[str] = None
     ):
         """
         Initialize combat encounter.
@@ -324,6 +325,7 @@ class CombatEncounter:
             enemy: Single enemy to fight (backward compatibility keyword arg)
             weather: Optional weather for weather-combat interactions
             companions: Optional list of companions providing combat bonuses
+            location_category: Optional location category for class bonuses (e.g., "forest")
 
         Note: Either enemies or enemy must be provided. If both are provided,
         enemies takes precedence. If enemy is provided, it's wrapped in a list.
@@ -332,6 +334,7 @@ class CombatEncounter:
         self.player = player
         self.weather = weather
         self.companions = companions or []
+        self.location_category = location_category
 
         # Handle backward compatibility
         if enemies is not None:
@@ -644,6 +647,15 @@ class CombatEncounter:
         companion_bonus = self._get_companion_bonus()
         if companion_bonus > 0:
             dmg = int(dmg * (1 + companion_bonus))
+
+        # Apply Ranger wilderness bonus (+15% in forest/wilderness)
+        from cli_rpg.ranger import calculate_wilderness_bonus
+        wilderness_multiplier = calculate_wilderness_bonus(
+            self.player.character_class,
+            self.location_category,
+        )
+        if wilderness_multiplier > 1.0:
+            dmg = int(dmg * wilderness_multiplier)
 
         # Check for critical hit (DEX-based + luck bonus)
         crit_chance = calculate_crit_chance(self.player.dexterity, self.player.luck)

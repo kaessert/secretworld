@@ -1,68 +1,64 @@
-# Implementation Summary: Add Hidden Secrets to Default World
+# Implementation Summary: Ranger Class Abilities
 
 ## Status: Complete
 
-Added `hidden_secrets` to 14 default world locations in `src/cli_rpg/world.py`, enabling the `search` command to find content when players explore.
+Implemented Ranger class abilities (track command and wilderness bonus) to bring parity with Warrior (bash), Mage (fireball/ice_bolt/heal), and Rogue (sneak).
+
+## What Was Implemented
+
+### 1. Track Command (`track` / `tr`)
+A new exploration command that allows Rangers to detect enemies in adjacent locations:
+- **Cost**: 10 stamina per use
+- **Success Rate**: Base 50% + 3% per PER point (e.g., PER 10 = 80%, PER 15 = 95%)
+- **Restrictions**: Rangers only, cannot be used in combat
+- **Output**: Lists detected enemy types and counts in each connected location
+
+### 2. Wilderness Damage Bonus
+Rangers receive +15% attack damage when fighting in wilderness or forest locations:
+- Applied automatically during combat in `CombatEncounter.player_attack()`
+- Affects only Rangers (other classes don't receive the bonus)
+- Applies to "forest" and "wilderness" category locations only
+
+## Files Created
+| File | Description |
+|------|-------------|
+| `src/cli_rpg/ranger.py` | New module with Ranger abilities (execute_track, calculate_wilderness_bonus) |
+| `tests/test_ranger.py` | TDD test suite with 12 test cases covering both features |
 
 ## Files Modified
-
-### 1. `src/cli_rpg/world.py`
-
-Added `hidden_secrets` parameter to 14 Location instantiations:
-
-| Location | Secret Type | Threshold | Description |
-|----------|------------|-----------|-------------|
-| Town Well | hidden_treasure | 10 | Loose stone with coins |
-| Guard Post | lore_hint | 12 | Monster sighting tallies |
-| Forest Edge | trap | 12 | Concealed snare trap |
-| Deep Woods | hidden_door | 14 | Overgrown path to clearing |
-| Ancient Grove | lore_hint | 15 | Ancient runes about guardian |
-| Cave | hidden_treasure | 13 | Gemstone in crack |
-| Village Square | lore_hint | 10 | Well inscription |
-| Blacksmith | hidden_treasure | 12 | Coins in forge ashes |
-| Upper Tunnels | trap | 14 | Unstable ceiling section |
-| Flooded Level | hidden_treasure | 16 | Submerged payroll cache |
-| Boss Chamber | lore_hint | 18 | Crystal warning inscription |
-| Castle Ward | lore_hint | 16 | Coded noble's letter |
-| Slums | hidden_door | 14 | Thieves' underground passage |
-| Temple Quarter | hidden_treasure | 11 | Forgotten offering box |
-
-### 2. `tests/test_perception.py`
-
-Added `TestDefaultWorldSecrets` test class with 4 tests:
-- `test_default_world_has_secrets` - Verifies at least 5 locations have secrets
-- `test_secrets_have_valid_format` - Verifies secrets have type, description, threshold
-- `test_secrets_have_varied_thresholds` - Verifies range from easy (<=12) to hard (>=15)
-- `test_secrets_have_varied_types` - Verifies at least 3 different secret types
-
-## Secret Distribution by Area
-
-| Area | Difficulty | Threshold Range |
-|------|------------|-----------------|
-| Town Square area | Easy | 10-12 |
-| Forest area | Medium | 12-15 |
-| Cave | Medium | 13 |
-| Millbrook Village | Easy-Medium | 10-12 |
-| Abandoned Mines | Hard | 14-18 |
-| Ironhold City | Varied | 11-16 |
-
-## Secret Types Summary
-
-- `hidden_treasure` (5 locations) - Findable loot
-- `lore_hint` (5 locations) - Story/world-building
-- `trap` (2 locations) - Danger warnings
-- `hidden_door` (2 locations) - Secret passages
+| File | Changes |
+|------|---------|
+| `src/cli_rpg/game_state.py` | Added "track" to KNOWN_COMMANDS, added "tr" alias |
+| `src/cli_rpg/main.py` | Added track command handler in handle_exploration_command(), updated help text |
+| `src/cli_rpg/combat.py` | Added location_category param to CombatEncounter, integrated wilderness bonus |
+| `src/cli_rpg/hallucinations.py` | Updated CombatEncounter call with location_category |
+| `src/cli_rpg/world_events.py` | Updated CombatEncounter call with location_category |
+| `src/cli_rpg/random_encounters.py` | Updated CombatEncounter call with location_category |
+| `src/cli_rpg/shadow_creature.py` | Updated CombatEncounter call with location_category |
 
 ## Test Results
+All tests pass:
+- **Ranger tests**: 12/12 passed
+- **Full test suite**: 2919/2919 passed
 
-```
-tests/test_perception.py: 22 passed
-Full test suite: 2907 passed in 64.30s
+## Constants Defined in ranger.py
+```python
+TRACK_STAMINA_COST = 10
+TRACK_BASE_CHANCE = 50
+TRACK_PER_BONUS = 3
+WILDERNESS_DAMAGE_BONUS = 0.15
+WILDERNESS_CATEGORIES = {"forest", "wilderness"}
 ```
 
 ## E2E Tests Should Validate
+1. Create a Ranger character
+2. Use `track` command to detect enemies in adjacent locations
+3. Enter a forest or wilderness area and engage in combat
+4. Verify damage output is 15% higher than with other classes in wilderness/forest
+5. Verify non-Rangers cannot use track command
+6. Verify track fails with insufficient stamina (<10)
 
-1. Start new game and use `search` command in Town Well (easy, threshold 10)
-2. Use `search` command in Boss Chamber with low PER character (should fail, threshold 18)
-3. Verify Rogue class (+2 PER bonus) can find more secrets than base character
-4. Test that discovered secrets don't re-appear on subsequent searches
+## Design Notes
+- The `location_category` is now passed to all CombatEncounter instances for consistency
+- The wilderness bonus is applied after companion bonus but before critical hit calculation
+- Track command uses a simulated enemy detection based on location category

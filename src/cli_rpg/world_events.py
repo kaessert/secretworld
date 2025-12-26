@@ -511,11 +511,13 @@ def _resolve_invasion(
     )
 
     # Store event ID on combat so we can resolve on victory
+    location = game_state.get_current_location()
     game_state.current_combat = CombatEncounter(
         game_state.current_character,
         enemies=enemies,
         weather=game_state.weather,
         companions=game_state.companions,
+        location_category=location.category if location else None,
     )
     # Mark the invasion event ID for post-combat resolution
     game_state._pending_invasion_event = event.event_id

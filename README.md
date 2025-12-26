@@ -42,7 +42,7 @@ python -m cli_rpg.main
    - **Warrior**: +3 STR, +1 DEX - melee combat specialists
    - **Mage**: +3 INT, +1 DEX - magic damage dealers
    - **Rogue**: +3 DEX, +1 STR, +1 CHA, +2 PER, +2 LCK - agile fighters with stealth and backstab abilities
-   - **Ranger**: +2 DEX, +1 STR, +1 INT, +1 PER, +1 LCK - balanced adventurers
+   - **Ranger**: +2 DEX, +1 STR, +1 INT, +1 PER, +1 LCK - wilderness specialists with tracking abilities and +15% damage in forest/wilderness
    - **Cleric**: +2 INT, +1 STR, +2 CHA - hybrid support class
 3. Choose your stat allocation method (manual or random)
 4. Set your six core attributes (1-20 each):
@@ -97,6 +97,7 @@ python -m cli_rpg.main
 - `camp` (ca) - Set up camp in wilderness areas (requires Camping Supplies; heals 50% HP, reduces dread by 30-40, advances time 8 hours; campfire cooks raw meat and may attract friendly visitors)
 - `forage` (fg) - Search for herbs and berries (forest/wilderness only; PER-based success chance; 1-hour cooldown)
 - `hunt` (hu) - Hunt game for meat and pelts (forest/wilderness only; DEX/PER-based success chance; 2-hour cooldown)
+- `track` (tr) - **Ranger only**: Detect enemies in adjacent locations (costs 10 stamina; success rate: 50% + 3% per PER point)
 - `events` - View active world events and their status
 - `resolve [event]` - Attempt to resolve an active world event (without args: lists events with requirements)
 - `save` - Save complete game state including world, location, and theme (not available during combat)
@@ -188,6 +189,8 @@ Status effects are cleared when combat ends.
 The combat status shows your last actions (e.g., "Last actions: [Attack] → [Defend]"). When a combo pattern is complete, you'll see "COMBO AVAILABLE: Frenzy!" - perform the matching action to trigger the combo. Fleeing clears your action history.
 
 **Targeting:** When facing multiple enemies, you can target specific enemies by name (e.g., `attack goblin` or `cast orc`). Partial, case-insensitive matching is supported. If no target is specified, attacks hit the first living enemy.
+
+**Ranger Wilderness Bonus:** Rangers receive +15% attack damage when fighting in forest or wilderness locations. This bonus is applied automatically during combat.
 
 **Companion Combat Bonus:** Companions in your party provide passive attack damage bonuses based on their bond level:
 - STRANGER (0-24 points): No bonus

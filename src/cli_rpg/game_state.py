@@ -59,6 +59,7 @@ KNOWN_COMMANDS: set[str] = {
     "persuade", "intimidate", "bribe", "haggle",  # Social skills
     "search",  # Secret discovery
     "camp", "forage", "hunt",  # Wilderness survival
+    "track",  # Ranger ability
 }
 
 # Dread increases by location category (darker areas = more dread)
@@ -127,6 +128,8 @@ def parse_command(command_str: str) -> tuple[str, list[str]]:
         "gn": "go", "gs": "go", "ge": "go", "gw": "go",
         # Wilderness survival aliases
         "ca": "camp", "fg": "forage", "hu": "hunt",
+        # Ranger ability aliases
+        "tr": "track",
     }
     raw_command = command  # Save for movement shortcut detection
     command = aliases.get(command, command)
@@ -363,6 +366,7 @@ class GameState:
                 enemies=enemies,
                 weather=self.weather,
                 companions=self.companions,
+                location_category=location.category if location else None,
             )
 
             # Combat increases dread
@@ -669,6 +673,7 @@ class GameState:
                 enemies=[boss],
                 weather=self.weather,
                 companions=self.companions,
+                location_category=sub_location.category,
             )
             message += f"\n\n{self.current_combat.start()}"
 

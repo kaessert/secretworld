@@ -101,10 +101,12 @@ def check_for_hallucination(game_state: "GameState") -> Optional[str]:
     hallucination = spawn_hallucination(game_state.current_character.level)
 
     # Create combat encounter
+    location = game_state.get_current_location()
     game_state.current_combat = CombatEncounter(
         game_state.current_character,
         enemies=[hallucination],
         companions=game_state.companions,
+        location_category=location.category if location else None,
     )
 
     # Build eerie message

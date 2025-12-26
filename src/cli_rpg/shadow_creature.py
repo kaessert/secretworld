@@ -88,10 +88,12 @@ def check_and_trigger_shadow_attack(game_state: "GameState") -> Optional[str]:
     shadow = spawn_shadow_creature(game_state.current_character.level)
 
     # Create combat encounter
+    location = game_state.get_current_location()
     game_state.current_combat = CombatEncounter(
         game_state.current_character,
         enemies=[shadow],
         companions=game_state.companions,
+        location_category=location.category if location else None,
     )
 
     # Build dramatic message

@@ -64,6 +64,7 @@ src/cli_rpg/
 ├── social_skills.py     # CHA-based persuade, intimidate, and bribe mechanics
 ├── secrets.py           # PER-based secret discovery and search mechanics
 ├── camping.py           # Wilderness camping, foraging, and hunting system
+├── ranger.py            # Ranger class abilities (track command, wilderness bonus)
 └── models/
     ├── character.py     # Player character model
     ├── dread.py         # Dread meter for psychological horror
