@@ -187,7 +187,7 @@ class Location:
 
         # Add ASCII art if present (after name, before description)
         if self.ascii_art:
-            result += self.ascii_art.strip() + "\n"
+            result += self.ascii_art.rstrip() + "\n"
 
         # Handle description based on visibility
         description = self.description
@@ -400,7 +400,7 @@ class Location:
 
         # Add ASCII art if present (after name, before description)
         if self.ascii_art:
-            result += self.ascii_art.strip() + "\n"
+            result += self.ascii_art.rstrip() + "\n"
 
         result += f"{self.description}\n"
 

@@ -1744,7 +1744,7 @@ def handle_exploration_command(game_state: GameState, command: str, args: list[s
             lines.append(f"{data['name']} (x{count})")
             # Show ASCII art if available
             if data.get("ascii_art"):
-                for art_line in data["ascii_art"].strip().split("\n"):
+                for art_line in data["ascii_art"].rstrip().split("\n"):
                     lines.append(f"  {art_line}")
             lines.append(f"  Level {data['level']} | ATK: {data['attack_power']} | DEF: {data['defense']}")
             if data.get("description"):

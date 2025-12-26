@@ -559,7 +559,7 @@ class CombatEncounter:
                 intro = f"A wild {colors.enemy(enemy.name)} appears!"
             # Add ASCII art if available
             if enemy.ascii_art:
-                intro += "\n" + enemy.ascii_art.strip()
+                intro += "\n" + enemy.ascii_art.rstrip()
             intro += "\nCombat has begun!"
             return intro
         else:
@@ -567,7 +567,7 @@ class CombatEncounter:
             intro = f"Enemies appear: {', '.join(enemy_names)}!"
             # Add ASCII art for first enemy if available
             if self.enemies[0].ascii_art:
-                intro += "\n" + self.enemies[0].ascii_art.strip()
+                intro += "\n" + self.enemies[0].ascii_art.rstrip()
             intro += "\nCombat has begun!"
             return intro
     

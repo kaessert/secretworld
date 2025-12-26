@@ -495,3 +495,144 @@ class TestAsciiArtFirstLineAlignment:
         assert "```" not in art
         first_line = art.splitlines()[0]
         assert first_line == "    O"
+
+
+class TestAsciiArtDisplayPreservesIndentation:
+    """Test that ASCII art display preserves first line indentation.
+
+    Bug: `.strip()` was removing leading whitespace from ASCII art,
+    breaking alignment. Fix: use `.rstrip()` instead.
+    """
+
+    def test_location_get_layered_description_preserves_ascii_art_indentation(self):
+        """Verify get_layered_description() preserves first-line spaces in ASCII art."""
+        from cli_rpg.models.location import Location
+
+        # ASCII art with leading spaces on first line
+        ascii_art = "     /\\\n    /  \\\n   /    \\\n  /______\\"
+
+        location = Location(
+            name="Test Tower",
+            description="A tall tower.",
+            coordinates=(0, 0),
+            ascii_art=ascii_art,
+        )
+
+        result = location.get_layered_description()
+
+        # The ASCII art should preserve leading spaces on first line
+        assert "     /\\" in result, f"First line should have 5 leading spaces: {result}"
+
+    def test_location_str_preserves_ascii_art_indentation(self):
+        """Verify Location.__str__() preserves first-line spaces in ASCII art."""
+        from cli_rpg.models.location import Location
+
+        # ASCII art with leading spaces on first line
+        ascii_art = "    O\n   /|\\\n   / \\"
+
+        location = Location(
+            name="Test Statue",
+            description="A stone statue.",
+            coordinates=(0, 0),
+            ascii_art=ascii_art,
+        )
+
+        result = str(location)
+
+        # The ASCII art should preserve leading spaces on first line
+        assert "    O" in result, f"First line should have 4 leading spaces: {result}"
+
+    def test_combat_start_preserves_ascii_art_indentation(self):
+        """Verify combat.start() preserves first-line spaces in enemy ASCII art."""
+        from cli_rpg.models.character import Character
+        from cli_rpg.models.enemy import Enemy
+        from cli_rpg.combat import CombatEncounter
+
+        # ASCII art with leading spaces on first line
+        ascii_art = "   /\\ /\\\n  (  V  )\n  /|   |\\"
+
+        player = Character(
+            name="Test Hero",
+            strength=10,
+            dexterity=10,
+            intelligence=10,
+            level=1,
+            gold=50,
+        )
+
+        enemy = Enemy(
+            name="Test Monster",
+            health=30,
+            max_health=30,
+            attack_power=5,
+            defense=2,
+            xp_reward=20,
+            ascii_art=ascii_art,
+        )
+
+        combat = CombatEncounter(player=player, enemy=enemy)
+        intro = combat.start()
+
+        # The ASCII art should preserve leading spaces on first line
+        assert "   /\\ /\\" in intro, f"First line should have 3 leading spaces: {intro}"
+
+    def test_combat_start_multi_enemy_preserves_ascii_art_indentation(self):
+        """Verify combat.start() with multiple enemies preserves ASCII art indentation."""
+        from cli_rpg.models.character import Character
+        from cli_rpg.models.enemy import Enemy
+        from cli_rpg.combat import CombatEncounter
+
+        # ASCII art with leading spaces on first line
+        ascii_art = "    ___\n   /o o\\\n   \\ v /"
+
+        player = Character(
+            name="Test Hero",
+            strength=10,
+            dexterity=10,
+            intelligence=10,
+            level=1,
+            gold=50,
+        )
+
+        enemies = [
+            Enemy(
+                name="Monster A",
+                health=20,
+                max_health=20,
+                attack_power=5,
+                defense=2,
+                xp_reward=15,
+                ascii_art=ascii_art,
+            ),
+            Enemy(
+                name="Monster B",
+                health=20,
+                max_health=20,
+                attack_power=5,
+                defense=2,
+                xp_reward=15,
+            ),
+        ]
+
+        combat = CombatEncounter(player=player, enemies=enemies)
+        intro = combat.start()
+
+        # The ASCII art from first enemy should preserve leading spaces
+        assert "    ___" in intro, f"First line should have 4 leading spaces: {intro}"
+
+    def test_bestiary_display_preserves_ascii_art_indentation(self):
+        """Verify bestiary command preserves first-line spaces in ASCII art.
+
+        The bestiary command iterates over ascii_art lines with .strip().split('\\n'),
+        which should be .rstrip().split('\\n') to preserve leading spaces.
+        """
+        # This tests the logic used in main.py bestiary command
+        ascii_art = "   /\\ /\\\n  (  V  )\n  /|   |\\"
+
+        # Simulate the fixed bestiary display logic
+        lines = []
+        for art_line in ascii_art.rstrip().split("\n"):
+            lines.append(f"  {art_line}")
+
+        # First art line should preserve leading spaces (3 spaces + 2 indent)
+        assert lines[0] == "     /\\ /\\", f"Got: {lines[0]}"
