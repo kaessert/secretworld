@@ -170,6 +170,9 @@ Status effects are cleared when combat ends.
 - `block` (bl) - Take a blocking stance for stronger defense (costs 5 stamina, reduces incoming damage by 75%)
 - `flee` (f) - Attempt to escape (chance based on dexterity)
 - `cast [target]` (c) - Cast a magic attack at an enemy (costs 10 mana, damage based on intelligence). Targeting works like `attack`.
+- `fireball [target]` (fb) - **Mage only**: Hurl a fireball at an enemy (costs 20 mana). Deals INT × 2.5 damage (ignores defense), 25% chance to inflict Burn (5 damage/turn for 2 turns). Targeting works like `attack`.
+- `ice_bolt [target]` (ib) - **Mage only**: Launch an ice bolt at an enemy (costs 15 mana). Deals INT × 2.0 damage (ignores defense), 30% chance to inflict Freeze (50% attack reduction for 2 turns). Targeting works like `attack`.
+- `heal` (hl) - **Mage only**: Cast a healing spell on yourself (costs 25 mana). Restores INT × 2 HP (capped at max health).
 - `bash [target]` (ba) - **Warrior only**: Shield bash an enemy (costs 15 stamina). Deals 0.75x STR-based damage but stuns the target for 1 turn. Targeting works like `attack`.
 - `sneak` (sn) - **Rogue only**: Enter stealth mode for 1 turn (costs 10 stamina). Next attack deals 1.5x backstab damage. Higher DEX increases dodge chance while stealthed (DEX × 5%, capped at 75%). Stealth breaks if you take damage.
 - `use <item>` (u) - Use a consumable item (e.g., health potion) - counts as your turn

@@ -152,3 +152,59 @@ class TestDirectionShorthands:
         cmd, args = parse_command("g north")
         assert cmd == "go"
         assert args == ["north"]
+
+
+class TestMageSpellShorthands:
+    """Test Mage spell shorthand aliases.
+
+    Spec: Mage spell shorthand aliases:
+    - fb → fireball
+    - ib → ice_bolt
+    - hl → heal
+    """
+
+    # Spec: fb → fireball
+    def test_fb_expands_to_fireball(self):
+        cmd, args = parse_command("fb goblin")
+        assert cmd == "fireball"
+        assert args == ["goblin"]
+
+    # Spec: fb without target works
+    def test_fb_without_target(self):
+        cmd, args = parse_command("fb")
+        assert cmd == "fireball"
+        assert args == []
+
+    # Spec: ib → ice_bolt
+    def test_ib_expands_to_ice_bolt(self):
+        cmd, args = parse_command("ib orc")
+        assert cmd == "ice_bolt"
+        assert args == ["orc"]
+
+    # Spec: ib without target works
+    def test_ib_without_target(self):
+        cmd, args = parse_command("ib")
+        assert cmd == "ice_bolt"
+        assert args == []
+
+    # Spec: hl → heal
+    def test_hl_expands_to_heal(self):
+        cmd, args = parse_command("hl")
+        assert cmd == "heal"
+        assert args == []
+
+    # Spec: Full spell names still work
+    def test_fireball_full_command(self):
+        cmd, args = parse_command("fireball goblin")
+        assert cmd == "fireball"
+        assert args == ["goblin"]
+
+    def test_ice_bolt_full_command(self):
+        cmd, args = parse_command("ice_bolt orc")
+        assert cmd == "ice_bolt"
+        assert args == ["orc"]
+
+    def test_heal_full_command(self):
+        cmd, args = parse_command("heal")
+        assert cmd == "heal"
+        assert args == []

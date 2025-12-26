@@ -79,6 +79,9 @@ def get_command_reference() -> str:
         "  defend (d)    - Take a defensive stance (50% damage reduction)",
         "  block (bl)    - Actively block attacks (5 stamina, 75% reduction)",
         "  cast (c) [target]  - Cast a magic spell (default: first living enemy)",
+        "  fireball (fb) [target] - Cast Fireball (Mage only, 20 mana, burn chance)",
+        "  ice_bolt (ib) [target] - Cast Ice Bolt (Mage only, 15 mana, freeze chance)",
+        "  heal (hl)     - Cast Heal on self (Mage only, 25 mana)",
         "  sneak (sn)    - Enter stealth mode (Rogue only)",
         "  bash (ba) [target] - Stun an enemy (Warrior only, 15 stamina)",
         "  flee (f)      - Attempt to flee from combat",
@@ -564,6 +567,162 @@ def handle_combat_command(game_state: GameState, command: str, args: list[str], 
 
         return (True, output)
 
+    elif command == "fireball":
+        # Parse target from args (e.g., "fireball goblin")
+        target = " ".join(args) if args else ""
+        victory, message = combat.player_fireball(target=target)
+        output = f"\n{message}"
+
+        if victory:
+            # Check if this was a hallucination-only fight
+            all_hallucinations = all(e.is_hallucination for e in combat.enemies)
+            if all_hallucinations:
+                # Hallucination dispelled - reduce dread, skip XP/bestiary
+                from cli_rpg.hallucinations import DREAD_REDUCTION_ON_DISPEL
+                from cli_rpg import colors
+                game_state.current_character.dread_meter.reduce_dread(DREAD_REDUCTION_ON_DISPEL)
+                output += f"\n{colors.heal('Your mind clears slightly as the illusion fades.')}"
+                game_state.current_combat = None
+                return (True, output)
+
+            # All enemies defeated - record each in bestiary
+            for enemy in combat.enemies:
+                game_state.current_character.record_enemy_defeat(enemy)
+            end_message = combat.end_combat(victory=True)
+            output += f"\n{end_message}"
+            # Track quest progress for kill objectives (for each enemy)
+            for enemy in combat.enemies:
+                quest_messages = game_state.current_character.record_kill(enemy.name)
+                for msg in quest_messages:
+                    output += f"\n{msg}"
+                # Record the kill as a choice for reputation tracking
+                game_state.record_choice(
+                    choice_type="combat_kill",
+                    choice_id=f"kill_{enemy.name}_{game_state.game_time.hour}",
+                    description=f"Killed {enemy.name} with Fireball",
+                    target=enemy.name,
+                )
+            # Process companion reactions to combat kill
+            reaction_msgs = process_companion_reactions(game_state.companions, "combat_kill")
+            for msg in reaction_msgs:
+                output += f"\n{msg}"
+            # Check for invasion resolution
+            from cli_rpg.world_events import resolve_invasion_on_victory
+            invasion_msg = resolve_invasion_on_victory(game_state)
+            if invasion_msg:
+                output += f"\n{invasion_msg}"
+            game_state.current_combat = None
+            # Autosave after combat victory
+            try:
+                autosave(game_state)
+            except IOError:
+                pass  # Silent failure
+        else:
+            # Not all enemies dead - check if fireball was valid
+            if "not found" not in message.lower() and "Only Mages" not in message and "mana" not in message.lower() and "stunned" not in message.lower():
+                # Valid fireball - enemies attack back
+                enemy_message = combat.enemy_turn()
+                output += f"\n{enemy_message}"
+
+                # Check if player died
+                if not game_state.current_character.is_alive():
+                    death_message = combat.end_combat(victory=False)
+                    output += f"\n{death_message}"
+                    output += "\n\n=== GAME OVER ==="
+                    sound_death()
+                    game_state.current_combat = None
+
+        return (True, output)
+
+    elif command == "ice_bolt":
+        # Parse target from args (e.g., "ice_bolt goblin")
+        target = " ".join(args) if args else ""
+        victory, message = combat.player_ice_bolt(target=target)
+        output = f"\n{message}"
+
+        if victory:
+            # Check if this was a hallucination-only fight
+            all_hallucinations = all(e.is_hallucination for e in combat.enemies)
+            if all_hallucinations:
+                # Hallucination dispelled - reduce dread, skip XP/bestiary
+                from cli_rpg.hallucinations import DREAD_REDUCTION_ON_DISPEL
+                from cli_rpg import colors
+                game_state.current_character.dread_meter.reduce_dread(DREAD_REDUCTION_ON_DISPEL)
+                output += f"\n{colors.heal('Your mind clears slightly as the illusion fades.')}"
+                game_state.current_combat = None
+                return (True, output)
+
+            # All enemies defeated - record each in bestiary
+            for enemy in combat.enemies:
+                game_state.current_character.record_enemy_defeat(enemy)
+            end_message = combat.end_combat(victory=True)
+            output += f"\n{end_message}"
+            # Track quest progress for kill objectives (for each enemy)
+            for enemy in combat.enemies:
+                quest_messages = game_state.current_character.record_kill(enemy.name)
+                for msg in quest_messages:
+                    output += f"\n{msg}"
+                # Record the kill as a choice for reputation tracking
+                game_state.record_choice(
+                    choice_type="combat_kill",
+                    choice_id=f"kill_{enemy.name}_{game_state.game_time.hour}",
+                    description=f"Killed {enemy.name} with Ice Bolt",
+                    target=enemy.name,
+                )
+            # Process companion reactions to combat kill
+            reaction_msgs = process_companion_reactions(game_state.companions, "combat_kill")
+            for msg in reaction_msgs:
+                output += f"\n{msg}"
+            # Check for invasion resolution
+            from cli_rpg.world_events import resolve_invasion_on_victory
+            invasion_msg = resolve_invasion_on_victory(game_state)
+            if invasion_msg:
+                output += f"\n{invasion_msg}"
+            game_state.current_combat = None
+            # Autosave after combat victory
+            try:
+                autosave(game_state)
+            except IOError:
+                pass  # Silent failure
+        else:
+            # Not all enemies dead - check if ice bolt was valid
+            if "not found" not in message.lower() and "Only Mages" not in message and "mana" not in message.lower() and "stunned" not in message.lower():
+                # Valid ice bolt - enemies attack back
+                enemy_message = combat.enemy_turn()
+                output += f"\n{enemy_message}"
+
+                # Check if player died
+                if not game_state.current_character.is_alive():
+                    death_message = combat.end_combat(victory=False)
+                    output += f"\n{death_message}"
+                    output += "\n\n=== GAME OVER ==="
+                    sound_death()
+                    game_state.current_combat = None
+
+        return (True, output)
+
+    elif command == "heal":
+        # Heal has no target, it's always self
+        victory, message = combat.player_heal()
+        output = f"\n{message}"
+
+        # Heal is never a victory (only offensive spells can defeat enemies)
+        # Check if heal was valid (success or at least valid attempt)
+        if "Only Mages" not in message and "mana" not in message.lower() and "stunned" not in message.lower() and "full health" not in message.lower():
+            # Valid heal - enemies attack back
+            enemy_message = combat.enemy_turn()
+            output += f"\n{enemy_message}"
+
+            # Check if player died
+            if not game_state.current_character.is_alive():
+                death_message = combat.end_combat(victory=False)
+                output += f"\n{death_message}"
+                output += "\n\n=== GAME OVER ==="
+                sound_death()
+                game_state.current_combat = None
+
+        return (True, output)
+
     elif command == "status":
         return (True, "\n" + combat.get_status())
 
@@ -619,7 +778,7 @@ def handle_combat_command(game_state: GameState, command: str, args: list[str], 
 
     elif command == "unknown":
         # Provide "did you mean?" suggestion during combat
-        combat_commands = {"attack", "defend", "block", "cast", "flee", "sneak", "use", "status", "help", "quit"}
+        combat_commands = {"attack", "defend", "block", "cast", "fireball", "ice_bolt", "heal", "flee", "sneak", "bash", "use", "status", "help", "quit"}
         if args and args[0]:
             suggestion = suggest_command(args[0], combat_commands)
             if suggestion:

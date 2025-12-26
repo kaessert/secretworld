@@ -1,180 +1,162 @@
-# Implementation Plan: Warrior Bash Command
+# Mage-Specific Spells Implementation Plan
 
-## Feature Spec
+## Summary
+Implement Mage-exclusive spells (`fireball`, `ice_bolt`, `heal`) to leverage the existing mana system and give Mages their unique playstyle. Currently the `cast` command is a generic magic attack for all classes - Mages should have access to more powerful, specialized spells.
 
-Add `bash` combat command for Warriors that:
-- **Costs 15 stamina** (higher than sneak's 10, balanced for powerful stun effect)
-- **Deals STR-based damage** (0.75x normal attack damage, so not a straight upgrade)
-- **Applies 1-turn stun** to the target enemy (uses existing stun StatusEffect)
-- **Warrior-only** (mirrors sneak being Rogue-only)
+## Spec
 
-## Tests (TDD)
+### Mage Spells (Mage-only abilities)
+1. **Fireball** (`fireball` / `fb`)
+   - Mage-only spell
+   - Cost: 20 mana
+   - Damage: INT × 2.5 (ignores defense like `cast`)
+   - Effect: 25% chance to apply Burn (5 damage/turn, 2 turns)
 
-Create `tests/test_bash.py`:
+2. **Ice Bolt** (`ice_bolt` / `ib`)
+   - Mage-only spell
+   - Cost: 15 mana
+   - Damage: INT × 2.0 (ignores defense)
+   - Effect: 30% chance to apply Freeze (50% attack reduction, 2 turns) to enemy
 
-1. **test_bash_only_available_to_warrior** - Non-warriors get "Only Warriors can bash!"
-2. **test_bash_costs_15_stamina** - Stamina decreases by 15 after bash
-3. **test_bash_fails_without_stamina** - Returns error with <15 stamina, stamina unchanged
-4. **test_bash_deals_reduced_damage** - Deals 0.75x STR-based damage (reduced from normal attack)
-5. **test_bash_applies_stun_to_enemy** - Enemy has stun StatusEffect after bash
-6. **test_bash_stun_lasts_1_turn** - Stun duration is 1
-7. **test_bash_fails_when_stunned** - Can't bash while player is stunned
-8. **test_bash_can_defeat_enemy** - Returns victory=True if enemy dies from bash damage
-9. **test_bash_records_action_for_combo** - Action recorded as "bash" in action_history
+3. **Heal** (`heal` / `hl`)
+   - Mage-only spell
+   - Cost: 25 mana
+   - Effect: Heals player for INT × 2 HP (capped at max_health)
+   - Can be used in combat (takes player's action, enemy still attacks)
+
+### Design Decisions
+- Basic `cast` remains available to all classes (10 mana, INT × 1.5 damage)
+- Mage spells are more powerful but cost more mana (leveraging Mage's larger mana pool)
+- Spells can trigger enemy status effects (burn, freeze) like enemy attacks do
+- Follows existing patterns from `bash` (Warrior-only) and `sneak` (Rogue-only)
+
+## Tests to Write (TDD)
+
+### File: `tests/test_mage_spells.py`
+
+```python
+# 1. Fireball class restriction
+def test_fireball_mage_only()  # Non-mages get "Only Mages can cast Fireball!"
+
+# 2. Fireball mana cost
+def test_fireball_costs_20_mana()  # Deducts 20 mana on use
+def test_fireball_fails_without_mana()  # Returns error when mana < 20
+
+# 3. Fireball damage
+def test_fireball_deals_int_times_2_5_damage()  # INT=10 → 25 damage
+def test_fireball_ignores_enemy_defense()  # Full damage regardless of defense
+
+# 4. Fireball burn effect
+def test_fireball_can_apply_burn()  # 25% chance to apply Burn status
+
+# 5. Ice Bolt class restriction
+def test_ice_bolt_mage_only()  # Non-mages get error
+
+# 6. Ice Bolt mana cost
+def test_ice_bolt_costs_15_mana()
+def test_ice_bolt_fails_without_mana()
+
+# 7. Ice Bolt damage
+def test_ice_bolt_deals_int_times_2_damage()
+
+# 8. Ice Bolt freeze effect
+def test_ice_bolt_can_apply_freeze()  # 30% chance to apply Freeze
+
+# 9. Heal class restriction
+def test_heal_mage_only()
+
+# 10. Heal mana cost
+def test_heal_costs_25_mana()
+def test_heal_fails_without_mana()
+
+# 11. Heal effect
+def test_heal_restores_int_times_2_hp()
+def test_heal_capped_at_max_health()
+def test_heal_fails_at_full_health()
+
+# 12. Combat integration
+def test_spells_trigger_enemy_turn()  # Enemy attacks after spell cast
+def test_spells_can_defeat_enemy()  # Victory condition
+def test_stunned_mage_cannot_cast_spells()  # Stun blocks spells
+
+# 13. Combo system
+def test_fireball_records_cast_action()  # Counts toward Arcane Burst
+def test_ice_bolt_records_cast_action()  # Counts toward Arcane Burst
+```
 
 ## Implementation Steps
 
-### 1. Add `player_bash()` method to CombatEncounter
-
-**File**: `src/cli_rpg/combat.py`
-**Location**: After `player_sneak()` method (around line 772)
+### 1. Add spell methods to `CombatEncounter` in `src/cli_rpg/combat.py`
 
 ```python
-def player_bash(self, target: str = "") -> Tuple[bool, str]:
-    """
-    Warrior performs a stunning bash attack.
+def player_fireball(self, target: str = "") -> Tuple[bool, str]:
+    """Mage casts Fireball - high damage with burn chance."""
+    # Check class restriction
+    # Check mana (20)
+    # Calculate damage (INT × 2.5)
+    # Apply burn effect (25% chance)
+    # Record 'cast' action for combo tracking
 
-    Deals reduced damage (0.75x) but applies 1-turn stun to enemy.
-    Costs 15 stamina. Only Warriors can use this ability.
+def player_ice_bolt(self, target: str = "") -> Tuple[bool, str]:
+    """Mage casts Ice Bolt - damage with freeze chance."""
+    # Similar pattern, 15 mana, INT × 2.0, 30% freeze
 
-    Args:
-        target: Target enemy name (partial match). Empty = first living enemy.
-
-    Returns:
-        Tuple of (victory, message)
-    """
-    from cli_rpg.models.character import CharacterClass
-
-    # Check if player is stunned
-    stun_msg = self._check_and_consume_stun()
-    if stun_msg:
-        return False, stun_msg
-
-    # Only Warriors can bash
-    if self.player.character_class != CharacterClass.WARRIOR:
-        return False, "Only Warriors can bash!"
-
-    # Check stamina cost (15 stamina)
-    if not self.player.use_stamina(15):
-        return False, f"Not enough stamina! ({self.player.stamina}/{self.player.max_stamina})"
-
-    # Get target enemy
-    enemy, error = self._get_target(target)
-    if enemy is None:
-        return False, error or "No target found."
-
-    # Record action for combo tracking
-    self._record_action("bash")
-
-    # Calculate damage: 0.75x normal attack, minimum 1
-    base_dmg = max(1, self.player.get_attack_power() - enemy.defense)
-    dmg = max(1, int(base_dmg * 0.75))
-    enemy.take_damage(dmg)
-
-    # Apply stun effect to enemy (1 turn)
-    stun = StatusEffect(
-        name="Stun",
-        effect_type="stun",
-        damage_per_turn=0,
-        duration=1
-    )
-    enemy.apply_status_effect(stun)
-
-    message = (
-        f"You {colors.damage('BASH')} {colors.enemy(enemy.name)} for "
-        f"{colors.damage(str(dmg))} damage and {colors.warning('stun')} them!"
-    )
-
-    if not enemy.is_alive():
-        message += f"\n{colors.enemy(enemy.name)} has been defeated!"
-
-    # Check if all enemies are dead
-    if not self.get_living_enemies():
-        message += f" {colors.heal('Victory!')}"
-        return True, message
-
-    if enemy.is_alive():
-        message += f"\n{colors.enemy(enemy.name)} has {enemy.health}/{enemy.max_health} HP remaining."
-
-    return False, message
+def player_heal(self) -> Tuple[bool, str]:
+    """Mage casts Heal - restore health."""
+    # Check class restriction
+    # Check mana (25)
+    # Check not at full health
+    # Heal INT × 2 HP
+    # Record 'cast' action
 ```
 
-### 2. Add "bash" to KNOWN_COMMANDS
+### 2. Add command handlers in `src/cli_rpg/main.py`
 
-**File**: `src/cli_rpg/game_state.py`
-**Location**: Line 53
-**Change**: Add "bash" to KNOWN_COMMANDS set (after "block")
-
-### 3. Add "ba" alias
-
-**File**: `src/cli_rpg/game_state.py`
-**Location**: aliases dict (line 118)
-**Change**: Add `"ba": "bash"` to aliases
-
-### 4. Add bash command handler
-
-**File**: `src/cli_rpg/main.py`
-**Location**: After sneak handler (around line 391)
-
+In `handle_combat_command()`:
 ```python
-elif command == "bash":
-    # Parse target from args
-    target = " ".join(args) if args else ""
-    victory, message = combat.player_bash(target=target)
-    output = f"\n{message}"
+elif command == "fireball":
+    # Parse target, call combat.player_fireball()
+    # Handle victory/defeat/continue combat flow
 
-    if victory:
-        # Same victory handling as attack/cast
-        for enemy in combat.enemies:
-            game_state.current_character.record_enemy_defeat(enemy)
-        end_message = combat.end_combat(victory=True)
-        output += f"\n{end_message}"
-        for enemy in combat.enemies:
-            quest_messages = game_state.current_character.record_kill(enemy.name)
-            for msg in quest_messages:
-                output += f"\n{msg}"
-            game_state.record_choice(...)
-        # ... companion reactions, invasion check, autosave ...
-        game_state.current_combat = None
-    else:
-        # If bash succeeded (not an error message), enemies attack back
-        if "Only Warriors" not in message and "Not enough stamina" not in message and "stunned" not in message.lower():
-            enemy_message = combat.enemy_turn()
-            output += f"\n{enemy_message}"
+elif command == "ice_bolt":
+    # Same pattern
 
-            if not game_state.current_character.is_alive():
-                death_message = combat.end_combat(victory=False)
-                output += f"\n{death_message}"
-                output += "\n\n=== GAME OVER ==="
-                sound_death()
-                game_state.current_combat = None
-
-    return (True, output)
+elif command == "heal":
+    # Call combat.player_heal()
+    # Trigger enemy turn after heal
 ```
 
-### 5. Update combat help text
+### 3. Update command parsing in `src/cli_rpg/main.py`
 
-**File**: `src/cli_rpg/main.py`
-**Location**: `get_command_reference()` (around line 83)
-**Change**: Add after sneak:
+In `parse_command()` add shorthand aliases:
+- `fb` → `fireball`
+- `ib` → `ice_bolt`
+- `hl` → `heal`
 
-```python
-"  bash (ba) [target] - Stun an enemy (Warrior only, 15 stamina)",
+### 4. Update help text in `src/cli_rpg/main.py`
+
+Add to combat commands section:
+```
+"  fireball (fb) [target] - Cast Fireball (Mage only, 20 mana)",
+"  ice_bolt (ib) [target] - Cast Ice Bolt (Mage only, 15 mana)",
+"  heal (hl)     - Cast Heal on self (Mage only, 25 mana)",
 ```
 
-## File Changes Summary
+### 5. Update combat command list
 
-| File | Changes |
-|------|---------|
-| `src/cli_rpg/combat.py` | Add `player_bash()` method (~45 lines) |
-| `src/cli_rpg/game_state.py` | Add "bash" to KNOWN_COMMANDS, add "ba" alias |
-| `src/cli_rpg/main.py` | Add command handler (~40 lines), add help text |
-| `tests/test_bash.py` | New test file (~150 lines) |
+Add `fireball`, `ice_bolt`, `heal` to:
+- `combat_commands` set in unknown command handling
+- `get_available_commands()` for JSON mode
 
-## Verification
+## Files to Modify
 
-```bash
-pytest tests/test_bash.py -v
-pytest tests/test_combat.py -v  # Ensure no regressions
-pytest  # Full suite
-```
+1. `src/cli_rpg/combat.py` - Add `player_fireball()`, `player_ice_bolt()`, `player_heal()`
+2. `src/cli_rpg/main.py` - Add command handlers, shortcuts, help text
+3. `tests/test_mage_spells.py` - New test file
+
+## Order of Implementation
+
+1. Write tests in `tests/test_mage_spells.py`
+2. Add spell methods to `combat.py`
+3. Add command handlers to `main.py`
+4. Run tests to verify

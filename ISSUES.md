@@ -752,7 +752,7 @@ Player decisions should have lasting impact on the world and story.
 
 **Future enhancements** (class-specific abilities):
 - **Warrior**: ✅ `bash` command MVP IMPLEMENTED (shield bash costs 15 stamina, deals 0.75x damage, stuns target for 1 turn); Future: unlocks heavy armor
-- **Mage**: Mana pool for spells, learns `fireball`/`ice bolt`/`heal`, weak armor
+- **Mage**: ✅ `fireball` command MVP IMPLEMENTED (costs 20 mana, INT × 2.5 damage ignores defense, 25% Burn chance); ✅ `ice_bolt` command MVP IMPLEMENTED (costs 15 mana, INT × 2.0 damage ignores defense, 30% Freeze chance); ✅ `heal` command MVP IMPLEMENTED (costs 25 mana, restores INT × 2 HP); Future: weak armor restrictions
 - **Rogue**: ✅ `sneak` command MVP IMPLEMENTED (stealth mode in combat, 1.5x backstab damage, DEX-based dodge while stealthed); ✅ `pick` command MVP IMPLEMENTED (lockpicking for treasure chests); Future: `sneak` past encounters
 - **Ranger**: `track` enemies, bonus in wilderness, animal companion
 - **Cleric**: Healing spells, `bless` party buffs, `smite` undead, holy symbols
@@ -1045,6 +1045,33 @@ Text output could be more atmospheric and engaging.
 - Towns/villages: Bandit, Thief, Ruffian, Outlaw
 
 **Note**: Players must be in the correct location type to encounter matching enemies. A quest for "Wolf" (forest enemy) won't progress while fighting in mountains (which spawn Eagle, Mountain Lion, Yeti). Players should explore forest areas to find wolves.
+
+### Default world has no hidden secrets for search command
+**Status**: ACTIVE
+
+**Description**: The `search` command is documented in the README as a major feature ("Secret Discovery: PER-based check with +5 bonus; light sources provide additional +2") and the Perception & secret discovery system is marked as RESOLVED in ISSUES.md. However, no locations in the default world actually have any hidden secrets defined.
+
+**Steps to reproduce**:
+1. Start a new game with `--skip-character-creation`
+2. Use `search` command in any location (Town Square, Cave, Market District, Forest, Mines, etc.)
+3. Always get: "You search carefully but find nothing hidden."
+4. Even with PER 22 (way above max), still find nothing
+
+**Tested locations** (all returned "nothing hidden"):
+- Town Square, Market District, Guard Post, Town Well
+- Forest, Forest Edge, Deep Woods
+- Cave
+- Millbrook Village
+- Abandoned Mines, Mine Entrance
+
+**Expected behavior**: At least some locations should have hidden secrets that can be discovered through the search command. Players who read the documentation and invest in the Perception stat should be rewarded.
+
+**User impact**:
+- Players following documentation will be frustrated by a feature that never succeeds
+- No way to distinguish "no secrets here" from "secrets exist but I failed the check"
+- The PER stat and light source bonuses are untestable
+
+**Suggested fix**: Add `hidden_secrets` to default world locations (secrets.py shows the data model exists but nothing populates it in the default world).
 
 ### Procedural quest generation
 **Status**: ACTIVE

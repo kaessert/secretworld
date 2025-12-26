@@ -936,6 +936,198 @@ class CombatEncounter:
 
         return False, message
 
+    def player_fireball(self, target: str = "") -> Tuple[bool, str]:
+        """
+        Mage casts Fireball - high damage with burn chance.
+
+        Mage-only spell. Cost: 20 mana. Damage: INT * 2.5 (ignores defense).
+        25% chance to apply Burn (5 damage/turn, 2 turns).
+
+        Args:
+            target: Target enemy name (partial match). Empty = first living enemy.
+
+        Returns:
+            Tuple of (victory, message)
+            - victory: True if ALL enemies defeated, False otherwise
+            - message: Description of the spell cast
+        """
+        from cli_rpg.models.character import CharacterClass
+
+        # Check if player is stunned
+        stun_msg = self._check_and_consume_stun()
+        if stun_msg:
+            return False, stun_msg
+
+        # Only Mages can cast Fireball
+        if self.player.character_class != CharacterClass.MAGE:
+            return False, "Only Mages can cast Fireball!"
+
+        # Check mana cost (20 mana)
+        if not self.player.use_mana(20):
+            return False, f"Not enough mana! ({self.player.mana}/{self.player.max_mana})"
+
+        # Get target enemy
+        enemy, error = self._get_target(target)
+        if enemy is None:
+            return False, error or "No target found."
+
+        # Record action for combo tracking
+        self._record_action("cast")
+
+        # Calculate damage: INT * 2.5, ignores defense
+        dmg = max(1, int(self.player.intelligence * 2.5))
+
+        enemy.take_damage(dmg)
+
+        message = (
+            f"You hurl a {colors.damage('FIREBALL')} at {colors.enemy(enemy.name)} "
+            f"for {colors.damage(str(dmg))} fire damage!"
+        )
+
+        # 25% chance to apply Burn effect
+        if random.random() < 0.25:
+            burn = StatusEffect(
+                name="Burn",
+                effect_type="dot",
+                damage_per_turn=5,
+                duration=2
+            )
+            self.apply_status_effect_with_weather(enemy, burn)
+            message += f" {colors.enemy(enemy.name)} is {colors.damage('burning')}!"
+
+        if not enemy.is_alive():
+            message += f"\n{colors.enemy(enemy.name)} has been defeated!"
+
+        # Check if all enemies are dead
+        if not self.get_living_enemies():
+            message += f" {colors.heal('Victory!')}"
+            return True, message
+
+        if enemy.is_alive():
+            message += f"\n{colors.enemy(enemy.name)} has {enemy.health}/{enemy.max_health} HP remaining."
+
+        return False, message
+
+    def player_ice_bolt(self, target: str = "") -> Tuple[bool, str]:
+        """
+        Mage casts Ice Bolt - damage with freeze chance.
+
+        Mage-only spell. Cost: 15 mana. Damage: INT * 2.0 (ignores defense).
+        30% chance to apply Freeze (50% attack reduction, 2 turns).
+
+        Args:
+            target: Target enemy name (partial match). Empty = first living enemy.
+
+        Returns:
+            Tuple of (victory, message)
+            - victory: True if ALL enemies defeated, False otherwise
+            - message: Description of the spell cast
+        """
+        from cli_rpg.models.character import CharacterClass
+
+        # Check if player is stunned
+        stun_msg = self._check_and_consume_stun()
+        if stun_msg:
+            return False, stun_msg
+
+        # Only Mages can cast Ice Bolt
+        if self.player.character_class != CharacterClass.MAGE:
+            return False, "Only Mages can cast Ice Bolt!"
+
+        # Check mana cost (15 mana)
+        if not self.player.use_mana(15):
+            return False, f"Not enough mana! ({self.player.mana}/{self.player.max_mana})"
+
+        # Get target enemy
+        enemy, error = self._get_target(target)
+        if enemy is None:
+            return False, error or "No target found."
+
+        # Record action for combo tracking
+        self._record_action("cast")
+
+        # Calculate damage: INT * 2.0, ignores defense
+        dmg = max(1, int(self.player.intelligence * 2.0))
+
+        enemy.take_damage(dmg)
+
+        message = (
+            f"You launch an {colors.location('ICE BOLT')} at {colors.enemy(enemy.name)} "
+            f"for {colors.damage(str(dmg))} ice damage!"
+        )
+
+        # 30% chance to apply Freeze effect
+        if random.random() < 0.30:
+            freeze = StatusEffect(
+                name="Freeze",
+                effect_type="freeze",
+                damage_per_turn=0,
+                duration=2
+            )
+            self.apply_status_effect_with_weather(enemy, freeze)
+            message += f" {colors.enemy(enemy.name)} is {colors.location('frozen')}!"
+
+        if not enemy.is_alive():
+            message += f"\n{colors.enemy(enemy.name)} has been defeated!"
+
+        # Check if all enemies are dead
+        if not self.get_living_enemies():
+            message += f" {colors.heal('Victory!')}"
+            return True, message
+
+        if enemy.is_alive():
+            message += f"\n{colors.enemy(enemy.name)} has {enemy.health}/{enemy.max_health} HP remaining."
+
+        return False, message
+
+    def player_heal(self) -> Tuple[bool, str]:
+        """
+        Mage casts Heal - restore health.
+
+        Mage-only spell. Cost: 25 mana. Heals INT * 2 HP (capped at max_health).
+        Can be used in combat (takes player's action, enemy still attacks).
+
+        Returns:
+            Tuple of (victory, message)
+            - victory: Always False (combat continues)
+            - message: Description of the heal cast
+        """
+        from cli_rpg.models.character import CharacterClass
+
+        # Check if player is stunned
+        stun_msg = self._check_and_consume_stun()
+        if stun_msg:
+            return False, stun_msg
+
+        # Only Mages can cast Heal
+        if self.player.character_class != CharacterClass.MAGE:
+            return False, "Only Mages can cast Heal!"
+
+        # Check if already at full health
+        if self.player.health >= self.player.max_health:
+            return False, "You're already at full health!"
+
+        # Check mana cost (25 mana)
+        if not self.player.use_mana(25):
+            return False, f"Not enough mana! ({self.player.mana}/{self.player.max_mana})"
+
+        # Record action for combo tracking
+        self._record_action("cast")
+
+        # Calculate heal amount: INT * 2
+        heal_amount = max(1, int(self.player.intelligence * 2))
+        old_health = self.player.health
+        self.player.heal(heal_amount)
+        actual_heal = self.player.health - old_health
+
+        message = (
+            f"You cast {colors.heal('HEAL')} and restore "
+            f"{colors.heal(str(actual_heal))} health! "
+            f"({self.player.health}/{self.player.max_health} HP)"
+        )
+
+        return False, message
+
     def player_flee(self) -> Tuple[bool, str]:
         """
         Attempt to flee from combat.
