@@ -54,7 +54,7 @@ KNOWN_COMMANDS: set[str] = {
     "inventory", "equip", "unequip", "use", "drop", "talk", "buy", "sell", "shop",
     "map", "worldmap", "help", "quests", "quest", "accept", "complete", "abandon", "lore", "rest",
     "bestiary", "dump-state", "events", "companions", "recruit", "dismiss", "companion-quest",
-    "enter", "exit", "leave", "resolve"
+    "enter", "exit", "leave", "resolve", "pick", "open"
 }
 
 # Dread increases by location category (darker areas = more dread)
@@ -115,7 +115,7 @@ def parse_command(command_str: str) -> tuple[str, list[str]]:
         "d": "defend", "f": "flee", "s": "status", "i": "inventory",
         "m": "map", "wm": "worldmap", "h": "help", "t": "talk", "u": "use", "e": "equip",
         "q": "quests", "dr": "drop", "r": "rest", "stats": "status",
-        "b": "bestiary", "sn": "sneak",
+        "b": "bestiary", "sn": "sneak", "lp": "pick", "o": "open",
         # Ultra-short movement shortcuts
         "n": "go", "w": "go",
         "gn": "go", "gs": "go", "ge": "go", "gw": "go"

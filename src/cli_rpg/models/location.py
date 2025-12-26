@@ -47,6 +47,7 @@ class Location:
     entry_point: Optional[str] = None  # Default sub-location when entering
     boss_enemy: Optional[str] = None  # Boss template name (e.g., "stone_sentinel")
     boss_defeated: bool = False  # True if boss has been defeated (prevents respawn)
+    treasures: List[dict] = field(default_factory=list)  # Treasure chests with loot
     
     def __post_init__(self) -> None:
         """Validate location attributes after initialization."""
@@ -302,6 +303,8 @@ class Location:
             data["boss_enemy"] = self.boss_enemy
         if self.boss_defeated:
             data["boss_defeated"] = self.boss_defeated
+        if self.treasures:
+            data["treasures"] = self.treasures.copy()
         return data
     
     @classmethod
@@ -342,6 +345,8 @@ class Location:
         # Parse boss fields if present (backward compatibility)
         boss_enemy = data.get("boss_enemy")
         boss_defeated = data.get("boss_defeated", False)
+        # Parse treasures if present (backward compatibility)
+        treasures = data.get("treasures", [])
         return cls(
             name=data["name"],
             description=data["description"],
@@ -358,7 +363,8 @@ class Location:
             is_safe_zone=is_safe_zone,
             entry_point=entry_point,
             boss_enemy=boss_enemy,
-            boss_defeated=boss_defeated
+            boss_defeated=boss_defeated,
+            treasures=treasures
         )
     
     def __str__(self) -> str:

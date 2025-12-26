@@ -36,6 +36,8 @@ def get_command_reference() -> str:
         "  unequip <slot>     - Unequip weapon or armor (slot: weapon/armor)",
         "  use (u) <item>     - Use a consumable item",
         "  drop (dr) <item>   - Drop an item from your inventory",
+        "  pick (lp) <chest>  - Pick a lock on a chest (Rogue only, requires Lockpick)",
+        "  open (o) <chest>   - Open an unlocked chest",
         "  talk (t) <npc>     - Talk to an NPC (then chat freely, 'bye' to leave)",
         "  accept <quest>     - Accept a quest from the current NPC",
         "  complete <quest>   - Turn in a completed quest to the current NPC",
@@ -1277,6 +1279,120 @@ def handle_exploration_command(game_state: GameState, command: str, args: list[s
             True,
             f"\n{companion.name}'s Quest Accepted: {new_quest.name}\n{new_quest.description}"
         )
+
+    elif command == "pick":
+        # Lockpicking command - Rogue only
+        import random
+        from cli_rpg.models.character import CharacterClass
+
+        # Check if character is a Rogue
+        if game_state.current_character.character_class != CharacterClass.ROGUE:
+            return (True, "\nOnly Rogues can pick locks. This requires specialized training.")
+
+        # Check for lockpick in inventory
+        lockpick = game_state.current_character.inventory.find_item_by_name("Lockpick")
+        if lockpick is None:
+            return (True, "\nYou need a Lockpick to attempt picking a lock.")
+
+        if not args:
+            return (True, "\nPick what? Specify a chest name.")
+
+        # Find the chest by name (partial match)
+        chest_name = " ".join(args).lower()
+        location = game_state.get_current_location()
+
+        if not hasattr(location, 'treasures') or not location.treasures:
+            return (True, "\nThere are no chests here.")
+
+        target_chest = None
+        for treasure in location.treasures:
+            if chest_name in treasure["name"].lower():
+                target_chest = treasure
+                break
+
+        if target_chest is None:
+            return (True, f"\nNo chest matching '{' '.join(args)}' found here.")
+
+        if not target_chest["locked"]:
+            return (True, f"\n{target_chest['name']} is not locked.")
+
+        if target_chest["opened"]:
+            return (True, f"\n{target_chest['name']} has already been opened.")
+
+        # Consume the lockpick
+        game_state.current_character.inventory.remove_item(lockpick)
+
+        # Calculate success chance: 20% base + (DEX * 2%), capped at 80%
+        dexterity = game_state.current_character.dexterity
+        base_chance = 20 + (dexterity * 2)
+
+        # Apply difficulty modifier: +20%/+10%/0%/-10%/-20% for difficulty 1-5
+        difficulty = target_chest.get("difficulty", 3)
+        difficulty_mod = {1: 20, 2: 10, 3: 0, 4: -10, 5: -20}.get(difficulty, 0)
+        success_chance = min(80, base_chance + difficulty_mod)
+
+        # Roll for success (lower is better - roll must be below success_chance / 100)
+        roll = random.random() * 100
+        if roll < success_chance:
+            target_chest["locked"] = False
+            return (True, f"\n✓ Success! You picked the lock on {target_chest['name']}.")
+        else:
+            return (True, f"\n✗ The lockpick breaks in the lock. {target_chest['name']} remains locked.")
+
+    elif command == "open":
+        # Open a chest (anyone can use for unlocked chests)
+        if not args:
+            return (True, "\nOpen what? Specify a chest name.")
+
+        chest_name = " ".join(args).lower()
+        location = game_state.get_current_location()
+
+        if not hasattr(location, 'treasures') or not location.treasures:
+            return (True, "\nThere are no chests here.")
+
+        target_chest = None
+        for treasure in location.treasures:
+            if chest_name in treasure["name"].lower():
+                target_chest = treasure
+                break
+
+        if target_chest is None:
+            return (True, f"\nNo chest matching '{' '.join(args)}' found here.")
+
+        if target_chest["locked"]:
+            return (True, f"\n{target_chest['name']} is locked. You need to unlock it first.")
+
+        if target_chest["opened"]:
+            return (True, f"\n{target_chest['name']} has already been opened. It's empty now.")
+
+        # Open the chest and transfer items
+        target_chest["opened"] = True
+
+        items_added = []
+        for item_data in target_chest.get("items", []):
+            # Create item from data
+            item_type_str = item_data.get("item_type", "misc")
+            try:
+                item_type = ItemType(item_type_str)
+            except ValueError:
+                item_type = ItemType.MISC
+
+            new_item = Item(
+                name=item_data["name"],
+                description=item_data.get("description", "An item from the chest"),
+                item_type=item_type,
+                damage_bonus=item_data.get("damage_bonus", 0),
+                defense_bonus=item_data.get("defense_bonus", 0),
+                heal_amount=item_data.get("heal_amount", 0)
+            )
+            if game_state.current_character.inventory.add_item(new_item):
+                items_added.append(new_item.name)
+
+        if items_added:
+            items_list = ", ".join(items_added)
+            return (True, f"\nYou open {target_chest['name']} and find: {items_list}")
+        else:
+            return (True, f"\nYou open {target_chest['name']}, but it's empty.")
 
     elif command == "help":
         return (True, "\n" + get_command_reference())

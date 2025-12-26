@@ -146,6 +146,8 @@ class CommandCompleter:
             return self._complete_buy(text_lower)
         elif command == "resolve":
             return self._complete_resolve(text_lower)
+        elif command in ("pick", "open"):
+            return self._complete_treasure(text_lower)
 
         return []
 
@@ -266,6 +268,28 @@ class CommandCompleter:
         event_names = [event.name for event in active_events]
 
         return [name for name in event_names if name.lower().startswith(text)]
+
+    def _complete_treasure(self, text: str) -> List[str]:
+        """Complete chest name for 'pick' and 'open' commands.
+
+        Returns treasure chest names at the current location.
+
+        Args:
+            text: Partial chest name text (lowercase)
+
+        Returns:
+            List of matching chest names
+        """
+        if self._game_state is None:
+            return []
+
+        location = self._game_state.get_current_location()
+        if not hasattr(location, 'treasures') or not location.treasures:
+            return []
+
+        chest_names = [treasure["name"] for treasure in location.treasures]
+
+        return [name for name in chest_names if name.lower().startswith(text)]
 
 
 # Module-level singleton instance for use by input_handler

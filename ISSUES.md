@@ -753,21 +753,9 @@ Player decisions should have lasting impact on the world and story.
 **Future enhancements** (class-specific abilities):
 - **Warrior**: `bash` to stun, unlocks heavy armor
 - **Mage**: Mana pool for spells, learns `fireball`/`ice bolt`/`heal`, weak armor
-- **Rogue**: `sneak` past encounters, `backstab` for 3x damage from stealth, `picklock`
+- **Rogue**: ✅ `sneak` command MVP IMPLEMENTED (stealth mode in combat, 1.5x backstab damage, DEX-based dodge while stealthed); ✅ `pick` command MVP IMPLEMENTED (lockpicking for treasure chests); Future: `sneak` past encounters
 - **Ranger**: `track` enemies, bonus in wilderness, animal companion
 - **Cleric**: Healing spells, `bless` party buffs, `smite` undead, holy symbols
-
-### Lockpicking & treasure chests
-**Status**: ACTIVE
-
-Locations should have locked chests/doors that reward skilled rogues.
-
-- `pick <target>` command to attempt lockpicking
-- Success based on DEX + lockpick tools + lock difficulty
-- Failure might: break lockpick, trigger trap, alert enemies, jam lock permanently
-- Chests contain gold, rare items, lore fragments
-- Some doors unlock shortcuts or secret areas
-- Lockpicks as consumable items (sold at shops, looted from rogues)
 
 ### Charisma stat & social skills
 **Status**: ACTIVE
@@ -1020,6 +1008,30 @@ Quests should be dynamically generated to keep gameplay fresh.
 - Emergent storylines from completed quests
 
 ## Resolved Issues
+
+### Lockpicking & treasure chests
+**Status**: RESOLVED
+
+Rogues can now pick locked treasure chests found throughout the world.
+
+**Implemented**:
+- `pick <chest>` command (alias: `lp`) for Rogue-only lockpicking attempts
+- DEX-based success formula: 20% base + (DEX × 2%), capped at 80%
+- Difficulty modifiers (levels 1-5): +20%/+10%/0%/-10%/-20%
+- Lockpick consumable item (always consumed on attempt, success or fail)
+- `open <chest>` command (alias: `o`) for anyone to open unlocked chests
+- One-time loot: Chests contain items, can only be opened once
+- Tab completion for chest names
+- Chest state persists through save/load
+- Non-Rogues get "Only Rogues can pick locks" message
+- Lockpicks available at Market District shop (30 gold)
+- Two treasure chests in default world: Mossy Chest (Ancient Grove), Rusted Strongbox (Mine Entrance)
+
+**Future Enhancements** (moved to backlog):
+- Failure consequences: trigger traps, alert enemies, jam lock permanently
+- Key-based locks (already reserved in data structure with `requires_key` field)
+- Locked doors that unlock shortcuts or secret areas
+- More chest locations and loot variety
 
 ### `cast` command gives wrong error message outside combat
 **Status**: RESOLVED

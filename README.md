@@ -27,6 +27,7 @@ python -m cli_rpg.main
 - **Weather System**: Dynamic weather (clear, rain, storm, fog) affects gameplay with dread modifiers, storm travel delays, and visibility effects. Storms reduce visibility (truncated descriptions, hidden details). Fog obscures information (some exits hidden, NPC names shown as "???"). Underground locations (caves) are sheltered from weather effects. Weather also affects combat: rain/storms can extinguish Burn effects (40% chance per turn), and storms extend Freeze duration (+1 turn when applied).
 - **Dread System**: Psychological horror element that tracks your fear level (0-100%). Dangerous areas build dread; high dread causes paranoid whispers and combat penalties. At 75-99% dread, hallucinations may appear during travel (30% chance) - spectral enemies that dissipate when attacked, providing catharsis (-5 dread) but no rewards. At 100% dread, a Shadow Creature manifests and attacks you - defeating it reduces your dread by 50%. Reduce dread by resting, visiting towns, or talking to NPCs. Light sources (e.g., Torches from merchants) reduce dread buildup by 50% and negate the night dread bonus while active. **Dread Treasures**: Brave players who maintain 75%+ dread may discover powerful treasures when examining their surroundings (30% chance on 3rd+ look) - including Shadow Essence, Veil of Courage, Dread Blade, and Darklight Torch.
 - **Grid-Based World**: Navigate a spatially consistent world where directions are reliable (going north then south returns you to the same place)
+- **Lockpicking & Treasure Chests**: Rogues can pick locked chests using DEX-based skill checks. Treasure chests contain valuable items and can be found throughout the world
 - **Experience System**: Level up by defeating enemies
 - **Colorized Output**: Color-coded terminal output for improved readability (enemies in red, locations in cyan, items in green, etc.)
 - **Tab Completion**: Auto-complete commands and contextual arguments (directions, NPCs, items) with Tab key
@@ -39,7 +40,7 @@ python -m cli_rpg.main
 2. Choose a character class (each provides stat bonuses):
    - **Warrior**: +3 STR, +1 DEX - melee combat specialists
    - **Mage**: +3 INT, +1 DEX - magic damage dealers
-   - **Rogue**: +3 DEX, +1 STR - agile and evasive fighters
+   - **Rogue**: +3 DEX, +1 STR - agile fighters with stealth and backstab abilities
    - **Ranger**: +2 DEX, +1 STR, +1 INT - balanced adventurers
    - **Cleric**: +2 INT, +1 STR - hybrid support class
 3. Choose your stat allocation method (manual or random)
@@ -69,6 +70,8 @@ python -m cli_rpg.main
 - `buy <item>` - Purchase an item from the current shop
 - `sell <item>` - Sell an item from your inventory for gold
 - `drop <item>` (dr) - Drop an item from your inventory (cannot drop equipped items)
+- `pick <chest>` (lp) - **Rogue only**: Attempt to pick the lock on a treasure chest (requires Lockpick item)
+- `open <chest>` (o) - Open an unlocked treasure chest to collect its contents
 - `quests` (q) - View your quest journal with all active and completed quests
 - `quest <name>` - View details of a specific quest (supports partial matching)
 - `complete <quest>` - Turn in a completed quest to the NPC you're talking to
@@ -148,6 +151,7 @@ Status effects are cleared when combat ends.
 - `defend` (d) - Take a defensive stance, reducing incoming damage by 50% from all enemies
 - `flee` (f) - Attempt to escape (chance based on dexterity)
 - `cast [target]` (c) - Cast a magic attack at an enemy (damage based on intelligence). Targeting works like `attack`.
+- `sneak` (sn) - **Rogue only**: Enter stealth mode for 1 turn. Next attack deals 1.5x backstab damage. Higher DEX increases dodge chance while stealthed (DEX × 5%, capped at 75%). Stealth breaks if you take damage.
 - `use <item>` (u) - Use a consumable item (e.g., health potion) - counts as your turn
 - `status` (s, stats) - View combat status (HP of you and all enemies, action history, pending combos)
 - `help` (h) - Display the full command reference

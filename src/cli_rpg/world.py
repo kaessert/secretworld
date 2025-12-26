@@ -244,12 +244,19 @@ def create_default_world() -> tuple[dict[str, Location], str]:
         item_type=ItemType.CONSUMABLE,
         light_duration=5
     )
+    lockpick = Item(
+        name="Lockpick",
+        description="A thin metal tool for bypassing locks. Rogues only.",
+        item_type=ItemType.CONSUMABLE,
+        heal_amount=0
+    )
 
     shop_items = [
         ShopItem(item=potion, buy_price=50),
         ShopItem(item=sword, buy_price=100),
         ShopItem(item=armor, buy_price=80),
-        ShopItem(item=torch, buy_price=15)
+        ShopItem(item=torch, buy_price=15),
+        ShopItem(item=lockpick, buy_price=30)
     ]
     shop = Shop(name="General Store", inventory=shop_items)
     merchant = NPC(
@@ -330,7 +337,21 @@ def create_default_world() -> tuple[dict[str, Location], str]:
         is_safe_zone=False,
         category="forest",
         connections={},  # No cardinal exits for sub-locations
-        boss_enemy="elder_treant"
+        boss_enemy="elder_treant",
+        treasures=[
+            {
+                "name": "Mossy Chest",
+                "description": "An ancient chest covered in moss, half-buried beneath the roots of a great tree",
+                "locked": True,
+                "difficulty": 2,  # +10% bonus (relatively easy)
+                "opened": False,
+                "items": [
+                    {"name": "Forest Gem", "description": "A pulsing green gem that glows with forest magic", "item_type": "misc"},
+                    {"name": "Health Potion", "description": "Restores 25 HP", "item_type": "consumable", "heal_amount": 25}
+                ],
+                "requires_key": None
+            }
+        ]
     )
 
     # Create Hermit NPC (recruitable)
@@ -457,7 +478,21 @@ def create_default_world() -> tuple[dict[str, Location], str]:
         parent_location="Abandoned Mines",
         is_safe_zone=False,
         category="dungeon",
-        connections={}  # No cardinal exits for sub-locations
+        connections={},  # No cardinal exits for sub-locations
+        treasures=[
+            {
+                "name": "Rusted Strongbox",
+                "description": "A heavy iron strongbox, its lock corroded but still functional",
+                "locked": True,
+                "difficulty": 3,  # No bonus/penalty (medium)
+                "opened": False,
+                "items": [
+                    {"name": "Mining Pick", "description": "A sturdy mining pick that can double as a weapon", "item_type": "weapon", "damage_bonus": 4},
+                    {"name": "Miner's Lantern", "description": "A small lantern that provides lasting light", "item_type": "consumable", "light_duration": 8}
+                ],
+                "requires_key": None
+            }
+        ]
     )
     mine_entrance.npcs.append(old_miner)
 
