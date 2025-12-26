@@ -138,7 +138,7 @@ class TestTriggerEncounter:
             )
         }
         game_state = GameState(character, world, starting_location="Forest Path")
-        
+
         # Try multiple times - some should return None
         no_encounter_count = 0
         for _ in range(20):
@@ -146,9 +146,35 @@ class TestTriggerEncounter:
             result = game_state.trigger_encounter("Forest Path")
             if result is None:
                 no_encounter_count += 1
-        
+
         # With 30% chance, roughly 14 out of 20 should be None
         assert no_encounter_count > 5, "Too many encounters triggered (should be ~30%)"
+
+    def test_trigger_encounter_respects_safe_zone(self):
+        """Spec: trigger_encounter() returns None for safe zone locations."""
+        character = Character(
+            name="Hero",
+            strength=10,
+            dexterity=10,
+            intelligence=10
+        )
+        world = {
+            "Market District": Location(
+                name="Market District",
+                description="A busy market",
+                connections={},
+                is_safe_zone=True
+            )
+        }
+        game_state = GameState(character, world, starting_location="Market District")
+
+        # Even with forced random (mocked to always trigger), should return None
+        from unittest.mock import patch
+        with patch("cli_rpg.game_state.random.random", return_value=0.1):  # < 0.3 would trigger
+            result = game_state.trigger_encounter("Market District")
+
+        assert result is None
+        assert game_state.current_combat is None
 
 
 class TestMoveWithCombat:

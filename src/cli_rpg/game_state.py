@@ -305,6 +305,11 @@ class GameState:
         Returns:
             Message about encounter if triggered, None otherwise
         """
+        # Check if location is a safe zone
+        location = self.world.get(location_name)
+        if location and location.is_safe_zone:
+            return None
+
         # 30% chance of encounter
         if random.random() < 0.3:
             # Get current location's coordinates for distance calculation

@@ -412,7 +412,7 @@ Your vision fades... but this is not the end.
 ---
 
 ### OVERWORLD & SUB-LOCATION REWORK - Hierarchical World System
-**Status**: IN PROGRESS (Core Infrastructure Complete, 3 BLOCKERS remaining)
+**Status**: IN PROGRESS (Core Infrastructure Complete, 2 BLOCKERS remaining)
 
 **Problem**: The current flat world grid doesn't support meaningful world structure. Players wander an endless grid with random combat everywhere. There's no sense of safe havens, no cities to explore internally, no dungeons with depth.
 
@@ -456,14 +456,7 @@ Your vision fades... but this is not the end.
      - Generate sub-locations with proper `parent_location` references
    - **Effort**: 4-6 hours
 
-2. **BLOCKER: combat.trigger_encounter() Bypasses Safe Zone Check (MODERATE)**
-   - **File**: `src/cli_rpg/game_state.py` lines 295-348
-   - **Problem**: Old NPC encounter system doesn't check `is_safe_zone` flag
-   - **Impact**: Inconsistent behavior; could cause combat in safe zones if old code path used
-   - **Required fix**: Add `if location.is_safe_zone: return None` check
-   - **Effort**: 1 hour
-
-3. **BLOCKER: No Dungeon Depth/Floor System (DESIGN GAP)**
+2. **BLOCKER: No Dungeon Depth/Floor System (DESIGN GAP)**
    - **Problem**: Cannot create multi-floor dungeons (Mine Entrance → Upper Tunnels → Boss Chamber)
    - **Impact**: Dungeons are flat, no vertical navigation
    - **Required fix**: Add `depth` field to Location, implement `up`/`down` navigation
@@ -562,7 +555,7 @@ OVERWORLD (macro map)
 - ✅ `src/cli_rpg/world.py`: Default hierarchical world structure - DONE
 - ✅ `src/cli_rpg/map_renderer.py`: Separate overworld and local map rendering - DONE
 - 🚧 `src/cli_rpg/ai_world.py`: AI generates landmarks with sub-locations - **BLOCKER #1**
-- 🚧 `src/cli_rpg/game_state.py`: trigger_encounter() safe zone check - **BLOCKER #2**
+- ✅ `src/cli_rpg/game_state.py`: trigger_encounter() safe zone check - DONE
 
 ### Non-interactive mode bugs
 **Status**: ACTIVE
