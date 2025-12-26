@@ -412,11 +412,21 @@ Your vision fades... but this is not the end.
 ---
 
 ### OVERWORLD & SUB-LOCATION REWORK - Hierarchical World System
-**Status**: BLOCKER
+**Status**: IN PROGRESS
 
 **Problem**: The current flat world grid doesn't support meaningful world structure. Players wander an endless grid with random combat everywhere. There's no sense of safe havens, no cities to explore internally, no dungeons with depth.
 
-**Required Architecture**:
+**Progress**:
+- ✅ **Location model fields** (IMPLEMENTED): Added 5 hierarchy fields to `Location` dataclass
+  - `is_overworld: bool` - True for overworld landmarks
+  - `parent_location: Optional[str]` - Parent landmark for sub-locations
+  - `sub_locations: List[str]` - Child locations for landmarks
+  - `is_safe_zone: bool` - No random encounters if True
+  - `entry_point: Optional[str]` - Default sub-location when entering
+- ✅ Serialization: `to_dict()` and `from_dict()` updated with backward compatibility
+- ✅ Tests: 22 comprehensive tests for hierarchy fields
+
+**Remaining Architecture**:
 
 ```
 OVERWORLD (macro map)
@@ -479,21 +489,9 @@ OVERWORLD (macro map)
    - `n/s/e/w` - Move within current sub-location
    - `travel <landmark>` - Fast travel on overworld (if discovered)
 
-**Location Model Changes**:
+**Location Model Changes**: ✅ IMPLEMENTED (see Progress section above)
 
-```python
-class Location:
-    # Existing fields...
-
-    # New fields:
-    is_overworld: bool = False      # Is this an overworld landmark?
-    parent_location: str = None     # Parent landmark (for sub-locations)
-    sub_locations: list[str] = []   # Child locations (for landmarks)
-    is_safe_zone: bool = False      # No random encounters if True
-    entry_point: str = None         # Default sub-location when entering
-```
-
-**Backwards Compatibility**: NOT REQUIRED - can break existing saves.
+**Backwards Compatibility**: Implemented with full backward compatibility - old saves load correctly with default values.
 
 **Benefits**:
 - Logical world organization
@@ -504,7 +502,7 @@ class Location:
 - Natural quest hubs vs adventure zones
 
 **Files to modify**:
-- `src/cli_rpg/models/location.py`: Add hierarchy fields
+- ✅ `src/cli_rpg/models/location.py`: Add hierarchy fields - DONE
 - `src/cli_rpg/game_state.py`: Rework movement for enter/exit/travel
 - `src/cli_rpg/world.py`: Generate hierarchical world structure
 - `src/cli_rpg/ai_world.py`: AI generates landmarks with sub-locations

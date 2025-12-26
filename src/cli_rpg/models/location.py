@@ -39,6 +39,12 @@ class Location:
     ascii_art: str = ""
     details: Optional[str] = None  # Second-look environmental details
     secrets: Optional[str] = None  # Third-look hidden secrets
+    # Hierarchy fields for overworld/sub-location system
+    is_overworld: bool = False  # Is this an overworld landmark?
+    parent_location: Optional[str] = None  # Parent landmark (for sub-locations)
+    sub_locations: List[str] = field(default_factory=list)  # Child locations
+    is_safe_zone: bool = False  # No random encounters if True
+    entry_point: Optional[str] = None  # Default sub-location when entering
     
     def __post_init__(self) -> None:
         """Validate location attributes after initialization."""
@@ -274,6 +280,17 @@ class Location:
         # Only include secrets if present (backward compatibility)
         if self.secrets is not None:
             data["secrets"] = self.secrets
+        # Only include hierarchy fields if non-default (backward compatibility)
+        if self.is_overworld:
+            data["is_overworld"] = self.is_overworld
+        if self.parent_location is not None:
+            data["parent_location"] = self.parent_location
+        if self.sub_locations:
+            data["sub_locations"] = self.sub_locations.copy()
+        if self.is_safe_zone:
+            data["is_safe_zone"] = self.is_safe_zone
+        if self.entry_point is not None:
+            data["entry_point"] = self.entry_point
         return data
     
     @classmethod
@@ -305,6 +322,12 @@ class Location:
         details = data.get("details")
         # Parse secrets if present (for backward compatibility)
         secrets = data.get("secrets")
+        # Parse hierarchy fields if present (backward compatibility)
+        is_overworld = data.get("is_overworld", False)
+        parent_location = data.get("parent_location")
+        sub_locations = data.get("sub_locations", [])
+        is_safe_zone = data.get("is_safe_zone", False)
+        entry_point = data.get("entry_point")
         return cls(
             name=data["name"],
             description=data["description"],
@@ -314,7 +337,12 @@ class Location:
             category=category,
             ascii_art=ascii_art,
             details=details,
-            secrets=secrets
+            secrets=secrets,
+            is_overworld=is_overworld,
+            parent_location=parent_location,
+            sub_locations=sub_locations,
+            is_safe_zone=is_safe_zone,
+            entry_point=entry_point
         )
     
     def __str__(self) -> str:

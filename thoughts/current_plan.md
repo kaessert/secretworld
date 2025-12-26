@@ -1,132 +1,115 @@
-# Implementation Plan: Unique Map Location Symbols
+# Implementation Plan: Add Hierarchy Fields to Location Model
 
-## Problem
-The map command shows all non-current locations with the same `•` symbol, making it impossible to distinguish between locations in the legend and on the map grid.
-
-## Solution
-Assign unique letter symbols (A-Z) to each location in both the map grid and legend, preserving special markers for the current location (`@`) and blocked cells (`█`).
-
----
+## Summary
+Add 5 new fields to the Location model (`is_overworld`, `parent_location`, `sub_locations`, `is_safe_zone`, `entry_point`) with backward-compatible defaults. This foundational change enables the hierarchical world system without breaking existing functionality.
 
 ## Spec
 
-1. **Symbol Assignment**: Non-current locations get unique letters A-Z in alphabetical order by name
-2. **Player Marker**: Current location remains `@` (cyan, bold)
-3. **Category Icons**: Category icons (🏠, 🌲, etc.) move to legend only, not displayed on map grid
-4. **Legend Format**: `A = 🏠 Town Square` (letter symbol, then category icon if present, then name)
-5. **Capacity**: Support 26 locations (A-Z); if exceeded, wrap to lowercase a-z (52 total)
+**New Fields for `Location` class:**
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `is_overworld` | `bool` | `False` | True if this is an overworld landmark |
+| `parent_location` | `Optional[str]` | `None` | Name of parent landmark (for sub-locations) |
+| `sub_locations` | `List[str]` | `[]` | Names of child locations (for landmarks) |
+| `is_safe_zone` | `bool` | `False` | No random encounters if True |
+| `entry_point` | `Optional[str]` | `None` | Default sub-location when entering |
 
----
+**Backward Compatibility:**
+- All fields have defaults that preserve existing behavior
+- Old save files (without these fields) load without error
+- Existing locations behave identically (not overworld, not safe, no hierarchy)
 
-## Tests (in `tests/test_map_renderer.py`)
+## Test Cases
 
-### New tests to add:
+### 1. Field Defaults (`tests/test_location.py`)
+- `test_location_hierarchy_fields_default_values` - All 5 fields have correct defaults
+- `test_location_is_overworld_default_false` - `is_overworld` defaults to False
+- `test_location_parent_location_default_none` - `parent_location` defaults to None
+- `test_location_sub_locations_default_empty_list` - `sub_locations` defaults to `[]`
+- `test_location_is_safe_zone_default_false` - `is_safe_zone` defaults to False
+- `test_location_entry_point_default_none` - `entry_point` defaults to None
 
-```python
-class TestUniqueLocationSymbols:
-    """Tests for unique letter symbols per location."""
+### 2. Field Assignment
+- `test_location_creation_with_hierarchy_fields` - Can create location with all 5 new fields
+- `test_location_overworld_landmark_creation` - Create a typical overworld landmark
+- `test_location_sub_location_creation` - Create a sub-location with parent reference
 
-    def test_unique_symbols_assigned_to_locations(self):
-        """Each non-current location gets a unique letter symbol A-Z."""
-        world = {
-            "Town": Location("Town", "A town", {}, coordinates=(0, 0)),
-            "Forest": Location("Forest", "A forest", {}, coordinates=(1, 0)),
-            "Cave": Location("Cave", "A cave", {}, coordinates=(2, 0)),
-        }
-        result = render_map(world, "Town")
-        # Cave and Forest get A/B in alphabetical order
-        assert "A = Cave" in result or "A =" in result and "Cave" in result
-        assert "B = Forest" in result or "B =" in result and "Forest" in result
+### 3. Serialization (`to_dict`)
+- `test_location_to_dict_excludes_default_hierarchy_fields` - Defaults not serialized (backward compat)
+- `test_location_to_dict_includes_is_overworld_when_true` - `is_overworld: true` serialized
+- `test_location_to_dict_includes_parent_location_when_set` - `parent_location` serialized when not None
+- `test_location_to_dict_includes_sub_locations_when_non_empty` - `sub_locations` serialized when not empty
+- `test_location_to_dict_includes_is_safe_zone_when_true` - `is_safe_zone: true` serialized
+- `test_location_to_dict_includes_entry_point_when_set` - `entry_point` serialized when not None
 
-    def test_legend_shows_category_icon_with_letter(self):
-        """Legend shows letter + category icon + name."""
-        world = {
-            "Town": Location("Town", "A town", {}, coordinates=(0, 0), category="town"),
-            "Forest": Location("Forest", "A forest", {}, coordinates=(1, 0), category="forest"),
-        }
-        result = render_map(world, "Town")
-        # Legend should show "A = 🌲 Forest"
-        assert "🌲" in result and "Forest" in result
+### 4. Deserialization (`from_dict`)
+- `test_location_from_dict_missing_hierarchy_fields_uses_defaults` - Old saves load fine
+- `test_location_from_dict_with_is_overworld` - Deserialize `is_overworld`
+- `test_location_from_dict_with_parent_location` - Deserialize `parent_location`
+- `test_location_from_dict_with_sub_locations` - Deserialize `sub_locations`
+- `test_location_from_dict_with_is_safe_zone` - Deserialize `is_safe_zone`
+- `test_location_from_dict_with_entry_point` - Deserialize `entry_point`
 
-    def test_map_grid_uses_letters_not_category_icons(self):
-        """Map grid shows letters, not category emoji icons."""
-        world = {
-            "Town": Location("Town", "A town", {}, coordinates=(0, 0), category="town"),
-            "Forest": Location("Forest", "A forest", {}, coordinates=(1, 0), category="forest"),
-        }
-        result = render_map(world, "Town")
-        grid_section = result.split("Legend:")[0]
-        # Grid should have letters, not emoji for non-current locations
-        assert "🌲" not in grid_section
-        assert "A" in grid_section
-
-    def test_symbol_consistent_between_legend_and_grid(self):
-        """Same letter appears in both legend and grid for each location."""
-        world = {
-            "Alpha": Location("Alpha", "First", {}, coordinates=(0, 0)),
-            "Beta": Location("Beta", "Second", {}, coordinates=(0, 1)),
-        }
-        result = render_map(world, "Alpha")
-        grid_section = result.split("Legend:")[0]
-        # Beta should be A, and A should appear in grid
-        assert "A = Beta" in result
-        assert "A" in grid_section
-```
-
----
+### 5. Roundtrip Serialization
+- `test_location_hierarchy_roundtrip_serialization` - All fields preserved through to_dict/from_dict
 
 ## Implementation Steps
 
-### Step 1: Modify `render_map()` in `src/cli_rpg/map_renderer.py`
+### Step 1: Write tests first
+**File**: `tests/test_location.py`
+**Action**: Add new test class `TestLocationHierarchy` with all tests from spec above
 
-1. **Add symbol assignment after collecting locations** (~line 103):
-   ```python
-   # Assign unique letter symbols to non-current locations (alphabetical by name)
-   SYMBOLS = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz"
-   sorted_names = sorted(name for name, _ in locations_with_coords if name != current_location)
-   location_symbols = {name: SYMBOLS[i] for i, name in enumerate(sorted_names) if i < len(SYMBOLS)}
-   ```
-
-2. **Update legend generation** (~line 105-112):
-   ```python
-   for name, location in locations_with_coords:
-       if name == current_location:
-           legend_entries.append(f"  {colors.bold_colorize('@', colors.CYAN)} = You ({name})")
-       else:
-           symbol = location_symbols.get(name, "?")
-           category_icon = get_category_marker(location.category)
-           if category_icon and category_icon != "•":
-               legend_entries.append(f"  {symbol} = {category_icon} {name}")
-           else:
-               legend_entries.append(f"  {symbol} = {name}")
-   ```
-
-3. **Update coord_to_marker** (~line 116-122):
-   ```python
-   for name, location in locations_with_coords:
-       coords = location.coordinates
-       if name == current_location:
-           coord_to_marker[coords] = "@"
-       else:
-           coord_to_marker[coords] = location_symbols.get(name, "?")
-   ```
-
-### Step 2: Update existing tests
-
-Update tests that check for category icons in the map grid to expect letters instead:
-- `test_location_markers_show_category` → check legend has icons, grid has letters
-- `test_uncategorized_location_shows_default_marker` → expect letter, not `•`
-- `test_legend_shows_category_markers` → verify new format
-
-### Step 3: Run tests
-
-```bash
-pytest tests/test_map_renderer.py -v
+### Step 2: Add fields to Location dataclass
+**File**: `src/cli_rpg/models/location.py`
+**Location**: After line 41 (`secrets: Optional[str] = None`)
+**Add**:
+```python
+# Hierarchy fields for overworld/sub-location system
+is_overworld: bool = False          # Is this an overworld landmark?
+parent_location: Optional[str] = None  # Parent landmark (for sub-locations)
+sub_locations: List[str] = field(default_factory=list)  # Child locations
+is_safe_zone: bool = False          # No random encounters if True
+entry_point: Optional[str] = None   # Default sub-location when entering
 ```
 
----
+### Step 3: Update `to_dict()` method
+**File**: `src/cli_rpg/models/location.py`
+**Location**: After line 276 (secrets serialization)
+**Add** (same pattern as other optional fields):
+```python
+# Only include hierarchy fields if non-default (backward compatibility)
+if self.is_overworld:
+    data["is_overworld"] = self.is_overworld
+if self.parent_location is not None:
+    data["parent_location"] = self.parent_location
+if self.sub_locations:
+    data["sub_locations"] = self.sub_locations.copy()
+if self.is_safe_zone:
+    data["is_safe_zone"] = self.is_safe_zone
+if self.entry_point is not None:
+    data["entry_point"] = self.entry_point
+```
 
-## Files to Modify
+### Step 4: Update `from_dict()` classmethod
+**File**: `src/cli_rpg/models/location.py`
+**Location**: In `from_dict()`, before the return statement (around line 307)
+**Add**:
+```python
+# Parse hierarchy fields if present (backward compatibility)
+is_overworld = data.get("is_overworld", False)
+parent_location = data.get("parent_location")
+sub_locations = data.get("sub_locations", [])
+is_safe_zone = data.get("is_safe_zone", False)
+entry_point = data.get("entry_point")
+```
+**Update return statement** to include new fields
 
-1. `src/cli_rpg/map_renderer.py` - Core changes to symbol assignment and legend
-2. `tests/test_map_renderer.py` - Add new tests, update existing tests
+### Step 5: Run tests
+```bash
+pytest tests/test_location.py -v
+```
+
+### Step 6: Run full test suite
+```bash
+pytest
+```
