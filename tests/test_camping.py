@@ -645,3 +645,44 @@ class TestKnownCommands:
     def test_hunt_in_known_commands(self):
         """Hunt should be in KNOWN_COMMANDS."""
         assert "hunt" in KNOWN_COMMANDS
+
+
+# =============================================================================
+# Overworld Error Message Tests
+# =============================================================================
+
+class TestOverworldErrorMessage:
+    """Tests for improved error messages at overworld locations."""
+
+    # Spec: camp at overworld with sub-locations shows enter hint
+    def test_camp_at_overworld_shows_enter_hint(self):
+        """Spec: Camping at overworld location shows hint to use 'enter' command."""
+        # Create an overworld location with sub-locations
+        overworld_forest = Location(
+            name="Forest",
+            description="A vast forest with many areas to explore.",
+            category="forest",
+            is_overworld=True,
+            sub_locations=["Forest Edge", "Deep Woods"]
+        )
+        char = Character(name="Hero", strength=10, dexterity=10, intelligence=10)
+        world = {"Forest": overworld_forest}
+        gs = GameState(char, world, starting_location="Forest")
+
+        # Add camping supplies
+        supplies = Item(
+            name="Camping Supplies",
+            description="Essential supplies for camping",
+            item_type=ItemType.CONSUMABLE,
+            heal_amount=0
+        )
+        gs.current_character.inventory.add_item(supplies)
+        gs.current_character.take_damage(50)  # Need to heal
+
+        cont, msg = handle_exploration_command(gs, "camp", [])
+
+        assert cont is True
+        # Should mention 'enter' command
+        assert "enter" in msg.lower()
+        # Should list the sub-locations
+        assert "forest edge" in msg.lower() or "deep woods" in msg.lower()

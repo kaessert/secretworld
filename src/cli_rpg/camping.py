@@ -139,7 +139,8 @@ def is_campable_location(location: Location) -> bool:
     """Check if a location is suitable for camping.
 
     Camping is allowed in wilderness areas (forest, wilderness, cave, ruins)
-    but NOT in safe zones (towns, villages) where 'rest' should be used.
+    but NOT in safe zones (towns, villages) where 'rest' should be used,
+    and NOT at overworld landmarks with sub-locations (enter a sub-location instead).
 
     Args:
         location: The location to check
@@ -149,6 +150,11 @@ def is_campable_location(location: Location) -> bool:
     """
     # Safe zones cannot be camped in (use rest instead)
     if location.is_safe_zone:
+        return False
+
+    # Overworld landmarks with sub-locations cannot be camped in
+    # (must enter a sub-location to camp)
+    if location.is_overworld and location.sub_locations:
         return False
 
     # Check if category is in campable list
@@ -333,6 +339,14 @@ def execute_camp(game_state: "GameState") -> Tuple[bool, str]:
     if not is_campable_location(location):
         if location.is_safe_zone:
             return (False, "You're in a safe zone. Use 'rest' command here instead.")
+        # Check if this is an overworld location with sub-locations
+        if location.is_overworld and location.sub_locations:
+            sub_locs = ", ".join(location.sub_locations)
+            return (
+                False,
+                f"You can't camp at overworld landmarks. "
+                f"Use 'enter <name>' to find a suitable campsite in: {sub_locs}."
+            )
         return (False, "You can't camp here. Find a wilderness location.")
 
     # Check for Camping Supplies

@@ -1674,29 +1674,17 @@ Quests should be dynamically generated to keep gameplay fresh.
 - Quest chains that build on each other
 - Emergent storylines from completed quests
 
-### Confusing camp error message at overworld wilderness locations
-**Status**: ACTIVE (UX Issue)
-
-**Description**: When a player is at an overworld location that appears to be wilderness (Forest, Cave), the `camp` command displays "You can't camp here. Find a wilderness location." This message is confusing because:
-
-1. The player IS visibly in a forest/cave which looks like wilderness
-2. The actual issue is that camping is only allowed in sub-locations (e.g., Forest Edge, Deep Woods), not at overworld landmarks
-3. The error message doesn't explain this distinction or guide the user on how to proceed
-
-**Steps to Reproduce**:
-1. Start a new game with `--skip-character-creation`
-2. Run `go north` to travel to Forest
-3. Run `camp`
-4. Observe error: "You can't camp here. Find a wilderness location."
-5. The Forest description shows "Enter: Forest Edge, Deep Woods, Ancient Grove" but the player isn't told to use `enter` command
-
-**Expected Behavior**: The error message should be more helpful, such as:
-- "You can't camp at overworld landmarks. Use 'enter <location>' to find a suitable campsite in Forest Edge, Deep Woods, or Ancient Grove."
-- OR the Forest overworld location itself should allow camping
-
-**Actual Behavior**: Generic "Find a wilderness location" message that doesn't explain the sub-location requirement.
-
-**User Impact**: Players may be confused and repeatedly try to camp at Forest/Cave without understanding they need to `enter` a sub-location first.
-
 ## Resolved Issues
+
+### Confusing camp error message at overworld wilderness locations
+**Status**: ✅ RESOLVED
+
+**Description**: When a player was at an overworld location that appears to be wilderness (Forest, Cave), the `camp` command displayed "You can't camp here. Find a wilderness location." This was confusing because the player was visibly in a forest/cave.
+
+**Resolution**: Updated `camping.py` to:
+1. Detect when player is at an overworld location with sub-locations
+2. Show a helpful error message: "You can't camp at overworld landmarks. Use 'enter <name>' to find a suitable campsite in: Forest Edge, Deep Woods, Ancient Grove."
+3. The message lists all available sub-locations the player can enter
+
+**Files Changed**: `src/cli_rpg/camping.py`, `tests/test_camping.py`
 
