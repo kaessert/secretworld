@@ -751,7 +751,7 @@ Player decisions should have lasting impact on the world and story.
 - ✅ Class persistence in save/load (backward compatible)
 
 **Future enhancements** (class-specific abilities):
-- **Warrior**: `bash` to stun, unlocks heavy armor
+- **Warrior**: ✅ `bash` command MVP IMPLEMENTED (shield bash costs 15 stamina, deals 0.75x damage, stuns target for 1 turn); Future: unlocks heavy armor
 - **Mage**: Mana pool for spells, learns `fireball`/`ice bolt`/`heal`, weak armor
 - **Rogue**: ✅ `sneak` command MVP IMPLEMENTED (stealth mode in combat, 1.5x backstab damage, DEX-based dodge while stealthed); ✅ `pick` command MVP IMPLEMENTED (lockpicking for treasure chests); Future: `sneak` past encounters
 - **Ranger**: `track` enemies, bonus in wilderness, animal companion

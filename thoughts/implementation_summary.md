@@ -1,66 +1,63 @@
-# Implementation Summary: Block Combat Command
+# Implementation Summary: Warrior Bash Command
 
 ## What Was Implemented
 
-Added a new `block` combat action that provides stronger damage reduction than `defend` but requires stamina.
+Added the **bash** combat command for Warriors, providing a stun-focused ability that mirrors the Rogue's sneak command.
 
-### Mechanics
-- **Stamina cost**: 5 stamina to use
-- **Damage reduction**: 75% (vs defend's 50%)
-- **Resets after enemy turn** (same as defend)
-- **Fails if**: player is stunned or has insufficient stamina
-- **Combo integration**: Records action for combo tracking system
+### Features
+- **Warrior-only ability**: Non-warriors receive "Only Warriors can bash!" error
+- **15 stamina cost**: Higher than sneak (10) to balance the stun effect
+- **0.75x damage multiplier**: Deals reduced STR-based damage (trade-off for stun)
+- **1-turn stun**: Applies stun StatusEffect to target enemy
+- **Target selection**: Supports targeting specific enemies by name (e.g., `bash orc`)
+- **Combo tracking**: Records "bash" in action_history for combo system
 
-## Files Modified
+### Files Modified
 
-### 1. `src/cli_rpg/combat.py`
-- Added `self.blocking = False` attribute in `CombatEncounter.__init__`
-- Added `player_block()` method after `player_defend()`:
-  - Checks for stun effect
-  - Consumes 5 stamina
-  - Records action for combo system
-  - Sets `self.blocking = True`
-- Updated `enemy_turn()`:
-  - Added blocking check before defending check (75% reduction: `dmg = max(1, base_damage // 4)`)
-  - Added `self.blocking = False` reset alongside defending reset
-
-### 2. `src/cli_rpg/game_state.py`
-- Added "block" to `KNOWN_COMMANDS` set
-- Added "bl" -> "block" alias in aliases dict
-
-### 3. `src/cli_rpg/main.py`
-- Added block command handler in `handle_combat_command()` (lines 352-370)
-- Updated help text in `get_command_reference()`:
-  - Updated defend description: "(50% damage reduction)"
-  - Added block command: "(5 stamina, 75% reduction)"
-- Updated `combat_commands` set to include "block"
-- Updated error messages to include "block" in valid commands list
-- Updated `get_available_commands()` to include "block" in combat commands
-
-### 4. `tests/test_combat.py`
-Added `TestPlayerBlock` class with 6 tests:
-1. `test_player_block_sets_blocking_stance` - Verifies blocking state is set
-2. `test_player_block_costs_5_stamina` - Verifies stamina consumption
-3. `test_player_block_fails_without_stamina` - Verifies failure when stamina < 5
-4. `test_block_reduces_damage_by_75_percent` - Verifies damage reduction formula
-5. `test_block_resets_after_enemy_turn` - Verifies blocking resets after enemy turn
-6. `test_player_block_fails_when_stunned` - Verifies stun prevents blocking
+| File | Changes |
+|------|---------|
+| `src/cli_rpg/combat.py` | Added `player_bash()` method (~70 lines) after `player_sneak()` |
+| `src/cli_rpg/game_state.py` | Added "bash" to KNOWN_COMMANDS, added "ba" alias |
+| `src/cli_rpg/main.py` | Added command handler (~65 lines), added help text |
+| `tests/test_bash.py` | New test file with 13 tests |
 
 ## Test Results
 
-- All 6 new block tests pass
-- Full test suite (2858 tests) passes
+All **13 bash tests pass**:
+- `test_bash_only_available_to_warrior` - Non-warriors get error
+- `test_mage_cannot_bash` - Mages cannot use bash
+- `test_bash_costs_15_stamina` - Stamina decreases by 15
+- `test_bash_fails_without_stamina` - Error with <15 stamina
+- `test_bash_deals_reduced_damage` - Deals 0.75x damage
+- `test_bash_minimum_damage_is_1` - Minimum 1 damage
+- `test_bash_can_defeat_enemy` - Returns victory on enemy defeat
+- `test_bash_applies_stun_to_enemy` - Enemy has stun effect
+- `test_bash_stun_lasts_1_turn` - Duration is 1
+- `test_bash_stun_message` - Message indicates stun
+- `test_bash_fails_when_stunned` - Can't bash while stunned
+- `test_bash_with_target` - Target selection works
+- `test_bash_records_action_for_combo` - Action recorded
 
-## Design Decisions
+Full test suite: **2872 passed**
 
-1. **Block checks before defend** in enemy_turn() - blocking takes priority if both are somehow set
-2. **Block tracks damage for Revenge combo** - same as defend, for combo system compatibility
-3. **Block uses same stun check pattern** as other combat actions
-4. **Error messages mirror sneak** - "Not enough stamina to block!" follows existing pattern
+## Technical Notes
 
-## E2E Validation Points
+### Design Decisions
+1. **Damage formula**: `max(1, int(max(1, STR - DEF) * 0.75))` ensures minimum 1 damage
+2. **Stun implementation**: Uses existing StatusEffect with `effect_type="stun"`
+3. **Command handler pattern**: Follows existing attack/cast pattern for victory handling, XP, quests, companion reactions, invasion checks, and autosave
+4. **Error checking order**: Stun check > Warrior check > Stamina check > Target check
 
-1. During combat, type `block` or `bl` - should reduce damage by 75%
-2. With < 5 stamina, block should fail without triggering enemy turn
-3. Help command should show block in combat commands
-4. Stun should prevent blocking
+### Command Usage
+```
+bash              # Bash first living enemy
+bash orc          # Bash enemy named "orc"
+ba                # Shorthand alias
+```
+
+## E2E Test Validation
+Should validate:
+1. Warrior can use bash in combat and enemy is stunned
+2. Non-warriors (Rogue, Mage, etc.) cannot use bash
+3. Bash fails gracefully with insufficient stamina
+4. Stunned enemies skip their turn (existing stun behavior)

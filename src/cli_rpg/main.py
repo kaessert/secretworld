@@ -80,6 +80,7 @@ def get_command_reference() -> str:
         "  block (bl)    - Actively block attacks (5 stamina, 75% reduction)",
         "  cast (c) [target]  - Cast a magic spell (default: first living enemy)",
         "  sneak (sn)    - Enter stealth mode (Rogue only)",
+        "  bash (ba) [target] - Stun an enemy (Warrior only, 15 stamina)",
         "  flee (f)      - Attempt to flee from combat",
         "  use (u) <item> - Use a consumable item",
         "  status (s, stats) - View combat status",
@@ -387,6 +388,73 @@ def handle_combat_command(game_state: GameState, command: str, args: list[str], 
                 output += "\n\n=== GAME OVER ==="
                 sound_death()
                 game_state.current_combat = None
+
+        return (True, output)
+
+    elif command == "bash":
+        # Parse target from args (e.g., "bash orc")
+        target = " ".join(args) if args else ""
+        victory, message = combat.player_bash(target=target)
+        output = f"\n{message}"
+
+        if victory:
+            # Check if this was a hallucination-only fight
+            all_hallucinations = all(e.is_hallucination for e in combat.enemies)
+            if all_hallucinations:
+                # Hallucination dispelled - reduce dread, skip XP/bestiary
+                from cli_rpg.hallucinations import DREAD_REDUCTION_ON_DISPEL
+                from cli_rpg import colors
+                game_state.current_character.dread_meter.reduce_dread(DREAD_REDUCTION_ON_DISPEL)
+                output += f"\n{colors.heal('Your mind clears slightly as the illusion fades.')}"
+                game_state.current_combat = None
+                return (True, output)
+
+            # All enemies defeated - record each in bestiary
+            for enemy in combat.enemies:
+                game_state.current_character.record_enemy_defeat(enemy)
+            end_message = combat.end_combat(victory=True)
+            output += f"\n{end_message}"
+            # Track quest progress for kill objectives (for each enemy)
+            for enemy in combat.enemies:
+                quest_messages = game_state.current_character.record_kill(enemy.name)
+                for msg in quest_messages:
+                    output += f"\n{msg}"
+                # Record the kill as a choice for reputation tracking
+                game_state.record_choice(
+                    choice_type="combat_kill",
+                    choice_id=f"kill_{enemy.name}_{game_state.game_time.hour}",
+                    description=f"Killed {enemy.name} with bash",
+                    target=enemy.name,
+                )
+            # Process companion reactions to combat kill
+            reaction_msgs = process_companion_reactions(game_state.companions, "combat_kill")
+            for msg in reaction_msgs:
+                output += f"\n{msg}"
+            # Check for invasion resolution
+            from cli_rpg.world_events import resolve_invasion_on_victory
+            invasion_msg = resolve_invasion_on_victory(game_state)
+            if invasion_msg:
+                output += f"\n{invasion_msg}"
+            game_state.current_combat = None
+            # Autosave after combat victory
+            try:
+                autosave(game_state)
+            except IOError:
+                pass  # Silent failure
+        else:
+            # Bash didn't result in victory - check if it was successful
+            if "Only Warriors" not in message and "Not enough stamina" not in message and "stunned" not in message.lower():
+                # Valid bash - enemies attack back
+                enemy_message = combat.enemy_turn()
+                output += f"\n{enemy_message}"
+
+                # Check if player died
+                if not game_state.current_character.is_alive():
+                    death_message = combat.end_combat(victory=False)
+                    output += f"\n{death_message}"
+                    output += "\n\n=== GAME OVER ==="
+                    sound_death()
+                    game_state.current_combat = None
 
         return (True, output)
 

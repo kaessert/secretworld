@@ -770,6 +770,76 @@ class CombatEncounter:
 
         return False, "You slip into the shadows, preparing to strike..."
 
+    def player_bash(self, target: str = "") -> Tuple[bool, str]:
+        """
+        Warrior performs a stunning bash attack.
+
+        Deals reduced damage (0.75x) but applies 1-turn stun to enemy.
+        Costs 15 stamina. Only Warriors can use this ability.
+
+        Args:
+            target: Target enemy name (partial match). Empty = first living enemy.
+
+        Returns:
+            Tuple of (victory, message)
+            - victory: True if ALL enemies defeated, False otherwise
+            - message: Description of bash attack or error message
+        """
+        from cli_rpg.models.character import CharacterClass
+
+        # Check if player is stunned
+        stun_msg = self._check_and_consume_stun()
+        if stun_msg:
+            return False, stun_msg
+
+        # Only Warriors can bash
+        if self.player.character_class != CharacterClass.WARRIOR:
+            return False, "Only Warriors can bash!"
+
+        # Check stamina cost (15 stamina)
+        if not self.player.use_stamina(15):
+            return False, f"Not enough stamina! ({self.player.stamina}/{self.player.max_stamina})"
+
+        # Get target enemy
+        enemy, error = self._get_target(target)
+        if enemy is None:
+            return False, error or "No target found."
+
+        # Record action for combo tracking
+        self._record_action("bash")
+
+        # Calculate damage: 0.75x normal attack, minimum 1
+        base_dmg = max(1, self.player.get_attack_power() - enemy.defense)
+        dmg = max(1, int(base_dmg * 0.75))
+        enemy.take_damage(dmg)
+
+        # Apply stun effect to enemy (1 turn)
+        stun = StatusEffect(
+            name="Stun",
+            effect_type="stun",
+            damage_per_turn=0,
+            duration=1
+        )
+        enemy.apply_status_effect(stun)
+
+        message = (
+            f"You {colors.damage('BASH')} {colors.enemy(enemy.name)} for "
+            f"{colors.damage(str(dmg))} damage and {colors.warning('stun')} them!"
+        )
+
+        if not enemy.is_alive():
+            message += f"\n{colors.enemy(enemy.name)} has been defeated!"
+
+        # Check if all enemies are dead
+        if not self.get_living_enemies():
+            message += f" {colors.heal('Victory!')}"
+            return True, message
+
+        if enemy.is_alive():
+            message += f"\n{colors.enemy(enemy.name)} has {enemy.health}/{enemy.max_health} HP remaining."
+
+        return False, message
+
     def player_cast(self, target: str = "") -> Tuple[bool, str]:
         """
         Player casts a magic attack.
