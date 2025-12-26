@@ -7,7 +7,7 @@ Character creation inputs in non-interactive mode (when not skipped):
 - Line 1: Character name (string, 2-30 chars)
 - Line 2: Character class ("1"-"5" or class name: warrior, mage, rogue, ranger, cleric)
 - Line 3: Stat allocation method ("1" or "2" / "manual" or "random")
-- If manual: Lines 4-6: strength, dexterity, intelligence (integers 1-20)
+- If manual: Lines 4-7: strength, dexterity, intelligence, charisma (integers 1-20)
 - Final line: Confirmation ("yes" or "y")
 
 Error handling: Invalid inputs should print error and exit with code 1 (no retry loops).
@@ -69,11 +69,11 @@ class TestNonInteractiveCharacterCreationManual:
         - Line 1: Character name (string, 2-30 chars)
         - Line 2: Character class ("1" for Warrior)
         - Line 3: Stat allocation method ("1" for manual)
-        - Lines 4-6: strength, dexterity, intelligence (integers 1-20)
+        - Lines 4-7: strength, dexterity, intelligence, charisma (integers 1-20)
         - Final line: Confirmation ("yes")
         """
-        # Input: name, class (warrior), method (manual), str, dex, int, confirmation, then command
-        stdin_input = "TestHero\n1\n1\n15\n12\n10\nyes\nstatus\n"
+        # Input: name, class (warrior), method (manual), str, dex, int, cha, confirmation, then command
+        stdin_input = "TestHero\n1\n1\n15\n12\n10\n8\nyes\nstatus\n"
 
         result = subprocess.run(
             [sys.executable, "-m", "cli_rpg.main", "--non-interactive"],
@@ -237,8 +237,8 @@ class TestJsonModeCharacterCreation:
 
         Spec: Same inputs as non-interactive mode, but output is JSON.
         """
-        # Input: name, class (warrior), method (manual), str, dex, int, confirmation
-        stdin_input = "TestHero\n1\n1\n15\n12\n10\nyes\n"
+        # Input: name, class (warrior), method (manual), str, dex, int, cha, confirmation
+        stdin_input = "TestHero\n1\n1\n15\n12\n10\n8\nyes\n"
 
         result = subprocess.run(
             [sys.executable, "-m", "cli_rpg.main", "--json"],
@@ -292,8 +292,8 @@ class TestNonInteractiveCharacterCreationConfirmation:
 
         Spec: If user does not confirm, character creation is cancelled.
         """
-        # Input: name, class (warrior), method (manual), stats, "no" confirmation
-        stdin_input = "TestHero\n1\n1\n15\n12\n10\nno\n"
+        # Input: name, class (warrior), method (manual), stats (str, dex, int, cha), "no" confirmation
+        stdin_input = "TestHero\n1\n1\n15\n12\n10\n8\nno\n"
 
         result = subprocess.run(
             [sys.executable, "-m", "cli_rpg.main", "--non-interactive"],

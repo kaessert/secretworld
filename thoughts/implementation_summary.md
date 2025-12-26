@@ -63,6 +63,18 @@ The existing character creation tests were written before charisma was added and
 - Updated call count assertions to account for 4 stat prompts
 - Added charisma assertions where appropriate
 
+## Latest Fix: Non-Interactive Character Creation Tests
+
+Updated `tests/test_non_interactive_character_creation.py` to provide charisma as the 4th stat:
+
+1. **Docstring updates** (lines 10, 72): Changed spec comments to include charisma in the input sequence
+2. **Stdin input updates** (lines 76, 241, 296): Added charisma value (`8`) to all manual stat allocation tests:
+   - `test_non_interactive_character_creation_manual_stats`
+   - `test_json_mode_character_creation_manual`
+   - `test_non_interactive_character_creation_no_confirmation_exits`
+
+All 13 tests in `test_non_interactive_character_creation.py` now pass.
+
 ## E2E Validation Checklist
 
 1. Create a new character with manual stats - verify CHA is prompted and applied
