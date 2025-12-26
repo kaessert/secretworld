@@ -417,6 +417,19 @@ class AIService:
         logger.warning("Repaired truncated JSON response")
         return repaired
 
+    def _log_parse_failure(self, response_text: str, error: Exception, context: str = "") -> None:
+        """Log full AI response when JSON parsing fails.
+
+        Args:
+            response_text: The raw response text that failed to parse
+            error: The exception that was raised
+            context: Optional context about what was being parsed (e.g., "location", "area")
+        """
+        logger.debug(
+            f"AI response parse failure{f' ({context})' if context else ''}: {error}\n"
+            f"Full response ({len(response_text)} chars):\n{response_text}"
+        )
+
     def _parse_location_response(self, response_text: str) -> dict:
         """Parse and validate LLM response.
         
@@ -442,8 +455,10 @@ class AIService:
                 try:
                     data = json.loads(repaired)
                 except json.JSONDecodeError:
+                    self._log_parse_failure(response_text, e, "location")
                     raise AIGenerationError(f"Failed to parse response as JSON: {str(e)}") from e
             else:
+                self._log_parse_failure(response_text, e, "location")
                 raise AIGenerationError(f"Failed to parse response as JSON: {str(e)}") from e
 
         # Validate required fields
@@ -850,8 +865,10 @@ Note: Use "EXISTING_WORLD" as placeholder for the connection back to the source 
                 try:
                     data = json.loads(repaired)
                 except json.JSONDecodeError:
+                    self._log_parse_failure(response_text, e, "area")
                     raise AIGenerationError(f"Failed to parse response as JSON: {str(e)}") from e
             else:
+                self._log_parse_failure(response_text, e, "area")
                 raise AIGenerationError(f"Failed to parse response as JSON: {str(e)}") from e
 
         # Validate it's a list
@@ -1139,8 +1156,10 @@ Note: Use "EXISTING_WORLD" as placeholder for the connection back to the source 
                 try:
                     data = json.loads(repaired)
                 except json.JSONDecodeError:
+                    self._log_parse_failure(response_text, e, "enemy")
                     raise AIGenerationError(f"Failed to parse response as JSON: {str(e)}") from e
             else:
+                self._log_parse_failure(response_text, e, "enemy")
                 raise AIGenerationError(f"Failed to parse response as JSON: {str(e)}") from e
 
         # Validate required fields
@@ -1489,8 +1508,10 @@ Note: Use "EXISTING_WORLD" as placeholder for the connection back to the source 
                 try:
                     data = json.loads(repaired)
                 except json.JSONDecodeError:
+                    self._log_parse_failure(response_text, e, "item")
                     raise AIGenerationError(f"Failed to parse response as JSON: {str(e)}") from e
             else:
+                self._log_parse_failure(response_text, e, "item")
                 raise AIGenerationError(f"Failed to parse response as JSON: {str(e)}") from e
 
         # Validate required fields
@@ -1718,8 +1739,10 @@ Note: Use "EXISTING_WORLD" as placeholder for the connection back to the source 
                 try:
                     data = json.loads(repaired)
                 except json.JSONDecodeError:
+                    self._log_parse_failure(response_text, e, "quest")
                     raise AIGenerationError(f"Failed to parse response as JSON: {str(e)}") from e
             else:
+                self._log_parse_failure(response_text, e, "quest")
                 raise AIGenerationError(f"Failed to parse response as JSON: {str(e)}") from e
 
         # Validate required fields

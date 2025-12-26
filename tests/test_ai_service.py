@@ -2199,3 +2199,166 @@ def test_repair_truncated_json_returns_original_when_balanced(mock_openai_class,
 
     # Should be unchanged
     assert repaired == valid
+
+
+# ========================================================================
+# Parse Failure Logging Tests
+# Spec: When JSON parsing fails, log the full response at DEBUG level for debugging
+# ========================================================================
+
+
+@patch('cli_rpg.ai_service.OpenAI')
+def test_parse_failure_logs_full_response(mock_openai_class, basic_config, caplog):
+    """Test parse failures log the full AI response at DEBUG level.
+
+    Spec: When JSON parsing fails, log the full response for debugging.
+    """
+    import logging
+
+    mock_client = Mock()
+    mock_openai_class.return_value = mock_client
+
+    # Return invalid JSON
+    invalid_response = "This is not valid JSON { broken"
+    mock_response = Mock()
+    mock_response.choices = [Mock()]
+    mock_response.choices[0].message.content = invalid_response
+    mock_client.chat.completions.create.return_value = mock_response
+
+    service = AIService(basic_config)
+
+    with caplog.at_level(logging.DEBUG):
+        with pytest.raises(AIGenerationError):
+            service.generate_location(theme="fantasy")
+
+    # Verify the full response was logged
+    assert "This is not valid JSON { broken" in caplog.text
+    assert "parse failure" in caplog.text.lower()
+    assert "(location)" in caplog.text
+
+
+@patch('cli_rpg.ai_service.OpenAI')
+def test_parse_area_failure_logs_full_response(mock_openai_class, basic_config, caplog):
+    """Test area parse failures log the full AI response at DEBUG level.
+
+    Spec: When area JSON parsing fails, log the full response for debugging.
+    """
+    import logging
+
+    mock_client = Mock()
+    mock_openai_class.return_value = mock_client
+
+    invalid_response = "Not a valid JSON array at all { }"
+    mock_response = Mock()
+    mock_response.choices = [Mock()]
+    mock_response.choices[0].message.content = invalid_response
+    mock_client.chat.completions.create.return_value = mock_response
+
+    service = AIService(basic_config)
+
+    with caplog.at_level(logging.DEBUG):
+        with pytest.raises(AIGenerationError):
+            service.generate_area(
+                theme="fantasy",
+                sub_theme_hint="forest",
+                entry_direction="north",
+                context_locations=[],
+                size=3
+            )
+
+    assert "Not a valid JSON array at all" in caplog.text
+    assert "(area)" in caplog.text
+
+
+@patch('cli_rpg.ai_service.OpenAI')
+def test_parse_enemy_failure_logs_full_response(mock_openai_class, basic_config, caplog):
+    """Test enemy parse failures log the full AI response at DEBUG level.
+
+    Spec: When enemy JSON parsing fails, log the full response for debugging.
+    """
+    import logging
+
+    mock_client = Mock()
+    mock_openai_class.return_value = mock_client
+
+    invalid_response = "Enemy data: { invalid json structure"
+    mock_response = Mock()
+    mock_response.choices = [Mock()]
+    mock_response.choices[0].message.content = invalid_response
+    mock_client.chat.completions.create.return_value = mock_response
+
+    service = AIService(basic_config)
+
+    with caplog.at_level(logging.DEBUG):
+        with pytest.raises(AIGenerationError):
+            service.generate_enemy(
+                theme="fantasy",
+                location_name="Dark Forest",
+                player_level=5
+            )
+
+    assert "Enemy data: { invalid json structure" in caplog.text
+    assert "(enemy)" in caplog.text
+
+
+@patch('cli_rpg.ai_service.OpenAI')
+def test_parse_item_failure_logs_full_response(mock_openai_class, basic_config, caplog):
+    """Test item parse failures log the full AI response at DEBUG level.
+
+    Spec: When item JSON parsing fails, log the full response for debugging.
+    """
+    import logging
+
+    mock_client = Mock()
+    mock_openai_class.return_value = mock_client
+
+    invalid_response = "Here's an item: {broken json"
+    mock_response = Mock()
+    mock_response.choices = [Mock()]
+    mock_response.choices[0].message.content = invalid_response
+    mock_client.chat.completions.create.return_value = mock_response
+
+    service = AIService(basic_config)
+
+    with caplog.at_level(logging.DEBUG):
+        with pytest.raises(AIGenerationError):
+            service.generate_item(
+                theme="fantasy",
+                location_name="Castle",
+                player_level=3
+            )
+
+    assert "Here's an item: {broken json" in caplog.text
+    assert "(item)" in caplog.text
+
+
+@patch('cli_rpg.ai_service.OpenAI')
+def test_parse_quest_failure_logs_full_response(mock_openai_class, basic_config, caplog):
+    """Test quest parse failures log the full AI response at DEBUG level.
+
+    Spec: When quest JSON parsing fails, log the full response for debugging.
+    """
+    import logging
+
+    mock_client = Mock()
+    mock_openai_class.return_value = mock_client
+
+    invalid_response = "Quest details: malformed {json content"
+    mock_response = Mock()
+    mock_response.choices = [Mock()]
+    mock_response.choices[0].message.content = invalid_response
+    mock_client.chat.completions.create.return_value = mock_response
+
+    service = AIService(basic_config)
+
+    with caplog.at_level(logging.DEBUG):
+        with pytest.raises(AIGenerationError):
+            service.generate_quest(
+                theme="fantasy",
+                npc_name="Elder Thomas",
+                player_level=5,
+                location_name="Village"
+            )
+
+    assert "Quest details: malformed {json content" in caplog.text
+    assert "(quest)" in caplog.text
