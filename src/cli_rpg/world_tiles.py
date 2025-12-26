@@ -2,7 +2,10 @@
 
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Dict, Set, List, Optional
+from typing import Dict, Set, List, Optional, TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from cli_rpg.wfc_chunks import ChunkManager
 
 
 class TerrainType(Enum):
@@ -72,6 +75,24 @@ TERRAIN_PASSABLE: Dict[str, bool] = {
     "hills": True,
     "beach": True,
     "foothills": True,
+}
+
+# Terrain that players can traverse (derived from TERRAIN_PASSABLE)
+PASSABLE_TERRAIN: frozenset = frozenset(
+    terrain for terrain, passable in TERRAIN_PASSABLE.items() if passable
+)
+
+# Terrain that blocks movement
+IMPASSABLE_TERRAIN: frozenset = frozenset(
+    terrain for terrain, passable in TERRAIN_PASSABLE.items() if not passable
+)
+
+# Direction offsets for coordinate navigation
+DIRECTION_OFFSETS: Dict[str, tuple] = {
+    "north": (0, 1),
+    "south": (0, -1),
+    "east": (1, 0),
+    "west": (-1, 0),
 }
 
 # Dread modifier per terrain type
@@ -228,6 +249,42 @@ def get_unnamed_location_template(terrain: str) -> tuple:
     import random
     templates = UNNAMED_LOCATION_TEMPLATES.get(terrain, UNNAMED_LOCATION_TEMPLATES["plains"])
     return random.choice(templates)
+
+
+def is_passable(terrain: str) -> bool:
+    """Check if a terrain type allows player movement.
+
+    Args:
+        terrain: Terrain type name (e.g., "forest", "water")
+
+    Returns:
+        True if the terrain is passable, False for impassable or unknown terrain
+    """
+    return terrain in PASSABLE_TERRAIN
+
+
+def get_valid_moves(chunk_manager: "ChunkManager", x: int, y: int) -> List[str]:
+    """Return sorted list of valid cardinal directions from position based on terrain passability.
+
+    Args:
+        chunk_manager: ChunkManager instance for terrain lookups
+        x: Current x coordinate
+        y: Current y coordinate
+
+    Returns:
+        Sorted list of valid direction names (e.g., ["east", "north", "south", "west"])
+    """
+    valid_directions = []
+
+    for direction, (dx, dy) in DIRECTION_OFFSETS.items():
+        target_x = x + dx
+        target_y = y + dy
+        terrain = chunk_manager.get_tile_at(target_x, target_y)
+
+        if is_passable(terrain):
+            valid_directions.append(direction)
+
+    return sorted(valid_directions)
 
 
 # Configuration for named location generation
