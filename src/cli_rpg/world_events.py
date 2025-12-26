@@ -13,6 +13,7 @@ from cli_rpg.frames import frame_announcement
 
 if TYPE_CHECKING:
     from cli_rpg.game_state import GameState
+    from cli_rpg.models.shop import Shop
 
 
 # Spawn chance: 5% per move
@@ -577,6 +578,77 @@ def check_and_resolve_caravan(game_state: "GameState") -> bool:
             event.is_active = False
             return True
     return False
+
+
+def get_caravan_shop(game_state: "GameState") -> Optional["Shop"]:
+    """Get a temporary shop from an active caravan event at current location.
+
+    Args:
+        game_state: Current game state
+
+    Returns:
+        Shop instance if caravan active at location, None otherwise
+    """
+    from cli_rpg.models.shop import Shop, ShopItem
+    from cli_rpg.models.item import Item, ItemType
+
+    # Find active caravan at current location
+    for event in game_state.world_events:
+        if (
+            event.is_active
+            and event.event_type == "caravan"
+            and game_state.current_location in event.affected_locations
+        ):
+            # Create temporary caravan shop with exotic items
+            return Shop(
+                name=f"{event.name}",
+                inventory=[
+                    ShopItem(
+                        item=Item(
+                            name="Exotic Spices",
+                            description="Rare spices from distant lands. Restores stamina.",
+                            item_type=ItemType.CONSUMABLE,
+                            stamina_restore=30,
+                        ),
+                        buy_price=50,
+                    ),
+                    ShopItem(
+                        item=Item(
+                            name="Traveler's Map",
+                            description="A detailed map revealing hidden paths.",
+                            item_type=ItemType.MISC,
+                        ),
+                        buy_price=75,
+                    ),
+                    ShopItem(
+                        item=Item(
+                            name="Foreign Elixir",
+                            description="A potent healing elixir from far away.",
+                            item_type=ItemType.CONSUMABLE,
+                            heal_amount=75,
+                        ),
+                        buy_price=100,
+                    ),
+                    ShopItem(
+                        item=Item(
+                            name="Rare Gemstone",
+                            description="A valuable gemstone sought by collectors.",
+                            item_type=ItemType.MISC,
+                        ),
+                        buy_price=200,
+                    ),
+                    ShopItem(
+                        item=Item(
+                            name="Antidote",
+                            description="Cures poison and plague afflictions.",
+                            item_type=ItemType.CONSUMABLE,
+                            is_cure=True,
+                        ),
+                        buy_price=40,
+                    ),
+                ],
+            )
+    return None
 
 
 def resolve_invasion_on_victory(game_state: "GameState") -> Optional[str]:

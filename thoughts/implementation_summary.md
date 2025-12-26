@@ -1,47 +1,53 @@
-# Implementation Summary: Fix Shop Price Display Inconsistency
+# Implementation Summary: Caravan Shop Access Fix
 
-## What Was Implemented
+## What was Implemented
 
-Fixed a bug where the `shop` command displayed base prices while the `buy` command used adjusted prices (factoring in CHA modifier, faction reputation, persuade discount, and haggle bonus). This caused player confusion when the displayed price didn't match the actual purchase price.
+When a CARAVAN world event is active at the player's current location, the `shop` command now provides access to a temporary caravan shop with exotic/rare items, instead of returning "There's no merchant here."
 
-## Files Modified
+### Files Modified
 
-1. **`tests/test_faction_shop_prices.py`**
-   - Added `test_shop_displays_faction_adjusted_prices` to `TestShopCommandWithFactionReputation` class
-   - Test verifies that displayed prices match faction-adjusted prices (80 gold instead of 100 for HONORED)
+1. **`src/cli_rpg/world_events.py`**
+   - Added type import for `Shop` in `TYPE_CHECKING` block (line 16)
+   - Added new function `get_caravan_shop(game_state)` (lines 582-650) that:
+     - Finds active caravan events at the player's current location
+     - Returns a `Shop` instance with exotic items:
+       - Exotic Spices (50 gold) - stamina restore
+       - Traveler's Map (75 gold) - misc item
+       - Foreign Elixir (100 gold) - healing potion
+       - Rare Gemstone (200 gold) - valuable misc
+       - Antidote (40 gold) - cure item for plagues
 
-2. **`src/cli_rpg/main.py`** (lines 1331-1343)
-   - Updated shop display logic to calculate prices with all modifiers:
-     - CHA modifier (from `get_cha_price_modifier`)
-     - Faction reputation modifier (via `faction_buy_mod`)
-     - Persuade discount (20% if NPC persuaded)
-     - Haggle bonus (if active)
-   - This matches the exact price calculation used in the `buy` command
+2. **`src/cli_rpg/main.py`**
+   - Modified the `shop` command handler (lines 1305-1317) to:
+     - Check for caravan shop when no merchant NPC is found
+     - Set `game_state.current_shop` to the caravan shop if one exists
+     - Only return "There's no merchant here." if no merchant AND no caravan
 
-## Technical Details
+3. **`tests/test_world_events.py`**
+   - Added test `test_get_caravan_shop_returns_shop` in `TestCaravanEvent` class (lines 394-418) that verifies:
+     - Caravan shop is returned when active caravan event exists at location
+     - Shop name contains "Caravan"
+     - Shop has items in inventory
 
-The fix imports `get_cha_price_modifier` from `social_skills` module and applies the same chain of price modifiers used in the buy command:
+### Test Results
 
-```python
-display_price = int(si.buy_price * cha_modifier)
-if faction_buy_mod is not None:
-    display_price = int(display_price * faction_buy_mod)
-if game_state.current_npc and game_state.current_npc.persuaded:
-    display_price = int(display_price * 0.8)
-if game_state.haggle_bonus > 0:
-    display_price = int(display_price * (1 - game_state.haggle_bonus))
-```
+- All 32 world events tests pass
+- All 42 shop-related tests pass
+- Full test suite: 3455 tests pass
 
-## Test Results
+### Design Decisions
 
-- New test: `test_shop_displays_faction_adjusted_prices` - PASSED
-- Related tests (118 shop/charisma/haggle/faction tests) - ALL PASSED
-- Full test suite (3454 tests) - ALL PASSED
+1. **Caravan shop is temporary** - The shop is created on-the-fly when `get_caravan_shop()` is called, not stored persistently. This aligns with the event-based nature of caravans.
 
-## E2E Validation
+2. **Exotic items theme** - Items are designed to feel rare/exotic (spices, foreign elixir, gemstones) fitting the traveling caravan concept.
 
-To manually validate:
-1. Start game with a merchant NPC
-2. Build faction reputation to HONORED (80+)
-3. Run `shop` command - prices should show discounted values
-4. Run `buy <item>` - charged price should match displayed price
+3. **Includes cure item** - The Antidote in caravan stock provides a way for players to prepare for plague events.
+
+4. **No night restriction** - Caravans don't have the `available_at_night` check that regular merchants have (code structure ensures this).
+
+### E2E Test Validation
+
+The following scenarios should work:
+1. Player at location with no NPCs but active caravan event → `shop` shows caravan inventory
+2. Player buys from caravan shop → normal buy flow works
+3. Caravan event expires → `shop` returns to showing "no merchant here"

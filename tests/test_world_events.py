@@ -391,6 +391,32 @@ class TestCaravanEvent:
         gs.world_events = []
         return gs
 
+    def test_get_caravan_shop_returns_shop(self, game_state):
+        """Test that caravan event provides a shop.
+
+        Spec: Active caravan at location → shop command works
+        """
+        from cli_rpg.world_events import get_caravan_shop
+
+        # Add caravan event at current location
+        caravan_event = WorldEvent(
+            event_id="caravan_001",
+            name="Merchant Caravan",
+            description="A caravan arrives",
+            event_type="caravan",
+            affected_locations=["Town"],
+            start_hour=game_state.game_time.hour,
+            duration_hours=16,
+        )
+        game_state.world_events.append(caravan_event)
+
+        # Get caravan shop
+        shop = get_caravan_shop(game_state)
+
+        assert shop is not None
+        assert "Caravan" in shop.name or "caravan" in shop.name.lower()
+        assert len(shop.inventory) > 0  # Should have items
+
     def test_caravan_adds_merchant_npc(self, game_state, monkeypatch):
         """Test that caravan event adds temporary merchant to location.
 

@@ -1303,11 +1303,18 @@ def handle_exploration_command(game_state: GameState, command: str, args: list[s
             location = game_state.get_current_location()
             merchant = next((npc for npc in location.npcs if npc.is_merchant and npc.shop), None)
             if merchant is None:
-                return (True, "\nThere's no merchant here.")
-            # Check if merchant is available at night
-            if game_state.game_time.is_night() and not merchant.available_at_night:
-                return (True, "\nThe shop is closed for the night.")
-            game_state.current_shop = merchant.shop
+                # Check for active caravan event at this location
+                from cli_rpg.world_events import get_caravan_shop
+                caravan_shop = get_caravan_shop(game_state)
+                if caravan_shop is not None:
+                    game_state.current_shop = caravan_shop
+                else:
+                    return (True, "\nThere's no merchant here.")
+            else:
+                # Check if merchant is available at night
+                if game_state.game_time.is_night() and not merchant.available_at_night:
+                    return (True, "\nThe shop is closed for the night.")
+                game_state.current_shop = merchant.shop
         # Check faction reputation and show status message
         from cli_rpg.faction_shop import (
             get_faction_price_modifiers,

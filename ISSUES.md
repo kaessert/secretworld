@@ -463,19 +463,11 @@ Issues discovered during `--wfc` mode playtesting (updated 2025-12-26):
      - `src/cli_rpg/ai_world.py`: NPC generation for SubGrid locations
      - `src/cli_rpg/models/npc.py`: NPC role field
 
-4. **Caravan world event doesn't provide shop access**
-    - "A merchant caravan is present in Shadowed Dell!" message displays
-    - `events` command shows "Traveling Traders [CARAVAN]" active at location
-    - But `shop` command says "There's no merchant here."
-    - Reproduction:
-      1. Wait for or trigger a CARAVAN world event
-      2. Travel to the event location
-      3. Run `shop` command → "There's no merchant here."
-    - **Expected**: Caravan events should provide a temporary shop with special items
-    - **Files to investigate**:
-      - `src/cli_rpg/world_events.py`: Caravan event definition
-      - `src/cli_rpg/main.py`: `shop` command - doesn't check for active caravan events
-      - `src/cli_rpg/models/world_event.py`: Event model
+4. ~~**Caravan world event doesn't provide shop access**~~ ✅ RESOLVED (2025-12-26)
+    - Fixed: `shop` command now checks for active caravan events at current location
+    - When a CARAVAN event is active, provides temporary shop with exotic items:
+      - Exotic Spices (50g), Traveler's Map (75g), Foreign Elixir (100g), Rare Gemstone (200g), Antidote (40g)
+    - Files modified: `world_events.py` (added `get_caravan_shop()`), `main.py` (shop command handler)
 
 5. **"Can't go that way" even though map shows valid exits**
     - Map displays "Exits: east, south, west" but movement fails with "You can't go that way."

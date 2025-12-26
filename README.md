@@ -114,7 +114,7 @@ python -m cli_rpg.main
 ### World Events
 The world is alive with timed events that progress with in-game time:
 
-- **Caravans**: Trading caravans pass through locations, offering opportunities for commerce
+- **Caravans**: Trading caravans pass through locations, providing a temporary shop with exotic items (use `shop` command to access)
 - **Plagues**: Disease outbreaks spread through affected areas, creating urgency
 - **Invasions**: Hostile forces threaten locations, requiring player intervention
 
@@ -126,7 +126,7 @@ Events have limited duration and consequences if not resolved. Use the `events` 
 |------------|-------------------|--------------|---------|
 | Plague | `resolve <event>` | Cure item in inventory, at affected location | 50 XP, 30 gold |
 | Invasion | `resolve <event>` | At affected location | Combat encounter → 75 XP, 50 gold on victory |
-| Caravan | Trade at shop | At affected location | Auto-resolves on purchase |
+| Caravan | Use `shop` to browse, `buy` to purchase | At affected location | Access exotic items (spices, elixirs, maps) |
 
 **Cure Items**: Cure items (Antidote, Cure Vial, Purification Elixir) can be found as loot drops from defeated enemies (15% chance when consumables drop) or purchased from merchants.
 
