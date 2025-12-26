@@ -2,12 +2,15 @@
 
 import logging
 import random
-from typing import Optional, Tuple
+from typing import Optional, Tuple, TYPE_CHECKING
 from cli_rpg.models.location import Location
 from cli_rpg.models.item import Item, ItemType
 from cli_rpg.models.shop import Shop, ShopItem
 from cli_rpg.models.npc import NPC
 from cli_rpg.world_grid import WorldGrid, SubGrid, OPPOSITE_DIRECTIONS
+
+if TYPE_CHECKING:
+    from cli_rpg.wfc_chunks import ChunkManager
 
 logger = logging.getLogger(__name__)
 
@@ -140,6 +143,7 @@ def generate_fallback_location(
     source_location: Location,
     target_coords: Tuple[int, int],
     terrain: Optional[str] = None,
+    chunk_manager: Optional["ChunkManager"] = None,
 ) -> Location:
     """Generate a fallback location when AI is unavailable.
 
@@ -152,6 +156,8 @@ def generate_fallback_location(
         source_location: The location the player is coming from
         target_coords: The (x, y) coordinates for the new location
         terrain: Optional WFC terrain type (e.g., "forest", "plains")
+        chunk_manager: Optional ChunkManager for WFC terrain checking.
+                      When provided, exits to impassable terrain are not added.
 
     Returns:
         A new Location instance with proper connections
@@ -206,6 +212,31 @@ def generate_fallback_location(
         d for d in Location.VALID_DIRECTIONS
         if d != back_direction
     ]
+
+    # Filter out directions that lead to impassable terrain
+    if chunk_manager is not None:
+        from cli_rpg.world_tiles import TERRAIN_PASSABLE
+        # Direction offsets for coordinate calculation
+        offsets = {
+            "north": (0, 1),
+            "south": (0, -1),
+            "east": (1, 0),
+            "west": (-1, 0),
+        }
+
+        passable_directions = []
+        for d in available_directions:
+            if d in offsets:
+                dx, dy = offsets[d]
+                exit_target_x = target_coords[0] + dx
+                exit_target_y = target_coords[1] + dy
+                exit_terrain = chunk_manager.get_tile_at(exit_target_x, exit_target_y)
+                if TERRAIN_PASSABLE.get(exit_terrain, True):
+                    passable_directions.append(d)
+            else:
+                # Unknown direction, include for safety
+                passable_directions.append(d)
+        available_directions = passable_directions
 
     if available_directions:
         # Add 1-2 dangling exits for expansion

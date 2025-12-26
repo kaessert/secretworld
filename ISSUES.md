@@ -515,22 +515,10 @@ Issues discovered during WFC mode playtesting (WFC is now enabled by default; up
    - Shop display now shows adjusted prices (CHA, faction, persuade, haggle modifiers)
    - Matches the actual purchase price shown in buy command errors
 
-2. **ASCII art first line loses leading whitespace**
-   - First row of ASCII art displays without leading spaces, breaking alignment
-   - Example (wrong):
-     ```
-     /\    /\
-        /  \  /  \
-       |    ||    |
-     ```
-   - Expected:
-     ```
-         /\    /\
-        /  \  /  \
-       |    ||    |
-     ```
-   - **Cause**: Likely string stripping or split/join operation removing leading spaces from first line
-   - **Files to investigate**: `ai_service.py` (ASCII art parsing), `location_art.py` (fallback templates)
+2. ~~**ASCII art first line loses leading whitespace**~~ ✅ RESOLVED (2025-12-26)
+   - Fixed: Changed `.strip()` to `.rstrip()` in 5 locations to preserve leading spaces
+   - Files modified: `location.py` (2), `combat.py` (2), `main.py` (1)
+   - Tests added: `tests/test_ascii_art.py` - `TestAsciiArtDisplayPreservesIndentation` (5 tests)
 
 3. **Shop command doesn't work with AI-generated merchants in SubGrid locations**
    - Location shows "NPCs: Tech Merchant" but `shop` command says "There's no merchant here."
@@ -553,18 +541,12 @@ Issues discovered during WFC mode playtesting (WFC is now enabled by default; up
       - Exotic Spices (50g), Traveler's Map (75g), Foreign Elixir (100g), Rare Gemstone (200g), Antidote (40g)
     - Files modified: `world_events.py` (added `get_caravan_shop()`), `main.py` (shop command handler)
 
-5. **"Can't go that way" even though map shows valid exits**
-    - Map displays "Exits: east, south, west" but movement fails with "You can't go that way."
-    - Location "Dim Glade North" at (1, 11) shows exits but they don't work
-    - **Possible causes**:
-      - Location connections don't match displayed exits
-      - WFC terrain blocking not reflected in exit list
-      - Connection target location doesn't exist or has invalid coordinates
-      - Desync between `location.connections` and actual traversability
-    - **Files to investigate**:
-      - `src/cli_rpg/game_state.py`: `move()` method - what blocks movement
-      - `src/cli_rpg/models/location.py`: `get_available_directions()` vs actual connections
-      - `src/cli_rpg/map_renderer.py`: How exits are determined for display
+5. ~~**"Can't go that way" even though map shows valid exits**~~ ✅ RESOLVED (2025-12-26)
+    - Fixed: Exit display now filters by WFC terrain passability at display time
+    - Added `get_filtered_directions(chunk_manager)` method to Location model
+    - Updated `look`, `map`, and fallback location generation to use filtered directions
+    - Files modified: `location.py`, `game_state.py`, `map_renderer.py`, `world.py`, `main.py`
+    - 8 new tests in `tests/test_wfc_exit_display.py`
 
 #### MEDIUM PRIORITY BUGS
 

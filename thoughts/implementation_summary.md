@@ -1,58 +1,69 @@
-# Implementation Summary: Fix KILL Quest Target Spawn Mismatch
+# Implementation Summary: Fix "Can't go that way" despite map showing exits (Bug #5)
 
 ## What Was Implemented
 
-Fixed KILL quests that generate enemy targets (e.g., "Giant Spider") that never spawn in the game world, making quests impossible to complete.
+Fixed a bug where exits were displayed to the player (in `look` command, map, etc.) but movement was blocked by WFC terrain passability checks, resulting in confusing "Can't go that way" messages.
 
-### Changes Made
+### Root Cause
 
-#### 1. `src/cli_rpg/combat.py`
-- Moved `enemy_templates` dict from inside `spawn_enemy()` to module level as `ENEMY_TEMPLATES`
-- Added `VALID_ENEMY_TYPES: frozenset[str]` - a set of all spawnable enemy names (lowercase) for O(1) validation lookups
-- Updated `spawn_enemy()` to reference the module-level `ENEMY_TEMPLATES` instead of local variable
+The bug occurred when:
+1. Exit display was based on the `connections` dict in Location
+2. Movement checked WFC terrain passability AFTER connection checks
+3. Result: Exit shown (connection exists) → Movement fails (terrain impassable)
 
-#### 2. `src/cli_rpg/ai_service.py`
-- Added KILL quest target validation in `_parse_quest_response()` (after line 1867)
-- When `objective_type == "kill"`, validates that `target.lower()` is in `VALID_ENEMY_TYPES`
-- Raises `AIGenerationError` with descriptive message for invalid targets
+### Solution
 
-#### 3. `tests/test_quest_validation.py` (new file)
-- 8 tests for `VALID_ENEMY_TYPES` constant (validates all enemy categories are present, lowercase)
-- 7 tests for KILL quest target validation (valid targets accepted, invalid rejected, case-insensitive, non-kill quests not validated)
+Filter displayed exits by WFC terrain passability at display time, preventing the display of exits that cannot be traversed.
 
-#### 4. Test Fixes
-Updated existing tests that used invalid enemy types as KILL targets:
-- `tests/test_ai_quest_generation.py`: Changed "Enemy" to "Goblin" in 3 tests
-- `tests/test_coverage_gaps.py`: Changed "Dragon" to "Troll"/"Goblin" in 2 tests
+## Files Modified
 
-## Valid Enemy Types (Spawnable)
+### `src/cli_rpg/models/location.py`
+- Added `ChunkManager` type hint import
+- Added `get_filtered_directions(chunk_manager)` method that filters out directions where WFC terrain is impassable
+- Updated `get_layered_description()` to accept optional `chunk_manager` parameter and use filtered directions
 
-| Location | Enemies |
-|----------|---------|
-| Forest | Wolf, Bear, Wild Boar, Giant Spider |
-| Cave | Bat, Goblin, Troll, Cave Dweller |
-| Dungeon | Skeleton, Zombie, Ghost, Dark Knight |
-| Mountain | Eagle, Goat, Mountain Lion, Yeti |
-| Village | Bandit, Thief, Ruffian, Outlaw |
-| Default | Monster, Creature, Beast, Fiend |
+### `src/cli_rpg/game_state.py`
+- Updated `look()` method to pass `self.chunk_manager` to `get_layered_description()`
+- Updated `generate_fallback_location()` call in `move()` to pass `self.chunk_manager`
+
+### `src/cli_rpg/map_renderer.py`
+- Added `ChunkManager` type hint import
+- Updated `render_map()` to accept optional `chunk_manager` parameter
+- Changed exits display to use `get_filtered_directions(chunk_manager)` instead of `get_available_directions()`
+
+### `src/cli_rpg/world.py`
+- Added `ChunkManager` type hint import
+- Updated `generate_fallback_location()` to accept optional `chunk_manager` parameter
+- Added WFC terrain passability check before adding dangling exits to new locations
+
+### `src/cli_rpg/main.py`
+- Updated `map` command to pass `game_state.chunk_manager` to `render_map()`
+
+### `tests/test_wfc_exit_display.py` (NEW)
+- Added 8 new tests covering:
+  - Location exit filtering by WFC terrain
+  - Layered description filtering
+  - Map renderer filtering
+  - Fallback location generation
+  - Integration test verifying displayed exits are traversable
 
 ## Test Results
 
-```
-pytest - 3473 passed in 104.63s
-pytest tests/test_quest_validation.py - 15 passed in 0.53s
-```
-
-## Technical Details
-
-- `VALID_ENEMY_TYPES` is a `frozenset` for immutability and O(1) lookups
-- Validation is case-insensitive (target is lowercased before checking)
-- Original target case is preserved in quest data
-- Only KILL quests are validated; EXPLORE, COLLECT, TALK, DROP quests are not affected
+- All 8 new tests pass
+- All 3486 existing tests pass (no regressions)
 
 ## E2E Validation
 
-With seed 999, KILL quests should now only generate targets that can actually spawn:
-- AI generates "Hunt Goblins" → player can find goblins in caves
-- AI generates "Kill Wild Boar" → player can find wild boars in forests
-- AI cannot generate "Slay Dragons" → dragons are not spawnable enemies
+To validate the fix works end-to-end:
+1. Start game with WFC terrain enabled (default)
+2. Navigate to a location adjacent to water
+3. Run `look` command - exits should NOT include directions blocked by water
+4. Run `map` command - exits list should match what `look` shows
+5. Try `go <blocked_direction>` on a previously-shown exit - should succeed (not show "Can't go that way")
+
+## Technical Details
+
+- The filtering uses `TERRAIN_PASSABLE` dict from `world_tiles.py` to determine passability
+- Direction offsets: north=(0,1), south=(0,-1), east=(1,0), west=(-1,0)
+- Backward compatible: when `chunk_manager` is None, all directions are returned
+- Legacy locations (no coordinates) skip filtering for compatibility

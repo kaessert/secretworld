@@ -346,7 +346,10 @@ class GameState:
         look_count = self.current_character.record_look(self.current_location)
         # Get visibility level from weather, accounting for location category
         visibility = self.weather.get_visibility_level(location.category)
-        result = location.get_layered_description(look_count, visibility=visibility)
+        # Pass chunk_manager for WFC-aware exit filtering
+        result = location.get_layered_description(
+            look_count, visibility=visibility, chunk_manager=self.chunk_manager
+        )
 
         # Check for dread treasure (brave player rewards)
         from cli_rpg.brave_rewards import check_for_dread_treasure, get_discovery_message
@@ -553,6 +556,7 @@ class GameState:
                             source_location=current,
                             target_coords=target_coords,
                             terrain=terrain,
+                            chunk_manager=self.chunk_manager,
                         )
                         # Add to world
                         self.world[new_location.name] = new_location

@@ -10,6 +10,7 @@ from cli_rpg import colors
 
 if TYPE_CHECKING:
     from cli_rpg.world_grid import SubGrid
+    from cli_rpg.wfc_chunks import ChunkManager
 
 # Category to marker mapping for location icons
 CATEGORY_MARKERS = {
@@ -71,6 +72,7 @@ def render_map(
     world: dict[str, Location],
     current_location: str,
     sub_grid: Optional["SubGrid"] = None,
+    chunk_manager: Optional["ChunkManager"] = None,
 ) -> str:
     """Render an ASCII map of the explored world or interior sub-grid.
 
@@ -79,6 +81,8 @@ def render_map(
         current_location: Name of the player's current location
         sub_grid: Optional SubGrid for interior rendering. When provided,
                   renders a bounded interior map instead of the overworld.
+        chunk_manager: Optional ChunkManager for WFC terrain-based exit filtering.
+                      When provided, exits to impassable terrain are hidden.
 
     Returns:
         ASCII string representation of the map with legend
@@ -201,8 +205,8 @@ def render_map(
                     row_parts.append(" " * cell_width)
         map_rows.append("".join(row_parts))
 
-    # Get available exits from current location
-    available_directions = current_loc.get_available_directions()
+    # Get available exits from current location, filtered by WFC terrain passability
+    available_directions = current_loc.get_filtered_directions(chunk_manager)
     if available_directions:
         exits_line = "Exits: " + ", ".join(available_directions)
     else:

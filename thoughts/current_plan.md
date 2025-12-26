@@ -1,128 +1,96 @@
-# Implementation Plan: Fix KILL Quest Target Spawn Mismatch
+# Fix: "Can't go that way" even though map shows valid exits (Bug #5)
 
-## Problem
+## Summary
+Fix desync between displayed exits and actual traversability when WFC terrain blocks movement.
 
-KILL quests generate enemy targets (e.g., "Giant Spider") that never spawn in the game world, making quests impossible to complete. Confirmed reproducible with seed 999.
+## Root Cause Analysis
 
-## Root Cause
+The bug occurs in WFC mode when:
 
-- `ai_service.py:_parse_quest_response()` validates quest JSON structure but not target validity
-- `ai_config.py` prompt lists valid enemies as guidance but AI ignores it
-- `combat.py:spawn_enemy()` has hardcoded `enemy_templates` dict but doesn't export it
-- No validation connects quest targets to spawnable enemies
+1. **Exit Display**: `Location.get_layered_description()` shows exits from `location.connections` dict
+2. **Movement**: `GameState.move()` checks WFC terrain passability AFTER checking connections
 
-## Spec
-
-For KILL objective quests, the target must match one of the spawnable enemy types from combat.py templates:
-- Forest: Wolf, Bear, Wild Boar, Giant Spider
-- Cave: Bat, Goblin, Troll, Cave Dweller
-- Dungeon: Skeleton, Zombie, Ghost, Dark Knight
-- Mountain: Eagle, Goat, Mountain Lion, Yeti
-- Village: Bandit, Thief, Ruffian, Outlaw
-- Default: Monster, Creature, Beast, Fiend
-
-## Implementation
-
-### 1. Export VALID_ENEMY_TYPES from combat.py
-
-**File:** `src/cli_rpg/combat.py` (after line ~2147)
-
-Add constant that flattens all enemy templates into a set:
-
-```python
-# Exported set of all spawnable enemy types for validation
-VALID_ENEMY_TYPES: set[str] = {
-    enemy.lower()
-    for enemies in enemy_templates.values()
-    for enemy in enemies
-}
+**Flow causing the bug:**
+```
+1. Player at location (1, 11) with connections = {"east": "Unexplored East", ...}
+2. Map shows: "Exits: east, south, west" (from connections dict)
+3. Player types: "go east"
+4. move() checks: current.has_connection("east") → True ✓
+5. move() calculates target coords: (2, 11)
+6. move() checks WFC terrain at (2, 11) → "water"
+7. move() returns: "The water ahead is impassable."
 ```
 
-Note: The `enemy_templates` dict is defined inside `spawn_enemy()`. Either:
-- Move dict to module level (preferred), OR
-- Define VALID_ENEMY_TYPES with hardcoded values matching the dict
+But the bug report says "You can't go that way" - which means the check at step 4 fails. This happens when:
+- The location's connection points to a name ("Unexplored East")
+- But coordinate-based lookup finds nothing at target coords
+- AND AI/fallback generation fails silently
 
-### 2. Validate KILL quest targets in ai_service.py
+The real issue: **Exits are displayed based on `connections` dict, but movement uses coordinates**. When a location has a dangling connection but WFC blocks that direction, the exit is shown but unusable.
 
-**File:** `src/cli_rpg/ai_service.py:_parse_quest_response()` (after line ~1867)
+## Solution
 
-```python
-# Validate KILL quest targets against spawnable enemies
-if objective_type == "kill":
-    from cli_rpg.combat import VALID_ENEMY_TYPES
-    if target.lower() not in VALID_ENEMY_TYPES:
-        raise AIGenerationError(
-            f"Invalid KILL quest target '{target}'. Must be a spawnable enemy type."
-        )
-```
+Filter displayed exits to exclude directions blocked by WFC terrain BEFORE display.
 
-### 3. Tests
+### Option A: Filter at Display Time (Chosen)
+Add WFC terrain check in `Location.get_available_directions()` or `get_layered_description()`.
 
-**File:** `tests/test_quest_validation.py` (new file)
+**Pros**: Single point of change, always consistent
+**Cons**: Location needs access to ChunkManager (coupling)
 
-```python
-"""Tests for quest target validation."""
-import pytest
-from cli_rpg.combat import VALID_ENEMY_TYPES
-from cli_rpg.ai_service import AIService, AIGenerationError
+### Option B: Don't Create Blocked Connections
+Modify `generate_fallback_location()` to check WFC before adding dangling exits.
 
-class TestValidEnemyTypes:
-    """Tests for VALID_ENEMY_TYPES constant."""
+**Pros**: Cleaner data model
+**Cons**: Existing dangling connections still broken
 
-    def test_contains_expected_forest_enemies(self):
-        assert "wolf" in VALID_ENEMY_TYPES
-        assert "bear" in VALID_ENEMY_TYPES
-        assert "giant spider" in VALID_ENEMY_TYPES
+**Decision**: Option A with Option B for new locations.
 
-    def test_contains_expected_cave_enemies(self):
-        assert "goblin" in VALID_ENEMY_TYPES
-        assert "troll" in VALID_ENEMY_TYPES
+## Implementation Steps
 
-    def test_all_lowercase(self):
-        for enemy in VALID_ENEMY_TYPES:
-            assert enemy == enemy.lower()
+### 1. Add WFC-aware exit filtering to map display
 
-class TestKillQuestValidation:
-    """Tests for KILL quest target validation."""
+Modify `map_renderer.py:render_map()` exits display:
+- Check each exit direction against WFC terrain
+- Only display exits where terrain is passable
 
-    def test_valid_kill_target_accepted(self):
-        # Mock response with valid target
-        response = '{"name":"Hunt Wolves","description":"Kill wolves","objective_type":"kill","target":"Wolf","target_count":3,"gold_reward":50,"xp_reward":100}'
-        service = AIService.__new__(AIService)
-        result = service._parse_quest_response(response, "Test NPC")
-        assert result["target"] == "Wolf"
+### 2. Add WFC-aware exit filtering to Location display
 
-    def test_invalid_kill_target_rejected(self):
-        response = '{"name":"Hunt Dragons","description":"Kill dragons","objective_type":"kill","target":"Dragon","target_count":1,"gold_reward":50,"xp_reward":100}'
-        service = AIService.__new__(AIService)
-        with pytest.raises(AIGenerationError, match="Invalid KILL quest target"):
-            service._parse_quest_response(response, "Test NPC")
+Modify `Location.get_layered_description()`:
+- Accept optional `chunk_manager` parameter
+- Filter connections by terrain passability when chunk_manager provided
 
-    def test_non_kill_quest_target_not_validated(self):
-        # EXPLORE quests should not be validated against enemy types
-        response = '{"name":"Find Cave","description":"Explore cave","objective_type":"explore","target":"Hidden Cave","target_count":1,"gold_reward":50,"xp_reward":100}'
-        service = AIService.__new__(AIService)
-        result = service._parse_quest_response(response, "Test NPC")
-        assert result["target"] == "Hidden Cave"
-```
+### 3. Fix fallback location generation
 
-## Verification
+Modify `world.py:generate_fallback_location()`:
+- Accept optional `chunk_manager` parameter
+- Only add dangling exits where WFC terrain is passable
 
-```bash
-# Run new tests
-pytest tests/test_quest_validation.py -v
+### 4. Wire chunk_manager through to display calls
 
-# Run existing quest tests to ensure no regressions
-pytest tests/test_quest*.py -v
+Modify callers:
+- `game_state.py:look()` - pass chunk_manager to get_layered_description
+- `main.py` map command - pass chunk_manager to render_map
 
-# Full test suite
-pytest
-```
+## Test Plan
 
-## Files Modified
+1. **Unit test**: `test_location_filters_exits_by_wfc_terrain`
+   - Create location with exits to passable and impassable terrain
+   - Verify get_layered_description() excludes blocked exits
 
-| File | Change |
-|------|--------|
-| `src/cli_rpg/combat.py` | Move `enemy_templates` to module level, add `VALID_ENEMY_TYPES` |
-| `src/cli_rpg/ai_service.py` | Add KILL target validation in `_parse_quest_response()` |
-| `tests/test_quest_validation.py` | New test file for target validation |
+2. **Unit test**: `test_fallback_location_no_water_exits`
+   - Generate fallback location where some directions are water
+   - Verify no connections point toward water tiles
+
+3. **Integration test**: `test_displayed_exits_match_traversable_directions`
+   - In WFC mode, verify all displayed exits can be traversed
+
+## Files to Modify
+
+| File | Changes |
+|------|---------|
+| `src/cli_rpg/models/location.py` | Add `get_filtered_directions(chunk_manager, coords)` method |
+| `src/cli_rpg/game_state.py` | Pass chunk_manager to look() display |
+| `src/cli_rpg/world.py` | Check WFC before adding dangling exits |
+| `src/cli_rpg/map_renderer.py` | Filter exits in render_map() |
+| `tests/test_wfc_exit_display.py` | NEW - test exit filtering |

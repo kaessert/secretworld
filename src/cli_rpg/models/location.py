@@ -9,6 +9,7 @@ from cli_rpg import colors
 if TYPE_CHECKING:
     from cli_rpg.models.npc import NPC
     from cli_rpg.world_grid import SubGrid
+    from cli_rpg.wfc_chunks import ChunkManager
 
 
 @dataclass
@@ -155,6 +156,57 @@ class Location:
         """
         return sorted(list(self.connections.keys()))
 
+    def get_filtered_directions(
+        self, chunk_manager: Optional["ChunkManager"]
+    ) -> list[str]:
+        """Get exit directions filtered by WFC terrain passability.
+
+        When a ChunkManager is provided, filters out directions where the
+        WFC terrain is impassable (e.g., water). This prevents showing exits
+        that the player cannot actually traverse.
+
+        Args:
+            chunk_manager: Optional ChunkManager for WFC terrain lookup.
+                          If None, returns all available directions.
+
+        Returns:
+            A sorted list of direction names with passable terrain
+        """
+        directions = self.get_available_directions()
+
+        # Return all directions if no chunk_manager or no coordinates
+        if chunk_manager is None or self.coordinates is None:
+            return directions
+
+        # Import here to avoid circular dependency
+        from cli_rpg.world_tiles import TERRAIN_PASSABLE
+
+        # Direction offsets for coordinate calculation
+        offsets = {
+            "north": (0, 1),
+            "south": (0, -1),
+            "east": (1, 0),
+            "west": (-1, 0),
+        }
+
+        filtered = []
+        for direction in directions:
+            if direction not in offsets:
+                # Unknown direction, include for safety
+                filtered.append(direction)
+                continue
+
+            dx, dy = offsets[direction]
+            target_x = self.coordinates[0] + dx
+            target_y = self.coordinates[1] + dy
+
+            # Get terrain at target coordinates
+            terrain = chunk_manager.get_tile_at(target_x, target_y)
+            if TERRAIN_PASSABLE.get(terrain, True):
+                filtered.append(direction)
+
+        return sorted(filtered)
+
     def find_npc_by_name(self, name: str) -> Optional["NPC"]:
         """Find an NPC by name (case-insensitive).
 
@@ -170,7 +222,12 @@ class Location:
                 return npc
         return None
 
-    def get_layered_description(self, look_count: int = 1, visibility: str = "full") -> str:
+    def get_layered_description(
+        self,
+        look_count: int = 1,
+        visibility: str = "full",
+        chunk_manager: Optional["ChunkManager"] = None,
+    ) -> str:
         """Get description with appropriate layers based on look count and visibility.
 
         Args:
@@ -179,6 +236,8 @@ class Location:
                 - "full": Everything shown normally
                 - "reduced": Description truncated to first sentence, no details/secrets
                 - "obscured": Some exits hidden (50% each)
+            chunk_manager: Optional ChunkManager for WFC terrain-based exit filtering.
+                          When provided, exits to impassable terrain are hidden.
 
         Returns:
             Formatted string with name, description, and appropriate detail layers
@@ -204,11 +263,12 @@ class Location:
             npc_names = [colors.npc(npc.name) for npc in self.npcs]
             result += f"NPCs: {', '.join(npc_names)}\n"
 
-        # Handle exits based on visibility
+        # Handle exits based on visibility and WFC terrain passability
         if self.connections:
-            directions = self.get_available_directions()
+            # Filter by WFC terrain first (removes impassable directions)
+            directions = self.get_filtered_directions(chunk_manager)
             if visibility == "obscured":
-                # Hide ~50% of exits, seeded by location name for consistency
+                # Hide ~50% of remaining exits, seeded by location name for consistency
                 directions = self._filter_exits_for_fog(directions)
             result += f"Exits: {', '.join(directions)}"
         else:
