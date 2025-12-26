@@ -2156,3 +2156,100 @@ Note: Use "EXISTING_WORLD" as placeholder for the connection back to the source 
             choices_summary=choices_summary,
             dream_type=dream_type
         )
+
+    def generate_world_context(self, theme: str) -> "WorldContext":
+        """Generate world-level thematic context using AI.
+
+        Args:
+            theme: Base theme keyword (e.g., "fantasy", "cyberpunk")
+
+        Returns:
+            WorldContext with AI-generated theme_essence, naming_style, and tone
+
+        Raises:
+            AIGenerationError: If generation fails or response is invalid
+            AIServiceError: If API call fails
+            AITimeoutError: If request times out
+        """
+        from datetime import datetime
+        from cli_rpg.models.world_context import WorldContext
+
+        prompt = self._build_world_context_prompt(theme)
+        response_text = self._call_llm(prompt)
+        return self._parse_world_context_response(response_text, theme)
+
+    def _build_world_context_prompt(self, theme: str) -> str:
+        """Build prompt for world context generation.
+
+        Args:
+            theme: Base theme keyword
+
+        Returns:
+            Formatted prompt string
+        """
+        return self.config.world_context_prompt.format(theme=theme)
+
+    def _parse_world_context_response(self, response_text: str, theme: str) -> "WorldContext":
+        """Parse and validate LLM response for world context generation.
+
+        Args:
+            response_text: Raw response text from LLM
+            theme: Base theme keyword for the WorldContext
+
+        Returns:
+            WorldContext instance with validated data
+
+        Raises:
+            AIGenerationError: If parsing fails or validation fails
+        """
+        from datetime import datetime
+        from cli_rpg.models.world_context import WorldContext
+
+        # Extract JSON from markdown code blocks if present
+        json_text = self._extract_json_from_response(response_text)
+
+        # Attempt to parse JSON, repairing if truncated
+        try:
+            data = json.loads(json_text)
+        except json.JSONDecodeError:
+            # Try to repair truncated JSON
+            repaired = self._repair_truncated_json(json_text)
+            try:
+                data = json.loads(repaired)
+            except json.JSONDecodeError as e:
+                self._log_parse_failure(response_text, e, "world_context")
+                raise AIGenerationError(f"Invalid JSON in world context response: {e}")
+
+        # Validate required fields
+        required_fields = ["theme_essence", "naming_style", "tone"]
+        for field in required_fields:
+            if field not in data:
+                raise AIGenerationError(f"Missing required field: {field}")
+            if not isinstance(data[field], str) or not data[field].strip():
+                raise AIGenerationError(f"Field '{field}' must be a non-empty string")
+
+        # Validate field lengths
+        theme_essence = data["theme_essence"].strip()
+        naming_style = data["naming_style"].strip()
+        tone = data["tone"].strip()
+
+        if len(theme_essence) > 200:
+            raise AIGenerationError(
+                f"theme_essence exceeds 200 characters ({len(theme_essence)} chars)"
+            )
+        if len(naming_style) > 100:
+            raise AIGenerationError(
+                f"naming_style exceeds 100 characters ({len(naming_style)} chars)"
+            )
+        if len(tone) > 100:
+            raise AIGenerationError(
+                f"tone exceeds 100 characters ({len(tone)} chars)"
+            )
+
+        return WorldContext(
+            theme=theme,
+            theme_essence=theme_essence,
+            naming_style=naming_style,
+            tone=tone,
+            generated_at=datetime.now()
+        )

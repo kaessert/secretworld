@@ -109,8 +109,8 @@ Instead of one monolithic prompt, use a hierarchical generation system:
    - Added 4 new AIConfig fields with serialization support
    - Full test coverage (5 new tests) in `tests/test_ai_config.py`
 
-6. **Update AIService** (`ai_service.py`):
-   - Add `generate_world_context()` method
+6. ~~**Update AIService** (`ai_service.py`)~~ ✓ Partially Completed (2025-12-26):
+   - ~~Add `generate_world_context()` method~~ ✓ Completed - generates WorldContext with theme_essence, naming_style, and tone
    - Add `generate_region_context()` method
    - Refactor `generate_location()` to use layered contexts
    - Add `generate_npcs_for_location()` as separate call

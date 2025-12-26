@@ -2362,3 +2362,183 @@ def test_parse_quest_failure_logs_full_response(mock_openai_class, basic_config,
 
     assert "Quest details: malformed {json content" in caplog.text
     assert "(quest)" in caplog.text
+
+
+# ============================================================================
+# Tests: generate_world_context() (Layer 1 World Context Generation)
+# ============================================================================
+
+
+@patch('cli_rpg.ai_service.OpenAI')
+def test_generate_world_context_returns_valid_world_context(mock_openai_class, basic_config):
+    """Test generate_world_context returns a valid WorldContext.
+
+    Spec: Method returns WorldContext with AI-generated theme_essence, naming_style, tone.
+    """
+    from cli_rpg.models.world_context import WorldContext
+
+    mock_client = Mock()
+    mock_openai_class.return_value = mock_client
+
+    # Valid JSON response with all required fields
+    valid_response = {
+        "theme_essence": "A dark and mysterious medieval world shrouded in shadow.",
+        "naming_style": "Old English with Gothic influence",
+        "tone": "grim, foreboding, with flickers of hope"
+    }
+
+    mock_response = Mock()
+    mock_response.choices = [Mock()]
+    mock_response.choices[0].message.content = json.dumps(valid_response)
+    mock_client.chat.completions.create.return_value = mock_response
+
+    service = AIService(basic_config)
+    result = service.generate_world_context(theme="fantasy")
+
+    # Verify result is WorldContext with correct fields
+    assert isinstance(result, WorldContext)
+    assert result.theme == "fantasy"
+    assert result.theme_essence == valid_response["theme_essence"]
+    assert result.naming_style == valid_response["naming_style"]
+    assert result.tone == valid_response["tone"]
+    assert result.generated_at is not None
+
+
+@patch('cli_rpg.ai_service.OpenAI')
+def test_generate_world_context_validates_required_fields(mock_openai_class, basic_config):
+    """Test generate_world_context raises AIGenerationError for missing fields.
+
+    Spec: Missing required fields (theme_essence, naming_style, tone) raise AIGenerationError.
+    """
+    mock_client = Mock()
+    mock_openai_class.return_value = mock_client
+
+    # Response missing 'naming_style' field
+    invalid_response = {
+        "theme_essence": "A dark world.",
+        "tone": "grim"
+        # Missing: "naming_style"
+    }
+
+    mock_response = Mock()
+    mock_response.choices = [Mock()]
+    mock_response.choices[0].message.content = json.dumps(invalid_response)
+    mock_client.chat.completions.create.return_value = mock_response
+
+    service = AIService(basic_config)
+
+    with pytest.raises(AIGenerationError, match="naming_style"):
+        service.generate_world_context(theme="fantasy")
+
+
+@patch('cli_rpg.ai_service.OpenAI')
+def test_generate_world_context_validates_field_lengths(mock_openai_class, basic_config):
+    """Test generate_world_context validates field length constraints.
+
+    Spec: theme_essence: 1-200 chars, naming_style: 1-100 chars, tone: 1-100 chars.
+    """
+    mock_client = Mock()
+    mock_openai_class.return_value = mock_client
+
+    # Response with theme_essence too long (>200 chars)
+    invalid_response = {
+        "theme_essence": "A" * 201,  # Too long
+        "naming_style": "Gothic",
+        "tone": "dark"
+    }
+
+    mock_response = Mock()
+    mock_response.choices = [Mock()]
+    mock_response.choices[0].message.content = json.dumps(invalid_response)
+    mock_client.chat.completions.create.return_value = mock_response
+
+    service = AIService(basic_config)
+
+    with pytest.raises(AIGenerationError, match="theme_essence"):
+        service.generate_world_context(theme="fantasy")
+
+
+@patch('cli_rpg.ai_service.OpenAI')
+def test_generate_world_context_validates_empty_fields(mock_openai_class, basic_config):
+    """Test generate_world_context raises AIGenerationError for empty fields.
+
+    Spec: All fields must be non-empty strings.
+    """
+    mock_client = Mock()
+    mock_openai_class.return_value = mock_client
+
+    # Response with empty naming_style
+    invalid_response = {
+        "theme_essence": "A dark world.",
+        "naming_style": "",  # Empty
+        "tone": "grim"
+    }
+
+    mock_response = Mock()
+    mock_response.choices = [Mock()]
+    mock_response.choices[0].message.content = json.dumps(invalid_response)
+    mock_client.chat.completions.create.return_value = mock_response
+
+    service = AIService(basic_config)
+
+    with pytest.raises(AIGenerationError, match="naming_style"):
+        service.generate_world_context(theme="fantasy")
+
+
+@patch('cli_rpg.ai_service.OpenAI')
+def test_generate_world_context_handles_json_in_code_block(mock_openai_class, basic_config):
+    """Test generate_world_context extracts JSON from markdown code blocks.
+
+    Spec: Response may be wrapped in ```json...``` and should be extracted.
+    """
+    from cli_rpg.models.world_context import WorldContext
+
+    mock_client = Mock()
+    mock_openai_class.return_value = mock_client
+
+    # Response wrapped in markdown code block
+    valid_json = {
+        "theme_essence": "A neon-lit dystopia.",
+        "naming_style": "Japanese-English hybrid",
+        "tone": "noir, cynical"
+    }
+    wrapped_response = f"```json\n{json.dumps(valid_json)}\n```"
+
+    mock_response = Mock()
+    mock_response.choices = [Mock()]
+    mock_response.choices[0].message.content = wrapped_response
+    mock_client.chat.completions.create.return_value = mock_response
+
+    service = AIService(basic_config)
+    result = service.generate_world_context(theme="cyberpunk")
+
+    assert isinstance(result, WorldContext)
+    assert result.theme_essence == valid_json["theme_essence"]
+
+
+@patch('cli_rpg.ai_service.OpenAI')
+def test_generate_world_context_repairs_truncated_json(mock_openai_class, basic_config):
+    """Test generate_world_context repairs truncated JSON responses.
+
+    Spec: Truncated JSON (unclosed braces) should be repaired.
+    """
+    from cli_rpg.models.world_context import WorldContext
+
+    mock_client = Mock()
+    mock_openai_class.return_value = mock_client
+
+    # Truncated JSON (missing closing brace)
+    truncated_response = '{"theme_essence": "A dark world.", "naming_style": "Gothic", "tone": "grim"'
+
+    mock_response = Mock()
+    mock_response.choices = [Mock()]
+    mock_response.choices[0].message.content = truncated_response
+    mock_client.chat.completions.create.return_value = mock_response
+
+    service = AIService(basic_config)
+    result = service.generate_world_context(theme="horror")
+
+    assert isinstance(result, WorldContext)
+    assert result.theme_essence == "A dark world."
+    assert result.naming_style == "Gothic"
+    assert result.tone == "grim"

@@ -1,64 +1,84 @@
-# Implementation Plan: Split Generation Prompts (Step 5 of Layered Query Architecture)
+# Implementation Plan: Add `generate_world_context()` to AIService
 
-## Objective
-Add four new prompt templates to `ai_config.py` that use the existing `WorldContext` and `RegionContext` models, enabling smaller, focused AI prompts that reduce JSON parsing failures.
+## Task Summary
+Add the `generate_world_context()` method to `ai_service.py` as Step 6 of the Layered Query Architecture. This method generates Layer 1 world context (theme essence, naming conventions, tone) using the existing `DEFAULT_WORLD_CONTEXT_PROMPT`.
 
-## Spec
+## Specification
 
-### New Prompts to Add
+### Method Signature
+```python
+def generate_world_context(self, theme: str) -> WorldContext:
+    """Generate world-level thematic context using AI.
 
-1. **WORLD_CONTEXT_PROMPT** - Generates Layer 1 context (once per world)
-   - Input: `{theme}`
-   - Output JSON: `{ "theme_essence": str, "naming_style": str, "tone": str }`
-   - Small, focused output (~100 tokens)
+    Args:
+        theme: Base theme keyword (e.g., "fantasy", "cyberpunk")
 
-2. **REGION_CONTEXT_PROMPT** - Generates Layer 2 context (per region)
-   - Input: `{theme}`, `{theme_essence}`, `{naming_style}`, `{tone}`, `{coordinates}`, `{terrain_hint}`
-   - Output JSON: `{ "name": str, "theme": str, "danger_level": str, "landmarks": list[str] }`
-   - Small, focused output (~150 tokens)
+    Returns:
+        WorldContext with AI-generated theme_essence, naming_style, and tone
 
-3. **LOCATION_PROMPT_MINIMAL** - Generates Layer 3 location (per location, no NPCs)
-   - Input: `{theme}`, `{theme_essence}`, `{region_name}`, `{region_theme}`, `{direction}`, `{source_location}`
-   - Output JSON: `{ "name": str, "description": str, "category": str, "connections": dict }`
-   - Smaller than current `DEFAULT_LOCATION_PROMPT` by removing NPC generation
+    Raises:
+        AIGenerationError: If generation fails or response is invalid
+        AIServiceError: If API call fails
+        AITimeoutError: If request times out
+    """
+```
 
-4. **NPC_PROMPT_MINIMAL** - Generates Layer 4 NPCs (optional, per location)
-   - Input: `{theme}`, `{theme_essence}`, `{naming_style}`, `{location_name}`, `{location_description}`, `{location_category}`
-   - Output JSON: `{ "npcs": [{ "name": str, "description": str, "dialogue": str, "role": str }] }`
-   - Separate from location generation for reliability
+### Expected JSON Response Format
+```json
+{
+  "theme_essence": "A brief description of the world's core atmosphere and feel.",
+  "naming_style": "A guide for how names should sound and feel.",
+  "tone": "The overall emotional tone of the world."
+}
+```
 
-### AIConfig Updates
-- Add four new prompt attributes with defaults
-- Update `to_dict()` and `from_dict()` to serialize/deserialize new prompts
-
-## Tests
-
-File: `tests/test_ai_config.py` (append)
-
-1. `test_ai_config_world_context_prompt_exists` - Verify prompt is non-empty and contains `{theme}`
-2. `test_ai_config_region_context_prompt_exists` - Verify prompt is non-empty and contains `{theme_essence}`
-3. `test_ai_config_location_prompt_minimal_exists` - Verify prompt is non-empty and contains `{region_theme}`
-4. `test_ai_config_npc_prompt_minimal_exists` - Verify prompt is non-empty and contains `{location_name}`
-5. `test_ai_config_serialization_includes_new_prompts` - Verify round-trip for all 4 new prompts
+### Validation Rules
+- `theme_essence`: Required, non-empty string, 1-200 characters
+- `naming_style`: Required, non-empty string, 1-100 characters
+- `tone`: Required, non-empty string, 1-100 characters
 
 ## Implementation Steps
 
-1. **Add prompt templates to `ai_config.py`** (lines ~260-340, after existing prompts):
-   - `DEFAULT_WORLD_CONTEXT_PROMPT`
-   - `DEFAULT_REGION_CONTEXT_PROMPT`
-   - `DEFAULT_LOCATION_PROMPT_MINIMAL`
-   - `DEFAULT_NPC_PROMPT_MINIMAL`
+### 1. Add Tests (`tests/test_ai_service.py`)
+Add tests for the new method:
+- `test_generate_world_context_returns_valid_world_context`: Mock LLM response, verify WorldContext returned
+- `test_generate_world_context_validates_required_fields`: Missing field raises AIGenerationError
+- `test_generate_world_context_validates_field_lengths`: Too short/long raises AIGenerationError
+- `test_generate_world_context_handles_json_in_code_block`: Extract JSON from ```json...```
+- `test_generate_world_context_repairs_truncated_json`: Truncated JSON is repaired
 
-2. **Update `AIConfig` dataclass** (around line 344):
-   - Add 4 new fields with `field(default=...)` for each prompt
+### 2. Add `generate_world_context()` Method (`src/cli_rpg/ai_service.py`)
 
-3. **Update `to_dict()` method** (around line 471):
-   - Add 4 new keys for the new prompts
+Location: After `generate_dream()` method (around line 2059)
 
-4. **Update `from_dict()` method** (around line 503):
-   - Add 4 new `.get()` calls with defaults
+```python
+def generate_world_context(self, theme: str) -> "WorldContext":
+    """Generate world-level thematic context using AI."""
+    from cli_rpg.models.world_context import WorldContext
 
-5. **Write tests in `tests/test_ai_config.py`** (append at end):
-   - 5 new test functions as specified above
+    prompt = self._build_world_context_prompt(theme)
+    response_text = self._call_llm(prompt)
+    return self._parse_world_context_response(response_text, theme)
 
-6. **Run tests**: `pytest tests/test_ai_config.py -v`
+def _build_world_context_prompt(self, theme: str) -> str:
+    """Build prompt for world context generation."""
+    return self.config.world_context_prompt.format(theme=theme)
+
+def _parse_world_context_response(self, response_text: str, theme: str) -> "WorldContext":
+    """Parse and validate LLM response for world context generation."""
+    # Extract and parse JSON (reuse existing helpers)
+    # Validate required fields
+    # Return WorldContext instance
+```
+
+### 3. Add Import Statement
+Add `from datetime import datetime` if not present (for `generated_at` field)
+
+### 4. Run Tests
+```bash
+pytest tests/test_ai_service.py -v -k "world_context"
+```
+
+## Files to Modify
+- `src/cli_rpg/ai_service.py`: Add `generate_world_context()`, `_build_world_context_prompt()`, `_parse_world_context_response()`
+- `tests/test_ai_service.py`: Add 5 test cases for the new method

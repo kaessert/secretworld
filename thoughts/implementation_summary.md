@@ -1,65 +1,68 @@
-# Implementation Summary: Split Generation Prompts (Step 5 of Layered Query Architecture)
+# Implementation Summary: Add `generate_world_context()` to AIService
 
 ## What Was Implemented
 
-Added 4 new prompt templates to `ai_config.py` to support the layered query architecture for more reliable AI content generation with smaller, focused prompts.
+Added the `generate_world_context()` method to `src/cli_rpg/ai_service.py` as Step 6 of the Layered Query Architecture. This method generates Layer 1 world context (theme essence, naming conventions, tone) using the existing `DEFAULT_WORLD_CONTEXT_PROMPT` from `ai_config.py`.
 
-### New Prompt Templates Added
+### Files Modified
 
-1. **DEFAULT_WORLD_CONTEXT_PROMPT** (Layer 1)
-   - Purpose: Generates world-level thematic context once per world
-   - Input: `{theme}`
-   - Output JSON: `{ "theme_essence", "naming_style", "tone" }`
-   - Location: Lines 262-275
+1. **`src/cli_rpg/ai_service.py`** (lines 2159-2255)
+   - Added `generate_world_context(theme: str) -> WorldContext` - Main public method
+   - Added `_build_world_context_prompt(theme: str) -> str` - Prompt builder
+   - Added `_parse_world_context_response(response_text: str, theme: str) -> WorldContext` - JSON parser/validator
 
-2. **DEFAULT_REGION_CONTEXT_PROMPT** (Layer 2)
-   - Purpose: Generates region-level context per region
-   - Inputs: `{theme}`, `{theme_essence}`, `{naming_style}`, `{tone}`, `{coordinates}`, `{terrain_hint}`
-   - Output JSON: `{ "name", "theme", "danger_level", "landmarks" }`
-   - Location: Lines 278-302
+2. **`tests/test_ai_service.py`** (lines 2366-2544)
+   - Added 6 test cases for the new method
 
-3. **DEFAULT_LOCATION_PROMPT_MINIMAL** (Layer 3)
-   - Purpose: Generates location without NPCs
-   - Inputs: `{theme}`, `{theme_essence}`, `{region_name}`, `{region_theme}`, `{direction}`, `{source_location}`
-   - Output JSON: `{ "name", "description", "connections", "category" }`
-   - Location: Lines 305-333
+### Method Signature
+```python
+def generate_world_context(self, theme: str) -> WorldContext:
+    """Generate world-level thematic context using AI.
 
-4. **DEFAULT_NPC_PROMPT_MINIMAL** (Layer 4)
-   - Purpose: Generates NPCs separately from location
-   - Inputs: `{theme}`, `{theme_essence}`, `{naming_style}`, `{location_name}`, `{location_description}`, `{location_category}`
-   - Output JSON: `{ "npcs": [...] }`
-   - Location: Lines 336-364
+    Args:
+        theme: Base theme keyword (e.g., "fantasy", "cyberpunk")
 
-### AIConfig Dataclass Updates
+    Returns:
+        WorldContext with AI-generated theme_essence, naming_style, and tone
 
-- Added 4 new fields with defaults:
-  - `world_context_prompt: str = field(default=DEFAULT_WORLD_CONTEXT_PROMPT)`
-  - `region_context_prompt: str = field(default=DEFAULT_REGION_CONTEXT_PROMPT)`
-  - `location_prompt_minimal: str = field(default=DEFAULT_LOCATION_PROMPT_MINIMAL)`
-  - `npc_prompt_minimal: str = field(default=DEFAULT_NPC_PROMPT_MINIMAL)`
+    Raises:
+        AIGenerationError: If generation fails or response is invalid
+        AIServiceError: If API call fails
+        AITimeoutError: If request times out
+    """
+```
 
-### Serialization Updates
+### Validation Rules Implemented
+- `theme_essence`: Required, non-empty string, 1-200 characters
+- `naming_style`: Required, non-empty string, 1-100 characters
+- `tone`: Required, non-empty string, 1-100 characters
 
-- **to_dict()**: Added 4 new keys for the new prompts
-- **from_dict()**: Added 4 new `.get()` calls with defaults
-
-## Files Modified
-
-- `src/cli_rpg/ai_config.py` - Added prompts, dataclass fields, and serialization support
-- `tests/test_ai_config.py` - Added 5 new tests
+### Features
+- Uses existing `_call_llm()` for API interaction
+- Extracts JSON from markdown code blocks (via `_extract_json_from_response()`)
+- Repairs truncated JSON responses (via `_repair_truncated_json()`)
+- Logs parse failures for debugging (via `_log_parse_failure()`)
+- Sets `generated_at` timestamp on returned WorldContext
 
 ## Test Results
 
-All 25 tests pass (20 existing + 5 new):
-- `test_ai_config_world_context_prompt_exists` - Verifies prompt exists with `{theme}`
-- `test_ai_config_region_context_prompt_exists` - Verifies prompt exists with `{theme_essence}`
-- `test_ai_config_location_prompt_minimal_exists` - Verifies prompt exists with `{region_theme}`
-- `test_ai_config_npc_prompt_minimal_exists` - Verifies prompt exists with `{location_name}`
-- `test_ai_config_serialization_includes_new_prompts` - Verifies round-trip serialization
+All 79 tests in `test_ai_service.py` pass:
+
+```
+tests/test_ai_service.py::test_generate_world_context_returns_valid_world_context PASSED
+tests/test_ai_service.py::test_generate_world_context_validates_required_fields PASSED
+tests/test_ai_service.py::test_generate_world_context_validates_field_lengths PASSED
+tests/test_ai_service.py::test_generate_world_context_validates_empty_fields PASSED
+tests/test_ai_service.py::test_generate_world_context_handles_json_in_code_block PASSED
+tests/test_ai_service.py::test_generate_world_context_repairs_truncated_json PASSED
+
+============================== 79 passed in 3.95s ==============================
+```
 
 ## E2E Validation Points
 
-When E2E testing, verify:
-1. AIConfig can be instantiated with custom values for all 4 new prompts
-2. Saving and loading game state preserves custom prompt values
-3. AI service can format prompts using the new templates with appropriate context
+The new method should be validated with actual LLM calls to verify:
+1. The prompt produces valid JSON with theme_essence, naming_style, and tone
+2. Different themes (fantasy, cyberpunk, horror, etc.) produce thematically appropriate context
+3. The generated WorldContext can be serialized/deserialized via `to_dict()`/`from_dict()`
+4. Error handling works correctly when API returns malformed responses
