@@ -356,7 +356,8 @@ class TestPlayerCast:
         assert victory is False
         assert enemy.is_alive() is True
 
-    def test_player_cast_ignores_enemy_defense(self):
+    @patch('random.random', return_value=0.99)  # Prevent critical hit
+    def test_player_cast_ignores_enemy_defense(self, mock_random):
         """Spec: Magic attack should bypass enemy defense."""
         player = Character(name="Hero", strength=5, dexterity=10, intelligence=10, level=1)
         enemy = Enemy(
