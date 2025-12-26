@@ -807,6 +807,42 @@ class CombatEncounter:
 
         return False, "You slip into the shadows, preparing to strike..."
 
+    def player_hide(self) -> Tuple[bool, str]:
+        """
+        Player hides to become untargetable for 1 turn.
+
+        Costs 10 stamina. Applies "Hidden" status effect that makes
+        enemies skip attacking the player for 1 turn.
+
+        Returns:
+            Tuple of (victory, message)
+            - victory: Always False (combat continues)
+            - message: Description of hide action or error message
+        """
+        # Check if player is stunned
+        stun_msg = self._check_and_consume_stun()
+        if stun_msg:
+            return False, stun_msg
+
+        # Check stamina cost (10 stamina)
+        if not self.player.use_stamina(10):
+            return False, f"Not enough stamina! ({self.player.stamina}/{self.player.max_stamina})"
+
+        # Record action for combo tracking
+        self._record_action("hide")
+
+        # Apply hidden effect (duration 1: lasts through enemy turn)
+        hidden_effect = StatusEffect(
+            name="Hidden",
+            effect_type="hidden",
+            damage_per_turn=0,
+            duration=1,
+            stat_modifier=0.0
+        )
+        self.player.apply_status_effect(hidden_effect)
+
+        return False, "You duck into cover, becoming harder to target!"
+
     def player_bash(self, target: str = "") -> Tuple[bool, str]:
         """
         Warrior performs a stunning bash attack.
@@ -1404,6 +1440,20 @@ class CombatEncounter:
 
         messages = []
         total_damage = 0
+
+        # Check if player is hidden (untargetable this turn)
+        if self.player.is_hidden():
+            messages.append("You remain hidden as enemies search for you...")
+            # Tick status effects (hidden will expire)
+            status_messages = self.player.tick_status_effects()
+            messages.extend(status_messages)
+            # Still tick enemy status effects
+            for enemy in living:
+                enemy_status_messages = enemy.tick_status_effects()
+                messages.extend(enemy_status_messages)
+            # Still regenerate stamina
+            self.player.regen_stamina(1)
+            return "\n".join(messages) + f"\nYou have {self.player.health}/{self.player.max_health} HP remaining."
 
         for enemy in living:
             # Check for player dodge (stealth or DEX-based)

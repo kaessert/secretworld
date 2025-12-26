@@ -189,6 +189,7 @@ Status effects are cleared when combat ends.
 - `heal` (hl) - **Mage only**: Cast a healing spell on yourself (costs 25 mana). Restores INT × 2 HP (capped at max health).
 - `bash [target]` (ba) - **Warrior only**: Shield bash an enemy (costs 15 stamina). Deals 0.75x STR-based damage but stuns the target for 1 turn. Targeting works like `attack`.
 - `sneak` (sn) - **Rogue only**: Enter stealth mode for 1 turn (costs 10 stamina). Next attack deals 1.5x backstab damage. Higher DEX increases dodge chance while stealthed (DEX × 5%, capped at 75%). Stealth breaks if you take damage.
+- `hide` (hd) - Become hidden for 1 turn (costs 10 stamina). While hidden, enemies skip attacking you. The effect expires after the enemy turn.
 - `bless` (bs) - **Cleric only**: Bless your party (costs 20 mana). Grants "Blessed" status effect (+25% attack damage) for 3 turns to player and all companions.
 - `smite [target]` (sm) - **Cleric only**: Channel holy energy at an enemy (costs 15 mana). Deals INT × 2.5 damage (ignores defense), or INT × 5.0 damage against undead. 30% chance to stun undead for 1 turn. Targeting works like `attack`.
 - `use <item>` (u) - Use a consumable item (e.g., health potion) - counts as your turn

@@ -50,7 +50,7 @@ logger = logging.getLogger(__name__)
 
 # All known commands that the game recognizes
 KNOWN_COMMANDS: set[str] = {
-    "look", "go", "save", "quit", "attack", "defend", "block", "flee", "status", "cast", "sneak", "bash",
+    "look", "go", "save", "quit", "attack", "defend", "block", "flee", "status", "cast", "sneak", "bash", "hide",
     "fireball", "ice_bolt", "heal",  # Mage-specific spells
     "bless", "smite",  # Cleric-specific abilities
     "stance",  # Fighting stance command
@@ -123,7 +123,7 @@ def parse_command(command_str: str) -> tuple[str, list[str]]:
         "d": "defend", "bl": "block", "f": "flee", "s": "status", "i": "inventory",
         "m": "map", "wm": "worldmap", "h": "help", "t": "talk", "u": "use", "e": "equip",
         "q": "quests", "dr": "drop", "r": "rest", "stats": "status",
-        "b": "bestiary", "sn": "sneak", "ba": "bash", "lp": "pick", "o": "open", "sr": "search", "prof": "proficiency",
+        "b": "bestiary", "sn": "sneak", "ba": "bash", "hd": "hide", "lp": "pick", "o": "open", "sr": "search", "prof": "proficiency",
         # Mage spell aliases
         "fb": "fireball", "ib": "ice_bolt", "hl": "heal",
         # Cleric ability aliases

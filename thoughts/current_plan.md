@@ -1,150 +1,171 @@
-# Weapon Proficiencies System - Implementation Plan
+# Implementation Plan: `hide` Command in Combat
 
 ## Feature Spec
+Add `hide` combat command that makes the player untargetable for 1 turn (enemies skip attacking them). Uses the player's action and costs stamina. Any class can use it (not Rogue-only like sneak).
 
-Implement a weapon proficiency system where using a weapon type (sword, axe, dagger, mace, bow, staff) increases skill with it, providing damage bonuses and eventually unlocking special moves.
-
-### Weapon Types
-- **Sword**: Balanced, medium damage
-- **Axe**: High damage, slower
-- **Dagger**: Fast, lower damage, crit bonus
-- **Mace**: Armor penetration (ignores some defense)
-- **Bow**: Ranged (first strike bonus)
-- **Staff**: Magic-focused (spell damage bonus)
-
-### Proficiency Levels (0-100 XP per type)
-| Level | XP Required | Damage Bonus | Special |
-|-------|-------------|--------------|---------|
-| Novice | 0 | +0% | - |
-| Apprentice | 25 | +5% | - |
-| Journeyman | 50 | +10% | Unlock special move |
-| Expert | 75 | +15% | - |
-| Master | 100 | +20% | Enhanced special move |
-
-### Special Moves (unlocked at Journeyman, enhanced at Master)
-- **Sword - Riposte**: Counter-attack after successful defend (costs 10 stamina)
-- **Axe - Cleave**: Deal 50% damage to second enemy (costs 15 stamina)
-- **Dagger - Expose**: Next attack has +25% crit chance (costs 10 stamina)
-- **Mace - Crush**: Ignore 50% of enemy defense (costs 15 stamina)
-- **Bow - Aimed Shot**: Deal 1.5x damage, can't be dodged (costs 15 stamina)
-- **Staff - Channel**: Next spell costs 50% less mana (costs 10 stamina)
-
----
+**Mechanics:**
+- Costs 10 stamina (same as sneak)
+- Applies "Hidden" status effect (`effect_type="hidden"`, duration=1)
+- While hidden: enemies skip attacking this target in `enemy_turn()`
+- Hidden is consumed after enemy turn (duration ticks down)
+- Costs the player's action (enemy turn still happens)
 
 ## Implementation Steps
 
-### 1. Create WeaponType enum and proficiency model
-**File**: `src/cli_rpg/models/weapon_proficiency.py` (new file)
+### 1. Add `is_hidden()` helper to Character model
+**File:** `src/cli_rpg/models/character.py`
 
+Add after `consume_stealth()` method (~line 786):
 ```python
-class WeaponType(Enum):
-    SWORD = "sword"
-    AXE = "axe"
-    DAGGER = "dagger"
-    MACE = "mace"
-    BOW = "bow"
-    STAFF = "staff"
-    UNKNOWN = "unknown"  # For weapons that don't fit categories
+def is_hidden(self) -> bool:
+    """Check if character has an active hidden effect.
 
-class ProficiencyLevel(Enum):
-    NOVICE = "Novice"
-    APPRENTICE = "Apprentice"
-    JOURNEYMAN = "Journeyman"
-    EXPERT = "Expert"
-    MASTER = "Master"
-
-@dataclass
-class WeaponProficiency:
-    weapon_type: WeaponType
-    xp: int = 0  # 0-100
-
-    def get_level() -> ProficiencyLevel
-    def get_damage_bonus() -> float  # Returns multiplier (1.0, 1.05, 1.10, 1.15, 1.20)
-    def can_use_special() -> bool  # True if Journeyman+
-    def is_special_enhanced() -> bool  # True if Master
-    def gain_xp(amount: int) -> Optional[str]  # Returns level-up message
-    def to_dict() / from_dict()  # Serialization
+    Returns:
+        True if character has a hidden effect, False otherwise.
+    """
+    return any(e.effect_type == "hidden" for e in self.status_effects)
 ```
 
-### 2. Add weapon_type field to Item model
-**File**: `src/cli_rpg/models/item.py`
+### 2. Add `player_hide()` method to CombatEncounter
+**File:** `src/cli_rpg/combat.py`
 
-- Add `weapon_type: Optional[WeaponType] = None` field
-- Update `to_dict()` and `from_dict()` for serialization
-- Update `__str__()` to show weapon type for weapons
+Add method after `player_sneak()` (~line 809):
+```python
+def player_hide(self) -> Tuple[bool, str]:
+    """
+    Player hides to become untargetable for 1 turn.
 
-### 3. Add proficiencies dict to Character model
-**File**: `src/cli_rpg/models/character.py`
+    Costs 10 stamina. Applies "Hidden" status effect that makes
+    enemies skip attacking the player for 1 turn.
 
-- Add `weapon_proficiencies: Dict[WeaponType, WeaponProficiency]` field
-- Add `get_weapon_proficiency(weapon_type)` method
-- Add `gain_weapon_xp(weapon_type, amount)` method (called after attacks)
-- Update `to_dict()` and `from_dict()` for serialization (backward compatible)
+    Returns:
+        Tuple of (victory, message)
+        - victory: Always False (combat continues)
+        - message: Description of hide action or error message
+    """
+    # Check if player is stunned
+    stun_msg = self._check_and_consume_stun()
+    if stun_msg:
+        return False, stun_msg
 
-### 4. Integrate proficiency damage bonus in combat
-**File**: `src/cli_rpg/combat.py`
+    # Check stamina cost (10 stamina)
+    if not self.player.use_stamina(10):
+        return False, f"Not enough stamina! ({self.player.stamina}/{self.player.max_stamina})"
 
-- In `player_attack()`: Get equipped weapon type, apply proficiency damage bonus
-- After successful attack: Call `player.gain_weapon_xp(weapon_type, 1)`
-- XP gain: 1 XP per attack with that weapon type
+    # Record action for combo tracking
+    self._record_action("hide")
 
-### 5. Add weapon type inference for loot generation
-**File**: `src/cli_rpg/combat.py`
+    # Apply hidden effect (duration 1: lasts through enemy turn)
+    hidden_effect = StatusEffect(
+        name="Hidden",
+        effect_type="hidden",
+        damage_per_turn=0,
+        duration=1,
+        stat_modifier=0.0
+    )
+    self.player.apply_status_effect(hidden_effect)
 
-- Update `generate_loot()` to assign weapon_type based on item name
-- Mapping: "Sword" -> SWORD, "Dagger" -> DAGGER, "Axe" -> AXE, etc.
+    return False, "You duck into cover, becoming harder to target!"
+```
 
-### 6. Add `proficiency` command to view proficiencies
-**File**: `src/cli_rpg/main.py`
+### 3. Modify `enemy_turn()` to skip attacking hidden players
+**File:** `src/cli_rpg/combat.py`
 
-- Add `proficiency` / `prof` command to show weapon proficiency levels
-- Display: weapon type, current level, XP progress bar, damage bonus
+At the start of the enemy loop in `enemy_turn()` (~line 1403), add check before processing enemies:
+```python
+# Check if player is hidden (untargetable this turn)
+if self.player.is_hidden():
+    messages.append("You remain hidden as enemies search for you...")
+    # Tick status effects (hidden will expire)
+    status_messages = self.player.tick_status_effects()
+    messages.extend(status_messages)
+    # Still tick enemy status effects
+    for enemy in living:
+        enemy_status_messages = enemy.tick_status_effects()
+        messages.extend(enemy_status_messages)
+    # Still regenerate stamina
+    self.player.regen_stamina(1)
+    return "\n".join(messages) + f"\nYou have {self.player.health}/{self.player.max_health} HP remaining."
+```
 
-### 7. Add special move commands (Phase 2 - Future)
-**Note**: Special moves deferred to keep initial implementation focused. The proficiency system tracks progress; special moves can be added later.
+### 4. Add command alias in game_state.py
+**File:** `src/cli_rpg/game_state.py`
 
----
+Add to `COMMAND_ALIASES` dict:
+```python
+"hd": "hide",
+```
+
+Add to `KNOWN_COMMANDS` set:
+```python
+"hide",
+```
+
+### 5. Wire up `hide` command in main.py
+**File:** `src/cli_rpg/main.py`
+
+Add command handler after the `sneak` handler (~line 476):
+```python
+elif command == "hide":
+    victory, message = combat.player_hide()
+    output = f"\n{message}"
+
+    # If hide failed (not enough stamina or stunned), don't trigger enemy turn
+    if "Not enough stamina" not in message and "stunned" not in message.lower():
+        # Enemy turn
+        enemy_turn_message = combat.enemy_turn()
+        output += f"\n\n{enemy_turn_message}"
+
+        # Check if player died
+        if not player.is_alive():
+            output += f"\n\n{combat.end_combat(victory=False)}"
+            sound_death()
+            game_state.current_combat = None
+
+    return (True, output)
+```
+
+Update combat commands set (~line 952):
+```python
+combat_commands = {"attack", "defend", "block", "cast", "fireball", "ice_bolt", "heal", "bless", "smite", "flee", "sneak", "bash", "hide", "stance", "use", "status", "help", "quit"}
+```
+
+Update error message (~line 957):
+```python
+return (True, "\n✗ Can't do that during combat! Use: attack, defend, block, cast, flee, sneak, hide, use, status, help, or quit")
+```
+
+Update available commands (~line 2358):
+```python
+return ["attack", "defend", "block", "cast", "flee", "hide", "use", "status", "help", "quit"]
+```
+
+### 6. Update help text
+**File:** `src/cli_rpg/main.py`
+
+In `get_command_reference()` function, add to combat commands section:
+```python
+hide                 - Hide to become untargetable for 1 turn (10 stamina)
+```
 
 ## Test Plan
 
-### Unit Tests (`tests/test_weapon_proficiency.py`)
+**File:** `tests/test_hide.py` (new file)
 
-1. **WeaponProficiency model tests**:
-   - Test XP gain and level transitions (0→25→50→75→100)
-   - Test damage bonus returns correct values for each level
-   - Test `can_use_special()` at each level
-   - Test serialization/deserialization
+Tests to implement:
+1. `test_hide_applies_hidden_effect` - Hide command applies hidden status effect
+2. `test_hide_works_for_all_classes` - All 5 classes can use hide (parametrized)
+3. `test_hide_costs_stamina` - Hide costs 10 stamina
+4. `test_hide_fails_without_stamina` - Hide fails if <10 stamina
+5. `test_hidden_player_not_attacked` - Enemies skip attacking hidden player
+6. `test_hidden_expires_after_enemy_turn` - Hidden effect expires after 1 turn
+7. `test_hide_blocked_when_stunned` - Cannot hide while stunned
+8. `test_is_hidden_returns_true_when_hidden` - Character.is_hidden() works correctly
 
-2. **Character proficiency tracking tests**:
-   - Test `get_weapon_proficiency()` returns default Novice for new types
-   - Test `gain_weapon_xp()` correctly updates proficiency
-   - Test proficiencies persist through save/load
+## Files Modified
 
-3. **Item weapon_type tests**:
-   - Test weapon_type field serialization
-   - Test backward compatibility (old items without weapon_type)
-
-### Integration Tests (`tests/test_combat_proficiency.py`)
-
-4. **Combat proficiency integration tests**:
-   - Test attacking with equipped weapon grants 1 XP to correct type
-   - Test proficiency damage bonus applied to attacks
-   - Test no XP gain when attacking with bare hands (no weapon equipped)
-
-5. **Loot generation tests**:
-   - Test generated weapons have correct weapon_type assigned
-   - Test existing weapon types (Sword, Dagger, Axe, Mace) map correctly
-
----
-
-## Files to Create/Modify
-
-| File | Action | Description |
-|------|--------|-------------|
-| `src/cli_rpg/models/weapon_proficiency.py` | CREATE | New model file |
-| `src/cli_rpg/models/item.py` | MODIFY | Add weapon_type field |
-| `src/cli_rpg/models/character.py` | MODIFY | Add proficiencies tracking |
-| `src/cli_rpg/combat.py` | MODIFY | Apply bonus, grant XP |
-| `src/cli_rpg/main.py` | MODIFY | Add proficiency command |
-| `tests/test_weapon_proficiency.py` | CREATE | Unit tests |
-| `tests/test_combat_proficiency.py` | CREATE | Integration tests |
+1. `src/cli_rpg/models/character.py` - Add `is_hidden()` method
+2. `src/cli_rpg/combat.py` - Add `player_hide()` method, modify `enemy_turn()`
+3. `src/cli_rpg/game_state.py` - Add alias and to KNOWN_COMMANDS
+4. `src/cli_rpg/main.py` - Wire up hide command, update help text
+5. `tests/test_hide.py` - New test file (8 tests)

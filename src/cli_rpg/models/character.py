@@ -785,6 +785,14 @@ class Character:
                 return True
         return False
 
+    def is_hidden(self) -> bool:
+        """Check if character has an active hidden effect.
+
+        Returns:
+            True if character has a hidden effect, False otherwise.
+        """
+        return any(e.effect_type == "hidden" for e in self.status_effects)
+
     def tick_status_effects(self) -> List[str]:
         """Process one turn of all status effects.
 

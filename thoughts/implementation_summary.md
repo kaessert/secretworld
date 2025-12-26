@@ -1,68 +1,67 @@
-# Weapon Proficiencies System - Implementation Summary
+# Implementation Summary: `hide` Command in Combat
 
-## What Was Implemented
+## What was implemented
 
-The weapon proficiency system was fully implemented as specified in the plan. All features are complete and tested.
+Added a new `hide` combat command that makes the player untargetable for 1 turn. Enemies skip attacking hidden players, making it a defensive tactical option available to all classes.
 
-### New Files Created
-- `src/cli_rpg/models/weapon_proficiency.py` - Core proficiency model
+### Features implemented:
+- **Command**: `hide` (alias: `hd`)
+- **Effect**: Applies "Hidden" status effect for 1 turn
+- **Cost**: 10 stamina (same as sneak)
+- **Availability**: All classes (unlike sneak which is Rogue-only)
+- **Duration**: Expires after enemy turn
 
 ### Files Modified
-- `src/cli_rpg/models/item.py` - Added `weapon_type` field
-- `src/cli_rpg/models/character.py` - Added `weapon_proficiencies` dict and methods
-- `src/cli_rpg/combat.py` - Integrated proficiency damage bonus and XP gain
-- `src/cli_rpg/main.py` - Added `proficiency` command
-- `src/cli_rpg/game_state.py` - Added command alias and valid command
 
-### Test Files Created
-- `tests/test_weapon_proficiency.py` - 24 unit tests
-- `tests/test_combat_proficiency.py` - 11 integration tests
+1. **`src/cli_rpg/models/character.py`**
+   - Added `is_hidden()` method to check if character has active hidden effect
 
-## Features Implemented
+2. **`src/cli_rpg/combat.py`**
+   - Added `player_hide()` method that costs 10 stamina and applies hidden effect
+   - Modified `enemy_turn()` to skip attacking hidden players (with proper status effect ticking and stamina regeneration)
 
-### 1. WeaponType Enum
-Six weapon types (SWORD, AXE, DAGGER, MACE, BOW, STAFF) plus UNKNOWN for unrecognized weapons.
+3. **`src/cli_rpg/game_state.py`**
+   - Added "hide" to `KNOWN_COMMANDS` set
+   - Added "hd" alias to command aliases dict
 
-### 2. ProficiencyLevel System
-- **Novice** (0 XP): +0% damage
-- **Apprentice** (25 XP): +5% damage
-- **Journeyman** (50 XP): +10% damage, unlocks special move
-- **Expert** (75 XP): +15% damage
-- **Master** (100 XP): +20% damage, enhanced special move
+4. **`src/cli_rpg/main.py`**
+   - Wired up `hide` command handler in combat loop
+   - Added "hide" to `combat_commands` set
+   - Updated error messages to include "hide" option
+   - Added help text for hide command
 
-### 3. Combat Integration
-- Attacking with an equipped weapon grants 1 XP to that weapon type
-- Proficiency damage bonus is applied to all attacks
-- Level-up messages displayed in combat when proficiency increases
-- No XP gained for bare-hand attacks or UNKNOWN weapon types
-
-### 4. Loot Generation
-- Generated weapon loot automatically gets `weapon_type` assigned via `infer_weapon_type()`
-- Keywords in item names map to appropriate weapon types
-
-### 5. Proficiency Command
-- `proficiency` or `prof` command shows weapon proficiency levels
-- Displays progress bars, XP, and damage bonuses for each trained weapon type
-
-### 6. Persistence
-- Weapon proficiencies save/load correctly with `to_dict()` / `from_dict()`
-- Backward compatible with old saves (defaults to empty proficiencies)
+5. **`tests/test_hide.py`** (new file)
+   - 13 tests covering all spec requirements
 
 ## Test Results
 
-All 35 tests pass:
-- 24 unit tests in `test_weapon_proficiency.py`
-- 11 integration tests in `test_combat_proficiency.py`
+All 13 new tests pass:
+- `test_hide_applies_hidden_effect` - Hide applies hidden status effect
+- `test_hide_works_for_all_classes` (5 parametrized tests) - All classes can use hide
+- `test_hide_costs_10_stamina` - Stamina cost verified
+- `test_hide_fails_without_stamina` - Proper error when insufficient stamina
+- `test_hidden_player_not_attacked` - Enemies skip attacking hidden player
+- `test_hidden_expires_after_enemy_turn` - Hidden effect expires after 1 turn
+- `test_hide_blocked_when_stunned` - Cannot hide while stunned
+- `test_is_hidden_returns_true_when_hidden` - Character.is_hidden() works correctly
+- `test_is_hidden_returns_false_when_not_hidden` - is_hidden() returns False when not hidden
 
-```
-============================== 35 passed in 0.58s ==============================
-```
+Full test suite: **3016 passed** in 64.46s
+
+## Technical Details
+
+- The hidden effect uses `effect_type="hidden"` with duration 1
+- When hidden, `enemy_turn()` short-circuits before enemy attacks, but still:
+  - Ticks player status effects (so hidden expires)
+  - Ticks enemy status effects (DoTs, etc.)
+  - Regenerates player stamina
+- The command follows the same pattern as sneak/bash for stun checking and stamina handling
+- Help text includes `hide (hd)` in the Combat Commands section
 
 ## E2E Validation Points
 
-1. Create a new character and verify no proficiencies exist with `prof` command
-2. Equip a weapon (e.g., Iron Sword) and engage in combat
-3. After attacking, verify sword proficiency gains 1 XP
-4. Level up proficiency to Apprentice (25 XP) and verify +5% damage bonus
-5. Save game, reload, and verify proficiencies persist
-6. Pick up weapon loot and verify it has correct weapon_type assigned
+1. Start combat and use `hide` command - verify "hidden" message appears
+2. Verify enemy doesn't attack during their turn while hidden
+3. Verify hidden effect expires after one enemy turn
+4. Test with insufficient stamina (<10) - should fail with error message
+5. Use `help` command during combat - verify `hide` is listed

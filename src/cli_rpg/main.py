@@ -88,6 +88,7 @@ def get_command_reference() -> str:
         "  smite (sm) [target] - Holy damage, 2x vs undead (Cleric only, 15 mana)",
         "  sneak (sn)    - Enter stealth mode (Rogue only)",
         "  bash (ba) [target] - Stun an enemy (Warrior only, 15 stamina)",
+        "  hide (hd)     - Hide to become untargetable for 1 turn (10 stamina)",
         "  stance (st) [type] - Change fighting stance (balanced/aggressive/defensive/berserker)",
         "  flee (f)      - Attempt to flee from combat",
         "  use (u) <item> - Use a consumable item",
@@ -469,6 +470,24 @@ def handle_combat_command(game_state: GameState, command: str, args: list[str], 
                 death_message = combat.end_combat(victory=False)
                 output += f"\n{death_message}"
                 output += "\n\n=== GAME OVER ==="
+                sound_death()
+                game_state.current_combat = None
+
+        return (True, output)
+
+    elif command == "hide":
+        victory, message = combat.player_hide()
+        output = f"\n{message}"
+
+        # If hide failed (not enough stamina or stunned), don't trigger enemy turn
+        if "Not enough stamina" not in message and "stunned" not in message.lower():
+            # Enemy turn
+            enemy_turn_message = combat.enemy_turn()
+            output += f"\n\n{enemy_turn_message}"
+
+            # Check if player died
+            if not player.is_alive():
+                output += f"\n\n{combat.end_combat(victory=False)}"
                 sound_death()
                 game_state.current_combat = None
 
@@ -949,15 +968,15 @@ def handle_combat_command(game_state: GameState, command: str, args: list[str], 
 
     elif command == "unknown":
         # Provide "did you mean?" suggestion during combat
-        combat_commands = {"attack", "defend", "block", "cast", "fireball", "ice_bolt", "heal", "bless", "smite", "flee", "sneak", "bash", "stance", "use", "status", "help", "quit"}
+        combat_commands = {"attack", "defend", "block", "cast", "fireball", "ice_bolt", "heal", "bless", "smite", "flee", "sneak", "bash", "hide", "stance", "use", "status", "help", "quit"}
         if args and args[0]:
             suggestion = suggest_command(args[0], combat_commands)
             if suggestion:
                 return (True, f"\n✗ Unknown command '{args[0]}'. Did you mean '{suggestion}'?")
-        return (True, "\n✗ Can't do that during combat! Use: attack, defend, block, cast, flee, sneak, use, status, help, or quit")
+        return (True, "\n✗ Can't do that during combat! Use: attack, defend, block, cast, flee, sneak, hide, use, status, help, or quit")
 
     else:
-        return (True, "\n✗ Can't do that during combat! Use: attack, defend, block, cast, flee, sneak, use, status, help, or quit")
+        return (True, "\n✗ Can't do that during combat! Use: attack, defend, block, cast, flee, sneak, hide, use, status, help, or quit")
 
 
 def handle_exploration_command(game_state: GameState, command: str, args: list[str], non_interactive: bool = False) -> tuple[bool, str]:

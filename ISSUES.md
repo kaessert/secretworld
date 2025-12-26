@@ -776,13 +776,16 @@ Player decisions should have lasting impact on the world and story.
 - Some quests can be resolved through talking instead of fighting
 
 ### Stealth & sneaking
-**Status**: ACTIVE
+**Status**: ACTIVE (Partial)
 
 Let players avoid combat through cunning.
 
-- `sneak` command to enter stealth mode (based on DEX, armor weight, light level)
-- While sneaking: reduced detection, can `backstab` for bonus damage
-- `hide` in combat to become untargetable for 1 turn (costs next action)
+**Implemented**:
+- ✅ `sneak` command for Rogues to enter stealth mode (costs 10 stamina, 1.5x backstab damage, DEX-based dodge)
+- ✅ `hide` command in combat to become untargetable for 1 turn (costs 10 stamina, available to all classes)
+
+**Remaining features**:
+- `sneak` command to avoid encounters when exploring (based on DEX, armor weight, light level)
 - Enemies have perception stats - some are blind, some have keen senses
 - Heavy armor makes noise, light sources reveal you
 - Stealth kills grant bonus XP ("clean kill" bonus)
