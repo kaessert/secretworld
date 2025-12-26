@@ -475,3 +475,61 @@ def test_recipes_list_shows_all_recipes():
     # Check each recipe appears in output
     for key, recipe in CRAFTING_RECIPES.items():
         assert recipe["name"] in output
+
+
+# =============================================================================
+# Tests for new crafting recipes (healing salve, bandage, wooden shield)
+# =============================================================================
+
+
+def test_healing_salve_recipe_exists():
+    """Spec: healing salve recipe should exist (2 Herbs → 25 HP heal)."""
+    from cli_rpg.crafting import CRAFTING_RECIPES
+
+    assert "healing salve" in CRAFTING_RECIPES
+    recipe = CRAFTING_RECIPES["healing salve"]
+    assert recipe["ingredients"] == {"Herbs": 2}
+    assert recipe["output"]["heal_amount"] == 25
+
+
+def test_bandage_recipe_exists():
+    """Spec: bandage recipe should exist (2 Fiber → 15 HP heal)."""
+    from cli_rpg.crafting import CRAFTING_RECIPES
+
+    assert "bandage" in CRAFTING_RECIPES
+    recipe = CRAFTING_RECIPES["bandage"]
+    assert recipe["ingredients"] == {"Fiber": 2}
+    assert recipe["output"]["heal_amount"] == 15
+
+
+def test_wooden_shield_recipe_exists():
+    """Spec: wooden shield recipe should exist (2 Wood + 1 Fiber → +2 defense)."""
+    from cli_rpg.crafting import CRAFTING_RECIPES
+
+    assert "wooden shield" in CRAFTING_RECIPES
+    recipe = CRAFTING_RECIPES["wooden shield"]
+    assert recipe["ingredients"] == {"Wood": 2, "Fiber": 1}
+    assert recipe["output"]["defense_bonus"] == 2
+
+
+def test_craft_healing_salve_works():
+    """Spec: crafting healing salve consumes 2 Herbs and creates salve."""
+    from cli_rpg.crafting import execute_craft
+
+    game_state = make_game_state()
+    inv = game_state.current_character.inventory
+    # Add 2 Herbs
+    for _ in range(2):
+        inv.add_item(
+            Item(
+                name="Herbs",
+                description="Healing herbs",
+                item_type=ItemType.CONSUMABLE,
+                heal_amount=10,
+            )
+        )
+    success, msg = execute_craft(game_state, "healing salve")
+    assert success is True
+    salve = inv.find_item_by_name("Healing Salve")
+    assert salve is not None
+    assert salve.heal_amount == 25

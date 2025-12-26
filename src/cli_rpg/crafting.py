@@ -148,6 +148,36 @@ CRAFTING_RECIPES = {
             "damage_bonus": 3,
         },
     },
+    "healing salve": {
+        "name": "Healing Salve",
+        "ingredients": {"Herbs": 2},
+        "output": {
+            "name": "Healing Salve",
+            "description": "A soothing salve made from crushed healing herbs.",
+            "item_type": ItemType.CONSUMABLE,
+            "heal_amount": 25,
+        },
+    },
+    "bandage": {
+        "name": "Bandage",
+        "ingredients": {"Fiber": 2},
+        "output": {
+            "name": "Bandage",
+            "description": "A simple bandage woven from plant fibers.",
+            "item_type": ItemType.CONSUMABLE,
+            "heal_amount": 15,
+        },
+    },
+    "wooden shield": {
+        "name": "Wooden Shield",
+        "ingredients": {"Wood": 2, "Fiber": 1},
+        "output": {
+            "name": "Wooden Shield",
+            "description": "A sturdy wooden shield bound with fiber.",
+            "item_type": ItemType.ARMOR,
+            "defense_bonus": 2,
+        },
+    },
 }
 
 
@@ -325,6 +355,7 @@ def execute_craft(game_state: "GameState", recipe_name: str) -> Tuple[bool, str]
         item_type=output_data["item_type"],
         damage_bonus=output_data.get("damage_bonus", 0),
         defense_bonus=output_data.get("defense_bonus", 0),
+        heal_amount=output_data.get("heal_amount", 0),
         light_duration=output_data.get("light_duration", 0),
     )
     inventory.add_item(crafted_item)

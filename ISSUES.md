@@ -1000,12 +1000,15 @@ Players should be able to create items, not just buy/find them.
 - ✅ Cooldown persistence through save/load
 - ✅ `recipes` command to view all available crafting recipes
 - ✅ `craft <recipe>` command (alias: `cr`) to craft items from resources
-- ✅ 5 crafting recipes:
+- ✅ 8 crafting recipes:
   - Torch (1 Wood + 1 Fiber): Consumable light source, 10 moves of light
   - Iron Sword (2 Iron Ore + 1 Wood): Weapon, +5 damage
   - Iron Armor (3 Iron Ore + 1 Fiber): Armor, +4 defense
   - Rope (2 Fiber): Misc item
   - Stone Hammer (2 Stone + 1 Wood): Weapon, +3 damage
+  - Healing Salve (2 Herbs): Consumable, heals 25 HP
+  - Bandage (2 Fiber): Consumable, heals 15 HP
+  - Wooden Shield (2 Wood + 1 Fiber): Armor, +2 defense
 - ✅ Smart inventory space check (accounts for ingredients being consumed)
 - ✅ Case-insensitive recipe names
 - ✅ Specific error messages for missing ingredients
