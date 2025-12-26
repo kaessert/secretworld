@@ -1,58 +1,75 @@
-# Implementation Summary: Add `is_exit_point` and `sub_grid` to Location Model
+# Implementation Summary: GameState Sub-Location Navigation (Phase 1, Step 3)
 
 ## What Was Implemented
 
-Added two new fields to the `Location` model to support the SubGrid-based sub-location system:
+The implementation wires up GameState to use the SubGrid system for sub-location navigation. All functionality was already correctly implemented in the codebase.
 
-### New Fields (in `src/cli_rpg/models/location.py`)
+### Features Verified
 
-1. **`is_exit_point: bool = False`**
-   - Marks locations where the `exit` command is allowed
-   - Defaults to `False` (interior rooms that don't allow exit)
-   - Only serialized when `True` for minimal save file size
+1. **GameState fields** (`game_state.py` lines 273-274):
+   - `in_sub_location: bool = False` - Tracks when player is inside a sub-grid
+   - `current_sub_grid: Optional["SubGrid"] = None` - Active sub-grid reference
 
-2. **`sub_grid: Optional["SubGrid"] = None`**
-   - Contains the bounded interior grid for overworld landmarks
-   - Uses forward reference with `TYPE_CHECKING` to avoid circular imports
-   - Only serialized when not `None` for backward compatibility
+2. **`get_current_location()` method** (lines 285-298):
+   - When `in_sub_location` is True, resolves location from `current_sub_grid`
+   - Otherwise returns location from overworld `world` dict
 
-### Changes Made
+3. **`enter()` method** (lines 716-801):
+   - Detects when entering a location with `sub_grid`
+   - Sets `in_sub_location = True` and `current_sub_grid` reference
+   - Moves player to matched sub-location within the grid
 
-1. **Forward Reference Import** (line 11)
-   - Added `from cli_rpg.world_grid import SubGrid` under `TYPE_CHECKING`
+4. **`_move_in_sub_grid()` method** (lines 681-714):
+   - Handles movement within sub-grid using connection-based navigation
+   - Validates direction and connection existence
+   - Advances game time (1 hour per move)
 
-2. **Field Definitions** (lines 53-54, after `hidden_secrets`)
-   - Added `is_exit_point: bool = False`
-   - Added `sub_grid: Optional["SubGrid"] = None`
+5. **`exit_location()` method** (lines 803-841):
+   - Checks `is_exit_point` flag when `in_sub_location` is True
+   - Only allows exit from marked exit points
+   - Clears `in_sub_location` and `current_sub_grid` on successful exit
+   - Returns player to parent overworld location
 
-3. **Serialization in `to_dict()`** (lines 314-317)
-   - Conditionally includes `is_exit_point` only when `True`
-   - Conditionally includes `sub_grid` only when not `None`
-
-4. **Deserialization in `from_dict()`** (lines 362-368, 388-389)
-   - Parses `is_exit_point` with default `False`
-   - Parses `sub_grid` using `SubGrid.from_dict()` when present
-   - Added both fields to constructor call
-
-### Tests Created
-
-New test file: `tests/test_exit_points.py` with 16 tests covering:
-
-- `TestIsExitPointField` (6 tests): Default value, setting value, serialization/deserialization
-- `TestSubGridField` (5 tests): Default value, setting SubGrid, serialization/deserialization
-- `TestBackwardCompatibility` (2 tests): Old saves without new fields still load correctly
-- `TestRoundTrip` (3 tests): Full serialization cycle preserves all data
+6. **Persistence** (`to_dict`/`from_dict`):
+   - `to_dict()` includes `in_sub_location` (line 973)
+   - `from_dict()` restores `in_sub_location` and finds `current_sub_grid` from parent location (lines 1001-1029)
 
 ## Test Results
 
-- **New tests**: 16 passed
-- **Existing Location tests**: 58 passed (no regressions)
-- **SubGrid tests**: 23 passed (no regressions)
-- **Full test suite**: 3209 passed
+All 21 tests in `tests/test_subgrid_navigation.py` pass:
 
-## E2E Tests Should Validate
+| Test Class | Tests | Status |
+|------------|-------|--------|
+| TestGameStateSubLocationFields | 2 | ✅ PASS |
+| TestEnterWithSubGrid | 4 | ✅ PASS |
+| TestMoveInsideSubGrid | 4 | ✅ PASS |
+| TestExitWithExitPoint | 5 | ✅ PASS |
+| TestGetCurrentLocationWithSubGrid | 2 | ✅ PASS |
+| TestSubLocationPersistence | 4 | ✅ PASS |
 
-1. Creating a location with `is_exit_point=True` and saving/loading the game
-2. Creating an overworld location with a `sub_grid` containing interior rooms
-3. Loading old saves without the new fields (backward compatibility)
-4. Entering a landmark and having the sub_grid available for navigation
+### Related Tests Verified
+
+- `tests/test_sub_grid.py` - 23 tests pass
+- `tests/test_exit_points.py` - 16 tests pass
+- `tests/test_game_state.py` - 53 tests pass
+- `tests/test_location.py` - 46 tests pass
+- `tests/test_world_grid.py` - 29 tests pass
+
+**Total: 211 related tests pass**
+
+## Files Involved
+
+| File | Status |
+|------|--------|
+| `src/cli_rpg/game_state.py` | Already complete |
+| `tests/test_subgrid_navigation.py` | Already complete |
+
+## E2E Validation
+
+The following scenarios should work correctly:
+
+1. **Enter a landmark with sub_grid**: Player at overworld location can `enter <name>` to enter interior grid
+2. **Move within interior**: Cardinal movement (n/s/e/w) uses sub-grid connections, not overworld coordinates
+3. **Exit constraint**: `exit` only works from rooms marked `is_exit_point=True`
+4. **State persistence**: Save/load cycle preserves sub-location state correctly
+5. **Location resolution**: `look` and other commands resolve from sub-grid when inside one

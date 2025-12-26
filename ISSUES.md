@@ -457,7 +457,7 @@ class ChunkManager:
 
 1. ✅ Create `SubGrid` class in `world_grid.py` - **DONE** (90 lines, 23 tests)
 2. ✅ Add `is_exit_point` and `sub_grid` to Location model - **DONE** (16 tests in `tests/test_exit_points.py`)
-3. Update GameState `enter()`, `exit_location()`, `move()`, `get_current_location()`
+3. ✅ Update GameState `enter()`, `exit_location()`, `move()`, `get_current_location()` - **DONE** (21 tests in `tests/test_subgrid_navigation.py`)
 4. Update map renderer for interior maps
 5. Fix `ai_world.py` `expand_area()` to use SubGrid
 6. Convert default world sub-locations to use SubGrid

@@ -3,8 +3,11 @@
 import difflib
 import logging
 import random
-from typing import Optional
+from typing import Optional, TYPE_CHECKING
 from cli_rpg.models.character import Character
+
+if TYPE_CHECKING:
+    from cli_rpg.world_grid import SubGrid
 from cli_rpg.models.game_time import GameTime
 from cli_rpg.models.location import Location
 from cli_rpg.models.npc import NPC
@@ -267,6 +270,8 @@ class GameState:
         self.gather_cooldown: int = 0  # Gather command cooldown in hours
         self.is_sneaking: bool = False  # Rogue exploration sneak mode
         self.factions: list[Faction] = []  # Faction reputation tracking
+        self.in_sub_location: bool = False  # True when inside a SubGrid
+        self.current_sub_grid: Optional["SubGrid"] = None  # Active sub-grid when inside one
 
     @property
     def is_in_conversation(self) -> bool:
@@ -280,9 +285,16 @@ class GameState:
     def get_current_location(self) -> Location:
         """Get the current Location object.
 
+        When inside a sub-grid, returns the location from the sub-grid.
+        Otherwise returns the location from the overworld.
+
         Returns:
             The Location object for the current location
         """
+        if self.in_sub_location and self.current_sub_grid is not None:
+            loc = self.current_sub_grid.get_by_name(self.current_location)
+            if loc is not None:
+                return loc
         return self.world[self.current_location]
 
     def _get_location_by_coordinates(
@@ -440,6 +452,10 @@ class GameState:
         # Block movement during conversation
         if self.is_in_conversation:
             return (False, "You're in a conversation. Say 'bye' to leave first.")
+
+        # Handle movement inside sub-location grid
+        if self.in_sub_location and self.current_sub_grid is not None:
+            return self._move_in_sub_grid(direction)
 
         from cli_rpg.world_grid import DIRECTION_OFFSETS
 
@@ -662,6 +678,41 @@ class GameState:
 
         return (True, message)
 
+    def _move_in_sub_grid(self, direction: str) -> tuple[bool, str]:
+        """Handle movement within a sub-location grid.
+
+        Args:
+            direction: The direction to move (north, south, east, west)
+
+        Returns:
+            Tuple of (success, message) where:
+            - success is True if move was successful, False otherwise
+            - message describes the result
+        """
+        current = self.get_current_location()
+
+        if direction not in {"north", "south", "east", "west"}:
+            return (False, "Invalid direction. Use: north, south, east, or west.")
+
+        if not current.has_connection(direction):
+            return (False, "You can't go that way.")
+
+        destination_name = current.get_connection(direction)
+        if destination_name is None:
+            return (False, "You can't go that way.")
+
+        destination = self.current_sub_grid.get_by_name(destination_name)
+
+        if destination is None:
+            return (False, "The path is blocked.")
+
+        self.current_location = destination.name
+
+        # Advance time by 1 hour for movement inside buildings
+        self.game_time.advance(1)
+
+        return (True, f"You head {direction} to {colors.location(self.current_location)}.")
+
     def enter(self, target_name: Optional[str] = None) -> tuple[bool, str]:
         """Enter a sub-location within the current overworld landmark.
 
@@ -693,24 +744,42 @@ class GameState:
         # Find matching sub-location (case-insensitive partial match)
         target_lower = target_name.lower()
         matched_location: Optional[str] = None
+        sub_grid_location: Optional[Location] = None
 
-        for sub_name in current.sub_locations:
-            if sub_name.lower().startswith(target_lower) or target_lower in sub_name.lower():
-                if sub_name in self.world:
-                    matched_location = sub_name
+        # First check if current location has a sub_grid
+        if current.sub_grid is not None:
+            # Look for target in sub_grid
+            for loc in current.sub_grid._by_name.values():
+                if loc.name.lower().startswith(target_lower) or target_lower in loc.name.lower():
+                    matched_location = loc.name
+                    sub_grid_location = loc
                     break
+
+        # Fall back to traditional sub_locations list (in world dict)
+        if matched_location is None:
+            for sub_name in current.sub_locations:
+                if sub_name.lower().startswith(target_lower) or target_lower in sub_name.lower():
+                    if sub_name in self.world:
+                        matched_location = sub_name
+                        break
 
         if matched_location is None:
             return (False, f"No such location: {target_name}")
 
-        # Move to sub-location
-        self.current_location = matched_location
+        # Handle sub_grid entry
+        if sub_grid_location is not None:
+            self.in_sub_location = True
+            self.current_sub_grid = current.sub_grid
+            self.current_location = matched_location
+        else:
+            # Traditional sub-location entry (in world dict)
+            self.current_location = matched_location
 
         # Build success message with look at new location
         message = f"You enter {colors.location(matched_location)}.\n\n{self.look()}"
 
         # Check for boss encounter in sub-location
-        sub_location = self.world[matched_location]
+        sub_location = sub_grid_location if sub_grid_location is not None else self.world[matched_location]
         if sub_location.boss_enemy and not sub_location.boss_defeated:
             # Spawn the boss
             boss = spawn_boss(
@@ -734,6 +803,9 @@ class GameState:
     def exit_location(self) -> tuple[bool, str]:
         """Exit from a sub-location back to the parent overworld landmark.
 
+        When in a sub-grid, only locations marked is_exit_point=True can be exited.
+        Exiting clears the sub-grid state and returns to the parent overworld location.
+
         Returns:
             Tuple of (success, message) where:
             - success is True if exit was successful, False otherwise
@@ -745,6 +817,10 @@ class GameState:
 
         current = self.get_current_location()
 
+        # Check if at exit point when in sub-location
+        if self.in_sub_location and not current.is_exit_point:
+            return (False, "You cannot exit from here. Find an exit point.")
+
         # Must have a parent location
         if current.parent_location is None:
             return (False, "You're not inside a landmark.")
@@ -755,6 +831,10 @@ class GameState:
 
         # Move to parent location
         self.current_location = current.parent_location
+
+        # Clear sub-location state
+        self.in_sub_location = False
+        self.current_sub_grid = None
 
         # Build success message with look at parent location
         message = f"You exit to {colors.location(self.current_location)}.\n\n{self.look()}"
@@ -890,6 +970,7 @@ class GameState:
             "forage_cooldown": self.forage_cooldown,
             "hunt_cooldown": self.hunt_cooldown,
             "gather_cooldown": self.gather_cooldown,
+            "in_sub_location": self.in_sub_location,
         }
     
     @classmethod
@@ -917,14 +998,35 @@ class GameState:
 
         # Get current location
         current_location = data["current_location"]
+        in_sub_location = data.get("in_sub_location", False)
 
         # Get theme (default to "fantasy" for backward compatibility)
         theme = data.get("theme", "fantasy")
 
+        # If in a sub-location, find the parent location for initial state
+        # The actual sub-grid location will be set after construction
+        initial_location = current_location
+        parent_sub_grid = None
+        if in_sub_location and current_location not in world:
+            # Find parent location that contains this sub-grid location
+            for loc in world.values():
+                if loc.sub_grid is not None:
+                    sub_grid_loc = loc.sub_grid.get_by_name(current_location)
+                    if sub_grid_loc is not None:
+                        initial_location = loc.name
+                        parent_sub_grid = loc.sub_grid
+                        break
+
         # Create game state
         game_state = cls(
-            character, world, current_location, ai_service=ai_service, theme=theme
+            character, world, initial_location, ai_service=ai_service, theme=theme
         )
+
+        # Restore actual current_location and sub-grid state
+        game_state.current_location = current_location
+        if in_sub_location:
+            game_state.in_sub_location = True
+            game_state.current_sub_grid = parent_sub_grid
 
         # Restore game_time if present (default to 6:00 for backward compatibility)
         if "game_time" in data:

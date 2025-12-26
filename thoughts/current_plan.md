@@ -1,88 +1,190 @@
-# Implementation Plan: Add `is_exit_point` and `sub_grid` to Location Model
+# Implementation Plan: GameState Sub-Location Navigation (Phase 1, Step 3)
 
-**Priority**: P0 BLOCKER (Phase 1, Step 2 of Sub-Location Grid System)
+## Status: ✅ COMPLETE
+
+All functionality verified and working. See `thoughts/implementation_summary.md` for details.
+
+## Overview
+
+Wire up GameState to use the new SubGrid system for sub-location navigation. The SubGrid class and Location fields (`is_exit_point`, `sub_grid`) are already implemented. This step updates GameState methods to properly handle interior grids.
 
 ## Spec
 
-Add two new fields to the `Location` model to support the SubGrid-based sub-location system:
+When a player enters an overworld location with a `sub_grid`:
+1. Track that we're "inside" the sub-grid via new GameState fields
+2. Use sub-grid coordinates for `move()` instead of overworld coordinates
+3. Only allow `exit` from locations marked `is_exit_point=True`
+4. `get_current_location()` must resolve from sub-grid when inside one
 
-1. **`is_exit_point: bool`** - Marks locations where `exit` command is allowed (entrance rooms)
-2. **`sub_grid: Optional[SubGrid]`** - Contains the bounded interior grid for overworld landmarks
+## Tests First
 
-This enables:
-- Interior locations only allow `exit` from marked exit points (not from deep within dungeons)
-- Overworld landmarks can contain bounded SubGrid interiors with their own coordinate system
-- Clear separation between overworld grid and interior sub-grids
+Create `tests/test_subgrid_navigation.py`:
+
+```python
+# Test GameState new fields
+- test_game_state_has_in_sub_location_field (default False)
+- test_game_state_has_current_sub_grid_field (default None)
+
+# Test enter() with sub_grid
+- test_enter_with_sub_grid_sets_in_sub_location_true
+- test_enter_with_sub_grid_sets_current_sub_grid
+- test_enter_with_sub_grid_moves_to_entry_location
+- test_enter_with_target_name_goes_to_specific_sub_location
+
+# Test move() inside sub_grid
+- test_move_inside_sub_grid_uses_sub_grid_coordinates
+- test_move_inside_sub_grid_blocks_at_bounds
+- test_move_inside_sub_grid_respects_connections
+
+# Test exit_location() with is_exit_point
+- test_exit_from_exit_point_succeeds
+- test_exit_from_non_exit_point_fails
+- test_exit_clears_in_sub_location
+- test_exit_clears_current_sub_grid
+- test_exit_returns_to_parent
+
+# Test get_current_location() with sub_grid
+- test_get_current_location_inside_sub_grid_returns_sub_grid_location
+
+# Test persistence
+- test_in_sub_location_persists_in_save
+- test_current_sub_grid_persists_in_save
+```
 
 ## Implementation Steps
 
-### Step 1: Add fields to Location model
-**File**: `src/cli_rpg/models/location.py`
+### 1. Add GameState fields (`src/cli_rpg/game_state.py`)
 
-Add after line 51 (after `hidden_secrets` field):
+Add to `__init__`:
 ```python
-is_exit_point: bool = False  # Only these rooms allow 'exit' command
-sub_grid: Optional["SubGrid"] = None  # Interior grid for landmarks (overworld only)
+self.in_sub_location: bool = False
+self.current_sub_grid: Optional["SubGrid"] = None
 ```
 
-Add forward reference import at top (TYPE_CHECKING already exists):
+### 2. Update `get_current_location()` (~line 280)
+
 ```python
-if TYPE_CHECKING:
-    from cli_rpg.world_grid import SubGrid
+def get_current_location(self) -> Location:
+    if self.in_sub_location and self.current_sub_grid is not None:
+        loc = self.current_sub_grid.get_by_name(self.current_location)
+        if loc is not None:
+            return loc
+    return self.world[self.current_location]
 ```
 
-### Step 2: Update Location.to_dict()
-**File**: `src/cli_rpg/models/location.py` (around line 311)
+### 3. Update `enter()` method (~line 665)
 
-Add serialization for new fields after `hidden_secrets`:
+After finding matched_location, check if it has sub_grid:
 ```python
-if self.is_exit_point:
-    data["is_exit_point"] = self.is_exit_point
-if self.sub_grid is not None:
-    data["sub_grid"] = self.sub_grid.to_dict()
+# Check if entering an overworld location with its own sub_grid
+if sub_location.sub_grid is not None:
+    self.in_sub_location = True
+    self.current_sub_grid = sub_location.sub_grid
+    # Find entry location at (0, 0) or by target_name
+    entry_loc = sub_location.sub_grid.get_by_coordinates(0, 0)
+    if target_name:
+        entry_loc = sub_location.sub_grid.get_by_name(target_name) or entry_loc
+    if entry_loc:
+        self.current_location = entry_loc.name
 ```
 
-### Step 3: Update Location.from_dict()
-**File**: `src/cli_rpg/models/location.py` (around line 354-374)
+### 4. Update `exit_location()` method (~line 734)
 
-Add deserialization after `hidden_secrets`:
+Add exit point check:
 ```python
-is_exit_point = data.get("is_exit_point", False)
-sub_grid = None
-if "sub_grid" in data:
-    from cli_rpg.world_grid import SubGrid
-    sub_grid = SubGrid.from_dict(data["sub_grid"])
+def exit_location(self) -> tuple[bool, str]:
+    if self.is_in_conversation:
+        return (False, "You're in a conversation. Say 'bye' to leave first.")
+
+    current = self.get_current_location()
+
+    # Check if at exit point when in sub-location
+    if self.in_sub_location and not current.is_exit_point:
+        return (False, "You cannot exit from here. Find an exit point.")
+
+    # Must have a parent location
+    if current.parent_location is None:
+        return (False, "You're not inside a landmark.")
+
+    # ... existing code ...
+
+    # Clear sub-location state
+    self.in_sub_location = False
+    self.current_sub_grid = None
 ```
 
-Add `is_exit_point` and `sub_grid` to constructor call.
+### 5. Update `move()` method (~line 426)
 
-### Step 4: Create tests for new Location fields
-**File**: `tests/test_exit_points.py` (new file)
+Add sub-grid movement handling:
+```python
+def move(self, direction: str) -> tuple[bool, str]:
+    # ... existing conversation check ...
 
-Tests to write:
-1. `test_location_is_exit_point_default_false` - default value
-2. `test_location_is_exit_point_can_be_true` - setting to True
-3. `test_location_sub_grid_default_none` - default value
-4. `test_location_sub_grid_can_be_set` - setting SubGrid instance
-5. `test_location_to_dict_includes_is_exit_point` - serialization when True
-6. `test_location_to_dict_excludes_is_exit_point_when_false` - not serialized when False
-7. `test_location_to_dict_includes_sub_grid` - serialization with SubGrid
-8. `test_location_from_dict_restores_is_exit_point` - deserialization
-9. `test_location_from_dict_restores_sub_grid` - deserialization with SubGrid
-10. `test_location_serialization_backward_compatible` - old saves without new fields still load
+    # Handle movement inside sub-location grid
+    if self.in_sub_location and self.current_sub_grid is not None:
+        return self._move_in_sub_grid(direction)
 
-## Test Commands
+    # ... existing overworld movement code ...
 
-```bash
-# Run new tests
-pytest tests/test_exit_points.py -v
+def _move_in_sub_grid(self, direction: str) -> tuple[bool, str]:
+    """Handle movement within a sub-location grid."""
+    current = self.get_current_location()
 
-# Run existing Location tests to verify no regressions
-pytest tests/test_location.py -v
+    if direction not in {"north", "south", "east", "west"}:
+        return (False, "Invalid direction. Use: north, south, east, or west.")
 
-# Run SubGrid tests to ensure integration works
-pytest tests/test_sub_grid.py -v
+    if not current.has_connection(direction):
+        return (False, "You can't go that way.")
 
-# Full test suite
-pytest
+    destination_name = current.get_connection(direction)
+    destination = self.current_sub_grid.get_by_name(destination_name)
+
+    if destination is None:
+        return (False, "The path is blocked.")
+
+    self.current_location = destination.name
+
+    # Time advancement, dread updates, etc. (similar to overworld)
+    self.game_time.advance(1)
+    # ... other move side effects ...
+
+    return (True, f"You head {direction} to {colors.location(self.current_location)}.")
 ```
+
+### 6. Update `to_dict()` / `from_dict()` for persistence (~line 870)
+
+Add to `to_dict()`:
+```python
+"in_sub_location": self.in_sub_location,
+# current_sub_grid is not serialized directly - it's part of Location.sub_grid
+```
+
+Add to `from_dict()`:
+```python
+game_state.in_sub_location = data.get("in_sub_location", False)
+# current_sub_grid is restored by finding it from the current location
+if game_state.in_sub_location:
+    # Find parent location and get its sub_grid
+    current = game_state.world.get(game_state.current_location)
+    if current and current.parent_location:
+        parent = game_state.world.get(current.parent_location)
+        if parent and parent.sub_grid:
+            game_state.current_sub_grid = parent.sub_grid
+```
+
+### 7. Update map_renderer for interior maps (optional enhancement)
+
+Add `_render_sub_grid_map()` function for bounded interior maps with exit markers.
+
+## Files to Modify
+
+| File | Changes |
+|------|---------|
+| `src/cli_rpg/game_state.py` | Add fields, update `enter()`, `exit_location()`, `move()`, `get_current_location()`, `to_dict()`, `from_dict()` |
+| `tests/test_subgrid_navigation.py` | New test file for sub-grid navigation |
+
+## Verification
+
+1. Run `pytest tests/test_subgrid_navigation.py -v` - all new tests pass
+2. Run `pytest tests/test_sub_grid.py tests/test_exit_points.py -v` - existing tests still pass
+3. Run `pytest` - full suite passes (3209+ tests)
