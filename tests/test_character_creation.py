@@ -8,9 +8,10 @@ from cli_rpg.character_creation import (
     display_character_summary,
     confirm_creation,
     create_character,
-    get_theme_selection
+    get_theme_selection,
+    get_class_selection,
 )
-from cli_rpg.models.character import Character
+from cli_rpg.models.character import Character, CharacterClass
 
 
 class TestGetValidName:
@@ -207,73 +208,87 @@ class TestConfirmCreation:
 
 
 class TestCreateCharacter:
-    """Test full character creation flow."""
-    
-    @patch('builtins.input', side_effect=["Hero", "1", "10", "12", "8", "yes"])
+    """Test full character creation flow (updated for class selection)."""
+
+    @patch('builtins.input', side_effect=["Hero", "1", "1", "10", "12", "8", "yes"])
     def test_create_character_manual_valid_input(self, mock_input):
         """Test: Complete manual creation with valid inputs (spec requirement)"""
+        # Flow: name -> class -> method -> stats -> confirm
         character = create_character()
         assert character is not None
         assert character.name == "Hero"
-        assert character.strength == 10
-        assert character.dexterity == 12
-        assert character.intelligence == 8
-    
-    @patch('builtins.input', side_effect=["Hero", "2", "yes"])
+        assert character.character_class == CharacterClass.WARRIOR
+        # Stats include Warrior bonuses: STR +3, DEX +1, INT 0
+        assert character.strength == 13  # 10 + 3
+        assert character.dexterity == 13  # 12 + 1
+        assert character.intelligence == 8  # 8 + 0
+
+    @patch('builtins.input', side_effect=["Hero", "2", "2", "yes"])
     def test_create_character_random_generation(self, mock_input):
         """Test: Complete random stat generation (spec requirement)"""
+        # Flow: name -> class (Mage) -> method (random) -> confirm
         character = create_character()
         assert character is not None
         assert character.name == "Hero"
-        assert 8 <= character.strength <= 15
-        assert 8 <= character.dexterity <= 15
-        assert 8 <= character.intelligence <= 15
-    
-    @patch('builtins.input', side_effect=["H", "Hero", "1", "10", "12", "8", "yes"])
+        assert character.character_class == CharacterClass.MAGE
+        # Random stats are 8-15, Mage adds DEX +1, INT +3
+        assert character.dexterity >= 9  # min 8 + 1
+        assert character.intelligence >= 11  # min 8 + 3
+
+    @patch('builtins.input', side_effect=["H", "Hero", "1", "1", "10", "12", "8", "yes"])
     def test_create_character_name_retry_on_invalid(self, mock_input):
         """Test: Retry prompt on invalid name (spec requirement)"""
         character = create_character()
         assert character is not None
         assert character.name == "Hero"
-    
-    @patch('builtins.input', side_effect=["Hero", "1", "0", "10", "12", "8", "yes"])
+
+    @patch('builtins.input', side_effect=["Hero", "1", "1", "0", "10", "12", "8", "yes"])
     def test_create_character_stat_retry_on_invalid(self, mock_input):
         """Test: Retry prompt on invalid stat value (spec requirement)"""
+        # Flow: name -> class -> method -> invalid str -> valid str -> dex -> int -> confirm
         character = create_character()
         assert character is not None
-        assert character.strength == 10
-    
+        # Warrior bonuses: STR +3
+        assert character.strength == 13  # 10 + 3
+
     @patch('builtins.input', return_value="cancel")
     def test_create_character_cancelled_by_user_at_name(self, mock_input):
         """Test: Return None when user cancels at name (spec requirement)"""
         character = create_character()
         assert character is None
-    
+
     @patch('builtins.input', side_effect=["Hero", "cancel"])
+    def test_create_character_cancelled_by_user_at_class(self, mock_input):
+        """Test: Return None when user cancels at class (spec requirement)"""
+        character = create_character()
+        assert character is None
+
+    @patch('builtins.input', side_effect=["Hero", "1", "cancel"])
     def test_create_character_cancelled_by_user_at_method(self, mock_input):
         """Test: Return None when user cancels at method (spec requirement)"""
         character = create_character()
         assert character is None
-    
-    @patch('builtins.input', side_effect=["Hero", "1", "cancel"])
+
+    @patch('builtins.input', side_effect=["Hero", "1", "1", "cancel"])
     def test_create_character_cancelled_by_user_at_stats(self, mock_input):
         """Test: Return None when user cancels at stats (spec requirement)"""
         character = create_character()
         assert character is None
-    
-    @patch('builtins.input', side_effect=["Hero", "1", "10", "12", "8", "no"])
+
+    @patch('builtins.input', side_effect=["Hero", "1", "1", "10", "12", "8", "no"])
     def test_create_character_cancelled_by_user_at_confirm(self, mock_input):
         """Test: Return None when user cancels at confirm (spec requirement)"""
         character = create_character()
         assert character is None
-    
-    @patch('builtins.input', side_effect=["Hero", "3", "2", "yes"])
+
+    @patch('builtins.input', side_effect=["Hero", "1", "3", "2", "yes"])
     def test_create_character_invalid_allocation_method(self, mock_input):
         """Test: Retry on invalid allocation method (spec requirement)"""
+        # Flow: name -> class -> invalid method -> valid method (random) -> confirm
         character = create_character()
         assert character is not None
-        # Random stats should be in range
-        assert 8 <= character.strength <= 15
+        # Warrior with random stats (8-15 base + bonuses)
+        assert character.strength >= 11  # min 8 + 3
 
 
 class TestGetThemeSelection:
@@ -356,3 +371,100 @@ class TestGetThemeSelection:
         """Test: Default to 'fantasy' when custom theme is empty (spec requirement)"""
         theme = get_theme_selection()
         assert theme == "fantasy"
+
+
+class TestGetClassSelection:
+    """Spec: get_class_selection() returns valid class from input (1-5 or name)."""
+
+    @patch('builtins.input', return_value="1")
+    def test_class_selection_warrior_by_number(self, mock_input):
+        """Spec: Accept '1' for Warrior class."""
+        char_class = get_class_selection()
+        assert char_class == CharacterClass.WARRIOR
+
+    @patch('builtins.input', return_value="2")
+    def test_class_selection_mage_by_number(self, mock_input):
+        """Spec: Accept '2' for Mage class."""
+        char_class = get_class_selection()
+        assert char_class == CharacterClass.MAGE
+
+    @patch('builtins.input', return_value="3")
+    def test_class_selection_rogue_by_number(self, mock_input):
+        """Spec: Accept '3' for Rogue class."""
+        char_class = get_class_selection()
+        assert char_class == CharacterClass.ROGUE
+
+    @patch('builtins.input', return_value="4")
+    def test_class_selection_ranger_by_number(self, mock_input):
+        """Spec: Accept '4' for Ranger class."""
+        char_class = get_class_selection()
+        assert char_class == CharacterClass.RANGER
+
+    @patch('builtins.input', return_value="5")
+    def test_class_selection_cleric_by_number(self, mock_input):
+        """Spec: Accept '5' for Cleric class."""
+        char_class = get_class_selection()
+        assert char_class == CharacterClass.CLERIC
+
+    @patch('builtins.input', return_value="warrior")
+    def test_class_selection_warrior_by_name(self, mock_input):
+        """Spec: Accept 'warrior' for Warrior class (case-insensitive)."""
+        char_class = get_class_selection()
+        assert char_class == CharacterClass.WARRIOR
+
+    @patch('builtins.input', return_value="Mage")
+    def test_class_selection_mage_by_name(self, mock_input):
+        """Spec: Accept 'Mage' for Mage class."""
+        char_class = get_class_selection()
+        assert char_class == CharacterClass.MAGE
+
+    @patch('builtins.input', return_value="ROGUE")
+    def test_class_selection_rogue_by_name_uppercase(self, mock_input):
+        """Spec: Accept 'ROGUE' for Rogue class (case-insensitive)."""
+        char_class = get_class_selection()
+        assert char_class == CharacterClass.ROGUE
+
+    @patch('builtins.input', side_effect=["invalid", "1"])
+    def test_class_selection_retry_on_invalid(self, mock_input):
+        """Spec: Retry on invalid class input."""
+        char_class = get_class_selection()
+        assert char_class == CharacterClass.WARRIOR
+        assert mock_input.call_count == 2
+
+    @patch('builtins.input', return_value="cancel")
+    def test_class_selection_cancel(self, mock_input):
+        """Spec: Return None when user cancels."""
+        char_class = get_class_selection()
+        assert char_class is None
+
+
+class TestCreateCharacterWithClass:
+    """Spec: create_character() flow includes class selection step."""
+
+    @patch('builtins.input', side_effect=["Hero", "1", "1", "10", "12", "8", "yes"])
+    def test_create_character_with_warrior_class(self, mock_input):
+        """Spec: Character creation includes class selection after name."""
+        character = create_character()
+        assert character is not None
+        assert character.name == "Hero"
+        assert character.character_class == CharacterClass.WARRIOR
+        # Warrior bonuses: STR +3, DEX +1, INT 0
+        assert character.strength == 13  # 10 + 3
+        assert character.dexterity == 13  # 12 + 1
+        assert character.intelligence == 8  # 8 + 0
+
+    @patch('builtins.input', side_effect=["Hero", "mage", "2", "yes"])
+    def test_create_character_with_mage_class_random_stats(self, mock_input):
+        """Spec: Character creation works with class + random stats."""
+        character = create_character()
+        assert character is not None
+        assert character.character_class == CharacterClass.MAGE
+        # Mage bonuses: STR 0, DEX +1, INT +3
+        # Random stats are 8-15, so check bonuses are applied
+        assert character.intelligence >= 11  # min 8 + 3
+
+    @patch('builtins.input', side_effect=["Hero", "cancel"])
+    def test_create_character_cancelled_at_class(self, mock_input):
+        """Spec: Return None when user cancels at class selection."""
+        character = create_character()
+        assert character is None

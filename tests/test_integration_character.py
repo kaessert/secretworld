@@ -71,51 +71,54 @@ class TestCharacterLifecycle:
 class TestCharacterCreationIntegration:
     """Test character creation integration."""
     
-    @patch('builtins.input', side_effect=["Hero", "manual", "15", "12", "10", "yes"])
+    @patch('builtins.input', side_effect=["Hero", "1", "manual", "15", "12", "10", "yes"])
     def test_create_and_use_character(self, mock_input):
         """Test: Create character through creation flow and use it (spec requirement)"""
         # Create character through interactive flow
+        # Flow: name -> class (warrior) -> method (manual) -> stats -> confirm
         character = create_character()
-        
+
         # Verify character was created correctly
         assert character is not None
         assert character.name == "Hero"
-        assert character.strength == 15
-        assert character.dexterity == 12
-        assert character.intelligence == 10
-        
+        # Warrior adds STR +3, DEX +1, INT 0
+        assert character.strength == 18  # 15 + 3
+        assert character.dexterity == 13  # 12 + 1
+        assert character.intelligence == 10  # 10 + 0
+
         # Use character in game operations
         assert character.is_alive() is True
-        
+
         # Take damage
         character.take_damage(50)
         assert character.health < character.max_health
         assert character.is_alive() is True
-        
+
         # Heal
         character.heal(25)
         assert character.health > 0
-        
+
         # Serialize and restore
         data = character.to_dict()
         restored = Character.from_dict(data)
         assert restored.name == character.name
         assert restored.health == character.health
-    
-    @patch('builtins.input', side_effect=["Warrior", "random", "yes"])
+
+    @patch('builtins.input', side_effect=["Warrior", "3", "random", "yes"])
     def test_create_random_character_and_verify_stats(self, mock_input):
         """Test: Create random character and verify stats are valid (spec requirement)"""
         # Create character with random stats
+        # Flow: name -> class (rogue) -> method (random) -> confirm
         character = create_character()
-        
+
         # Verify character was created
         assert character is not None
         assert character.name == "Warrior"
-        
-        # Verify stats are in valid range (8-15 for random)
-        assert 8 <= character.strength <= 15
-        assert 8 <= character.dexterity <= 15
-        assert 8 <= character.intelligence <= 15
+
+        # Verify stats are in valid range (8-15 base + Rogue bonuses: STR +1, DEX +3, INT 0)
+        assert 9 <= character.strength <= 16  # 8-15 + 1
+        assert 11 <= character.dexterity <= 18  # 8-15 + 3
+        assert 8 <= character.intelligence <= 15  # 8-15 + 0
         
         # Verify health calculation is correct
         expected_max_health = 100 + character.strength * 5

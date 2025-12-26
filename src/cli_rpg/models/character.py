@@ -1,11 +1,32 @@
 """Character model for CLI RPG."""
 from dataclasses import dataclass, field
+from enum import Enum
 from typing import ClassVar, Dict, List, Optional, Tuple, TYPE_CHECKING
 
 from cli_rpg import colors
 from cli_rpg.sound_effects import sound_level_up
 
 from cli_rpg.models.dread import DreadMeter
+
+
+class CharacterClass(Enum):
+    """Character class enum (Spec: 5 classes with unique stat bonuses)."""
+
+    WARRIOR = "Warrior"
+    MAGE = "Mage"
+    ROGUE = "Rogue"
+    RANGER = "Ranger"
+    CLERIC = "Cleric"
+
+
+# Spec: CLASS_BONUSES dict maps each class to stat bonuses
+CLASS_BONUSES: Dict["CharacterClass", Dict[str, int]] = {
+    CharacterClass.WARRIOR: {"strength": 3, "dexterity": 1, "intelligence": 0},
+    CharacterClass.MAGE: {"strength": 0, "dexterity": 1, "intelligence": 3},
+    CharacterClass.ROGUE: {"strength": 1, "dexterity": 3, "intelligence": 0},
+    CharacterClass.RANGER: {"strength": 1, "dexterity": 2, "intelligence": 1},
+    CharacterClass.CLERIC: {"strength": 1, "dexterity": 0, "intelligence": 2},
+}
 
 if TYPE_CHECKING:
     from cli_rpg.models.item import Item
@@ -43,6 +64,7 @@ class Character:
     strength: int
     dexterity: int
     intelligence: int
+    character_class: Optional[CharacterClass] = None
     level: int = 1
     health: int = field(init=False)
     max_health: int = field(init=False)
@@ -67,7 +89,7 @@ class Character:
             raise ValueError(f"Name must be at least {self.MIN_NAME_LENGTH} characters")
         if len(self.name) > self.MAX_NAME_LENGTH:
             raise ValueError(f"Name must be at most {self.MAX_NAME_LENGTH} characters")
-        
+
         # Validate stats
         for stat_name, stat_value in [
             ("strength", self.strength),
@@ -81,8 +103,15 @@ class Character:
                 raise ValueError(f"{stat_name} must be at least {self.MIN_STAT}")
             if stat_name != "level" and stat_value > self.MAX_STAT:
                 raise ValueError(f"{stat_name} must be at most {self.MAX_STAT}")
-        
-        # Calculate derived stats
+
+        # Apply class bonuses if a class is selected (Spec: unique starting stat bonuses)
+        if self.character_class is not None:
+            bonuses = CLASS_BONUSES[self.character_class]
+            self.strength += bonuses["strength"]
+            self.dexterity += bonuses["dexterity"]
+            self.intelligence += bonuses["intelligence"]
+
+        # Calculate derived stats (after bonuses applied)
         self.max_health = self.BASE_HEALTH + self.strength * self.HEALTH_PER_STRENGTH
         self.health = self.max_health
         self.xp_to_next_level = self.level * 100
@@ -772,6 +801,7 @@ class Character:
             "strength": self.strength,
             "dexterity": self.dexterity,
             "intelligence": self.intelligence,
+            "character_class": self.character_class.value if self.character_class else None,
             "level": self.level,
             "health": self.health,
             "max_health": self.max_health,
@@ -805,13 +835,25 @@ class Character:
         capped_intelligence = min(data["intelligence"], cls.MAX_STAT)
 
         # Create character with capped stats to pass validation
+        # Note: We pass character_class=None here to avoid re-applying bonuses
+        # (bonuses are already baked into the saved stats)
         character = cls(
             name=data["name"],
             strength=capped_strength,
             dexterity=capped_dexterity,
             intelligence=capped_intelligence,
             level=data.get("level", 1),
+            character_class=None,  # Don't apply bonuses on load
         )
+
+        # Restore character class from save (backward compat: defaults to None)
+        class_value = data.get("character_class")
+        if class_value:
+            # Convert string value to CharacterClass enum
+            for char_class in CharacterClass:
+                if char_class.value == class_value:
+                    character.character_class = char_class
+                    break
 
         # Restore actual stats from save (may be > 20 from level-ups)
         character.strength = data["strength"]
@@ -877,8 +919,11 @@ class Character:
 
         xp_str = colors.location(f"{self.xp}/{self.xp_to_next_level}")
 
+        # Include class in title line if present
+        class_str = f" {self.character_class.value}" if self.character_class else ""
+
         return (
-            f"{self.name} (Level {self.level}) - {status}\n"
+            f"{self.name}{class_str} (Level {self.level}) - {status}\n"
             f"{colors.stat_header('Health')}: {health_str} | "
             f"{colors.stat_header('Gold')}: {gold_str} | "
             f"{colors.stat_header('XP')}: {xp_str}\n"

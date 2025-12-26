@@ -2,36 +2,76 @@
 import random
 import sys
 from typing import Optional, Tuple
-from cli_rpg.models.character import Character
+from cli_rpg.models.character import Character, CharacterClass, CLASS_BONUSES
 
 
 def get_valid_name() -> Optional[str]:
     """Prompt user for valid character name.
-    
+
     Returns:
         Valid name string or None if cancelled
     """
     while True:
         print("\nEnter character name (2-30 characters, or 'cancel' to exit):")
         name = input("> ").strip()
-        
+
         if name.lower() == "cancel":
             return None
-        
+
         # Validate name
         if not name:
             print("Error: Name cannot be empty. Please try again.")
             continue
-        
+
         if len(name) < Character.MIN_NAME_LENGTH:
             print(f"Error: Name must be at least {Character.MIN_NAME_LENGTH} characters. Please try again.")
             continue
-        
+
         if len(name) > Character.MAX_NAME_LENGTH:
             print(f"Error: Name must be at most {Character.MAX_NAME_LENGTH} characters. Please try again.")
             continue
-        
+
         return name
+
+
+def get_class_selection() -> Optional[CharacterClass]:
+    """Prompt user for class selection.
+
+    Returns:
+        CharacterClass or None if cancelled
+    """
+    # Map numbers and names to CharacterClass
+    class_map = {
+        "1": CharacterClass.WARRIOR,
+        "2": CharacterClass.MAGE,
+        "3": CharacterClass.ROGUE,
+        "4": CharacterClass.RANGER,
+        "5": CharacterClass.CLERIC,
+        "warrior": CharacterClass.WARRIOR,
+        "mage": CharacterClass.MAGE,
+        "rogue": CharacterClass.ROGUE,
+        "ranger": CharacterClass.RANGER,
+        "cleric": CharacterClass.CLERIC,
+    }
+
+    while True:
+        print("\nChoose your class:")
+        for i, char_class in enumerate(CharacterClass, 1):
+            bonuses = CLASS_BONUSES[char_class]
+            bonus_str = ", ".join(
+                f"{stat.upper()[:3]} +{val}" for stat, val in bonuses.items() if val > 0
+            )
+            print(f"{i}. {char_class.value} ({bonus_str})")
+        print("Type 'cancel' to exit")
+        choice = input("> ").strip().lower()
+
+        if choice == "cancel":
+            return None
+
+        if choice in class_map:
+            return class_map[choice]
+
+        print("Error: Invalid choice. Please enter 1-5 or a class name.")
 
 
 def get_allocation_method() -> Optional[str]:
@@ -188,26 +228,32 @@ def get_theme_selection() -> str:
 
 def create_character() -> Optional[Character]:
     """Interactive character creation flow.
-    
+
     Returns:
         Created Character instance or None if cancelled
     """
     print("\n" + "=" * 50)
     print("CHARACTER CREATION")
     print("=" * 50)
-    
+
     # Get character name
     name = get_valid_name()
     if name is None:
         print("Character creation cancelled.")
         return None
-    
+
+    # Get character class (Spec: class selection after name, before stats)
+    character_class = get_class_selection()
+    if character_class is None:
+        print("Character creation cancelled.")
+        return None
+
     # Get stat allocation method
     method = get_allocation_method()
     if method is None:
         print("Character creation cancelled.")
         return None
-    
+
     # Get stats based on method
     if method == "manual":
         stats = get_manual_stats()
@@ -220,18 +266,19 @@ def create_character() -> Optional[Character]:
         print(f"Strength: {stats['strength']}")
         print(f"Dexterity: {stats['dexterity']}")
         print(f"Intelligence: {stats['intelligence']}")
-    
-    # Create character
+
+    # Create character with class
     character = Character(
         name=name,
         strength=stats["strength"],
         dexterity=stats["dexterity"],
-        intelligence=stats["intelligence"]
+        intelligence=stats["intelligence"],
+        character_class=character_class,
     )
-    
+
     # Display summary
     display_character_summary(character)
-    
+
     # Confirm creation
     if confirm_creation():
         return character
@@ -276,7 +323,34 @@ def create_character_non_interactive(json_mode: bool = False) -> Tuple[Optional[
     if len(name) > Character.MAX_NAME_LENGTH:
         return (None, f"Error: Name must be at most {Character.MAX_NAME_LENGTH} characters.")
 
-    # Step 2: Read and validate allocation method
+    # Step 2: Read and validate class selection
+    class_input = read_line()
+    if class_input is None:
+        return (None, "Error: No character class provided.")
+
+    class_map = {
+        "1": CharacterClass.WARRIOR,
+        "2": CharacterClass.MAGE,
+        "3": CharacterClass.ROGUE,
+        "4": CharacterClass.RANGER,
+        "5": CharacterClass.CLERIC,
+        "warrior": CharacterClass.WARRIOR,
+        "mage": CharacterClass.MAGE,
+        "rogue": CharacterClass.ROGUE,
+        "ranger": CharacterClass.RANGER,
+        "cleric": CharacterClass.CLERIC,
+    }
+
+    class_input_lower = class_input.lower()
+    if class_input_lower not in class_map:
+        return (
+            None,
+            f"Error: Invalid class '{class_input}'. Use 1-5 or class name "
+            "(warrior, mage, rogue, ranger, cleric).",
+        )
+    character_class = class_map[class_input_lower]
+
+    # Step 3: Read and validate allocation method
     method_input = read_line()
     if method_input is None:
         return (None, "Error: No stat allocation method provided.")
@@ -289,7 +363,7 @@ def create_character_non_interactive(json_mode: bool = False) -> Tuple[Optional[
     else:
         return (None, f"Error: Invalid stat allocation method '{method_input}'. Use '1'/'manual' or '2'/'random'.")
 
-    # Step 3: Get stats based on method
+    # Step 4: Get stats based on method
     if method == "manual":
         stats = {}
         stat_names = ["strength", "dexterity", "intelligence"]
@@ -320,7 +394,7 @@ def create_character_non_interactive(json_mode: bool = False) -> Tuple[Optional[
             print(f"Dexterity: {stats['dexterity']}")
             print(f"Intelligence: {stats['intelligence']}")
 
-    # Step 4: Read confirmation
+    # Step 5: Read confirmation
     confirm_input = read_line()
     if confirm_input is None:
         return (None, "Error: No confirmation provided.")
@@ -329,12 +403,13 @@ def create_character_non_interactive(json_mode: bool = False) -> Tuple[Optional[
     if confirm_input not in ["yes", "y"]:
         return (None, "Character creation cancelled.")
 
-    # Create character
+    # Create character with class
     character = Character(
         name=name,
         strength=stats["strength"],
         dexterity=stats["dexterity"],
-        intelligence=stats["intelligence"]
+        intelligence=stats["intelligence"],
+        character_class=character_class,
     )
 
     # Display summary (only in non-JSON mode to avoid polluting JSON output)

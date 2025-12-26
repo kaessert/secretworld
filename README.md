@@ -14,7 +14,7 @@ python -m cli_rpg.main
 
 ## Features
 
-- **Character Creation**: Create custom characters with customizable attributes (strength, dexterity, intelligence)
+- **Character Creation**: Create custom characters with 5 classes (Warrior, Mage, Rogue, Ranger, Cleric) and customizable attributes (strength, dexterity, intelligence)
 - **AI-Generated Worlds**: Dynamically generated locations using OpenAI, Anthropic, or Ollama local models (optional)
 - **Turn-Based Combat**: Engage enemies with attack, defend, and flee commands
 - **Inventory & Equipment**: Collect loot from defeated enemies, equip weapons and armor, use consumables
@@ -36,13 +36,19 @@ python -m cli_rpg.main
 
 ### Character Creation
 1. Choose a name for your character
-2. Choose your stat allocation method (manual or random)
-3. Set your three core attributes (1-20 each):
+2. Choose a character class (each provides stat bonuses):
+   - **Warrior**: +3 STR, +1 DEX - melee combat specialists
+   - **Mage**: +3 INT, +1 DEX - magic damage dealers
+   - **Rogue**: +3 DEX, +1 STR - agile and evasive fighters
+   - **Ranger**: +2 DEX, +1 STR, +1 INT - balanced adventurers
+   - **Cleric**: +2 INT, +1 STR - hybrid support class
+3. Choose your stat allocation method (manual or random)
+4. Set your three core attributes (1-20 each):
    - **Strength**: Increases attack damage and max HP
    - **Dexterity**: Improves flee chance, dodge chance, and physical critical hit chance
    - **Intelligence**: Increases magic attack damage and magic critical hit chance
 
-**Note:** Constitution is automatically derived from your Strength stat and is used to reduce incoming damage during combat.
+**Note:** Constitution is automatically derived from your Strength stat and is used to reduce incoming damage during combat. Class bonuses are applied after your base stat allocation.
 
 ### Exploration Commands
 - `look` (l) - Examine your current location (use multiple times to reveal environmental details and hidden secrets)
@@ -346,10 +352,10 @@ cli-rpg --non-interactive --skip-character-creation < commands.txt
 - `--delay <ms>` option for pacing between commands (0-60000ms, default 0)
 
 **Character Creation:**
-- By default, reads character creation inputs from stdin (name, stat method, stats, confirmation)
+- By default, reads character creation inputs from stdin (name, class, stat method, stats, confirmation)
 - Use `--skip-character-creation` to use a default character ("Agent") with balanced stats (10/10/10)
-- Manual stats: provide name, "1", str, dex, int, "yes" (one per line)
-- Random stats: provide name, "2", "yes" (one per line)
+- Manual stats: provide name, class (1-5), "1", str, dex, int, "yes" (one per line)
+- Random stats: provide name, class (1-5), "2", "yes" (one per line)
 - Invalid inputs return error messages and exit with code 1
 
 ### Gameplay Logging

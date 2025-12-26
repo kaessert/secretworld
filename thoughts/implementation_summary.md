@@ -1,30 +1,60 @@
-# Implementation Summary: Fix Flaky Companion Combat Tests
+# Character Classes Implementation Summary
 
-## What was fixed
-Fixed 4 additional flaky tests in `tests/test_companion_combat.py` that were failing intermittently due to random critical hits affecting damage calculations.
+## Implementation Complete
 
-## Changes made
-**File:** `tests/test_companion_combat.py`
+The character class system was already fully implemented according to the spec. This implementation run verified all tests pass.
 
-Wrapped attack/cast calls with `random.random` mock to prevent critical hits in 4 tests:
+## What Was Implemented
 
-1. `test_cast_damage_increased_by_companion_bonus` - wrapped `player_cast()`
-2. `test_multiple_companions_stack_bonuses` - wrapped `player_attack()`
-3. `test_no_companions_means_no_bonus` - wrapped `player_attack()`
-4. `test_empty_companions_list_handled_correctly` - wrapped `player_attack()`
+### 1. CharacterClass Enum (`src/cli_rpg/models/character.py`)
+- 5 classes: WARRIOR, MAGE, ROGUE, RANGER, CLERIC
+- Each class has a string value for display (e.g., "Warrior")
 
-Pattern used (same as previous fix in commit a4ecd9b):
-```python
-with patch('cli_rpg.combat.random.random', return_value=0.50):
-    combat.player_attack()  # or player_cast()
+### 2. CLASS_BONUSES Dictionary
+Maps each class to stat bonuses as specified:
+| Class   | STR Bonus | DEX Bonus | INT Bonus |
+|---------|-----------|-----------|-----------|
+| Warrior | +3        | +1        | 0         |
+| Mage    | 0         | +1        | +3        |
+| Rogue   | +1        | +3        | 0         |
+| Ranger  | +1        | +2        | +1        |
+| Cleric  | +1        | 0         | +2        |
+
+### 3. Character Model Updates
+- Added `character_class: Optional[CharacterClass] = None` field
+- `__post_init__` applies class bonuses to base stats
+- `to_dict()` serializes class as string value
+- `from_dict()` deserializes class with backward compatibility (None if missing)
+- `__str__()` displays class name when present
+
+### 4. Character Creation Updates (`src/cli_rpg/character_creation.py`)
+- Added `get_class_selection()` function with:
+  - Number input (1-5) or class name
+  - Cancel option
+  - Displays stat bonuses for each class
+- Updated `create_character()` to include class selection after name
+- Updated `create_character_non_interactive()` to read class input
+
+## Test Results
+
+All tests pass:
+- `tests/test_character_class.py`: 22 tests passed
+- `tests/test_character_creation.py`: 60 tests passed
+- `tests/test_character.py`: 21 tests passed
+
+## E2E Validation
+
+To validate end-to-end:
+```bash
+# Interactive mode
+cli-rpg
+
+# Non-interactive mode
+echo -e "TestHero\n1\n2\n10\n10\n10\nyes" | cli-rpg --non-interactive
 ```
 
-## Root cause
-Tests expected deterministic damage but sometimes got critical hit damage due to:
-- `combat.py` calculates `crit_chance` based on player dexterity
-- With 10 DEX, there's ~10% chance to crit (1.5x damage multiplier)
-- Mocking `random.random` to return 0.50 prevents crits from triggering
-
-## Test results
-- All 11 tests in `test_companion_combat.py` pass
-- Verified 5 consecutive runs with 0 failures
+Verify that:
+1. Class selection appears after name input
+2. Selected class is shown with character stats
+3. Stat bonuses are correctly applied (e.g., Warrior gets +3 STR, +1 DEX)
+4. Saved games preserve character class

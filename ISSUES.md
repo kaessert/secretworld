@@ -736,18 +736,26 @@ Player decisions should have lasting impact on the world and story.
 - Additional reputation types (e.g., heroic, wealthy)
 
 ### Character classes with unique playstyles
-**Status**: ACTIVE
+**Status**: ACTIVE (Base System Implemented)
 
-Currently all characters play the same - just different stat numbers. Need distinct classes.
+**Implemented**:
+- ✅ CharacterClass enum with 5 classes: Warrior, Mage, Rogue, Ranger, Cleric
+- ✅ Class selection during character creation (by number or name)
+- ✅ Stat bonuses per class:
+  - **Warrior**: +3 STR, +1 DEX
+  - **Mage**: +3 INT, +1 DEX
+  - **Rogue**: +3 DEX, +1 STR
+  - **Ranger**: +2 DEX, +1 STR, +1 INT
+  - **Cleric**: +2 INT, +1 STR
+- ✅ Class displayed in character status
+- ✅ Class persistence in save/load (backward compatible)
 
-**Classes to add**:
-- **Warrior**: High STR/CON, bonus melee damage, can `bash` to stun, unlocks heavy armor
-- **Mage**: High INT, mana pool for spells, learns `fireball`/`ice bolt`/`heal`, weak armor
-- **Rogue**: High DEX, can `sneak` past encounters, `backstab` for 3x damage from stealth, `picklock`
-- **Ranger**: Balanced, `track` enemies, bonus in wilderness, animal companion
+**Future enhancements** (class-specific abilities):
+- **Warrior**: `bash` to stun, unlocks heavy armor
+- **Mage**: Mana pool for spells, learns `fireball`/`ice bolt`/`heal`, weak armor
+- **Rogue**: `sneak` past encounters, `backstab` for 3x damage from stealth, `picklock`
+- **Ranger**: `track` enemies, bonus in wilderness, animal companion
 - **Cleric**: Healing spells, `bless` party buffs, `smite` undead, holy symbols
-
-**Implementation**: Choose class at character creation, unlocks class-specific commands and abilities.
 
 ### Lockpicking & treasure chests
 **Status**: ACTIVE
