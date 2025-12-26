@@ -323,7 +323,7 @@ class AIConfig:
     provider: str = "openai"
     model: str = "gpt-3.5-turbo"
     temperature: float = 0.7
-    max_tokens: int = 2000
+    max_tokens: int = 3000
     max_retries: int = 3
     retry_delay: float = 1.0
     enable_caching: bool = True
@@ -447,7 +447,7 @@ class AIConfig:
         else:
             model = os.getenv("AI_MODEL", default_model)
         temperature = float(os.getenv("AI_TEMPERATURE", "0.7"))
-        max_tokens = int(os.getenv("AI_MAX_TOKENS", "2000"))
+        max_tokens = int(os.getenv("AI_MAX_TOKENS", "3000"))
         max_retries = int(os.getenv("AI_MAX_RETRIES", "3"))
         retry_delay = float(os.getenv("AI_RETRY_DELAY", "1.0"))
         enable_caching = os.getenv("AI_ENABLE_CACHING", "true").lower() == "true"
@@ -518,7 +518,7 @@ class AIConfig:
             provider=data.get("provider", "openai"),
             model=data.get("model", "gpt-3.5-turbo"),
             temperature=data.get("temperature", 0.7),
-            max_tokens=data.get("max_tokens", 2000),
+            max_tokens=data.get("max_tokens", 3000),
             max_retries=data.get("max_retries", 3),
             retry_delay=data.get("retry_delay", 1.0),
             enable_caching=data.get("enable_caching", True),
