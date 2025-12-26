@@ -7,6 +7,8 @@ These tests verify the combat bonus system based on companion bond levels:
 - DEVOTED (75-100): +10% attack
 """
 
+from unittest.mock import patch
+
 import pytest
 from cli_rpg.models.companion import Companion, BondLevel
 from cli_rpg.models.character import Character
@@ -127,8 +129,9 @@ class TestCombatWithCompanions:
             player, enemy=enemy_with_companion, companions=[companion]
         )
 
-        # Attack and check damage
-        combat_with_companion.player_attack()
+        # Attack and check damage (patch random to prevent critical hits)
+        with patch('cli_rpg.combat.random.random', return_value=0.50):
+            combat_with_companion.player_attack()
         # Expected: 10 * 1.10 = 11 damage
         expected_health = 100 - 11
         assert enemy_with_companion.health == expected_health
