@@ -45,12 +45,12 @@ class TestCreateDefaultWorld:
         assert starting_location in world
     
     def test_default_world_location_count_with_sublocations(self):
-        """Test that default world has 6 locations: Town Square, Forest, Cave, + 3 sub-locations.
+        """Test that default world has 9 locations: 3 overworld + 3 Town sub + 3 Forest sub.
 
-        Spec: World has 6 locations total (3 main + 3 sub-locations)
+        Spec: World has 9 locations total (3 main + 3 Town sub-locations + 3 Forest sub-locations)
         """
         world, _ = create_default_world()
-        assert len(world) == 6
+        assert len(world) == 9
     
     def test_default_world_location_names(self):
         """Test that default world has correct location names.
@@ -121,7 +121,65 @@ class TestCreateDefaultWorld:
         merchant = market.find_npc_by_name("Merchant")
         assert merchant is not None
         assert merchant.is_merchant is True
-    
+
+    # Forest hierarchical sub-location tests
+
+    def test_default_world_forest_is_overworld(self):
+        """Forest is an overworld landmark with sub-locations.
+
+        Spec: Forest is overworld danger zone with 2+ sub-locations
+        """
+        world, _ = create_default_world()
+        forest = world["Forest"]
+        assert forest.is_overworld is True
+        assert forest.is_safe_zone is False  # Danger zone
+        assert len(forest.sub_locations) >= 2
+        assert forest.entry_point in forest.sub_locations
+
+    def test_default_world_forest_sub_locations_exist(self):
+        """All Forest sub-locations exist in world dict.
+
+        Spec: Sub-locations listed in forest.sub_locations are in world
+        """
+        world, _ = create_default_world()
+        forest = world["Forest"]
+        for sub_name in forest.sub_locations:
+            assert sub_name in world, f"Sub-location '{sub_name}' not in world"
+
+    def test_default_world_forest_sub_locations_have_parent(self):
+        """Forest sub-locations reference Forest as parent and are danger zones.
+
+        Spec: Each sub-location has parent_location="Forest" and is_safe_zone=False
+        """
+        world, _ = create_default_world()
+        forest = world["Forest"]
+        for sub_name in forest.sub_locations:
+            sub = world[sub_name]
+            assert sub.parent_location == "Forest"
+            assert sub.is_safe_zone is False  # All danger zones
+
+    def test_default_world_forest_sub_locations_no_cardinal_exits(self):
+        """Forest sub-locations have no n/s/e/w exits (only enter/exit).
+
+        Spec: Forest sub-locations have no cardinal connections
+        """
+        world, _ = create_default_world()
+        forest = world["Forest"]
+        for sub_name in forest.sub_locations:
+            sub = world[sub_name]
+            assert len(sub.connections) == 0
+
+    def test_default_world_hermit_in_ancient_grove(self):
+        """Hermit NPC is in Ancient Grove and is recruitable.
+
+        Spec: Hermit NPC in Ancient Grove with is_recruitable=True
+        """
+        world, _ = create_default_world()
+        grove = world["Ancient Grove"]
+        hermit = grove.find_npc_by_name("Hermit")
+        assert hermit is not None
+        assert hermit.is_recruitable is True
+
     def test_default_world_all_valid_locations(self):
         """Test that all values in world dict are Location instances.
         

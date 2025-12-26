@@ -159,9 +159,14 @@ def create_default_world() -> tuple[dict[str, Location], str]:
         entry_point="Market District"
     )
 
+    # Create Forest as overworld landmark with sub-locations (danger zone)
     forest = Location(
         name="Forest",
-        description="A dense forest with tall trees blocking most of the sunlight. Strange sounds echo in the distance."
+        description="A vast, dark forest stretches before you. Ancient trees tower overhead, their canopy blocking most sunlight. Multiple paths wind deeper into the woods.",
+        is_overworld=True,
+        is_safe_zone=False,  # Danger zone
+        sub_locations=["Forest Edge", "Deep Woods", "Ancient Grove"],
+        entry_point="Forest Edge"
     )
 
     cave = Location(
@@ -262,11 +267,58 @@ def create_default_world() -> tuple[dict[str, Location], str]:
         connections={}  # No cardinal exits for sub-locations
     )
 
+    # Create sub-locations for Forest (all danger zones)
+    forest_edge = Location(
+        name="Forest Edge",
+        description="The forest boundary where civilization meets wilderness. Dappled sunlight still penetrates here, but the path ahead grows darker.",
+        parent_location="Forest",
+        is_safe_zone=False,
+        category="forest",
+        connections={}  # No cardinal exits for sub-locations
+    )
+
+    deep_woods = Location(
+        name="Deep Woods",
+        description="Towering trees block out the sky. Strange sounds echo through the underbrush, and the air is thick with the scent of decay and growth.",
+        parent_location="Forest",
+        is_safe_zone=False,
+        category="forest",
+        connections={}  # No cardinal exits for sub-locations
+    )
+
+    ancient_grove = Location(
+        name="Ancient Grove",
+        description="A mystical clearing surrounded by impossibly old trees. Soft moss covers the ground, and a weathered stone shrine sits at the center.",
+        parent_location="Forest",
+        is_safe_zone=False,
+        category="forest",
+        connections={}  # No cardinal exits for sub-locations
+    )
+
+    # Create Hermit NPC (recruitable)
+    hermit = NPC(
+        name="Hermit",
+        description="A weathered old man in tattered robes who has lived in the forest for decades",
+        dialogue="The forest speaks to those who listen...",
+        is_recruitable=True,
+        greetings=[
+            "The forest speaks to those who listen...",
+            "Few venture this deep. You have courage... or foolishness.",
+            "The trees have eyes, traveler. They've watched you since you entered.",
+        ]
+    )
+    ancient_grove.npcs.append(hermit)
+
     # Build world dictionary from grid plus sub-locations
     world = grid.as_dict()
+    # Town Square sub-locations
     world["Market District"] = market_district
     world["Guard Post"] = guard_post
     world["Town Well"] = town_well
+    # Forest sub-locations
+    world["Forest Edge"] = forest_edge
+    world["Deep Woods"] = deep_woods
+    world["Ancient Grove"] = ancient_grove
 
     # Return world dictionary and starting location (backward compatible)
     return (world, "Town Square")

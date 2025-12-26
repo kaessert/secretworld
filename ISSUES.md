@@ -430,23 +430,32 @@ Your vision fades... but this is not the end.
   - 3 sub-locations: Market District (with Merchant), Guard Post (with Guard), Town Well
   - All sub-locations have `parent_location="Town Square"` and `is_safe_zone=True`
   - `enter`/`exit` commands work with actual content
+- ✅ **Forest hierarchical structure** (IMPLEMENTED): Forest expanded to overworld landmark:
+  - Forest as overworld landmark with `is_overworld=True`, `is_safe_zone=False` (danger zone)
+  - 3 sub-locations: Forest Edge, Deep Woods, Ancient Grove
+  - All sub-locations have `parent_location="Forest"`, `is_safe_zone=False`, `category="forest"`
+  - Hermit NPC in Ancient Grove (`is_recruitable=True`)
 
 **Remaining Architecture**:
 
 ```
 OVERWORLD (macro map)
   │
+  ├── ✅ 🏠 Town Square (SAFE) - IMPLEMENTED
+  │     ├── Market District (with Merchant)
+  │     ├── Guard Post (with Guard)
+  │     └── Town Well
+  │
+  ├── ✅ 🌲 Forest (DANGEROUS) - IMPLEMENTED
+  │     ├── Forest Edge
+  │     ├── Deep Woods
+  │     └── Ancient Grove (with Hermit)
+  │
   ├── 🏰 Ironhold City (SAFE - no random encounters)
   │     ├── Market District
   │     ├── Castle Ward
   │     ├── Slums
   │     └── Temple Quarter
-  │
-  ├── 🌲 Whisperwood Forest (DANGEROUS)
-  │     ├── Forest Edge
-  │     ├── Deep Woods
-  │     ├── Ancient Grove
-  │     └── Hidden Clearing
   │
   ├── ⛏️ Abandoned Mines (DUNGEON)
   │     ├── Mine Entrance
@@ -1037,6 +1046,38 @@ This check occurs before any coordinate-based movement or new location generatio
 **Description**: Players could get stuck in locations with no exits, unable to continue exploring.
 
 **Fix**: Fixed world generation to ensure all locations have at least one valid exit. Commit: 8d7f56f.
+
+### ASCII art first line alignment off
+**Status**: ACTIVE
+
+**Description**: ASCII art for locations and enemies sometimes has the first line misaligned (missing leading spaces), breaking the visual presentation.
+
+**Example (current - broken)**:
+```
+/\ /\
+  (  V  )
+  /|   |\
+ / |   | \
+(___|___|_)
+```
+
+**Expected (fixed)**:
+```
+   /\ /\
+  (  V  )
+  /|   |\
+ / |   | \
+(___|___|_)
+```
+
+The issue also affects location ASCII art like "Cybernetic Tundra" where the first line is missing its leading space.
+
+**Cause**: Likely a string processing issue where leading whitespace is being trimmed from the first line during AI generation response parsing or template loading.
+
+**Files to check**:
+- `src/cli_rpg/ai_service.py` - AI response parsing
+- `src/cli_rpg/location_art.py` - Location art templates
+- `src/cli_rpg/npc_art.py` - NPC/enemy art templates
 
 ### Map locations all use same symbol - impossible to distinguish
 **Status**: RESOLVED
