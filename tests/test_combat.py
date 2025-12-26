@@ -56,6 +56,9 @@ class TestPlayerAttack:
     
     def test_player_attack_damages_enemy(self):
         """Spec: player_attack() should damage enemy based on player's strength."""
+        import random
+        random.seed(0)  # Seed to prevent crit (crit chance is ~20% with balanced stance)
+
         player = Character(name="Hero", strength=10, dexterity=10, intelligence=10, level=1)
         player.strength = 10  # Set known strength
         enemy = Enemy(
@@ -68,10 +71,10 @@ class TestPlayerAttack:
         )
         combat = CombatEncounter(player=player, enemy=enemy)
         combat.start()
-        
+
         initial_health = enemy.health
         victory, message = combat.player_attack()
-        
+
         # Damage should be strength - enemy defense
         expected_damage = max(1, player.strength - enemy.defense)
         assert enemy.health == initial_health - expected_damage

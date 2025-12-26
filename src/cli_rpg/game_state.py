@@ -53,6 +53,7 @@ KNOWN_COMMANDS: set[str] = {
     "look", "go", "save", "quit", "attack", "defend", "block", "flee", "status", "cast", "sneak", "bash",
     "fireball", "ice_bolt", "heal",  # Mage-specific spells
     "bless", "smite",  # Cleric-specific abilities
+    "stance",  # Fighting stance command
     "inventory", "equip", "unequip", "use", "drop", "talk", "buy", "sell", "shop",
     "map", "worldmap", "help", "quests", "quest", "accept", "complete", "abandon", "lore", "rest",
     "bestiary", "dump-state", "events", "companions", "recruit", "dismiss", "companion-quest",
@@ -126,6 +127,8 @@ def parse_command(command_str: str) -> tuple[str, list[str]]:
         "fb": "fireball", "ib": "ice_bolt", "hl": "heal",
         # Cleric ability aliases
         "bs": "bless", "sm": "smite",
+        # Fighting stance alias
+        "st": "stance",
         # Ultra-short movement shortcuts
         "n": "go", "w": "go",
         "gn": "go", "gs": "go", "ge": "go", "gw": "go",

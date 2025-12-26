@@ -2,7 +2,7 @@
 import sys
 from typing import Optional
 from cli_rpg.character_creation import create_character, get_theme_selection, create_character_non_interactive
-from cli_rpg.models.character import Character
+from cli_rpg.models.character import Character, FightingStance
 from cli_rpg.models.item import Item, ItemType
 from cli_rpg.persistence import save_character, load_character, list_saves, save_game_state, load_game_state, detect_save_type
 from cli_rpg.game_state import GameState, parse_command, suggest_command, KNOWN_COMMANDS
@@ -87,6 +87,7 @@ def get_command_reference() -> str:
         "  smite (sm) [target] - Holy damage, 2x vs undead (Cleric only, 15 mana)",
         "  sneak (sn)    - Enter stealth mode (Rogue only)",
         "  bash (ba) [target] - Stun an enemy (Warrior only, 15 stamina)",
+        "  stance (st) [type] - Change fighting stance (balanced/aggressive/defensive/berserker)",
         "  flee (f)      - Attempt to flee from combat",
         "  use (u) <item> - Use a consumable item",
         "  status (s, stats) - View combat status",
@@ -195,6 +196,81 @@ def select_and_load_character() -> tuple[Optional[Character], Optional[GameState
     except Exception as e:
         print(f"\n✗ Failed to load: {e}")
         return (None, None)
+
+
+def handle_stance_command(game_state: GameState, args: list[str]) -> tuple[bool, str]:
+    """Handle the stance command for changing fighting stances.
+
+    The stance command works both in and out of combat.
+    With no args: shows current stance and available options.
+    With arg: changes stance to specified option (case-insensitive partial match).
+
+    Args:
+        game_state: Current game state
+        args: Command arguments (stance name or empty)
+
+    Returns:
+        Tuple of (continue_game, message)
+    """
+    from cli_rpg import colors
+
+    player = game_state.current_character
+
+    # Map of stance names/aliases to FightingStance values
+    stance_map = {
+        "balanced": FightingStance.BALANCED,
+        "bal": FightingStance.BALANCED,
+        "aggressive": FightingStance.AGGRESSIVE,
+        "agg": FightingStance.AGGRESSIVE,
+        "defensive": FightingStance.DEFENSIVE,
+        "def": FightingStance.DEFENSIVE,
+        "berserker": FightingStance.BERSERKER,
+        "ber": FightingStance.BERSERKER,
+        "berserk": FightingStance.BERSERKER,
+    }
+
+    # Stance descriptions for display
+    stance_info = {
+        FightingStance.BALANCED: ("+5% crit chance", "A balanced approach to combat."),
+        FightingStance.AGGRESSIVE: ("+20% damage, -10% defense", "Hit harder but take more damage."),
+        FightingStance.DEFENSIVE: ("-10% damage, +20% defense", "Take less damage but deal less."),
+        FightingStance.BERSERKER: ("Damage scales with missing HP (up to +50%)", "The lower your health, the harder you hit."),
+    }
+
+    if not args:
+        # Show current stance and options
+        current = player.stance
+        modifier, desc = stance_info[current]
+        lines = [
+            f"Current Stance: {colors.heal(current.value)} ({modifier})",
+            f"  {desc}",
+            "",
+            "Available Stances:",
+        ]
+        for stance, (mod, description) in stance_info.items():
+            marker = "→ " if stance == current else "  "
+            lines.append(f"  {marker}{stance.value} ({mod})")
+
+        lines.append("")
+        lines.append("Usage: stance <balanced|aggressive|defensive|berserker>")
+        return (True, "\n" + "\n".join(lines))
+
+    # Try to match the argument to a stance
+    stance_name = args[0].lower()
+
+    if stance_name in stance_map:
+        new_stance = stance_map[stance_name]
+        if new_stance == player.stance:
+            return (True, f"\nYou're already in {colors.heal(new_stance.value)} stance.")
+
+        old_stance = player.stance
+        player.stance = new_stance
+        modifier, desc = stance_info[new_stance]
+        return (True, f"\nYou shift from {old_stance.value} to {colors.heal(new_stance.value)} stance. ({modifier})")
+
+    # No match found - suggest valid options
+    valid_stances = ", ".join(s.value.lower() for s in FightingStance)
+    return (True, f"\nUnknown stance '{stance_name}'. Valid options: {valid_stances}")
 
 
 def handle_conversation_input(game_state: GameState, user_input: str) -> tuple[bool, str]:
@@ -813,6 +889,10 @@ def handle_combat_command(game_state: GameState, command: str, args: list[str], 
 
         return (True, output)
 
+    elif command == "stance":
+        # Handle stance command - works in and out of combat
+        return handle_stance_command(game_state, args)
+
     elif command == "status":
         return (True, "\n" + combat.get_status())
 
@@ -868,7 +948,7 @@ def handle_combat_command(game_state: GameState, command: str, args: list[str], 
 
     elif command == "unknown":
         # Provide "did you mean?" suggestion during combat
-        combat_commands = {"attack", "defend", "block", "cast", "fireball", "ice_bolt", "heal", "bless", "smite", "flee", "sneak", "bash", "use", "status", "help", "quit"}
+        combat_commands = {"attack", "defend", "block", "cast", "fireball", "ice_bolt", "heal", "bless", "smite", "flee", "sneak", "bash", "stance", "use", "status", "help", "quit"}
         if args and args[0]:
             suggestion = suggest_command(args[0], combat_commands)
             if suggestion:
@@ -932,6 +1012,10 @@ def handle_exploration_command(game_state: GameState, command: str, args: list[s
         from cli_rpg.ranger import execute_track
         success, message = execute_track(game_state)
         return (True, f"\n{message}")
+
+    elif command == "stance":
+        # Handle stance command - works in and out of combat
+        return handle_stance_command(game_state, args)
 
     elif command == "status":
         status_output = str(game_state.current_character)

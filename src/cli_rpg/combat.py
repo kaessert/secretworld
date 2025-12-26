@@ -639,6 +639,10 @@ class CombatEncounter:
         # Calculate damage: player attack power (strength + weapon bonus) - enemy defense, minimum 1
         dmg = max(1, self.player.get_attack_power() - enemy.defense)
 
+        # Apply stance damage modifier
+        stance_modifier = self.player.get_stance_damage_modifier()
+        dmg = int(dmg * stance_modifier)
+
         # Apply backstab bonus (1.5x damage from stealth)
         if is_backstab:
             dmg = int(dmg * 1.5)
@@ -657,8 +661,9 @@ class CombatEncounter:
         if wilderness_multiplier > 1.0:
             dmg = int(dmg * wilderness_multiplier)
 
-        # Check for critical hit (DEX-based + luck bonus)
+        # Check for critical hit (DEX-based + luck bonus + stance bonus)
         crit_chance = calculate_crit_chance(self.player.dexterity, self.player.luck)
+        crit_chance += self.player.get_stance_crit_modifier()
         is_crit = random.random() < crit_chance
         if is_crit:
             dmg = int(dmg * CRIT_MULTIPLIER)
@@ -823,6 +828,11 @@ class CombatEncounter:
         # Calculate damage: 0.75x normal attack, minimum 1
         base_dmg = max(1, self.player.get_attack_power() - enemy.defense)
         dmg = max(1, int(base_dmg * 0.75))
+
+        # Apply stance damage modifier
+        stance_modifier = self.player.get_stance_damage_modifier()
+        dmg = int(dmg * stance_modifier)
+
         enemy.take_damage(dmg)
 
         # Apply stun effect to enemy (1 turn)
@@ -914,13 +924,18 @@ class CombatEncounter:
         # Calculate magic damage: intelligence * 1.5, ignores defense
         dmg = max(1, int(self.player.intelligence * 1.5))
 
+        # Apply stance damage modifier
+        stance_modifier = self.player.get_stance_damage_modifier()
+        dmg = int(dmg * stance_modifier)
+
         # Apply companion bonus
         companion_bonus = self._get_companion_bonus()
         if companion_bonus > 0:
             dmg = int(dmg * (1 + companion_bonus))
 
-        # Check for critical hit (INT-based for cast + luck bonus)
+        # Check for critical hit (INT-based for cast + luck bonus + stance bonus)
         crit_chance = calculate_crit_chance(self.player.intelligence, self.player.luck)
+        crit_chance += self.player.get_stance_crit_modifier()
         is_crit = random.random() < crit_chance
         if is_crit:
             dmg = int(dmg * CRIT_MULTIPLIER)
@@ -988,6 +1003,10 @@ class CombatEncounter:
 
         # Calculate damage: INT * 2.5, ignores defense
         dmg = max(1, int(self.player.intelligence * 2.5))
+
+        # Apply stance damage modifier
+        stance_modifier = self.player.get_stance_damage_modifier()
+        dmg = int(dmg * stance_modifier)
 
         enemy.take_damage(dmg)
 
@@ -1060,6 +1079,10 @@ class CombatEncounter:
 
         # Calculate damage: INT * 2.0, ignores defense
         dmg = max(1, int(self.player.intelligence * 2.0))
+
+        # Apply stance damage modifier
+        stance_modifier = self.player.get_stance_damage_modifier()
+        dmg = int(dmg * stance_modifier)
 
         enemy.take_damage(dmg)
 
@@ -1284,6 +1307,10 @@ class CombatEncounter:
         else:
             dmg = max(1, int(self.player.intelligence * SMITE_DAMAGE_MULTIPLIER))
 
+        # Apply stance damage modifier
+        stance_modifier = self.player.get_stance_damage_modifier()
+        dmg = int(dmg * stance_modifier)
+
         # Apply damage
         enemy.take_damage(dmg)
 
@@ -1395,7 +1422,9 @@ class CombatEncounter:
             attack_power = enemy.calculate_damage()
             if enemy.has_effect_type("freeze"):
                 attack_power = int(attack_power * 0.5)
-            base_damage = max(1, attack_power - self.player.get_defense())
+            # Apply stance defense modifier to effective defense
+            effective_defense = int(self.player.get_defense() * self.player.get_stance_defense_modifier())
+            base_damage = max(1, attack_power - effective_defense)
 
             # Check for enemy critical hit (flat 5% chance)
             is_crit = random.random() < ENEMY_CRIT_CHANCE

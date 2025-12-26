@@ -19,6 +19,23 @@ class CharacterClass(Enum):
     CLERIC = "Cleric"
 
 
+class FightingStance(Enum):
+    """Fighting stance enum (Spec: 4 combat stances with stat modifiers).
+
+    | Stance | Damage Modifier | Defense Modifier | Other |
+    |--------|----------------|------------------|-------|
+    | Aggressive | +20% | -10% | - |
+    | Defensive | -10% | +20% | - |
+    | Balanced | 0% | 0% | +5% crit chance |
+    | Berserker | +X% (scales with missing HP) | 0% | - |
+    """
+
+    BALANCED = "Balanced"
+    AGGRESSIVE = "Aggressive"
+    DEFENSIVE = "Defensive"
+    BERSERKER = "Berserker"
+
+
 # Spec: CLASS_BONUSES dict maps each class to stat bonuses
 # Includes CHA bonuses: Cleric +2, Rogue +1, others 0
 # Includes PER bonuses: Rogue +2, Ranger +1, others 0
@@ -81,6 +98,7 @@ class Character:
     perception: int = 10  # Default perception for backward compatibility
     luck: int = 10  # Default luck for backward compatibility
     character_class: Optional[CharacterClass] = None
+    stance: FightingStance = FightingStance.BALANCED  # Default stance for combat
     level: int = 1
     health: int = field(init=False)
     max_health: int = field(init=False)
@@ -312,6 +330,57 @@ class Character:
         base_defense = self.constitution + self.inventory.get_defense_bonus()
         modifier = self._get_stat_modifier("buff_defense", "debuff_defense")
         return int(base_defense * modifier)
+
+    def get_stance_damage_modifier(self) -> float:
+        """Get damage modifier based on current fighting stance.
+
+        Returns:
+            Damage multiplier:
+            - AGGRESSIVE: 1.20 (+20%)
+            - DEFENSIVE: 0.90 (-10%)
+            - BALANCED: 1.0 (no modifier)
+            - BERSERKER: 1.0 + (1 - health/max_health) * 0.5 (scales with missing HP)
+        """
+        if self.stance == FightingStance.AGGRESSIVE:
+            return 1.20
+        elif self.stance == FightingStance.DEFENSIVE:
+            return 0.90
+        elif self.stance == FightingStance.BERSERKER:
+            # Berserker formula: bonus scales with missing HP
+            # At full HP: 0% bonus, at 10% HP: 45% bonus
+            health_ratio = self.health / self.max_health if self.max_health > 0 else 1.0
+            return 1.0 + (1.0 - health_ratio) * 0.5
+        else:  # BALANCED
+            return 1.0
+
+    def get_stance_defense_modifier(self) -> float:
+        """Get defense modifier based on current fighting stance.
+
+        Returns:
+            Defense multiplier:
+            - AGGRESSIVE: 0.90 (-10%)
+            - DEFENSIVE: 1.20 (+20%)
+            - BALANCED: 1.0 (no modifier)
+            - BERSERKER: 1.0 (no modifier)
+        """
+        if self.stance == FightingStance.AGGRESSIVE:
+            return 0.90
+        elif self.stance == FightingStance.DEFENSIVE:
+            return 1.20
+        else:  # BALANCED or BERSERKER
+            return 1.0
+
+    def get_stance_crit_modifier(self) -> float:
+        """Get critical hit chance modifier based on current fighting stance.
+
+        Returns:
+            Additional crit chance:
+            - BALANCED: 0.05 (+5% crit chance)
+            - All others: 0.0 (no modifier)
+        """
+        if self.stance == FightingStance.BALANCED:
+            return 0.05
+        return 0.0
 
     def equip_item(self, item: "Item") -> bool:
         """Equip an item from inventory.
@@ -970,6 +1039,7 @@ class Character:
             "perception": self.perception,
             "luck": self.luck,
             "character_class": self.character_class.value if self.character_class else None,
+            "stance": self.stance.value,
             "level": self.level,
             "health": self.health,
             "max_health": self.max_health,
@@ -1035,6 +1105,17 @@ class Character:
                 if char_class.value == class_value:
                     character.character_class = char_class
                     break
+
+        # Restore stance from save (backward compat: defaults to BALANCED)
+        stance_value = data.get("stance")
+        if stance_value:
+            # Convert string value to FightingStance enum
+            for stance in FightingStance:
+                if stance.value == stance_value:
+                    character.stance = stance
+                    break
+        else:
+            character.stance = FightingStance.BALANCED
 
         # Restore actual stats from save (may be > 20 from level-ups)
         character.strength = data["strength"]

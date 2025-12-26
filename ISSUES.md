@@ -895,18 +895,20 @@ Special abilities should cost resources, not be free.
 - Some enemies drain mana/stamina with attacks
 
 ### Weapon proficiencies & fighting styles
-**Status**: ACTIVE
+**Status**: ACTIVE (Fighting Stances Implemented)
 
 Not all weapons should feel the same.
 
 - **Weapon types**: Swords, axes, maces, daggers, bows, staves
 - **Proficiency**: Using a weapon type increases skill with it
 - Higher proficiency = damage bonus, special moves, faster attacks
-- **Fighting styles** (choose one active):
+- ✅ **Fighting stances** (choose one active via `stance` command):
+  - Balanced (default): +5% crit chance
   - Aggressive: +20% damage, -10% defense
-  - Defensive: +20% defense, -10% damage
-  - Balanced: No modifier, +5% crit
-  - Berserker: Damage increases as HP drops
+  - Defensive: -10% damage, +20% defense
+  - Berserker: Damage scales with missing HP (up to +50% at low health)
+- ✅ Stance modifiers apply to all attacks (physical, spells, abilities)
+- ✅ Stance persists through save/load with backward compatibility
 
 ### Status effects and combat depth
 **Status**: ACTIVE (Partial)
@@ -939,7 +941,7 @@ Combat is too simple - attack until enemy dies. Core status effect system has be
 - Defensive options: parry (not yet implemented)
 - Enemy attack patterns and telegraphed special moves
 - ✅ Critical hits and miss chances based on stats - MVP IMPLEMENTED (Player crits: 5% + 1% per DEX/INT capped at 20%, 1.5x damage; Player dodge: 5% + 0.5% per DEX capped at 15%; Enemy crits: flat 5%, 1.5x damage)
-- Combat stances or modes
+- ✅ Combat stances or modes - MVP IMPLEMENTED (see "Weapon proficiencies & fighting styles" section above; `stance` command with Balanced/Aggressive/Defensive/Berserker options)
 
 ### Dynamic world events
 **Status**: ACTIVE (Partial)

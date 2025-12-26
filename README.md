@@ -169,6 +169,11 @@ Status effects are cleared when combat ends.
 - `attack [target]` (a) - Attack an enemy (damage based on your strength vs enemy defense). Specify a target name when facing multiple enemies, or attacks the first living enemy.
 - `defend` (d) - Take a defensive stance, reducing incoming damage by 50% from all enemies
 - `block` (bl) - Take a blocking stance for stronger defense (costs 5 stamina, reduces incoming damage by 75%)
+- `stance [style]` (st) - View or change your fighting stance. Available stances:
+  - **Balanced** (default): +5% critical hit chance
+  - **Aggressive**: +20% damage dealt, -10% defense
+  - **Defensive**: -10% damage dealt, +20% defense
+  - **Berserker**: Damage scales with missing HP (up to +50% at low health)
 - `flee` (f) - Attempt to escape (chance based on dexterity)
 - `cast [target]` (c) - Cast a magic attack at an enemy (costs 10 mana, damage based on intelligence). Targeting works like `attack`.
 - `fireball [target]` (fb) - **Mage only**: Hurl a fireball at an enemy (costs 20 mana). Deals INT × 2.5 damage (ignores defense), 25% chance to inflict Burn (5 damage/turn for 2 turns). Targeting works like `attack`.
