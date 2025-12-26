@@ -1,59 +1,63 @@
-# Implementation Summary: Validate EXPLORE Quest Targets
+# Implementation Summary: TALK Quest Target Validation
 
 ## What Was Implemented
 
-Added validation for EXPLORE quest targets against known location names, following the same pattern as the existing KILL quest validation.
+Added validation for TALK quest targets to ensure they match existing NPC names in the game world, following the same pattern as EXPLORE quest validation.
 
 ### Files Modified
 
 1. **`src/cli_rpg/ai_service.py`**
-   - Added `valid_locations: Optional[set[str]] = None` parameter to `generate_quest()` method
-   - Added `valid_locations: Optional[set[str]] = None` parameter to `_parse_quest_response()` method
-   - Added EXPLORE quest target validation logic after existing KILL validation:
+   - Added `valid_npcs: Optional[set[str]] = None` parameter to `generate_quest()` (line 1774)
+   - Added `valid_npcs: Optional[set[str]] = None` parameter to `_parse_quest_response()` (line 1857)
+   - Added TALK quest validation block (lines 1958-1963):
      ```python
-     if objective_type == "explore" and valid_locations is not None:
-         if target.lower() not in valid_locations:
+     if objective_type == "talk" and valid_npcs is not None:
+         if target.lower() not in valid_npcs:
              raise AIGenerationError(
-                 f"Invalid EXPLORE quest target '{target}'. Must be an existing location."
+                 f"Invalid TALK quest target '{target}'. Must be an existing NPC."
              )
      ```
+   - Passed `valid_npcs` from `generate_quest()` to `_parse_quest_response()` (line 1818)
 
 2. **`src/cli_rpg/main.py`**
-   - Updated talk command handler to pass `valid_locations` to `generate_quest()`
-   - Builds set of lowercase location names from `game_state.world.keys()`
+   - Added collection of valid NPC names from all locations (lines 1265-1270):
+     ```python
+     valid_npcs = {
+         npc_in_loc.name.lower()
+         for location in game_state.world.values()
+         for npc_in_loc in location.npcs
+     }
+     ```
+   - Passed `valid_npcs` to `generate_quest()` (line 1277)
 
-### Files Created
+3. **`tests/test_talk_quest_validation.py`** (NEW)
+   - Created 8 tests covering all spec requirements
 
-1. **`tests/test_explore_quest_validation.py`**
-   - 7 tests covering all aspects of EXPLORE validation:
-     - Valid explore target accepted
-     - Invalid explore target rejected (raises AIGenerationError)
-     - Case-insensitive matching
-     - Backward compatibility when valid_locations=None
-     - KILL quests still validate against VALID_ENEMY_TYPES
-     - COLLECT quests not validated against locations
-     - generate_quest accepts valid_locations parameter
+### Test Results
 
-## Test Results
+All 8 new tests pass:
+- `test_valid_talk_target_accepted` - TALK quest with existing NPC name parses successfully
+- `test_invalid_talk_target_rejected` - TALK quest with non-existent NPC raises AIGenerationError
+- `test_talk_target_case_insensitive` - "Village Elder" matches "village elder" in valid_npcs
+- `test_talk_validation_skipped_when_no_npcs` - No validation when valid_npcs=None (backward compatibility)
+- `test_kill_quest_unchanged` - KILL quests still validate against VALID_ENEMY_TYPES
+- `test_explore_quest_unchanged` - EXPLORE quests still validate against valid_locations
+- `test_collect_quest_unchanged` - COLLECT quests still validate against OBTAINABLE_ITEMS
+- `test_generate_quest_accepts_valid_npcs_param` - generate_quest() accepts valid_npcs parameter
 
-All tests pass:
-- `tests/test_explore_quest_validation.py`: 7 passed
-- `tests/test_quest_validation.py`: 15 passed (existing tests unchanged)
-- `tests/test_ai_service.py`: 94 passed
-- `tests/test_main.py`: 5 passed
+All 101 related tests (EXPLORE validation + ai_service tests) pass with no regressions.
 
-## Design Decisions
+### Design Decisions
 
-1. **Backward Compatibility**: When `valid_locations=None` (the default), EXPLORE validation is skipped entirely. This ensures existing code paths that don't pass this parameter continue to work.
+- Case-insensitive matching: `target.lower() not in valid_npcs` (valid_npcs stored lowercase)
+- Backward compatible: When `valid_npcs=None`, validation is skipped
+- Used `npc_in_loc` variable name in main.py to avoid shadowing outer `npc` variable
+- Follows existing validation pattern for EXPLORE quests (consistent code style)
 
-2. **Case-Insensitive Matching**: Location names are compared lowercase, matching the pattern used for KILL quest validation against VALID_ENEMY_TYPES.
+### E2E Validation
 
-3. **Minimal Changes**: Only added the necessary validation logic without modifying existing behavior for other quest types (KILL, COLLECT, TALK, DROP).
-
-## E2E Validation
-
-To validate this feature works end-to-end:
-1. Start a game and explore some locations
+To validate manually:
+1. Start game with AI service enabled
 2. Talk to a quest-giving NPC
-3. If they offer an EXPLORE quest, the target should be one of the discovered locations
-4. If AI generates an invalid location target, it will trigger quest regeneration automatically
+3. Request a quest - TALK quests should only reference NPCs that exist in the world
+4. Invalid TALK targets will trigger AIGenerationError, causing quest regeneration (up to max_retries)

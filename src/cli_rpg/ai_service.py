@@ -1770,7 +1770,8 @@ Note: Use "EXISTING_WORLD" as placeholder for the connection back to the source 
         npc_name: str,
         player_level: int,
         location_name: str = "",
-        valid_locations: Optional[set[str]] = None
+        valid_locations: Optional[set[str]] = None,
+        valid_npcs: Optional[set[str]] = None
     ) -> dict:
         """Generate a quest with AI.
 
@@ -1781,6 +1782,8 @@ Note: Use "EXISTING_WORLD" as placeholder for the connection back to the source 
             location_name: Name of the current location for context
             valid_locations: Optional set of valid location names (lowercase) for
                 EXPLORE quest validation. If None, EXPLORE validation is skipped.
+            valid_npcs: Optional set of valid NPC names (lowercase) for
+                TALK quest validation. If None, TALK validation is skipped.
 
         Returns:
             Dictionary with: name, description, objective_type, target,
@@ -1812,7 +1815,7 @@ Note: Use "EXISTING_WORLD" as placeholder for the connection back to the source 
 
         # Parse and validate response
         quest_data = self._parse_quest_response(
-            response_text, npc_name, valid_locations=valid_locations
+            response_text, npc_name, valid_locations=valid_locations, valid_npcs=valid_npcs
         )
 
         # Cache result if enabled
@@ -1850,7 +1853,8 @@ Note: Use "EXISTING_WORLD" as placeholder for the connection back to the source 
         self,
         response_text: str,
         npc_name: str,
-        valid_locations: Optional[set[str]] = None
+        valid_locations: Optional[set[str]] = None,
+        valid_npcs: Optional[set[str]] = None
     ) -> dict:
         """Parse and validate LLM response for quest generation.
 
@@ -1859,6 +1863,8 @@ Note: Use "EXISTING_WORLD" as placeholder for the connection back to the source 
             npc_name: Name of the NPC giving the quest (added to result)
             valid_locations: Optional set of valid location names (lowercase) for
                 EXPLORE quest validation. If None, EXPLORE validation is skipped.
+            valid_npcs: Optional set of valid NPC names (lowercase) for
+                TALK quest validation. If None, TALK validation is skipped.
 
         Returns:
             Dictionary with validated quest data
@@ -1947,6 +1953,13 @@ Note: Use "EXISTING_WORLD" as placeholder for the connection back to the source 
             if target.lower() not in OBTAINABLE_ITEMS:
                 raise AIGenerationError(
                     f"Invalid COLLECT quest target '{target}'. Must be an obtainable item."
+                )
+
+        # Validate TALK quest targets against world NPCs
+        if objective_type == "talk" and valid_npcs is not None:
+            if target.lower() not in valid_npcs:
+                raise AIGenerationError(
+                    f"Invalid TALK quest target '{target}'. Must be an existing NPC."
                 )
 
         # Validate target_count >= 1

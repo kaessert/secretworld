@@ -1262,12 +1262,19 @@ def handle_exploration_command(game_state: GameState, command: str, args: list[s
                     from cli_rpg.models.quest import Quest, ObjectiveType
                     # Build set of valid location names for EXPLORE quest validation
                     valid_locations = {loc.lower() for loc in game_state.world.keys()}
+                    # Build set of valid NPC names for TALK quest validation
+                    valid_npcs = {
+                        npc_in_loc.name.lower()
+                        for location in game_state.world.values()
+                        for npc_in_loc in location.npcs
+                    }
                     quest_data = game_state.ai_service.generate_quest(
                         theme=game_state.theme,
                         npc_name=npc.name,
                         player_level=game_state.current_character.level,
                         location_name=game_state.current_location,
-                        valid_locations=valid_locations
+                        valid_locations=valid_locations,
+                        valid_npcs=valid_npcs
                     )
                     new_quest = Quest(
                         name=quest_data["name"],

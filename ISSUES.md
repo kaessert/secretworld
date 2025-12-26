@@ -631,10 +631,18 @@ Issues discovered during WFC mode playtesting (WFC is now enabled by default; up
 ---
 
 ### CRITICAL: Quest System World Integration Failures
-**Status**: HIGH PRIORITY
+**Status**: ✅ CORE VALIDATION COMPLETE (TALK, KILL, COLLECT, EXPLORE all validated)
 **Date Added**: 2025-12-26
 
-**Problem**: Quest generation and world generation are completely decoupled, creating "impossible quests" where targets don't exist in the game world.
+**Problem**: Quest generation and world generation were completely decoupled, creating "impossible quests" where targets didn't exist in the game world.
+
+**Resolution**: All four major quest objective types now have validation:
+- KILL quests: Validated against `VALID_ENEMY_TYPES` in `combat.py`
+- COLLECT quests: Validated against `OBTAINABLE_ITEMS` in `ai_service.py`
+- EXPLORE quests: Validated against `valid_locations` from world keys
+- TALK quests: Validated against `valid_npcs` from world NPCs
+
+Invalid targets raise `AIGenerationError`, forcing quest regeneration until a valid target is used.
 
 #### Root Cause Analysis
 
@@ -686,19 +694,22 @@ Result: IMPOSSIBLE - "Obsidian Cathedral" doesn't exist
 
 #### Issue 3: TALK Quest Targets Don't Match World NPCs
 
-**Severity**: HIGH
+**Severity**: ✅ RESOLVED (2025-12-26)
 
+**Solution Implemented**:
+- Added `valid_npcs: Optional[set[str]]` parameter to `generate_quest()` and `_parse_quest_response()` in `ai_service.py`
+- When `objective_type == "talk"` and `valid_npcs` is provided, validates that `target.lower()` exists in the set
+- Invalid targets raise `AIGenerationError`, forcing quest regeneration with a valid NPC
+- `main.py` collects valid NPC names from all locations when generating quests via the talk command
+- Case-insensitive matching maintains consistency with other quest validations
+- 8 new tests in `tests/test_talk_quest_validation.py` verify the validation
+
+**Original Problem**:
 ```
 Quest: "Talk to Elder Mage Aldous"
 NPCs in World: Merchant, Guard, Hermit, Town Elder
 Result: IMPOSSIBLE - "Elder Mage Aldous" doesn't exist
 ```
-
-**How it fails**:
-- AI generates arbitrary NPC name in `target` field
-- NPCs created via hardcoded defaults (`world.py`) or AI location generation
-- No cross-reference between quest NPCs and world NPCs
-- Player can never find NPC that wasn't generated
 
 #### Issue 4: COLLECT Quest Targets Don't Match Obtainable Items
 
@@ -724,7 +735,7 @@ Result: IMPOSSIBLE - "Dragon Scales" can't be obtained
 |----------------|----------------------|--------|
 | COLLECT | ✅ 0% | Validated against `OBTAINABLE_ITEMS` (fixed 2025-12-26) |
 | KILL | ✅ 0% | Validated against `VALID_ENEMY_TYPES` (fixed 2025-12-26) |
-| TALK | 50% | NPCs generated separately from quests |
+| TALK | ✅ 0% | Validated against `valid_npcs` from world (fixed 2025-12-26) |
 | EXPLORE | ✅ 0% | Validated against known locations (fixed 2025-12-26) |
 
 #### Proposed Solutions
@@ -800,8 +811,9 @@ When AI generates a quest target, ensure it gets created:
 1. ~~**Immediate**: Add `VALID_ENEMY_TYPES` constant and validate KILL quests (most common type)~~ ✅ DONE (2025-12-26)
 2. ~~**Immediate**: Validate EXPLORE quests against known location names~~ ✅ DONE (2025-12-26)
 3. ~~**Short-term**: Pass obtainable items list to quest generation for COLLECT quests~~ ✅ DONE (2025-12-26) - Validation via `OBTAINABLE_ITEMS` frozenset
-4. **Medium-term**: Implement context-aware generation with all world state
-5. **Long-term**: World-creating quests that guarantee completability
+4. ~~**Short-term**: Validate TALK quests against existing NPC names~~ ✅ DONE (2025-12-26) - Validation via `valid_npcs` parameter
+5. **Medium-term**: Implement context-aware generation with all world state
+6. **Long-term**: World-creating quests that guarantee completability
 
 #### Files to Modify
 

@@ -1,50 +1,94 @@
-# Implementation Plan: Validate EXPLORE Quest Targets
+# Implementation Plan: Validate TALK Quest Targets Against World NPCs
 
 ## Summary
-Add validation in `ai_service.py:_parse_quest_response()` to check EXPLORE quest targets against known location names, following the same pattern as the existing KILL quest validation.
+Add validation in `ai_service.py:_parse_quest_response()` to check TALK quest targets against existing NPC names in the game world, following the same pattern as EXPLORE quest validation (requires passing `valid_npcs` parameter).
 
 ## Spec
-- EXPLORE quest targets must match an existing location name (case-insensitive)
-- Valid locations are passed as an optional parameter through the call chain
-- When no valid locations are provided, EXPLORE validation is skipped (backward compatibility)
-- Invalid EXPLORE targets raise `AIGenerationError`, triggering quest regeneration
+- TALK quest targets must match an existing NPC name in the game world (case-insensitive)
+- Add `valid_npcs: Optional[set[str]]` parameter to `generate_quest()` and `_parse_quest_response()`
+- Invalid TALK targets raise `AIGenerationError`, triggering quest regeneration
+- When `valid_npcs=None`, validation is skipped (backward compatibility)
+- Main.py collects NPC names from `game_state.world` and passes them to quest generation
 
 ## Test Plan (TDD - write tests first)
 
-**File: `tests/test_explore_quest_validation.py`**
+**File: `tests/test_talk_quest_validation.py`**
 
 | Test | Description |
 |------|-------------|
-| `test_valid_explore_target_accepted` | EXPLORE quest with existing location name parses successfully |
-| `test_invalid_explore_target_rejected` | EXPLORE quest with non-existent location raises `AIGenerationError` |
-| `test_explore_target_case_insensitive` | "town square" matches "Town Square" |
-| `test_explore_validation_skipped_when_no_locations` | No validation when `valid_locations=None` (backward compat) |
+| `test_valid_talk_target_accepted` | TALK quest with existing NPC name parses successfully |
+| `test_invalid_talk_target_rejected` | TALK quest with "Elder Mage Aldous" raises `AIGenerationError` when not in valid_npcs |
+| `test_talk_target_case_insensitive` | "merchant" matches "Merchant" in valid_npcs |
+| `test_talk_validation_skipped_when_no_npcs` | No validation when `valid_npcs=None` (backward compatibility) |
 | `test_kill_quest_unchanged` | KILL quests still validate against `VALID_ENEMY_TYPES` |
-| `test_collect_quest_unchanged` | COLLECT quests not validated against locations |
+| `test_explore_quest_unchanged` | EXPLORE quests still validate against `valid_locations` |
+| `test_collect_quest_unchanged` | COLLECT quests still validate against `OBTAINABLE_ITEMS` |
+| `test_generate_quest_accepts_valid_npcs_param` | `generate_quest()` accepts `valid_npcs` parameter |
 
 ## Implementation Steps
 
-1. **Create test file** `tests/test_explore_quest_validation.py`
-   - Add tests for EXPLORE validation following the pattern of `tests/test_quest_validation.py`
+1. **Create test file** `tests/test_talk_quest_validation.py`
+   - Tests follow the pattern of `tests/test_explore_quest_validation.py`
    - Tests should initially fail (TDD)
 
-2. **Modify `ai_service.py:generate_quest()`** (lines 1718-1768)
-   - Add `valid_locations: Optional[set[str]] = None` parameter
-   - Pass it to `_parse_quest_response()`
+2. **Modify `ai_service.py:generate_quest()`** (line 1767-1773)
+   - Add `valid_npcs: Optional[set[str]] = None` parameter
+   - Pass `valid_npcs` to `_parse_quest_response()`
 
-3. **Modify `ai_service.py:_parse_quest_response()`** (lines 1795-1905)
-   - Add `valid_locations: Optional[set[str]] = None` parameter
-   - After line 1875 (KILL validation), add EXPLORE validation:
    ```python
-   # Validate EXPLORE quest targets against known locations
-   if objective_type == "explore" and valid_locations is not None:
-       if target.lower() not in valid_locations:
+   def generate_quest(
+       self,
+       theme: str,
+       npc_name: str,
+       player_level: int,
+       location_name: str = "",
+       valid_locations: Optional[set[str]] = None,
+       valid_npcs: Optional[set[str]] = None  # NEW
+   ) -> dict:
+   ```
+
+3. **Modify `ai_service.py:_parse_quest_response()`** (line 1849-1853)
+   - Add `valid_npcs: Optional[set[str]] = None` parameter
+   - Add validation block after COLLECT validation (around line 1950):
+
+   ```python
+   # Validate TALK quest targets against world NPCs
+   if objective_type == "talk" and valid_npcs is not None:
+       if target.lower() not in valid_npcs:
            raise AIGenerationError(
-               f"Invalid EXPLORE quest target '{target}'. Must be an existing location."
+               f"Invalid TALK quest target '{target}'. Must be an existing NPC."
            )
    ```
 
-4. **Modify `main.py:talk` command handler** (lines 1263-1268)
-   - Pass `valid_locations=set(loc.lower() for loc in game_state.world.keys())` to `generate_quest()`
+4. **Modify `main.py`** (line 1263-1270)
+   - Build `valid_npcs` set from all NPCs in `game_state.world`
+   - Pass to `generate_quest()`
+
+   ```python
+   # Build set of valid location names for EXPLORE quest validation
+   valid_locations = {loc.lower() for loc in game_state.world.keys()}
+   # Build set of valid NPC names for TALK quest validation
+   valid_npcs = {
+       npc.name.lower()
+       for location in game_state.world.values()
+       for npc in location.npcs
+   }
+   quest_data = game_state.ai_service.generate_quest(
+       theme=game_state.theme,
+       npc_name=npc.name,
+       player_level=game_state.current_character.level,
+       location_name=game_state.current_location,
+       valid_locations=valid_locations,
+       valid_npcs=valid_npcs  # NEW
+   )
+   ```
 
 5. **Run tests** to verify all pass
+
+## Files to Modify
+
+| File | Change |
+|------|--------|
+| `tests/test_talk_quest_validation.py` | NEW - Tests for TALK validation |
+| `src/cli_rpg/ai_service.py` | Add `valid_npcs` param to `generate_quest()` and `_parse_quest_response()`, add TALK validation |
+| `src/cli_rpg/main.py` | Collect NPC names from world and pass `valid_npcs` to `generate_quest()` |
