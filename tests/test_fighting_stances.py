@@ -224,11 +224,15 @@ class TestCombatWithStance:
 
     def test_aggressive_stance_increases_attack_damage(self):
         """Test that AGGRESSIVE stance increases damage dealt by 20%."""
+        import random
         from cli_rpg.combat import CombatEncounter
         from cli_rpg.models.enemy import Enemy
 
         char = Character(name="Test", strength=10, dexterity=10, intelligence=10)
         enemy = Enemy(name="Dummy", health=1000, max_health=1000, attack_power=1, defense=0, xp_reward=10, level=1)
+
+        # Seed random BEFORE both attacks for consistent crit behavior
+        random.seed(42)
 
         # Baseline damage with BALANCED stance
         char.stance = FightingStance.BALANCED
@@ -237,20 +241,18 @@ class TestCombatWithStance:
         victory, _ = combat.player_attack()
         balanced_damage = 1000 - enemy.health
 
-        # Reset enemy
+        # Reset enemy and reseed for identical crit roll
         enemy.health = 1000
+        random.seed(42)
         char.stance = FightingStance.AGGRESSIVE
         combat2 = CombatEncounter(char, enemy)
         combat2.start()
-        # Seed random for consistent results in crit chance
-        import random
-        random.seed(42)
         victory, _ = combat2.player_attack()
         aggressive_damage = 1000 - enemy.health
 
         # Aggressive should deal more damage (about 1.2x)
-        # Allow some variance due to crit chance
-        assert aggressive_damage >= balanced_damage
+        # With same seed, both get same crit roll, so aggressive is strictly greater
+        assert aggressive_damage > balanced_damage
 
     def test_defensive_stance_reduces_damage_taken(self):
         """Test that DEFENSIVE stance reduces incoming damage by 20% less (more defense)."""
