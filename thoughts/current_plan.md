@@ -1,96 +1,119 @@
-# Fix: "Can't go that way" even though map shows valid exits (Bug #5)
+# Fix: Shop command fails with AI-generated merchants in SubGrid locations
 
 ## Summary
-Fix desync between displayed exits and actual traversability when WFC terrain blocks movement.
+AI-generated NPCs with "Merchant" in their name don't work with the `shop` command because they lack `is_merchant=True` and a `Shop` object.
 
-## Root Cause Analysis
+## Root Cause
 
-The bug occurs in WFC mode when:
+**The Problem Flow:**
+1. AI generates NPC data: `{"name": "Tech Merchant", "description": "...", "role": "villager"}`
+2. `_create_npcs_from_data()` in `ai_world.py` creates NPC with `is_merchant=False` (because role != "merchant")
+3. Player uses `shop` command
+4. `main.py` line 1304: `merchant = next((npc for npc in location.npcs if npc.is_merchant and npc.shop), None)`
+5. Returns `None` because NPC has `is_merchant=False` and no `shop` object
+6. User sees "There's no merchant here."
 
-1. **Exit Display**: `Location.get_layered_description()` shows exits from `location.connections` dict
-2. **Movement**: `GameState.move()` checks WFC terrain passability AFTER checking connections
-
-**Flow causing the bug:**
-```
-1. Player at location (1, 11) with connections = {"east": "Unexplored East", ...}
-2. Map shows: "Exits: east, south, west" (from connections dict)
-3. Player types: "go east"
-4. move() checks: current.has_connection("east") → True ✓
-5. move() calculates target coords: (2, 11)
-6. move() checks WFC terrain at (2, 11) → "water"
-7. move() returns: "The water ahead is impassable."
-```
-
-But the bug report says "You can't go that way" - which means the check at step 4 fails. This happens when:
-- The location's connection points to a name ("Unexplored East")
-- But coordinate-based lookup finds nothing at target coords
-- AND AI/fallback generation fails silently
-
-The real issue: **Exits are displayed based on `connections` dict, but movement uses coordinates**. When a location has a dangling connection but WFC blocks that direction, the exit is shown but unusable.
+**Root Causes:**
+1. AI may not always return `"role": "merchant"` for NPCs with merchant-like names
+2. Even when `role="merchant"` is set, no `Shop` object is created for the NPC
+3. `_create_npcs_from_data()` only sets `is_merchant=True` but doesn't create a Shop
 
 ## Solution
 
-Filter displayed exits to exclude directions blocked by WFC terrain BEFORE display.
-
-### Option A: Filter at Display Time (Chosen)
-Add WFC terrain check in `Location.get_available_directions()` or `get_layered_description()`.
-
-**Pros**: Single point of change, always consistent
-**Cons**: Location needs access to ChunkManager (coupling)
-
-### Option B: Don't Create Blocked Connections
-Modify `generate_fallback_location()` to check WFC before adding dangling exits.
-
-**Pros**: Cleaner data model
-**Cons**: Existing dangling connections still broken
-
-**Decision**: Option A with Option B for new locations.
+Two-part fix:
+1. **Infer role from name**: If NPC name contains merchant-related keywords, set `role="merchant"`
+2. **Create default shop for merchants**: When `is_merchant=True`, create a basic shop if none provided
 
 ## Implementation Steps
 
-### 1. Add WFC-aware exit filtering to map display
+### 1. Add merchant name inference in `_create_npcs_from_data()` (ai_world.py)
 
-Modify `map_renderer.py:render_map()` exits display:
-- Check each exit direction against WFC terrain
-- Only display exits where terrain is passable
+After extracting role from NPC data (line 51), add name-based inference:
 
-### 2. Add WFC-aware exit filtering to Location display
+```python
+# Infer merchant role from name if not explicitly set
+if role == "villager":  # Only override default role
+    name_lower = npc_data["name"].lower()
+    merchant_keywords = {"merchant", "trader", "vendor", "shopkeeper", "seller", "dealer"}
+    if any(keyword in name_lower for keyword in merchant_keywords):
+        role = "merchant"
+```
 
-Modify `Location.get_layered_description()`:
-- Accept optional `chunk_manager` parameter
-- Filter connections by terrain passability when chunk_manager provided
+### 2. Create default shop for AI-generated merchants (ai_world.py)
 
-### 3. Fix fallback location generation
+When creating merchant NPCs, generate a basic shop:
 
-Modify `world.py:generate_fallback_location()`:
-- Accept optional `chunk_manager` parameter
-- Only add dangling exits where WFC terrain is passable
+```python
+# Create shop for merchant NPCs without one
+shop = None
+if is_merchant:
+    shop = _create_default_merchant_shop()
+```
 
-### 4. Wire chunk_manager through to display calls
+Add helper function:
 
-Modify callers:
-- `game_state.py:look()` - pass chunk_manager to get_layered_description
-- `main.py` map command - pass chunk_manager to render_map
+```python
+def _create_default_merchant_shop() -> Shop:
+    """Create a default shop for AI-generated merchant NPCs."""
+    from cli_rpg.models.item import Item, ItemType
+
+    potion = Item(
+        name="Health Potion",
+        description="Restores 25 HP",
+        item_type=ItemType.CONSUMABLE,
+        heal_amount=25
+    )
+    antidote = Item(
+        name="Antidote",
+        description="Cures poison",
+        item_type=ItemType.CONSUMABLE,
+    )
+    rations = Item(
+        name="Travel Rations",
+        description="Sustaining food for journeys",
+        item_type=ItemType.CONSUMABLE,
+        heal_amount=10
+    )
+
+    return Shop(
+        name="Traveling Wares",
+        inventory=[
+            ShopItem(item=potion, buy_price=50),
+            ShopItem(item=antidote, buy_price=40),
+            ShopItem(item=rations, buy_price=20),
+        ]
+    )
+```
+
+### 3. Update NPC creation to use the shop (ai_world.py line 55-61)
+
+```python
+npc = NPC(
+    name=npc_data["name"],
+    description=npc_data["description"],
+    dialogue=npc_data.get("dialogue", "Hello, traveler."),
+    is_merchant=is_merchant,
+    is_quest_giver=is_quest_giver,
+    shop=shop  # Add this
+)
+```
 
 ## Test Plan
 
-1. **Unit test**: `test_location_filters_exits_by_wfc_terrain`
-   - Create location with exits to passable and impassable terrain
-   - Verify get_layered_description() excludes blocked exits
+### New test file: `tests/test_ai_merchant_detection.py`
 
-2. **Unit test**: `test_fallback_location_no_water_exits`
-   - Generate fallback location where some directions are water
-   - Verify no connections point toward water tiles
-
-3. **Integration test**: `test_displayed_exits_match_traversable_directions`
-   - In WFC mode, verify all displayed exits can be traversed
+1. **test_merchant_role_inferred_from_name**: NPC with "Merchant" in name gets `is_merchant=True`
+2. **test_trader_role_inferred_from_name**: NPC with "Trader" in name gets `is_merchant=True`
+3. **test_vendor_role_inferred_from_name**: NPC with "Vendor" in name gets `is_merchant=True`
+4. **test_explicit_merchant_role_preserved**: NPC with `role="merchant"` works regardless of name
+5. **test_non_merchant_names_stay_villager**: NPC named "Guard" stays `is_merchant=False`
+6. **test_ai_merchant_has_default_shop**: Inferred merchant gets a Shop object
+7. **test_ai_merchant_shop_has_items**: Default shop contains buyable items
+8. **test_shop_command_works_with_ai_merchant**: Integration test with full command flow
 
 ## Files to Modify
 
 | File | Changes |
 |------|---------|
-| `src/cli_rpg/models/location.py` | Add `get_filtered_directions(chunk_manager, coords)` method |
-| `src/cli_rpg/game_state.py` | Pass chunk_manager to look() display |
-| `src/cli_rpg/world.py` | Check WFC before adding dangling exits |
-| `src/cli_rpg/map_renderer.py` | Filter exits in render_map() |
-| `tests/test_wfc_exit_display.py` | NEW - test exit filtering |
+| `src/cli_rpg/ai_world.py` | Add `_create_default_merchant_shop()`, update `_create_npcs_from_data()` |
+| `tests/test_ai_merchant_detection.py` | NEW - test merchant name inference and shop creation |

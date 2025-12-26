@@ -36,6 +36,44 @@ def _infer_hierarchy_from_category(category: Optional[str]) -> tuple[bool, bool]
     return (True, is_safe)
 
 
+def _create_default_merchant_shop() -> Shop:
+    """Create a default shop for AI-generated merchant NPCs.
+
+    Returns:
+        Shop with basic consumable items (health potion, antidote, rations)
+    """
+    potion = Item(
+        name="Health Potion",
+        description="Restores 25 HP",
+        item_type=ItemType.CONSUMABLE,
+        heal_amount=25
+    )
+    antidote = Item(
+        name="Antidote",
+        description="Cures poison",
+        item_type=ItemType.CONSUMABLE,
+    )
+    rations = Item(
+        name="Travel Rations",
+        description="Sustaining food for journeys",
+        item_type=ItemType.CONSUMABLE,
+        heal_amount=10
+    )
+
+    return Shop(
+        name="Traveling Wares",
+        inventory=[
+            ShopItem(item=potion, buy_price=50),
+            ShopItem(item=antidote, buy_price=40),
+            ShopItem(item=rations, buy_price=20),
+        ]
+    )
+
+
+# Keywords that indicate a merchant NPC
+MERCHANT_KEYWORDS = {"merchant", "trader", "vendor", "shopkeeper", "seller", "dealer"}
+
+
 def _create_npcs_from_data(npcs_data: list[dict]) -> list[NPC]:
     """Create NPC objects from parsed NPC data.
 
@@ -49,15 +87,28 @@ def _create_npcs_from_data(npcs_data: list[dict]) -> list[NPC]:
     for npc_data in npcs_data:
         try:
             role = npc_data.get("role", "villager")
+
+            # Infer merchant role from name if not explicitly set
+            if role == "villager":
+                name_lower = npc_data["name"].lower()
+                if any(keyword in name_lower for keyword in MERCHANT_KEYWORDS):
+                    role = "merchant"
+
             is_merchant = role == "merchant"
             is_quest_giver = role == "quest_giver"
+
+            # Create shop for merchant NPCs
+            shop = None
+            if is_merchant:
+                shop = _create_default_merchant_shop()
 
             npc = NPC(
                 name=npc_data["name"],
                 description=npc_data["description"],
                 dialogue=npc_data.get("dialogue", "Hello, traveler."),
                 is_merchant=is_merchant,
-                is_quest_giver=is_quest_giver
+                is_quest_giver=is_quest_giver,
+                shop=shop
             )
             npcs.append(npc)
         except (KeyError, ValueError) as e:

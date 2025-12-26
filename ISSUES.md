@@ -520,20 +520,13 @@ Issues discovered during WFC mode playtesting (WFC is now enabled by default; up
    - Files modified: `location.py` (2), `combat.py` (2), `main.py` (1)
    - Tests added: `tests/test_ascii_art.py` - `TestAsciiArtDisplayPreservesIndentation` (5 tests)
 
-3. **Shop command doesn't work with AI-generated merchants in SubGrid locations**
-   - Location shows "NPCs: Tech Merchant" but `shop` command says "There's no merchant here."
-   - Reproduction:
-     1. Enter a SubGrid location (e.g., `enter Rusty Outpost`)
-     2. Navigate to a location with a merchant NPC (e.g., "Silent Bazaar" with "Tech Merchant")
-     3. Run `shop` command → "There's no merchant here."
-   - **Cause**: Shop command likely checks for:
-     - A `Shop` object attached to the location, OR
-     - NPC with specific `role="merchant"` attribute
-   - AI-generated NPCs with "Merchant" in name may not have proper role/shop setup
-   - **Files to investigate**:
-     - `src/cli_rpg/main.py`: `shop` command handler
-     - `src/cli_rpg/ai_world.py`: NPC generation for SubGrid locations
-     - `src/cli_rpg/models/npc.py`: NPC role field
+3. ~~**Shop command doesn't work with AI-generated merchants in SubGrid locations**~~ ✅ RESOLVED (2025-12-26)
+   - Fixed: AI-generated NPCs with merchant-related names now work correctly with `shop` command
+   - **Solution implemented**:
+     - Added `MERCHANT_KEYWORDS` set (merchant, trader, vendor, shopkeeper, seller, dealer)
+     - NPCs with matching keywords in their name are auto-assigned `role="merchant"`
+     - Merchants automatically receive a default shop with basic items (Health Potion, Antidote, Travel Rations)
+   - Files modified: `src/cli_rpg/ai_world.py` (added `_create_default_merchant_shop()`, `MERCHANT_KEYWORDS`, updated `_create_npcs_from_data()`)
 
 4. ~~**Caravan world event doesn't provide shop access**~~ ✅ RESOLVED (2025-12-26)
     - Fixed: `shop` command now checks for active caravan events at current location
