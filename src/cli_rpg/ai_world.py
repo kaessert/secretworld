@@ -9,6 +9,7 @@ from cli_rpg.models.shop import Shop, ShopItem
 from cli_rpg.models.item import Item, ItemType
 from cli_rpg.models.world_context import WorldContext
 from cli_rpg.models.region_context import RegionContext
+from cli_rpg.models.quest import Quest, ObjectiveType
 from cli_rpg.world_grid import WorldGrid, SubGrid, DIRECTION_OFFSETS, get_subgrid_bounds
 from cli_rpg.location_art import get_fallback_location_ascii_art
 
@@ -78,7 +79,12 @@ def _create_shop_from_ai_inventory(shop_inventory: list[dict], shop_name: str) -
     """Create a Shop from AI-generated inventory items.
 
     Args:
-        shop_inventory: List of item dicts with 'name' and 'price'
+        shop_inventory: List of item dicts with 'name', 'price', and optional:
+            - item_type: "weapon", "armor", "consumable", or "misc" (default)
+            - damage_bonus: int (for weapons)
+            - defense_bonus: int (for armor)
+            - heal_amount: int (for consumables)
+            - stamina_restore: int (for consumables)
         shop_name: Name for the shop
 
     Returns:
@@ -90,11 +96,23 @@ def _create_shop_from_ai_inventory(shop_inventory: list[dict], shop_name: str) -
     shop_items = []
     for item_data in shop_inventory:
         try:
-            # Create a generic consumable item from AI data
+            # Determine item type from AI data (case-insensitive)
+            type_str = item_data.get("item_type", "misc").lower()
+            item_type = {
+                "weapon": ItemType.WEAPON,
+                "armor": ItemType.ARMOR,
+                "consumable": ItemType.CONSUMABLE,
+            }.get(type_str, ItemType.MISC)
+
+            # Create item with stats from AI data
             item = Item(
                 name=item_data["name"],
                 description=f"A {item_data['name'].lower()} available for purchase.",
-                item_type=ItemType.MISC
+                item_type=item_type,
+                damage_bonus=item_data.get("damage_bonus", 0),
+                defense_bonus=item_data.get("defense_bonus", 0),
+                heal_amount=item_data.get("heal_amount", 0),
+                stamina_restore=item_data.get("stamina_restore", 0),
             )
             shop_items.append(ShopItem(item=item, buy_price=item_data["price"]))
         except (KeyError, ValueError) as e:
@@ -107,11 +125,86 @@ def _create_shop_from_ai_inventory(shop_inventory: list[dict], shop_name: str) -
     return Shop(name=shop_name, inventory=shop_items)
 
 
-def _create_npcs_from_data(npcs_data: list[dict]) -> list[NPC]:
+def _generate_quest_for_npc(
+    ai_service: Optional[AIService],
+    npc_name: str,
+    location_name: str,
+    region_context: Optional[RegionContext],
+    world_context: Optional[WorldContext],
+    valid_locations: set[str],
+    valid_npcs: set[str],
+) -> Optional[Quest]:
+    """Generate a quest for a quest_giver NPC.
+
+    Uses region landmarks for EXPLORE targets, region theme for coherence.
+
+    Args:
+        ai_service: AIService instance for quest generation
+        npc_name: Name of the NPC giving the quest
+        location_name: Name of the location where NPC is located
+        region_context: Optional Layer 2 context with landmarks
+        world_context: Optional Layer 1 context with theme
+        valid_locations: Set of valid location names (lowercase) for EXPLORE quests
+        valid_npcs: Set of valid NPC names (lowercase) for TALK quests
+
+    Returns:
+        Quest instance if generation succeeds, None otherwise
+    """
+    if not ai_service:
+        return None
+
+    try:
+        # Add region landmarks to valid locations for EXPLORE quests
+        quest_valid_locations = set(valid_locations)
+        if region_context:
+            quest_valid_locations |= {landmark.lower() for landmark in region_context.landmarks}
+
+        # Get theme from world context or default
+        theme = world_context.theme if world_context else "fantasy"
+
+        quest_data = ai_service.generate_quest(
+            theme=theme,
+            npc_name=npc_name,
+            player_level=1,  # Default level, scales rewards
+            location_name=location_name,
+            valid_locations=quest_valid_locations,
+            valid_npcs=valid_npcs,
+        )
+
+        return Quest(
+            name=quest_data["name"],
+            description=quest_data["description"],
+            objective_type=ObjectiveType(quest_data["objective_type"]),
+            target=quest_data["target"],
+            target_count=quest_data["target_count"],
+            gold_reward=quest_data["gold_reward"],
+            xp_reward=quest_data["xp_reward"],
+            quest_giver=npc_name,
+        )
+    except Exception as e:
+        logger.warning(f"Failed to generate quest for {npc_name}: {e}")
+        return None
+
+
+def _create_npcs_from_data(
+    npcs_data: list[dict],
+    ai_service: Optional[AIService] = None,
+    location_name: str = "",
+    region_context: Optional[RegionContext] = None,
+    world_context: Optional[WorldContext] = None,
+    valid_locations: Optional[set[str]] = None,
+    valid_npcs: Optional[set[str]] = None,
+) -> list[NPC]:
     """Create NPC objects from parsed NPC data.
 
     Args:
         npcs_data: List of NPC dictionaries from AI service
+        ai_service: Optional AIService for quest generation
+        location_name: Name of the location for quest context
+        region_context: Optional Layer 2 context for quest generation
+        world_context: Optional Layer 1 context for quest generation
+        valid_locations: Optional set of valid location names for quests
+        valid_npcs: Optional set of valid NPC names for quests
 
     Returns:
         List of NPC objects
@@ -143,8 +236,17 @@ def _create_npcs_from_data(npcs_data: list[dict]) -> list[NPC]:
                 if shop is None:
                     shop = _create_default_merchant_shop()
 
-            # Get faction (optional)
+            # Get faction (optional) with role-based defaults
             faction = npc_data.get("faction")
+
+            # Apply default factions by role if not explicitly specified
+            if not faction:
+                if role == "merchant":
+                    faction = "Merchant Guild"
+                elif role == "guard":
+                    faction = "Town Watch"
+                elif role == "quest_giver":
+                    faction = "Adventurer's Guild"
 
             npc = NPC(
                 name=npc_data["name"],
@@ -155,6 +257,21 @@ def _create_npcs_from_data(npcs_data: list[dict]) -> list[NPC]:
                 shop=shop,
                 faction=faction
             )
+
+            # Generate quest for quest_giver NPCs
+            if is_quest_giver and ai_service:
+                quest = _generate_quest_for_npc(
+                    ai_service=ai_service,
+                    npc_name=npc.name,
+                    location_name=location_name,
+                    region_context=region_context,
+                    world_context=world_context,
+                    valid_locations=valid_locations or set(),
+                    valid_npcs=valid_npcs or set(),
+                )
+                if quest:
+                    npc.offered_quests.append(quest)
+
             npcs.append(npc)
         except (KeyError, ValueError) as e:
             logger.warning(f"Failed to create NPC from data: {e}")

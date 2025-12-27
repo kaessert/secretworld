@@ -46,7 +46,7 @@ This architecture reduces API calls and token usage by caching context at higher
 - Validates against game constraints
 - **Grid-based coordinates**: AI-generated locations are placed on a spatial grid, ensuring geographic consistency (moving north then south returns to the same place)
 - **Location categories**: AI assigns a category to each location (town, dungeon, wilderness, settlement, ruins, cave, forest, mountain, village) which influences enemy spawning during combat encounters
-- **NPC population**: AI-generated locations include 3-5 thematically appropriate NPCs with roles (merchant, quest_giver, villager, guard, traveler, innkeeper), faction affiliations, and contextual dialogue. Merchants receive AI-generated shop inventories with theme-appropriate items.
+- **NPC population**: AI-generated locations include 3-5 thematically appropriate NPCs with roles (merchant, quest_giver, villager, guard, traveler, innkeeper), faction affiliations, and contextual dialogue. Merchants receive AI-generated shop inventories with theme-appropriate items including proper stats (damage_bonus for weapons, defense_bonus for armor, heal_amount/stamina_restore for consumables). Quest givers automatically receive generated quests tied to the region context.
 
 ### 5. Theme Persistence
 - Theme setting is saved with game state

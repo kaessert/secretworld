@@ -1303,8 +1303,8 @@ Result: Locations feel random, not part of a cohesive world.
 - ✅ Matches RPG conventions: you don't find shopkeepers standing in random forests
 
 **Remaining:**
-- No shop inventories generated
-- No quest hooks or faction ties
+- ~~No shop inventories generated~~ ✅ RESOLVED (2025-12-27) - AI-generated shop inventories with item stats
+- ~~No quest hooks or faction ties~~ ✅ RESOLVED (2025-12-27) - Quest hooks for quest_givers, default factions by role
 - Hardcoded merchants feel out of place in AI worlds
 
 #### Implementation Plan
@@ -1334,15 +1334,15 @@ Result: Locations feel random, not part of a cohesive world.
    - `src/cli_rpg/game_state.py`: Refactored `get_or_create_region_context()` to use region coords, added `_pregenerate_adjacent_regions()`, added pre-generation trigger in `move()`
    - `tests/test_region_planning.py`: NEW - 12 tests for region planning system
 
-3. **Enhanced NPC Generation**
-   - [ ] Request 3-5 NPCs per location with roles (merchant, quest giver, guard, traveler)
-   - [ ] Generate shop inventories for merchants
-   - [ ] Generate quest hooks tied to region theme
-   - [ ] Add faction affiliations
+3. **Enhanced NPC Generation** ✅ COMPLETE (2025-12-27)
+   - [x] Request 3-5 NPCs per location with roles (merchant, quest giver, guard, traveler) ✓ (was already implemented in Phase 1)
+   - [x] Generate shop inventories for merchants ✓ (AI generates items with types and stats)
+   - [x] Generate quest hooks tied to region theme ✓ (`_generate_quest_for_npc()` uses region context)
+   - [x] Add faction affiliations ✓ (role-based defaults: merchant→Merchant Guild, guard→Town Watch, quest_giver→Adventurer's Guild)
 
-   **Files to modify**:
-   - `src/cli_rpg/ai_service.py`: Enhance NPC generation
-   - `src/cli_rpg/ai_config.py`: Update NPC prompt template
+   **Files modified**:
+   - `src/cli_rpg/ai_world.py`: `_create_shop_from_ai_inventory()`, `_generate_quest_for_npc()`, `_create_npcs_from_data()` with faction defaults
+   - `src/cli_rpg/ai_config.py`: Updated NPC prompt with item stats instructions
 
 4. **Terrain-Biased WFC**
    - [ ] Modify chunk generation to respect region themes

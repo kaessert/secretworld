@@ -338,7 +338,11 @@ Requirements:
 2. Each NPC needs: name (2-30 chars), description (1-200 chars), dialogue (a greeting), role
 3. Roles: villager, merchant, quest_giver, guard, traveler, or innkeeper
 4. Names should follow the world's naming style
-5. Merchants should include shop_inventory with 3-6 theme-appropriate items
+5. Merchants should include shop_inventory with 3-6 theme-appropriate items:
+   - Each item: {{"name": "...", "price": N, "item_type": "weapon|armor|consumable|misc"}}
+   - Weapons: add "damage_bonus": 1-10
+   - Armor: add "defense_bonus": 1-8
+   - Consumables: add "heal_amount": 10-50 or "stamina_restore": 10-30
 6. NPCs may have a faction affiliation (optional)
 
 Respond with valid JSON in this exact format (no additional text):
@@ -357,8 +361,9 @@ Respond with valid JSON in this exact format (no additional text):
       "dialogue": "Welcome to my shop!",
       "role": "merchant",
       "shop_inventory": [
-        {{"name": "Item Name", "price": 50}},
-        {{"name": "Another Item", "price": 100}}
+        {{"name": "Iron Sword", "price": 100, "item_type": "weapon", "damage_bonus": 5}},
+        {{"name": "Leather Vest", "price": 60, "item_type": "armor", "defense_bonus": 3}},
+        {{"name": "Healing Salve", "price": 40, "item_type": "consumable", "heal_amount": 20}}
       ]
     }}
   ]
