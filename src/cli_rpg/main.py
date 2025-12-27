@@ -1304,13 +1304,24 @@ def handle_exploration_command(game_state: GameState, command: str, args: list[s
                         for location in game_state.world.values()
                         for npc_in_loc in location.npcs
                     }
+                    # Get world and region context for cohesive quest generation
+                    world_ctx = game_state.get_or_create_world_context()
+                    current_loc = game_state.world.get(game_state.current_location)
+                    region_ctx = None
+                    if current_loc and current_loc.coordinates:
+                        region_ctx = game_state.get_or_create_region_context(
+                            current_loc.coordinates
+                        )
+
                     quest_data = game_state.ai_service.generate_quest(
                         theme=game_state.theme,
                         npc_name=npc.name,
                         player_level=game_state.current_character.level,
                         location_name=game_state.current_location,
                         valid_locations=valid_locations,
-                        valid_npcs=valid_npcs
+                        valid_npcs=valid_npcs,
+                        world_context=world_ctx,
+                        region_context=region_ctx
                     )
                     new_quest = Quest(
                         name=quest_data["name"],

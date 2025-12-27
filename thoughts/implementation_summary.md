@@ -1,6 +1,82 @@
-# Implementation Summary: Terrain-Biased WFC
+# Implementation Summary: Quest World/Region Context Integration
 
 ## What Was Implemented
+
+Successfully integrated `WorldContext` and `RegionContext` into the quest generation system to produce more cohesive, world-aware quests.
+
+### Files Modified
+
+1. **`src/cli_rpg/ai_config.py`**
+   - Updated `DEFAULT_QUEST_GENERATION_PROMPT` to include world and region context sections:
+     - Added "World Context" section with `{theme_essence}` and `{tone}` placeholders
+     - Added "Region Context" section with `{region_theme}` and `{danger_level}` placeholders
+     - Added requirement #6 to match quest tone and difficulty to world/region context
+
+2. **`src/cli_rpg/ai_service.py`**
+   - Added `RegionContext` import
+   - Updated `generate_quest()` signature with two new optional parameters:
+     - `world_context: Optional[WorldContext] = None`
+     - `region_context: Optional[RegionContext] = None`
+   - Updated `_build_quest_prompt()` to:
+     - Accept the new context parameters
+     - Extract values with sensible fallbacks when context is not provided:
+       - `theme_essence` defaults to `theme`
+       - `tone` defaults to "adventurous"
+       - `region_theme` defaults to "unexplored lands"
+       - `danger_level` defaults to "moderate"
+     - Format prompt with all context placeholders
+
+3. **`src/cli_rpg/main.py`**
+   - Updated the quest generation call site (around line 1307-1325) to:
+     - Retrieve `world_ctx` via `game_state.get_or_create_world_context()`
+     - Retrieve `region_ctx` based on current location coordinates
+     - Pass both contexts to `generate_quest()`
+
+### New Test File
+
+4. **`tests/test_quest_context_integration.py`** (NEW)
+   - 7 tests covering:
+     - `test_generate_quest_accepts_world_context` - Verifies new param accepted
+     - `test_generate_quest_accepts_region_context` - Verifies new param accepted
+     - `test_prompt_includes_theme_essence` - Verifies world context theme_essence in prompt
+     - `test_prompt_includes_region_theme` - Verifies region context theme in prompt
+     - `test_prompt_includes_danger_level` - Verifies region danger_level in prompt
+     - `test_context_params_are_optional` - Backward compatibility test
+     - `test_both_contexts_together` - Full integration test with both contexts
+
+## Test Results
+
+- All 7 new tests pass
+- All 23 existing `test_ai_quest_generation.py` tests pass
+- All 35 quest validation tests pass
+- All 5 main integration tests pass
+- **Full test suite: 3763 passed**
+
+## Design Decisions
+
+1. **Optional Parameters**: Made `world_context` and `region_context` optional with sensible fallbacks to ensure backward compatibility. Existing code continues to work without modification.
+
+2. **Fallback Values**: When contexts are not provided:
+   - `theme_essence` falls back to the raw `theme` string
+   - `tone` falls back to "adventurous"
+   - `region_theme` falls back to "unexplored lands"
+   - `danger_level` falls back to "moderate"
+
+3. **Prompt Structure**: Added context sections at the top of the quest prompt to give the AI clear world/region context before the specific quest requirements.
+
+## E2E Tests Should Validate
+
+1. AI-generated quests reflect the world's theme essence in their narrative style
+2. Quest descriptions align with region themes (e.g., "decay" themed region produces quests about corruption, restoration, etc.)
+3. Quest difficulty/rewards correlate with region danger level
+4. Quests from the same region share consistent naming conventions
+5. Backward compatibility: quests can still be generated without context
+
+---
+
+# Previous Implementation Summaries
+
+## Terrain-Biased WFC
 
 ### Feature Overview
 WFC chunk generation now respects region themes to create coherent mega-biomes. Instead of generating "random terrain salad," mountain regions now bias toward mountain/foothills/hills tiles, forest regions favor forest tiles, etc.

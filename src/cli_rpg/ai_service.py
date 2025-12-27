@@ -27,6 +27,7 @@ import logging
 from cli_rpg.ai_config import AIConfig
 from cli_rpg.models.location import Location
 from cli_rpg.models.world_context import DEFAULT_THEME_ESSENCES, WorldContext
+from cli_rpg.models.region_context import RegionContext
 
 # Valid directions for grid-based movement (subset of Location.VALID_DIRECTIONS)
 GRID_DIRECTIONS: set[str] = {"north", "south", "east", "west"}
@@ -1821,7 +1822,9 @@ Note: Use "EXISTING_WORLD" as placeholder for the connection back to the source 
         player_level: int,
         location_name: str = "",
         valid_locations: Optional[set[str]] = None,
-        valid_npcs: Optional[set[str]] = None
+        valid_npcs: Optional[set[str]] = None,
+        world_context: Optional[WorldContext] = None,
+        region_context: Optional[RegionContext] = None
     ) -> dict:
         """Generate a quest with AI.
 
@@ -1834,6 +1837,8 @@ Note: Use "EXISTING_WORLD" as placeholder for the connection back to the source 
                 EXPLORE quest validation. If None, EXPLORE validation is skipped.
             valid_npcs: Optional set of valid NPC names (lowercase) for
                 TALK quest validation. If None, TALK validation is skipped.
+            world_context: Optional WorldContext for theme essence and tone
+            region_context: Optional RegionContext for region theme and danger level
 
         Returns:
             Dictionary with: name, description, objective_type, target,
@@ -1849,7 +1854,9 @@ Note: Use "EXISTING_WORLD" as placeholder for the connection back to the source 
             theme=theme,
             npc_name=npc_name,
             player_level=player_level,
-            location_name=location_name
+            location_name=location_name,
+            world_context=world_context,
+            region_context=region_context
         )
 
         # Check cache if enabled
@@ -1879,7 +1886,9 @@ Note: Use "EXISTING_WORLD" as placeholder for the connection back to the source 
         theme: str,
         npc_name: str,
         player_level: int,
-        location_name: str = ""
+        location_name: str = "",
+        world_context: Optional[WorldContext] = None,
+        region_context: Optional[RegionContext] = None
     ) -> str:
         """Build prompt for quest generation.
 
@@ -1888,12 +1897,24 @@ Note: Use "EXISTING_WORLD" as placeholder for the connection back to the source 
             npc_name: Name of the quest-giving NPC
             player_level: Player's current level
             location_name: Current location name (or empty string)
+            world_context: Optional WorldContext for theme essence and tone
+            region_context: Optional RegionContext for region theme and danger level
 
         Returns:
             Formatted prompt string
         """
+        # Extract context values with sensible fallbacks
+        theme_essence = world_context.theme_essence if world_context else theme
+        tone = world_context.tone if world_context else "adventurous"
+        region_theme = region_context.theme if region_context else "unexplored lands"
+        danger_level = region_context.danger_level if region_context else "moderate"
+
         return self.config.quest_generation_prompt.format(
             theme=theme,
+            theme_essence=theme_essence,
+            tone=tone,
+            region_theme=region_theme,
+            danger_level=danger_level,
             npc_name=npc_name,
             player_level=player_level,
             location_name=location_name or "unknown location"

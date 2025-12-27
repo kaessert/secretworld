@@ -144,6 +144,15 @@ Respond with ONLY the lore text, no quotes or formatting."""
 
 # Default prompt template for quest generation
 DEFAULT_QUEST_GENERATION_PROMPT = """Generate a quest for a {theme} RPG.
+
+World Context:
+- Theme Essence: {theme_essence}
+- Tone: {tone}
+
+Region Context:
+- Region Theme: {region_theme}
+- Danger Level: {danger_level}
+
 NPC Quest Giver: {npc_name}
 Location: {location_name}
 Player Level: {player_level}
@@ -154,6 +163,7 @@ Requirements:
 3. Choose an appropriate objective type
 4. Set target and target_count for the objective
 5. Calculate balanced rewards for the player level
+6. Match the quest tone and difficulty to the world/region context
 
 Objective types:
 - kill: Defeat enemy type (target = enemy name, target_count = how many)

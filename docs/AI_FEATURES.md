@@ -382,7 +382,8 @@ pytest tests/test_e2e_world_expansion.py -v
 
 ### 10. AI-Generated Quests
 - `AIService.generate_quest()` creates dynamic quests appropriate to the world theme
-- Parameters: `theme`, `npc_name` (quest giver), `player_level`, `location_name` (optional)
+- **Context-aware generation**: Uses WorldContext (theme essence, tone) and RegionContext (region theme, danger level) for cohesive quest narratives that match the world and region
+- Parameters: `theme`, `npc_name` (quest giver), `player_level`, `location_name` (optional), `world_context` (optional), `region_context` (optional)
 - Returns quest properties:
   - **name**: Quest title (2-30 characters)
   - **description**: Quest narrative (1-200 characters)

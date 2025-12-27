@@ -13,7 +13,14 @@
       "WebSearch",
       "Bash(timeout 120 python:*)",
       "Bash(cat:*)",
-      "Bash(timeout 120 cli-rpg:*)"
+      "Bash(timeout 120 cli-rpg:*)",
+      "Bash(timeout 60 cli-rpg:*)",
+      "Bash(for seed in 700 710 720 730 740)",
+      "Bash(do echo \"=== SEED $seed ===\")",
+      "Bash(done)",
+      "Bash(pytest:*)",
+      "Bash(./venv/bin/python:*)",
+      "Bash(1 <<'EOF'\nlook\nmap\ngo north\nlook\nmap\ngo south\ngo east\nlook\nmap\nquit\nEOF)"
     ]
   }
 }
