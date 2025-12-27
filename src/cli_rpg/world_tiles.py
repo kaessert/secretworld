@@ -148,6 +148,16 @@ INCOMPATIBLE_GROUPS: Set[Tuple[str, str]] = {
     ("arid", "temperate"),  # symmetric
 }
 
+# Specific terrain pairs that are geographically jarring but not group-incompatible
+# These get a moderate penalty (0.3x) - less severe than group conflicts (0.01x)
+# Symmetric pairs - stored as frozensets for easy membership testing
+# Note: Only includes pairs with minimal impact on overall terrain distribution
+JARRING_TERRAIN_PAIRS: Set[frozenset] = {
+    frozenset({"mountain", "beach"}),  # Mountains don't border coasts directly
+    frozenset({"mountain", "swamp"}),  # Mountains don't have wetlands
+    frozenset({"water", "desert"}),  # Deserts don't have open water borders
+}
+
 # Natural terrain transitions - which terrains flow naturally into each other
 # Based on geographic realism: forests border plains, not deserts
 # Key = terrain type, Value = set of terrains it can naturally border
@@ -172,21 +182,31 @@ def get_distance_penalty(terrain: str, nearby_terrains: Set[str]) -> float:
     When collapsing a WFC cell, this function determines if the terrain type
     should receive a weight penalty based on incompatible biomes nearby.
 
+    Two levels of penalty:
+    - Severe (0.01): Biome group incompatibility (temperate near arid)
+    - Moderate (0.3): Jarring terrain pairs (mountain near beach)
+
     Args:
         terrain: The terrain type being considered for collapse
         nearby_terrains: Set of terrain types within penalty radius
 
     Returns:
-        Multiplier (1.0 = no penalty, 0.01 = severe penalty)
+        Multiplier (1.0 = no penalty, 0.3 = moderate penalty, 0.01 = severe penalty)
     """
     terrain_group = BIOME_GROUPS.get(terrain)
     if terrain_group == "neutral":
         return 1.0  # Neutral terrain is never penalized
 
+    # Check for biome group incompatibility (severe penalty)
     for nearby in nearby_terrains:
         nearby_group = BIOME_GROUPS.get(nearby)
         if (terrain_group, nearby_group) in INCOMPATIBLE_GROUPS:
             return 0.01  # 99% weight reduction (very strong penalty)
+
+    # Check for jarring terrain pairs (moderate penalty)
+    for nearby in nearby_terrains:
+        if frozenset({terrain, nearby}) in JARRING_TERRAIN_PAIRS:
+            return 0.3  # 70% weight reduction (moderate penalty)
 
     return 1.0
 
