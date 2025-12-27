@@ -26,6 +26,7 @@ import logging
 
 from cli_rpg.ai_config import AIConfig
 from cli_rpg.models.location import Location
+from cli_rpg.models.world_context import DEFAULT_THEME_ESSENCES, WorldContext
 
 # Valid directions for grid-based movement (subset of Location.VALID_DIRECTIONS)
 GRID_DIRECTIONS: set[str] = {"north", "south", "east", "west"}
@@ -156,7 +157,8 @@ class AIService:
         context_locations: Optional[list[str]] = None,
         source_location: Optional[str] = None,
         direction: Optional[str] = None,
-        terrain_type: Optional[str] = None
+        terrain_type: Optional[str] = None,
+        world_context: Optional[WorldContext] = None
     ) -> dict:
         """Generate a new location based on context.
 
@@ -166,6 +168,7 @@ class AIService:
             source_location: Location to expand from (deprecated, kept for compatibility)
             direction: Direction of expansion from source (deprecated, kept for compatibility)
             terrain_type: Optional terrain type (e.g., "desert", "forest") for coherent generation
+            world_context: Optional WorldContext for theme essence enrichment
 
         Returns:
             Dictionary with keys: name, description, category, npcs
@@ -182,7 +185,8 @@ class AIService:
         prompt = self._build_location_prompt(
             theme=theme,
             context_locations=context_locations,
-            terrain_type=terrain_type
+            terrain_type=terrain_type,
+            world_context=world_context
         )
 
         # Check cache if enabled
@@ -209,7 +213,8 @@ class AIService:
         self,
         theme: str,
         context_locations: list[str],
-        terrain_type: Optional[str] = None
+        terrain_type: Optional[str] = None,
+        world_context: Optional[WorldContext] = None
     ) -> str:
         """Build prompt for location generation.
 
@@ -217,6 +222,7 @@ class AIService:
             theme: World theme
             context_locations: List of existing location names
             terrain_type: Optional terrain type (e.g., "desert", "forest")
+            world_context: Optional WorldContext for theme essence enrichment
 
         Returns:
             Formatted prompt string
@@ -230,9 +236,16 @@ class AIService:
         # Format terrain type
         terrain_text = terrain_type if terrain_type else "wilderness"
 
+        # Extract theme essence from WorldContext or use default
+        if world_context:
+            theme_essence = world_context.theme_essence
+        else:
+            theme_essence = DEFAULT_THEME_ESSENCES.get(theme, "")
+
         # Use template from config
         prompt = self.config.location_generation_prompt.format(
             theme=theme,
+            theme_essence=theme_essence,
             context_locations=location_list,
             terrain_type=terrain_text
         )

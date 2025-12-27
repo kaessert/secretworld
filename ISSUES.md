@@ -1305,7 +1305,7 @@ Target: NPCs should **only exist inside named sub-locations** (villages, dungeon
 
 1. **Enrich Location Prompts** (Partially Complete)
    - [x] Add `terrain_type` from ChunkManager to prompt ✓ (2025-12-26)
-   - [ ] Add `world_theme_essence` from WorldContext to prompt
+   - [x] Add `world_theme_essence` from WorldContext to prompt ✓ (2025-12-27)
    - [ ] Add `region_theme` from RegionContext to prompt
    - [ ] Add `neighboring_locations` names/themes for coherence
 

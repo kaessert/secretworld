@@ -181,10 +181,22 @@ def test_ai_config_custom_prompts():
 def test_ai_config_default_prompt_not_empty():
     """Test AIConfig has a non-empty default prompt template."""
     config = AIConfig(api_key="test-key")
-    
+
     assert config.location_generation_prompt
     assert len(config.location_generation_prompt) > 0
     assert "{theme}" in config.location_generation_prompt
+
+
+# Test: DEFAULT_LOCATION_PROMPT contains {theme_essence} placeholder
+def test_ai_config_location_prompt_contains_theme_essence():
+    """Test DEFAULT_LOCATION_PROMPT contains {theme_essence} placeholder.
+
+    Spec: DEFAULT_LOCATION_PROMPT should include {theme_essence} to enrich
+    non-layered AI location generation with WorldContext theme information.
+    """
+    config = AIConfig(api_key="test-key")
+
+    assert "{theme_essence}" in config.location_generation_prompt
 
 
 # Test: AIConfig from_dict with missing fields uses defaults

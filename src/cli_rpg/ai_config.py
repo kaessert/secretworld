@@ -15,6 +15,7 @@ DEFAULT_LOCATION_PROMPT = """You are a creative game world designer. Generate a 
 
 Context:
 - World Theme: {theme}
+- Theme Essence: {theme_essence}
 - Existing Locations: {context_locations}
 - Terrain Type: {terrain_type}
 

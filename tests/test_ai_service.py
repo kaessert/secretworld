@@ -3114,3 +3114,124 @@ def test_ai_config_generation_max_retries_from_env(monkeypatch):
     config = AIConfig.from_env()
 
     assert config.generation_max_retries == 4
+
+
+# --- Tests for theme_essence in generate_location prompts ---
+
+
+# Test: generate_location includes theme_essence in prompt when WorldContext provided
+@patch('cli_rpg.ai_service.OpenAI')
+def test_generate_location_includes_theme_essence_with_world_context(
+    mock_openai_class, basic_config, mock_openai_response
+):
+    """Test generate_location includes theme_essence in prompt when WorldContext provided.
+
+    Spec: When a WorldContext is passed to generate_location(), the prompt should
+    include the theme_essence from that context.
+    """
+    from cli_rpg.models.world_context import WorldContext
+
+    mock_client = Mock()
+    mock_openai_class.return_value = mock_client
+
+    mock_response = Mock()
+    mock_response.choices = [Mock()]
+    mock_response.choices[0].message.content = json.dumps(mock_openai_response)
+    mock_client.chat.completions.create.return_value = mock_response
+
+    service = AIService(basic_config)
+
+    # Create a WorldContext with a specific theme_essence
+    world_context = WorldContext(
+        theme="fantasy",
+        theme_essence="A mystical realm of ancient dragons and forgotten magic",
+        naming_style="Old English with Celtic influence",
+        tone="heroic, adventurous"
+    )
+
+    service.generate_location(
+        theme="fantasy",
+        context_locations=["Town Square"],
+        world_context=world_context
+    )
+
+    # Get the actual call arguments
+    call_args = mock_client.chat.completions.create.call_args
+    messages = call_args[1]["messages"]
+    prompt = messages[0]["content"]
+
+    # Verify theme_essence from WorldContext is in the prompt
+    assert "mystical realm of ancient dragons" in prompt
+
+
+# Test: generate_location uses default theme_essence when no WorldContext
+@patch('cli_rpg.ai_service.OpenAI')
+def test_generate_location_uses_default_theme_essence_without_world_context(
+    mock_openai_class, basic_config, mock_openai_response
+):
+    """Test generate_location uses default theme_essence when no WorldContext.
+
+    Spec: When no WorldContext is passed, generate_location() should use the
+    default theme_essence from DEFAULT_THEME_ESSENCES based on the theme.
+    """
+    from cli_rpg.models.world_context import DEFAULT_THEME_ESSENCES
+
+    mock_client = Mock()
+    mock_openai_class.return_value = mock_client
+
+    mock_response = Mock()
+    mock_response.choices = [Mock()]
+    mock_response.choices[0].message.content = json.dumps(mock_openai_response)
+    mock_client.chat.completions.create.return_value = mock_response
+
+    service = AIService(basic_config)
+
+    service.generate_location(
+        theme="fantasy",
+        context_locations=["Town Square"]
+    )
+
+    # Get the actual call arguments
+    call_args = mock_client.chat.completions.create.call_args
+    messages = call_args[1]["messages"]
+    prompt = messages[0]["content"]
+
+    # Verify default theme_essence for fantasy is in the prompt
+    expected_essence = DEFAULT_THEME_ESSENCES["fantasy"]
+    assert expected_essence in prompt
+
+
+# Test: generate_location uses empty string for unknown theme without WorldContext
+@patch('cli_rpg.ai_service.OpenAI')
+def test_generate_location_uses_empty_theme_essence_for_unknown_theme(
+    mock_openai_class, basic_config, mock_openai_response
+):
+    """Test generate_location uses empty theme_essence for unknown themes.
+
+    Spec: When no WorldContext is passed and the theme is not in DEFAULT_THEME_ESSENCES,
+    the theme_essence should be an empty string.
+    """
+    mock_client = Mock()
+    mock_openai_class.return_value = mock_client
+
+    mock_response = Mock()
+    mock_response.choices = [Mock()]
+    mock_response.choices[0].message.content = json.dumps(mock_openai_response)
+    mock_client.chat.completions.create.return_value = mock_response
+
+    service = AIService(basic_config)
+
+    service.generate_location(
+        theme="unknown-custom-theme",
+        context_locations=["Town Square"]
+    )
+
+    # Get the actual call arguments
+    call_args = mock_client.chat.completions.create.call_args
+    messages = call_args[1]["messages"]
+    prompt = messages[0]["content"]
+
+    # Verify the prompt was formatted correctly (no KeyError)
+    # The Theme Essence line should have an empty value for unknown themes
+    assert "Theme Essence:" in prompt
+    assert "unknown-custom-theme" in prompt
