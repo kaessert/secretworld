@@ -1,84 +1,89 @@
-# Implementation Summary: Issue 13 - NPC Character Arcs
+# Implementation Summary: Issue 14 - Living Economy System
 
 ## Status: COMPLETE
 
-All tests pass (37 new tests, 184 total NPC tests).
+All 34 economy tests pass. Full test suite: 4835 tests pass.
 
 ## What Was Implemented
 
-### New File: `src/cli_rpg/models/npc_arc.py`
+The Living Economy System was already largely implemented before this task. This task completed the implementation by adding the missing **integration tests** (tests 15-18 from the spec) that verify the economy modifiers are correctly applied in actual buy/sell/shop commands.
 
-Created a complete NPC character arc system with:
+### Files Already Implemented (verified working):
+1. **`src/cli_rpg/models/economy.py`** - EconomyState dataclass with:
+   - `item_supply` dict for per-item supply/demand modifiers
+   - `regional_disruption` for world event effects
+   - `record_buy()` / `record_sell()` to track transactions
+   - `update_time()` for time-based price recovery toward baseline
+   - `get_modifier()` combining supply, location, and disruption
+   - `to_dict()` / `from_dict()` for serialization
 
-1. **NPCArcStage enum** - 7 arc stages for relationship progression:
-   - Positive path: `STRANGER` (0-24) → `ACQUAINTANCE` (25-49) → `TRUSTED` (50-74) → `DEVOTED` (75-100)
-   - Negative path: `WARY` (-1 to -24) → `HOSTILE` (-25 to -49) → `ENEMY` (-50 to -100)
+2. **`src/cli_rpg/economy.py`** - Helper functions:
+   - `get_economy_price_modifier()` for calculating item prices
+   - `update_economy_from_events()` for invasion/caravan effects
 
-2. **InteractionType enum** - 8 interaction types that affect arc progression:
-   - `TALKED`, `HELPED_QUEST`, `FAILED_QUEST`, `INTIMIDATED`, `BRIBED`, `DEFENDED`, `ATTACKED`, `GIFTED`
+3. **`src/cli_rpg/game_state.py`** - Full integration:
+   - `economy_state` field initialized in `__init__`
+   - Time-based recovery called in `move()` and `fast_travel()`
+   - Serialization in `to_dict()` / `from_dict()`
 
-3. **NPCInteraction dataclass** - Records individual player-NPC interactions:
-   - `interaction_type`, `points_delta`, `description`, `timestamp`
-   - Full serialization support via `to_dict()` / `from_dict()`
+4. **`src/cli_rpg/main.py`** - Buy/sell/shop command integration:
+   - Shop command displays economy-adjusted prices
+   - Buy command applies economy modifier and records transaction
+   - Sell command applies economy modifier and records transaction
 
-4. **NPCArc dataclass** - Main arc tracking system:
-   - `arc_points` (-100 to 100 range, clamped)
-   - `interactions` list (capped at 20 entries)
-   - `get_stage()` - computes current arc stage from points
-   - `record_interaction()` - adds points, logs event, returns message if stage changed
-   - Full serialization support
+5. **`src/cli_rpg/world_events.py`** - Event integration:
+   - Calls `update_economy_from_events()` in `progress_events()`
 
-### Modified File: `src/cli_rpg/models/npc.py`
+### Files Modified in This Task:
 
-- Added import for `NPCArc`
-- Added optional `arc: Optional[NPCArc] = None` field to NPC dataclass
-- Updated `to_dict()` to serialize arc
-- Updated `from_dict()` to deserialize arc with backward compatibility (None for old saves)
-
-### New Test File: `tests/test_npc_arc.py`
-
-37 comprehensive tests covering:
-- All 7 arc stages (TestNPCArcStage)
-- All 8 interaction types (TestInteractionType)
-- NPCInteraction creation and serialization (TestNPCInteraction)
-- NPCArc functionality: defaults, stage computation for all ranges, point recording, clamping, serialization roundtrip (TestNPCArc)
-- NPC integration: optional field, serialization, backward compatibility (TestNPCIntegration)
+**`tests/test_economy.py`** - Added integration test class `TestBuySellIntegration` with 7 new tests:
+- `test_buy_applies_economy_modifier` (Test 15) - Verifies buy price includes economy modifier
+- `test_sell_applies_economy_modifier` (Test 16) - Verifies sell price includes economy modifier
+- `test_shop_display_shows_economy_adjusted_prices` (Test 17) - Shop shows adjusted prices
+- `test_economy_modifier_stacks_with_faction` (Test 18) - Economy + faction modifiers stack
+- `test_buy_records_transaction_in_economy` - Verifies record_buy() is called
+- `test_sell_records_transaction_in_economy` - Verifies record_sell() is called
+- `test_location_category_affects_price` - Verifies location bonuses work
 
 ## Test Results
 
-```
-tests/test_npc_arc.py: 37 passed
-tests/test_npc*.py (all NPC tests): 184 passed
-```
+All 34 economy tests pass:
+- 11 unit tests for EconomyState basics
+- 5 location bonus tests
+- 5 world event integration tests
+- 3 price modifier helper tests
+- 4 time recovery edge case tests
+- 7 buy/sell integration tests (NEW)
 
-## Design Decisions
+Full test suite: 4835 tests pass
 
-1. **Arc stages mirror Companion bond levels** for consistency across the codebase
-2. **Interaction history capped at 20** to prevent unbounded memory growth
-3. **Points clamped at -100 to 100** to keep values bounded
-4. **Optional arc field** ensures backward compatibility with existing saves
-5. **Serialization roundtrip tested** to ensure save/load stability
+## Economy System Behavior
 
-## Files Changed
+### Price Calculation Order
+1. Base price (ShopItem.buy_price)
+2. CHA modifier (existing)
+3. Economy modifier (supply/demand × location × disruption)
+4. Faction modifier (existing)
+5. Persuade/haggle bonuses (existing)
 
-| File | Changes |
-|------|---------|
-| `src/cli_rpg/models/npc_arc.py` | **Created** - NPCArcStage, InteractionType, NPCInteraction, NPCArc |
-| `src/cli_rpg/models/npc.py` | Added optional `arc` field with serialization |
-| `tests/test_npc_arc.py` | **Created** - 37 unit tests |
+### Supply/Demand Rules
+- **Buy**: +0.05 to item_supply (max 1.5 = +50% price)
+- **Sell**: -0.03 to item_supply (min 0.7 = -30% price)
+- **Time recovery**: Every 6 game hours, drifts 5% toward 1.0
 
-## Future Integration Points (Not Implemented)
+### Location Bonuses
+- Temple: consumables -15%
+- Town/Village: weapons -10%
+- Forest: resources -20%
 
-Per the plan, these are documented for future issues:
-- `get_greeting()` could select dialogue based on arc stage
-- Shops could apply price modifiers based on arc
-- Quests could have arc stage prerequisites
-- `talk` command could call `arc.record_interaction(TALKED, +2)`
+### World Event Effects
+- Invasion (active): +20% all prices
+- Caravan (active): -10% all prices
 
-## E2E Validation
-
-To validate the feature works correctly:
-1. Create an NPC with an arc: `npc = NPC(name="Test", description="A test", dialogue="Hi", arc=NPCArc())`
-2. Record interactions: `npc.arc.record_interaction(InteractionType.TALKED, 5)`
-3. Check stage progression: `npc.arc.get_stage()` should return appropriate stage based on points
-4. Serialize/deserialize NPC and verify arc survives the roundtrip
+## E2E Validation Suggestions
+- Start game, buy items repeatedly, verify prices increase
+- Sell items repeatedly, verify prices decrease
+- Travel for 6+ hours, verify prices drift toward baseline
+- Trigger invasion event, verify +20% prices
+- Trigger caravan event, verify -10% prices
+- Buy consumables at temple, verify 15% discount

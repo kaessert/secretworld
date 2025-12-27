@@ -22,6 +22,7 @@ from cli_rpg.models.region_context import RegionContext
 from cli_rpg.models.generation_context import GenerationContext
 from cli_rpg.models.quest_outcome import QuestOutcome
 from cli_rpg.models.world_state import WorldStateManager
+from cli_rpg.models.economy import EconomyState
 from cli_rpg.combat import (
     CombatEncounter,
     ai_spawn_enemy,
@@ -308,6 +309,8 @@ class GameState:
         self.world_state_manager = WorldStateManager()
         # Background generation queue for pre-generating adjacent locations
         self.background_gen_queue: Optional["BackgroundGenerationQueue"] = None
+        # Economy system for dynamic supply/demand pricing
+        self.economy_state = EconomyState()
 
     @property
     def is_in_conversation(self) -> bool:
@@ -773,6 +776,9 @@ class GameState:
         travel_time = 1 + self.weather.get_travel_modifier()
         self.game_time.advance(travel_time)
 
+        # Update economy with time-based recovery
+        self.economy_state.update_time(self.game_time.hour)
+
         # Check for expired time-limited quests after time advances
         expired_quest_messages = self.check_expired_quests()
 
@@ -979,6 +985,9 @@ class GameState:
 
         # Advance time by 1 hour for movement inside buildings
         self.game_time.advance(1)
+
+        # Update economy with time-based recovery
+        self.economy_state.update_time(self.game_time.hour)
 
         # Check for boss encounter at destination
         if destination.boss_enemy and not destination.boss_defeated:
@@ -1750,6 +1759,9 @@ class GameState:
             # Advance time
             self.game_time.advance(1)
 
+            # Update economy with time-based recovery
+            self.economy_state.update_time(self.game_time.hour)
+
             # Weather transition
             self.weather.transition()
 
@@ -1827,6 +1839,7 @@ class GameState:
             "quest_outcomes": [outcome.to_dict() for outcome in self.quest_outcomes],
             "seen_tiles": list(self.seen_tiles),
             "world_state_manager": self.world_state_manager.to_dict(),
+            "economy_state": self.economy_state.to_dict(),
         }
         # Include chunk_manager if present (WFC terrain)
         if self.chunk_manager is not None:
@@ -1950,6 +1963,11 @@ class GameState:
         # Restore world_state_manager (default to empty for backward compatibility)
         game_state.world_state_manager = WorldStateManager.from_dict(
             data.get("world_state_manager")
+        )
+
+        # Restore economy_state (default to fresh for backward compatibility)
+        game_state.economy_state = EconomyState.from_dict(
+            data.get("economy_state")
         )
 
         # Restore chunk_manager if present (WFC terrain)

@@ -72,6 +72,7 @@ src/cli_rpg/
 ├── secrets.py           # PER-based secret discovery and search mechanics
 ├── camping.py           # Wilderness camping, foraging, and hunting system
 ├── crafting.py          # Resource gathering and crafting recipes (gather, craft, recipes commands)
+├── economy.py           # Economy helper functions (price modifiers, event integration)
 ├── ranger.py            # Ranger class abilities (track command, wilderness bonus)
 ├── cleric.py            # Cleric class abilities (bless, smite commands)
 ├── faction_combat.py    # Faction reputation changes from combat outcomes
@@ -85,6 +86,7 @@ src/cli_rpg/
     ├── character.py     # Player character model
     ├── district.py      # District model for mega-settlements (DistrictType enum, bounds, atmosphere)
     ├── dread.py         # Dread meter for psychological horror
+    ├── economy.py       # Economy state (supply/demand, location bonuses, event disruption)
     ├── tiredness.py     # Tiredness meter for fatigue and sleep mechanics
     ├── enemy.py         # Enemy/monster model
     ├── game_time.py     # Day/night cycle and time tracking

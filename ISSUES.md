@@ -297,16 +297,33 @@ Created NPC character arc system for tracking relationship progression based on 
 ---
 
 ### Issue 14: Living Economy System
-**Status**: PENDING
+**Status**: COMPLETED ✓
 **Priority**: MEDIUM
+**Completed**: 2025-12-27
 
-Create dynamic economy with supply/demand and trade routes.
+Created dynamic economy with supply/demand and trade routes.
 
-**Files to Create**:
-- `src/cli_rpg/models/economy.py`
+**Implementation**:
+- `src/cli_rpg/models/economy.py` - EconomyState dataclass with:
+  - `item_supply` dict for per-item supply/demand modifiers
+  - `regional_disruption` for world event effects
+  - `record_buy()` / `record_sell()` to track transactions
+  - `update_time()` for time-based price recovery toward baseline
+  - `get_modifier()` combining supply, location, and disruption
+  - Full serialization with `to_dict()` / `from_dict()`
+- `src/cli_rpg/economy.py` - Helper functions:
+  - `get_economy_price_modifier()` for calculating item prices
+  - `update_economy_from_events()` for invasion/caravan effects
+- `src/cli_rpg/game_state.py` - Integrated `economy_state` field with time-based recovery in `move()` and `fast_travel()`
+- `src/cli_rpg/main.py` - Buy/sell/shop commands use economy modifiers
+- `src/cli_rpg/world_events.py` - Calls `update_economy_from_events()` in `progress_events()`
+- 34 tests in `tests/test_economy.py`
 
-**Files to Modify**:
-- `src/cli_rpg/models/shop.py` - Use economy modifiers
+**Economy Behavior**:
+- Supply/Demand: Buy increases price (+5% per purchase, max +50%), Sell decreases (-3% per sale, min -30%)
+- Time Recovery: Every 6 game hours, prices drift 5% toward baseline
+- Location Bonuses: Temple -15% consumables, Town/Village -10% weapons, Forest -20% resources
+- World Events: Invasion +20% all prices, Caravan -10% all prices
 
 ---
 
@@ -561,5 +578,5 @@ Create storyline system with branching quests and investigations.
 - ✓ NPC character arcs (Issue 13 complete)
 
 **Phase 7: Economy & Quests** - Issues 14-15
-- Living economy
+- ✓ Living economy (Issue 14 complete)
 - Quest networks

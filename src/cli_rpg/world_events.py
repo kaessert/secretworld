@@ -138,7 +138,8 @@ def progress_events(game_state: "GameState") -> list[str]:
     """Progress all active events and apply consequences for expired ones.
 
     Called when time advances. Checks each active event and applies
-    consequences if expired.
+    consequences if expired. Also updates economy disruption based on
+    active events.
 
     Args:
         game_state: Current game state
@@ -146,6 +147,8 @@ def progress_events(game_state: "GameState") -> list[str]:
     Returns:
         List of progress/consequence messages
     """
+    from cli_rpg.economy import update_economy_from_events
+
     messages = []
     current_hour = game_state.game_time.hour
 
@@ -163,6 +166,9 @@ def progress_events(game_state: "GameState") -> list[str]:
             event.consequence_applied = True
             event.is_active = False
             messages.append(consequence_msg)
+
+    # Update economy disruption based on active events
+    update_economy_from_events(game_state.economy_state, game_state.world_events)
 
     return messages
 

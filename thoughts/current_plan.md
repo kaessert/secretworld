@@ -1,259 +1,315 @@
-# Implementation Plan: Issue 13 - NPC Character Arcs
-
-## Overview
-Add character arc progression for NPCs based on player interactions. NPCs evolve from strangers to allies/rivals based on cumulative interactions, with arc stage affecting dialogue, quests, and behavior.
-
-## Key Design Decisions
-
-1. **Arc stages mirror Companion bond levels** for consistency: STRANGER → ACQUAINTANCE → TRUSTED → DEVOTED (or STRANGER → WARY → HOSTILE → ENEMY for negative arcs)
-2. **Track interaction history** with typed events (talked, helped_quest, failed_quest, intimidated, bribed, etc.)
-3. **Integrate with existing NPC model** via optional `arc` field for backward compatibility
-4. **Arc affects NPC behavior** via greeting selection, quest availability, price modifiers
+# Implementation Plan: Issue 14 - Living Economy System
 
 ## Spec
 
-**NPCArcStage** enum:
-- `STRANGER` (0-24 points): Default, minimal trust
-- `ACQUAINTANCE` (25-49): Some familiarity, basic quests available
-- `TRUSTED` (50-74): Real trust, personal quests available
-- `DEVOTED` (75-100): Unbreakable bond, best prices/exclusive content
+Create a dynamic economy system with supply/demand and trade routes that modifies shop prices based on:
+1. **Item scarcity** - Items recently bought become more expensive; items sold drop in price
+2. **Location type** - Terrain/category affects item availability (weapons cheaper at smithies, potions cheaper at temples)
+3. **Trade route disruption** - Caravan events and invasions affect regional prices
+4. **Time-based recovery** - Prices drift back toward baseline over time
 
-**NPCArcStage (Negative path)**:
-- `WARY` (-1 to -24): Suspicious of player
-- `HOSTILE` (-25 to -49): Actively unfriendly
-- `ENEMY` (-50 to -100): Refuses interaction, may attack
+### Price Modifier Stacking Order
+1. Base price (ShopItem.buy_price)
+2. Economy modifier (supply/demand, trade routes) - NEW
+3. CHA modifier (existing)
+4. Faction modifier (existing)
+5. Persuade/haggle bonuses (existing)
 
-**InteractionType** enum: `TALKED`, `HELPED_QUEST`, `FAILED_QUEST`, `INTIMIDATED`, `BRIBED`, `DEFENDED`, `ATTACKED`, `GIFTED`
+### Data Model: EconomyState
+```python
+@dataclass
+class EconomyState:
+    # Per-item supply modifier (1.0 = baseline, >1.0 = scarce/expensive, <1.0 = surplus/cheap)
+    item_supply: dict[str, float]  # item_name -> modifier
 
-**NPCArc** dataclass:
-- `arc_points: int` (default 0, range -100 to 100)
-- `interactions: List[NPCInteraction]` (history of events)
-- `get_stage() -> NPCArcStage` (compute from points)
-- `record_interaction(type, delta, desc)` (add points, log event)
-- Serialization: `to_dict()` / `from_dict()`
+    # Regional disruption (from world events like invasions)
+    regional_disruption: float  # 1.0 = normal, >1.0 = prices inflated
 
-## Tests (tests/test_npc_arc.py)
+    last_update_hour: int  # For time-based recovery
+```
 
-### TestNPCArcStage
-1. `test_arc_stage_stranger_exists` - STRANGER enum exists with value "stranger"
-2. `test_arc_stage_acquaintance_exists` - ACQUAINTANCE enum exists
-3. `test_arc_stage_trusted_exists` - TRUSTED enum exists
-4. `test_arc_stage_devoted_exists` - DEVOTED enum exists
-5. `test_arc_stage_wary_exists` - WARY enum exists
-6. `test_arc_stage_hostile_exists` - HOSTILE enum exists
-7. `test_arc_stage_enemy_exists` - ENEMY enum exists
+### Economy Rules
+- **Buy transaction**: Increase item_supply[item] by 0.05 (max 1.5 = 50% price increase)
+- **Sell transaction**: Decrease item_supply[item] by 0.03 (min 0.7 = 30% price decrease)
+- **Time recovery**: Every 6 game hours, item_supply drifts 5% toward 1.0
+- **Invasion event**: Sets regional_disruption = 1.2 (+20% all prices) while active
+- **Caravan event**: Sets regional_disruption = 0.9 (-10% all prices) while active
+- **Location bonuses** (permanent, defined as constants):
+  - Temple: consumables -15%
+  - Town/village: weapons -10%
+  - Forest: resources -20%
 
-### TestInteractionType
-8. `test_interaction_type_talked_exists` - TALKED enum exists
-9. `test_interaction_type_helped_quest_exists` - HELPED_QUEST enum exists
-10. `test_interaction_type_failed_quest_exists` - FAILED_QUEST enum exists
-11. `test_interaction_type_intimidated_exists` - INTIMIDATED enum exists
-12. `test_interaction_type_bribed_exists` - BRIBED enum exists
-13. `test_interaction_type_defended_exists` - DEFENDED enum exists
-14. `test_interaction_type_attacked_exists` - ATTACKED enum exists
-15. `test_interaction_type_gifted_exists` - GIFTED enum exists
+---
 
-### TestNPCInteraction
-16. `test_interaction_creation` - NPCInteraction stores type, delta, description, timestamp
-17. `test_interaction_to_dict` - Serializes correctly
-18. `test_interaction_from_dict` - Deserializes correctly
+## Tests (tests/test_economy.py)
 
-### TestNPCArc
-19. `test_arc_default_values` - arc_points=0, interactions=[], stage=STRANGER
-20. `test_arc_get_stage_stranger` - 0-24 points returns STRANGER
-21. `test_arc_get_stage_acquaintance` - 25-49 points returns ACQUAINTANCE
-22. `test_arc_get_stage_trusted` - 50-74 points returns TRUSTED
-23. `test_arc_get_stage_devoted` - 75-100 points returns DEVOTED
-24. `test_arc_get_stage_wary` - -1 to -24 returns WARY
-25. `test_arc_get_stage_hostile` - -25 to -49 returns HOSTILE
-26. `test_arc_get_stage_enemy` - -50 to -100 returns ENEMY
-27. `test_arc_record_interaction_adds_points` - Points increase correctly
-28. `test_arc_record_interaction_logs_event` - Interaction added to history
-29. `test_arc_points_clamped_max` - Points capped at 100
-30. `test_arc_points_clamped_min` - Points capped at -100
-31. `test_arc_to_dict` - Serializes arc_points and interactions
-32. `test_arc_from_dict` - Deserializes correctly
-33. `test_arc_roundtrip` - Survives save/load cycle
+### Unit Tests: EconomyState
+1. `test_default_economy_state` - All modifiers start at 1.0
+2. `test_record_buy_increases_supply_modifier` - Buy adds 0.05 to item supply
+3. `test_record_buy_caps_at_max` - Supply modifier caps at 1.5
+4. `test_record_sell_decreases_supply_modifier` - Sell reduces by 0.03
+5. `test_record_sell_caps_at_min` - Supply modifier floors at 0.7
+6. `test_time_recovery_drifts_toward_baseline` - Modifiers drift 5% toward 1.0 per 6 hours
+7. `test_get_economy_modifier_combines_factors` - Combines supply, location, and disruption
+8. `test_serialization_roundtrip` - to_dict/from_dict preserves state
 
-### TestNPCIntegration
-34. `test_npc_arc_field_optional` - NPC works without arc field
-35. `test_npc_arc_serialization` - NPC with arc serializes correctly
-36. `test_npc_arc_deserialization` - NPC with arc deserializes correctly
-37. `test_npc_backward_compat` - Old saves without arc field load correctly
+### Unit Tests: Location Bonuses
+9. `test_temple_consumable_discount` - Consumables 15% cheaper at temples
+10. `test_town_weapon_discount` - Weapons 10% cheaper at towns
+11. `test_forest_resource_discount` - Resources 20% cheaper in forests
+
+### Unit Tests: World Event Integration
+12. `test_invasion_increases_prices` - Active invasion sets disruption = 1.2
+13. `test_caravan_decreases_prices` - Active caravan sets disruption = 0.9
+14. `test_disruption_clears_when_event_ends` - Disruption returns to 1.0 after event
+
+### Integration Tests: Buy/Sell Commands
+15. `test_buy_applies_economy_modifier` - Final price includes economy factor
+16. `test_sell_applies_economy_modifier` - Sell price includes economy factor
+17. `test_shop_display_shows_economy_adjusted_prices` - Shop command shows final prices
+18. `test_economy_modifier_stacks_with_faction` - Economy + faction modifiers stack correctly
+
+---
 
 ## Implementation Steps
 
-### Step 1: Create npc_arc.py
-
-**File**: `src/cli_rpg/models/npc_arc.py`
+### Step 1: Create economy model
+**File**: `src/cli_rpg/models/economy.py`
 
 ```python
-"""NPC character arc model for tracking relationship progression with player."""
+"""Economy model for dynamic supply/demand pricing."""
 from dataclasses import dataclass, field
-from enum import Enum
-from typing import List, Optional
+from typing import Optional
 
 
-class NPCArcStage(Enum):
-    """Character arc stages based on accumulated interaction points."""
-    # Positive stages (0 to 100)
-    STRANGER = "stranger"        # 0-24: Default, no history
-    ACQUAINTANCE = "acquaintance"  # 25-49: Some familiarity
-    TRUSTED = "trusted"          # 50-74: Real trust established
-    DEVOTED = "devoted"          # 75-100: Unbreakable bond
-    # Negative stages (-1 to -100)
-    WARY = "wary"                # -1 to -24: Suspicious
-    HOSTILE = "hostile"          # -25 to -49: Actively unfriendly
-    ENEMY = "enemy"              # -50 to -100: Refuses interaction
-
-
-class InteractionType(Enum):
-    """Types of player-NPC interactions that affect arc progression."""
-    TALKED = "talked"              # +1-3 per conversation
-    HELPED_QUEST = "helped_quest"  # +10-20 for completing their quest
-    FAILED_QUEST = "failed_quest"  # -10-15 for failing their quest
-    INTIMIDATED = "intimidated"    # -5-10 for intimidation
-    BRIBED = "bribed"              # -2 to +5 depending on context
-    DEFENDED = "defended"          # +15-25 for defending in combat
-    ATTACKED = "attacked"          # -30-50 for attacking
-    GIFTED = "gifted"              # +5-15 for giving gifts
+# Location category -> item_type.value -> modifier
+LOCATION_BONUSES: dict[str, dict[str, float]] = {
+    "temple": {"consumable": 0.85},
+    "town": {"weapon": 0.90},
+    "village": {"weapon": 0.90},
+    "forest": {"resource": 0.80},
+}
 
 
 @dataclass
-class NPCInteraction:
-    """A single recorded interaction between player and NPC."""
-    interaction_type: InteractionType
-    points_delta: int
-    description: Optional[str] = None
-    timestamp: int = 0  # Game hour when interaction occurred
+class EconomyState:
+    """Tracks dynamic economy state for supply/demand pricing."""
 
-    def to_dict(self) -> dict:
-        return {
-            "interaction_type": self.interaction_type.value,
-            "points_delta": self.points_delta,
-            "description": self.description,
-            "timestamp": self.timestamp,
-        }
+    item_supply: dict[str, float] = field(default_factory=dict)
+    regional_disruption: float = 1.0
+    last_update_hour: int = 0
 
-    @classmethod
-    def from_dict(cls, data: dict) -> "NPCInteraction":
-        return cls(
-            interaction_type=InteractionType(data["interaction_type"]),
-            points_delta=data["points_delta"],
-            description=data.get("description"),
-            timestamp=data.get("timestamp", 0),
-        )
+    SUPPLY_INCREASE: float = 0.05
+    SUPPLY_DECREASE: float = 0.03
+    MAX_SUPPLY_MOD: float = 1.5
+    MIN_SUPPLY_MOD: float = 0.7
+    RECOVERY_RATE: float = 0.05
+    RECOVERY_INTERVAL: int = 6
 
+    def record_buy(self, item_name: str) -> None:
+        """Record a buy transaction, increasing item scarcity."""
+        current = self.item_supply.get(item_name, 1.0)
+        self.item_supply[item_name] = min(self.MAX_SUPPLY_MOD, current + self.SUPPLY_INCREASE)
 
-@dataclass
-class NPCArc:
-    """Tracks an NPC's relationship arc with the player."""
-    arc_points: int = 0
-    interactions: List[NPCInteraction] = field(default_factory=list)
+    def record_sell(self, item_name: str) -> None:
+        """Record a sell transaction, increasing item surplus."""
+        current = self.item_supply.get(item_name, 1.0)
+        self.item_supply[item_name] = max(self.MIN_SUPPLY_MOD, current - self.SUPPLY_DECREASE)
 
-    def get_stage(self) -> NPCArcStage:
-        """Compute arc stage from current points."""
-        if self.arc_points >= 75:
-            return NPCArcStage.DEVOTED
-        elif self.arc_points >= 50:
-            return NPCArcStage.TRUSTED
-        elif self.arc_points >= 25:
-            return NPCArcStage.ACQUAINTANCE
-        elif self.arc_points >= 0:
-            return NPCArcStage.STRANGER
-        elif self.arc_points >= -24:
-            return NPCArcStage.WARY
-        elif self.arc_points >= -49:
-            return NPCArcStage.HOSTILE
-        else:
-            return NPCArcStage.ENEMY
+    def update_time(self, current_hour: int) -> None:
+        """Apply time-based recovery toward baseline prices."""
+        hours_elapsed = current_hour - self.last_update_hour
+        if hours_elapsed < 0:
+            hours_elapsed += 24  # Handle day wrap
 
-    def record_interaction(
+        intervals = hours_elapsed // self.RECOVERY_INTERVAL
+        if intervals > 0:
+            self.last_update_hour = current_hour
+            for item_name in list(self.item_supply.keys()):
+                current = self.item_supply[item_name]
+                # Drift toward 1.0
+                for _ in range(intervals):
+                    if current > 1.0:
+                        current = max(1.0, current - self.RECOVERY_RATE)
+                    elif current < 1.0:
+                        current = min(1.0, current + self.RECOVERY_RATE)
+                if current == 1.0:
+                    del self.item_supply[item_name]  # Clean up baseline entries
+                else:
+                    self.item_supply[item_name] = current
+
+    def get_modifier(
         self,
-        interaction_type: InteractionType,
-        points_delta: int,
-        description: Optional[str] = None,
-        timestamp: int = 0,
-    ) -> Optional[str]:
-        """Record an interaction and return message if stage changed."""
-        old_stage = self.get_stage()
+        item_name: str,
+        item_type: str,
+        location_category: Optional[str],
+    ) -> float:
+        """Calculate combined economy modifier for an item."""
+        # Supply/demand modifier
+        supply_mod = self.item_supply.get(item_name, 1.0)
 
-        self.arc_points = max(-100, min(100, self.arc_points + points_delta))
+        # Location bonus
+        location_mod = 1.0
+        if location_category and location_category in LOCATION_BONUSES:
+            location_mod = LOCATION_BONUSES[location_category].get(item_type, 1.0)
 
-        self.interactions.append(NPCInteraction(
-            interaction_type=interaction_type,
-            points_delta=points_delta,
-            description=description,
-            timestamp=timestamp,
-        ))
-        # Cap interaction history at 20 entries
-        while len(self.interactions) > 20:
-            self.interactions.pop(0)
-
-        new_stage = self.get_stage()
-        if new_stage != old_stage:
-            return f"Relationship changed: {old_stage.value} → {new_stage.value}"
-        return None
+        return supply_mod * location_mod * self.regional_disruption
 
     def to_dict(self) -> dict:
         return {
-            "arc_points": self.arc_points,
-            "interactions": [i.to_dict() for i in self.interactions],
+            "item_supply": self.item_supply.copy(),
+            "regional_disruption": self.regional_disruption,
+            "last_update_hour": self.last_update_hour,
         }
 
     @classmethod
-    def from_dict(cls, data: dict) -> "NPCArc":
+    def from_dict(cls, data: Optional[dict]) -> "EconomyState":
+        if not data:
+            return cls()
         return cls(
-            arc_points=data.get("arc_points", 0),
-            interactions=[
-                NPCInteraction.from_dict(i) for i in data.get("interactions", [])
-            ],
+            item_supply=data.get("item_supply", {}),
+            regional_disruption=data.get("regional_disruption", 1.0),
+            last_update_hour=data.get("last_update_hour", 0),
         )
 ```
 
-### Step 2: Integrate into NPC model
+### Step 2: Create economy helper module
+**File**: `src/cli_rpg/economy.py`
 
-**File**: `src/cli_rpg/models/npc.py`
+```python
+"""Economy system helpers for price modification."""
+from typing import Optional, TYPE_CHECKING
+
+from cli_rpg.models.economy import EconomyState
+
+if TYPE_CHECKING:
+    from cli_rpg.models.item import Item
+    from cli_rpg.models.world_event import WorldEvent
+
+
+def get_economy_price_modifier(
+    item: "Item",
+    economy_state: EconomyState,
+    location_category: Optional[str],
+) -> float:
+    """Get combined economy modifier for item price."""
+    return economy_state.get_modifier(
+        item.name,
+        item.item_type.value,
+        location_category,
+    )
+
+
+def update_economy_from_events(
+    economy_state: EconomyState,
+    events: list["WorldEvent"],
+) -> None:
+    """Update economy disruption based on active world events."""
+    disruption = 1.0
+    for event in events:
+        if not event.is_active:
+            continue
+        if event.event_type == "invasion":
+            disruption = max(disruption, 1.2)  # +20% prices
+        elif event.event_type == "caravan":
+            disruption = min(disruption, 0.9)  # -10% prices
+    economy_state.regional_disruption = disruption
+```
+
+### Step 3: Integrate into GameState
+**File**: `src/cli_rpg/game_state.py`
 
 Add import:
 ```python
-from cli_rpg.models.npc_arc import NPCArc
+from cli_rpg.models.economy import EconomyState
 ```
 
-Add field to NPC dataclass:
+Add field in `__init__`:
 ```python
-arc: Optional[NPCArc] = None  # Character arc tracking (optional for backward compat)
+self.economy_state: EconomyState = EconomyState()
 ```
 
 Update `to_dict()`:
 ```python
-result["arc"] = self.arc.to_dict() if self.arc else None
+data["economy_state"] = self.economy_state.to_dict()
 ```
 
 Update `from_dict()`:
 ```python
-arc_data = data.get("arc")
-arc = NPCArc.from_dict(arc_data) if arc_data else None
-# ... add arc=arc to cls() call
+game_state.economy_state = EconomyState.from_dict(data.get("economy_state"))
 ```
 
-### Step 3: Create tests
+Call time update in `advance_time()` method:
+```python
+self.economy_state.update_time(self.game_time.hour)
+```
 
-**File**: `tests/test_npc_arc.py`
+### Step 4: Integrate into buy/sell/shop commands
+**File**: `src/cli_rpg/main.py`
 
-Implement all 37 tests per spec above.
+Add import:
+```python
+from cli_rpg.economy import get_economy_price_modifier
+```
 
-## Files Changed
+**Buy command** (after CHA modifier line ~1463):
+```python
+# Apply economy modifier
+location = game_state.get_current_location()
+economy_mod = get_economy_price_modifier(shop_item.item, game_state.economy_state, location.category)
+final_price = int(final_price * economy_mod)
+```
+After successful purchase:
+```python
+game_state.economy_state.record_buy(shop_item.item.name)
+```
 
-1. **Create**: `src/cli_rpg/models/npc_arc.py` - NPCArcStage, InteractionType, NPCInteraction, NPCArc
-2. **Create**: `tests/test_npc_arc.py` - 37 tests
-3. **Modify**: `src/cli_rpg/models/npc.py` - Add optional `arc` field with serialization
+**Sell command** (after CHA modifier line ~1533):
+```python
+# Apply economy modifier
+location = game_state.get_current_location()
+economy_mod = get_economy_price_modifier(item, game_state.economy_state, location.category)
+sell_price = int(sell_price * economy_mod)
+```
+After successful sale:
+```python
+game_state.economy_state.record_sell(item.name)
+```
 
-## Future Integration Points (Not in this issue)
+**Shop command** (in price display loop ~1423):
+```python
+economy_mod = get_economy_price_modifier(si.item, game_state.economy_state, location.category)
+display_price = int(display_price * economy_mod)
+```
 
-These are documented for future work but NOT implemented in Issue 13:
+### Step 5: Integrate world event effects
+**File**: `src/cli_rpg/world_events.py`
 
-- `get_greeting()` could select dialogue based on arc stage
-- Shops could apply price modifiers based on arc
-- Quests could have arc stage prerequisites
-- `talk` command could call `arc.record_interaction(TALKED, +2)`
+Add import:
+```python
+from cli_rpg.economy import update_economy_from_events
+```
+
+In `progress_events()` function, after processing events:
+```python
+update_economy_from_events(game_state.economy_state, game_state.world_events)
+```
+
+### Step 6: Write tests
+**File**: `tests/test_economy.py`
+
+Implement all 18 tests per spec above.
+
+---
+
+## Files Summary
+
+**Create**:
+- `src/cli_rpg/models/economy.py` - EconomyState dataclass with supply/demand logic
+- `src/cli_rpg/economy.py` - Price calculation helpers and event integration
+- `tests/test_economy.py` - All economy tests (18 tests)
+
+**Modify**:
+- `src/cli_rpg/game_state.py` - Add economy_state field and serialization
+- `src/cli_rpg/main.py` - Apply economy modifiers in buy/sell/shop commands
+- `src/cli_rpg/world_events.py` - Update economy disruption from active events

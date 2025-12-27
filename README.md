@@ -303,6 +303,21 @@ Merchants can be found throughout the world. Interact with them to buy and sell 
 
 **Charisma Price Modifier**: Your Charisma stat affects shop prices. Higher CHA reduces buy prices and increases sell prices (±1% per point from 10).
 
+**Living Economy**: Shop prices dynamically adjust based on supply, demand, and world conditions:
+
+| Factor | Effect |
+|--------|--------|
+| **Buying items** | +5% price increase per purchase (max +50%) |
+| **Selling items** | -3% price decrease per sale (min -30%) |
+| **Time recovery** | Every 6 game hours, prices drift 5% toward baseline |
+| **Temple location** | -15% on consumables |
+| **Town/Village** | -10% on weapons |
+| **Forest location** | -20% on resources |
+| **Active invasion** | +20% all prices |
+| **Active caravan** | -10% all prices |
+
+Economy modifiers stack multiplicatively with CHA and faction modifiers.
+
 **Merchant Guild Reputation**: Your standing with the Merchant Guild faction affects shop prices:
 - **HOSTILE** (1-19): Merchants refuse to trade with you
 - **UNFRIENDLY** (20-39): +15% buy prices, -15% sell prices

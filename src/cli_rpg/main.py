@@ -1419,10 +1419,17 @@ def handle_exploration_command(game_state: GameState, command: str, args: list[s
                 lines.append("")
         # Calculate price modifiers for display (same as buy command)
         from cli_rpg.social_skills import get_cha_price_modifier
+        from cli_rpg.economy import get_economy_price_modifier
         cha_modifier = get_cha_price_modifier(game_state.current_character.charisma)
+        location = game_state.get_current_location()
         for si in shop.inventory:
             # Calculate display price with all modifiers (matches buy logic)
             display_price = int(si.buy_price * cha_modifier)
+            # Apply economy modifier (supply/demand, location, world events)
+            economy_mod = get_economy_price_modifier(
+                si.item, game_state.economy_state, location.category
+            )
+            display_price = int(display_price * economy_mod)
             if faction_buy_mod is not None:
                 display_price = int(display_price * faction_buy_mod)
             if game_state.current_npc and game_state.current_npc.persuaded:
@@ -1460,8 +1467,15 @@ def handle_exploration_command(game_state: GameState, command: str, args: list[s
                 return (True, f"\nThe shop doesn't have '{item_name}'. Available: {available_items}")
         # Calculate final price with CHA modifier and persuade discount
         from cli_rpg.social_skills import get_cha_price_modifier
+        from cli_rpg.economy import get_economy_price_modifier
         cha_modifier = get_cha_price_modifier(game_state.current_character.charisma)
         final_price = int(shop_item.buy_price * cha_modifier)
+        # Apply economy modifier (supply/demand, location, world events)
+        location = game_state.get_current_location()
+        economy_mod = get_economy_price_modifier(
+            shop_item.item, game_state.economy_state, location.category
+        )
+        final_price = int(final_price * economy_mod)
         # Apply faction reputation modifier
         if faction_buy_mod is not None:
             final_price = int(final_price * faction_buy_mod)
@@ -1486,6 +1500,8 @@ def handle_exploration_command(game_state: GameState, command: str, args: list[s
         )
         game_state.current_character.remove_gold(final_price)
         game_state.current_character.inventory.add_item(new_item)
+        # Track economy supply/demand
+        game_state.economy_state.record_buy(new_item.name)
         # Track quest progress for collect objectives
         quest_messages = game_state.current_character.record_collection(new_item.name)
         # Consume haggle bonus after purchase
@@ -1529,9 +1545,16 @@ def handle_exploration_command(game_state: GameState, command: str, args: list[s
             return (True, f"\nYou don't have '{item_name}' in your inventory.")
         # Base sell price calculation with CHA modifier
         from cli_rpg.social_skills import get_cha_sell_modifier
+        from cli_rpg.economy import get_economy_price_modifier
         base_sell_price = 10 + (item.damage_bonus + item.defense_bonus + item.heal_amount) * 2
         cha_modifier = get_cha_sell_modifier(game_state.current_character.charisma)
         sell_price = int(base_sell_price * cha_modifier)
+        # Apply economy modifier (supply/demand, location, world events)
+        location = game_state.get_current_location()
+        economy_mod = get_economy_price_modifier(
+            item, game_state.economy_state, location.category
+        )
+        sell_price = int(sell_price * economy_mod)
         # Apply faction reputation modifier
         if faction_sell_mod is not None:
             sell_price = int(sell_price * faction_sell_mod)
@@ -1540,6 +1563,8 @@ def handle_exploration_command(game_state: GameState, command: str, args: list[s
             sell_price = int(sell_price * (1 + game_state.haggle_bonus))
         game_state.current_character.inventory.remove_item(item)
         game_state.current_character.add_gold(sell_price)
+        # Track economy supply/demand
+        game_state.economy_state.record_sell(item.name)
         # Consume haggle bonus after sale
         game_state.haggle_bonus = 0.0
         autosave(game_state)
