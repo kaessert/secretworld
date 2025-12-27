@@ -2485,8 +2485,45 @@ def handle_exploration_command(game_state: GameState, command: str, args: list[s
         from cli_rpg.crafting import get_recipes_list
         return (True, f"\n{get_recipes_list()}")
 
-    elif command in ["attack", "defend", "block", "parry", "flee", "rest", "cast",
-                      "fireball", "ice_bolt", "heal", "bash", "bless", "smite", "hide"]:
+    # Class-specific abilities: check class BEFORE combat state
+    elif command == "bash":
+        from cli_rpg.models.character import CharacterClass
+        if game_state.current_character.character_class != CharacterClass.WARRIOR:
+            return (True, "\n✗ Only Warriors can bash!")
+        return (True, "\n✗ Not in combat.")
+
+    elif command == "fireball":
+        from cli_rpg.models.character import CharacterClass
+        if game_state.current_character.character_class != CharacterClass.MAGE:
+            return (True, "\n✗ Only Mages can cast Fireball!")
+        return (True, "\n✗ Not in combat.")
+
+    elif command == "ice_bolt":
+        from cli_rpg.models.character import CharacterClass
+        if game_state.current_character.character_class != CharacterClass.MAGE:
+            return (True, "\n✗ Only Mages can cast Ice Bolt!")
+        return (True, "\n✗ Not in combat.")
+
+    elif command == "heal":
+        from cli_rpg.models.character import CharacterClass
+        if game_state.current_character.character_class != CharacterClass.MAGE:
+            return (True, "\n✗ Only Mages can cast Heal!")
+        return (True, "\n✗ Not in combat.")
+
+    elif command == "bless":
+        from cli_rpg.models.character import CharacterClass
+        if game_state.current_character.character_class != CharacterClass.CLERIC:
+            return (True, "\n✗ Only Clerics can bless!")
+        return (True, "\n✗ Not in combat.")
+
+    elif command == "smite":
+        from cli_rpg.models.character import CharacterClass
+        if game_state.current_character.character_class != CharacterClass.CLERIC:
+            return (True, "\n✗ Only Clerics can smite!")
+        return (True, "\n✗ Not in combat.")
+
+    # Generic combat commands: just check combat state
+    elif command in ["attack", "defend", "block", "parry", "flee", "rest", "cast", "hide"]:
         return (True, "\n✗ Not in combat.")
     
     elif command == "unknown":

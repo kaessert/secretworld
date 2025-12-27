@@ -1,69 +1,96 @@
-# Plan: Update ISSUES.md - Mark NPC Art Feature as RESOLVED
+# Plan: Fix Class-Specific Ability Error Message Ordering
 
 ## Summary
-The "Unique AI-generated ASCII art per entity" feature is **already fully implemented**. ISSUES.md incorrectly lists "NPC art stored with NPC data" and "Consistent art for all entity types" as remaining work, but all code, tests, and serialization are complete.
+Fix UX issue where class-specific combat abilities show "Not in combat" instead of class restriction errors when used outside combat by wrong class.
 
-## Evidence of Completion
+## Spec
+- **Warrior-only**: `bash` → "Only Warriors can bash!"
+- **Mage-only**: `fireball`, `ice_bolt`, `heal` → "Only Mages can cast X!"
+- **Cleric-only**: `bless`, `smite` → "Only Clerics can X!"
 
-### NPC Art Implementation
-- `NPC.ascii_art` field exists (npc.py:42)
-- Serialization in `to_dict()` (npc.py:252-254) and `from_dict()` (npc.py:284)
-- Generation on first talk (main.py:1226-1246)
-- AI generation via `generate_npc_ascii_art()` (ai_service.py:2167-2204)
-- Fallback templates in `npc_art.py`
-- **24 tests passing** in `tests/test_npc_ascii_art.py`
+When a non-matching class uses these commands outside combat, show class error first.
+When the correct class uses these commands outside combat, show "Not in combat."
 
-### Location Art Implementation
-- `Location.ascii_art` field exists (location.py:40)
-- Serialization in `to_dict()` (location.py:350-352) and `from_dict()` (location.py:418-419, 460)
-- Generation during world expansion (ai_world.py:345-373, 447-452, 559-564, 707-712)
-- AI generation via `generate_location_ascii_art()` (ai_service.py:1492+)
-- Fallback templates in `location_art.py`
+## Implementation
 
-### Monster Art Implementation (Already marked complete in ISSUES.md)
-- Stored in bestiary by monster name
-- Generated on first combat encounter
-- Displayed via `bestiary` command
+### 1. Modify `src/cli_rpg/main.py` (lines 2488-2490)
 
-## Task: Update ISSUES.md
-
-Change section at line 482:
-
-**FROM:**
-```markdown
-### Unique AI-generated ASCII art per entity
-**Status**: ACTIVE
-
-**Implemented**:
-- Monster art stored in bestiary by monster name
-- First encounter generates and caches art in bestiary
-- Subsequent encounters reuse cached art
-- `bestiary` command displays discovered monster art
-
-**Remaining**:
-- NPC art stored with NPC data in location
-- Consistent art for all entity types
+**Current code:**
+```python
+elif command in ["attack", "defend", "block", "parry", "flee", "rest", "cast",
+                  "fireball", "ice_bolt", "heal", "bash", "bless", "smite", "hide"]:
+    return (True, "\n✗ Not in combat.")
 ```
 
-**TO:**
-```markdown
-### Unique AI-generated ASCII art per entity
-**Status**: RESOLVED
-**Date Resolved**: 2025-12-27
+**New code:**
+```python
+# Class-specific abilities: check class BEFORE combat state
+elif command == "bash":
+    if game_state.current_character.character_class != CharacterClass.WARRIOR:
+        return (True, "\n✗ Only Warriors can bash!")
+    return (True, "\n✗ Not in combat.")
 
-**Implemented**:
-- Monster art stored in bestiary by monster name
-- First encounter generates and caches art in bestiary
-- Subsequent encounters reuse cached art
-- `bestiary` command displays discovered monster art
-- NPC art stored with NPC object, generated on first talk, persisted via save/load
-- Location art generated during world creation/expansion, persisted with location data
-- All three entity types follow consistent pattern: field + AI generation + fallback templates + serialization
-- 24 NPC art tests passing in `tests/test_npc_ascii_art.py`
+elif command == "fireball":
+    if game_state.current_character.character_class != CharacterClass.MAGE:
+        return (True, "\n✗ Only Mages can cast Fireball!")
+    return (True, "\n✗ Not in combat.")
+
+elif command == "ice_bolt":
+    if game_state.current_character.character_class != CharacterClass.MAGE:
+        return (True, "\n✗ Only Mages can cast Ice Bolt!")
+    return (True, "\n✗ Not in combat.")
+
+elif command == "heal":
+    if game_state.current_character.character_class != CharacterClass.MAGE:
+        return (True, "\n✗ Only Mages can cast Heal!")
+    return (True, "\n✗ Not in combat.")
+
+elif command == "bless":
+    if game_state.current_character.character_class != CharacterClass.CLERIC:
+        return (True, "\n✗ Only Clerics can bless!")
+    return (True, "\n✗ Not in combat.")
+
+elif command == "smite":
+    if game_state.current_character.character_class != CharacterClass.CLERIC:
+        return (True, "\n✗ Only Clerics can smite!")
+    return (True, "\n✗ Not in combat.")
+
+# Generic combat commands: just check combat state
+elif command in ["attack", "defend", "block", "parry", "flee", "rest", "cast", "hide"]:
+    return (True, "\n✗ Not in combat.")
 ```
+
+### 2. Add CharacterClass import at top of function
+
+Add near existing imports in `handle_exploration_command`:
+```python
+from cli_rpg.models.character import CharacterClass
+```
+
+### 3. Update tests in `tests/test_main_coverage.py`
+
+Update 6 tests (lines 599-675) to test new behavior:
+
+- `test_fireball_command_outside_combat`: Create Warrior, expect "Only Mages"
+- `test_ice_bolt_command_outside_combat`: Create Warrior, expect "Only Mages"
+- `test_heal_command_outside_combat`: Create Warrior, expect "Only Mages"
+- `test_bash_command_outside_combat`: Create Mage, expect "Only Warriors"
+- `test_bless_command_outside_combat`: Create Warrior, expect "Only Clerics"
+- `test_smite_command_outside_combat`: Create Warrior, expect "Only Clerics"
+
+Add 6 complementary tests for correct class + "Not in combat":
+- `test_fireball_mage_outside_combat_shows_not_in_combat`
+- `test_ice_bolt_mage_outside_combat_shows_not_in_combat`
+- `test_heal_mage_outside_combat_shows_not_in_combat`
+- `test_bash_warrior_outside_combat_shows_not_in_combat`
+- `test_bless_cleric_outside_combat_shows_not_in_combat`
+- `test_smite_cleric_outside_combat_shows_not_in_combat`
 
 ## Files to Modify
-- `ISSUES.md`: Update the section (lines 482-494)
+1. `src/cli_rpg/main.py` - Reorder checks (lines 2488-2490)
+2. `tests/test_main_coverage.py` - Update and add tests (lines 599-675)
 
-## No Tests Needed
-Documentation update only. All functionality already tested and passing.
+## Verification
+```bash
+pytest tests/test_main_coverage.py::TestExplorationCombatCommandsOutsideCombat -v
+```

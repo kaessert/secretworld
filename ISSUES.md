@@ -1453,59 +1453,27 @@ Target: Giant Spider x3
 
 ---
 
-### Misleading error message for class-specific abilities outside combat
-**Status**: ACTIVE
+### ✅ RESOLVED: Misleading error message for class-specific abilities outside combat
+**Status**: RESOLVED
 **Date Added**: 2025-12-27
-**Priority**: LOW (UX issue)
+**Date Resolved**: 2025-12-27
 
-**Problem**: Class-specific combat abilities (`bless`, `smite`, `fireball`, `ice_bolt`, `heal`, `bash`) show the error "Not in combat" when used outside of combat, regardless of whether the player has the correct class. This is misleading because:
+**Problem**: Class-specific combat abilities (`bless`, `smite`, `fireball`, `ice_bolt`, `heal`, `bash`) showed the error "Not in combat" when used outside of combat, regardless of whether the player had the correct class.
 
-1. A non-Mage player typing `fireball` outside combat sees "Not in combat"
-2. This implies they could use it if they entered combat
-3. Only DURING combat does the real error appear: "Only Mages can cast Fireball!"
+**Resolution**: Refactored the combat command handling in `main.py` (lines 2488-2527) to check class restrictions BEFORE combat state for class-specific abilities:
 
-**Expected Behavior**: The class restriction error should take priority over the combat restriction error. A Warrior typing `fireball` outside combat should see "Only Mages can cast Fireball!" (not "Not in combat").
+- `bash` - Now shows "Only Warriors can bash!" for non-Warriors
+- `fireball` - Now shows "Only Mages can cast Fireball!" for non-Mages
+- `ice_bolt` - Now shows "Only Mages can cast Ice Bolt!" for non-Mages
+- `heal` - Now shows "Only Mages can cast Heal!" for non-Mages
+- `bless` - Now shows "Only Clerics can bless!" for non-Clerics
+- `smite` - Now shows "Only Clerics can smite!" for non-Clerics
 
-**Steps to Reproduce**:
-```bash
-# Create a Warrior with --skip-character-creation, then try Mage abilities
-echo -e "fireball\nice_bolt\nheal\nbless\nsmite" | cli-rpg --non-interactive --skip-character-creation --seed 123
-```
+Generic combat commands (`attack`, `defend`, `block`, `parry`, `flee`, `rest`, `cast`, `hide`) continue to show "Not in combat." as before.
 
-**Output**:
-```
-✗ Not in combat.
-✗ Not in combat.
-✗ Not in combat.
-✗ Not in combat.
-✗ Not in combat.
-```
+**Files Modified**:
+- `src/cli_rpg/main.py`: Reordered checks in combat command handlers
+- `tests/test_main_coverage.py`: Updated 6 tests, added 6 complementary tests
 
-**Correct output when in combat** (for comparison):
-```
-Only Mages can cast Fireball!
-Only Mages can cast Ice Bolt!
-Only Mages can cast Heal!
-Only Clerics can bless!
-Only Clerics can smite!
-```
-
-**Fix Suggestion**: In the command handler for each class-specific ability, check class restriction BEFORE checking combat state. Example:
-```python
-# Current (wrong order):
-if not game_state.in_combat:
-    return "Not in combat."
-if character.character_class != CharacterClass.MAGE:
-    return "Only Mages can cast Fireball!"
-
-# Fixed (correct order):
-if character.character_class != CharacterClass.MAGE:
-    return "Only Mages can cast Fireball!"
-if not game_state.in_combat:
-    return "Not in combat."
-```
-
-**Affected Commands**: `fireball`, `ice_bolt`, `heal`, `bless`, `smite`, `bash`
-
-**Files to Modify**: `src/cli_rpg/main.py` (combat command handlers)
+**Verification**: All 18 tests in `TestExplorationCombatCommandsOutsideCombat` pass. Full test suite: 4119 tests pass.
 
