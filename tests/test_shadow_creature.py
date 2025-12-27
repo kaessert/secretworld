@@ -233,3 +233,24 @@ class TestShadowDefeatDreadReduction:
         shadow = game_state.current_combat.enemy
         assert shadow.name == SHADOW_CREATURE_NAME
         assert shadow.health > 0
+
+    def test_defeating_shadow_resets_dread_to_zero(self):
+        """Defeating Shadow of Dread resets dread to 0.
+
+        Tests spec: Victory over shadow resets dread to prevent infinite combat loop.
+        """
+        char = create_test_character()
+        world = create_test_world()
+        game_state = GameState(char, world, "Town Square")
+        char.dread_meter.dread = 100
+
+        # Trigger shadow attack
+        check_and_trigger_shadow_attack(game_state)
+
+        # Defeat the shadow (set health to 0, call end_combat with victory=True)
+        game_state.current_combat.enemy.health = 0
+        result = game_state.current_combat.end_combat(victory=True)
+
+        # Dread should be reset to 0
+        assert char.dread_meter.dread == 0
+        assert "dissipates" in result.lower() or "clear" in result.lower()

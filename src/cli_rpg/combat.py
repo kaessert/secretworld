@@ -1938,12 +1938,22 @@ class CombatEncounter:
             # Play victory sound
             sound_victory()
 
+            # Check if defeated Shadow of Dread - reset dread to reward conquering fear
+            from cli_rpg.shadow_creature import SHADOW_CREATURE_NAME
+            shadow_defeated = any(e.name == SHADOW_CREATURE_NAME for e in self.enemies)
+            if shadow_defeated and self.game_state and self.game_state.current_character:
+                self.game_state.current_character.dread_meter.dread = 0
+
             # Build victory message based on number of enemies
             if len(self.enemies) == 1:
                 messages = [f"{colors.heal('Victory!')} You defeated {colors.enemy(self.enemies[0].name)}!"]
             else:
                 enemy_names = [colors.enemy(e.name) for e in self.enemies]
                 messages = [f"{colors.heal('Victory!')} You defeated {', '.join(enemy_names)}!"]
+
+            # Add thematic message for shadow defeat
+            if shadow_defeated:
+                messages.append(colors.heal("The shadow dissipates. Your mind feels clear once more."))
 
             # Sum XP from all enemies
             total_xp = sum(e.xp_reward for e in self.enemies)
