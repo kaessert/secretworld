@@ -76,6 +76,7 @@ src/cli_rpg/
 ├── faction_shop.py      # Faction-based shop price modifiers
 ├── faction_content.py   # Faction-gated NPC/location access based on reputation
 ├── settlement_generator.py # District generation for mega-settlements (cities, metropolises, capitals)
+├── puzzles.py           # Dungeon puzzle interaction logic (unlock, pull, step, answer, activate)
 └── models/
     ├── character.py     # Player character model
     ├── district.py      # District model for mega-settlements (DistrictType enum, bounds, atmosphere)
@@ -85,8 +86,9 @@ src/cli_rpg/
     ├── game_time.py     # Day/night cycle and time tracking
     ├── item.py          # Item definitions
     ├── inventory.py     # Inventory management
-    ├── location.py      # Location with coordinates and NPCs (movement via coordinate adjacency)
+    ├── location.py      # Location with coordinates and NPCs (movement via coordinate adjacency), puzzles, blocked_directions
     ├── npc.py           # Non-player character model with relationship support
+    ├── puzzle.py        # Puzzle model with types (LOCKED_DOOR, LEVER, PRESSURE_PLATE, RIDDLE, SEQUENCE)
     ├── npc_relationship.py # NPC relationship types and trust levels
     ├── npc_network.py   # NPC network manager for family generation and network queries
     ├── quest.py         # Quest system with objectives and progress tracking

@@ -8,6 +8,7 @@ from cli_rpg import colors
 
 if TYPE_CHECKING:
     from cli_rpg.models.npc import NPC
+    from cli_rpg.models.puzzle import Puzzle
     from cli_rpg.world_grid import SubGrid
     from cli_rpg.wfc_chunks import ChunkManager
 
@@ -57,6 +58,8 @@ class Location:
     required_faction: Optional[str] = None  # Faction required for entry
     required_reputation: Optional[int] = None  # Min faction rep for entry (1-100)
     temporary_exits: List[str] = field(default_factory=list)  # Exits revealed by hidden_door secrets
+    puzzles: List["Puzzle"] = field(default_factory=list)  # Puzzles at this location
+    blocked_directions: List[str] = field(default_factory=list)  # Directions blocked by puzzles
 
     def __post_init__(self) -> None:
         """Validate location attributes after initialization."""
@@ -394,6 +397,10 @@ class Location:
             data["required_reputation"] = self.required_reputation
         if self.temporary_exits:
             data["temporary_exits"] = self.temporary_exits.copy()
+        if self.puzzles:
+            data["puzzles"] = [puzzle.to_dict() for puzzle in self.puzzles]
+        if self.blocked_directions:
+            data["blocked_directions"] = self.blocked_directions.copy()
         return data
     
     @classmethod
@@ -455,6 +462,13 @@ class Location:
         required_reputation = data.get("required_reputation")
         # Parse temporary_exits if present (backward compatibility)
         temporary_exits = data.get("temporary_exits", [])
+        # Parse puzzles if present (backward compatibility)
+        puzzles = []
+        if "puzzles" in data:
+            from cli_rpg.models.puzzle import Puzzle
+            puzzles = [Puzzle.from_dict(p) for p in data["puzzles"]]
+        # Parse blocked_directions if present (backward compatibility)
+        blocked_directions = data.get("blocked_directions", [])
         # Note: Legacy 'connections' field is ignored if present (backward compatibility)
         return cls(
             name=data["name"],
@@ -481,6 +495,8 @@ class Location:
             required_faction=required_faction,
             required_reputation=required_reputation,
             temporary_exits=temporary_exits,
+            puzzles=puzzles,
+            blocked_directions=blocked_directions,
         )
     
     def __str__(self) -> str:

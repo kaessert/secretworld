@@ -1,60 +1,94 @@
-# Issue 22: Location-Themed Hallucinations - Implementation Summary
+# Implementation Summary: Dungeon Puzzle Mechanics (Issue #23)
 
 ## What Was Implemented
 
-Extended the hallucination system (`src/cli_rpg/hallucinations.py`) to spawn location-category-specific hallucination enemies instead of using generic templates everywhere.
+### New Files Created
 
-### New Components
+1. **`src/cli_rpg/models/puzzle.py`** - Puzzle model and types
+   - `PuzzleType` enum with 5 puzzle types:
+     - `LOCKED_DOOR` - Requires specific key item
+     - `LEVER` - Toggle to open passage
+     - `PRESSURE_PLATE` - Step on to trigger
+     - `RIDDLE` - Answer correctly to pass
+     - `SEQUENCE` - Activate objects in correct order
+   - `Puzzle` dataclass with:
+     - Core fields: `puzzle_type`, `name`, `description`, `solved`
+     - Type-specific fields: `required_key`, `target_direction`, `riddle_text`, `riddle_answer`, `sequence_ids`, `sequence_progress`
+     - INT hint system: `hint_threshold`, `hint_text`
+   - Methods: `check_riddle_answer()`, `check_sequence_step()`, `add_sequence_step()`, `is_sequence_complete()`, `get_hint()`, `to_dict()`, `from_dict()`
 
-1. **`CATEGORY_HALLUCINATION_TEMPLATES`** - Dictionary mapping location categories to themed hallucination templates:
-   - `dungeon`: Ghostly Prisoner, Skeletal Warrior
-   - `forest`: Twisted Treant, Shadow Wolf
-   - `temple`: Fallen Priest, Dark Angel
-   - `cave`: Eyeless Horror, Dripping Shadow
+2. **`src/cli_rpg/puzzles.py`** - Puzzle interaction logic
+   - `find_puzzle_by_name(location, puzzle_name)` - Case-insensitive puzzle lookup
+   - `filter_blocked_directions(available, blocked)` - Filter blocked exits
+   - `solve_puzzle(puzzle, location)` - Mark solved and unblock direction
+   - `examine_puzzle(char, puzzle)` - Get description with INT-based hints
+   - `attempt_unlock(char, location, puzzle_name, key_name)` - Locked door logic
+   - `pull_lever(char, location, puzzle_name)` - Lever toggle logic
+   - `step_on_plate(char, location, puzzle_name)` - Pressure plate logic
+   - `answer_riddle(char, location, puzzle_name, answer)` - Riddle answer checking
+   - `activate_sequence(char, location, puzzle_name, object_id)` - Sequence puzzle logic
 
-2. **`get_hallucination_templates(category: str | None)`** - Helper function that returns templates for a given category, falling back to default `HALLUCINATION_TEMPLATES` for unknown/None categories.
+3. **`tests/test_puzzles.py`** - Comprehensive test suite (30 tests)
+   - `TestPuzzleModel` - Creation and serialization tests
+   - `TestLockedDoorPuzzle` - Key unlock mechanics
+   - `TestLeverPuzzle` - Toggle mechanics
+   - `TestPressurePlatePuzzle` - Step-on mechanics
+   - `TestRiddlePuzzle` - Answer validation (case-insensitive)
+   - `TestSequencePuzzle` - Order tracking and reset
+   - `TestINTHints` - Threshold-based hint display
+   - `TestLocationPuzzleIntegration` - Blocked direction filtering
+   - `TestPuzzleHelpers` - Utility function tests
 
-3. **Updated `spawn_hallucination(level, category=None)`** - Added optional `category` parameter to spawn themed hallucinations.
+### Modified Files
 
-4. **Updated `check_for_hallucination()`** - Now retrieves the current location's category and passes it to `spawn_hallucination()` for themed hallucinations.
-
-### Files Modified
-
-- `src/cli_rpg/hallucinations.py` - Added templates, helper function, updated function signatures
-- `tests/test_hallucinations.py` - Added 10 new tests in `TestCategoryHallucinations` class
-- `ISSUES.md` - Marked Issue 22 as COMPLETED
+1. **`src/cli_rpg/models/location.py`**
+   - Added TYPE_CHECKING import for `Puzzle`
+   - Added `puzzles: List["Puzzle"]` field (default empty)
+   - Added `blocked_directions: List[str]` field (default empty)
+   - Updated `to_dict()` to serialize puzzles and blocked_directions
+   - Updated `from_dict()` to deserialize puzzles and blocked_directions
 
 ## Test Results
 
-All 4560 tests pass, including:
-- 27 hallucination tests (17 existing + 10 new category tests)
-- All integration tests for themed hallucinations in caves
+All 30 puzzle tests pass:
+```
+tests/test_puzzles.py ... 30 passed in 0.58s
+```
 
-### New Tests Added
-
-1. `test_dungeon_templates_exist` - Verifies dungeon templates
-2. `test_forest_templates_exist` - Verifies forest templates
-3. `test_temple_templates_exist` - Verifies temple templates
-4. `test_cave_templates_exist` - Verifies cave templates
-5. `test_unknown_category_uses_defaults` - Unknown category falls back
-6. `test_none_category_uses_defaults` - None falls back
-7. `test_spawn_with_dungeon_category` - Spawns dungeon enemy
-8. `test_spawn_with_forest_category` - Spawns forest enemy
-9. `test_spawn_with_no_category` - Spawns default enemy
-10. `test_check_uses_location_category` - Integration test with cave location
+Related integration tests also pass:
+- `test_integration_persistence.py` - 5 passed
+- `test_location_ascii_art.py` - 16 passed
+- `test_complete_save_load_flow.py` - 6 passed
+- `test_talk_subgrid.py` - 4 passed
+- `test_named_locations.py` - 12 passed
 
 ## Design Decisions
 
-- Followed the existing pattern from `encounter_tables.py` (Issue 21)
-- Each category has exactly 2 themed templates (matching the spec)
-- Unknown categories gracefully fall back to default templates
-- Backward compatible - `spawn_hallucination(level)` still works without category
+1. **Puzzles block directions** - Each puzzle has a `target_direction` that is added to `blocked_directions`. When solved, the direction is removed.
 
-## E2E Validation
+2. **Keys are consumed** - When using a key to unlock a door, the key is removed from inventory.
 
-To validate in-game:
-1. Start a new character
-2. Navigate to a dungeon/cave/temple/forest location
-3. Increase dread to 75%+ (via travel or other mechanics)
-4. Continue moving until a hallucination triggers
-5. Verify the hallucination enemy name matches the location theme
+3. **Case-insensitive matching** - Puzzle names, riddle answers, and key names are matched case-insensitively.
+
+4. **Sequence reset on wrong step** - Wrong sequence activations reset progress to empty.
+
+5. **INT threshold for hints** - Players with intelligence >= `hint_threshold` (default 14) see the `hint_text` when examining puzzles.
+
+6. **Backward compatible serialization** - New fields are only included in `to_dict()` if non-empty, and `from_dict()` provides sensible defaults.
+
+## E2E Tests Should Validate
+
+1. Creating a location with puzzles and blocked_directions
+2. Saving and loading a game with puzzles (serialization roundtrip)
+3. Using the puzzle interaction functions in an actual dungeon scenario
+4. INT-based hint visibility for different character builds
+
+## What's NOT Implemented Yet (Per Plan)
+
+The plan mentions additional features that can be added later:
+- Commands in `main.py` (examine, pull, step, answer, activate)
+- Tab completion for puzzle commands in `completer.py`
+- Puzzle generation in `ai_world.py` during SubGrid creation
+- KNOWN_COMMANDS update in `game_state.py`
+
+These were part of Steps 5-7 in the plan and require more extensive changes to integrate with the main game loop.
