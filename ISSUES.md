@@ -174,13 +174,24 @@ Added thematic loading messages and ASCII spinners during AI generation.
 ---
 
 ### Issue 7: LLM Streaming Support
-**Status**: PENDING
+**Status**: COMPLETED ✓
 **Priority**: MEDIUM
+**Completed**: 2025-12-27
 
 Add streaming support to AIService for live text display during generation.
 
-**Files to Modify**:
-- `src/cli_rpg/ai_service.py`
+**Implementation**:
+- `src/cli_rpg/ai_config.py` - Added `enable_streaming: bool` field and `AI_ENABLE_STREAMING` env var
+- `src/cli_rpg/ai_service.py` - Streaming methods:
+  - `_call_llm_streaming()`: Main streaming dispatcher
+  - `_call_openai_streaming()`: OpenAI/Ollama streaming with `stream=True`
+  - `_call_anthropic_streaming()`: Anthropic streaming via `client.messages.stream()`
+  - `_call_llm_streamable()`: Smart wrapper checking config and effects
+- Text-only methods use streaming when enabled: `generate_npc_dialogue()`, `generate_lore()`, `generate_dream()`, `generate_whisper()`, `generate_ascii_art()`, `generate_location_ascii_art()`, `generate_npc_ascii_art()`
+- JSON methods remain non-streaming (need complete responses for parsing)
+- 22 tests in `tests/test_ai_streaming.py`
+
+**Usage**: Set `AI_ENABLE_STREAMING=true` environment variable to enable
 
 ---
 
@@ -512,7 +523,7 @@ Create storyline system with branching quests and investigations.
 
 **Phase 3: Progress Feedback** - Issues 6-8
 - ✓ Progress feedback (Issue 6 complete - ASCII spinner with thematic messages)
-- LLM streaming (Issue 7)
+- ✓ LLM streaming (Issue 7 complete - streaming for text-only generation methods)
 - Background generation (Issue 8)
 
 **Phase 4: Settlement Scale** - Issue 9

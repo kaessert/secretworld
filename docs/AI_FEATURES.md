@@ -45,6 +45,16 @@ This architecture reduces API calls and token usage by caching context at higher
 - **Respects settings**: Disabled when `--no-color` or `--json` mode is active
 - **Thread-safe**: Uses daemon threads with proper cleanup
 
+### 3a. LLM Streaming Support
+- **Real-time output**: Text streams token-by-token to stdout instead of waiting for complete response
+- **Text-only methods**: Streaming applies to methods returning plain text:
+  - `generate_npc_dialogue()`, `generate_lore()`, `generate_dream()`, `generate_whisper()`
+  - `generate_ascii_art()`, `generate_location_ascii_art()`, `generate_npc_ascii_art()`
+- **JSON methods excluded**: Methods requiring JSON parsing still use non-streaming calls
+- **Enable via environment**: Set `AI_ENABLE_STREAMING=true` in your `.env` file
+- **Provider support**: Works with OpenAI, Anthropic, and Ollama
+- **Smart fallback**: Automatically uses non-streaming when text effects are disabled (`--no-color`, `--json`)
+
 ### 4. Graceful Fallbacks
 - Game works without API key (uses fallback location templates)
 - Falls back to template-based location generation if AI fails
@@ -136,6 +146,7 @@ Customize other settings in `.env`:
 - `AI_GENERATION_MAX_RETRIES`: Generation/parsing retry attempts before fallback (default: 2)
 - `AI_ENABLE_CACHING`: Enable caching (default: true)
 - `AI_CACHE_FILE`: Custom cache file path (default: `~/.cli_rpg/cache/ai_cache.json`)
+- `AI_ENABLE_STREAMING`: Stream text output token-by-token (default: false)
 - `CLI_RPG_REQUIRE_AI`: Strict mode for AI generation (default: true)
 
 **Ollama-specific settings:**

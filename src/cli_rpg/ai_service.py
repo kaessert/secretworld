@@ -2,10 +2,12 @@
 
 import json
 import hashlib
+import logging
 import random
+import sys
 import time
 from enum import Enum, auto
-from typing import Any, Callable, Optional, TYPE_CHECKING
+from typing import Any, Callable, Optional, TextIO, TYPE_CHECKING
 
 if TYPE_CHECKING:  # pragma: no cover
     from cli_rpg.models.item import ItemType  # pragma: no cover
@@ -24,13 +26,12 @@ except ImportError:  # pragma: no cover
     anthropic_module = None  # type: ignore[assignment]  # pragma: no cover
     ANTHROPIC_AVAILABLE = False  # pragma: no cover
 
-import logging
-
 from cli_rpg.ai_config import AIConfig
 from cli_rpg.models.location import Location
 from cli_rpg.models.world_context import DEFAULT_THEME_ESSENCES, WorldContext
 from cli_rpg.models.region_context import RegionContext
 from cli_rpg.progress import progress_indicator
+from cli_rpg.text_effects import effects_enabled
 
 # Valid directions for grid-based movement (subset of Location.VALID_DIRECTIONS)
 GRID_DIRECTIONS: set[str] = {"north", "south", "east", "west"}
@@ -438,6 +439,160 @@ class AIService:
 
         # Should not reach here, but just in case
         raise AIServiceError(f"API call failed after retries: {str(last_error)}") from last_error  # pragma: no cover
+
+    def _call_llm_streaming(
+        self,
+        prompt: str,
+        output: Optional[TextIO] = None
+    ) -> str:
+        """Call LLM with streaming, printing tokens as they arrive.
+
+        Args:
+            prompt: The prompt to send to the LLM
+            output: Output stream for tokens (defaults to sys.stdout)
+
+        Returns:
+            Complete response text after streaming finishes
+
+        Raises:
+            AIServiceError: If API call fails
+            AITimeoutError: If request times out
+        """
+        if output is None:
+            output = sys.stdout
+
+        if self.provider == "anthropic":
+            return self._call_anthropic_streaming(prompt, output)
+        elif self.provider == "ollama":
+            return self._call_openai_streaming(prompt, output, is_ollama=True)
+        else:
+            return self._call_openai_streaming(prompt, output)
+
+    def _call_openai_streaming(
+        self,
+        prompt: str,
+        output: TextIO,
+        is_ollama: bool = False
+    ) -> str:
+        """Call OpenAI/Ollama API with streaming, printing tokens as they arrive.
+
+        Args:
+            prompt: The prompt to send to the LLM
+            output: Output stream for tokens
+            is_ollama: Whether this is an Ollama request
+
+        Returns:
+            Complete response text after streaming finishes
+
+        Raises:
+            AIServiceError: If API call fails
+            AITimeoutError: If request times out
+        """
+        try:
+            response = self.client.chat.completions.create(
+                model=self.config.model,
+                messages=[{"role": "user", "content": prompt}],
+                temperature=self.config.temperature,
+                max_tokens=self.config.max_tokens,
+                stream=True
+            )
+
+            full_text = ""
+            for chunk in response:
+                if chunk.choices and chunk.choices[0].delta.content:
+                    token = chunk.choices[0].delta.content
+                    output.write(token)
+                    output.flush()
+                    full_text += token
+
+            output.write("\n")
+            output.flush()
+            return full_text
+
+        except openai.APITimeoutError as e:
+            raise AITimeoutError(f"Request timed out: {str(e)}") from e
+        except openai.APIConnectionError as e:
+            if is_ollama:
+                raise AIServiceError(
+                    f"Failed to connect to Ollama. "
+                    "Is Ollama running? Start it with 'ollama serve' or check OLLAMA_BASE_URL."
+                ) from e
+            raise AIServiceError(f"API connection failed: {str(e)}") from e
+        except openai.AuthenticationError as e:
+            raise AIServiceError(f"Authentication failed: {str(e)}") from e
+        except Exception as e:
+            raise AIServiceError(f"Streaming API call failed: {str(e)}") from e
+
+    def _call_anthropic_streaming(self, prompt: str, output: TextIO) -> str:
+        """Call Anthropic API with streaming, printing tokens as they arrive.
+
+        Args:
+            prompt: The prompt to send to the LLM
+            output: Output stream for tokens
+
+        Returns:
+            Complete response text after streaming finishes
+
+        Raises:
+            AIServiceError: If API call fails
+            AITimeoutError: If request times out
+        """
+        try:
+            with self.client.messages.stream(
+                model=self.config.model,
+                messages=[{"role": "user", "content": prompt}],
+                max_tokens=self.config.max_tokens
+            ) as stream:
+                full_text = ""
+                for text in stream.text_stream:
+                    output.write(text)
+                    output.flush()
+                    full_text += text
+
+            output.write("\n")
+            output.flush()
+            return full_text
+
+        except Exception as e:
+            if anthropic_module is not None:
+                if isinstance(e, anthropic_module.APITimeoutError):
+                    raise AITimeoutError(f"Request timed out: {str(e)}") from e
+                if isinstance(e, anthropic_module.AuthenticationError):
+                    raise AIServiceError(f"Authentication failed: {str(e)}") from e
+            raise AIServiceError(f"Streaming API call failed: {str(e)}") from e
+
+    def _call_llm_streamable(
+        self,
+        prompt: str,
+        output: Optional[TextIO] = None
+    ) -> str:
+        """Call LLM with streaming if enabled, otherwise with progress indicator.
+
+        Checks config.enable_streaming and effects_enabled() to determine
+        whether to use streaming. Falls back to non-streaming on errors.
+
+        Args:
+            prompt: The prompt to send to the LLM
+            output: Output stream for streaming tokens (defaults to sys.stdout)
+
+        Returns:
+            Response text from the LLM
+
+        Raises:
+            AIServiceError: If API call fails
+            AITimeoutError: If request times out
+        """
+        # Use streaming only if enabled in config AND effects are enabled
+        if self.config.enable_streaming and effects_enabled():
+            try:
+                return self._call_llm_streaming(prompt, output)
+            except Exception as e:
+                # Fall back to non-streaming on any streaming error
+                logger.warning(f"Streaming failed, falling back to non-streaming: {e}")
+                return self._call_llm(prompt)
+        else:
+            # Use regular non-streaming call with progress indicator
+            return self._call_llm(prompt)
 
     def _generate_with_retry(
         self,
@@ -1249,7 +1404,8 @@ Note: Use "EXISTING_WORLD" as placeholder for the connection back to the source 
             location_name=location_name
         )
 
-        response_text = self._call_llm(prompt, generation_type="npc")
+        # Use streamable LLM call for text generation (streaming when enabled)
+        response_text = self._call_llm_streamable(prompt)
 
         # Clean and validate response
         dialogue = response_text.strip().strip('"').strip("'")
@@ -1455,8 +1611,8 @@ Note: Use "EXISTING_WORLD" as placeholder for the connection back to the source 
             theme=theme
         )
 
-        # Call LLM
-        response_text = self._call_llm(prompt, generation_type="art")
+        # Use streamable LLM call for text generation (streaming when enabled)
+        response_text = self._call_llm_streamable(prompt)
 
         # Clean and validate response
         art = self._parse_ascii_art_response(response_text)
@@ -1551,8 +1707,8 @@ Note: Use "EXISTING_WORLD" as placeholder for the connection back to the source 
             theme=theme
         )
 
-        # Call LLM
-        response_text = self._call_llm(prompt, generation_type="art")
+        # Use streamable LLM call for text generation (streaming when enabled)
+        response_text = self._call_llm_streamable(prompt)
 
         # Clean and validate response
         art = self._parse_location_ascii_art_response(response_text)
@@ -1811,7 +1967,8 @@ Note: Use "EXISTING_WORLD" as placeholder for the connection back to the source 
             lore_category=lore_category
         )
 
-        response_text = self._call_llm(prompt, generation_type="lore")
+        # Use streamable LLM call for text generation (streaming when enabled)
+        response_text = self._call_llm_streamable(prompt)
 
         # Clean and validate response
         lore = response_text.strip().strip('"').strip("'")
@@ -2226,8 +2383,8 @@ Note: Use "EXISTING_WORLD" as placeholder for the connection back to the source 
             theme=theme
         )
 
-        # Call LLM
-        response_text = self._call_llm(prompt, generation_type="art")
+        # Use streamable LLM call for text generation (streaming when enabled)
+        response_text = self._call_llm_streamable(prompt)
 
         # Clean and validate response
         art = self._parse_npc_ascii_art_response(response_text)
@@ -2326,7 +2483,8 @@ Note: Use "EXISTING_WORLD" as placeholder for the connection back to the source 
             is_nightmare=is_nightmare
         )
 
-        response_text = self._call_llm(prompt, generation_type="dream")
+        # Use streamable LLM call for text generation (streaming when enabled)
+        response_text = self._call_llm_streamable(prompt)
 
         # Clean and validate response
         dream = response_text.strip().strip('"').strip("'")
@@ -2362,7 +2520,8 @@ Note: Use "EXISTING_WORLD" as placeholder for the connection back to the source 
             location_category=location_category
         )
 
-        response_text = self._call_llm(prompt, generation_type="atmosphere")
+        # Use streamable LLM call for text generation (streaming when enabled)
+        response_text = self._call_llm_streamable(prompt)
 
         # Clean and validate response
         whisper = response_text.strip().strip('"').strip("'")

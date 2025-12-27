@@ -1,69 +1,60 @@
-# Implementation Summary: Progress Feedback System (Issue 6)
+# Implementation Summary: Issue 7 - LLM Streaming Support
 
 ## Status: COMPLETE
 
-The progress feedback system has been fully implemented and tested.
+The LLM streaming support feature was already fully implemented. This session fixed two failing tests that had a caching issue causing false negatives.
 
-## What Was Implemented
+## What Was Fixed
 
-### New Module: `src/cli_rpg/progress.py`
-- **`ProgressIndicator` class**: Non-blocking progress indicator using threading
-  - ASCII spinner characters: `['|', '/', '-', '\\']`
-  - Thematic messages by generation type (10 types with 5 messages each)
-  - Thread-safe start/stop with proper lock handling
-  - Respects `effects_enabled()` setting (disabled when `--no-color` or `--json`)
-  - Uses carriage return (`\r`) to overwrite line without newlines
-  - Clears line on stop for clean terminal output
+### Test File Modified
+- `tests/test_ai_streaming.py` - Fixed 2 tests that were failing due to caching behavior
 
-- **`progress_indicator()` context manager**: Clean interface for wrapping AI calls
-  ```python
-  with progress_indicator("location"):
-      # AI generation work here
-  ```
+### Test Fix Details
 
-- **Thematic Message Categories**:
-  - `location`: "Weaving ancient tales...", "Charting unexplored lands...", etc.
-  - `npc`: "Summoning wanderers...", "Awakening souls...", etc.
-  - `enemy`: "Summoning creatures...", "Awakening ancient foes...", etc.
-  - `lore`: "Weaving ancient tales...", "Unraveling mysteries...", etc.
-  - `area`: "Expanding horizons...", "Revealing new lands...", etc.
-  - `item`: "Forging treasures...", "Crafting artifacts...", etc.
-  - `quest`: "Weaving destinies...", "Unfolding adventures...", etc.
-  - `dream`: "Drifting into slumber...", "Wandering dreamscapes...", etc.
-  - `atmosphere`: "Sensing the unseen...", "Listening to whispers...", etc.
-  - `art`: "Sketching visions...", "Rendering forms...", etc.
-  - `default`: Fallback for unknown types
+Two tests were failing because they mocked `_call_llm` but the cache layer (`enable_caching=True` by default) was returning results before `_call_llm` was ever called:
 
-### Integration: `src/cli_rpg/ai_service.py`
-- Import added: `from cli_rpg.progress import progress_indicator`
-- Progress indicator wraps the `_call_llm()` method (line 299)
-- Automatically shows appropriate thematic messages based on `generation_type` parameter
+- `test_generate_location_never_uses_streaming` - Fixed by adding `enable_caching=False`
+- `test_generate_quest_never_uses_streaming` - Fixed by adding `enable_caching=False`
 
-### Test Suite: `tests/test_progress.py`
-- 23 test cases covering:
-  - Spinner thread starts and stops correctly
-  - Messages exist for each generation type
-  - No output when effects disabled
-  - Context manager cleanup on exception
-  - Thread safety (double start/stop, stop without start)
-  - ASCII character verification
-  - Carriage return output format
+## Implementation Details (Already Present)
+
+The streaming implementation consists of:
+
+### 1. Config option (`src/cli_rpg/ai_config.py`)
+- `enable_streaming: bool = False` field on `AIConfig` dataclass
+- `AI_ENABLE_STREAMING` environment variable support in `from_env()`
+- Included in `to_dict()` and `from_dict()` serialization
+
+### 2. Streaming methods (`src/cli_rpg/ai_service.py`)
+- `_call_llm_streaming()` - Main streaming dispatcher (lines 443-469)
+- `_call_openai_streaming()` - OpenAI/Ollama streaming with `stream=True` (lines 471-524)
+- `_call_anthropic_streaming()` - Anthropic streaming via `client.messages.stream()` (lines 526-562)
+- `_call_llm_streamable()` - Smart wrapper that checks config and effects (lines 564-595)
+
+### 3. Streaming applied to text-only methods
+- `generate_npc_dialogue()` - Uses `_call_llm_streamable()`
+- `generate_lore()` - Uses `_call_llm_streamable()`
+- `generate_dream()` - Uses `_call_llm_streamable()`
+- `generate_whisper()` - Uses `_call_llm_streamable()`
+- `generate_ascii_art()` - Uses `_call_llm_streamable()`
+- `generate_location_ascii_art()` - Uses `_call_llm_streamable()`
+- `generate_npc_ascii_art()` - Uses `_call_llm_streamable()`
+
+### 4. JSON methods remain non-streaming
+They need complete responses for parsing:
+- `generate_location()`, `generate_area()`, `generate_quest()`, `generate_enemy()`, `generate_item()`
 
 ## Test Results
-```
-23 passed in 0.49s
-```
 
-## Technical Design Decisions
-1. **Threading for non-blocking operation**: Uses daemon threads so they don't prevent program exit
-2. **No external dependencies**: Built using only Python stdlib (threading, sys, time)
-3. **Graceful degradation**: Completely silent when effects are disabled
-4. **Message cycling**: Messages rotate every 2 seconds to keep the display interesting
+All 22 tests pass:
+```
+tests/test_ai_streaming.py - 22 passed in 0.61s
+```
 
 ## E2E Validation
-When running the game with AI enabled:
-1. Start the game: `cli-rpg`
-2. Perform actions that trigger AI generation (entering new areas, talking to NPCs)
-3. A spinner with thematic messages should appear during AI generation
-4. The spinner should disappear cleanly when generation completes
-5. With `--no-color` or `--json` flags, no progress indicator should appear
+
+To validate streaming in a real game session:
+1. Set `AI_ENABLE_STREAMING=true` environment variable
+2. Start the game with an AI provider configured
+3. Trigger text generation (talk to NPCs, rest for dreams, explore for whispers)
+4. Observe real-time token streaming to stdout instead of spinner-based progress

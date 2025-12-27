@@ -458,6 +458,7 @@ class AIConfig:
         cache_ttl: Cache time-to-live in seconds (default: 3600)
         cache_file: Path to persistent cache file (default: ~/.cli_rpg/cache/ai_cache.json when caching enabled)
         ollama_base_url: Base URL for Ollama API (default: http://localhost:11434/v1)
+        enable_streaming: Enable streaming for text generation (default: False)
         location_generation_prompt: Prompt template for location generation
     """
 
@@ -473,6 +474,7 @@ class AIConfig:
     cache_ttl: int = 3600
     cache_file: Optional[str] = None
     ollama_base_url: Optional[str] = None
+    enable_streaming: bool = False
     location_generation_prompt: str = field(default=DEFAULT_LOCATION_PROMPT)
     npc_dialogue_prompt: str = field(default=DEFAULT_NPC_DIALOGUE_PROMPT)
     enemy_generation_prompt: str = field(default=DEFAULT_ENEMY_GENERATION_PROMPT)
@@ -536,6 +538,7 @@ class AIConfig:
             AI_GENERATION_MAX_RETRIES: Maximum retry attempts for generation parse failures
             AI_ENABLE_CACHING: Enable caching (true/false)
             AI_CACHE_TTL: Cache TTL in seconds
+            AI_ENABLE_STREAMING: Enable LLM streaming for text generation (true/false)
 
         Provider selection priority:
         1. If AI_PROVIDER is set, use that provider (must have corresponding API key)
@@ -606,6 +609,7 @@ class AIConfig:
         enable_caching = os.getenv("AI_ENABLE_CACHING", "true").lower() == "true"
         cache_ttl = int(os.getenv("AI_CACHE_TTL", "3600"))
         cache_file = os.getenv("AI_CACHE_FILE")  # None if not set, __post_init__ will set default
+        enable_streaming = os.getenv("AI_ENABLE_STREAMING", "false").lower() == "true"
 
         return cls(
             api_key=api_key,
@@ -619,7 +623,8 @@ class AIConfig:
             enable_caching=enable_caching,
             cache_ttl=cache_ttl,
             cache_file=cache_file,
-            ollama_base_url=ollama_base_url
+            ollama_base_url=ollama_base_url,
+            enable_streaming=enable_streaming
         )
     
     def to_dict(self) -> dict:
@@ -641,6 +646,7 @@ class AIConfig:
             "cache_ttl": self.cache_ttl,
             "cache_file": self.cache_file,
             "ollama_base_url": self.ollama_base_url,
+            "enable_streaming": self.enable_streaming,
             "location_generation_prompt": self.location_generation_prompt,
             "npc_dialogue_prompt": self.npc_dialogue_prompt,
             "enemy_generation_prompt": self.enemy_generation_prompt,
@@ -685,6 +691,7 @@ class AIConfig:
             cache_ttl=data.get("cache_ttl", 3600),
             cache_file=data.get("cache_file"),
             ollama_base_url=data.get("ollama_base_url"),
+            enable_streaming=data.get("enable_streaming", False),
             location_generation_prompt=data.get("location_generation_prompt", DEFAULT_LOCATION_PROMPT),
             npc_dialogue_prompt=data.get("npc_dialogue_prompt", DEFAULT_NPC_DIALOGUE_PROMPT),
             enemy_generation_prompt=data.get("enemy_generation_prompt", DEFAULT_ENEMY_GENERATION_PROMPT),
