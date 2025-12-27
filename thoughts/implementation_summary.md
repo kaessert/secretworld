@@ -1,72 +1,109 @@
-# Quest Difficulty Indicators Implementation Summary
+# Quest Difficulty UI/AI Integration Implementation Summary
 
 ## What Was Implemented
 
-### 1. QuestDifficulty Enum (Spec item 1)
-Added new `QuestDifficulty` enum to `src/cli_rpg/models/quest.py`:
-- `TRIVIAL = "trivial"`
-- `EASY = "easy"`
-- `NORMAL = "normal"`
-- `HARD = "hard"`
-- `DEADLY = "deadly"`
+### Phase 2: UI Display and AI Integration (This Implementation)
 
-### 2. Quest Fields (Spec item 2)
-Added two new fields to the `Quest` dataclass:
-- `difficulty: QuestDifficulty = field(default=QuestDifficulty.NORMAL)`
-- `recommended_level: int = field(default=1)`
+Building on the completed model layer (QuestDifficulty enum, difficulty/recommended_level fields), this phase adds:
 
-### 3. Validation
-Added validation in `Quest.__post_init__`:
-- `recommended_level` must be at least 1 (raises `ValueError` otherwise)
+#### 1. Quest Journal Display (`src/cli_rpg/main.py` ~line 1826)
+Added difficulty icons to active quest listings:
+- Trivial: `.`
+- Easy: `-`
+- Normal: `~`
+- Hard: `!`
+- Deadly: `!!`
 
-### 4. Serialization
-Updated serialization methods:
-- `Quest.to_dict()`: Adds `"difficulty"` and `"recommended_level"` keys
-- `Quest.from_dict()`: Deserializes with backward-compatible defaults ("normal", 1)
+Format: `  {icon} {quest.name} [{progress}]`
+
+#### 2. Quest Details View (`src/cli_rpg/main.py` ~line 1874)
+Added difficulty and recommended level line:
+```
+Difficulty: {difficulty.capitalize()} (Recommended: Lv.{recommended_level})
+```
+
+#### 3. NPC Quest Offers (`src/cli_rpg/main.py` ~line 1350)
+Updated available quest display:
+```
+- {quest.name} [{difficulty.capitalize()}]
+```
+
+#### 4. Quest Accept Command (`src/cli_rpg/main.py` ~lines 1697-1698)
+Added difficulty field cloning when accepting quests:
+```python
+difficulty=matching_quest.difficulty,
+recommended_level=matching_quest.recommended_level,
+```
+
+#### 5. AI Quest Generation Prompt (`src/cli_rpg/ai_config.py`)
+Updated JSON schema to include:
+```json
+"difficulty": "trivial|easy|normal|hard|deadly",
+"recommended_level": <number 1-20>
+```
+
+Added difficulty mapping guidelines based on region danger level.
+
+#### 6. AI Response Parsing (`src/cli_rpg/ai_service.py` ~lines 2064-2065)
+Added parsing of difficulty fields with defaults:
+```python
+"difficulty": data.get("difficulty", "normal"),
+"recommended_level": int(data.get("recommended_level", 1)),
+```
 
 ## Files Modified
 
-1. **`src/cli_rpg/models/quest.py`**
-   - Added `QuestDifficulty` enum (after `ObjectiveType`, lines 29-36)
-   - Added `difficulty` and `recommended_level` fields to `Quest` dataclass (lines 177-179)
-   - Added validation for `recommended_level` in `__post_init__` (lines 228-230)
-   - Updated `to_dict()` to include new fields (lines 293-294)
-   - Updated `from_dict()` to parse new fields with defaults (lines 338-339)
+1. **`src/cli_rpg/main.py`**
+   - Quest journal: Added diff_icons dict and difficulty indicator display (~line 1826)
+   - Quest details: Added difficulty/level line (~line 1874)
+   - NPC offers: Added difficulty in brackets (~line 1350)
+   - Accept command: Clone difficulty fields (~lines 1697-1698)
 
-2. **`tests/test_quest.py`**
-   - Updated `test_to_dict` expected dictionary to include new fields (lines 446-447)
+2. **`src/cli_rpg/ai_config.py`**
+   - Updated DEFAULT_QUEST_GENERATION_PROMPT with difficulty fields in JSON schema
+   - Added difficulty mapping guidelines based on danger level
 
-3. **`tests/test_quest_difficulty.py`** (NEW)
-   - 11 tests covering enum values, field defaults, custom values, validation, and serialization roundtrip
+3. **`src/cli_rpg/ai_service.py`**
+   - Updated `_parse_quest_response()` return dict to include difficulty and recommended_level
+
+4. **`tests/test_quest_difficulty_ui.py`** (NEW - 14 tests)
+   - TestQuestDifficultyDisplay: 7 tests for journal and details display
+   - TestNPCQuestDisplay: 2 tests for NPC quest offers
+   - TestQuestDifficultyClone: 2 tests for accept command cloning
+   - TestQuestDifficultyAIParsing: 3 tests for AI response parsing
 
 ## Test Results
 
-All 3913 tests pass, including 11 new tests for quest difficulty:
-- `test_difficulty_enum_values` - Verifies all enum values exist
-- `test_difficulty_enum_serialization` - Verifies enum serialization/deserialization
-- `test_difficulty_defaults_to_normal` - Verifies NORMAL default
-- `test_recommended_level_defaults_to_1` - Verifies level 1 default
-- `test_quest_with_custom_difficulty` - Tests custom difficulty assignment
-- `test_quest_with_custom_recommended_level` - Tests custom level assignment
-- `test_recommended_level_must_be_positive` - Tests validation
-- `test_difficulty_serialization_roundtrip` - Tests save/load for difficulty
-- `test_recommended_level_serialization_roundtrip` - Tests save/load for level
-- `test_difficulty_defaults_in_from_dict` - Tests backward compatibility
-- `test_all_difficulties_with_recommended_levels` - Tests various combinations
+All 14 new tests pass:
+- `test_journal_shows_difficulty_indicator_trivial` - Verifies "." icon
+- `test_journal_shows_difficulty_indicator_easy` - Verifies "-" icon
+- `test_journal_shows_difficulty_indicator_normal` - Verifies "~" icon
+- `test_journal_shows_difficulty_indicator_hard` - Verifies "!" icon
+- `test_journal_shows_difficulty_indicator_deadly` - Verifies "!!" icon
+- `test_quest_details_shows_difficulty_and_level` - Verifies difficulty line in details
+- `test_quest_details_shows_normal_difficulty_by_default` - Verifies default display
+- `test_npc_available_quests_shows_difficulty` - Verifies NPC quest list format
+- `test_npc_available_quests_shows_all_difficulty_levels` - Verifies all levels
+- `test_accept_copies_difficulty` - Verifies difficulty cloning
+- `test_accept_copies_recommended_level` - Verifies level cloning
+- `test_parse_quest_includes_difficulty` - Verifies AI parsing
+- `test_parse_quest_includes_recommended_level` - Verifies AI parsing
+- `test_parse_quest_defaults_difficulty_when_missing` - Verifies defaults
 
-## What Was NOT Implemented (Per Plan)
+All 281 quest-related tests pass.
 
-The plan included additional steps 6-9 for UI display and AI generation that were not part of the core model changes:
-- Step 6: Quest display updates in main.py (journal listing, quest details, available quests from NPC)
-- Step 7: AI quest generation prompt updates in ai_config.py
-- Step 8: Parsing updates in ai_service.py
-- Step 9: Quest cloning updates in main.py accept command
+## E2E Validation Points
 
-These UI/AI integration changes would require additional implementation based on user priority.
+The following behaviors can be validated end-to-end:
+1. Active quests in journal show difficulty icons (., -, ~, !, !!)
+2. Quest details command shows "Difficulty: X (Recommended: Lv.Y)"
+3. Talking to quest-giving NPCs shows difficulty in brackets for offered quests
+4. Accepting quests preserves difficulty and recommended_level from NPC's offered quest
+5. AI-generated quests include difficulty based on region danger level
 
 ## Design Decisions
 
-1. **Enum placement**: `QuestDifficulty` placed after `ObjectiveType` enum for logical grouping
-2. **Field placement**: New fields placed at end of field list to minimize disruption
-3. **Backward compatibility**: `from_dict()` uses defaults for missing fields, so old save files will load correctly
-4. **Validation**: Only `recommended_level` requires validation (must be ≥1); difficulty is type-safe via enum
+1. **Icon simplicity**: Single-character icons (except deadly "!!") for compact display
+2. **Capitalized display**: Difficulty values capitalized in user-facing text
+3. **Consistent formatting**: All displays use consistent difficulty representation
+4. **Backward compatibility**: AI parsing defaults to "normal"/1 for older responses

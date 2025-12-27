@@ -392,6 +392,8 @@ pytest tests/test_e2e_world_expansion.py -v
   - **target_count**: Number to complete (≥1)
   - **gold_reward** and **xp_reward**: Quest completion rewards
   - **quest_giver**: Set to the NPC name for tracking
+  - **difficulty**: One of trivial, easy, normal, hard, deadly (based on region danger level)
+  - **recommended_level**: Player level 1-20 appropriate for the quest
 - Validates generated quests against Quest model constraints
 - Integrated with caching for performance optimization
 - Graceful fallback when AI is unavailable

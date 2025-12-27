@@ -1347,7 +1347,7 @@ def handle_exploration_command(game_state: GameState, command: str, args: list[s
             if available:
                 output += "\n\nAvailable Quests:"
                 for q in available:
-                    output += f"\n  - {q.name}"
+                    output += f"\n  - {q.name} [{q.difficulty.value.capitalize()}]"
                 output += "\n\nType 'accept <quest>' to accept a quest."
 
         # Add conversation prompt
@@ -1694,6 +1694,8 @@ def handle_exploration_command(game_state: GameState, command: str, args: list[s
             chain_position=matching_quest.chain_position,
             prerequisite_quests=matching_quest.prerequisite_quests.copy(),
             unlocks_quests=matching_quest.unlocks_quests.copy(),
+            difficulty=matching_quest.difficulty,
+            recommended_level=matching_quest.recommended_level,
         )
         game_state.current_character.quests.append(new_quest)
         autosave(game_state)
@@ -1823,8 +1825,10 @@ def handle_exploration_command(game_state: GameState, command: str, args: list[s
 
         if active_quests:
             lines.append("\nActive Quests:")
+            diff_icons = {"trivial": ".", "easy": "-", "normal": "~", "hard": "!", "deadly": "!!"}
             for quest in active_quests:
-                lines.append(f"  • {quest.name} [{quest.current_count}/{quest.target_count}]")
+                diff_icon = diff_icons.get(quest.difficulty.value, "~")
+                lines.append(f"  {diff_icon} {quest.name} [{quest.current_count}/{quest.target_count}]")
 
         if completed_quests:
             lines.append("\nCompleted Quests:")
@@ -1869,6 +1873,7 @@ def handle_exploration_command(game_state: GameState, command: str, args: list[s
             "",
             f"{quest.description}",
             "",
+            f"Difficulty: {quest.difficulty.value.capitalize()} (Recommended: Lv.{quest.recommended_level})",
             f"Objective: {quest.objective_type.value.capitalize()} {quest.target}",
             f"Progress: {quest.current_count}/{quest.target_count}",
         ])

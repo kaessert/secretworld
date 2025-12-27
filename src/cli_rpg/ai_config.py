@@ -187,12 +187,20 @@ Respond with valid JSON in this exact format (no additional text):
   "target": "target name",
   "target_count": <number>,
   "gold_reward": <number>,
-  "xp_reward": <number>
+  "xp_reward": <number>,
+  "difficulty": "trivial|easy|normal|hard|deadly",
+  "recommended_level": <number 1-20>
 }}
 
 Rewards scaling guidelines (based on player level {player_level}):
 - gold_reward: 30 + (player_level * 15) with some variance
-- xp_reward: 25 + (player_level * 12) with some variance"""
+- xp_reward: 25 + (player_level * 12) with some variance
+
+Difficulty mapping (based on region danger level):
+- "low" danger -> trivial/easy difficulty, recommended_level 1-3
+- "medium" danger -> easy/normal difficulty, recommended_level 3-7
+- "high" danger -> normal/hard difficulty, recommended_level 7-12
+- "deadly" danger -> hard/deadly difficulty, recommended_level 12+"""
 
 
 # Default prompt template for ASCII art generation (enemies)

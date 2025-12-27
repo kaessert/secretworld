@@ -325,6 +325,11 @@ Quest-giver NPCs can be found throughout the world. Interact with them to receiv
 3. Use `accept <quest>` to accept a quest (partial matching supported)
 4. Use `quests` to view your quest journal (shows active, ready to turn in, and completed quests)
 
+**Quest Difficulty**: Quests display difficulty indicators to help you gauge appropriateness:
+- Quest journal shows icons: `.` (Trivial), `-` (Easy), `~` (Normal), `!` (Hard), `!!` (Deadly)
+- Quest details show: "Difficulty: Normal (Recommended: Lv.5)"
+- NPC quest offers show difficulty in brackets: "Goblin Hunt [Hard]"
+
 **Quest Progress**: Quests automatically track your progress:
 - **Kill quests**: Progress updates when you defeat matching enemies in combat
 - **Collect quests**: Progress updates when you acquire matching items (from combat loot or shop purchases)

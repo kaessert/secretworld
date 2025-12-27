@@ -2060,7 +2060,9 @@ Note: Use "EXISTING_WORLD" as placeholder for the connection back to the source 
             "target_count": int(data["target_count"]),
             "gold_reward": int(data["gold_reward"]),
             "xp_reward": int(data["xp_reward"]),
-            "quest_giver": npc_name
+            "quest_giver": npc_name,
+            "difficulty": data.get("difficulty", "normal"),
+            "recommended_level": int(data.get("recommended_level", 1)),
         }
 
     def generate_conversation_response(

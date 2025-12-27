@@ -1,126 +1,105 @@
-# Quest Difficulty Indicators Implementation Plan
+# Quest Difficulty UI/AI Integration Plan
 
 ## Spec
 
-Add difficulty metadata to quests so players can gauge appropriateness before accepting:
+Complete the quest difficulty feature by wiring it up to UI displays and AI generation. The model layer is already complete (QuestDifficulty enum, difficulty/recommended_level fields, validation, serialization).
 
-1. **QuestDifficulty enum**: `TRIVIAL`, `EASY`, `NORMAL`, `HARD`, `DEADLY`
-2. **Quest fields**: `difficulty: QuestDifficulty` (default NORMAL), `recommended_level: int` (default 1)
-3. **Display**: Show difficulty and recommended level in quest listings and details
-4. **AI Generation**: Include difficulty in generated quests based on region danger level
+**Remaining work:**
+1. Display difficulty in quest journal listing
+2. Display difficulty in quest details view
+3. Display difficulty when NPC offers quests
+4. Update AI generation prompt to request difficulty/level
+5. Parse difficulty fields from AI responses
+6. Clone difficulty fields when player accepts quest
 
-## Tests (tests/test_quest_difficulty.py)
+## Tests (tests/test_quest_difficulty_ui.py)
 
 ```python
-class TestQuestDifficultyEnum:
-    # Enum values exist and serialize correctly
-    def test_difficulty_enum_values()
-    def test_difficulty_enum_serialization()
+class TestQuestDifficultyDisplay:
+    # Journal shows difficulty indicator
+    def test_journal_shows_difficulty_indicator()
 
-class TestQuestDifficultyFields:
-    # Default values
-    def test_difficulty_defaults_to_normal()
-    def test_recommended_level_defaults_to_1()
+    # Quest details shows difficulty and level
+    def test_quest_details_shows_difficulty_and_level()
 
-    # Field assignment
-    def test_quest_with_custom_difficulty()
-    def test_quest_with_custom_recommended_level()
+    # NPC quest list shows difficulty
+    def test_npc_available_quests_shows_difficulty()
 
-    # Validation
-    def test_recommended_level_must_be_positive()
+class TestQuestDifficultyClone:
+    # Accept command copies difficulty fields
+    def test_accept_copies_difficulty()
+    def test_accept_copies_recommended_level()
 
-    # Serialization roundtrip
-    def test_difficulty_serialization_roundtrip()
-    def test_recommended_level_serialization_roundtrip()
+class TestQuestDifficultyAIParsing:
+    # AI response parsing handles difficulty
+    def test_parse_quest_includes_difficulty()
+    def test_parse_quest_includes_recommended_level()
+    def test_parse_quest_defaults_difficulty_when_missing()
 ```
 
 ## Implementation Steps
 
-### 1. Add QuestDifficulty enum to models/quest.py (after ObjectiveType, ~line 27)
+### 1. Add difficulty display to quest journal (main.py ~line 1827)
 
+Before:
 ```python
-class QuestDifficulty(Enum):
-    """Difficulty rating for quests."""
-    TRIVIAL = "trivial"
-    EASY = "easy"
-    NORMAL = "normal"
-    HARD = "hard"
-    DEADLY = "deadly"
+lines.append(f"  * {quest.name} [{quest.current_count}/{quest.target_count}]")
 ```
 
-### 2. Add fields to Quest dataclass in models/quest.py
-
-After `completed_branch_id` field (~line 166):
+After:
 ```python
-difficulty: QuestDifficulty = field(default=QuestDifficulty.NORMAL)
-recommended_level: int = field(default=1)
-```
-
-### 3. Add validation in Quest.__post_init__ (~line 212)
-
-```python
-if self.recommended_level < 1:
-    raise ValueError("recommended_level must be at least 1")
-```
-
-### 4. Update Quest.to_dict() (~line 275)
-
-Add:
-```python
-"difficulty": self.difficulty.value,
-"recommended_level": self.recommended_level,
-```
-
-### 5. Update Quest.from_dict() (~line 318)
-
-Add:
-```python
-difficulty=QuestDifficulty(data.get("difficulty", "normal")),
-recommended_level=data.get("recommended_level", 1),
-```
-
-### 6. Update quest display in main.py
-
-**Quest journal listing** (~line 1827): Add difficulty indicator
-```python
-diff_icon = {"trivial": ".", "easy": "-", "normal": "~", "hard": "!", "deadly": "!!"}[quest.difficulty.value]
+diff_icons = {"trivial": ".", "easy": "-", "normal": "~", "hard": "!", "deadly": "!!"}
+diff_icon = diff_icons.get(quest.difficulty.value, "~")
 lines.append(f"  {diff_icon} {quest.name} [{quest.current_count}/{quest.target_count}]")
 ```
 
-**Quest details** (~line 1873): Add difficulty/level display
+### 2. Add difficulty to quest details (main.py ~line 1872)
+
+After line with "Objective:":
 ```python
 lines.append(f"Difficulty: {quest.difficulty.value.capitalize()} (Recommended: Lv.{quest.recommended_level})")
 ```
 
-**Available quests from NPC** (~line 1350): Show difficulty
+### 3. Add difficulty to NPC quest offers (main.py ~line 1350)
+
+Before:
 ```python
-output += f"\n  - {q.name} [{q.difficulty.value}]"
+output += f"\n  - {q.name}"
 ```
 
-### 7. Update AI quest generation prompt in ai_config.py (~line 190)
+After:
+```python
+output += f"\n  - {q.name} [{q.difficulty.value.capitalize()}]"
+```
+
+### 4. Update quest generation prompt (ai_config.py ~line 182-191)
 
 Add to JSON schema:
 ```json
 "difficulty": "trivial|easy|normal|hard|deadly",
-"recommended_level": <number>
+"recommended_level": <number 1-20>
 ```
 
-Add to guidelines:
+Add difficulty guidelines after rewards section:
 ```
-Difficulty mapping (based on region danger_level):
-- low danger -> trivial/easy, level 1-3
-- medium danger -> normal, level 4-7
-- high danger -> hard, level 8-12
-- deadly danger -> deadly, level 13+
+Difficulty mapping (based on region danger level):
+- "low" danger -> trivial/easy difficulty, recommended_level 1-3
+- "medium" danger -> easy/normal difficulty, recommended_level 3-7
+- "high" danger -> normal/hard difficulty, recommended_level 7-12
+- "deadly" danger -> hard/deadly difficulty, recommended_level 12+
 ```
 
-### 8. Update _parse_quest_response in ai_service.py
+### 5. Update _parse_quest_response (ai_service.py ~line 2055-2064)
 
-Add parsing for new fields (with defaults for backward compatibility).
+Add to return dict:
+```python
+"difficulty": data.get("difficulty", "normal"),
+"recommended_level": int(data.get("recommended_level", 1)),
+```
 
-### 9. Update quest cloning in main.py accept command (~line 1677)
+### 6. Clone difficulty fields in accept (main.py ~line 1697)
 
-Add to clone:
+Add before closing paren of Quest():
 ```python
 difficulty=matching_quest.difficulty,
 recommended_level=matching_quest.recommended_level,
@@ -128,8 +107,7 @@ recommended_level=matching_quest.recommended_level,
 
 ## Files to Modify
 
-1. `src/cli_rpg/models/quest.py` - Add enum, fields, validation, serialization
-2. `src/cli_rpg/main.py` - Display difficulty in UI, clone new fields
-3. `src/cli_rpg/ai_config.py` - Update quest generation prompt
-4. `src/cli_rpg/ai_service.py` - Parse new fields from AI response
-5. `tests/test_quest_difficulty.py` - New test file for difficulty features
+1. `src/cli_rpg/main.py` - Display in journal, details, NPC offers; clone on accept
+2. `src/cli_rpg/ai_config.py` - Update DEFAULT_QUEST_GENERATION_PROMPT
+3. `src/cli_rpg/ai_service.py` - Parse difficulty/recommended_level in _parse_quest_response
+4. `tests/test_quest_difficulty_ui.py` - New test file for UI/parsing tests
