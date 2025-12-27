@@ -1812,6 +1812,7 @@ def handle_exploration_command(game_state: GameState, command: str, args: list[s
             game_state.current_location,
             game_state.current_sub_grid,
             game_state.chunk_manager,
+            game_state.seen_tiles,
         )
         return (True, f"\n{map_output}")
 
@@ -1821,7 +1822,7 @@ def handle_exploration_command(game_state: GameState, command: str, args: list[s
             current_loc = game_state.get_current_location()
             if current_loc.parent_location:
                 worldmap_location = current_loc.parent_location
-        worldmap_output = render_worldmap(game_state.world, worldmap_location)
+        worldmap_output = render_worldmap(game_state.world, worldmap_location, game_state.seen_tiles)
         return (True, f"\n{worldmap_output}")
 
     elif command == "travel":

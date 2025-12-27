@@ -436,7 +436,11 @@ def _render_sub_grid_map(sub_grid: "SubGrid", current_location: str) -> str:
     return "\n".join(lines)
 
 
-def render_worldmap(world: dict[str, Location], current_location: str) -> str:
+def render_worldmap(
+    world: dict[str, Location],
+    current_location: str,
+    seen_tiles: Optional[set[tuple[int, int]]] = None,
+) -> str:
     """Render an ASCII map showing only overworld locations.
 
     Filters the world to only is_overworld=True locations and displays
@@ -477,7 +481,7 @@ def render_worldmap(world: dict[str, Location], current_location: str) -> str:
         return "No overworld map available - no overworld locations discovered."
 
     # Call render_map with filtered world, then replace header
-    map_output = render_map(overworld_locations, map_center_location)
+    map_output = render_map(overworld_locations, map_center_location, seen_tiles=seen_tiles)
 
     # Replace header to indicate this is the world map
     map_output = map_output.replace("=== MAP ===", "=== WORLD MAP ===")
