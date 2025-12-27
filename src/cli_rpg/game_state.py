@@ -512,6 +512,14 @@ class GameState:
         # Check WFC terrain passability (when chunk_manager available)
         if self.chunk_manager is not None:
             from cli_rpg.world_tiles import is_passable
+
+            # Set region context for biased terrain generation before chunk lookup
+            # This ensures new chunks use terrain weights appropriate for the region
+            region_ctx = self.get_or_create_region_context(
+                target_coords, current.terrain or "wilderness"
+            )
+            self.chunk_manager.set_region_context(region_ctx)
+
             terrain = self.chunk_manager.get_tile_at(*target_coords)
             if not is_passable(terrain):
                 self.is_sneaking = False

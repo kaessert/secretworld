@@ -1,4 +1,78 @@
-# Enhanced NPC Generation - Implementation Summary
+# Implementation Summary: Terrain-Biased WFC
+
+## What Was Implemented
+
+### Feature Overview
+WFC chunk generation now respects region themes to create coherent mega-biomes. Instead of generating "random terrain salad," mountain regions now bias toward mountain/foothills/hills tiles, forest regions favor forest tiles, etc.
+
+### Files Modified
+
+1. **`src/cli_rpg/world_tiles.py`**
+   - Added `REGION_TERRAIN_BIASES: Dict[str, Dict[str, float]]` - Maps region themes to terrain weight multipliers
+   - Defined biases for 8 themes: mountains, forest, swamp, desert, coastal, beach, plains, wilderness
+   - Added `get_biased_weights(region_theme: str) -> Dict[str, float]` - Returns modified weights based on region theme
+   - Multipliers: 3x for boosted terrain, 1x for neutral, 0.3x for incompatible terrain
+
+2. **`src/cli_rpg/wfc.py`**
+   - Added `weight_overrides: Optional[Dict[str, float]]` parameter to `WFCGenerator.__init__()`
+   - Added `_get_weight(tile_name)` helper method that checks overrides before registry
+   - Updated `_calculate_entropy()` and `_collapse_cell()` to use `_get_weight()`
+
+3. **`src/cli_rpg/wfc_chunks.py`**
+   - Added `_region_context: Optional[RegionContext]` field
+   - Added `_current_weight_overrides: Optional[Dict[str, float]]` field for thread-local override storage
+   - Added `set_region_context(region_context)` method
+   - Added `_get_weight(tile_name)` helper method
+   - Updated `_generate_chunk()` to compute biased weights from region context
+   - Updated `_generate_with_constraints()` to accept and pass weight_overrides
+   - Updated `_calculate_entropy()` and `_collapse_cell()` to use `_get_weight()`
+
+4. **`src/cli_rpg/game_state.py`**
+   - Modified `move()` to call `chunk_manager.set_region_context()` before terrain lookup
+   - This ensures new chunks generated during movement use the appropriate region's terrain bias
+
+### Tests Created
+
+**File: `tests/test_terrain_biased_wfc.py`** (9 tests, all passing)
+
+1. `test_get_biased_weights_returns_modified_weights` - Verifies mountain theme boosts mountain/foothills/hills (3x) and reduces beach/swamp/desert (0.3x)
+2. `test_get_biased_weights_unknown_theme_returns_base` - Unknown themes return unmodified base weights
+3. `test_get_biased_weights_forest_theme` - Verifies forest theme bias mapping
+4. `test_wfc_generator_accepts_tile_weight_overrides` - WFCGenerator uses custom weights when provided
+5. `test_chunk_manager_passes_bias_to_generator` - ChunkManager passes region bias to generator
+6. `test_mountain_region_generates_more_mountains` - Statistical: >40% mountain-family tiles in mountain regions
+7. `test_forest_region_generates_more_forest` - Statistical: >50% forest tiles in forest regions
+8. `test_bias_respects_adjacency_rules` - Biased generation still produces valid terrain adjacencies
+9. `test_bias_respects_adjacency_for_all_themes` - Validates adjacency for all defined region themes
+
+## Test Results
+
+- All 9 new tests pass
+- All 3756 existing tests pass (no regressions)
+- Statistical tests verify biased terrain distribution works correctly
+
+## Design Decisions
+
+1. **Weight Multipliers (3x/1x/0.3x)**: Chosen to provide noticeable bias while still allowing terrain variety. 3x boost strongly favors theme-appropriate terrain; 0.3x reduction discourages incompatible terrain without completely eliminating it.
+
+2. **Bias Applied at ChunkManager Level**: Region context is set on the ChunkManager before any tile lookups, ensuring consistent biasing for entire chunks.
+
+3. **Thread-Local Override Storage**: `_current_weight_overrides` is stored as an instance field on ChunkManager to pass weights through the constraint-based generation pipeline without modifying method signatures extensively.
+
+4. **Graceful Fallback**: Unknown region themes return unmodified base weights rather than erroring.
+
+## E2E Validation
+
+To validate in-game:
+1. Start a new game and explore until entering different region types
+2. Use the map command to observe terrain distribution
+3. Mountain regions should show noticeably more mountain/foothills/hills terrain
+4. Forest regions should show predominantly forest terrain
+5. Terrain should still respect adjacency rules (no forest directly adjacent to water, etc.)
+
+---
+
+# Enhanced NPC Generation - Implementation Summary (Previous)
 
 ## Latest Implementation (Phase 2)
 

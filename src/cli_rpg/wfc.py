@@ -40,16 +40,38 @@ class WFCGenerator:
     # Maximum restart attempts before giving up
     MAX_RESTARTS = 100
 
-    def __init__(self, tile_registry: TileRegistry, seed: int):
+    def __init__(
+        self,
+        tile_registry: TileRegistry,
+        seed: int,
+        weight_overrides: Optional[Dict[str, float]] = None,
+    ):
         """Initialize the WFC generator.
 
         Args:
             tile_registry: Registry containing tile definitions and weights
             seed: Random seed for deterministic generation
+            weight_overrides: Optional dict mapping terrain names to custom weights.
+                             When provided, these weights are used instead of
+                             registry defaults for tile selection during collapse.
         """
         self.tile_registry = tile_registry
         self.seed = seed
         self._rng = random.Random(seed)
+        self.weight_overrides = weight_overrides
+
+    def _get_weight(self, tile_name: str) -> float:
+        """Get weight for a tile, using override if available.
+
+        Args:
+            tile_name: Name of the terrain tile
+
+        Returns:
+            Weight from weight_overrides if present, otherwise from tile_registry
+        """
+        if self.weight_overrides and tile_name in self.weight_overrides:
+            return self.weight_overrides[tile_name]
+        return self.tile_registry.get_weight(tile_name)
 
     def generate_chunk(
         self, origin: Tuple[int, int], size: int = 8
@@ -130,10 +152,8 @@ class WFCGenerator:
         if len(cell.possible_tiles) <= 1:
             return 0.0
 
-        # Calculate total weight
-        weights = [
-            self.tile_registry.get_weight(tile) for tile in cell.possible_tiles
-        ]
+        # Calculate total weight (using overrides if available)
+        weights = [self._get_weight(tile) for tile in cell.possible_tiles]
         total_weight = sum(weights)
 
         if total_weight == 0:
@@ -194,7 +214,7 @@ class WFCGenerator:
 
         # Build weighted list (sorted for deterministic iteration order)
         tiles = sorted(cell.possible_tiles)
-        weights = [self.tile_registry.get_weight(tile) for tile in tiles]
+        weights = [self._get_weight(tile) for tile in tiles]
 
         # Weighted random selection
         selected = self._rng.choices(tiles, weights=weights, k=1)[0]

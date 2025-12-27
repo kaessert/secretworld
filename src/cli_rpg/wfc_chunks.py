@@ -11,10 +11,11 @@ import random
 from collections import deque
 
 from cli_rpg.wfc import WFCGenerator, WFCCell
-from cli_rpg.world_tiles import TileRegistry, ADJACENCY_RULES
+from cli_rpg.world_tiles import TileRegistry, ADJACENCY_RULES, get_biased_weights
 
 if TYPE_CHECKING:
     from cli_rpg.models.location import Location
+    from cli_rpg.models.region_context import RegionContext
 
 
 @dataclass
@@ -26,6 +27,7 @@ class ChunkManager:
         chunk_size: Size of each chunk (default 8x8)
         world_seed: Seed for deterministic world generation
         _chunks: Cache of generated chunks keyed by (chunk_x, chunk_y)
+        _region_context: Current region context for biased terrain generation
     """
 
     tile_registry: TileRegistry
@@ -34,6 +36,32 @@ class ChunkManager:
     _chunks: Dict[Tuple[int, int], Dict[Tuple[int, int], str]] = field(
         default_factory=dict
     )
+    _region_context: Optional["RegionContext"] = None
+    _current_weight_overrides: Optional[Dict[str, float]] = None
+
+    def _get_weight(self, tile_name: str) -> float:
+        """Get weight for a tile, using current weight override if available.
+
+        Args:
+            tile_name: Name of the terrain tile
+
+        Returns:
+            Weight from current overrides if present, otherwise from tile_registry
+        """
+        if self._current_weight_overrides and tile_name in self._current_weight_overrides:
+            return self._current_weight_overrides[tile_name]
+        return self.tile_registry.get_weight(tile_name)
+
+    def set_region_context(self, region_context: "RegionContext") -> None:
+        """Set the current region context for biased terrain generation.
+
+        When set, new chunks will be generated with terrain weights biased
+        toward the region's theme (e.g., mountains regions favor mountain terrain).
+
+        Args:
+            region_context: RegionContext with theme information for biasing
+        """
+        self._region_context = region_context
 
     def get_or_generate_chunk(
         self, chunk_x: int, chunk_y: int
@@ -70,15 +98,22 @@ class ChunkManager:
         # Get boundary constraints from existing neighbors
         boundary_constraints = self._get_boundary_constraints(chunk_x, chunk_y)
 
+        # Compute biased weights from region context if available
+        weight_overrides = None
+        if self._region_context is not None:
+            weight_overrides = get_biased_weights(self._region_context.theme)
+
         # Generate chunk with constraints
         origin = (chunk_x * self.chunk_size, chunk_y * self.chunk_size)
 
         if boundary_constraints:
             return self._generate_with_constraints(
-                chunk_seed, origin, boundary_constraints
+                chunk_seed, origin, boundary_constraints, weight_overrides
             )
         else:
-            generator = WFCGenerator(self.tile_registry, seed=chunk_seed)
+            generator = WFCGenerator(
+                self.tile_registry, seed=chunk_seed, weight_overrides=weight_overrides
+            )
             return generator.generate_chunk(origin, self.chunk_size)
 
     def _get_boundary_constraints(
@@ -149,6 +184,7 @@ class ChunkManager:
         chunk_seed: int,
         origin: Tuple[int, int],
         boundary_constraints: Dict[Tuple[int, int], str],
+        weight_overrides: Optional[Dict[str, float]] = None,
     ) -> Dict[Tuple[int, int], str]:
         """Generate chunk with pre-applied boundary constraints using WFC.
 
@@ -160,6 +196,7 @@ class ChunkManager:
             chunk_seed: Seed for deterministic generation
             origin: Top-left corner of the chunk (world coordinates)
             boundary_constraints: Mapping of edge coords to required neighbor tiles
+            weight_overrides: Optional terrain weight overrides for biased generation
 
         Returns:
             Dictionary mapping coordinates to terrain tiles
@@ -169,7 +206,7 @@ class ChunkManager:
 
         for restart in range(max_restarts):
             result = self._try_generate_with_constraints(
-                rng, origin, boundary_constraints
+                rng, origin, boundary_constraints, weight_overrides
             )
             if result is not None:
                 return result
@@ -177,7 +214,9 @@ class ChunkManager:
             rng.random()
 
         # Fallback: generate without constraints (shouldn't happen)
-        generator = WFCGenerator(self.tile_registry, seed=chunk_seed)
+        generator = WFCGenerator(
+            self.tile_registry, seed=chunk_seed, weight_overrides=weight_overrides
+        )
         return generator.generate_chunk(origin, self.chunk_size)
 
     def _try_generate_with_constraints(
@@ -185,6 +224,7 @@ class ChunkManager:
         rng: random.Random,
         origin: Tuple[int, int],
         boundary_constraints: Dict[Tuple[int, int], str],
+        weight_overrides: Optional[Dict[str, float]] = None,
     ) -> Optional[Dict[Tuple[int, int], str]]:
         """Attempt to generate a constrained chunk.
 
@@ -192,10 +232,13 @@ class ChunkManager:
             rng: Random number generator
             origin: Top-left corner of the chunk
             boundary_constraints: Required neighbor tiles at boundary positions
+            weight_overrides: Optional terrain weight overrides for biased generation
 
         Returns:
             Generated chunk if successful, None if contradiction detected
         """
+        # Store weight overrides for use in helper methods
+        self._current_weight_overrides = weight_overrides
         ox, oy = origin
         all_tiles = self.tile_registry.get_all_tile_names()
 
@@ -304,9 +347,8 @@ class ChunkManager:
         if len(cell.possible_tiles) <= 1:
             return 0.0
 
-        weights = [
-            self.tile_registry.get_weight(tile) for tile in cell.possible_tiles
-        ]
+        # Use _get_weight to respect current weight overrides
+        weights = [self._get_weight(tile) for tile in cell.possible_tiles]
         total_weight = sum(weights)
 
         if total_weight == 0:
@@ -334,7 +376,8 @@ class ChunkManager:
             raise ValueError(f"Cannot collapse cell {cell.coords} with no options")
 
         tiles = sorted(cell.possible_tiles)
-        weights = [self.tile_registry.get_weight(tile) for tile in tiles]
+        # Use _get_weight to respect current weight overrides
+        weights = [self._get_weight(tile) for tile in tiles]
 
         selected = rng.choices(tiles, weights=weights, k=1)[0]
 

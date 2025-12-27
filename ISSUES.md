@@ -1344,15 +1344,18 @@ Result: Locations feel random, not part of a cohesive world.
    - `src/cli_rpg/ai_world.py`: `_create_shop_from_ai_inventory()`, `_generate_quest_for_npc()`, `_create_npcs_from_data()` with faction defaults
    - `src/cli_rpg/ai_config.py`: Updated NPC prompt with item stats instructions
 
-4. **Terrain-Biased WFC**
-   - [ ] Modify chunk generation to respect region themes
-   - [ ] Mountain region → bias WFC toward mountain/foothills/hills
-   - [ ] Swamp region → bias toward swamp/water/forest
-   - [ ] Creates mega-biomes instead of random terrain salad
+4. **Terrain-Biased WFC** ✅ COMPLETE (2025-12-27)
+   - [x] Modify chunk generation to respect region themes
+   - [x] Mountain region → bias WFC toward mountain/foothills/hills
+   - [x] Swamp region → bias toward swamp/water/forest
+   - [x] Creates mega-biomes instead of random terrain salad
 
-   **Files to modify**:
-   - `src/cli_rpg/wfc.py`: Add tile weight biasing
-   - `src/cli_rpg/wfc_chunks.py`: Accept region bias parameter
+   **Files modified**:
+   - `src/cli_rpg/world_tiles.py`: Added `REGION_TERRAIN_BIASES` and `get_biased_weights()` function
+   - `src/cli_rpg/wfc.py`: Added `weight_overrides` parameter and `_get_weight()` helper
+   - `src/cli_rpg/wfc_chunks.py`: Added region context support and biased weight passing
+   - `src/cli_rpg/game_state.py`: Updated `move()` to set region context before terrain lookup
+   - 9 new tests in `tests/test_terrain_biased_wfc.py`
 
 **Phase 3: Lower Priority (Polish)**
 

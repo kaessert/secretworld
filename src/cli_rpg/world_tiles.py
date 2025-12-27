@@ -126,6 +126,83 @@ TERRAIN_WEIGHTS: Dict[str, float] = {
     "foothills": 0.8,
 }
 
+
+# Region terrain biases for coherent mega-biomes
+# Maps region theme -> terrain type -> weight multiplier
+# Boosted (3x): terrain strongly associated with region theme
+# Normal (1x): neutral terrain
+# Reduced (0.3x): terrain incompatible with region theme
+REGION_TERRAIN_BIASES: Dict[str, Dict[str, float]] = {
+    "mountains": {
+        "mountain": 3.0, "foothills": 3.0, "hills": 3.0,  # Boosted
+        "plains": 1.0, "forest": 1.0,  # Normal
+        "beach": 0.3, "swamp": 0.3, "desert": 0.3, "water": 0.3,  # Reduced
+    },
+    "forest": {
+        "forest": 3.0,  # Boosted
+        "plains": 1.0, "hills": 1.0, "swamp": 1.0,  # Normal
+        "mountain": 0.3, "desert": 0.3, "beach": 0.3, "water": 0.3, "foothills": 0.3,
+    },
+    "swamp": {
+        "swamp": 3.0, "forest": 3.0, "water": 3.0,  # Boosted
+        "plains": 1.0,  # Normal
+        "mountain": 0.3, "desert": 0.3, "beach": 0.3, "hills": 0.3, "foothills": 0.3,
+    },
+    "desert": {
+        "desert": 3.0, "plains": 3.0,  # Boosted
+        "hills": 1.0, "beach": 1.0,  # Normal
+        "forest": 0.3, "swamp": 0.3, "mountain": 0.3, "water": 0.3, "foothills": 0.3,
+    },
+    "coastal": {
+        "beach": 3.0, "water": 3.0, "plains": 3.0,  # Boosted
+        "forest": 1.0,  # Normal
+        "mountain": 0.3, "swamp": 0.3, "desert": 0.3, "hills": 0.3, "foothills": 0.3,
+    },
+    "beach": {  # Alias for coastal
+        "beach": 3.0, "water": 3.0, "plains": 3.0,  # Boosted
+        "forest": 1.0,  # Normal
+        "mountain": 0.3, "swamp": 0.3, "desert": 0.3, "hills": 0.3, "foothills": 0.3,
+    },
+    "plains": {
+        "plains": 3.0, "forest": 3.0, "hills": 3.0,  # Boosted
+        # Everything else at normal weight (1x default)
+    },
+    "wilderness": {
+        "plains": 3.0, "forest": 3.0, "hills": 3.0,  # Boosted
+        # Everything else at normal weight (1x default)
+    },
+}
+
+
+def get_biased_weights(region_theme: str) -> Dict[str, float]:
+    """Get terrain weights modified by region theme bias.
+
+    Applies multipliers from REGION_TERRAIN_BIASES to base TERRAIN_WEIGHTS
+    to create biased weight distributions for WFC generation.
+
+    Args:
+        region_theme: Region theme name (e.g., "mountains", "forest", "swamp")
+
+    Returns:
+        Dictionary mapping terrain types to biased weights.
+        Returns unmodified TERRAIN_WEIGHTS if theme is unknown.
+    """
+    biases = REGION_TERRAIN_BIASES.get(region_theme.lower())
+
+    if biases is None:
+        # Unknown theme - return base weights unchanged
+        return TERRAIN_WEIGHTS.copy()
+
+    # Apply multipliers to base weights
+    biased_weights = {}
+    for terrain, base_weight in TERRAIN_WEIGHTS.items():
+        # Use bias multiplier if defined, otherwise 1.0 (unchanged)
+        multiplier = biases.get(terrain, 1.0)
+        biased_weights[terrain] = base_weight * multiplier
+
+    return biased_weights
+
+
 # Location types that can spawn on each terrain
 TERRAIN_TO_LOCATIONS: Dict[str, List[str]] = {
     "forest": ["ruins", "grove", "hermit_hut", "bandit_camp", "ancient_tree", "hunter_lodge"],
