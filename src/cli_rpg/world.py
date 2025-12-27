@@ -206,6 +206,7 @@ def generate_fallback_location(
         category=category,
         terrain=terrain,
         is_named=is_named,  # Named POIs vs terrain filler
+        is_overworld=True,  # Enable enter command from this location
     )
 
     logger.info(f"Generated fallback location '{location_name}' at {target_coords}")

@@ -571,6 +571,7 @@ class GameState:
                         category=category,
                         terrain=terrain,
                         is_named=False,
+                        is_overworld=True,  # Enable enter command from this location
                     )
                     self.world[new_location.name] = new_location
                     self.current_location = new_location.name

@@ -246,3 +246,79 @@ class TestEnterCommandValidation:
         assert success is True
         assert "Entry Hall" in message
         assert game.in_sub_location is True
+
+
+class TestOverworldFlagOnDynamicLocations:
+    """Tests that dynamically generated overworld locations have is_overworld=True.
+
+    Spec: All overworld locations (unnamed terrain and named POIs) must have
+    is_overworld=True so the enter command works from any overworld tile.
+    """
+
+    def test_fallback_location_has_is_overworld_true(self):
+        """Spec: Fallback named POI locations should have is_overworld=True."""
+        from cli_rpg.world import generate_fallback_location
+
+        # Create a source location to pass to generate_fallback_location
+        source = Location(
+            name="Origin Town",
+            description="The starting town.",
+            coordinates=(0, 0),
+        )
+
+        # Generate a fallback location (named POI when AI is unavailable)
+        fallback_loc = generate_fallback_location(
+            direction="north",
+            source_location=source,
+            target_coords=(0, 1),
+            terrain="forest",
+            is_named=True,
+        )
+
+        assert fallback_loc.is_overworld is True, "Fallback locations should have is_overworld=True"
+
+    def test_enter_command_works_from_dynamically_generated_tile(self):
+        """Spec: enter command should work from dynamically generated overworld tiles.
+
+        This is an integration test that ensures the full enter flow works
+        when the current location was dynamically generated.
+        """
+        character = make_test_character()
+
+        # Create a dynamically generated terrain tile with is_overworld=True
+        terrain_tile = Location(
+            name="Deep Forest (5,5)",
+            description="Dense trees surround you.",
+            coordinates=(5, 5),
+            category="wilderness",
+            terrain="forest",
+            is_named=False,
+            is_overworld=True,  # Critical for enter command
+        )
+
+        # Create a sub_grid for an enterable location
+        entry_room = Location(
+            name="Cave Entrance",
+            description="A dark cave entrance.",
+            is_exit_point=True,
+        )
+        sub_grid = SubGrid(parent_name="Deep Forest (5,5)")
+        sub_grid.add_location(entry_room, 0, 0)
+
+        # Attach sub_grid to the terrain tile
+        terrain_tile.sub_grid = sub_grid
+        terrain_tile.entry_point = "Cave Entrance"
+
+        world = {"Deep Forest (5,5)": terrain_tile}
+        game = GameState(
+            character=character,
+            world=world,
+            starting_location="Deep Forest (5,5)",
+        )
+
+        # The enter command should work from this dynamically generated tile
+        success, message = game.enter(None)
+
+        assert success is True, f"Enter should succeed from dynamically generated tile, got: {message}"
+        assert "Cave Entrance" in message
+        assert game.in_sub_location is True

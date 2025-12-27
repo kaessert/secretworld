@@ -420,6 +420,83 @@ The named location trigger system is now fully wired up and operational.
 
 ---
 
+### 🚨 BLOCKER: Map Display - Terrain Symbols for Unnamed Locations
+**Status**: BLOCKER
+**Date Added**: 2025-12-27
+
+**Problem**: The map currently shows letter symbols (A, B, C...) for ALL locations including unnamed terrain tiles. This undermines the sparse world design - players can't visually distinguish between "just forest" and "The Haunted Grove" on the map.
+
+**Current (Wrong)**:
+```
+    N
+    |
+W --+-- E
+    |
+    S
+
+  [ A ]---[ B ]---[ C ]
+    |       |       |
+  [ D ]---[@]---[ E ]
+    |       |       |
+  [ F ]---[ G ]---[ H ]
+
+Legend: @ = You, A = Dense Forest, B = Rolling Hills, C = Whispering Glade...
+```
+Every tile looks equally important. No terrain distinction. Impassable terrain not visible.
+
+**Target (Correct)**:
+```
+    N
+    |
+W --+-- E
+    |
+    S
+
+  [ ♣ ]---[ ∩ ]---[ ⌂ ]
+    |       |       |
+  [ ♣ ]---[@]---[ ~ ]
+    |       |       |
+  [ ▲ ]---[ . ]---[ ♣ ]
+
+Legend: @ = You, ⌂ = Whispering Glade (enter), ~ = water (impassable),
+        ♣ = forest, ∩ = hills, ▲ = mountain (impassable), . = plains
+```
+
+**Key Requirements**:
+
+1. **Unnamed locations show terrain symbol**, not letter:
+   | Terrain | Symbol | Passable |
+   |---------|--------|----------|
+   | forest | `♣` or `T` | ✓ |
+   | plains | `.` or `_` | ✓ |
+   | hills | `∩` or `n` | ✓ |
+   | desert | `~` or `:` | ✓ |
+   | swamp | `%` or `&` | ✓ |
+   | water | `≈` or `~` | ✗ |
+   | mountain | `▲` or `^` | ✗ |
+
+2. **Named locations show unique identifier** (letter or icon like `⌂`):
+   - Only named locations (`is_named=True`) get letters in legend
+   - Entry points clearly marked as enterable
+
+3. **Impassable terrain visually distinct**:
+   - Different color (blue for water, gray for mountain)
+   - Or different bracket style: `( ~ )` vs `[ ♣ ]`
+   - Player immediately sees where they CAN'T go
+
+4. **Legend only lists named locations**:
+   - Don't clutter legend with "A = Dense Forest, B = Another Forest..."
+   - Show: `⌂ = Whispering Glade (village), ☠ = Goblin Cave (dungeon)`
+
+**Files to Modify**:
+- `src/cli_rpg/map_renderer.py`: Change symbol logic based on `is_named` and terrain
+- `src/cli_rpg/world_tiles.py`: Add `TERRAIN_MAP_SYMBOLS` constant
+- `src/cli_rpg/models/location.py`: Ensure `terrain_type` available for rendering
+
+**Why BLOCKER**: Without this, the sparse world design is invisible to players. The map looks the same whether every tile is a named location or 95% are generic terrain.
+
+---
+
 ### Map System Bugs (Discovered via Playtesting)
 **Status**: ACTIVE
 **Date Discovered**: 2025-12-26
@@ -1475,40 +1552,28 @@ Target: Giant Spider x3
 
 ---
 
-### CRITICAL BUG: Sub-locations not visitable from overworld
-**Status**: ACTIVE
+### ✅ RESOLVED: Sub-locations not visitable from overworld
+**Status**: RESOLVED
 **Date Added**: 2025-12-27
-**Priority**: CRITICAL - BLOCKS CORE GAMEPLAY
+**Date Resolved**: 2025-12-27
 
 **Problem**: When at an overworld location that shows an enterable sub-location, the `enter` command fails with "You're not at an overworld location."
 
-**Reproduction**:
-```
-Neon Fields
+**Root Cause**: Two location creation paths didn't set `is_overworld=True`:
+1. **Unnamed locations** (game_state.py line 574) - terrain filler tiles
+2. **Fallback locations** (world.py line 209) - named POIs when AI unavailable
 
-           ~
-    ~~~       ~~~
-  ~~~~~~~~~~~~~~~~~
- ___________________
-      ~     ~
-   ~     ~     ~
-Endless plains covered in vibrant neon plants...
-NPCs: Razor, Byte, Siren
-Exits: east, north, south, west
-Enter: Neon Fields
+The `enter()` method in GameState checks `if not current.is_overworld:` and rejected entry from these locations.
 
-> enter Neon Fields
+**Resolution**: Added `is_overworld=True` to the Location constructor in both affected code paths:
+- `src/cli_rpg/world.py`: `generate_fallback_location()` now sets `is_overworld=True`
+- `src/cli_rpg/game_state.py`: Unnamed terrain tile creation now sets `is_overworld=True`
 
-You're not at an overworld location.
-```
+**Tests Added**: 2 new tests in `tests/test_enter_entry_point.py`:
+- `test_fallback_location_has_is_overworld_true`
+- `test_enter_command_works_from_dynamically_generated_tile`
 
-**Expected Behavior**: The `enter` command should allow the player to enter the displayed sub-location.
-
-**Likely Cause**: The `enter` command in `game_state.py` is incorrectly detecting the current location as a SubGrid location rather than an overworld location, or the overworld check logic is inverted.
-
-**Files to Investigate**:
-- `src/cli_rpg/game_state.py`: `enter()` method's overworld location validation
-- `src/cli_rpg/main.py`: `enter` command handler
+**Verification**: All 4140 tests pass (88.68% coverage)
 
 ---
 
