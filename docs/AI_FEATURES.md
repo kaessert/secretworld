@@ -23,12 +23,13 @@ The CLI RPG includes AI-powered dynamic location generation using OpenAI's GPT m
 - Significant cost savings for repeated scenarios and across sessions
 
 ### 2a. Layered Context System
-The AI generation uses a 4-layer hierarchical architecture for consistent, efficient world building:
+The AI generation uses a hierarchical architecture for consistent, efficient world building:
 
 - **Layer 1 (WorldContext)**: Theme essence, naming style, narrative tone, plus lore and faction data (creation myth, major factions, conflicts, prophecies, legendary artifacts, faction tensions, economic era) - generated once at world creation and cached in GameState
 - **Layer 2 (RegionContext)**: Region name, theme, danger level, landmarks, plus economy fields (resources, trade goods, price modifier), history fields (founding story, events, ruined civilizations), and atmosphere fields (creatures, weather, ambient sounds) - generated per-area and cached by coordinates
 - **Layer 3 (Location)**: Individual location details using minimal prompts that reference cached context
 - **Layer 4 (NPCs)**: NPC generation as a separate call, keeping each prompt focused and reliable
+- **Layer 5 (SettlementContext)**: Settlement-level context including character networks (notable families, NPC relationships), economic connections (trade routes, guilds, market specialty), political structure (government type, political figures, tensions), and social atmosphere (population, prosperity, social issues) - model available, integration pending
 
 This architecture reduces API calls and token usage by caching context at higher layers and using minimal prompts at lower layers.
 

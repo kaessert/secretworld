@@ -758,27 +758,28 @@ Added economy, history, and atmosphere fields to RegionContext for richer region
 ---
 
 ### Issue 3: SettlementContext (Layer 5)
-**Status**: PENDING
+**Status**: ✅ COMPLETE (2025-12-27)
 **Priority**: HIGH
 
-Create new SettlementContext for character networks, politics, and trade.
+Created SettlementContext dataclass model for caching settlement-level information including character networks, politics, and trade.
 
-**Model**:
+**Model** (implemented in `src/cli_rpg/models/settlement_context.py`):
 ```python
 @dataclass
 class SettlementContext:
     settlement_name: str
     location_coordinates: tuple[int, int]
+    generated_at: Optional[datetime]
     # Character Networks
     notable_families: list[str]
-    npc_relationships: list[NPCRelationship]
+    npc_relationships: list[dict]
     # Economic Connections
-    trade_routes: list[TradeRoute]
+    trade_routes: list[dict]
     local_guilds: list[str]
     market_specialty: Optional[str]
     # Political Structure
     government_type: str  # council, monarchy, theocracy
-    political_figures: list[PoliticalFigure]
+    political_figures: list[dict]
     current_tensions: list[str]
     # Social Atmosphere
     population_size: str
@@ -786,8 +787,16 @@ class SettlementContext:
     social_issues: list[str]
 ```
 
-**Files to Create**:
+**Implementation Details**:
+- `to_dict()` method for serialization (datetime→ISO, tuple→list)
+- `from_dict()` classmethod for deserialization with backward-compatible defaults
+- `default()` classmethod for fallback when AI unavailable
+- Default constants: `DEFAULT_GOVERNMENT_TYPES`, `DEFAULT_POPULATION_SIZES`, `DEFAULT_PROSPERITY_LEVELS`
+- 12 tests in `tests/test_settlement_context.py` covering creation, serialization, deserialization, and defaults
+
+**Files Created**:
 - `src/cli_rpg/models/settlement_context.py`
+- `tests/test_settlement_context.py`
 
 ---
 
@@ -1226,7 +1235,7 @@ class FactionConflict:
 4. Add `get_generation_context()` to GameState
 
 **Phase 2: New Layer Models**
-5. Create SettlementContext model - Layer 5 (Issue 3)
+5. ✅ Create SettlementContext model - Layer 5 (Issue 3 COMPLETE)
 6. Create LoreContext model - Layer 6 (Issue 4)
 7. Add generation methods to AIService
 8. Integrate with existing generation flow

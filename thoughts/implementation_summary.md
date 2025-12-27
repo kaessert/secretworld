@@ -1,83 +1,46 @@
-# Issue 18: AI-Generated Hidden Secrets Implementation Summary
+# Implementation Summary: SettlementContext (Layer 5)
 
 ## What Was Implemented
 
-### 1. Secret Generation Constants and Function (`src/cli_rpg/ai_world.py`)
+Created `SettlementContext` dataclass model for caching settlement-level information including character networks, politics, and trade. This is Layer 5 in the hierarchy for AI-generated content.
 
-**Added constants:**
-- `SECRET_CATEGORIES`: frozenset of categories that should have secrets (`dungeon`, `cave`, `ruins`, `temple`, `forest`)
-- `SECRET_TEMPLATES`: dict mapping each category to a list of secret templates, each containing (type, description, base_threshold)
+### Files Created
 
-**Added function:**
-- `_generate_secrets_for_location(category: str, distance: int = 0) -> list[dict]`
-  - Generates 1-2 hidden secrets for locations with appropriate categories
-  - Scales threshold based on distance from entry (deeper = harder to detect)
-  - Adds type-specific fields:
-    - `hidden_treasure`: adds `reward_gold` (10-30 + distance*5)
-    - `trap`: adds `trap_damage` (5 + distance*2)
-    - `hidden_door`: adds `exit_direction` (random cardinal direction)
+1. **`src/cli_rpg/models/settlement_context.py`**
+   - `SettlementContext` dataclass with all specified fields:
+     - Required: `settlement_name`, `location_coordinates`, `generated_at`
+     - Character Networks: `notable_families`, `npc_relationships`
+     - Economic Connections: `trade_routes`, `local_guilds`, `market_specialty`
+     - Political Structure: `government_type`, `political_figures`, `current_tensions`
+     - Social Atmosphere: `population_size`, `prosperity_level`, `social_issues`
+   - `to_dict()` method - serializes to JSON-compatible dict (datetime→ISO, tuple→list)
+   - `from_dict()` classmethod - deserializes with backward-compatible defaults
+   - `default()` classmethod - factory for fallback when AI unavailable
+   - Default constants: `DEFAULT_GOVERNMENT_TYPES`, `DEFAULT_POPULATION_SIZES`, `DEFAULT_PROSPERITY_LEVELS`
 
-### 2. Secret Wiring into Location Generation
-
-**`generate_subgrid_for_location()` (~line 775):**
-- Adds secrets to non-entry rooms (skips entry/exit point)
-- Uses Manhattan distance from (0,0) for threshold scaling
-
-**`expand_area()` (~line 1433):**
-- Adds secrets to non-entry locations in area expansions
-- Uses relative coordinates for distance calculation
-
-**`expand_world()` (~line 1241):**
-- Adds secrets to named overworld locations with secret categories
-- Uses distance=0 since these are standalone locations
-
-### 3. Passive Detection Wiring (`src/cli_rpg/game_state.py`)
-
-**Added import:**
-- `from cli_rpg.secrets import check_passive_detection`
-
-**Added helper method:**
-- `_check_and_report_passive_secrets(location: Location) -> Optional[str]`
-  - Calls `check_passive_detection()` with player character and location
-  - Returns formatted message if secrets were detected, None otherwise
-
-**Wired into movement:**
-- `move()` (~line 778): Checks for secrets after updating dread
-- `_move_in_sub_grid()` (~line 919): Checks for secrets before returning success message
-- `enter()` (~line 1050): Checks for secrets after building look message
-
-### 4. Test File (`tests/test_ai_secrets.py`)
-
-Created comprehensive tests:
-- `TestSecretConstants`: Verifies constants are defined correctly
-- `TestGenerateSecretsForLocation`: Tests secret generation logic
-  - Output count validation (1-2 secrets)
-  - Schema validation (required fields)
-  - Type-specific field validation (gold, damage, direction)
-  - Distance scaling validation
-  - Non-secret category handling
+2. **`tests/test_settlement_context.py`**
+   - 12 tests covering all spec requirements:
+     - Creation tests (3): all fields, minimal fields, empty collections
+     - Serialization tests (2): all fields, None timestamp
+     - Deserialization tests (3): all fields, backward compatibility, null timestamp
+     - Default factory tests (2): valid context, various coordinates
+     - Round-trip tests (2): preserves all data, handles None timestamp
 
 ## Test Results
 
 ```
-tests/test_ai_secrets.py: 10 passed
-tests/test_perception.py: 22 passed
-Full suite: 4322 passed in 95.77s
+12 passed in 0.55s
 ```
 
-## Files Modified
+All tests pass successfully.
 
-1. `src/cli_rpg/ai_world.py` - Added SECRET_CATEGORIES, SECRET_TEMPLATES, _generate_secrets_for_location(), and wiring in 3 locations
-2. `src/cli_rpg/game_state.py` - Added import, helper method, and calls in move(), _move_in_sub_grid(), enter()
+## Design Decisions
 
-## Files Created
+1. **Followed RegionContext patterns exactly** - same method signatures, serialization approach, and test structure for consistency
+2. **All optional fields use defaults** - enables backward compatibility for old saves without new fields
+3. **Complex fields use `list[dict]`** - allows flexible schema for relationships, trade routes, and political figures
+4. **Minimal default() factory** - only sets required fields, leaves optional fields empty for AI to populate
 
-1. `tests/test_ai_secrets.py` - Test file for secret generation
+## E2E Validation
 
-## E2E Validation Points
-
-Players should now:
-1. See "You notice: [secret description]" messages when entering locations with secrets (if PER meets threshold)
-2. Find secrets in dungeon, cave, ruins, temple, and forest locations
-3. Have harder-to-detect secrets in deeper dungeon rooms
-4. Be able to discover secrets via active `search` command even if passive detection fails
+No E2E tests needed for this change - this is a new model with no integration to existing systems yet. Integration will be done in Issue 5 (GenerationContext aggregator).
