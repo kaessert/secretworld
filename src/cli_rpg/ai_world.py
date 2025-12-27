@@ -232,10 +232,10 @@ def create_ai_world(
     is_overworld, is_safe_zone = _infer_hierarchy_from_category(starting_category)
 
     # Create starting location at origin (0, 0)
+    # Note: No connections field - navigation is coordinate-based via WorldGrid
     starting_location = Location(
         name=starting_data["name"],
         description=starting_data["description"],
-        connections={},  # WorldGrid will add connections
         category=starting_category,
         ascii_art=starting_ascii_art,
         is_overworld=is_overworld,
@@ -343,11 +343,10 @@ def create_ai_world(
             new_category = location_data.get("category")
             new_is_overworld, new_is_safe_zone = _infer_hierarchy_from_category(new_category)
 
-            # Create location
+            # Create location (no connections - navigation is coordinate-based)
             new_location = Location(
                 name=location_data["name"],
                 description=location_data["description"],
-                connections={},
                 category=new_category,
                 ascii_art=new_ascii_art,
                 is_overworld=new_is_overworld,
@@ -379,20 +378,8 @@ def create_ai_world(
 
     logger.info(f"Generated world with {len(grid)} locations")
 
-    # Ensure all locations have at least one dangling exit for future expansion
-    import random
-    for loc_name, location in grid.items():
-        # Find non-dangling connections (those pointing to existing locations in grid)
-        back_connections = [d for d, target in location.connections.items() if target in grid]
-
-        # If location only has back-connections, add a dangling exit
-        if len(location.connections) <= len(back_connections):
-            available_dirs = [d for d in Location.VALID_DIRECTIONS
-                            if d not in location.connections]
-            if available_dirs:
-                dangling_dir = random.choice(available_dirs)
-                placeholder_name = f"Unexplored {dangling_dir.title()}"
-                location.add_connection(dangling_dir, placeholder_name)
+    # Note: No need to add dangling exits - coordinate-based navigation
+    # allows movement to any adjacent coordinate (frontier exits are implicit)
 
     # Get the actual starting location name (first generated location)
     actual_starting_location = starting_location.name
@@ -498,10 +485,10 @@ def expand_world(
     new_is_overworld, new_is_safe_zone = _infer_hierarchy_from_category(new_category)
 
     # Create new location with coordinates
+    # Note: No connections field - navigation is coordinate-based
     new_location = Location(
         name=location_data["name"],
         description=location_data["description"],
-        connections={},
         coordinates=new_coordinates,
         category=new_category,
         ascii_art=new_ascii_art,
@@ -517,20 +504,7 @@ def expand_world(
     # Add to world
     world[new_location.name] = new_location
 
-    # Add bidirectional connections (terrain-based, not AI-suggested)
-    world[from_location].add_connection(direction, new_location.name)
-    opposite = get_opposite_direction(direction)
-    new_location.add_connection(opposite, from_location)
-
-    # Add dangling connections for future expansion
-    # Note: AI no longer suggests connections - WFC handles terrain structure
-    import random
-    available_dirs = [d for d in Location.VALID_DIRECTIONS
-                     if d not in new_location.connections]
-    if available_dirs:
-        dangling_dir = random.choice(available_dirs)
-        placeholder_name = f"Unexplored {dangling_dir.title()}"
-        new_location.add_connection(dangling_dir, placeholder_name)
+    # Note: No connections needed - navigation is coordinate-based via WorldGrid
 
     logger.info(f"Added location '{new_location.name}' to world")
     return world
@@ -667,10 +641,10 @@ def expand_area(
         loc_is_overworld = is_entry
 
         # Create the location with hierarchy fields
+        # Note: No connections field - navigation is coordinate-based via SubGrid
         new_loc = Location(
             name=loc_data["name"],
             description=loc_data["description"],
-            connections={},
             coordinates=(abs_x, abs_y),
             category=loc_category,
             ascii_art=loc_ascii_art,
@@ -685,7 +659,6 @@ def expand_area(
 
         placed_locations[loc_data["name"]] = {
             "location": new_loc,
-            "connections": loc_data["connections"],
             "coords": (abs_x, abs_y),
             "relative_coords": (rel_x, rel_y),
             "is_entry": is_entry
@@ -732,19 +705,7 @@ def expand_area(
         if sub_location_names:
             entry_loc.entry_point = sub_location_names[0]
 
-    # Second pass: add connections
-    for name, data in placed_locations.items():
-        loc = data["location"]
-        connections = data["connections"]
-
-        for conn_dir, conn_target in connections.items():
-            # Replace EXISTING_WORLD placeholder with actual source location
-            if conn_target == "EXISTING_WORLD":
-                conn_target = from_location
-
-            # Check if target is another placed location or existing location
-            if conn_target in placed_locations or conn_target in world:
-                loc.add_connection(conn_dir, conn_target)
+    # Note: No second pass for connections needed - navigation is coordinate-based
 
     # Add locations to world - use SubGrid for sub-locations
     if entry_name is not None and len(placed_locations) > 1:
@@ -790,53 +751,8 @@ def expand_area(
         for name, data in placed_locations.items():
             world[name] = data["location"]
 
-    # Connect source location to entry
-    if entry_name:
-        world[from_location].add_connection(direction, entry_name)
-        # Ensure entry has back-connection
-        if not world[entry_name].has_connection(opposite):
-            world[entry_name].add_connection(opposite, from_location)
-
-    # Add bidirectional connections between placed locations based on coordinates
-    for name, data in placed_locations.items():
-        loc = data["location"]
-        coords = data["coords"]
-
-        for check_dir, offset in DIRECTION_OFFSETS.items():
-            neighbor_coords = (coords[0] + offset[0], coords[1] + offset[1])
-
-            # Find neighbor by coordinates
-            neighbor = None
-            for n_name, n_data in placed_locations.items():
-                if n_data["coords"] == neighbor_coords:
-                    neighbor = n_data["location"]
-                    break
-
-            # Also check existing world locations
-            if neighbor is None:
-                for existing_loc in world.values():
-                    if existing_loc.coordinates == neighbor_coords:
-                        neighbor = existing_loc
-                        break
-
-            if neighbor is not None:
-                # Ensure bidirectional connection
-                if not loc.has_connection(check_dir):
-                    loc.add_connection(check_dir, neighbor.name)
-                rev_dir = get_opposite_direction(check_dir)
-                if not neighbor.has_connection(rev_dir):
-                    neighbor.add_connection(rev_dir, loc.name)
-
-    # Ensure the world still has at least one frontier exit for future expansion
-    # Build a temporary WorldGrid to check and fix expansion exits
-    temp_grid = WorldGrid()
-    for name, loc in world.items():
-        if loc.coordinates is not None:
-            temp_grid._grid[loc.coordinates] = loc
-            temp_grid._by_name[name] = loc
-
-    if temp_grid.ensure_expansion_possible():
-        logger.debug("Added frontier exit to ensure world can expand")
+    # Note: No explicit connections needed - navigation is coordinate-based
+    # The entry location at target_coords connects to source via coordinate adjacency
 
     logger.info(
         f"Added area with {len(placed_locations)} locations, "

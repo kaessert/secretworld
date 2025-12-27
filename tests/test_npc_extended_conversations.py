@@ -261,7 +261,7 @@ class TestGameStateConversation:
             coordinates=(0, 1)
         )
         basic_game_state.world["North Road"] = north_location
-        basic_game_state.world["Town Square"].add_connection("north", "North Road")
+        # Connections are implicit via coordinate adjacency
 
         # Set current_npc to enter conversation mode
         npc = basic_game_state.world["Town Square"].npcs[0]

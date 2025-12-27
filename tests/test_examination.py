@@ -140,13 +140,21 @@ class TestLocationLayeredDescription:
     # Test: Sub-locations display after exits in look output
     def test_get_layered_description_shows_sub_locations(self):
         """Location with sub_locations shows 'Enter: X, Y' line after exits."""
+        # Create location with coordinates and a world for exit calculation
         loc = Location(
             name="Town Square",
             description="A bustling town square.",
-            connections={"north": "Market"},
-            sub_locations=["Market District", "Temple"]
+            sub_locations=["Market District", "Temple"],
+            coordinates=(0, 0),
         )
-        result = loc.get_layered_description(look_count=1)
+        north_loc = Location(
+            name="North Gate",
+            description="The north gate.",
+            coordinates=(0, 1),
+        )
+        world = {"Town Square": loc, "North Gate": north_loc}
+
+        result = loc.get_layered_description(look_count=1, world=world)
 
         assert "Exits: north" in result
         assert "Enter:" in result
@@ -163,9 +171,16 @@ class TestLocationLayeredDescription:
         loc = Location(
             name="Test Place",
             description="A test location.",
-            connections={"south": "Other Place"}
+            coordinates=(0, 0),
         )
-        result = loc.get_layered_description(look_count=1)
+        south_loc = Location(
+            name="South Area",
+            description="The south area.",
+            coordinates=(0, -1),
+        )
+        world = {"Test Place": loc, "South Area": south_loc}
+
+        result = loc.get_layered_description(look_count=1, world=world)
 
         assert "Exits: south" in result
         assert "Enter:" not in result
@@ -176,7 +191,6 @@ class TestLocationLayeredDescription:
         loc = Location(
             name="Storm Town",
             description="A town during a storm. The rain is heavy.",
-            connections={"north": "Market"},
             sub_locations=["Tavern", "Smithy"]
         )
         result = loc.get_layered_description(look_count=1, visibility="reduced")
@@ -286,7 +300,6 @@ class TestGameStateLookIntegration:
         loc1 = Location(
             name="Town Square",
             description="A bustling town square.",
-            connections={"north": "Market"},
             coordinates=(0, 0),
             details="  - Worn cobblestones\n  - Faded notice board",
             secrets="  - Hidden initials scratched behind a post"
@@ -294,7 +307,6 @@ class TestGameStateLookIntegration:
         loc2 = Location(
             name="Market",
             description="A busy marketplace.",
-            connections={"south": "Town Square"},
             coordinates=(0, 1),
             details="  - Stalls with colorful awnings"
         )

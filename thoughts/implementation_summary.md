@@ -1,68 +1,36 @@
-# Implementation Summary: Terrain-Based Movement Validation (Step 3)
+# Implementation Summary: Fix 5 Failing Tests
 
-## What Was Implemented
+## What Was Fixed
 
-Updated the `move()` method in `game_state.py` to use WFC terrain passability as the **primary** validation for movement, replacing the previous connection-based approach when WFC is enabled.
+Fixed 5 broken tests caused by recent architecture changes (Location model no longer has `connections` parameter, movement now requires coordinates).
 
-### Key Changes
+### Files Modified
 
-**File: `src/cli_rpg/game_state.py`**
+1. **tests/test_world_events.py** (line 388)
+   - Fixed `TestCaravanEvent` fixture
+   - Removed invalid `{}` positional arg and `npcs=[]` keyword arg from Location constructor
+   - Changed: `Location("Town", "A town", {}, coordinates=(0, 0), npcs=[])` → `Location("Town", "A town", coordinates=(0, 0))`
 
-1. **Added WFC terrain passability check BEFORE movement** (lines 491-498):
-   - When `chunk_manager` is available and location has coordinates, the terrain at target coordinates is checked first
-   - Uses `is_passable()` from `world_tiles.py` for consistent passability validation
-   - Returns "The {terrain} ahead is impassable." if terrain blocks movement (e.g., water)
+2. **tests/test_ai_service.py** (lines 1173-1202)
+   - Deleted `test_validate_area_location_invalid_connections` test
+   - This validation no longer exists because connections are ignored in coordinate-based navigation
 
-2. **Backward compatibility for legacy mode** (lines 499-503):
-   - When `chunk_manager` is None but location has coordinates, falls back to connection-based movement
-   - Returns "You can't go that way." if no connection exists
+3. **tests/test_game_state_combat.py** (lines 183-194)
+   - Added coordinates to Location constructors in `test_move_can_trigger_encounter`
+   - Town Square: `coordinates=(0, 0)`, Forest Path: `coordinates=(0, 1)`
 
-3. **Removed redundant terrain check** (former lines 520-527):
-   - The old terrain check inside the location generation block was removed
-   - This was redundant since terrain is now checked at the start of the coordinate-based movement block
-
-**File: `tests/test_terrain_movement.py` (NEW)**
-- 5 new test cases validating terrain-based movement
-
-### Movement Flow Now
-
-**WFC Mode (chunk_manager present):**
-1. Check terrain passability at target coordinates → block if impassable
-2. Find or generate location at target
-3. Move to location (connections managed automatically)
-
-**Legacy Mode (chunk_manager=None):**
-1. Check connection exists in direction → block if no connection
-2. Move to connected location (old behavior preserved)
+4. **tests/test_main_game_loop_state_handling.py** (lines 42-45)
+   - Added coordinates to Location constructors in `test_random_encounter_triggers_combat_state`
+   - Town: `coordinates=(0, 0)`, Forest: `coordinates=(0, 1)`
 
 ## Test Results
 
-**New Tests Created: `tests/test_terrain_movement.py`**
-- `test_move_to_passable_terrain_without_connection` - PASS
-- `test_move_to_impassable_terrain_blocked` - PASS
-- `test_move_without_chunk_manager_uses_connections` - PASS
-- `test_move_blocked_no_terrain_no_connection` - PASS
-- `test_all_directions_check_terrain` - PASS
+- All 3573 tests pass
+- Test runtime: ~102 seconds
 
-**Related Tests:**
-- `tests/test_terrain_passability.py` - 18 tests PASS
-- `tests/test_wfc_exit_display.py` - 8 tests PASS
+## Technical Details
 
-**Full Test Suite:**
-- 3596 tests PASS
-
-## Success Criteria Met
-
-- [x] `go <direction>` checks `is_passable()` before connection dict (when WFC active)
-- [x] Movement to water returns "The water ahead is impassable."
-- [x] Movement to passable terrain works even without explicit connection
-- [x] Legacy saves and non-WFC mode work unchanged
-- [x] All existing 3591 tests still pass (now 3596 total with 5 new tests)
-- [x] 5 new terrain movement tests pass
-
-## E2E Validation Points
-
-1. **New game with WFC**: Player should be able to move to any passable terrain (forest, plains, hills, etc.) regardless of connection status
-2. **Water blocking**: Player should see "The water ahead is impassable." when attempting to move into water
-3. **Legacy saves**: Loading a save without chunk_manager should use connection-based movement
-4. **SubGrid interiors**: Movement inside buildings/dungeons should still use connection-based navigation (unchanged)
+The root cause was the migration to a grid-based coordinate system:
+- Location model signature changed from `Location(name, description, connections, ...)` to `Location(name, description, npcs=[], coordinates=None, ...)`
+- Movement now requires locations to have coordinates for directional navigation
+- The connections validation was removed since connections are now derived from coordinates

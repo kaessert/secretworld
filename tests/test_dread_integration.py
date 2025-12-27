@@ -33,21 +33,18 @@ def create_test_world():
     town = Location(
         name="Town Square",
         description="A bustling town square.",
-        connections={"north": "Dark Cave", "east": "Forest Path"},
         coordinates=(0, 0),
         category="town"
     )
     cave = Location(
         name="Dark Cave",
         description="A dark and ominous cave.",
-        connections={"south": "Town Square"},
         coordinates=(0, 1),
         category="cave"
     )
     forest = Location(
         name="Forest Path",
         description="A peaceful forest path.",
-        connections={"west": "Town Square"},
         coordinates=(1, 0),
         category="forest"
     )
@@ -64,14 +61,12 @@ class TestDreadMoveIntegration:
         town = Location(
             name="Town Square",
             description="A town square.",
-            connections={"north": "Dungeon Entrance"},
             coordinates=(0, 0),
             category="town"
         )
         dungeon = Location(
             name="Dungeon Entrance",
             description="A forbidding dungeon entrance.",
-            connections={"south": "Town Square"},
             coordinates=(0, 1),
             category="dungeon"
         )
@@ -320,27 +315,27 @@ class TestDreadMilestoneIntegration:
     def test_crossing_threshold_shows_message(self):
         """Crossing a dread threshold should show a milestone message."""
         char = create_test_character()
-        world = create_test_world()
+        # Create a custom world for this test to avoid coordinate conflicts
+        town = Location(
+            name="Town Square",
+            description="A bustling town square.",
+            coordinates=(0, 0),
+            category="town"
+        )
+        dungeon = Location(
+            name="Dungeon",
+            description="A dungeon.",
+            coordinates=(0, 1),
+            category="dungeon"
+        )
+        world = {"Town Square": town, "Dungeon": dungeon}
         game_state = GameState(char, world, "Town Square")
 
         # Set dread just below 25 threshold
         char.dread_meter.dread = 20
 
-        # Move to a dungeon (adds 15 dread, crosses 25)
-        dungeon = Location(
-            name="Dungeon",
-            description="A dungeon.",
-            connections={"south": "Town Square"},
-            coordinates=(0, 1),
-            category="dungeon"
-        )
-        world["Dungeon"] = dungeon
-        world["Town Square"].add_connection("north", "Dungeon")
-        # Fix coordinates conflict
-        world["Dark Cave"].coordinates = (-1, 0)
-        world["Town Square"].connections["west"] = "Dark Cave"
-        del world["Town Square"].connections["north"]
-        world["Town Square"].add_connection("north", "Dungeon")
+        # Move to dungeon (adds 15 dread, crosses 25)
+        # Connections are implicit via coordinate adjacency
 
         success, message = game_state.move("north")
 
@@ -461,28 +456,24 @@ class TestLightSourceDreadReduction:
         town = Location(
             name="Town Square",
             description="A town.",
-            connections={"north": "Cave 1"},
             coordinates=(0, 0),
             category="town"
         )
         cave1 = Location(
             name="Cave 1",
             description="First cave.",
-            connections={"south": "Town Square", "north": "Cave 2"},
             coordinates=(0, 1),
             category="cave"
         )
         cave2 = Location(
             name="Cave 2",
             description="Second cave.",
-            connections={"south": "Cave 1", "north": "Cave 3"},
             coordinates=(0, 2),
             category="cave"
         )
         cave3 = Location(
             name="Cave 3",
             description="Third cave.",
-            connections={"south": "Cave 2"},
             coordinates=(0, 3),
             category="cave"
         )
@@ -526,21 +517,18 @@ class TestLightSourceDreadReduction:
         town = Location(
             name="Town Square",
             description="A town.",
-            connections={"north": "Cave 1"},
             coordinates=(0, 0),
             category="town"
         )
         cave1 = Location(
             name="Cave 1",
             description="First cave.",
-            connections={"south": "Town Square", "north": "Cave 2"},
             coordinates=(0, 1),
             category="cave"
         )
         cave2 = Location(
             name="Cave 2",
             description="Second cave.",
-            connections={"south": "Cave 1"},
             coordinates=(0, 2),
             category="cave"
         )

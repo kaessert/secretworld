@@ -76,23 +76,29 @@ class TestGameplayIntegration:
         assert game_state.current_location == "Town Square"
 
     def test_gameplay_move_blocked_without_connection(self):
-        """Test that move in direction without exit fails.
+        """Test that move in direction with impassable terrain fails.
 
-        Spec: Movement requires a connection (exit) to exist. Moving in a direction
-        without a connection should fail with "You can't go that way."
+        Spec: With coordinate-based navigation, movement blocked by impassable
+        terrain (e.g., water) should fail with an appropriate message.
         """
+        from unittest.mock import MagicMock
+
         character = Character("Hero", strength=10, dexterity=10, intelligence=10)
         world, starting_location = create_default_world()
         initial_world_size = len(world)
         game_state = GameState(character, world, starting_location)
 
-        # First move to Cave, then try to go south (which has no exit)
-        game_state.move("east")  # Town Square -> Cave
-        success, message = game_state.move("south")  # No south exit from Cave
+        # Mock chunk_manager to return impassable terrain (water) to the south
+        mock_chunk_manager = MagicMock()
+        mock_chunk_manager.get_tile_at.return_value = "water"
+        game_state.chunk_manager = mock_chunk_manager
+
+        # Try to go south (blocked by water)
+        success, message = game_state.move("south")
 
         assert success is False
-        assert "can't go that way" in message.lower()
-        assert game_state.current_location == "Cave"
+        assert "impassable" in message.lower() or "water" in message.lower()
+        assert game_state.current_location == "Town Square"
         assert len(game_state.world) == initial_world_size  # No new location added
     
     def test_gameplay_navigation_sequence(self):

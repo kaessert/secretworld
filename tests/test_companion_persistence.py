@@ -13,7 +13,6 @@ def create_test_game_state(companions=None):
     location = Location(
         name="Town Square",
         description="A bustling town center",
-        connections={"north": "Forest"},
         coordinates=(0, 0)
     )
     world = {"Town Square": location}
@@ -90,7 +89,6 @@ class TestGameStateCompanionsSerialization:
         location = Location(
             name="Town Square",
             description="A bustling town center",
-            connections={"north": "Forest"},
             coordinates=(0, 0)
         )
 

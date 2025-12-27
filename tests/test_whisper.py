@@ -267,14 +267,12 @@ class TestWhisperIntegration:
         town = Location(
             name="Town Square",
             description="A bustling town center.",
-            connections={"north": "Forest Path"},
             coordinates=(0, 0),
             category="town"
         )
         forest = Location(
             name="Forest Path",
             description="A winding path through the woods.",
-            connections={"south": "Town Square"},
             coordinates=(0, 1),
             category="forest"
         )

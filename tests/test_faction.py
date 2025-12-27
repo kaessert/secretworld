@@ -248,13 +248,11 @@ class TestGameStateFactions:
         world = {
             "Town Square": Location(
                 name="Town Square",
-                description="A central square",
-                connections={"north": "Market"}
+                description="A central square"
             ),
             "Market": Location(
                 name="Market",
-                description="A busy market",
-                connections={"south": "Town Square"}
+                description="A busy market"
             )
         }
         return GameState(character, world, "Town Square")

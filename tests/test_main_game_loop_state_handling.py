@@ -15,7 +15,7 @@ class TestGameLoopCombatStateCheck:
         """Spec: Main loop must call is_in_combat() to determine command routing."""
         # Setup
         character = Character(name="Hero", strength=10, dexterity=10, intelligence=10)
-        world = {"Town": Location(name="Town", description="A town", connections={})}
+        world = {"Town": Location(name="Town", description="A town")}
         game_state = GameState(character, world, starting_location="Town")
         
         # Test: Verify is_in_combat() method exists and works
@@ -40,8 +40,8 @@ class TestExplorationToCombatTransition:
         # Setup
         character = Character(name="Hero", strength=10, dexterity=10, intelligence=10)
         world = {
-            "Town": Location(name="Town", description="A town", connections={"north": "Forest"}),
-            "Forest": Location(name="Forest", description="A forest", connections={"south": "Town"})
+            "Town": Location(name="Town", description="A town", coordinates=(0, 0)),
+            "Forest": Location(name="Forest", description="A forest", coordinates=(0, 1))
         }
         game_state = GameState(character, world, starting_location="Town")
         
@@ -63,7 +63,7 @@ class TestExplorationToCombatTransition:
         """Spec: trigger_encounter() should set is_in_combat() to True when successful."""
         # Setup
         character = Character(name="Hero", strength=10, dexterity=10, intelligence=10)
-        world = {"Forest": Location(name="Forest", description="A forest", connections={})}
+        world = {"Forest": Location(name="Forest", description="A forest")}
         game_state = GameState(character, world, starting_location="Forest")
         
         # Test: Try trigger_encounter multiple times
@@ -85,7 +85,7 @@ class TestCombatToExplorationTransition:
         # Setup
         character = Character(name="Hero", strength=20, dexterity=10, intelligence=10)  # Max strength
         enemy = Enemy(name="Weak Wolf", health=5, max_health=5, attack_power=1, defense=0, xp_reward=20)
-        world = {"Forest": Location(name="Forest", description="A forest", connections={})}
+        world = {"Forest": Location(name="Forest", description="A forest")}
         game_state = GameState(character, world, starting_location="Forest")
         game_state.current_combat = CombatEncounter(character, enemy)
         game_state.current_combat.is_active = True
@@ -102,7 +102,7 @@ class TestCombatToExplorationTransition:
         # Setup: Max dex for reliable flee
         character = Character(name="Hero", strength=10, dexterity=20, intelligence=10)
         enemy = Enemy(name="Wolf", health=30, max_health=30, attack_power=5, defense=2, xp_reward=20)
-        world = {"Forest": Location(name="Forest", description="A forest", connections={})}
+        world = {"Forest": Location(name="Forest", description="A forest")}
         game_state = GameState(character, world, starting_location="Forest")
         
         # Test: Try flee multiple times
@@ -127,7 +127,7 @@ class TestSaveCommandAvailability:
         """Spec: Save command works when not in combat."""
         # Setup
         character = Character(name="Hero", strength=10, dexterity=10, intelligence=10)
-        world = {"Town": Location(name="Town", description="A town", connections={})}
+        world = {"Town": Location(name="Town", description="A town")}
         game_state = GameState(character, world, starting_location="Town")
         
         # Test
@@ -145,7 +145,7 @@ class TestSaveCommandAvailability:
         # Setup
         character = Character(name="Hero", strength=10, dexterity=10, intelligence=10)
         enemy = Enemy(name="Wolf", health=30, max_health=30, attack_power=5, defense=2, xp_reward=20)
-        world = {"Forest": Location(name="Forest", description="A forest", connections={})}
+        world = {"Forest": Location(name="Forest", description="A forest")}
         game_state = GameState(character, world, starting_location="Forest")
         game_state.current_combat = CombatEncounter(character, enemy)
         game_state.current_combat.is_active = True

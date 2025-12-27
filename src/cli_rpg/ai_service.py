@@ -817,7 +817,8 @@ class AIService:
             - name: Location name (2-50 characters)
             - description: Location description (1-500 characters)
             - relative_coords: [dx, dy] relative to entry point (entry is [0, 0])
-            - connections: Dict mapping directions to location names
+            - category: Location category (optional)
+            - npcs: List of NPC data (optional)
 
         Raises:
             AIGenerationError: If generation fails or response is invalid
@@ -1005,8 +1006,8 @@ Note: Use "EXISTING_WORLD" as placeholder for the connection back to the source 
         Raises:
             AIGenerationError: If validation fails
         """
-        # Check required fields
-        required_fields = ["name", "description", "relative_coords", "connections"]
+        # Check required fields (connections no longer required - navigation is coordinate-based)
+        required_fields = ["name", "description", "relative_coords"]
         for field in required_fields:
             if field not in loc:
                 raise AIGenerationError(
@@ -1042,21 +1043,8 @@ Note: Use "EXISTING_WORLD" as placeholder for the connection back to the source 
                 f"Location {index} relative_coords must be [x, y] array"
             )
 
-        # Validate connections
-        connections = loc["connections"]
-        if not isinstance(connections, dict):
-            raise AIGenerationError(f"Location {index} connections must be a dictionary")
-
-        # Filter connections to only include cardinal directions (grid-based movement)
-        filtered_connections = {}
-        for direction, target in connections.items():
-            if direction in GRID_DIRECTIONS:
-                filtered_connections[direction] = target
-            else:
-                # Log but don't fail - AI sometimes generates up/down
-                logger.warning(
-                    f"Filtered non-grid direction '{direction}' from area location '{name}'"
-                )
+        # Note: connections field is ignored - navigation is coordinate-based via SubGrid/WorldGrid
+        # AI may still generate connections, but we don't use them
 
         # Extract and validate category (optional field)
         category = loc.get("category")
@@ -1075,7 +1063,6 @@ Note: Use "EXISTING_WORLD" as placeholder for the connection back to the source 
             "name": name,
             "description": description,
             "relative_coords": coords,
-            "connections": filtered_connections,
             "category": category,
             "npcs": npcs
         }
@@ -2583,7 +2570,7 @@ Note: Use "EXISTING_WORLD" as placeholder for the connection back to the source 
             terrain_type: Optional terrain type (e.g., "desert", "forest") for coherent generation
 
         Returns:
-            Dictionary with keys: name, description, connections, category, npcs (empty list)
+            Dictionary with keys: name, description, category, npcs (empty list)
 
         Raises:
             AIGenerationError: If generation fails or response is invalid

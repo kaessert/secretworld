@@ -84,21 +84,22 @@ class TestSaveGameState:
     
     def test_save_game_state_contains_complete_data(self, tmp_path):
         """Test that saved file contains character, location, and world.
-        
+
         Spec: Should contain character, current_location, world
         """
         character = Character("Hero", strength=10, dexterity=10, intelligence=10)
+        # Use coordinate-based adjacency: Start at (0,0), End at (0,1) to the north
         world = {
-            "Start": Location("Start", "Start location", {"north": "End"}),
-            "End": Location("End", "End location")
+            "Start": Location("Start", "Start location", coordinates=(0, 0)),
+            "End": Location("End", "End location", coordinates=(0, 1))
         }
         game_state = GameState(character, world, "Start")
-        
+
         filepath = save_game_state(game_state, str(tmp_path))
-        
+
         with open(filepath, "r") as f:
             data = json.load(f)
-        
+
         assert "character" in data
         assert "current_location" in data
         assert "world" in data
@@ -183,41 +184,44 @@ class TestLoadGameState:
     
     def test_load_game_state_restores_location(self, tmp_path):
         """Test that load_game_state restores location correctly.
-        
+
         Spec: Location should match original
         """
         character = Character("Hero", strength=10, dexterity=10, intelligence=10)
+        # Use coordinate-based adjacency: Start at (0,0), End at (0,1) to the north
         world = {
-            "Start": Location("Start", "Start location", {"north": "End"}),
-            "End": Location("End", "End location")
+            "Start": Location("Start", "Start location", coordinates=(0, 0)),
+            "End": Location("End", "End location", coordinates=(0, 1))
         }
         game_state = GameState(character, world, "Start")
         game_state.move("north")  # Move to End
-        
+
         filepath = save_game_state(game_state, str(tmp_path))
         loaded_state = load_game_state(filepath)
-        
+
         assert loaded_state.current_location == "End"
     
     def test_load_game_state_restores_world(self, tmp_path):
         """Test that load_game_state restores world correctly.
-        
+
         Spec: World should match original
         """
         character = Character("Hero", strength=10, dexterity=10, intelligence=10)
+        # Use coordinate-based adjacency: Start at (0,0), End at (0,1) to the north
         world = {
-            "Start": Location("Start", "Start location", {"north": "End"}),
-            "End": Location("End", "End location", {"south": "Start"})
+            "Start": Location("Start", "Start location", coordinates=(0, 0)),
+            "End": Location("End", "End location", coordinates=(0, 1))
         }
         game_state = GameState(character, world, "Start")
-        
+
         filepath = save_game_state(game_state, str(tmp_path))
         loaded_state = load_game_state(filepath)
-        
+
         assert "Start" in loaded_state.world
         assert "End" in loaded_state.world
-        assert loaded_state.world["Start"].get_connection("north") == "End"
-        assert loaded_state.world["End"].get_connection("south") == "Start"
+        # Verify navigation works via coordinate adjacency
+        assert "north" in loaded_state.world["Start"].get_available_directions(world=loaded_state.world)
+        assert "south" in loaded_state.world["End"].get_available_directions(world=loaded_state.world)
     
     def test_load_game_state_file_not_found(self):
         """Test that load_game_state raises FileNotFoundError for missing file.
@@ -251,25 +255,26 @@ class TestLoadGameState:
     
     def test_load_game_state_roundtrip(self, tmp_path):
         """Test that save -> load preserves complete state.
-        
+
         Spec: Save and load should preserve complete state
         """
         character = Character("Hero", strength=12, dexterity=15, intelligence=8)
         character.take_damage(20)  # Test that modified health is preserved
-        
+
+        # Use coordinate-based adjacency: Start at (0,0), End at (0,1) to the north
         world = {
-            "Start": Location("Start", "Start location", {"north": "End"}),
-            "End": Location("End", "End location", {"south": "Start"})
+            "Start": Location("Start", "Start location", coordinates=(0, 0)),
+            "End": Location("End", "End location", coordinates=(0, 1))
         }
         game_state = GameState(character, world, "Start")
         game_state.move("north")  # Move to End
-        
+
         # Save
         filepath = save_game_state(game_state, str(tmp_path))
-        
+
         # Load
         loaded_state = load_game_state(filepath)
-        
+
         # Verify everything is preserved
         assert loaded_state.current_character.name == "Hero"
         assert loaded_state.current_character.strength == 12
@@ -277,7 +282,7 @@ class TestLoadGameState:
         assert loaded_state.current_location == "End"
         assert "Start" in loaded_state.world
         assert "End" in loaded_state.world
-        
+
         # Verify we can continue playing
         success, _ = loaded_state.move("south")
         assert success is True
@@ -289,10 +294,10 @@ class TestLoadGameState:
         Spec: Location coordinates should be preserved through persistence.
         """
         character = Character("Hero", strength=10, dexterity=10, intelligence=10)
-        # Create locations with coordinates
+        # Create locations with coordinates (coordinate adjacency: Town at origin, Forest to north)
         world = {
-            "Town Square": Location("Town Square", "A town square.", {"north": "Forest"}, coordinates=(0, 0)),
-            "Forest": Location("Forest", "A dark forest.", {"south": "Town Square"}, coordinates=(0, 1))
+            "Town Square": Location("Town Square", "A town square.", coordinates=(0, 0)),
+            "Forest": Location("Forest", "A dark forest.", coordinates=(0, 1))
         }
         game_state = GameState(character, world, "Town Square")
 
@@ -369,13 +374,13 @@ class TestLoadGameState:
             ]
         )
 
-        # Create location with the NPC
+        # Create locations with coordinate-based adjacency
         world = {
             "Market": Location(
-                "Market", "A busy marketplace", {"north": "Town"},
+                "Market", "A busy marketplace",
                 coordinates=(0, 0), npcs=[merchant]
             ),
-            "Town": Location("Town", "A quiet town", {"south": "Market"}, coordinates=(0, 1))
+            "Town": Location("Town", "A quiet town", coordinates=(0, 1))
         }
         game_state = GameState(character, world, "Market")
 
@@ -544,15 +549,16 @@ class TestSubGridPersistence:
         assert loaded_state.current_sub_grid.get_by_name("Tower Upper Floor") is not None
 
     def test_subgrid_roundtrip_preserves_connections(self, tmp_path):
-        """Test that bidirectional connections within SubGrid survive save/load.
+        """Test that coordinate-based navigation within SubGrid survives save/load.
 
-        Spec: Location connections within SubGrid are preserved through persistence.
+        Spec: Location coordinates within SubGrid are preserved through persistence,
+        enabling navigation via coordinate adjacency.
         """
         from cli_rpg.world_grid import SubGrid
 
         character = Character("Hero", strength=10, dexterity=10, intelligence=10)
 
-        # Create sub-grid with connected locations
+        # Create sub-grid with coordinate-adjacent locations
         house_interior = SubGrid(parent_name="House")
         living = Location("Living Room", "A cozy living room")
         kitchen = Location("Kitchen", "A small kitchen")
@@ -565,11 +571,11 @@ class TestSubGridPersistence:
         world = {"House": house}
         game_state = GameState(character, world, "House")
 
-        # Verify connections before save
-        assert living.get_connection("east") == "Kitchen"
-        assert living.get_connection("north") == "Bedroom"
-        assert kitchen.get_connection("west") == "Living Room"
-        assert bedroom.get_connection("south") == "Living Room"
+        # Verify coordinate-based navigation before save
+        assert "east" in living.get_available_directions(sub_grid=house_interior)
+        assert "north" in living.get_available_directions(sub_grid=house_interior)
+        assert "west" in kitchen.get_available_directions(sub_grid=house_interior)
+        assert "south" in bedroom.get_available_directions(sub_grid=house_interior)
 
         # Save
         filepath = save_game_state(game_state, str(tmp_path))
@@ -577,16 +583,16 @@ class TestSubGridPersistence:
         # Load
         loaded_state = load_game_state(filepath)
 
-        # Verify connections after load
+        # Verify coordinate-based navigation after load
         loaded_sub_grid = loaded_state.world["House"].sub_grid
         loaded_living = loaded_sub_grid.get_by_name("Living Room")
         loaded_kitchen = loaded_sub_grid.get_by_name("Kitchen")
         loaded_bedroom = loaded_sub_grid.get_by_name("Bedroom")
 
-        assert loaded_living.get_connection("east") == "Kitchen"
-        assert loaded_living.get_connection("north") == "Bedroom"
-        assert loaded_kitchen.get_connection("west") == "Living Room"
-        assert loaded_bedroom.get_connection("south") == "Living Room"
+        assert "east" in loaded_living.get_available_directions(sub_grid=loaded_sub_grid)
+        assert "north" in loaded_living.get_available_directions(sub_grid=loaded_sub_grid)
+        assert "west" in loaded_kitchen.get_available_directions(sub_grid=loaded_sub_grid)
+        assert "south" in loaded_bedroom.get_available_directions(sub_grid=loaded_sub_grid)
 
     def test_subgrid_roundtrip_preserves_exit_points(self, tmp_path):
         """Test that is_exit_point markers survive save/load.

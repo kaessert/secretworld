@@ -197,7 +197,6 @@ def test_expand_world_passes_category_to_location(mock_openai_class, basic_confi
         "Town Square": Location(
             name="Town Square",
             description="Central plaza",
-            connections={},
             coordinates=(0, 0)
         )
     }
@@ -404,7 +403,6 @@ def test_expand_area_passes_category_to_location(mock_openai_class, basic_config
         "Town Square": Location(
             name="Town Square",
             description="Central plaza",
-            connections={},
             coordinates=(0, 0)
         )
     }

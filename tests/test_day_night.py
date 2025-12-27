@@ -114,9 +114,8 @@ class TestGameStateTimeIntegration:
 
         char = Character(name="Test", strength=10, dexterity=10, intelligence=10)
         loc1 = Location(name="Start", description="Start area", coordinates=(0, 0))
-        loc1.add_connection("north", "End")
         loc2 = Location(name="End", description="End area", coordinates=(0, 1))
-        loc2.add_connection("south", "Start")
+        # Connections are implicit via coordinate adjacency
         world = {"Start": loc1, "End": loc2}
 
         game_state = GameState(char, world, starting_location="Start")

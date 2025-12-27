@@ -26,36 +26,33 @@ class TestGenerateAreaAIService:
         """generate_area returns a list of location dictionaries.
 
         Spec: generate_area returns list of dicts with name, description,
-        relative_coords, and connections.
+        and relative_coords. Connections are optional (coordinate-based nav).
         """
         config = AIConfig(api_key="test-key", enable_caching=False)
         ai_service = AIService(config)
 
         # Mock the LLM call to return valid area data
+        # Note: connections field may be present but is ignored - navigation is coordinate-based
         mock_response = """[
             {
                 "name": "Haunted Graveyard Entrance",
                 "description": "A rusty iron gate marks the entrance to an ancient graveyard.",
-                "relative_coords": [0, 0],
-                "connections": {"north": "Old Tombstones", "east": "Cryptkeeper's Shack"}
+                "relative_coords": [0, 0]
             },
             {
                 "name": "Old Tombstones",
                 "description": "Weathered tombstones lean at odd angles, their inscriptions faded.",
-                "relative_coords": [0, 1],
-                "connections": {"south": "Haunted Graveyard Entrance", "east": "Mausoleum"}
+                "relative_coords": [0, 1]
             },
             {
                 "name": "Cryptkeeper's Shack",
                 "description": "A decrepit wooden shack where the cryptkeeper once lived.",
-                "relative_coords": [1, 0],
-                "connections": {"west": "Haunted Graveyard Entrance", "north": "Mausoleum"}
+                "relative_coords": [1, 0]
             },
             {
                 "name": "Mausoleum",
                 "description": "A grand stone mausoleum with ornate carvings of angels.",
-                "relative_coords": [1, 1],
-                "connections": {"west": "Old Tombstones", "south": "Cryptkeeper's Shack"}
+                "relative_coords": [1, 1]
             }
         ]"""
 
@@ -75,7 +72,7 @@ class TestGenerateAreaAIService:
             assert "name" in loc
             assert "description" in loc
             assert "relative_coords" in loc
-            assert "connections" in loc
+            # connections is optional (navigation is coordinate-based)
 
     def test_generate_area_validates_location_names(self):
         """generate_area validates location name lengths.
@@ -158,8 +155,7 @@ class TestExpandArea:
         grid = WorldGrid()
         start = Location(
             name="Town Square",
-            description="A bustling town square.",
-            connections={"north": "Unknown North"}  # Dangling exit
+            description="A bustling town square."  # Dangling exit
         )
         grid.add_location(start, 0, 0)
         world = grid.as_dict()
@@ -214,44 +210,39 @@ class TestExpandArea:
     def test_expand_area_locations_are_connected(self):
         """All locations in the area are reachable from the entry point.
 
-        Spec: All area locations reachable from entry via internal connections.
+        Spec: All area locations reachable from entry via coordinate adjacency.
         """
         # Setup initial world
         grid = WorldGrid()
         start = Location(
             name="Town Square",
-            description="A bustling town square.",
-            connections={"north": "Unknown"}
+            description="A bustling town square."
         )
         grid.add_location(start, 0, 0)
         world = grid.as_dict()
 
-        # Mock AI service with connected locations
+        # Mock AI service with coordinate-adjacent locations
         mock_ai = MagicMock(spec=AIService)
         mock_ai.generate_area.return_value = [
             {
                 "name": "Area Entry",
                 "description": "Entry point.",
-                "relative_coords": [0, 0],
-                "connections": {"south": "Town Square", "north": "Area Center"}
+                "relative_coords": [0, 0]
             },
             {
                 "name": "Area Center",
                 "description": "Center of area.",
-                "relative_coords": [0, 1],
-                "connections": {"south": "Area Entry", "east": "Area East"}
+                "relative_coords": [0, 1]
             },
             {
                 "name": "Area East",
                 "description": "East part.",
-                "relative_coords": [1, 1],
-                "connections": {"west": "Area Center", "south": "Area Southeast"}
+                "relative_coords": [1, 1]
             },
             {
                 "name": "Area Southeast",
                 "description": "Southeast part.",
-                "relative_coords": [1, 0],
-                "connections": {"north": "Area East", "west": "Area Entry"}
+                "relative_coords": [1, 0]
             }
         ]
 
@@ -264,10 +255,13 @@ class TestExpandArea:
             target_coords=(0, 1)
         )
 
-        # Verify entry location connects back to source
+        # Verify entry location exists and is at the target coordinates
         assert "Area Entry" in result
         entry_loc = result["Area Entry"]
-        assert entry_loc.get_connection("south") == "Town Square"
+        assert entry_loc.coordinates == (0, 1)
+
+        # Verify Town Square can reach entry via coordinate adjacency
+        assert "north" in result["Town Square"].get_available_directions(world=result)
 
         # Sub-locations are now in entry's SubGrid, not world dict
         assert entry_loc.sub_grid is not None
@@ -289,8 +283,8 @@ class TestExpandArea:
         )
         grid.add_location(start, 0, 0)
 
-        # Add a dangling connection
-        start.add_connection("north", "Unknown")
+        # With coordinate-based navigation, frontier exits are implicit
+        # - any direction from (0,0) that doesn't have a location is a frontier
 
         # Mock AI service - area should have internal connections only
         # plus connection back to source
@@ -355,8 +349,7 @@ class TestExpandArea:
         grid = WorldGrid()
         town = Location(
             name="Town Square",
-            description="A bustling town square.",
-            connections={"north": "Unknown", "east": "Market"}
+            description="A bustling town square."
         )
         market = Location(
             name="Market",
@@ -402,8 +395,7 @@ class TestExpandArea:
         grid = WorldGrid()
         start = Location(
             name="Town Square",
-            description="A bustling town square.",
-            connections={"north": "Unknown"}
+            description="A bustling town square."
         )
         grid.add_location(start, 0, 0)
         world = grid.as_dict()
@@ -428,12 +420,15 @@ class TestExpandArea:
             target_coords=(0, 1)
         )
 
-        # Entry location should connect back to source
+        # Entry location should be placed at target coordinates (0, 1)
         new_area = result["New Area"]
-        assert new_area.get_connection("south") == "Town Square"
+        assert new_area.coordinates == (0, 1)
 
-        # Source should connect to entry
-        assert result["Town Square"].get_connection("north") == "New Area"
+        # Connection is implicit via coordinate adjacency:
+        # Town Square at (0, 0), New Area at (0, 1)
+        # Going north from (0,0) leads to (0,1) = New Area
+        # Going south from (0,1) leads to (0,0) = Town Square
+        assert result["Town Square"].coordinates == (0, 0)
 
 
 class TestExpandWorldBackwardCompat:
@@ -451,8 +446,7 @@ class TestExpandWorldBackwardCompat:
         grid = WorldGrid()
         start = Location(
             name="Town Square",
-            description="A bustling town square.",
-            connections={"north": "Unknown"}
+            description="A bustling town square."
         )
         grid.add_location(start, 0, 0)
         world = grid.as_dict()

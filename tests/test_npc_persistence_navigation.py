@@ -24,16 +24,14 @@ class TestNPCPersistenceNavigation:
         loc_a = Location(
             name="Location A",
             description="Test location A",
-            coordinates=(0, 0),
-            connections={"east": "Location B"}
+            coordinates=(0, 0)
         )
         loc_a.npcs = [NPC(name="TestNPC", description="A test NPC", dialogue="Hello")]
 
         loc_b = Location(
             name="Location B",
             description="Test location B",
-            coordinates=(1, 0),
-            connections={"west": "Location A"}
+            coordinates=(1, 0)
         )
 
         world = {"Location A": loc_a, "Location B": loc_b}
@@ -65,8 +63,7 @@ class TestNPCPersistenceNavigation:
         loc_a = Location(
             name="Location A",
             description="Test location A",
-            coordinates=(0, 0),
-            connections={"east": "Location B", "north": "Location C"}
+            coordinates=(0, 0)
         )
         loc_a.npcs = [
             NPC(name="Merchant Alice", description="A friendly merchant", dialogue="Welcome!"),
@@ -76,15 +73,13 @@ class TestNPCPersistenceNavigation:
         loc_b = Location(
             name="Location B",
             description="Test location B",
-            coordinates=(1, 0),
-            connections={"west": "Location A"}
+            coordinates=(1, 0)
         )
 
         loc_c = Location(
             name="Location C",
             description="Test location C",
-            coordinates=(0, 1),
-            connections={"south": "Location A"}
+            coordinates=(0, 1)
         )
 
         world = {"Location A": loc_a, "Location B": loc_b, "Location C": loc_c}
@@ -118,8 +113,7 @@ class TestNPCPersistenceNavigation:
         start = Location(
             name="Start",
             description="Starting location",
-            coordinates=(0, 0),
-            connections={"east": "Unexplored East"}
+            coordinates=(0, 0)
         )
         start.npcs = [NPC(name="HomeNPC", description="An NPC at home", dialogue="Welcome!")]
 
@@ -155,8 +149,7 @@ class TestNPCPersistenceNavigation:
         loc_a = Location(
             name="Location A",
             description="Test location A",
-            coordinates=(0, 0),
-            connections={"east": "Location B"}
+            coordinates=(0, 0)
         )
         loc_a.npcs = [
             NPC(name="O'Brien the Smith", description="An Irish blacksmith", dialogue="Hello!"),
@@ -166,8 +159,7 @@ class TestNPCPersistenceNavigation:
         loc_b = Location(
             name="Location B",
             description="Test location B",
-            coordinates=(1, 0),
-            connections={"west": "Location A"}
+            coordinates=(1, 0)
         )
 
         world = {"Location A": loc_a, "Location B": loc_b}
@@ -191,8 +183,7 @@ class TestNPCPersistenceNavigation:
         loc_a = Location(
             name="Town Square",
             description="A bustling town square",
-            coordinates=(0, 0),
-            connections={"east": "Market"}
+            coordinates=(0, 0)
         )
         # Add multiple NPCs
         npc_names = ["Baker Tom", "Guard Sarah", "Merchant Elena", "Beggar Joe"]
@@ -204,8 +195,7 @@ class TestNPCPersistenceNavigation:
         loc_b = Location(
             name="Market",
             description="A busy market",
-            coordinates=(1, 0),
-            connections={"west": "Town Square"}
+            coordinates=(1, 0)
         )
 
         world = {"Town Square": loc_a, "Market": loc_b}

@@ -385,7 +385,7 @@ class TestCaravanEvent:
 
         character = Character("Hero", strength=10, dexterity=10, intelligence=10)
         world = {
-            "Town": Location("Town", "A town", {}, coordinates=(0, 0), npcs=[]),
+            "Town": Location("Town", "A town", coordinates=(0, 0)),
         }
         gs = GameState(character, world, "Town")
         gs.world_events = []

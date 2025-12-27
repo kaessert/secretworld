@@ -18,7 +18,6 @@ def create_test_game_state(
     location = Location(
         name="Town Square",
         description="A bustling town center",
-        connections={"north": "Forest"},
         npcs=npcs or [],
         coordinates=(0, 0)
     )

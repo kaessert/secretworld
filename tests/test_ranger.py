@@ -47,9 +47,8 @@ class TestTrackCommand:
             coordinates=(0, 1),
             category="forest",
         )
-        # Add bidirectional connections
-        town.add_connection("north", "Dark Forest")
-        forest.add_connection("south", "Town Square")
+        # Connections are implicit via coordinate adjacency
+        # town at (0,0) and forest at (0,1) are north/south neighbors
 
         world = {"Town Square": town, "Dark Forest": forest}
         return GameState(character=character, world=world, starting_location="Town Square")
@@ -122,8 +121,7 @@ class TestTrackCommand:
             coordinates=(0, 1),
             category="forest",
         )
-        town.add_connection("north", "Dark Forest")
-        forest.add_connection("south", "Town Square")
+        # Connections are implicit via coordinate adjacency
 
         world = {"Town Square": town, "Dark Forest": forest}
         game_state = GameState(character=ranger, world=world, starting_location="Town Square")

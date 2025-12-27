@@ -558,18 +558,18 @@ def test_generate_location_works_without_connections(mock_openai_class, basic_co
     assert "connections" not in result
 
 
-# Test: Area generation filters non-cardinal directions - spec: grid-based movement
+# Test: Area generation returns locations without connections - spec: coordinate-based navigation
 @patch('cli_rpg.ai_service.OpenAI')
-def test_generate_area_filters_non_cardinal_directions(mock_openai_class, basic_config):
-    """Test generate_area filters out non-cardinal directions from all locations.
+def test_generate_area_returns_locations_without_connections(mock_openai_class, basic_config):
+    """Test generate_area returns locations without connections field.
 
-    The grid-based movement system only supports north, south, east, west.
-    AI-generated areas may include 'up'/'down' connections which should be filtered.
+    Navigation is coordinate-based via SubGrid/WorldGrid, so connections
+    are not included in the parsed response.
     """
     mock_client = Mock()
     mock_openai_class.return_value = mock_client
 
-    # Area response with non-cardinal directions in multiple locations
+    # Area response with connections (AI still generates them, but we ignore them)
     area_response = [
         {
             "name": "Dungeon Entrance",
@@ -577,8 +577,7 @@ def test_generate_area_filters_non_cardinal_directions(mock_openai_class, basic_
             "relative_coords": [0, 0],
             "connections": {
                 "south": "EXISTING_WORLD",
-                "north": "First Chamber",
-                "down": "Deep Pit"  # Invalid - should be filtered
+                "north": "First Chamber"
             }
         },
         {
@@ -587,7 +586,6 @@ def test_generate_area_filters_non_cardinal_directions(mock_openai_class, basic_
             "relative_coords": [0, 1],
             "connections": {
                 "south": "Dungeon Entrance",
-                "up": "Ceiling Passage",  # Invalid - should be filtered
                 "east": "Treasure Room"
             }
         },
@@ -615,17 +613,14 @@ def test_generate_area_filters_non_cardinal_directions(mock_openai_class, basic_
         size=3
     )
 
-    # Verify all non-cardinal directions were filtered from all locations
+    # Verify connections are not included in parsed response
     for location in result:
-        for direction in location["connections"].keys():
-            assert direction in {"north", "south", "east", "west"}, \
-                f"Found non-cardinal direction '{direction}' in location '{location['name']}'"
-
-    # Verify specific filtering
-    assert "down" not in result[0]["connections"]
-    assert "up" not in result[1]["connections"]
-    assert result[0]["connections"] == {"south": "EXISTING_WORLD", "north": "First Chamber"}
-    assert result[1]["connections"] == {"south": "Dungeon Entrance", "east": "Treasure Room"}
+        assert "connections" not in location, \
+            f"Found 'connections' in location '{location['name']}' but navigation is coordinate-based"
+        # Verify required fields are present
+        assert "name" in location
+        assert "description" in location
+        assert "relative_coords" in location
 
 
 # ========================================================================
@@ -956,24 +951,24 @@ def test_validate_area_location_missing_field(mock_openai_class, basic_config):
     """Test _validate_area_location raises on missing required field (line 666-668).
 
     Spec: When location is missing a required field, raise AIGenerationError.
+    Note: connections is no longer a required field - navigation is coordinate-based.
     """
     mock_client = Mock()
     mock_openai_class.return_value = mock_client
 
-    # Return location missing 'connections'
+    # Return location missing 'description' (a required field)
     mock_response = Mock()
     mock_response.choices = [Mock()]
     mock_response.choices[0].message.content = json.dumps([{
         "name": "Test Location",
-        "description": "A test location with adequate description length",
+        # Missing 'description'
         "relative_coords": [0, 0]
-        # Missing 'connections'
     }])
     mock_client.chat.completions.create.return_value = mock_response
 
     service = AIService(basic_config)
 
-    with pytest.raises(AIGenerationError, match="missing required field.*connections"):
+    with pytest.raises(AIGenerationError, match="missing required field.*description"):
         service.generate_area(
             theme="fantasy",
             sub_theme_hint="forest",
@@ -1174,37 +1169,6 @@ def test_validate_area_location_coords_wrong_length(mock_openai_class, basic_con
             size=3
         )
 
-
-@patch('cli_rpg.ai_service.OpenAI')
-def test_validate_area_location_invalid_connections(mock_openai_class, basic_config):
-    """Test _validate_area_location raises on invalid connections type (line 701-702).
-
-    Spec: When connections is not a dictionary, raise AIGenerationError.
-    """
-    mock_client = Mock()
-    mock_openai_class.return_value = mock_client
-
-    # Return location with invalid connections type
-    mock_response = Mock()
-    mock_response.choices = [Mock()]
-    mock_response.choices[0].message.content = json.dumps([{
-        "name": "Test Location",
-        "description": "A test location with adequate description length",
-        "relative_coords": [0, 0],
-        "connections": ["north", "south"]  # Should be a dict
-    }])
-    mock_client.chat.completions.create.return_value = mock_response
-
-    service = AIService(basic_config)
-
-    with pytest.raises(AIGenerationError, match="connections must be a dictionary"):
-        service.generate_area(
-            theme="fantasy",
-            sub_theme_hint="forest",
-            entry_direction="north",
-            context_locations=[],
-            size=3
-        )
 
 
 # ========================================================================

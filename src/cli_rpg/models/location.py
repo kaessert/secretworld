@@ -15,26 +15,24 @@ if TYPE_CHECKING:
 @dataclass
 class Location:
     """Represents a location in the game world.
-    
-    A location has a name, description, and connections to other locations
-    via directional exits (north, south, east, west).
-    
+
+    A location has a name, description, and coordinates for grid-based navigation.
+    Movement between locations is determined by coordinate adjacency.
+
     Attributes:
         name: The location's name (2-50 characters)
         description: The location's description (1-500 characters)
-        connections: Dictionary mapping directions to location names
     """
-    
+
     # Class constants
     MIN_NAME_LENGTH: ClassVar[int] = 2
     MAX_NAME_LENGTH: ClassVar[int] = 50
     MIN_DESCRIPTION_LENGTH: ClassVar[int] = 1
     MAX_DESCRIPTION_LENGTH: ClassVar[int] = 500
     VALID_DIRECTIONS: ClassVar[set[str]] = {"north", "south", "east", "west"}
-    
+
     name: str
     description: str
-    connections: dict[str, str] = field(default_factory=dict)
     npcs: List["NPC"] = field(default_factory=list)
     coordinates: Optional[Tuple[int, int]] = None
     category: Optional[str] = None
@@ -84,81 +82,58 @@ class Location:
             raise ValueError(
                 f"Location description must be at most {self.MAX_DESCRIPTION_LENGTH} characters long"
             )
-        
-        # Validate connections
-        for direction, location_name in self.connections.items():
-            if direction not in self.VALID_DIRECTIONS:
-                raise ValueError(
-                    f"Invalid direction '{direction}'. Must be one of: {', '.join(sorted(self.VALID_DIRECTIONS))}"
-                )
-            
-            if not location_name or not location_name.strip():
-                raise ValueError(
-                    f"Location name for direction '{direction}' cannot be empty"
-                )
     
-    def add_connection(self, direction: str, location_name: str) -> None:
-        """Add or update a connection to another location.
-        
+    def get_available_directions(
+        self,
+        world: Optional[dict] = None,
+        sub_grid: Optional["SubGrid"] = None,
+    ) -> list[str]:
+        """Get available exit directions based on adjacent locations.
+
+        Checks neighboring coordinates for locations. Requires either a world dict
+        or sub_grid to perform coordinate lookups.
+
         Args:
-            direction: The direction of the connection (must be in VALID_DIRECTIONS)
-            location_name: The name of the connected location (non-empty)
-        
-        Raises:
-            ValueError: If direction is invalid or location_name is empty
-        """
-        if direction not in self.VALID_DIRECTIONS:
-            raise ValueError(
-                f"Invalid direction '{direction}'. Must be one of: {', '.join(sorted(self.VALID_DIRECTIONS))}"
-            )
-        
-        if not location_name or not location_name.strip():
-            raise ValueError("Location name cannot be empty")
-        
-        self.connections[direction] = location_name
-    
-    def remove_connection(self, direction: str) -> None:
-        """Remove a connection in the specified direction.
-        
-        If the connection doesn't exist, this method does nothing (silent removal).
-        
-        Args:
-            direction: The direction of the connection to remove
-        """
-        self.connections.pop(direction, None)
-    
-    def get_connection(self, direction: str) -> Optional[str]:
-        """Get the location name connected in the specified direction.
-        
-        Args:
-            direction: The direction to check
-        
-        Returns:
-            The connected location name, or None if no connection exists
-        """
-        return self.connections.get(direction)
-    
-    def has_connection(self, direction: str) -> bool:
-        """Check if a connection exists in the specified direction.
-        
-        Args:
-            direction: The direction to check
-        
-        Returns:
-            True if a connection exists, False otherwise
-        """
-        return direction in self.connections
-    
-    def get_available_directions(self) -> list[str]:
-        """Get a sorted list of all available exit directions.
+            world: Optional world dict mapping names to Locations (for overworld)
+            sub_grid: Optional SubGrid instance (for interior navigation)
 
         Returns:
-            A sorted list of direction names with connections
+            A sorted list of direction names with adjacent locations
         """
-        return sorted(list(self.connections.keys()))
+        if self.coordinates is None:
+            return []
+
+        # Direction offsets for coordinate calculation
+        offsets = {
+            "north": (0, 1),
+            "south": (0, -1),
+            "east": (1, 0),
+            "west": (-1, 0),
+        }
+
+        directions = []
+        x, y = self.coordinates
+
+        for direction, (dx, dy) in offsets.items():
+            target = (x + dx, y + dy)
+            if sub_grid is not None:
+                # Check sub_grid for interior navigation
+                if sub_grid.is_within_bounds(*target) and sub_grid.get_by_coordinates(*target):
+                    directions.append(direction)
+            elif world is not None:
+                # Check world dict for overworld navigation
+                for loc in world.values():
+                    if loc.coordinates == target:
+                        directions.append(direction)
+                        break
+
+        return sorted(directions)
 
     def get_filtered_directions(
-        self, chunk_manager: Optional["ChunkManager"]
+        self,
+        chunk_manager: Optional["ChunkManager"],
+        world: Optional[dict] = None,
+        sub_grid: Optional["SubGrid"] = None,
     ) -> list[str]:
         """Get exit directions filtered by WFC terrain passability.
 
@@ -169,11 +144,13 @@ class Location:
         Args:
             chunk_manager: Optional ChunkManager for WFC terrain lookup.
                           If None, returns all available directions.
+            world: Optional world dict mapping names to Locations (for overworld)
+            sub_grid: Optional SubGrid instance (for interior navigation)
 
         Returns:
             A sorted list of direction names with passable terrain
         """
-        directions = self.get_available_directions()
+        directions = self.get_available_directions(world=world, sub_grid=sub_grid)
 
         # Return all directions if no chunk_manager or no coordinates
         if chunk_manager is None or self.coordinates is None:
@@ -228,6 +205,8 @@ class Location:
         look_count: int = 1,
         visibility: str = "full",
         chunk_manager: Optional["ChunkManager"] = None,
+        world: Optional[dict] = None,
+        sub_grid: Optional["SubGrid"] = None,
     ) -> str:
         """Get description with appropriate layers based on look count and visibility.
 
@@ -239,6 +218,8 @@ class Location:
                 - "obscured": Some exits hidden (50% each)
             chunk_manager: Optional ChunkManager for WFC terrain-based exit filtering.
                           When provided, exits to impassable terrain are hidden.
+            world: Optional world dict mapping names to Locations (for overworld)
+            sub_grid: Optional SubGrid instance (for interior navigation)
 
         Returns:
             Formatted string with name, description, and appropriate detail layers
@@ -265,9 +246,8 @@ class Location:
             result += f"NPCs: {', '.join(npc_names)}\n"
 
         # Handle exits based on visibility and WFC terrain passability
-        if self.connections:
-            # Filter by WFC terrain first (removes impassable directions)
-            directions = self.get_filtered_directions(chunk_manager)
+        directions = self.get_filtered_directions(chunk_manager, world=world, sub_grid=sub_grid)
+        if directions:
             if visibility == "obscured":
                 # Hide ~50% of remaining exits, seeded by location name for consistency
                 directions = self._filter_exits_for_fog(directions)
@@ -331,7 +311,6 @@ class Location:
         data: dict[str, Any] = {
             "name": self.name,
             "description": self.description,
-            "connections": self.connections.copy(),
             "npcs": [npc.to_dict() for npc in self.npcs]
         }
         # Only include coordinates if present (backward compatibility)
@@ -431,10 +410,10 @@ class Location:
         terrain = data.get("terrain")
         # Parse is_named if present (backward compatibility)
         is_named = data.get("is_named", False)
+        # Note: Legacy 'connections' field is ignored if present (backward compatibility)
         return cls(
             name=data["name"],
             description=data["description"],
-            connections=data.get("connections", {}),
             npcs=npcs,
             coordinates=coordinates,
             category=category,
@@ -474,11 +453,9 @@ class Location:
             npc_names = [colors.npc(npc.name) for npc in self.npcs]
             result += f"NPCs: {', '.join(npc_names)}\n"
 
-        if self.connections:
-            directions = self.get_available_directions()
-            result += f"Exits: {', '.join(directions)}"
-        else:
-            result += "Exits: None"
+        # Note: __str__ cannot show exits without world/sub_grid context
+        # Use get_layered_description() for full exit display
+        result += "Exits: (use look command)"
 
         if self.sub_locations:
             result += f"\nEnter: {', '.join(self.sub_locations)}"

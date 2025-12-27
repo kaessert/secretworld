@@ -215,29 +215,36 @@ class TestIronholdSubGrid:
         assert "Temple Quarter" not in world
 
 
-class TestSubGridConnections:
-    """Test that SubGrid locations have proper internal connections."""
+class TestSubGridNavigation:
+    """Test that SubGrid locations have proper coordinate-based navigation.
 
-    def test_town_square_grid_connections(self):
-        """Market District should connect to Guard Post (east) and Town Well (north)."""
+    Navigation between SubGrid locations is now coordinate-based, not connection-based.
+    Adjacent locations are traversable based on their coordinates.
+    """
+
+    def test_town_square_grid_layout(self):
+        """Market District should be adjacent to Guard Post (east) and Town Well (north)."""
         world, _ = create_default_world()
         town_square = world["Town Square"]
         market = town_square.sub_grid.get_by_name("Market District")
+        guard_post = town_square.sub_grid.get_by_name("Guard Post")
+        town_well = town_square.sub_grid.get_by_name("Town Well")
 
         # Market at (0,0), Guard Post at (1,0), Town Well at (0,1)
-        assert "east" in market.connections
-        assert market.connections["east"] == "Guard Post"
-        assert "north" in market.connections
-        assert market.connections["north"] == "Town Well"
+        assert market.coordinates == (0, 0)
+        assert guard_post.coordinates == (1, 0)  # east of market
+        assert town_well.coordinates == (0, 1)  # north of market
 
-    def test_town_square_grid_reverse_connections(self):
-        """Guard Post should connect back to Market District (west)."""
+    def test_town_square_grid_adjacency(self):
+        """Guard Post should be west of Market District by coordinates."""
         world, _ = create_default_world()
         town_square = world["Town Square"]
+        market = town_square.sub_grid.get_by_name("Market District")
         guard_post = town_square.sub_grid.get_by_name("Guard Post")
 
-        assert "west" in guard_post.connections
-        assert guard_post.connections["west"] == "Market District"
+        # Verify adjacency: Guard Post at (1,0) is east of Market at (0,0)
+        assert guard_post.coordinates[0] - market.coordinates[0] == 1
+        assert guard_post.coordinates[1] - market.coordinates[1] == 0
 
     def test_abandoned_mines_linear_progression(self):
         """Abandoned Mines should have vertical progression for dungeon."""
@@ -248,34 +255,28 @@ class TestSubGridConnections:
         entrance = mines.sub_grid.get_by_name("Mine Entrance")
         flooded = mines.sub_grid.get_by_name("Flooded Level")
         boss = mines.sub_grid.get_by_name("Boss Chamber")
+        upper_tunnels = mines.sub_grid.get_by_name("Upper Tunnels")
 
-        # Entrance connects north to Flooded Level and east to Upper Tunnels
-        assert "north" in entrance.connections
-        assert entrance.connections["north"] == "Flooded Level"
-        assert "east" in entrance.connections
-        assert entrance.connections["east"] == "Upper Tunnels"
-
-        # Flooded Level connects north to Boss Chamber
-        assert "north" in flooded.connections
-        assert flooded.connections["north"] == "Boss Chamber"
-
-        # Boss Chamber connects south to Flooded Level
-        assert "south" in boss.connections
-        assert boss.connections["south"] == "Flooded Level"
+        # Verify coordinates for dungeon progression
+        assert entrance.coordinates == (0, 0)
+        assert flooded.coordinates == (0, 1)  # north of entrance
+        assert boss.coordinates == (0, 2)  # north of flooded
+        assert upper_tunnels.coordinates == (1, 0)  # east of entrance
 
     def test_ironhold_four_way_layout(self):
-        """Ironhold Market should connect in four directions."""
+        """Ironhold Market should have adjacent locations in multiple directions."""
         world, _ = create_default_world()
         ironhold = world["Ironhold City"]
         market = ironhold.sub_grid.get_by_name("Ironhold Market")
+        castle_ward = ironhold.sub_grid.get_by_name("Castle Ward")
+        temple_quarter = ironhold.sub_grid.get_by_name("Temple Quarter")
+        slums = ironhold.sub_grid.get_by_name("Slums")
 
         # Market at (0,0), Castle Ward at (1,0), Temple Quarter at (0,1), Slums at (0,-1)
-        assert "east" in market.connections
-        assert market.connections["east"] == "Castle Ward"
-        assert "north" in market.connections
-        assert market.connections["north"] == "Temple Quarter"
-        assert "south" in market.connections
-        assert market.connections["south"] == "Slums"
+        assert market.coordinates == (0, 0)
+        assert castle_ward.coordinates == (1, 0)  # east of market
+        assert temple_quarter.coordinates == (0, 1)  # north of market
+        assert slums.coordinates == (0, -1)  # south of market
 
 
 class TestSubGridParentLocation:

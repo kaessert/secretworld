@@ -40,21 +40,18 @@ class TestRenderWorldmap:
             "Eldoria": Location(
                 "Eldoria",
                 "A grand city",
-                connections={"east": "Dark Forest"},
                 coordinates=(0, 0),
                 is_overworld=True
             ),
             "Eldoria Market": Location(
                 "Eldoria Market",
                 "The city market",
-                connections={},
                 coordinates=None,  # Sub-locations typically have no grid coordinates
                 parent_location="Eldoria"
             ),
             "Dark Forest": Location(
                 "Dark Forest",
                 "A dark forest",
-                connections={"west": "Eldoria"},
                 coordinates=(1, 0),
                 is_overworld=True
             ),
@@ -78,7 +75,6 @@ class TestRenderWorldmap:
             "Dungeon Room 1": Location(
                 "Dungeon Room 1",
                 "A dark room",
-                connections={},
                 coordinates=(0, 0),
                 is_overworld=False  # Not an overworld location
             ),
@@ -97,7 +93,6 @@ class TestRenderWorldmap:
             "Eldoria": Location(
                 "Eldoria",
                 "A grand city",
-                connections={"east": "Dark Forest"},
                 coordinates=(0, 0),
                 is_overworld=True,
                 sub_locations=["Eldoria Market"]
@@ -105,7 +100,6 @@ class TestRenderWorldmap:
             "Eldoria Market": Location(
                 "Eldoria Market",
                 "The city market",
-                connections={},
                 coordinates=None,
                 parent_location="Eldoria",
                 is_overworld=False
@@ -113,7 +107,6 @@ class TestRenderWorldmap:
             "Dark Forest": Location(
                 "Dark Forest",
                 "A dark forest",
-                connections={"west": "Eldoria"},
                 coordinates=(1, 0),
                 is_overworld=True
             ),
@@ -140,7 +133,6 @@ class TestRenderWorldmap:
             "Town Square": Location(
                 "Town Square",
                 "A town square",
-                connections={},
                 coordinates=(0, 0),
                 is_overworld=True
             ),
@@ -181,14 +173,12 @@ class TestWorldmapExplorationCommand:
             "Town Square": Location(
                 "Town Square",
                 "A town square",
-                connections={"north": "Forest"},
                 coordinates=(0, 0),
                 is_overworld=True
             ),
             "Forest": Location(
                 "Forest",
                 "A dark forest",
-                connections={"south": "Town Square"},
                 coordinates=(0, 1),
                 is_overworld=True
             ),

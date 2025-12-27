@@ -88,7 +88,6 @@ class TestLocationCategory:
         original = Location(
             name="Dark Forest",
             description="A shadowy forest.",
-            connections={"north": "Cave Entrance"},
             coordinates=(5, 10),
             category="wilderness"
         )
@@ -109,7 +108,6 @@ class TestLocationCategory:
         location = Location(
             name="Enchanted Grove",
             description="A magical grove.",
-            connections={"south": "Dark Path"},
             npcs=[npc],
             coordinates=(3, 4),
             category="wilderness"
@@ -118,7 +116,7 @@ class TestLocationCategory:
         # Verify all fields
         assert location.name == "Enchanted Grove"
         assert location.description == "A magical grove."
-        assert location.connections == {"south": "Dark Path"}
+        # Note: connections is no longer an attribute; navigation is coordinate-based
         assert len(location.npcs) == 1
         assert location.coordinates == (3, 4)
         assert location.category == "wilderness"

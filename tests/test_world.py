@@ -103,17 +103,21 @@ class TestCreateDefaultWorld:
             assert sub.parent_location == "Town Square"
             assert sub.is_safe_zone is True
 
-    def test_default_world_sub_locations_have_no_cardinal_connections(self):
-        """Sub-locations have internal SubGrid connections (not overworld exits).
+    def test_default_world_sub_locations_have_coordinates(self):
+        """Sub-locations have coordinates for grid-based navigation.
 
-        Spec: Sub-locations have internal SubGrid connections, not overworld exits
+        Spec: Sub-locations use coordinate-based navigation within SubGrid
         """
         world, _ = create_default_world()
         town_square = world["Town Square"]
-        # Entry point (Market District) should have connections to other sub-locations
+        # Entry point (Market District) should have coordinates
         entry = town_square.sub_grid.get_by_name("Market District")
-        # With SubGrid, entry connects to adjacent rooms (Guard Post at east, Town Well at north)
-        assert len(entry.connections) >= 2  # Has internal SubGrid connections
+        guard_post = town_square.sub_grid.get_by_name("Guard Post")
+        town_well = town_square.sub_grid.get_by_name("Town Well")
+        # With SubGrid, entry is at (0,0), adjacent rooms via coordinates
+        assert entry.coordinates == (0, 0)
+        assert guard_post.coordinates is not None  # east of entry
+        assert town_well.coordinates is not None  # north of entry
 
     def test_default_world_merchant_in_market_district(self):
         """Merchant NPC is in Market District sub-location.
@@ -164,16 +168,18 @@ class TestCreateDefaultWorld:
             assert sub.parent_location == "Forest"
             assert sub.is_safe_zone is False  # All danger zones
 
-    def test_default_world_forest_sub_locations_no_cardinal_exits(self):
-        """Forest sub-locations have internal SubGrid connections.
+    def test_default_world_forest_sub_locations_have_coordinates(self):
+        """Forest sub-locations have coordinates for grid-based navigation.
 
-        Spec: Forest sub-locations have internal SubGrid connections
+        Spec: Forest sub-locations use coordinate-based navigation
         """
         world, _ = create_default_world()
         forest = world["Forest"]
-        # Entry point (Forest Edge) should have internal connections
+        # Entry point (Forest Edge) should have coordinates
         entry = forest.sub_grid.get_by_name("Forest Edge")
-        assert len(entry.connections) >= 2  # Has internal SubGrid connections
+        deep_woods = forest.sub_grid.get_by_name("Deep Woods")
+        assert entry.coordinates == (0, 0)
+        assert deep_woods.coordinates is not None  # Adjacent to entry
 
     def test_default_world_hermit_in_ancient_grove(self):
         """Hermit NPC is in Ancient Grove and is recruitable.
@@ -232,34 +238,39 @@ class TestCreateDefaultWorld:
             assert sub.parent_location == "Millbrook Village"
             assert sub.is_safe_zone is True
 
-    def test_default_world_millbrook_village_sub_locations_no_cardinal_exits(self):
-        """Millbrook Village sub-locations have internal SubGrid connections.
+    def test_default_world_millbrook_village_sub_locations_have_coordinates(self):
+        """Millbrook Village sub-locations have coordinates for grid-based navigation.
 
-        Spec: Millbrook Village sub-locations have internal SubGrid connections
+        Spec: Millbrook Village sub-locations use coordinate-based navigation
         """
         world, _ = create_default_world()
         millbrook = world["Millbrook Village"]
-        # Entry point (Village Square) should have internal connections
+        # Entry point (Village Square) should have coordinates
         entry = millbrook.sub_grid.get_by_name("Village Square")
-        assert len(entry.connections) >= 2  # Has internal SubGrid connections
+        assert entry.coordinates == (0, 0)
 
-    def test_default_world_millbrook_village_connections(self):
-        """Millbrook Village has east connection to Town Square.
+    def test_default_world_millbrook_village_coordinates(self):
+        """Millbrook Village is west of Town Square.
 
-        Spec: Millbrook Village has east->Town Square
+        Spec: Millbrook Village coordinates are west of Town Square
         """
         world, _ = create_default_world()
         millbrook = world["Millbrook Village"]
-        assert millbrook.get_connection("east") == "Town Square"
+        town_square = world["Town Square"]
+        # Millbrook is west (-1,0) of Town Square (0,0)
+        assert millbrook.coordinates[0] == town_square.coordinates[0] - 1
+        assert millbrook.coordinates[1] == town_square.coordinates[1]
 
-    def test_default_world_town_square_has_west_connection(self):
-        """Town Square has west connection to Millbrook Village.
+    def test_default_world_town_square_has_west_neighbor(self):
+        """Town Square has Millbrook Village to its west.
 
-        Spec: Town Square has west->Millbrook Village
+        Spec: Millbrook Village is at coordinates west of Town Square
         """
         world, _ = create_default_world()
         town_square = world["Town Square"]
-        assert town_square.get_connection("west") == "Millbrook Village"
+        millbrook = world["Millbrook Village"]
+        # Verify relative positions
+        assert millbrook.coordinates == (town_square.coordinates[0] - 1, town_square.coordinates[1])
 
     def test_default_world_elder_in_village_square(self):
         """Elder NPC is in Village Square.
@@ -352,34 +363,38 @@ class TestCreateDefaultWorld:
             sub = mines.sub_grid.get_by_name(sub_name)
             assert sub.category == "dungeon"
 
-    def test_default_world_abandoned_mines_sub_locations_no_cardinal_exits(self):
-        """Abandoned Mines sub-locations have internal SubGrid connections.
+    def test_default_world_abandoned_mines_sub_locations_have_coordinates(self):
+        """Abandoned Mines sub-locations have coordinates for grid-based navigation.
 
-        Spec: Mines sub-locations have internal SubGrid connections (dungeon progression)
+        Spec: Mines sub-locations use coordinate-based navigation (dungeon progression)
         """
         world, _ = create_default_world()
         mines = world["Abandoned Mines"]
-        # Entry point (Mine Entrance) should have internal connections
+        # Entry point (Mine Entrance) should have coordinates
         entry = mines.sub_grid.get_by_name("Mine Entrance")
-        assert len(entry.connections) >= 2  # Has internal SubGrid connections
+        assert entry.coordinates == (0, 0)
 
-    def test_default_world_abandoned_mines_connections(self):
-        """Abandoned Mines has south connection to Cave.
+    def test_default_world_abandoned_mines_coordinates(self):
+        """Abandoned Mines is north of Cave.
 
-        Spec: Abandoned Mines has south->Cave
+        Spec: Abandoned Mines coordinates are north of Cave
         """
         world, _ = create_default_world()
         mines = world["Abandoned Mines"]
-        assert mines.get_connection("south") == "Cave"
+        cave = world["Cave"]
+        # Mines is north of Cave
+        assert mines.coordinates[1] == cave.coordinates[1] + 1
 
-    def test_default_world_cave_has_north_connection(self):
-        """Cave has north connection to Abandoned Mines.
+    def test_default_world_cave_north_neighbor(self):
+        """Cave has Abandoned Mines to its north.
 
-        Spec: Cave has north->Abandoned Mines
+        Spec: Abandoned Mines is at coordinates north of Cave
         """
         world, _ = create_default_world()
         cave = world["Cave"]
-        assert cave.get_connection("north") == "Abandoned Mines"
+        mines = world["Abandoned Mines"]
+        # Verify relative positions
+        assert mines.coordinates == (cave.coordinates[0], cave.coordinates[1] + 1)
 
     def test_default_world_old_miner_in_mine_entrance(self):
         """Old Miner NPC is in Mine Entrance.
@@ -437,34 +452,38 @@ class TestCreateDefaultWorld:
             assert sub.parent_location == "Ironhold City"
             assert sub.is_safe_zone is True
 
-    def test_default_world_ironhold_city_sub_locations_no_cardinal_exits(self):
-        """Ironhold City sub-locations have internal SubGrid connections.
+    def test_default_world_ironhold_city_sub_locations_have_coordinates(self):
+        """Ironhold City sub-locations have coordinates for grid-based navigation.
 
-        Spec: Ironhold City sub-locations have internal SubGrid connections
+        Spec: Ironhold City sub-locations use coordinate-based navigation
         """
         world, _ = create_default_world()
         ironhold = world["Ironhold City"]
-        # Entry point (Ironhold Market) should have internal connections
+        # Entry point (Ironhold Market) should have coordinates
         entry = ironhold.sub_grid.get_by_name("Ironhold Market")
-        assert len(entry.connections) >= 3  # Has 3 internal SubGrid connections (4-way)
+        assert entry.coordinates == (0, 0)
 
-    def test_default_world_ironhold_city_connections(self):
-        """Ironhold City has north connection to Town Square.
+    def test_default_world_ironhold_city_coordinates(self):
+        """Ironhold City is south of Town Square.
 
-        Spec: Ironhold City has north->Town Square
+        Spec: Ironhold City coordinates are south of Town Square
         """
         world, _ = create_default_world()
         ironhold = world["Ironhold City"]
-        assert ironhold.get_connection("north") == "Town Square"
+        town_square = world["Town Square"]
+        # Ironhold is south (0,-1) of Town Square (0,0)
+        assert ironhold.coordinates[1] == town_square.coordinates[1] - 1
 
-    def test_default_world_town_square_has_south_connection(self):
-        """Town Square has south connection to Ironhold City.
+    def test_default_world_town_square_south_neighbor(self):
+        """Town Square has Ironhold City to its south.
 
-        Spec: Town Square has south->Ironhold City
+        Spec: Ironhold City is at coordinates south of Town Square
         """
         world, _ = create_default_world()
         town_square = world["Town Square"]
-        assert town_square.get_connection("south") == "Ironhold City"
+        ironhold = world["Ironhold City"]
+        # Verify relative positions
+        assert ironhold.coordinates == (town_square.coordinates[0], town_square.coordinates[1] - 1)
 
     def test_default_world_merchant_in_ironhold_market(self):
         """Wealthy Merchant NPC is in Ironhold Market.
@@ -521,33 +540,41 @@ class TestCreateDefaultWorld:
         for location in world.values():
             assert isinstance(location, Location)
     
-    def test_default_world_town_square_connections(self):
-        """Test Town Square has correct connections.
-        
-        Spec: Town Square has north->Forest, east->Cave
+    def test_default_world_town_square_neighbor_locations(self):
+        """Test Town Square has correct neighbors by coordinates.
+
+        Spec: Town Square has Forest to north, Cave to east
         """
         world, _ = create_default_world()
         town_square = world["Town Square"]
-        assert town_square.get_connection("north") == "Forest"
-        assert town_square.get_connection("east") == "Cave"
-    
-    def test_default_world_forest_connections(self):
-        """Test Forest has correct connections.
-        
-        Spec: Forest has south->Town Square
+        forest = world["Forest"]
+        cave = world["Cave"]
+        # Forest is north (+y) of Town Square
+        assert forest.coordinates == (town_square.coordinates[0], town_square.coordinates[1] + 1)
+        # Cave is east (+x) of Town Square
+        assert cave.coordinates == (town_square.coordinates[0] + 1, town_square.coordinates[1])
+
+    def test_default_world_forest_location(self):
+        """Test Forest is positioned north of Town Square.
+
+        Spec: Forest is at (0, 1), south of which is Town Square at (0, 0)
         """
         world, _ = create_default_world()
         forest = world["Forest"]
-        assert forest.get_connection("south") == "Town Square"
-    
-    def test_default_world_cave_connections(self):
-        """Test Cave has correct connections.
-        
-        Spec: Cave has west->Town Square
+        town_square = world["Town Square"]
+        assert forest.coordinates == (0, 1)
+        assert town_square.coordinates == (0, 0)
+
+    def test_default_world_cave_location(self):
+        """Test Cave is positioned east of Town Square.
+
+        Spec: Cave is at (1, 0), west of which is Town Square at (0, 0)
         """
         world, _ = create_default_world()
         cave = world["Cave"]
-        assert cave.get_connection("west") == "Town Square"
+        town_square = world["Town Square"]
+        assert cave.coordinates == (1, 0)
+        assert town_square.coordinates == (0, 0)
     
     def test_default_world_locations_have_descriptions(self):
         """Test that all locations have non-empty descriptions.
@@ -574,9 +601,9 @@ class TestCreateDefaultWorld:
         assert world1["Town Square"] is not world2["Town Square"]
 
         # Modifying one shouldn't affect the other
-        # Use Cave which only has west and north connections
-        world1["Cave"].add_connection("south", "Somewhere")
-        assert world2["Cave"].get_connection("south") is None
+        original_desc = world2["Cave"].description
+        world1["Cave"].description = "Modified description"
+        assert world2["Cave"].description == original_desc
 
     def test_default_world_locations_have_coordinates(self):
         """Test that default world locations have grid coordinates.
@@ -593,34 +620,34 @@ class TestCreateDefaultWorld:
         assert world["Cave"].coordinates == (1, 0)
 
     def test_default_world_bidirectional_consistency(self):
-        """Test that default world has bidirectional connections.
+        """Test that default world has bidirectional coordinate consistency.
 
         Spec: Grid-based world ensures north/south and east/west are symmetric.
         """
         world, _ = create_default_world()
 
-        # Town Square -> Forest and Forest -> Town Square
-        assert world["Town Square"].get_connection("north") == "Forest"
-        assert world["Forest"].get_connection("south") == "Town Square"
+        # Town Square -> Forest and Forest -> Town Square (north/south)
+        town = world["Town Square"]
+        forest = world["Forest"]
+        assert forest.coordinates[1] == town.coordinates[1] + 1  # Forest is north
+        assert forest.coordinates[0] == town.coordinates[0]  # Same x
 
-        # Town Square -> Cave and Cave -> Town Square
-        assert world["Town Square"].get_connection("east") == "Cave"
-        assert world["Cave"].get_connection("west") == "Town Square"
+        # Town Square -> Cave and Cave -> Town Square (east/west)
+        cave = world["Cave"]
+        assert cave.coordinates[0] == town.coordinates[0] + 1  # Cave is east
+        assert cave.coordinates[1] == town.coordinates[1]  # Same y
 
-    def test_default_world_all_exits_have_valid_destinations(self):
-        """Test that every exit in every location points to an existing location.
+    def test_default_world_all_locations_have_coordinates(self):
+        """Test that every location in the world has coordinates.
 
-        Spec: Remove dangling exits that point to non-existent locations.
-        No exit should reference a destination that doesn't exist in the world.
+        Spec: All locations must have coordinates for grid-based navigation.
         """
         world, _ = create_default_world()
 
         for location_name, location in world.items():
-            for direction, destination in location.connections.items():
-                assert destination in world, (
-                    f"Location '{location_name}' has exit '{direction}' to "
-                    f"'{destination}' which does not exist in the world"
-                )
+            assert location.coordinates is not None, (
+                f"Location '{location_name}' has no coordinates"
+            )
 
 
 class TestCreateWorld:

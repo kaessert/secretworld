@@ -527,6 +527,27 @@ Players want a more sophisticated map system with hierarchical locations.
 
 ---
 
+### Sleep sequence borders too wide
+**Status**: HIGH PRIORITY
+**Date Added**: 2025-12-27
+
+**Problem**: Dream sequence decorative borders (`══`) are excessively wide, spanning 200+ characters and breaking terminal display.
+
+**Example**:
+```
+══════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════
+    You dream of floating through a vast, dark expanse...
+══════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════
+```
+
+**Fix**: Cap border width at 80 characters or terminal width.
+
+**Files to Modify**:
+- `src/cli_rpg/frames.py`: Cap decorative border width
+- `src/cli_rpg/dreams.py`: Use capped borders for dream output
+
+---
+
 ### Dream sequences trigger too frequently
 **Status**: ACTIVE
 
@@ -1266,64 +1287,6 @@ Result: Locations feel random, not part of a cohesive world.
 - **WorldGrid** (`world_grid.py`) - Clean coordinate-based placement with automatic bidirectional connections
 - **SubGrid Architecture** - Bounded interiors for dungeons/buildings separate from overworld
 - **Multi-provider AI** (`ai_service.py`) - Supports OpenAI, Anthropic, Ollama with graceful fallback
-
----
-
-### UX Bug: `enter` command without argument silently enters first location
-**Status**: ACTIVE
-**Date Added**: 2025-12-26
-**Severity**: LOW (UX inconsistency)
-
-#### Problem
-
-The `enter` command without an argument silently enters the first available sub-location instead of prompting the user to specify which location they want to enter.
-
-#### Steps to Reproduce
-
-1. Start the game: `cli-rpg --non-interactive --skip-character-creation`
-2. Type `enter` (without any argument)
-3. Observe: The game automatically enters "Market District" without asking
-
-#### Expected Behavior
-
-The game should display an error message like:
-```
-Enter where? Specify a location: Market District, Guard Post, Town Well
-```
-
-This is consistent with how other commands handle missing arguments:
-- `go` → "Go where? Specify a direction (north, south, east, west)"
-- `equip` → "Equip what? Specify an item name."
-- `use` → "Use what? Specify an item name."
-- `drop` → "Drop what? Specify an item name."
-- `craft` → "Craft what? Use 'recipes' to see available recipes."
-
-#### Actual Behavior
-
-```
-Town Square
-Exits: east, north, south, west
-Enter: Market District, Guard Post, Town Well
-
-> enter
-You enter Market District.
-```
-
-The user may not realize they've entered a sub-location they didn't intend to, which could be confusing.
-
-#### Suggested Fix
-
-In the `enter` command handler, check if the location argument is provided. If not, display an error with available options:
-
-```python
-if not args:
-    locations = get_enterable_locations(current_location)
-    if locations:
-        print(f"Enter where? Specify a location: {', '.join(locations)}")
-    else:
-        print("There are no locations to enter here.")
-    return
-```
 
 ---
 

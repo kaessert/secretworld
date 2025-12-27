@@ -151,9 +151,9 @@ class TestComplexGridNavigation:
         assert game_state.current_location == "SW"
 
     def test_grid_prevents_impossible_connections(self):
-        """Test that grid placement ensures consistent connections.
+        """Test that grid placement ensures consistent coordinate adjacency.
 
-        Spec: Two locations adjacent on grid should have reciprocal connections.
+        Spec: Two locations adjacent on grid should be at adjacent coordinates.
         """
         grid = WorldGrid()
         loc_a = Location("Room A", "Location A")
@@ -162,10 +162,15 @@ class TestComplexGridNavigation:
         grid.add_location(loc_a, 0, 0)
         grid.add_location(loc_b, 1, 0)  # East of Room A
 
-        # Room A should connect east to Room B
-        assert loc_a.get_connection("east") == "Room B"
-        # Room B should connect west to Room A
-        assert loc_b.get_connection("west") == "Room A"
+        # Room A and Room B should have adjacent coordinates
+        assert loc_a.coordinates == (0, 0)
+        assert loc_b.coordinates == (1, 0)
+
+        # Using get_available_directions, Room A should show east exit
+        world = grid.as_dict()
+        assert "east" in loc_a.get_available_directions(world=world)
+        # Room B should show west exit
+        assert "west" in loc_b.get_available_directions(world=world)
 
 
 class TestGridSerializationIntegration:
@@ -257,6 +262,10 @@ class TestAIWorldGridIntegration:
         # New location should be at (0, 1) - north of origin
         assert world["Forest"].coordinates == (0, 1)
 
-        # Bidirectional connections should exist
-        assert world["Town Square"].get_connection("north") == "Forest"
-        assert world["Forest"].get_connection("south") == "Town Square"
+        # Locations are connected via coordinate adjacency
+        town_square = world["Town Square"]
+        forest = world["Forest"]
+
+        # Town Square at (0,0) and Forest at (0,1) are adjacent north-south
+        assert "north" in town_square.get_available_directions(world=world)
+        assert "south" in forest.get_available_directions(world=world)

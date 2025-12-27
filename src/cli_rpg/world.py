@@ -148,8 +148,7 @@ def generate_fallback_location(
     """Generate a fallback location when AI is unavailable.
 
     Creates a template-based location with appropriate name, description,
-    coordinates, and connections. The generated location will always have
-    at least one frontier exit for future expansion.
+    and coordinates. Navigation uses coordinate-based adjacency via WorldGrid.
 
     Args:
         direction: The direction of travel from source (e.g., "north")
@@ -157,10 +156,10 @@ def generate_fallback_location(
         target_coords: The (x, y) coordinates for the new location
         terrain: Optional WFC terrain type (e.g., "forest", "plains")
         chunk_manager: Optional ChunkManager for WFC terrain checking.
-                      When provided, exits to impassable terrain are not added.
+                      When provided, exits to impassable terrain are filtered.
 
     Returns:
-        A new Location instance with proper connections
+        A new Location instance with proper coordinates for grid placement
     """
     # Select template based on terrain if provided, otherwise random
     if terrain is not None and terrain in TERRAIN_TEMPLATES:
@@ -197,55 +196,15 @@ def generate_fallback_location(
     category = template.get("category", None)
 
     # Create the new location (unnamed by default for fallback/template locations)
+    # Note: No connections field - navigation is coordinate-based via WorldGrid
     new_location = Location(
         name=location_name,
         description=description,
-        connections={back_direction: source_location.name},
         coordinates=target_coords,
         category=category,
         terrain=terrain,
         is_named=False,  # Fallback locations are always unnamed terrain filler
     )
-
-    # Add at least one frontier exit for future expansion
-    # Exclude the back direction and any direction that might conflict
-    available_directions = [
-        d for d in Location.VALID_DIRECTIONS
-        if d != back_direction
-    ]
-
-    # Filter out directions that lead to impassable terrain
-    if chunk_manager is not None:
-        from cli_rpg.world_tiles import TERRAIN_PASSABLE
-        # Direction offsets for coordinate calculation
-        offsets = {
-            "north": (0, 1),
-            "south": (0, -1),
-            "east": (1, 0),
-            "west": (-1, 0),
-        }
-
-        passable_directions = []
-        for d in available_directions:
-            if d in offsets:
-                dx, dy = offsets[d]
-                exit_target_x = target_coords[0] + dx
-                exit_target_y = target_coords[1] + dy
-                exit_terrain = chunk_manager.get_tile_at(exit_target_x, exit_target_y)
-                if TERRAIN_PASSABLE.get(exit_terrain, True):
-                    passable_directions.append(d)
-            else:
-                # Unknown direction, include for safety
-                passable_directions.append(d)
-        available_directions = passable_directions
-
-    if available_directions:
-        # Add 1-2 dangling exits for expansion
-        num_exits = random.randint(1, min(2, len(available_directions)))
-        chosen_exits = random.sample(available_directions, num_exits)
-        for exit_dir in chosen_exits:
-            placeholder_name = f"Unexplored {exit_dir.title()}"
-            new_location.add_connection(exit_dir, placeholder_name)
 
     logger.info(f"Generated fallback location '{location_name}' at {target_coords}")
     return new_location
@@ -299,14 +258,14 @@ def create_default_world() -> tuple[dict[str, Location], str]:
         - world: Dictionary mapping location names to Location instances
         - starting_location: "Town Square" (the default starting location)
 
-    The default world consists of:
-    - Town Square: Overworld landmark at (0, 0) with connections north to Forest
-      and east to Cave. Contains sub-locations: Market District, Guard Post, Town Well.
+    The default world consists of (navigation via coordinate adjacency):
+    - Town Square: Overworld landmark at (0, 0). Contains sub-locations:
+      Market District, Guard Post, Town Well.
     - Market District: Sub-location of Town Square, contains Merchant NPC
     - Guard Post: Sub-location of Town Square, contains Guard NPC
     - Town Well: Sub-location of Town Square, atmospheric location
-    - Forest: Northern location at (0, 1) with connection south to Town Square
-    - Cave: Eastern location at (1, 0) with connection west to Town Square
+    - Forest: Northern location at (0, 1), north of Town Square
+    - Cave: Eastern location at (1, 0), east of Town Square
     """
     # Create WorldGrid for consistent spatial representation
     grid = WorldGrid()
@@ -474,7 +433,6 @@ def create_default_world() -> tuple[dict[str, Location], str]:
         description="Colorful market stalls line the cobblestone streets. The smell of fresh bread mingles with exotic spices.",
         parent_location="Town Square",
         is_safe_zone=True,
-        connections={}  # No cardinal exits for sub-locations
     )
     market_district.npcs.append(merchant)
 
@@ -483,7 +441,6 @@ def create_default_world() -> tuple[dict[str, Location], str]:
         description="A fortified stone building where the town guard keeps watch. Weapons and armor hang on the walls.",
         parent_location="Town Square",
         is_safe_zone=True,
-        connections={},  # No cardinal exits for sub-locations
         hidden_secrets=[
             {
                 "type": "lore_hint",
@@ -500,7 +457,6 @@ def create_default_world() -> tuple[dict[str, Location], str]:
         description="An ancient stone well in a quiet corner of town. Moss grows between the weathered stones.",
         parent_location="Town Square",
         is_safe_zone=True,
-        connections={},  # No cardinal exits for sub-locations
         hidden_secrets=[
             {
                 "type": "hidden_treasure",
@@ -529,7 +485,6 @@ def create_default_world() -> tuple[dict[str, Location], str]:
         parent_location="Forest",
         is_safe_zone=False,
         category="forest",
-        connections={},  # No cardinal exits for sub-locations
         hidden_secrets=[
             {
                 "type": "trap",
@@ -546,7 +501,6 @@ def create_default_world() -> tuple[dict[str, Location], str]:
         parent_location="Forest",
         is_safe_zone=False,
         category="forest",
-        connections={},  # No cardinal exits for sub-locations
         hidden_secrets=[
             {
                 "type": "hidden_door",
@@ -563,7 +517,6 @@ def create_default_world() -> tuple[dict[str, Location], str]:
         parent_location="Forest",
         is_safe_zone=False,
         category="forest",
-        connections={},  # No cardinal exits for sub-locations
         boss_enemy="elder_treant",
         treasures=[
             {
@@ -711,7 +664,6 @@ def create_default_world() -> tuple[dict[str, Location], str]:
         description="A humble village square with a weathered wooden well at its center. Villagers go about their daily routines.",
         parent_location="Millbrook Village",
         is_safe_zone=True,
-        connections={},  # No cardinal exits for sub-locations
         hidden_secrets=[
             {
                 "type": "lore_hint",
@@ -728,7 +680,6 @@ def create_default_world() -> tuple[dict[str, Location], str]:
         description="A cozy inn with a roaring fireplace. The smell of fresh bread and ale fills the air.",
         parent_location="Millbrook Village",
         is_safe_zone=True,
-        connections={}  # No cardinal exits for sub-locations
     )
     inn.npcs.append(innkeeper)
 
@@ -737,7 +688,6 @@ def create_default_world() -> tuple[dict[str, Location], str]:
         description="A hot, smoky workshop filled with weapons, armor, and tools. The forge glows orange.",
         parent_location="Millbrook Village",
         is_safe_zone=True,
-        connections={},  # No cardinal exits for sub-locations
         hidden_secrets=[
             {
                 "type": "hidden_treasure",
@@ -779,7 +729,6 @@ def create_default_world() -> tuple[dict[str, Location], str]:
         parent_location="Abandoned Mines",
         is_safe_zone=False,
         category="dungeon",
-        connections={},  # No cardinal exits for sub-locations
         treasures=[
             {
                 "name": "Rusted Strongbox",
@@ -803,7 +752,6 @@ def create_default_world() -> tuple[dict[str, Location], str]:
         parent_location="Abandoned Mines",
         is_safe_zone=False,
         category="dungeon",
-        connections={},  # No cardinal exits for sub-locations
         hidden_secrets=[
             {
                 "type": "trap",
@@ -820,7 +768,6 @@ def create_default_world() -> tuple[dict[str, Location], str]:
         parent_location="Abandoned Mines",
         is_safe_zone=False,
         category="dungeon",
-        connections={},  # No cardinal exits for sub-locations
         boss_enemy="drowned_overseer",  # Drowned mine overseer boss encounter
         hidden_secrets=[
             {
@@ -838,7 +785,6 @@ def create_default_world() -> tuple[dict[str, Location], str]:
         parent_location="Abandoned Mines",
         is_safe_zone=False,
         category="dungeon",
-        connections={},  # No cardinal exits for sub-locations
         boss_enemy="stone_sentinel",  # Guaranteed boss encounter on first entry
         hidden_secrets=[
             {
@@ -942,7 +888,6 @@ def create_default_world() -> tuple[dict[str, Location], str]:
         description="A grand marketplace beneath towering stone arches. Merchants from distant lands hawk exotic goods while city guards patrol the crowded stalls.",
         parent_location="Ironhold City",
         is_safe_zone=True,
-        connections={}  # No cardinal exits for sub-locations
     )
     ironhold_market.npcs.append(wealthy_merchant)
 
@@ -951,7 +896,6 @@ def create_default_world() -> tuple[dict[str, Location], str]:
         description="The noble district of Ironhold, where magnificent mansions line cobblestone streets. The city garrison is headquartered here.",
         parent_location="Ironhold City",
         is_safe_zone=True,
-        connections={},  # No cardinal exits for sub-locations
         hidden_secrets=[
             {
                 "type": "lore_hint",
@@ -968,7 +912,6 @@ def create_default_world() -> tuple[dict[str, Location], str]:
         description="A maze of narrow alleys and ramshackle buildings. The poor and desperate eke out a living in the shadow of the city's wealth.",
         parent_location="Ironhold City",
         is_safe_zone=True,
-        connections={},  # No cardinal exits for sub-locations
         hidden_secrets=[
             {
                 "type": "hidden_door",
@@ -985,7 +928,6 @@ def create_default_world() -> tuple[dict[str, Location], str]:
         description="A peaceful district of temples and shrines. Incense smoke drifts through the air, and the sound of hymns echoes from within the grand cathedral.",
         parent_location="Ironhold City",
         is_safe_zone=True,
-        connections={},  # No cardinal exits for sub-locations
         hidden_secrets=[
             {
                 "type": "hidden_treasure",

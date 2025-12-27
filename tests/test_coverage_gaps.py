@@ -858,10 +858,13 @@ class TestAIWorldExpandArea:
             size=2
         )
 
-        # Verify bidirectional connections
+        # Verify locations exist and have correct coordinates
+        # With coordinate-based navigation, bidirectional connections are implicit:
+        # Town Square at (0,0), Forest Entrance at (0,1)
+        # Moving north from (0,0) leads to (0,1), moving south from (0,1) leads to (0,0)
         assert "Forest Entrance" in expanded_world
-        assert "north" in expanded_world["Town Square"].connections
-        assert expanded_world["Town Square"].connections["north"] == "Forest Entrance"
+        assert expanded_world["Town Square"].coordinates == (0, 0)
+        assert expanded_world["Forest Entrance"].coordinates == (0, 1)
 
 
 class TestAIWorldExpandAreaFallback:

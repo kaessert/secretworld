@@ -294,9 +294,9 @@ def test_expand_world_from_location(mock_ai_service, basic_world):
     assert updated_world["Dark Forest"].name == "Dark Forest"
 
 
-# Test: Expand world creates bidirectional connections
+# Test: Expand world creates coordinate adjacency for navigation
 def test_expand_world_creates_bidirectional_connections(mock_ai_service, basic_world):
-    """Test expand_world creates bidirectional connections between locations."""
+    """Test expand_world places new location at adjacent coordinates."""
     mock_ai_service.generate_location.return_value = {
         "name": "Ancient Ruins",
         "description": "Crumbling ancient ruins.",
@@ -304,7 +304,10 @@ def test_expand_world_creates_bidirectional_connections(mock_ai_service, basic_w
             "south": "Town Square"
         }
     }
-    
+
+    # Set coordinates on Town Square so we can verify adjacency
+    basic_world["Town Square"].coordinates = (0, 0)
+
     updated_world = expand_world(
         world=basic_world,
         ai_service=mock_ai_service,
@@ -312,12 +315,12 @@ def test_expand_world_creates_bidirectional_connections(mock_ai_service, basic_w
         direction="north",
         theme="fantasy"
     )
-    
-    # Verify bidirectional connection
-    assert updated_world["Town Square"].has_connection("north")
-    assert updated_world["Town Square"].get_connection("north") == "Ancient Ruins"
-    assert updated_world["Ancient Ruins"].has_connection("south")
-    assert updated_world["Ancient Ruins"].get_connection("south") == "Town Square"
+
+    # Verify coordinate adjacency (navigation is coordinate-based)
+    # Town Square at (0, 0), north leads to (0, 1)
+    assert updated_world["Town Square"].coordinates == (0, 0)
+    assert updated_world["Ancient Ruins"].coordinates == (0, 1)
+    # New location is north of Town Square, enabling north/south movement
 
 
 # Test: Get opposite direction
@@ -390,18 +393,21 @@ def test_expand_world_context_includes_existing_locations(mock_ai_service, basic
     assert "Town Square" in context_locations
 
 
-# Test: Expand world creates dangling connection
+# Test: Expand world places new location at correct coordinates
 def test_expand_world_creates_dangling_connection(mock_ai_service, basic_world):
-    """Test expand_world ensures new locations have at least one dangling exit.
+    """Test expand_world places new location at correct coordinates.
 
-    Spec: New locations must have at least one exit besides the back-connection.
+    Spec: New location is placed at coordinates adjacent to source in the given direction.
+    Navigation is coordinate-based, not connection-based.
     """
-    # AI returns location with only back-connection
     mock_ai_service.generate_location.return_value = {
         "name": "Dead End Canyon",
         "description": "A remote canyon.",
-        "connections": {"south": "Town Square"}  # Only back-connection
+        "connections": {"south": "Town Square"}
     }
+
+    # Set coordinates on source
+    basic_world["Town Square"].coordinates = (0, 0)
 
     updated_world = expand_world(
         world=basic_world,
@@ -411,29 +417,26 @@ def test_expand_world_creates_dangling_connection(mock_ai_service, basic_world):
         theme="fantasy"
     )
 
-    # New location must have >= 2 exits (back + dangling)
+    # New location should be at adjacent coordinates (navigation is coordinate-based)
     new_loc = updated_world["Dead End Canyon"]
-    assert len(new_loc.connections) >= 2
-    assert new_loc.has_connection("south")  # Back-connection exists
-
-    # At least one non-south connection exists
-    other_connections = [d for d in new_loc.connections if d != "south"]
-    assert len(other_connections) >= 1
+    assert new_loc.coordinates == (0, 1)  # North of (0, 0)
 
 
-# Test: Expand world adds dangling connections for future expansion
+# Test: Expand world assigns coordinates for navigation
 def test_expand_world_adds_dangling_connections(mock_ai_service, basic_world):
-    """Test expand_world adds dangling connections for future expansion.
+    """Test expand_world assigns coordinates to new location.
 
-    Spec: New locations should have dangling exits for future expansion.
+    Spec: New locations get coordinates for coordinate-based navigation.
     Note: AI no longer suggests connections - WFC handles terrain structure.
     """
     mock_ai_service.generate_location.return_value = {
         "name": "Crossroads",
         "description": "A busy crossroads.",
         "category": "wilderness"
-        # No connections - AI doesn't generate them anymore
     }
+
+    # Set coordinates on source
+    basic_world["Town Square"].coordinates = (0, 0)
 
     updated_world = expand_world(
         world=basic_world,
@@ -444,25 +447,25 @@ def test_expand_world_adds_dangling_connections(mock_ai_service, basic_world):
     )
 
     new_loc = updated_world["Crossroads"]
-    # Must have back-connection to source
-    assert new_loc.has_connection("south")
-    assert new_loc.get_connection("south") == "Town Square"
-    # Must have at least one dangling connection for future expansion
-    non_back_connections = [d for d in new_loc.connections if d != "south"]
-    assert len(non_back_connections) >= 1
+    # Must have coordinates for navigation
+    assert new_loc.coordinates is not None
+    assert new_loc.coordinates == (0, 1)  # North of source
 
 
-# Test: Expand world adds dangling connection when AI suggests none
+# Test: Expand world sets coordinates even when AI suggests no connections
 def test_expand_world_adds_dangling_when_ai_suggests_none(mock_ai_service, basic_world):
-    """Test expand_world adds dangling connection when AI suggests none.
+    """Test expand_world sets coordinates when AI suggests no connections.
 
-    Spec: If AI returns empty connections, a dangling exit must be added.
+    Spec: Navigation is coordinate-based, regardless of AI connection suggestions.
     """
     mock_ai_service.generate_location.return_value = {
         "name": "Isolated Cave",
         "description": "An isolated cave.",
         "connections": {}  # No connections at all
     }
+
+    # Set coordinates on source
+    basic_world["Town Square"].coordinates = (0, 0)
 
     updated_world = expand_world(
         world=basic_world,
@@ -473,22 +476,26 @@ def test_expand_world_adds_dangling_when_ai_suggests_none(mock_ai_service, basic
     )
 
     new_loc = updated_world["Isolated Cave"]
-    # Must have back-connection + at least one dangling
-    assert len(new_loc.connections) >= 2
-    assert new_loc.has_connection("south")  # Back to Town Square
+    # Must have coordinates for navigation
+    assert new_loc.coordinates is not None
+    assert new_loc.coordinates == (0, 1)  # North of source
 
 
-# Test: Expand world dangling excludes back direction
+# Test: Expand world places location at correct adjacent coordinates
 def test_expand_world_dangling_excludes_back_direction(mock_ai_service, basic_world):
-    """Test added dangling connection is not in back direction.
+    """Test expand_world places new location at correct adjacent coordinates.
 
-    Spec: Auto-added dangling exit must be in a different direction than back.
+    Spec: New location is placed in the specified direction from source.
+    Navigation is coordinate-based.
     """
     mock_ai_service.generate_location.return_value = {
         "name": "Remote Place",
         "description": "A remote place.",
-        "connections": {"south": "Town Square"}  # Only back
+        "connections": {"south": "Town Square"}
     }
+
+    # Set coordinates on source
+    basic_world["Town Square"].coordinates = (0, 0)
 
     updated_world = expand_world(
         world=basic_world,
@@ -499,12 +506,8 @@ def test_expand_world_dangling_excludes_back_direction(mock_ai_service, basic_wo
     )
 
     new_loc = updated_world["Remote Place"]
-    # Get non-back connections
-    other_dirs = [d for d in new_loc.connections if d != "south"]
-    assert len(other_dirs) >= 1
-    # Dangling should not be "south" (the back direction)
-    for d in other_dirs:
-        assert d != "south"
+    # Location should be north of Town Square
+    assert new_loc.coordinates == (0, 1)  # North of (0, 0)
 
 
 # Test: AI world assigns coordinates to locations
@@ -732,9 +735,10 @@ def test_expand_area_connects_entry_to_source(mock_ai_service):
         size=2
     )
 
-    # Verify bidirectional connections
-    assert updated_world["Town Square"].get_connection("north") == "Cave Entrance"
-    assert updated_world["Cave Entrance"].get_connection("south") == "Town Square"
+    # Verify coordinate adjacency (navigation is coordinate-based)
+    assert updated_world["Town Square"].coordinates == (0, 0)
+    assert updated_world["Cave Entrance"].coordinates == (0, 1)
+    # Locations are adjacent, enabling north/south navigation
 
 
 # Test: expand_area fallback to single location on empty response - spec: lines 374-383, 437-446
@@ -962,13 +966,13 @@ def test_expand_area_adds_bidirectional_connections(mock_ai_service):
 
     # Entry is in world, sub-location is in SubGrid
     entry = updated_world["Center Room"]
-    # Entry should connect to East Room via entry's connections
-    assert entry.get_connection("east") == "East Room"
+    assert entry.coordinates == (0, 1)  # Placed at target coords
+
     # East Room is in SubGrid
     east_room = entry.sub_grid.get_by_name("East Room")
     assert east_room is not None
-    # SubGrid creates bidirectional connections based on coordinates
-    assert east_room.get_connection("west") == "Center Room"
+    # SubGrid locations have relative coordinates
+    assert east_room.coordinates == (1, 0)  # East of entry (relative to SubGrid)
 
 
 # ========================================================================
@@ -1383,17 +1387,17 @@ def test_expand_world_adds_bidirectional_connection(mock_ai_service):
         theme="fantasy"
     )
 
-    # Verify bidirectional connection between Town Square and New Plaza
-    assert updated_world["Town Square"].get_connection("north") == "New Plaza"
-    assert updated_world["New Plaza"].get_connection("south") == "Town Square"
+    # Verify coordinate adjacency (navigation is coordinate-based)
+    assert updated_world["Town Square"].coordinates == (0, 0)
+    assert updated_world["New Plaza"].coordinates == (0, 1)  # North of Town Square
 
 
-# Test: expand_world preserves source location's existing connections
+# Test: expand_world preserves source location's existing neighbors
 def test_expand_world_preserves_source_existing_connections(mock_ai_service):
-    """Test expand_world preserves source location's existing connections.
+    """Test expand_world preserves source location's existing neighbors.
 
-    Spec: Adding a new location should not affect other connections on source.
-    Note: AI no longer suggests connections - terrain structure is from WFC.
+    Spec: Adding a new location should not affect existing locations.
+    Navigation is coordinate-based.
     """
     town_square = Location(
         name="Town Square",
@@ -1403,10 +1407,9 @@ def test_expand_world_preserves_source_existing_connections(mock_ai_service):
     other_place = Location(
         name="Other Place",
         description="Another location.",
-        coordinates=(-1, 0)
+        coordinates=(-1, 0)  # West of Town Square
     )
-    # Town Square already has a west connection to Other Place
-    town_square.add_connection("west", "Other Place")
+    # Navigation is coordinate-based, no need for add_connection
 
     world = {"Town Square": town_square, "Other Place": other_place}
 
@@ -1414,7 +1417,6 @@ def test_expand_world_preserves_source_existing_connections(mock_ai_service):
         "name": "New Plaza",
         "description": "A new plaza.",
         "category": "settlement"
-        # No connections - AI doesn't generate them anymore
     }
 
     updated_world = expand_world(
@@ -1425,10 +1427,10 @@ def test_expand_world_preserves_source_existing_connections(mock_ai_service):
         theme="fantasy"
     )
 
-    # Verify Town Square's new north connection to New Plaza
-    assert updated_world["Town Square"].get_connection("north") == "New Plaza"
-    # Verify Town Square's existing west connection is preserved
-    assert updated_world["Town Square"].get_connection("west") == "Other Place"
+    # Verify New Plaza is placed north of Town Square
+    assert updated_world["New Plaza"].coordinates == (0, 1)
+    # Verify Other Place is still at its original position (west of Town Square)
+    assert updated_world["Other Place"].coordinates == (-1, 0)
 
 
 # Test: expand_area falls back when all locations conflict - spec: lines 434, 436-437
@@ -1526,11 +1528,10 @@ def test_expand_area_adds_back_connection_when_missing(mock_ai_service):
         size=2
     )
 
-    # Verify entry has back-connection added
-    assert updated_world["Cave Entrance"].has_connection("south")
-    assert updated_world["Cave Entrance"].get_connection("south") == "Town Square"
-    # Verify Town Square has forward connection
-    assert updated_world["Town Square"].get_connection("north") == "Cave Entrance"
+    # Verify entry is placed at correct coordinates
+    assert updated_world["Cave Entrance"].coordinates == (0, 1)
+    # Town Square is at (0, 0), Cave Entrance at (0, 1) - they are adjacent
+    assert updated_world["Town Square"].coordinates == (0, 0)
 
 
 # Test: expand_area uses first placed location when entry (0,0) is blocked - spec: line 434
@@ -1582,8 +1583,8 @@ def test_expand_area_uses_first_location_when_entry_blocked(mock_ai_service):
     # Entry Point should be skipped (blocked), Side Room should be placed
     assert "Entry Point" not in updated_world
     assert "Side Room" in updated_world
-    # Side Room becomes the entry since it's the only placed location
-    assert updated_world["Town Square"].get_connection("north") == "Side Room"
+    # Side Room is placed at (1, 1) - relative offset (1, 0) from target (0, 1)
+    assert updated_world["Side Room"].coordinates == (1, 1)
 
 
 # Test: create_ai_world skips positions already occupied

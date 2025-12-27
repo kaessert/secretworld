@@ -80,7 +80,7 @@ src/cli_rpg/
     ├── game_time.py     # Day/night cycle and time tracking
     ├── item.py          # Item definitions
     ├── inventory.py     # Inventory management
-    ├── location.py      # Location with coordinates, connections, NPCs
+    ├── location.py      # Location with coordinates and NPCs (movement via coordinate adjacency)
     ├── npc.py           # Non-player character model
     ├── quest.py         # Quest system with objectives and progress tracking
     ├── shop.py          # Shop system
@@ -99,7 +99,7 @@ src/cli_rpg/
 
 - **Grid-based world** (`world_grid.py`): Spatial consistency with coordinate-based navigation
 - **SubGrid architecture**: Interior locations use bounded SubGrid instances (not the main world dict). Entry points marked with `is_exit_point=True` allow exiting back to overworld.
-- **Location model**: Each location has coordinates, connections to adjacent locations, NPCs, and hierarchical navigation (overworld/sub-location relationships via `enter`/`exit` commands)
+- **Location model**: Each location has coordinates and NPCs; movement is determined by coordinate adjacency (going north from (0,0) leads to (0,1)). Hierarchical navigation via `enter`/`exit` commands supports overworld/sub-location relationships.
 - **GameState**: Central manager for character, world, combat, and shop state
 - **AI service**: Optional integration with graceful fallback when unavailable
 - **Dataclasses**: Used extensively for models (Character, Item, Location, etc.)

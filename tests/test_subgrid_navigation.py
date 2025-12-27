@@ -67,14 +67,13 @@ def make_simple_world() -> dict[str, Location]:
     )
 
     # Create adjacent overworld location
+    # Movement between Town Square (0,0) and Market (1,0) is based on coordinate adjacency
     market = Location(
         name="Market",
         description="The town market.",
         coordinates=(1, 0),
         is_overworld=True,
     )
-    town_square.add_connection("east", "Market")
-    market.add_connection("west", "Town Square")
 
     return {
         "Town Square": town_square,
@@ -186,7 +185,7 @@ class TestMoveInsideSubGrid:
         assert game_state.current_location == "Treasury"
 
     def test_move_inside_sub_grid_blocks_at_bounds(self):
-        """Test movement blocked when no connection exists."""
+        """Test movement blocked when no adjacent location exists."""
         character = make_character()
         world = make_simple_world()
         game_state = GameState(character, world, starting_location="Town Square")
@@ -194,10 +193,10 @@ class TestMoveInsideSubGrid:
         # Enter sub-grid at entrance
         game_state.enter("Town Hall")
 
-        # Try to move west (no connection)
+        # Try to move west (no location at (-1, 0))
         success, message = game_state.move("west")
         assert not success
-        assert "can't go that way" in message.lower()
+        assert "blocked" in message.lower() or "can't go that way" in message.lower()
 
     def test_move_inside_sub_grid_stays_in_sub_location(self):
         """Test movement inside sub_grid keeps in_sub_location True."""

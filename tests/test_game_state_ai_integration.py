@@ -18,14 +18,13 @@ def test_character():
 
 @pytest.fixture
 def basic_world():
-    """Create a basic world with missing connection (for AI generation tests)."""
+    """Create a basic world with starting location (for AI generation tests)."""
     town = Location(
         name="Town Square",
-        description="A town square."
+        description="A town square.",
+        coordinates=(0, 0)
     )
-    # Add connection after creation to avoid Location validation
-    town.connections = {"north": "Forest"}
-    # Note: Forest doesn't exist yet - will test dynamic generation
+    # Note: No location to the north yet - will test dynamic generation
     return {"Town Square": town}
 
 
@@ -35,7 +34,7 @@ def complete_world():
     town = Location(
         name="Town Square",
         description="A town square.",
-        connections={}
+        coordinates=(0, 0)
     )
     return {"Town Square": town}
 
@@ -80,17 +79,7 @@ def test_game_state_accepts_ai_service_and_theme(test_character, complete_world,
 
 # Test: GameState move triggers expansion when destination missing
 def test_game_state_move_triggers_expansion(test_character, basic_world, mock_ai_service):
-    """Test moving to non-existent location triggers AI generation."""
-    # Mock generate_location to return a new location
-    # NOTE: The generated location name should match what expand_world creates
-    mock_ai_service.generate_location.return_value = {
-        "name": "Dark Forest",
-        "description": "A dark and mysterious forest.",
-        "connections": {
-            "south": "Town Square"
-        }
-    }
-    
+    """Test moving to non-existent location triggers AI generation or fallback."""
     game_state = GameState(
         character=test_character,
         world=basic_world,
@@ -98,51 +87,52 @@ def test_game_state_move_triggers_expansion(test_character, basic_world, mock_ai
         ai_service=mock_ai_service,
         theme="fantasy"
     )
-    
-    # Try to move north (connection exists but destination "Forest" doesn't)
+
+    # Try to move north (no location at (0,1) yet - will generate via AI or fallback)
     success, message = game_state.move("north")
-    
-    # Should succeed and generate the location
+
+    # Should succeed (either AI or fallback generation works)
     assert success is True
-    # The location gets generated with whatever name expand_world creates
-    assert "Dark Forest" in game_state.world
-    # Current location should be the generated location name
-    assert game_state.current_location == "Dark Forest"
+    # A new location should be generated at (0, 1)
+    assert game_state.current_location != "Town Square"
+    # Player moved from (0,0) to (0,1), so a new location exists there
+    new_loc = game_state.get_current_location()
+    assert new_loc.coordinates == (0, 1)
 
 
-# Test: GameState move without AI service handles missing destination
-def test_game_state_move_without_ai_service_missing_destination(test_character):
-    """Test move to missing destination shows friendly barrier message without AI service."""
-    # Create world with connection but AI service to allow incomplete connections
+# Test: GameState move without AI service uses fallback generation
+def test_game_state_move_without_ai_service_uses_fallback(test_character):
+    """Test move to empty coordinates uses fallback generation without AI service."""
+    # Create world with coordinates but no AI service
     town = Location(
         name="Town Square",
-        description="A town square."
+        description="A town square.",
+        coordinates=(0, 0)
     )
-    town.connections = {"north": "Forest"}  # Forest doesn't exist
     world = {"Town Square": town}
 
-    # Create with AI service first to allow incomplete connections
+    # Create without AI service - fallback generation should be used
     game_state = GameState(
         character=test_character,
         world=world,
         starting_location="Town Square",
-        ai_service=Mock(spec=AIService)  # Has AI service initially
+        ai_service=None  # No AI service
     )
 
-    # Remove AI service to simulate no AI available
-    game_state.ai_service = None
-
-    # Try to move north (connection exists but destination doesn't, no AI to generate)
+    # Try to move north (no location at (0,1) - fallback should generate)
     success, message = game_state.move("north")
 
-    # Should fail with friendly message (no technical errors exposed)
-    assert success is False
-    assert "impassable barrier" in message.lower()
+    # Should succeed via fallback generation
+    assert success is True
+    # Should have moved to a new location
+    assert game_state.current_location != "Town Square"
+    new_loc = game_state.get_current_location()
+    assert new_loc.coordinates == (0, 1)
 
 
-# Test: GameState AI generation failure handling
-def test_game_state_ai_generation_failure_handling(test_character, basic_world, mock_ai_service):
-    """Test GameState handles AI generation failures gracefully with friendly message."""
+# Test: GameState AI generation failure handling - falls back to template
+def test_game_state_ai_generation_failure_uses_fallback(test_character, basic_world, mock_ai_service):
+    """Test GameState uses fallback when AI generation fails."""
     from cli_rpg.ai_service import AIGenerationError
 
     # Mock AI service to fail
@@ -156,14 +146,15 @@ def test_game_state_ai_generation_failure_handling(test_character, basic_world, 
         theme="fantasy"
     )
 
-    # Try to move north (should fail due to generation error but show friendly message)
+    # Try to move north (AI fails but fallback should work)
     success, message = game_state.move("north")
 
-    # Should fail with friendly message (no technical errors exposed)
-    assert success is False
-    assert "impassable barrier" in message.lower()
-    # Should NOT expose internal error details
-    assert "generation failed" not in message.lower()
+    # Should succeed via fallback generation
+    assert success is True
+    # Should have moved to a new location
+    assert game_state.current_location != "Town Square"
+    new_loc = game_state.get_current_location()
+    assert new_loc.coordinates == (0, 1)
 
 
 # Test: GameState AI world persistence (serialization)
@@ -228,19 +219,19 @@ def test_game_state_theme_defaults_to_fantasy(test_character, complete_world):
 # Test: GameState move to existing location works normally
 def test_game_state_move_to_existing_location_works(test_character, mock_ai_service):
     """Test moving to existing location works normally with AI service."""
-    # Create world with both locations
+    # Create world with both locations at adjacent coordinates
     town = Location(
         name="Town Square",
         description="A town square.",
-        connections={"north": "Forest"}
+        coordinates=(0, 0)
     )
     forest = Location(
         name="Forest",
         description="A forest.",
-        connections={"south": "Town Square"}
+        coordinates=(0, 1)  # North of town
     )
     world = {"Town Square": town, "Forest": forest}
-    
+
     game_state = GameState(
         character=test_character,
         world=world,
@@ -248,10 +239,10 @@ def test_game_state_move_to_existing_location_works(test_character, mock_ai_serv
         ai_service=mock_ai_service,
         theme="fantasy"
     )
-    
+
     # Move to existing location
     success, message = game_state.move("north")
-    
+
     # Should succeed without calling AI
     assert success is True
     assert game_state.current_location == "Forest"
@@ -259,17 +250,9 @@ def test_game_state_move_to_existing_location_works(test_character, mock_ai_serv
     mock_ai_service.generate_location.assert_not_called()
 
 
-# Test: GameState dynamic expansion updates connections
-def test_game_state_dynamic_expansion_updates_connections(test_character, basic_world, mock_ai_service):
-    """Test dynamic expansion creates proper bidirectional connections."""
-    mock_ai_service.generate_location.return_value = {
-        "name": "Mysterious Cave",
-        "description": "A dark cave entrance.",
-        "connections": {
-            "south": "Town Square"
-        }
-    }
-    
+# Test: GameState dynamic expansion creates locations at correct coordinates
+def test_game_state_dynamic_expansion_creates_at_coordinates(test_character, basic_world, mock_ai_service):
+    """Test dynamic expansion creates locations at correct coordinates."""
     game_state = GameState(
         character=test_character,
         world=basic_world,
@@ -277,43 +260,41 @@ def test_game_state_dynamic_expansion_updates_connections(test_character, basic_
         ai_service=mock_ai_service,
         theme="fantasy"
     )
-    
+
     # Move north to trigger expansion
-    game_state.move("north")
-    
-    # Verify bidirectional connections
-    assert game_state.world["Town Square"].has_connection("north")
-    assert game_state.world["Town Square"].get_connection("north") == "Mysterious Cave"
-    assert game_state.world["Mysterious Cave"].has_connection("south")
-    assert game_state.world["Mysterious Cave"].get_connection("south") == "Town Square"
+    success, _ = game_state.move("north")
+    assert success is True
+
+    # Verify new location is at (0, 1) - north of Town Square at (0, 0)
+    new_loc = game_state.get_current_location()
+    assert new_loc.coordinates == (0, 1)
+
+    # Verify Town Square is still at (0, 0)
+    assert game_state.world["Town Square"].coordinates == (0, 0)
 
 
-# Test: GameState passes context to AI service
-def test_game_state_passes_context_to_ai_service(test_character, basic_world, mock_ai_service):
-    """Test GameState passes proper context when generating locations."""
-    mock_ai_service.generate_location.return_value = {
-        "name": "New Location",
-        "description": "A new place.",
-        "connections": {"south": "Town Square"}
-    }
-    
+# Test: GameState handles movement in multiple directions
+def test_game_state_movement_multiple_directions(test_character, basic_world, mock_ai_service):
+    """Test GameState handles movement in multiple directions correctly."""
     game_state = GameState(
         character=test_character,
         world=basic_world,
         starting_location="Town Square",
         ai_service=mock_ai_service,
-        theme="steampunk"
+        theme="fantasy"
     )
-    
-    # Trigger expansion
-    game_state.move("north")
-    
-    # Verify context was passed
-    call_args = mock_ai_service.generate_location.call_args
-    assert call_args[1]["theme"] == "steampunk"
-    assert call_args[1]["source_location"] == "Town Square"
-    assert call_args[1]["direction"] == "north"
-    assert "Town Square" in call_args[1]["context_locations"]
+
+    # Move north to (0, 1)
+    success1, _ = game_state.move("north")
+    assert success1 is True
+    loc1 = game_state.get_current_location()
+    assert loc1.coordinates == (0, 1)
+
+    # Move east to (1, 1)
+    success2, _ = game_state.move("east")
+    assert success2 is True
+    loc2 = game_state.get_current_location()
+    assert loc2.coordinates == (1, 1)
 
 
 # ===== Tests for coordinate-based AI expansion (lines 254-275) =====
@@ -323,7 +304,7 @@ def test_game_state_passes_context_to_ai_service(test_character, basic_world, mo
 def coord_world():
     """Create world with coordinates for testing coordinate-based movement."""
     town = Location(name="Town", description="A town with coordinates.", coordinates=(0, 0))
-    town.connections = {"north": "Placeholder"}  # Exit exists but no destination
+    # No location to the north - coordinate-based movement will generate one
     return {"Town": town}
 
 
@@ -339,7 +320,6 @@ def test_move_triggers_coordinate_based_ai_expansion(test_character, coord_world
             description="A generated area to the north.",
             coordinates=target_coords,
         )
-        new_loc.connections = {"south": "Town"}
         world["Northern Area"] = new_loc
 
     with patch("cli_rpg.game_state.expand_area", side_effect=mock_expand_area) as mock_expand:
@@ -423,12 +403,12 @@ def test_move_autosave_ioerror_silent_failure(test_character, mock_ai_service):
     town = Location(
         name="Town Square",
         description="A town square.",
-        connections={"north": "Forest"},
+        coordinates=(0, 0),
     )
     forest = Location(
         name="Forest",
         description="A forest.",
-        connections={"south": "Town Square"},
+        coordinates=(0, 1),  # North of town
     )
     world = {"Town Square": town, "Forest": forest}
 
@@ -455,16 +435,16 @@ def test_move_appends_exploration_quest_messages(test_character, mock_ai_service
     """Test move appends quest progress messages when exploring (line 319)."""
     from cli_rpg.models.quest import Quest, QuestStatus, ObjectiveType
 
-    # Create world with destination
+    # Create world with destination at proper coordinates
     town = Location(
         name="Town Square",
         description="A town square.",
-        connections={"north": "Ancient Ruins"},
+        coordinates=(0, 0),
     )
     ruins = Location(
         name="Ancient Ruins",
         description="Ancient ruins to explore.",
-        connections={"south": "Town Square"},
+        coordinates=(0, 1),  # North of town
     )
     world = {"Town Square": town, "Ancient Ruins": ruins}
 

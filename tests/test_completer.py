@@ -76,14 +76,19 @@ class TestGoCompletion:
 
         completer = CommandCompleter()
 
-        # Create game state with location that has north exit
+        # Create game state with location that has a north exit via coordinates
         char = Character(name="Test", strength=10, dexterity=10, intelligence=10)
         location = Location(
             name="Test",
             description="A test location.",
-            connections={"north": "Other", "south": "Another"},
+            coordinates=(0, 0),  # At origin
         )
-        world = {"Test": location}
+        north_location = Location(
+            name="North Area",
+            description="An area to the north.",
+            coordinates=(0, 1),  # North of origin
+        )
+        world = {"Test": location, "North Area": north_location}
         game_state = GameState(char, world, "Test")
         completer.set_game_state(game_state)
 
@@ -105,13 +110,24 @@ class TestGoCompletion:
 
         completer = CommandCompleter()
 
+        # Create location with adjacent locations in north and east
         char = Character(name="Test", strength=10, dexterity=10, intelligence=10)
         location = Location(
             name="Test",
             description="A test location.",
-            connections={"north": "Other", "east": "East Place"},
+            coordinates=(0, 0),  # At origin
         )
-        world = {"Test": location}
+        north_location = Location(
+            name="North Area",
+            description="An area to the north.",
+            coordinates=(0, 1),  # North of origin
+        )
+        east_location = Location(
+            name="East Area",
+            description="An area to the east.",
+            coordinates=(1, 0),  # East of origin
+        )
+        world = {"Test": location, "North Area": north_location, "East Area": east_location}
         game_state = GameState(char, world, "Test")
         completer.set_game_state(game_state)
 

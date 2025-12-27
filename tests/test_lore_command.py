@@ -35,7 +35,6 @@ class TestLoreCommandExecution:
         location = Location(
             name="Mystic Forest",
             description="A dark and mysterious forest.",
-            connections={"north": "Village"},
             coordinates=(0, 0),
         )
         world = {"Mystic Forest": location}

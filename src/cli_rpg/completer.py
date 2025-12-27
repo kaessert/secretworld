@@ -164,7 +164,16 @@ class CommandCompleter:
             return []
 
         location = self._game_state.get_current_location()
-        directions = location.get_available_directions()
+
+        # Provide world context for coordinate-based direction lookup
+        if self._game_state.in_sub_location and self._game_state.current_sub_grid:
+            directions = location.get_available_directions(
+                sub_grid=self._game_state.current_sub_grid
+            )
+        else:
+            directions = location.get_available_directions(
+                world=self._game_state.world
+            )
 
         return [d for d in directions if d.startswith(text)]
 

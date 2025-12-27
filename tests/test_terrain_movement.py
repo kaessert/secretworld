@@ -35,7 +35,6 @@ def create_test_location(name: str = "Test Start", coords: tuple = (0, 0), **kwa
         "name": name,
         "description": "A test location",
         "coordinates": coords,
-        "connections": {},
     }
     defaults.update(kwargs)
     return Location(**defaults)
@@ -61,10 +60,10 @@ def test_move_to_passable_terrain_without_connection(mock_chunk_manager):
 
     Spec: Movement should check WFC terrain passability first. If terrain is
     passable (e.g., forest at target), movement should succeed regardless of
-    connection dict status.
+    whether there's a named location at target coordinates.
     """
-    # Setup: Location at (0,0), no connection north, but forest at (0,1)
-    start_loc = create_test_location("Test Start", (0, 0), connections={})
+    # Setup: Location at (0,0), no location at (0,1), but forest terrain at (0,1)
+    start_loc = create_test_location("Test Start", (0, 0))
     mock_chunk_manager.get_tile_at = MagicMock(return_value="forest")  # Passable
 
     # Create GameState with WFC enabled
@@ -72,8 +71,10 @@ def test_move_to_passable_terrain_without_connection(mock_chunk_manager):
     game_state = GameState(character, {"Test Start": start_loc}, "Test Start")
     game_state.chunk_manager = mock_chunk_manager
 
-    # Verify no connection exists
-    assert not start_loc.has_connection("north")
+    # Verify no location exists at target coordinates (no explicit north neighbor)
+    world = {"Test Start": start_loc}
+    available_dirs = start_loc.get_available_directions(world=world)
+    assert "north" not in available_dirs, "No location should exist at (0,1) yet"
 
     # Action: Move north
     with patch("cli_rpg.game_state.autosave"):
@@ -88,26 +89,20 @@ def test_move_to_passable_terrain_without_connection(mock_chunk_manager):
 
 
 def test_move_to_impassable_terrain_blocked(mock_chunk_manager):
-    """Player cannot move to impassable terrain (water) even with connection.
+    """Player cannot move to impassable terrain (water).
 
     Spec: When WFC shows impassable terrain (water) at target coordinates,
-    movement should be blocked with appropriate message, even if connections
-    dict has an entry for that direction.
+    movement should be blocked with appropriate message.
     """
-    # Setup: Location at (0,0), connection north exists, but water at (0,1)
-    start_loc = create_test_location(
-        "Test Start", (0, 0), connections={"north": "Fake Destination"}
-    )
+    # Setup: Location at (0,0), water terrain at (0,1)
+    start_loc = create_test_location("Test Start", (0, 0))
     mock_chunk_manager.get_tile_at = MagicMock(return_value="water")  # Impassable
 
     character = create_test_character()
     game_state = GameState(character, {"Test Start": start_loc}, "Test Start")
     game_state.chunk_manager = mock_chunk_manager
 
-    # Verify connection exists
-    assert start_loc.has_connection("north")
-
-    # Action: Move north
+    # Action: Move north (water is impassable)
     success, message = game_state.move("north")
 
     # Verify move blocked
@@ -117,19 +112,17 @@ def test_move_to_impassable_terrain_blocked(mock_chunk_manager):
     assert game_state.current_location == "Test Start"  # Didn't move
 
 
-# --- Test 3: Movement without ChunkManager uses connections (legacy) ---
+# --- Test 3: Movement without ChunkManager uses coordinate adjacency ---
 
 
 def test_move_without_chunk_manager_uses_connections():
-    """Without WFC, movement uses traditional connection-based logic.
+    """Without WFC, movement uses coordinate-based adjacency.
 
     Spec: When chunk_manager is None (legacy saves, non-WFC mode), the game
-    should fall back to connection dict-based movement validation.
+    should use coordinate adjacency for movement validation.
     """
-    # Setup: Location at (0,0), no chunk_manager, connection north exists
-    start_loc = create_test_location(
-        "Test Start", (0, 0), connections={"north": "Northern Area"}
-    )
+    # Setup: Location at (0,0), no chunk_manager, location at (0,1) exists
+    start_loc = create_test_location("Test Start", (0, 0))
     target_loc = create_test_location("Northern Area", (0, 1))
 
     character = create_test_character()
@@ -140,37 +133,37 @@ def test_move_without_chunk_manager_uses_connections():
     )
     game_state.chunk_manager = None  # No WFC
 
-    # Action: Move north (using connection)
+    # Action: Move north (via coordinate adjacency)
     with patch("cli_rpg.game_state.autosave"):
         success, message = game_state.move("north")
 
-    # Verify move succeeded via connection
-    assert success, f"Legacy move should succeed: {message}"
+    # Verify move succeeded via coordinate adjacency
+    assert success, f"Coordinate-based move should succeed: {message}"
     assert game_state.current_location == "Northern Area"
 
 
-# --- Test 4: Movement blocked when no terrain and no connection ---
+# --- Test 4: Movement without coordinates fails ---
 
 
 def test_move_blocked_no_terrain_no_connection():
-    """Movement fails when no WFC terrain and no connection.
+    """Movement fails when location has no coordinates.
 
-    Spec: Without chunk_manager and without connection, movement should fail
-    with "You can't go that way."
+    Spec: Without coordinates, movement should fail with appropriate message.
+    The game requires coordinates for navigation in the new system.
     """
-    # Setup: No chunk_manager, no connection in direction
-    start_loc = create_test_location("Test Start", (0, 0), connections={})
+    # Setup: Location without coordinates
+    start_loc = Location(name="Test Start", description="A test location", coordinates=None)
 
     character = create_test_character()
     game_state = GameState(character, {"Test Start": start_loc}, "Test Start")
     game_state.chunk_manager = None  # No WFC
 
-    # Action: Move north (no connection, no WFC)
+    # Action: Move north (no coordinates on current location)
     success, message = game_state.move("north")
 
-    # Verify move blocked
+    # Verify move blocked due to no coordinates
     assert not success, f"Move should fail but succeeded: {message}"
-    assert "can't go that way" in message.lower(), f"Wrong error message: {message}"
+    assert "no coordinates" in message.lower(), f"Wrong error message: {message}"
 
 
 # --- Test 5: All cardinal directions check terrain passability ---
@@ -205,7 +198,7 @@ def test_all_directions_check_terrain(mock_chunk_manager):
 
     for direction, expected_success in directions_expected.items():
         # Create fresh game state for each test (avoids shared state issues)
-        start_loc = create_test_location("Test Start", (0, 0), connections={})
+        start_loc = create_test_location("Test Start", (0, 0))
         character = create_test_character()
         game_state = GameState(character, {"Test Start": start_loc}, "Test Start")
         game_state.chunk_manager = mock_chunk_manager

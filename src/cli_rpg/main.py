@@ -2572,7 +2572,11 @@ def run_json_mode(
     def emit_current_actions() -> None:
         """Emit available actions as JSON."""
         location = game_state.get_current_location()
-        exits = list(location.connections.keys())
+        # Get exits from coordinate-based directions
+        if game_state.in_sub_location:
+            exits = location.get_available_directions(sub_grid=game_state.current_sub_grid)
+        else:
+            exits = location.get_available_directions(world=game_state.world)
         npcs = [npc.name for npc in location.npcs] if location.npcs else []
         commands = get_available_commands()
         emit_actions(exits=exits, npcs=npcs, commands=commands)

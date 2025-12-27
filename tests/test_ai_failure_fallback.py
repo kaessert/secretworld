@@ -28,12 +28,6 @@ def world_with_coords():
     loc = Location(
         name="Town",
         description="A town.",
-        connections={
-            "north": "Unexplored North",
-            "south": "Unexplored South",
-            "east": "Unexplored East",
-            "west": "Unexplored West"
-        },
         coordinates=(0, 0)
     )
     return {"Town": loc}

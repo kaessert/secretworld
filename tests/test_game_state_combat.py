@@ -19,13 +19,11 @@ class TestIsInCombat:
         world = {
             "Town Square": Location(
                 name="Town Square",
-                description="A bustling town square",
-                connections={"north": "Forest Path"}
+                description="A bustling town square"
             ),
             "Forest Path": Location(
                 name="Forest Path",
-                description="A path through the forest",
-                connections={"south": "Town Square"}
+                description="A path through the forest"
             )
         }
         game_state = GameState(character, world)
@@ -43,13 +41,11 @@ class TestIsInCombat:
         world = {
             "Town Square": Location(
                 name="Town Square",
-                description="A bustling town square",
-                connections={"north": "Forest Path"}
+                description="A bustling town square"
             ),
             "Forest Path": Location(
                 name="Forest Path",
-                description="A path through the forest",
-                connections={"south": "Town Square"}
+                description="A path through the forest"
             )
         }
         game_state = GameState(character, world)
@@ -76,8 +72,7 @@ class TestTriggerEncounter:
         world = {
             "Forest Path": Location(
                 name="Forest Path",
-                description="A path through the forest",
-                connections={}
+                description="A path through the forest"
             )
         }
         game_state = GameState(character, world, starting_location="Forest Path")
@@ -105,8 +100,7 @@ class TestTriggerEncounter:
         world = {
             "Forest Path": Location(
                 name="Forest Path",
-                description="A path through the forest",
-                connections={}
+                description="A path through the forest"
             )
         }
         game_state = GameState(character, world, starting_location="Forest Path")
@@ -133,8 +127,7 @@ class TestTriggerEncounter:
         world = {
             "Forest Path": Location(
                 name="Forest Path",
-                description="A path through the forest",
-                connections={}
+                description="A path through the forest"
             )
         }
         game_state = GameState(character, world, starting_location="Forest Path")
@@ -162,7 +155,6 @@ class TestTriggerEncounter:
             "Market District": Location(
                 name="Market District",
                 description="A busy market",
-                connections={},
                 is_safe_zone=True
             )
         }
@@ -179,7 +171,7 @@ class TestTriggerEncounter:
 
 class TestMoveWithCombat:
     """Test move() triggers encounters."""
-    
+
     def test_move_can_trigger_encounter(self):
         """Spec: move() should call trigger_encounter() after successful move."""
         character = Character(
@@ -192,12 +184,12 @@ class TestMoveWithCombat:
             "Town Square": Location(
                 name="Town Square",
                 description="A bustling town square",
-                connections={"north": "Forest Path"}
+                coordinates=(0, 0)
             ),
             "Forest Path": Location(
                 name="Forest Path",
                 description="A path through the forest",
-                connections={"south": "Town Square"}
+                coordinates=(0, 1)
             )
         }
         game_state = GameState(character, world)
@@ -232,8 +224,7 @@ class TestCombatStateSerialization:
         world = {
             "Town Square": Location(
                 name="Town Square",
-                description="A bustling town square",
-                connections={}
+                description="A bustling town square"
             )
         }
         game_state = GameState(character, world)

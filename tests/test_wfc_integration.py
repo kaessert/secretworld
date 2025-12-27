@@ -39,7 +39,6 @@ def basic_world() -> dict[str, Location]:
         name="Origin",
         description="The starting location",
         coordinates=(0, 0),
-        connections={"north": "Unexplored North", "east": "Unexplored East"},
     )
     return {"Origin": origin}
 

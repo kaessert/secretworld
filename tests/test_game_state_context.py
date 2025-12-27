@@ -36,13 +36,11 @@ def basic_world():
         "Town Square": Location(
             name="Town Square",
             description="A bustling town center.",
-            connections={"north": "Forest Path"},
             coordinates=(0, 0),
         ),
         "Forest Path": Location(
             name="Forest Path",
             description="A path into the dark woods.",
-            connections={"south": "Town Square"},
             coordinates=(0, 1),
         ),
     }

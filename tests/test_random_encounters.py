@@ -225,8 +225,8 @@ class TestMoveRandomEncounter:
 
         character = Character("Hero", strength=10, dexterity=10, intelligence=10)
         world = {
-            "Start": Location("Start", "Start location", {"north": "End"}, coordinates=(0, 0)),
-            "End": Location("End", "End location", {"south": "Start"}, coordinates=(0, 1)),
+            "Start": Location("Start", "Start location", coordinates=(0, 0)),
+            "End": Location("End", "End location", coordinates=(0, 1)),
         }
         return GameState(character, world, "Start")
 
@@ -318,11 +318,11 @@ class TestHostileEncounter:
         world = {
             "Forest": Location(
                 "Dark Forest", "A dark forest",
-                {"north": "Clearing"}, coordinates=(0, 0), category="forest"
+                coordinates=(0, 0), category="forest"
             ),
             "Clearing": Location(
                 "Clearing", "A forest clearing",
-                {"south": "Forest"}, coordinates=(0, 1)
+                coordinates=(0, 1)
             ),
         }
         return GameState(character, world, "Forest")
@@ -389,8 +389,8 @@ class TestMerchantEncounter:
 
         character = Character("Hero", strength=10, dexterity=10, intelligence=10)
         world = {
-            "Road": Location("Road", "A dusty road", {"north": "Town"}, coordinates=(0, 0)),
-            "Town": Location("Town", "A small town", {"south": "Road"}, coordinates=(0, 1)),
+            "Road": Location("Road", "A dusty road", coordinates=(0, 0)),
+            "Town": Location("Town", "A small town", coordinates=(0, 1)),
         }
         return GameState(character, world, "Road")
 
@@ -449,8 +449,8 @@ class TestWandererEncounter:
 
         character = Character("Hero", strength=10, dexterity=10, intelligence=10)
         world = {
-            "Road": Location("Road", "A dusty road", {"north": "Town"}, coordinates=(0, 0)),
-            "Town": Location("Town", "A small town", {"south": "Road"}, coordinates=(0, 1)),
+            "Road": Location("Road", "A dusty road", coordinates=(0, 0)),
+            "Town": Location("Town", "A small town", coordinates=(0, 1)),
         }
         return GameState(character, world, "Road", theme="fantasy")
 
@@ -602,11 +602,11 @@ class TestSafeZoneEncounters:
         world = {
             "Town": Location(
                 "Town Square", "A safe town square",
-                {"north": "Road"}, coordinates=(0, 0), is_safe_zone=True
+                coordinates=(0, 0), is_safe_zone=True
             ),
             "Road": Location(
                 "Road", "A dangerous road",
-                {"south": "Town"}, coordinates=(0, 1), is_safe_zone=False
+                coordinates=(0, 1), is_safe_zone=False
             ),
         }
         return GameState(character, world, "Town")

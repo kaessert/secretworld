@@ -134,26 +134,9 @@ def render_map(
         if name == current_location:
             coord_to_marker[coords] = "@"
         else:
-            # Check if this location is adjacent to current location
-            is_adjacent_to_current = False
-            has_connection_from_current = False
-
-            if current_loc.coordinates is not None:
-                cx, cy = current_loc.coordinates
-                lx, ly = coords
-                for direction, (dx, dy) in DIRECTION_DELTAS.items():
-                    if (cx + dx, cy + dy) == coords:
-                        is_adjacent_to_current = True
-                        # Check if current location has connection in this direction
-                        if direction in current_loc.connections:
-                            has_connection_from_current = True
-                        break
-
-            # If adjacent to current but no connection, mark as unreachable
-            if is_adjacent_to_current and not has_connection_from_current:
-                unreachable_locations.add(coords)
-            else:
-                reachable_names.add(name)
+            # With coordinate-based movement, all adjacent locations are reachable
+            # (terrain passability is checked separately by WFC)
+            reachable_names.add(name)
 
     # Assign unique letter symbols only to REACHABLE non-current locations
     SYMBOLS = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz"
@@ -227,36 +210,13 @@ def render_map(
                 if is_water:
                     row_parts.append(pad_marker(WATER_MARKER, cell_width))
                 else:
-                    # Check if this empty cell is adjacent to an explored location
-                    # Mark as blocked only if adjacent to explored location(s) AND
-                    # none of those locations have a connection to this cell
-                    is_adjacent_to_explored = False
-                    is_reachable = False
-                    for name, location in locations_with_coords:
-                        if location.coordinates is None:
-                            continue
-                        lx, ly = location.coordinates
-                        # Check if coord is adjacent to this location
-                        for direction, (dx, dy) in DIRECTION_DELTAS.items():
-                            if (lx + dx, ly + dy) == coord:
-                                # coord is adjacent to this explored location
-                                is_adjacent_to_explored = True
-                                # Check if this location has a connection to the cell
-                                if direction in location.connections:
-                                    is_reachable = True
-                                    break
-                        if is_reachable:
-                            break  # Found a path, no need to check more
-
-                    # Blocked = adjacent to explored area but no path leads there
-                    if is_adjacent_to_explored and not is_reachable:
-                        row_parts.append(pad_marker(BLOCKED_MARKER, cell_width))
-                    else:
-                        row_parts.append(" " * cell_width)
+                    # With coordinate-based movement, unexplored cells are just empty
+                    # (no explicit connections needed for movement)
+                    row_parts.append(" " * cell_width)
         map_rows.append("".join(row_parts))
 
     # Get available exits from current location, filtered by WFC terrain passability
-    available_directions = current_loc.get_filtered_directions(chunk_manager)
+    available_directions = current_loc.get_filtered_directions(chunk_manager, world=world)
     if available_directions:
         exits_line = "Exits: " + ", ".join(available_directions)
     else:
@@ -290,7 +250,6 @@ def render_map(
     lines.append("")
     lines.append("Legend:")
     lines.extend(legend_entries)
-    lines.append(f"  {BLOCKED_MARKER} = Blocked/Wall")
     lines.append(f"  {WATER_MARKER} = Water (impassable)")
     lines.append(exits_line)
 
@@ -400,8 +359,8 @@ def _render_sub_grid_map(sub_grid: "SubGrid", current_location: str) -> str:
                 row_parts.append(" " * cell_width)
         map_rows.append("".join(row_parts))
 
-    # Get exits from current location
-    available_directions = current_loc.get_available_directions()
+    # Get exits from current location using sub_grid for coordinate lookup
+    available_directions = current_loc.get_available_directions(sub_grid=sub_grid)
     exits_line = f"Exits: {', '.join(available_directions)}" if available_directions else "Exits: None"
 
     # Build box border

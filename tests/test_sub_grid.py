@@ -123,49 +123,42 @@ class TestSubGridBasics:
         assert grid.is_within_bounds(0, 3) is False
 
 
-class TestSubGridConnections:
-    """Test bidirectional connection creation."""
+class TestSubGridCoordinateNavigation:
+    """Test coordinate-based navigation in SubGrid.
 
-    def test_adjacent_locations_connected(self):
-        """Test adjacent locations get automatic connections - spec: auto-connections."""
+    Navigation is now coordinate-based - adjacent locations are determined by
+    their coordinates, not explicit connection dictionaries.
+    """
+
+    def test_adjacent_locations_by_coordinates(self):
+        """Test adjacent locations are placed with correct coordinates - spec: coordinate adjacency."""
         grid = SubGrid(parent_name="Castle")
         hall = Location(name="Great Hall", description="A vast hall.")
         kitchen = Location(name="Kitchen", description="A kitchen.")
         grid.add_location(hall, 0, 0)
         grid.add_location(kitchen, 0, 1)  # north of hall
 
-        # Hall should have north connection to Kitchen
-        assert hall.get_connection("north") == "Kitchen"
+        # Verify coordinates set correctly
+        assert hall.coordinates == (0, 0)
+        assert kitchen.coordinates == (0, 1)
+        # Verify Kitchen is north of Hall (dy=1)
+        assert kitchen.coordinates[1] - hall.coordinates[1] == 1
 
-    def test_bidirectional_connections(self):
-        """Test connections are bidirectional - spec: bidirectional guarantee."""
-        grid = SubGrid(parent_name="Castle")
-        hall = Location(name="Great Hall", description="A vast hall.")
-        kitchen = Location(name="Kitchen", description="A kitchen.")
-        grid.add_location(hall, 0, 0)
-        grid.add_location(kitchen, 0, 1)  # north of hall
-
-        # Hall should have north connection to Kitchen
-        assert hall.get_connection("north") == "Kitchen"
-        # Kitchen should have south connection to Hall
-        assert kitchen.get_connection("south") == "Great Hall"
-
-    def test_non_adjacent_locations_not_connected(self):
-        """Test non-adjacent locations do not get automatic connections."""
+    def test_non_adjacent_locations_by_coordinates(self):
+        """Test non-adjacent locations have gap in coordinates."""
         grid = SubGrid(parent_name="Castle")
         hall = Location(name="Great Hall", description="A vast hall.")
         tower = Location(name="Tower", description="A tower.")
         grid.add_location(hall, 0, 0)
         grid.add_location(tower, 2, 2)  # not adjacent
 
-        # Hall should not have connection to Tower
-        assert hall.get_connection("north") is None
-        assert hall.get_connection("east") is None
-        assert tower.get_connection("south") is None
-        assert tower.get_connection("west") is None
+        # Verify they're not adjacent (gap > 1 in both directions)
+        dx = abs(tower.coordinates[0] - hall.coordinates[0])
+        dy = abs(tower.coordinates[1] - hall.coordinates[1])
+        assert dx > 1 or dy > 1  # Not cardinally adjacent
 
-    def test_multi_direction_connections(self):
-        """Test connections in all four directions work correctly."""
+    def test_multi_direction_layout(self):
+        """Test locations in all four directions work correctly."""
         grid = SubGrid(parent_name="Castle")
         center = Location(name="Center", description="Center room.")
         north = Location(name="North Room", description="North.")
@@ -179,11 +172,11 @@ class TestSubGridConnections:
         grid.add_location(east, 1, 0)
         grid.add_location(west, -1, 0)
 
-        # Center should be connected to all four
-        assert center.get_connection("north") == "North Room"
-        assert center.get_connection("south") == "South Room"
-        assert center.get_connection("east") == "East Room"
-        assert center.get_connection("west") == "West Room"
+        # Center should have adjacent locations in all four directions via coordinates
+        assert grid.get_by_coordinates(0, 1).name == "North Room"
+        assert grid.get_by_coordinates(0, -1).name == "South Room"
+        assert grid.get_by_coordinates(1, 0).name == "East Room"
+        assert grid.get_by_coordinates(-1, 0).name == "West Room"
 
 
 class TestSubGridSerialization:
@@ -209,7 +202,6 @@ class TestSubGridSerialization:
                 {
                     "name": "Great Hall",
                     "description": "A vast hall.",
-                    "connections": {},
                     "coordinates": [0, 0],
                     "parent_location": "Castle",
                     "npcs": []
@@ -265,9 +257,9 @@ class TestSubGridSerialization:
         assert restored.get_by_name("Kitchen") is not None
         assert restored.get_by_coordinates(0, 0).name == "Great Hall"
         assert restored.get_by_coordinates(0, 1).name == "Kitchen"
-        # Check connections preserved
-        assert restored.get_by_name("Great Hall").get_connection("north") == "Kitchen"
-        assert restored.get_by_name("Kitchen").get_connection("south") == "Great Hall"
+        # Check coordinates preserved (navigation is coordinate-based)
+        assert restored.get_by_name("Great Hall").coordinates == (0, 0)
+        assert restored.get_by_name("Kitchen").coordinates == (0, 1)
         # Check parent_location preserved
         assert restored.get_by_name("Great Hall").parent_location == "Castle"
         assert restored.get_by_name("Kitchen").parent_location == "Castle"

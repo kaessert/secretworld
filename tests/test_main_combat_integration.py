@@ -19,8 +19,7 @@ class TestCombatCommandRouting:
         world = {
             "Forest": Location(
                 name="Forest",
-                description="A dark forest",
-                connections={}
+                description="A dark forest"
             )
         }
         game_state = GameState(character, world, starting_location="Forest")
@@ -42,7 +41,7 @@ class TestCombatCommandRouting:
         # Setup
         character = Character(name="Hero", strength=10, dexterity=10, intelligence=10)
         enemy = Enemy(name="Wolf", health=30, max_health=30, attack_power=5, defense=2, xp_reward=20)
-        world = {"Forest": Location(name="Forest", description="A dark forest", connections={})}
+        world = {"Forest": Location(name="Forest", description="A dark forest")}
         game_state = GameState(character, world, starting_location="Forest")
         game_state.current_combat = CombatEncounter(character, enemy)
         game_state.current_combat.is_active = True
@@ -59,7 +58,7 @@ class TestCombatCommandRouting:
         # Setup
         character = Character(name="Hero", strength=10, dexterity=20, intelligence=10)  # Max dex for reliable flee
         enemy = Enemy(name="Wolf", health=30, max_health=30, attack_power=5, defense=2, xp_reward=20)
-        world = {"Forest": Location(name="Forest", description="A dark forest", connections={})}
+        world = {"Forest": Location(name="Forest", description="A dark forest")}
         game_state = GameState(character, world, starting_location="Forest")
         game_state.current_combat = CombatEncounter(character, enemy)
         game_state.current_combat.is_active = True
@@ -88,8 +87,8 @@ class TestExplorationCommandBlocking:
         character = Character(name="Hero", strength=10, dexterity=10, intelligence=10)
         enemy = Enemy(name="Wolf", health=30, max_health=30, attack_power=5, defense=2, xp_reward=20)
         world = {
-            "Forest": Location(name="Forest", description="A dark forest", connections={"north": "Town"}),
-            "Town": Location(name="Town", description="A town", connections={"south": "Forest"})
+            "Forest": Location(name="Forest", description="A dark forest"),
+            "Town": Location(name="Town", description="A town")
         }
         game_state = GameState(character, world, starting_location="Forest")
         game_state.current_combat = CombatEncounter(character, enemy)
@@ -107,7 +106,7 @@ class TestExplorationCommandBlocking:
         # Setup
         character = Character(name="Hero", strength=10, dexterity=10, intelligence=10)
         enemy = Enemy(name="Wolf", health=30, max_health=30, attack_power=5, defense=2, xp_reward=20)
-        world = {"Forest": Location(name="Forest", description="A dark forest", connections={})}
+        world = {"Forest": Location(name="Forest", description="A dark forest")}
         game_state = GameState(character, world, starting_location="Forest")
         game_state.current_combat = CombatEncounter(character, enemy)
         game_state.current_combat.is_active = True
@@ -124,7 +123,7 @@ class TestExplorationCommandBlocking:
         # Setup
         character = Character(name="Hero", strength=10, dexterity=10, intelligence=10)
         enemy = Enemy(name="Wolf", health=30, max_health=30, attack_power=5, defense=2, xp_reward=20)
-        world = {"Forest": Location(name="Forest", description="A dark forest", connections={})}
+        world = {"Forest": Location(name="Forest", description="A dark forest")}
         game_state = GameState(character, world, starting_location="Forest")
         game_state.current_combat = CombatEncounter(character, enemy)
         game_state.current_combat.is_active = True
@@ -144,7 +143,7 @@ class TestCombatCommandBlockingDuringExploration:
         """Spec: When not in combat, attack command should show error."""
         # Setup: Game state with no combat
         character = Character(name="Hero", strength=10, dexterity=10, intelligence=10)
-        world = {"Town": Location(name="Town", description="A town", connections={})}
+        world = {"Town": Location(name="Town", description="A town")}
         game_state = GameState(character, world, starting_location="Town")
         
         # Test
@@ -158,7 +157,7 @@ class TestCombatCommandBlockingDuringExploration:
         """Spec: When not in combat, defend command should show error."""
         # Setup
         character = Character(name="Hero", strength=10, dexterity=10, intelligence=10)
-        world = {"Town": Location(name="Town", description="A town", connections={})}
+        world = {"Town": Location(name="Town", description="A town")}
         game_state = GameState(character, world, starting_location="Town")
 
         # Test
@@ -172,7 +171,7 @@ class TestCombatCommandBlockingDuringExploration:
         """Spec: When not in combat, flee command should show error."""
         # Setup
         character = Character(name="Hero", strength=10, dexterity=10, intelligence=10)
-        world = {"Town": Location(name="Town", description="A town", connections={})}
+        world = {"Town": Location(name="Town", description="A town")}
         game_state = GameState(character, world, starting_location="Town")
 
         # Test
@@ -190,7 +189,7 @@ class TestStatusCommand:
         """Spec: Status command during exploration shows character stats."""
         # Setup
         character = Character(name="Hero", strength=10, dexterity=10, intelligence=10)
-        world = {"Town": Location(name="Town", description="A town", connections={})}
+        world = {"Town": Location(name="Town", description="A town")}
         game_state = GameState(character, world, starting_location="Town")
         
         # Test
@@ -206,7 +205,7 @@ class TestStatusCommand:
         # Setup
         character = Character(name="Hero", strength=10, dexterity=10, intelligence=10)
         enemy = Enemy(name="Wolf", health=30, max_health=30, attack_power=5, defense=2, xp_reward=20)
-        world = {"Forest": Location(name="Forest", description="A dark forest", connections={})}
+        world = {"Forest": Location(name="Forest", description="A dark forest")}
         game_state = GameState(character, world, starting_location="Forest")
         game_state.current_combat = CombatEncounter(character, enemy)
         game_state.current_combat.is_active = True
@@ -228,7 +227,7 @@ class TestPlayerAttackSequence:
         # Setup
         character = Character(name="Hero", strength=15, dexterity=10, intelligence=10)
         enemy = Enemy(name="Wolf", health=50, max_health=50, attack_power=5, defense=2, xp_reward=20)
-        world = {"Forest": Location(name="Forest", description="A dark forest", connections={})}
+        world = {"Forest": Location(name="Forest", description="A dark forest")}
         game_state = GameState(character, world, starting_location="Forest")
         game_state.current_combat = CombatEncounter(character, enemy)
         game_state.current_combat.is_active = True
@@ -254,7 +253,7 @@ class TestPlayerDefendSequence:
         # Setup: Use an enemy with high attack to make damage difference clearer
         character = Character(name="Hero", strength=10, dexterity=10, intelligence=10)
         enemy = Enemy(name="Wolf", health=30, max_health=30, attack_power=20, defense=2, xp_reward=20)
-        world = {"Forest": Location(name="Forest", description="A dark forest", connections={})}
+        world = {"Forest": Location(name="Forest", description="A dark forest")}
         game_state = GameState(character, world, starting_location="Forest")
 
         # Mock random to prevent dodge and crit for consistent damage comparison
@@ -290,7 +289,7 @@ class TestFleeFromCombat:
         character = Character(name="Hero", strength=10, dexterity=20, intelligence=10)
         initial_xp = character.xp
         enemy = Enemy(name="Wolf", health=30, max_health=30, attack_power=5, defense=2, xp_reward=20)
-        world = {"Forest": Location(name="Forest", description="A dark forest", connections={})}
+        world = {"Forest": Location(name="Forest", description="A dark forest")}
         game_state = GameState(character, world, starting_location="Forest")
         
         # Test - try multiple times
@@ -313,7 +312,7 @@ class TestFleeFromCombat:
         # Setup: Low dexterity for reliable failure
         character = Character(name="Hero", strength=10, dexterity=1, intelligence=10)
         enemy = Enemy(name="Wolf", health=30, max_health=30, attack_power=5, defense=2, xp_reward=20)
-        world = {"Forest": Location(name="Forest", description="A dark forest", connections={})}
+        world = {"Forest": Location(name="Forest", description="A dark forest")}
         game_state = GameState(character, world, starting_location="Forest")
 
         # Test - mock enemy_turn's random to ensure no dodge (hit is guaranteed)
@@ -344,7 +343,7 @@ class TestVictoryEndsCombat:
         character = Character(name="Hero", strength=20, dexterity=10, intelligence=10)  # Max strength
         initial_xp = character.xp
         enemy = Enemy(name="Weak Wolf", health=5, max_health=5, attack_power=1, defense=0, xp_reward=20)
-        world = {"Forest": Location(name="Forest", description="A dark forest", connections={})}
+        world = {"Forest": Location(name="Forest", description="A dark forest")}
         game_state = GameState(character, world, starting_location="Forest")
         game_state.current_combat = CombatEncounter(character, enemy)
         game_state.current_combat.is_active = True
@@ -369,7 +368,7 @@ class TestPlayerDeath:
         character = Character(name="Hero", strength=1, dexterity=10, intelligence=10)
         character.health = 1  # Critical health
         enemy = Enemy(name="Strong Wolf", health=50, max_health=50, attack_power=20, defense=0, xp_reward=20)
-        world = {"Forest": Location(name="Forest", description="A dark forest", connections={})}
+        world = {"Forest": Location(name="Forest", description="A dark forest")}
         game_state = GameState(character, world, starting_location="Forest")
         game_state.current_combat = CombatEncounter(character, enemy)
         game_state.current_combat.is_active = True
@@ -392,7 +391,7 @@ class TestQuitCommandDuringCombat:
         # Setup
         character = Character(name="Hero", strength=10, dexterity=10, intelligence=10)
         enemy = Enemy(name="Wolf", health=30, max_health=30, attack_power=5, defense=2, xp_reward=20)
-        world = {"Forest": Location(name="Forest", description="A dark forest", connections={})}
+        world = {"Forest": Location(name="Forest", description="A dark forest")}
         game_state = GameState(character, world, starting_location="Forest")
         game_state.current_combat = CombatEncounter(character, enemy)
         game_state.current_combat.is_active = True
@@ -410,7 +409,7 @@ class TestQuitCommandDuringCombat:
         # Setup
         character = Character(name="Hero", strength=10, dexterity=10, intelligence=10)
         enemy = Enemy(name="Wolf", health=30, max_health=30, attack_power=5, defense=2, xp_reward=20)
-        world = {"Forest": Location(name="Forest", description="A dark forest", connections={})}
+        world = {"Forest": Location(name="Forest", description="A dark forest")}
         game_state = GameState(character, world, starting_location="Forest")
         game_state.current_combat = CombatEncounter(character, enemy)
         game_state.current_combat.is_active = True
@@ -431,7 +430,7 @@ class TestQuitCommandDuringCombat:
         # Setup
         character = Character(name="Hero", strength=10, dexterity=10, intelligence=10)
         enemy = Enemy(name="Wolf", health=30, max_health=30, attack_power=5, defense=2, xp_reward=20)
-        world = {"Forest": Location(name="Forest", description="A dark forest", connections={})}
+        world = {"Forest": Location(name="Forest", description="A dark forest")}
         game_state = GameState(character, world, starting_location="Forest")
         game_state.current_combat = CombatEncounter(character, enemy)
         game_state.current_combat.is_active = True
@@ -457,7 +456,7 @@ class TestQuitCommandDuringCombat:
         # Setup
         character = Character(name="Hero", strength=10, dexterity=10, intelligence=10)
         enemy = Enemy(name="Wolf", health=30, max_health=30, attack_power=5, defense=2, xp_reward=20)
-        world = {"Forest": Location(name="Forest", description="A dark forest", connections={})}
+        world = {"Forest": Location(name="Forest", description="A dark forest")}
         game_state = GameState(character, world, starting_location="Forest")
         game_state.current_combat = CombatEncounter(character, enemy)
         game_state.current_combat.is_active = True
@@ -477,7 +476,7 @@ class TestQuitCommandDuringCombat:
         # Setup
         character = Character(name="Hero", strength=10, dexterity=10, intelligence=10)
         enemy = Enemy(name="Wolf", health=30, max_health=30, attack_power=5, defense=2, xp_reward=20)
-        world = {"Forest": Location(name="Forest", description="A dark forest", connections={})}
+        world = {"Forest": Location(name="Forest", description="A dark forest")}
         game_state = GameState(character, world, starting_location="Forest")
         game_state.current_combat = CombatEncounter(character, enemy)
         game_state.current_combat.is_active = True
@@ -513,7 +512,7 @@ class TestUseItemDuringCombat:
         character.inventory.add_item(potion)
 
         enemy = Enemy(name="Wolf", health=50, max_health=50, attack_power=5, defense=2, xp_reward=20)
-        world = {"Forest": Location(name="Forest", description="A dark forest", connections={})}
+        world = {"Forest": Location(name="Forest", description="A dark forest")}
         game_state = GameState(character, world, starting_location="Forest")
         game_state.current_combat = CombatEncounter(character, enemy)
         game_state.current_combat.is_active = True
@@ -545,7 +544,7 @@ class TestUseItemDuringCombat:
         character.inventory.add_item(potion)
 
         enemy = Enemy(name="Wolf", health=50, max_health=50, attack_power=10, defense=2, xp_reward=20)
-        world = {"Forest": Location(name="Forest", description="A dark forest", connections={})}
+        world = {"Forest": Location(name="Forest", description="A dark forest")}
         game_state = GameState(character, world, starting_location="Forest")
         game_state.current_combat = CombatEncounter(character, enemy)
         game_state.current_combat.is_active = True
@@ -564,7 +563,7 @@ class TestUseItemDuringCombat:
         # Setup
         character = Character(name="Hero", strength=10, dexterity=10, intelligence=10)
         enemy = Enemy(name="Wolf", health=50, max_health=50, attack_power=5, defense=2, xp_reward=20)
-        world = {"Forest": Location(name="Forest", description="A dark forest", connections={})}
+        world = {"Forest": Location(name="Forest", description="A dark forest")}
         game_state = GameState(character, world, starting_location="Forest")
         game_state.current_combat = CombatEncounter(character, enemy)
         game_state.current_combat.is_active = True
@@ -582,7 +581,7 @@ class TestUseItemDuringCombat:
         # Setup
         character = Character(name="Hero", strength=10, dexterity=10, intelligence=10)
         enemy = Enemy(name="Wolf", health=50, max_health=50, attack_power=5, defense=2, xp_reward=20)
-        world = {"Forest": Location(name="Forest", description="A dark forest", connections={})}
+        world = {"Forest": Location(name="Forest", description="A dark forest")}
         game_state = GameState(character, world, starting_location="Forest")
         game_state.current_combat = CombatEncounter(character, enemy)
         game_state.current_combat.is_active = True
@@ -609,7 +608,7 @@ class TestUseItemDuringCombat:
         character.inventory.add_item(sword)
 
         enemy = Enemy(name="Wolf", health=50, max_health=50, attack_power=5, defense=2, xp_reward=20)
-        world = {"Forest": Location(name="Forest", description="A dark forest", connections={})}
+        world = {"Forest": Location(name="Forest", description="A dark forest")}
         game_state = GameState(character, world, starting_location="Forest")
         game_state.current_combat = CombatEncounter(character, enemy)
         game_state.current_combat.is_active = True
@@ -636,7 +635,7 @@ class TestUseItemDuringCombat:
         character.inventory.add_item(potion)
 
         enemy = Enemy(name="Wolf", health=50, max_health=50, attack_power=5, defense=2, xp_reward=20)
-        world = {"Forest": Location(name="Forest", description="A dark forest", connections={})}
+        world = {"Forest": Location(name="Forest", description="A dark forest")}
         game_state = GameState(character, world, starting_location="Forest")
         game_state.current_combat = CombatEncounter(character, enemy)
         game_state.current_combat.is_active = True
@@ -661,7 +660,7 @@ class TestCombatStatePersistence:
         # Setup
         character = Character(name="Hero", strength=10, dexterity=10, intelligence=10)
         enemy = Enemy(name="Wolf", health=50, max_health=50, attack_power=5, defense=2, xp_reward=20)
-        world = {"Forest": Location(name="Forest", description="A dark forest", connections={})}
+        world = {"Forest": Location(name="Forest", description="A dark forest")}
         game_state = GameState(character, world, starting_location="Forest")
         game_state.current_combat = CombatEncounter(character, enemy)
         game_state.current_combat.is_active = True
@@ -704,7 +703,7 @@ class TestUseEquippedItemDuringCombat:
         assert character.inventory.find_item_by_name("Iron Sword") is None
 
         enemy = Enemy(name="Wolf", health=50, max_health=50, attack_power=5, defense=2, xp_reward=20)
-        world = {"Forest": Location(name="Forest", description="A dark forest", connections={})}
+        world = {"Forest": Location(name="Forest", description="A dark forest")}
         game_state = GameState(character, world, starting_location="Forest")
         game_state.current_combat = CombatEncounter(character, enemy)
         game_state.current_combat.is_active = True
@@ -737,7 +736,7 @@ class TestUseEquippedItemDuringCombat:
         assert character.inventory.find_item_by_name("Iron Chestplate") is None
 
         enemy = Enemy(name="Wolf", health=50, max_health=50, attack_power=5, defense=2, xp_reward=20)
-        world = {"Forest": Location(name="Forest", description="A dark forest", connections={})}
+        world = {"Forest": Location(name="Forest", description="A dark forest")}
         game_state = GameState(character, world, starting_location="Forest")
         game_state.current_combat = CombatEncounter(character, enemy)
         game_state.current_combat.is_active = True

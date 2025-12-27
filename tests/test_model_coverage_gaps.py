@@ -282,38 +282,37 @@ class TestWorldGridEnsureDanglingExitsNoCoordinates:
         loc = Location(name="Floating Island", description="No coordinates")
         grid._by_name[loc.name] = loc  # No coordinates set
 
-        # Should not crash, should return False (no candidates)
+        # Should not crash
         result = grid.ensure_expansion_possible()
 
-        # Since the only location has no coordinates, it should return False
-        # (can't add expansion point to location without coordinates)
-        assert result is False
+        # Since the only location has no coordinates, it has no frontier exits
+        # With coordinate-based navigation, ensure_expansion_possible() returns
+        # True when there are NO frontier exits (meaning changes are needed)
+        assert result is True  # No frontier exits exist, modification needed
 
 
 class TestWorldGridEnsureDanglingExitsNoCandidates:
-    """Test ensure_dangling_exits returns False when no candidates (line 330)."""
+    """Test ensure_dangling_exits returns False when already expandable."""
 
     def test_ensure_expansion_possible_no_candidates_returns_false(self):
-        """Test that False is returned when no candidates exist.
+        """Test that False is returned when expansion is already possible.
 
-        Spec: Line 330 - ensure_dangling_exits returns False when no candidates.
+        Spec: With coordinate-based navigation, a location at (0,0) always
+        has frontier exits in all 4 cardinal directions to empty coordinates.
+        ensure_expansion_possible() returns False when expansion is already possible.
         """
         grid = WorldGrid()
 
-        # Add location with all directions used
+        # Add location with coordinates
         loc = Location(name="Center", description="A central hub.")
         grid.add_location(loc, 0, 0)
 
-        # Fill all directions with connections
-        loc.add_connection("north", "Placeholder North")
-        loc.add_connection("south", "Placeholder South")
-        loc.add_connection("east", "Placeholder East")
-        loc.add_connection("west", "Placeholder West")
-
-        # Now it already has expansion exits, so should return False
+        # With coordinate-based navigation, (0,0) has implicit exits
+        # to (0,1), (0,-1), (1,0), (-1,0) - all unexplored coordinates.
+        # So expansion is already possible.
         result = grid.ensure_expansion_possible()
 
-        assert result is False  # Already has expansion exits
+        assert result is False  # Already has frontier exits (expansion possible)
 
 
 class TestWorldGridEnsureExpansionAlreadyPossible:
@@ -329,8 +328,9 @@ class TestWorldGridEnsureExpansionAlreadyPossible:
         loc = Location(name="Town", description="A town.")
         grid.add_location(loc, 0, 0)
 
-        # Add a dangling connection
-        loc.add_connection("north", "Unexplored North")
+        # With coordinate-based navigation, (0,0) has implicit frontier exits
+        # to all 4 adjacent coordinates that don't have locations.
+        # No need for explicit connections anymore.
 
         # Should return False because world already has expansion exits
         result = grid.ensure_expansion_possible()
@@ -343,20 +343,27 @@ class TestWorldGridFindFrontierExitsCardinalOnly:
     """Test find_frontier_exits only considers cardinal directions."""
 
     def test_find_frontier_exits_ignores_non_cardinal(self):
-        """Test that up/down connections are not counted as frontier exits.
+        """Test that only cardinal directions are considered as frontier exits.
 
         Spec: Lines 255-256 - Only check cardinal directions.
+        With coordinate-based navigation, a location at (0,0) has 4 implicit
+        frontier exits (north, south, east, west) to adjacent empty coordinates.
         """
         grid = WorldGrid()
 
         loc = Location(name="Tower", description="A tall tower.")
         grid.add_location(loc, 0, 0)
 
-        # With no connections, there should be no frontier exits
+        # With coordinate-based navigation, (0,0) has 4 frontier exits
         frontier = grid.find_frontier_exits()
 
-        # Should be empty because no connections exist
-        assert len(frontier) == 0
+        # Should have 4 exits (north, south, east, west) to empty coords
+        assert len(frontier) == 4
+
+        # Verify all are cardinal directions
+        directions = [d for _, d, _ in frontier]
+        for d in directions:
+            assert d in ("north", "south", "east", "west")
 
 
 class TestWorldGridContains:

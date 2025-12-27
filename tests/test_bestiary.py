@@ -199,8 +199,7 @@ class TestBestiaryCommand:
         world = {
             "Test Location": Location(
                 name="Test Location",
-                description="A test place",
-                connections={}
+                description="A test place"
             )
         }
         game_state = GameState(character, world, starting_location="Test Location")
@@ -245,8 +244,7 @@ class TestBestiaryCommand:
         world = {
             "Test Location": Location(
                 name="Test Location",
-                description="A test place",
-                connections={}
+                description="A test place"
             )
         }
         game_state = GameState(character, world, starting_location="Test Location")
@@ -290,8 +288,7 @@ class TestBestiaryCommand:
         world = {
             "Test Location": Location(
                 name="Test Location",
-                description="A test place",
-                connections={}
+                description="A test place"
             )
         }
         game_state = GameState(character, world, starting_location="Test Location")
@@ -327,8 +324,7 @@ class TestBestiaryCommand:
         world = {
             "Test Location": Location(
                 name="Test Location",
-                description="A test place",
-                connections={}
+                description="A test place"
             )
         }
         game_state = GameState(character, world, starting_location="Test Location")
@@ -371,8 +367,7 @@ class TestCombatBestiaryIntegration:
         world = {
             "Test Location": Location(
                 name="Test Location",
-                description="A test place",
-                connections={}
+                description="A test place"
             )
         }
         game_state = GameState(character, world, starting_location="Test Location")
@@ -414,8 +409,7 @@ class TestCombatBestiaryIntegration:
         world = {
             "Test Location": Location(
                 name="Test Location",
-                description="A test place",
-                connections={}
+                description="A test place"
             )
         }
         game_state = GameState(character, world, starting_location="Test Location")

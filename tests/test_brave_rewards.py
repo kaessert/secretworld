@@ -28,7 +28,6 @@ def create_test_world():
     cave = Location(
         name="Dark Cave",
         description="A foreboding cave.",
-        connections={},
         coordinates=(0, 0),
         category="cave",
         secrets="Ancient bones litter the floor."

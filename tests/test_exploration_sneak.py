@@ -59,7 +59,6 @@ def create_test_world() -> dict[str, Location]:
         description="A peaceful town square",
         category="town",
         coordinates=(0, 0),
-        connections={"north": "Dark Forest"},
         is_safe_zone=True,
     )
     forest = Location(
@@ -67,14 +66,12 @@ def create_test_world() -> dict[str, Location]:
         description="A dark and dangerous forest",
         category="forest",
         coordinates=(0, 1),
-        connections={"south": "Town Square", "north": "Deep Woods"},
     )
     woods = Location(
         name="Deep Woods",
         description="Deep in the forest",
         category="forest",
         coordinates=(0, 2),
-        connections={"south": "Dark Forest"},
     )
     return {"Town Square": town, "Dark Forest": forest, "Deep Woods": woods}
 
@@ -182,18 +179,22 @@ class TestSneakClearedAfterMove:
     def test_sneak_cleared_after_blocked_move(self):
         """Spec: is_sneaking reset even on failed move."""
         from cli_rpg.main import handle_exploration_command
+        from unittest.mock import MagicMock
 
         char = create_test_character()
         world = create_test_world()
-        # Remove the east connection to create a blocked path
-        world["Dark Forest"].connections = {"south": "Town Square", "north": "Deep Woods"}
         game_state = GameState(char, world, "Dark Forest")
+
+        # Create a mock chunk_manager that returns impassable terrain (water) east
+        mock_chunk_manager = MagicMock()
+        mock_chunk_manager.get_tile_at.return_value = "water"
+        game_state.chunk_manager = mock_chunk_manager
 
         # Activate sneak
         handle_exploration_command(game_state, "sneak", [])
         assert game_state.is_sneaking is True
 
-        # Try to move in blocked direction
+        # Try to move in blocked direction (east goes to water which is impassable)
         success, _ = game_state.move("east")
 
         # Move should fail but sneaking should be cleared

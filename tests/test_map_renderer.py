@@ -647,32 +647,41 @@ class TestBlockedLocationMarkers:
     """
 
     def test_blocked_adjacent_cell_shows_marker(self):
-        """Cell adjacent to player with no connection shows █ blocked marker.
+        """Cell with impassable WFC terrain shows ~ water marker.
 
-        Spec: If a cell is adjacent to an explored location but no exit exists
-        in that direction, it should show █ to indicate a wall/barrier.
+        Spec: With coordinate-based navigation, blocked markers are shown
+        for impassable terrain (water) via chunk_manager, not missing connections.
         """
         import re
+        from unittest.mock import MagicMock
 
-        # Player at (0,0) with only a north connection, so east/south/west are blocked
+        # Player at (0,0) with a location to the north
         world = {
             "Center": Location(
                 "Center",
                 "Center location",
-                {"north": "North"},  # Only north exit, east/south/west are blocked
                 coordinates=(0, 0),
             ),
-            "North": Location("North", "North location", {}, coordinates=(0, 1)),
+            "North": Location("North", "North location", coordinates=(0, 1)),
         }
-        result = render_map(world, "Center")
+
+        # Mock chunk_manager to return water terrain to the east
+        mock_chunk_manager = MagicMock()
+        def get_tile_side_effect(x, y):
+            if x == 1 and y == 0:  # East of player
+                return "water"
+            return "plains"
+        mock_chunk_manager.get_tile_at.side_effect = get_tile_side_effect
+
+        result = render_map(world, "Center", chunk_manager=mock_chunk_manager)
 
         # Strip ANSI codes
         ansi_escape = re.compile(r"\x1b\[[0-9;]*m")
         clean_result = ansi_escape.sub("", result)
 
-        # The blocked marker █ should appear for adjacent blocked cells
-        assert "█" in clean_result, (
-            "Blocked adjacent cells should show █ marker. "
+        # The water marker ~ should appear for impassable terrain
+        assert "~" in clean_result, (
+            "Impassable water cells should show ~ marker. "
             f"Result:\n{clean_result}"
         )
 
@@ -764,25 +773,32 @@ class TestBlockedLocationMarkers:
         )
 
     def test_blocked_marker_in_legend(self):
-        """Legend includes blocked marker explanation.
+        """Legend includes water marker explanation when water terrain present.
 
-        Spec: The map legend should include an entry explaining the █ marker.
+        Spec: The map legend should include an entry explaining the ~ marker
+        when water terrain is visible.
         """
-        # Player at (0,0) with no connections (all adjacent cells blocked)
+        from unittest.mock import MagicMock
+
+        # Player at (0,0)
         world = {
             "Center": Location(
                 "Center",
                 "Center location",
-                {},  # No connections - all adjacent cells are blocked
                 coordinates=(0, 0),
             ),
         }
-        result = render_map(world, "Center")
 
-        # Check that legend contains blocked marker explanation
-        assert "█" in result, "Legend should contain blocked marker █"
-        assert "Blocked" in result or "Wall" in result, (
-            "Legend should explain blocked marker"
+        # Mock chunk_manager to return water terrain
+        mock_chunk_manager = MagicMock()
+        mock_chunk_manager.get_tile_at.return_value = "water"
+
+        result = render_map(world, "Center", chunk_manager=mock_chunk_manager)
+
+        # Check that legend contains water marker explanation
+        assert "~" in result, "Legend should contain water marker ~"
+        assert "Water" in result or "impassable" in result, (
+            "Legend should explain water marker"
         )
 
 

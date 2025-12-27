@@ -50,7 +50,9 @@ class SubGrid:
         1. Validates coordinates are within bounds
         2. Places the location at the given coordinates
         3. Sets the location's coordinates and parent_location fields
-        4. Creates bidirectional connections with adjacent locations
+
+        Navigation between locations is determined by coordinate adjacency,
+        not explicit connections.
 
         Args:
             location: The Location instance to add
@@ -73,29 +75,6 @@ class SubGrid:
         # Add to both indices
         self._grid[(x, y)] = location
         self._by_name[location.name] = location
-
-        # Create bidirectional connections with adjacent locations
-        self._create_connections(location, x, y)
-
-    def _create_connections(self, location: Location, x: int, y: int) -> None:
-        """Create bidirectional connections with adjacent locations.
-
-        Args:
-            location: The newly added location
-            x: X coordinate of the location
-            y: Y coordinate of the location
-        """
-        for direction, (dx, dy) in DIRECTION_OFFSETS.items():
-            neighbor_coords = (x + dx, y + dy)
-            if neighbor_coords in self._grid:
-                neighbor = self._grid[neighbor_coords]
-                opposite = OPPOSITE_DIRECTIONS[direction]
-
-                # Add connection from this location to neighbor
-                location.add_connection(direction, neighbor.name)
-
-                # Add reverse connection from neighbor to this location
-                neighbor.add_connection(opposite, location.name)
 
     def get_by_coordinates(self, x: int, y: int) -> Optional[Location]:
         """Get location at specific coordinates.
@@ -195,7 +174,9 @@ class WorldGrid:
         This method:
         1. Places the location at the given coordinates
         2. Sets the location's coordinates field
-        3. Creates bidirectional connections with adjacent locations
+
+        Navigation between locations is determined by coordinate adjacency,
+        not explicit connections.
 
         Args:
             location: The Location instance to add
@@ -223,29 +204,6 @@ class WorldGrid:
         # Add to both indices
         self._grid[coords] = location
         self._by_name[location.name] = location
-
-        # Create bidirectional connections with adjacent locations
-        self._create_connections(location, x, y)
-
-    def _create_connections(self, location: Location, x: int, y: int) -> None:
-        """Create bidirectional connections with adjacent locations.
-
-        Args:
-            location: The newly added location
-            x: X coordinate of the location
-            y: Y coordinate of the location
-        """
-        for direction, (dx, dy) in DIRECTION_OFFSETS.items():
-            neighbor_coords = (x + dx, y + dy)
-            if neighbor_coords in self._grid:
-                neighbor = self._grid[neighbor_coords]
-                opposite = OPPOSITE_DIRECTIONS[direction]
-
-                # Add connection from this location to neighbor
-                location.add_connection(direction, neighbor.name)
-
-                # Add reverse connection from neighbor to this location
-                neighbor.add_connection(opposite, location.name)
 
     def get_by_coordinates(self, x: int, y: int) -> Optional[Location]:
         """Get location at specific coordinates.
@@ -380,18 +338,15 @@ class WorldGrid:
         return self._by_name.keys()
 
     def find_frontier_exits(self) -> List[Tuple[str, str, Tuple[int, int]]]:
-        """Find exits pointing to unexplored coordinates (frontier exits).
+        """Find directions pointing to unexplored coordinates (frontier exits).
 
         These exits enable world expansion - when a player travels through them,
-        new areas can be generated. At least one frontier exit should always exist
-        to ensure the world can grow infinitely.
-
-        Only considers cardinal directions (north, south, east, west) since
-        up/down don't have coordinate offsets.
+        new areas can be generated. Frontier exits are found by checking all
+        cardinal directions from each location for empty coordinates.
 
         Returns:
             List of tuples (location_name, direction, target_coords) for each
-            exit pointing to unexplored coordinates.
+            direction pointing to unexplored coordinates.
         """
         frontier = []
 
@@ -400,12 +355,7 @@ class WorldGrid:
                 continue
 
             x, y = location.coordinates
-            for direction, target_name in location.connections.items():
-                # Only check cardinal directions that have coordinate offsets
-                if direction not in DIRECTION_OFFSETS:
-                    continue
-
-                dx, dy = DIRECTION_OFFSETS[direction]
+            for direction, (dx, dy) in DIRECTION_OFFSETS.items():
                 target_coords = (x + dx, y + dy)
 
                 # Check if target coordinates are empty (unexplored)
@@ -450,34 +400,19 @@ class WorldGrid:
     def ensure_expansion_possible(self) -> bool:
         """Ensure the world has at least one frontier exit.
 
-        If no frontier exits exist, adds a dangling exit to a random edge
-        location in a random available direction.
+        With coordinate-based navigation, expansion is always possible if any
+        location exists with coordinates, since players can move in any cardinal
+        direction to unexplored coordinates. This method exists for backward
+        compatibility but now returns False (no modifications needed) as long as
+        any location with coordinates exists.
 
         Returns:
             True if the world was modified, False if already had frontier exits.
         """
-        if self.has_expansion_exits():
-            return False
-
-        # Find locations with available directions for expansion
-        import random
-
-        candidates = []
-        for location in self._by_name.values():
-            if location.coordinates is None:
-                continue
-            available_dirs = [d for d in DIRECTION_OFFSETS.keys()
-                             if d not in location.connections]
-            if available_dirs:
-                candidates.append((location, available_dirs))
-
-        if candidates:
-            location, available_dirs = random.choice(candidates)
-            direction = random.choice(available_dirs)
-            location.add_connection(direction, f"Unexplored {direction.title()}")
-            return True
-
-        return False
+        # With coordinate-based movement, any location with coordinates
+        # always allows expansion in any direction without explicit connections.
+        # So if we have frontier exits, we're good.
+        return not self.has_expansion_exits()
 
     def get_frontier_locations(self) -> List[Location]:
         """Get locations at the world border with exits to empty coordinates.

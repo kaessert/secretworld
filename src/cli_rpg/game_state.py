@@ -346,9 +346,13 @@ class GameState:
         look_count = self.current_character.record_look(self.current_location)
         # Get visibility level from weather, accounting for location category
         visibility = self.weather.get_visibility_level(location.category)
-        # Pass chunk_manager for WFC-aware exit filtering
+        # Pass chunk_manager and world/sub_grid for exit direction calculation
         result = location.get_layered_description(
-            look_count, visibility=visibility, chunk_manager=self.chunk_manager
+            look_count,
+            visibility=visibility,
+            chunk_manager=self.chunk_manager,
+            world=self.world if not self.in_sub_location else None,
+            sub_grid=self.current_sub_grid if self.in_sub_location else None,
         )
 
         # Check for dread treasure (brave player rewards)
@@ -485,130 +489,85 @@ class GameState:
         # Track if AI generation was attempted but failed (to inform player)
         ai_fallback_used = False
 
-        # Use coordinate-based movement if current location has coordinates
-        if current.coordinates is not None:
-            # Check WFC terrain passability FIRST (when chunk_manager available)
-            if self.chunk_manager is not None:
-                from cli_rpg.world_tiles import DIRECTION_OFFSETS as WFC_OFFSETS, is_passable
-                dx, dy = WFC_OFFSETS[direction]
-                target_coords = (current.coordinates[0] + dx, current.coordinates[1] + dy)
-                terrain = self.chunk_manager.get_tile_at(*target_coords)
-                if not is_passable(terrain):
-                    self.is_sneaking = False
-                    return (False, f"The {terrain} ahead is impassable.")
-            else:
-                # No WFC: Require connection for movement (backward compatibility)
-                if not current.has_connection(direction):
-                    self.is_sneaking = False
-                    return (False, "You can't go that way.")
-            # Calculate target coordinates for valid cardinal directions
-            dx, dy = DIRECTION_OFFSETS[direction]
-            target_coords = (current.coordinates[0] + dx, current.coordinates[1] + dy)
+        # Require coordinates for movement
+        if current.coordinates is None:
+            self.is_sneaking = False
+            return (False, "Cannot navigate - location has no coordinates.")
 
-            # Find location at target coordinates
-            target_location = self._get_location_by_coordinates(target_coords)
+        # Calculate target coordinates
+        dx, dy = DIRECTION_OFFSETS[direction]
+        target_coords = (current.coordinates[0] + dx, current.coordinates[1] + dy)
 
-            if target_location is not None:
-                # Location exists at target coordinates - move there
-                self.current_location = target_location.name
-                # Ensure bidirectional connection exists
-                if not current.has_connection(direction):
-                    current.add_connection(direction, target_location.name)
-            else:
-                # No location at target - generate new location
-                # Note: Terrain passability already checked at start of coordinate block
-                terrain = None
-                if self.chunk_manager is not None:
-                    # Get terrain from WFC for location generation
-                    terrain = self.chunk_manager.get_tile_at(*target_coords)
+        # Check WFC terrain passability (when chunk_manager available)
+        if self.chunk_manager is not None:
+            from cli_rpg.world_tiles import is_passable
+            terrain = self.chunk_manager.get_tile_at(*target_coords)
+            if not is_passable(terrain):
+                self.is_sneaking = False
+                return (False, f"The {terrain} ahead is impassable.")
 
-                ai_succeeded = False
-                if self.ai_service is not None and AI_AVAILABLE and expand_area is not None:
-                    try:
-                        logger.info(
-                            f"Generating area at {target_coords} from {current.name}"
-                        )
-                        expand_area(
-                            world=self.world,
-                            ai_service=self.ai_service,
-                            from_location=self.current_location,
-                            direction=direction,
-                            theme=self.theme,
-                            target_coords=target_coords,
-                            terrain_type=terrain,
-                        )
-                        # Find the newly generated location
-                        target_location = self._get_location_by_coordinates(target_coords)
-                        if target_location:
-                            # Set terrain if from WFC
-                            if terrain is not None:
-                                target_location.terrain = terrain
-                            self.current_location = target_location.name
-                            ai_succeeded = True
-                    except Exception as e:
-                        logger.warning(f"AI area generation failed: {e}")
-                        # Mark that AI was attempted but failed
-                        ai_fallback_used = True
+        # Find location at target coordinates
+        target_location = self._get_location_by_coordinates(target_coords)
 
-                # Use fallback generation when AI failed or is unavailable
-                if not ai_succeeded:
-                    try:
-                        logger.info(
-                            f"Generating fallback location at {target_coords} from {current.name}"
-                        )
-                        new_location = generate_fallback_location(
-                            direction=direction,
-                            source_location=current,
-                            target_coords=target_coords,
-                            terrain=terrain,
-                            chunk_manager=self.chunk_manager,
-                        )
-                        # Add to world
-                        self.world[new_location.name] = new_location
-                        # Add bidirectional connection from source
-                        current.add_connection(direction, new_location.name)
-                        # Move to new location
-                        self.current_location = new_location.name
-                    except Exception as e:
-                        logger.error(f"Fallback location generation also failed: {e}")
-                        self.is_sneaking = False  # Clear sneaking mode on any move attempt
-                        return (False, "The path is blocked by an impassable barrier.")
+        if target_location is not None:
+            # Location exists at target coordinates - move there
+            self.current_location = target_location.name
         else:
-            # Legacy fallback: use connection-based movement
-            if not current.has_connection(direction):
-                self.is_sneaking = False  # Clear sneaking mode on any move attempt
-                return (False, "You can't go that way.")
+            # No location at target - generate new location
+            terrain = None
+            if self.chunk_manager is not None:
+                # Get terrain from WFC for location generation
+                terrain = self.chunk_manager.get_tile_at(*target_coords)
 
-            destination_name = current.get_connection(direction)
+            ai_succeeded = False
+            if self.ai_service is not None and AI_AVAILABLE and expand_area is not None:
+                try:
+                    logger.info(
+                        f"Generating area at {target_coords} from {current.name}"
+                    )
+                    expand_area(
+                        world=self.world,
+                        ai_service=self.ai_service,
+                        from_location=self.current_location,
+                        direction=direction,
+                        theme=self.theme,
+                        target_coords=target_coords,
+                        terrain_type=terrain,
+                    )
+                    # Find the newly generated location
+                    target_location = self._get_location_by_coordinates(target_coords)
+                    if target_location:
+                        # Set terrain if from WFC
+                        if terrain is not None:
+                            target_location.terrain = terrain
+                        self.current_location = target_location.name
+                        ai_succeeded = True
+                except Exception as e:
+                    logger.warning(f"AI area generation failed: {e}")
+                    # Mark that AI was attempted but failed
+                    ai_fallback_used = True
 
-            if destination_name not in self.world:
-                # Try to generate it with AI if available
-                if self.ai_service is not None and AI_AVAILABLE:
-                    try:
-                        logger.info(f"Generating missing destination: {destination_name}")
-                        expand_world(
-                            world=self.world,
-                            ai_service=self.ai_service,
-                            from_location=self.current_location,
-                            direction=direction,
-                            theme=self.theme,
-                        )
-                        # Re-read destination name after expansion (may have changed)
-                        current = self.get_current_location()
-                        destination_name = current.get_connection(direction)
-                    except Exception as e:
-                        # Log error for debugging but don't expose to player
-                        logger.warning(f"AI location generation failed: {e}")
-                        self.is_sneaking = False  # Clear sneaking mode on any move attempt
-                        return (False, "The path is blocked by an impassable barrier.")
-                else:
+            # Use fallback generation when AI failed or is unavailable
+            if not ai_succeeded:
+                try:
+                    logger.info(
+                        f"Generating fallback location at {target_coords} from {current.name}"
+                    )
+                    new_location = generate_fallback_location(
+                        direction=direction,
+                        source_location=current,
+                        target_coords=target_coords,
+                        terrain=terrain,
+                        chunk_manager=self.chunk_manager,
+                    )
+                    # Add to world
+                    self.world[new_location.name] = new_location
+                    # Move to new location
+                    self.current_location = new_location.name
+                except Exception as e:
+                    logger.error(f"Fallback location generation also failed: {e}")
                     self.is_sneaking = False  # Clear sneaking mode on any move attempt
                     return (False, "The path is blocked by an impassable barrier.")
-
-            if destination_name is None:
-                self.is_sneaking = False  # Clear sneaking mode on any move attempt
-                return (False, "Failed to determine destination.")
-            self.current_location = destination_name
 
         # Advance time by 1 hour for movement (+1 hour in storm)
         travel_time = 1 + self.weather.get_travel_modifier()
@@ -714,6 +673,8 @@ class GameState:
     def _move_in_sub_grid(self, direction: str) -> tuple[bool, str]:
         """Handle movement within a sub-location grid.
 
+        Uses coordinate-based movement within the sub-grid bounds.
+
         Args:
             direction: The direction to move (north, south, east, west)
 
@@ -722,19 +683,25 @@ class GameState:
             - success is True if move was successful, False otherwise
             - message describes the result
         """
+        from cli_rpg.world_grid import DIRECTION_OFFSETS
+
         current = self.get_current_location()
 
         if direction not in {"north", "south", "east", "west"}:
             return (False, "Invalid direction. Use: north, south, east, or west.")
 
-        if not current.has_connection(direction):
+        if current.coordinates is None:
+            return (False, "Cannot navigate - location has no coordinates.")
+
+        dx, dy = DIRECTION_OFFSETS[direction]
+        target_coords = (current.coordinates[0] + dx, current.coordinates[1] + dy)
+
+        # Check bounds
+        if not self.current_sub_grid.is_within_bounds(*target_coords):
             return (False, "You can't go that way.")
 
-        destination_name = current.get_connection(direction)
-        if destination_name is None:
-            return (False, "You can't go that way.")
-
-        destination = self.current_sub_grid.get_by_name(destination_name)
+        # Find location at target coordinates
+        destination = self.current_sub_grid.get_by_coordinates(*target_coords)
 
         if destination is None:
             return (False, "The path is blocked.")

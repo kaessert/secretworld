@@ -152,10 +152,9 @@ class TestWeatherGameStateIntegration:
         from cli_rpg.models.location import Location
 
         char = Character(name="Test", strength=10, dexterity=10, intelligence=10)
+        # Locations at adjacent coordinates are connected via coordinate adjacency
         loc1 = Location(name="Start", description="Start area", coordinates=(0, 0))
-        loc1.add_connection("north", "End")
         loc2 = Location(name="End", description="End area", coordinates=(0, 1))
-        loc2.add_connection("south", "Start")
         world = {"Start": loc1, "End": loc2}
 
         game_state = GameState(char, world, starting_location="Start")
@@ -174,10 +173,9 @@ class TestWeatherGameStateIntegration:
 
         char = Character(name="Test", strength=10, dexterity=10, intelligence=10)
         # Use wilderness category (normally adds 5 dread)
+        # Locations at adjacent coordinates are connected via coordinate adjacency
         loc1 = Location(name="Start", description="Start area", coordinates=(0, 0), category="wilderness")
-        loc1.add_connection("north", "End")
         loc2 = Location(name="End", description="End area", coordinates=(0, 1), category="wilderness")
-        loc2.add_connection("south", "Start")
         world = {"Start": loc1, "End": loc2}
 
         game_state = GameState(char, world, starting_location="Start")
@@ -199,10 +197,9 @@ class TestWeatherGameStateIntegration:
         from cli_rpg.models.location import Location
 
         char = Character(name="Test", strength=10, dexterity=10, intelligence=10)
+        # Locations at adjacent coordinates are connected via coordinate adjacency
         loc1 = Location(name="Start", description="Start area", coordinates=(0, 0), category="wilderness")
-        loc1.add_connection("north", "End")
         loc2 = Location(name="End", description="End area", coordinates=(0, 1), category="wilderness")
-        loc2.add_connection("south", "Start")
         world = {"Start": loc1, "End": loc2}
 
         game_state = GameState(char, world, starting_location="Start")
@@ -224,10 +221,9 @@ class TestWeatherGameStateIntegration:
         from cli_rpg.models.location import Location
 
         char = Character(name="Test", strength=10, dexterity=10, intelligence=10)
+        # Locations at adjacent coordinates are connected via coordinate adjacency
         loc1 = Location(name="Start", description="Start area", coordinates=(0, 0))
-        loc1.add_connection("north", "End")
         loc2 = Location(name="End", description="End area", coordinates=(0, 1))
-        loc2.add_connection("south", "Start")
         world = {"Start": loc1, "End": loc2}
 
         game_state = GameState(char, world, starting_location="Start")
@@ -287,10 +283,9 @@ class TestWeatherGameStateIntegration:
         from cli_rpg.models.location import Location
 
         char = Character(name="Test", strength=10, dexterity=10, intelligence=10)
+        # Locations at adjacent coordinates are connected via coordinate adjacency
         loc1 = Location(name="Start", description="Start area", coordinates=(0, 0), category="wilderness")
-        loc1.add_connection("north", "Cave")
         loc2 = Location(name="Cave", description="A dark cave", coordinates=(0, 1), category="cave")
-        loc2.add_connection("south", "Start")
         world = {"Start": loc1, "Cave": loc2}
 
         game_state = GameState(char, world, starting_location="Start")
@@ -336,10 +331,9 @@ class TestWeatherStatusDisplay:
         from cli_rpg.models.location import Location
 
         char = Character(name="Test", strength=10, dexterity=10, intelligence=10)
+        # Locations at adjacent coordinates are connected via coordinate adjacency
         loc1 = Location(name="Start", description="Start area", coordinates=(0, 0))
-        loc1.add_connection("north", "End")
         loc2 = Location(name="End", description="End area", coordinates=(0, 1))
-        loc2.add_connection("south", "Start")
         world = {"Start": loc1, "End": loc2}
 
         game_state = GameState(char, world, starting_location="Start")
@@ -443,15 +437,28 @@ class TestLocationVisibilityEffects:
         """Obscured visibility (fog) hides some exits (deterministic based on location name)."""
         from cli_rpg.models.location import Location
 
+        # Create a crossroads with 4 adjacent locations for 4 exits
         loc = Location(
             name="Foggy Crossroads",
             description="You stand at a crossroads.",
-            connections={"north": "Village", "south": "Forest", "east": "Mountains", "west": "Lake"}
+            coordinates=(0, 0),
         )
+        # Create adjacent locations in all 4 directions
+        north_loc = Location(name="North Path", description="Path north", coordinates=(0, 1))
+        south_loc = Location(name="South Path", description="Path south", coordinates=(0, -1))
+        east_loc = Location(name="East Path", description="Path east", coordinates=(1, 0))
+        west_loc = Location(name="West Path", description="Path west", coordinates=(-1, 0))
+        world = {
+            "Foggy Crossroads": loc,
+            "North Path": north_loc,
+            "South Path": south_loc,
+            "East Path": east_loc,
+            "West Path": west_loc,
+        }
 
         # Run multiple times - should be consistent due to seeding by location name
-        result1 = loc.get_layered_description(look_count=1, visibility="obscured")
-        result2 = loc.get_layered_description(look_count=1, visibility="obscured")
+        result1 = loc.get_layered_description(look_count=1, visibility="obscured", world=world)
+        result2 = loc.get_layered_description(look_count=1, visibility="obscured", world=world)
 
         # Results should be identical (deterministic)
         assert result1 == result2
@@ -501,13 +508,22 @@ class TestLocationVisibilityEffects:
         loc = Location(
             name="Town Square",
             description="A bustling town square.",
-            connections={"north": "Market", "south": "Inn"},
             details="You notice the cobblestones are worn smooth.",
-            secrets="A secret door hides behind the fountain."
+            secrets="A secret door hides behind the fountain.",
+            coordinates=(0, 0),
         )
         loc.npcs = [NPC(name="Guard Captain", description="A stern captain", dialogue="Halt!")]
 
-        result = loc.get_layered_description(look_count=3, visibility="full")
+        # Create adjacent locations for exits
+        north_loc = Location(name="North Road", description="Road north", coordinates=(0, 1))
+        south_loc = Location(name="South Road", description="Road south", coordinates=(0, -1))
+        world = {
+            "Town Square": loc,
+            "North Road": north_loc,
+            "South Road": south_loc,
+        }
+
+        result = loc.get_layered_description(look_count=3, visibility="full", world=world)
 
         # All exits should be visible
         assert "north" in result

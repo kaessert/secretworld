@@ -20,14 +20,12 @@ def create_test_world():
         name="Town Square",
         description="A bustling town square.",
         category="town",
-        connections={"north": "Dark Forest"},
         coordinates=(0, 0),
     )
     forest = Location(
         name="Dark Forest",
         description="A dark, foreboding forest.",
         category="forest",
-        connections={"south": "Town Square"},
         coordinates=(0, 1),
     )
     return {"Town Square": town, "Dark Forest": forest}

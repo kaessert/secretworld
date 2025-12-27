@@ -231,7 +231,6 @@ class TestDreamIntegration:
             "Town Square": Location(
                 name="Town Square",
                 description="A town center.",
-                connections={},
                 coordinates=(0, 0),
                 category="town"
             )

@@ -25,14 +25,12 @@ def create_test_world():
     town = Location(
         name="Town Square",
         description="A town.",
-        connections={"north": "Dark Cave"},
         coordinates=(0, 0),
         category="town"
     )
     cave = Location(
         name="Dark Cave",
         description="A cave.",
-        connections={"south": "Town Square"},
         coordinates=(0, 1),
         category="cave"
     )

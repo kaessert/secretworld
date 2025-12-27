@@ -174,7 +174,7 @@ class TestCombatDeathPaths:
         character = Character(name="Hero", strength=1, dexterity=1, intelligence=1)
         character.health = 1  # Near death
         enemy = Enemy(name="Dragon", health=100, max_health=100, attack_power=50, defense=0, xp_reward=50)
-        world = {"Forest": Location(name="Forest", description="A dark forest", connections={})}
+        world = {"Forest": Location(name="Forest", description="A dark forest")}
         game_state = GameState(character, world, starting_location="Forest")
         game_state.current_combat = CombatEncounter(character, enemy)
         game_state.current_combat.is_active = True
@@ -195,7 +195,7 @@ class TestCombatDeathPaths:
         character = Character(name="Hero", strength=1, dexterity=1, intelligence=1)
         character.health = 1
         enemy = Enemy(name="Dragon", health=100, max_health=100, attack_power=50, defense=0, xp_reward=50)
-        world = {"Forest": Location(name="Forest", description="A dark forest", connections={})}
+        world = {"Forest": Location(name="Forest", description="A dark forest")}
         game_state = GameState(character, world, starting_location="Forest")
 
         # Try flee multiple times until we die (low dex = mostly fails)
@@ -223,7 +223,7 @@ class TestCombatDeathPaths:
         # Setup: Strong mage vs weak enemy
         character = Character(name="Mage", strength=5, dexterity=10, intelligence=20)
         enemy = Enemy(name="Goblin", health=1, max_health=1, attack_power=1, defense=0, xp_reward=20)
-        world = {"Forest": Location(name="Forest", description="A dark forest", connections={})}
+        world = {"Forest": Location(name="Forest", description="A dark forest")}
         game_state = GameState(character, world, starting_location="Forest")
         game_state.current_combat = CombatEncounter(character, enemy)
         game_state.current_combat.is_active = True
@@ -253,7 +253,7 @@ class TestCombatDeathPaths:
         character = Character(name="Hero", strength=1, dexterity=1, intelligence=1)
         character.health = 1
         enemy = Enemy(name="Dragon", health=100, max_health=100, attack_power=50, defense=0, xp_reward=50)
-        world = {"Forest": Location(name="Forest", description="A dark forest", connections={})}
+        world = {"Forest": Location(name="Forest", description="A dark forest")}
         game_state = GameState(character, world, starting_location="Forest")
         game_state.current_combat = CombatEncounter(character, enemy)
         game_state.current_combat.is_active = True
@@ -280,7 +280,7 @@ class TestCombatDeathPaths:
         character.inventory.add_item(potion)
 
         enemy = Enemy(name="Dragon", health=100, max_health=100, attack_power=50, defense=0, xp_reward=50)
-        world = {"Forest": Location(name="Forest", description="A dark forest", connections={})}
+        world = {"Forest": Location(name="Forest", description="A dark forest")}
         game_state = GameState(character, world, starting_location="Forest")
         game_state.current_combat = CombatEncounter(character, enemy)
         game_state.current_combat.is_active = True
@@ -306,7 +306,7 @@ class TestConversationAIError:
             dialogue="Hello traveler!",
             is_merchant=True
         )
-        world = {"Town": Location(name="Town", description="A town", connections={})}
+        world = {"Town": Location(name="Town", description="A town")}
         game_state = GameState(character, world, starting_location="Town")
         game_state.current_npc = npc
 
@@ -331,7 +331,7 @@ class TestGameLoopDeathRecovery:
 
         character = Character(name="Hero", strength=10, dexterity=10, intelligence=10)
         character.health = 0  # Dead
-        world = {"Town": Location(name="Town", description="A town", connections={})}
+        world = {"Town": Location(name="Town", description="A town")}
         game_state = GameState(character, world, starting_location="Town")
 
         with patch('builtins.input', return_value='y'):
@@ -348,7 +348,7 @@ class TestGameLoopDeathRecovery:
 
         character = Character(name="Hero", strength=10, dexterity=10, intelligence=10)
         character.health = 0  # Dead
-        world = {"Town Square": Location(name="Town Square", description="A town", connections={})}
+        world = {"Town Square": Location(name="Town Square", description="A town")}
         game_state = GameState(character, world, starting_location="Town Square")
 
         # First 'n' to resurrect, then 'quit' and 'n' to exit
@@ -367,7 +367,7 @@ class TestGameLoopDeathRecovery:
         from cli_rpg.main import run_game_loop
 
         character = Character(name="Hero", strength=10, dexterity=10, intelligence=10)
-        world = {"Town": Location(name="Town", description="A town", connections={})}
+        world = {"Town": Location(name="Town", description="A town")}
         game_state = GameState(character, world, starting_location="Town")
 
         # Empty input, then quit
@@ -397,7 +397,7 @@ class TestStartGameAIError:
                 raise Exception("AI failed")
             # Return valid world on retry
             return (
-                {"Town": Location(name="Town", description="A town", connections={})},
+                {"Town": Location(name="Town", description="A town")},
                 "Town"
             )
 
@@ -425,7 +425,7 @@ class TestStartGameAIError:
                 raise Exception("AI failed")
             # Return valid world for non-strict mode
             return (
-                {"Town": Location(name="Town", description="A town", connections={})},
+                {"Town": Location(name="Town", description="A town")},
                 "Town"
             )
 
@@ -484,7 +484,7 @@ class TestExplorationSaveIOError:
         from cli_rpg.main import handle_exploration_command
 
         character = Character(name="Hero", strength=10, dexterity=10, intelligence=10)
-        world = {"Town": Location(name="Town", description="A town", connections={})}
+        world = {"Town": Location(name="Town", description="A town")}
         game_state = GameState(character, world, starting_location="Town")
 
         with patch('cli_rpg.main.save_game_state', side_effect=IOError("Disk full")):
@@ -502,7 +502,7 @@ class TestExplorationQuitSaveIOError:
         from cli_rpg.main import handle_exploration_command
 
         character = Character(name="Hero", strength=10, dexterity=10, intelligence=10)
-        world = {"Town": Location(name="Town", description="A town", connections={})}
+        world = {"Town": Location(name="Town", description="A town")}
         game_state = GameState(character, world, starting_location="Town")
 
         with patch('builtins.input', return_value='y'), \
@@ -545,7 +545,7 @@ class TestExplorationCombatCommandsOutsideCombat:
         from cli_rpg.main import handle_exploration_command
 
         character = Character(name="Hero", strength=10, dexterity=10, intelligence=10)
-        world = {"Town": Location(name="Town", description="A town", connections={})}
+        world = {"Town": Location(name="Town", description="A town")}
         game_state = GameState(character, world, starting_location="Town")
         # No combat active
 
@@ -559,7 +559,7 @@ class TestExplorationCombatCommandsOutsideCombat:
         from cli_rpg.main import handle_exploration_command
 
         character = Character(name="Hero", strength=10, dexterity=10, intelligence=10)
-        world = {"Town": Location(name="Town", description="A town", connections={})}
+        world = {"Town": Location(name="Town", description="A town")}
         game_state = GameState(character, world, starting_location="Town")
 
         continue_game, message = handle_exploration_command(game_state, "defend", [])
@@ -572,7 +572,7 @@ class TestExplorationCombatCommandsOutsideCombat:
         from cli_rpg.main import handle_exploration_command
 
         character = Character(name="Hero", strength=10, dexterity=10, intelligence=10)
-        world = {"Town": Location(name="Town", description="A town", connections={})}
+        world = {"Town": Location(name="Town", description="A town")}
         game_state = GameState(character, world, starting_location="Town")
 
         continue_game, message = handle_exploration_command(game_state, "flee", [])
@@ -585,7 +585,7 @@ class TestExplorationCombatCommandsOutsideCombat:
         from cli_rpg.main import handle_exploration_command
 
         character = Character(name="Hero", strength=10, dexterity=10, intelligence=10)
-        world = {"Town": Location(name="Town", description="A town", connections={})}
+        world = {"Town": Location(name="Town", description="A town")}
         game_state = GameState(character, world, starting_location="Town")
         game_state.current_combat = None
 
@@ -599,7 +599,7 @@ class TestExplorationCombatCommandsOutsideCombat:
         from cli_rpg.main import handle_exploration_command
 
         character = Character(name="Hero", strength=10, dexterity=10, intelligence=10)
-        world = {"Town": Location(name="Town", description="A town", connections={})}
+        world = {"Town": Location(name="Town", description="A town")}
         game_state = GameState(character, world, starting_location="Town")
 
         continue_game, message = handle_exploration_command(game_state, "fireball", [])
@@ -612,7 +612,7 @@ class TestExplorationCombatCommandsOutsideCombat:
         from cli_rpg.main import handle_exploration_command
 
         character = Character(name="Hero", strength=10, dexterity=10, intelligence=10)
-        world = {"Town": Location(name="Town", description="A town", connections={})}
+        world = {"Town": Location(name="Town", description="A town")}
         game_state = GameState(character, world, starting_location="Town")
 
         continue_game, message = handle_exploration_command(game_state, "ice_bolt", [])
@@ -625,7 +625,7 @@ class TestExplorationCombatCommandsOutsideCombat:
         from cli_rpg.main import handle_exploration_command
 
         character = Character(name="Hero", strength=10, dexterity=10, intelligence=10)
-        world = {"Town": Location(name="Town", description="A town", connections={})}
+        world = {"Town": Location(name="Town", description="A town")}
         game_state = GameState(character, world, starting_location="Town")
 
         continue_game, message = handle_exploration_command(game_state, "heal", [])
@@ -638,7 +638,7 @@ class TestExplorationCombatCommandsOutsideCombat:
         from cli_rpg.main import handle_exploration_command
 
         character = Character(name="Hero", strength=10, dexterity=10, intelligence=10)
-        world = {"Town": Location(name="Town", description="A town", connections={})}
+        world = {"Town": Location(name="Town", description="A town")}
         game_state = GameState(character, world, starting_location="Town")
 
         continue_game, message = handle_exploration_command(game_state, "bash", [])
@@ -651,7 +651,7 @@ class TestExplorationCombatCommandsOutsideCombat:
         from cli_rpg.main import handle_exploration_command
 
         character = Character(name="Hero", strength=10, dexterity=10, intelligence=10)
-        world = {"Town": Location(name="Town", description="A town", connections={})}
+        world = {"Town": Location(name="Town", description="A town")}
         game_state = GameState(character, world, starting_location="Town")
 
         continue_game, message = handle_exploration_command(game_state, "bless", [])
@@ -664,7 +664,7 @@ class TestExplorationCombatCommandsOutsideCombat:
         from cli_rpg.main import handle_exploration_command
 
         character = Character(name="Hero", strength=10, dexterity=10, intelligence=10)
-        world = {"Town": Location(name="Town", description="A town", connections={})}
+        world = {"Town": Location(name="Town", description="A town")}
         game_state = GameState(character, world, starting_location="Town")
 
         continue_game, message = handle_exploration_command(game_state, "smite", [])
@@ -677,7 +677,7 @@ class TestExplorationCombatCommandsOutsideCombat:
         from cli_rpg.main import handle_exploration_command
 
         character = Character(name="Hero", strength=10, dexterity=10, intelligence=10)
-        world = {"Town": Location(name="Town", description="A town", connections={})}
+        world = {"Town": Location(name="Town", description="A town")}
         game_state = GameState(character, world, starting_location="Town")
 
         continue_game, message = handle_exploration_command(game_state, "hide", [])
@@ -690,7 +690,7 @@ class TestExplorationCombatCommandsOutsideCombat:
         from cli_rpg.main import handle_exploration_command
 
         character = Character(name="Hero", strength=10, dexterity=10, intelligence=10)
-        world = {"Town": Location(name="Town", description="A town", connections={})}
+        world = {"Town": Location(name="Town", description="A town")}
         game_state = GameState(character, world, starting_location="Town")
 
         continue_game, message = handle_exploration_command(game_state, "xyz", [])
@@ -750,7 +750,7 @@ class TestGoCommand:
         from cli_rpg.main import handle_exploration_command
 
         character = Character(name="Hero", strength=10, dexterity=10, intelligence=10)
-        world = {"Town": Location(name="Town", description="A town", connections={"north": "Forest"})}
+        world = {"Town": Location(name="Town", description="A town")}
         game_state = GameState(character, world, starting_location="Town")
 
         continue_game, message = handle_exploration_command(game_state, "go", [])
@@ -763,8 +763,8 @@ class TestGoCommand:
         from cli_rpg.main import handle_exploration_command
 
         character = Character(name="Hero", strength=10, dexterity=10, intelligence=10)
-        town = Location(name="Town", description="A bustling town", connections={"north": "Forest"})
-        forest = Location(name="Forest", description="A dark forest", connections={"south": "Town"})
+        town = Location(name="Town", description="A bustling town", coordinates=(0, 0))
+        forest = Location(name="Forest", description="A dark forest", coordinates=(0, 1))
         world = {"Town": town, "Forest": forest}
         game_state = GameState(character, world, starting_location="Town")
 
@@ -778,19 +778,25 @@ class TestGoCommand:
     def test_go_command_blocked_direction(self):
         """Spec: Movement failure shows error message (lines 408-409)."""
         from cli_rpg.main import handle_exploration_command
+        from unittest.mock import MagicMock
 
         character = Character(name="Hero", strength=10, dexterity=10, intelligence=10)
-        world = {"Town": Location(name="Town", description="A town", connections={"north": "Forest"})}
+        world = {"Town": Location(name="Town", description="A town", coordinates=(0, 0))}
         game_state = GameState(character, world, starting_location="Town")
 
-        # Try to go south when there's no connection
+        # Mock chunk_manager to return impassable terrain (water) to the south
+        mock_chunk_manager = MagicMock()
+        mock_chunk_manager.get_tile_at.return_value = "water"
+        game_state.chunk_manager = mock_chunk_manager
+
+        # Try to go south when blocked by impassable terrain
         continue_game, message = handle_exploration_command(game_state, "go", ["south"])
 
         assert continue_game is True
         # Should remain at Town
         assert game_state.current_location == "Town"
-        # Message should indicate failure
-        assert "can't go" in message.lower() or "no exit" in message.lower()
+        # Message should indicate failure (impassable terrain)
+        assert "impassable" in message.lower() or "water" in message.lower()
 
 
 class TestUnequipCommands:
@@ -801,7 +807,7 @@ class TestUnequipCommands:
         from cli_rpg.main import handle_exploration_command
 
         character = Character(name="Hero", strength=10, dexterity=10, intelligence=10)
-        world = {"Town": Location(name="Town", description="A town", connections={})}
+        world = {"Town": Location(name="Town", description="A town")}
         game_state = GameState(character, world, starting_location="Town")
 
         continue_game, message = handle_exploration_command(game_state, "unequip", [])
@@ -814,7 +820,7 @@ class TestUnequipCommands:
         from cli_rpg.main import handle_exploration_command
 
         character = Character(name="Hero", strength=10, dexterity=10, intelligence=10)
-        world = {"Town": Location(name="Town", description="A town", connections={})}
+        world = {"Town": Location(name="Town", description="A town")}
         game_state = GameState(character, world, starting_location="Town")
 
         continue_game, message = handle_exploration_command(game_state, "unequip", ["helmet"])
@@ -829,7 +835,7 @@ class TestUnequipCommands:
         character = Character(name="Hero", strength=10, dexterity=10, intelligence=10)
         # Ensure no weapon is equipped
         character.inventory.equipped_weapon = None
-        world = {"Town": Location(name="Town", description="A town", connections={})}
+        world = {"Town": Location(name="Town", description="A town")}
         game_state = GameState(character, world, starting_location="Town")
 
         continue_game, message = handle_exploration_command(game_state, "unequip", ["weapon"])
@@ -844,7 +850,7 @@ class TestUnequipCommands:
         character = Character(name="Hero", strength=10, dexterity=10, intelligence=10)
         # Ensure no armor is equipped
         character.inventory.equipped_armor = None
-        world = {"Town": Location(name="Town", description="A town", connections={})}
+        world = {"Town": Location(name="Town", description="A town")}
         game_state = GameState(character, world, starting_location="Town")
 
         continue_game, message = handle_exploration_command(game_state, "unequip", ["armor"])
@@ -860,7 +866,7 @@ class TestUnequipCommands:
         weapon = Item(name="Sword", description="A sword", item_type=ItemType.WEAPON, damage_bonus=5)
         character.inventory.add_item(weapon)
         character.inventory.equip(weapon)
-        world = {"Town": Location(name="Town", description="A town", connections={})}
+        world = {"Town": Location(name="Town", description="A town")}
         game_state = GameState(character, world, starting_location="Town")
 
         continue_game, message = handle_exploration_command(game_state, "unequip", ["weapon"])
@@ -877,7 +883,7 @@ class TestUnequipCommands:
         armor = Item(name="Leather", description="Armor", item_type=ItemType.ARMOR, defense_bonus=3)
         character.inventory.add_item(armor)
         character.inventory.equip(armor)
-        world = {"Town": Location(name="Town", description="A town", connections={})}
+        world = {"Town": Location(name="Town", description="A town")}
         game_state = GameState(character, world, starting_location="Town")
 
         continue_game, message = handle_exploration_command(game_state, "unequip", ["armor"])
@@ -898,7 +904,7 @@ class TestUnequipCommands:
         for i in range(character.inventory.capacity):
             filler = Item(name=f"Filler{i}", description="filler", item_type=ItemType.MISC)
             character.inventory.add_item(filler)
-        world = {"Town": Location(name="Town", description="A town", connections={})}
+        world = {"Town": Location(name="Town", description="A town")}
         game_state = GameState(character, world, starting_location="Town")
 
         continue_game, message = handle_exploration_command(game_state, "unequip", ["weapon"])
@@ -917,7 +923,7 @@ class TestCombatStatusDisplay:
         character = Character(name="Hero", strength=15, dexterity=10, intelligence=10)
         character.health = 100
         enemy = Enemy(name="Goblin", health=50, max_health=50, attack_power=5, defense=0, xp_reward=20)
-        world = {"Forest": Location(name="Forest", description="A dark forest", connections={})}
+        world = {"Forest": Location(name="Forest", description="A dark forest")}
         game_state = GameState(character, world, starting_location="Forest")
         game_state.current_combat = CombatEncounter(character, enemy)
         game_state.current_combat.is_active = True
@@ -943,7 +949,7 @@ class TestConversationRouting:
             description="A villager",
             dialogue="Hello!"
         )
-        world = {"Town": Location(name="Town", description="A town", connections={})}
+        world = {"Town": Location(name="Town", description="A town")}
         game_state = GameState(character, world, starting_location="Town")
         game_state.current_npc = npc
 
@@ -965,7 +971,7 @@ class TestEquipCannotEquip:
         character = Character(name="Hero", strength=10, dexterity=10, intelligence=10)
         misc_item = Item(name="Key", description="A rusty key", item_type=ItemType.MISC)
         character.inventory.add_item(misc_item)
-        world = {"Town": Location(name="Town", description="A town", connections={})}
+        world = {"Town": Location(name="Town", description="A town")}
         game_state = GameState(character, world, starting_location="Town")
 
         continue_game, message = handle_exploration_command(game_state, "equip", ["Key"])
@@ -980,7 +986,7 @@ class TestEquipCannotEquip:
         character = Character(name="Hero", strength=10, dexterity=10, intelligence=10)
         potion = Item(name="Health Potion", description="Heals", item_type=ItemType.CONSUMABLE, heal_amount=20)
         character.inventory.add_item(potion)
-        world = {"Town": Location(name="Town", description="A town", connections={})}
+        world = {"Town": Location(name="Town", description="A town")}
         game_state = GameState(character, world, starting_location="Town")
 
         continue_game, message = handle_exploration_command(game_state, "equip", ["Health", "Potion"])
@@ -1029,7 +1035,7 @@ class TestQuestGiverConversation:
             is_merchant=False,
             is_quest_giver=True
         )
-        world = {"Town": Location(name="Town", description="A town", connections={})}
+        world = {"Town": Location(name="Town", description="A town")}
         game_state = GameState(character, world, starting_location="Town")
         game_state.current_npc = npc
 
@@ -1058,7 +1064,7 @@ class TestAttackVictoryQuestProgress:
 
         character = Character(name="Hero", strength=20, dexterity=10, intelligence=10)
         enemy = Enemy(name="Goblin", health=1, max_health=1, attack_power=1, defense=0, xp_reward=20)
-        world = {"Forest": Location(name="Forest", description="A dark forest", connections={})}
+        world = {"Forest": Location(name="Forest", description="A dark forest")}
         game_state = GameState(character, world, starting_location="Forest")
         game_state.current_combat = CombatEncounter(character, enemy)
         game_state.current_combat.is_active = True
@@ -1091,7 +1097,7 @@ class TestAutosaveIOErrors:
 
         character = Character(name="Hero", strength=20, dexterity=10, intelligence=10)
         enemy = Enemy(name="Goblin", health=1, max_health=1, attack_power=1, defense=0, xp_reward=20)
-        world = {"Forest": Location(name="Forest", description="A forest", connections={})}
+        world = {"Forest": Location(name="Forest", description="A forest")}
         game_state = GameState(character, world, starting_location="Forest")
         game_state.current_combat = CombatEncounter(character, enemy)
         game_state.current_combat.is_active = True
@@ -1110,7 +1116,7 @@ class TestAutosaveIOErrors:
 
         character = Character(name="Hero", strength=10, dexterity=20, intelligence=10)  # Max dex for high flee chance
         enemy = Enemy(name="Goblin", health=50, max_health=50, attack_power=1, defense=0, xp_reward=20)
-        world = {"Forest": Location(name="Forest", description="A forest", connections={})}
+        world = {"Forest": Location(name="Forest", description="A forest")}
         game_state = GameState(character, world, starting_location="Forest")
         game_state.current_combat = CombatEncounter(character, enemy)
         game_state.current_combat.is_active = True
@@ -1130,7 +1136,7 @@ class TestAutosaveIOErrors:
 
         character = Character(name="Mage", strength=5, dexterity=10, intelligence=20)
         enemy = Enemy(name="Goblin", health=1, max_health=1, attack_power=1, defense=0, xp_reward=20)
-        world = {"Forest": Location(name="Forest", description="A forest", connections={})}
+        world = {"Forest": Location(name="Forest", description="A forest")}
         game_state = GameState(character, world, starting_location="Forest")
         game_state.current_combat = CombatEncounter(character, enemy)
         game_state.current_combat.is_active = True
@@ -1158,7 +1164,7 @@ class TestTalkAIDialogueFallback:
             dialogue="Hello!",
             greetings=["Welcome!"]  # Start with 1 greeting (< 3)
         )
-        town_location = Location(name="Town", description="A town", connections={})
+        town_location = Location(name="Town", description="A town")
         town_location.npcs = [npc]
         world = {"Town": town_location}
         game_state = GameState(character, world, starting_location="Town")
@@ -1191,7 +1197,7 @@ class TestTalkQuestProgress:
             description="A wise elder",
             dialogue="Greetings traveler."
         )
-        town_location = Location(name="Town", description="A town", connections={})
+        town_location = Location(name="Town", description="A town")
         town_location.npcs = [npc]
         world = {"Town": town_location}
         game_state = GameState(character, world, starting_location="Town")
@@ -1237,7 +1243,7 @@ class TestBuyEdgeCases:
         )
         shop = Shop(name="General Store", inventory=[shop_item])
 
-        world = {"Town": Location(name="Town", description="A town", connections={})}
+        world = {"Town": Location(name="Town", description="A town")}
         game_state = GameState(character, world, starting_location="Town")
         game_state.current_shop = shop
 
@@ -1262,7 +1268,7 @@ class TestBuyEdgeCases:
         )
         shop = Shop(name="Magic Shop", inventory=[shop_item])
 
-        world = {"Town": Location(name="Town", description="A town", connections={})}
+        world = {"Town": Location(name="Town", description="A town")}
         game_state = GameState(character, world, starting_location="Town")
         game_state.current_shop = shop
 
@@ -1295,7 +1301,7 @@ class TestSellNoArgs:
 
         character = Character(name="Hero", strength=10, dexterity=10, intelligence=10)
         shop = Shop(name="Shop", inventory=[])
-        world = {"Town": Location(name="Town", description="A town", connections={})}
+        world = {"Town": Location(name="Town", description="A town")}
         game_state = GameState(character, world, starting_location="Town")
         game_state.current_shop = shop
 
@@ -1320,7 +1326,7 @@ class TestAcceptNonQuestGiver:
             dialogue="Hello!",
             is_quest_giver=False
         )
-        town_location = Location(name="Town", description="A town", connections={})
+        town_location = Location(name="Town", description="A town")
         town_location.npcs = [npc]
         world = {"Town": town_location}
         game_state = GameState(character, world, starting_location="Town")
@@ -1341,7 +1347,7 @@ class TestQuestsAvailableStatus:
         from cli_rpg.models.quest import Quest, ObjectiveType, QuestStatus
 
         character = Character(name="Hero", strength=10, dexterity=10, intelligence=10)
-        world = {"Town": Location(name="Town", description="A town", connections={})}
+        world = {"Town": Location(name="Town", description="A town")}
         game_state = GameState(character, world, starting_location="Town")
 
         # Add a quest with AVAILABLE status (not yet accepted)
@@ -1370,7 +1376,7 @@ class TestQuitSaveSuccess:
         from cli_rpg.main import handle_exploration_command
 
         character = Character(name="Hero", strength=10, dexterity=10, intelligence=10)
-        world = {"Town": Location(name="Town", description="A town", connections={})}
+        world = {"Town": Location(name="Town", description="A town")}
         game_state = GameState(character, world, starting_location="Town")
 
         with patch('builtins.input', return_value='y'), \
@@ -1393,7 +1399,7 @@ class TestUnknownCommandLiteral:
         from cli_rpg.main import handle_exploration_command
 
         character = Character(name="Hero", strength=10, dexterity=10, intelligence=10)
-        world = {"Town": Location(name="Town", description="A town", connections={})}
+        world = {"Town": Location(name="Town", description="A town")}
         game_state = GameState(character, world, starting_location="Town")
 
         continue_game, message = handle_exploration_command(game_state, "unknown", [])
@@ -1413,7 +1419,7 @@ class TestGameLoopCombatStatus:
         character.health = 100
         # Strong enemy that won't be killed in one hit, weak attack to not kill player
         enemy = Enemy(name="Goblin", health=100, max_health=100, attack_power=1, defense=0, xp_reward=20)
-        world = {"Forest": Location(name="Forest", description="A forest", connections={})}
+        world = {"Forest": Location(name="Forest", description="A forest")}
         game_state = GameState(character, world, starting_location="Forest")
         game_state.current_combat = CombatEncounter(character, enemy)
         game_state.current_combat.is_active = True
@@ -1453,7 +1459,7 @@ class TestGameLoopConversationRouting:
             description="A villager",
             dialogue="Hello!"
         )
-        town_location = Location(name="Town", description="A town", connections={})
+        town_location = Location(name="Town", description="A town")
         town_location.npcs = [npc]
         world = {"Town": town_location}
         game_state = GameState(character, world, starting_location="Town")
@@ -1494,7 +1500,7 @@ class TestStartGameValidation:
         character = Character(name="Hero", strength=10, dexterity=10, intelligence=10)
 
         # Mock create_world to return world without the starting location
-        world = {"Forest": Location(name="Forest", description="A forest", connections={})}
+        world = {"Forest": Location(name="Forest", description="A forest")}
         with patch('cli_rpg.main.create_world', return_value=(world, "NonexistentTown")):
             with pytest.raises(ValueError, match="not found in world"):
                 start_game(character, strict=False)
@@ -1549,7 +1555,7 @@ class TestGameLoopCombatBreak:
 
         character = Character(name="Hero", strength=10, dexterity=10, intelligence=10)
         enemy = Enemy(name="Goblin", health=100, max_health=100, attack_power=1, defense=0, xp_reward=20)
-        world = {"Forest": Location(name="Forest", description="A forest", connections={})}
+        world = {"Forest": Location(name="Forest", description="A forest")}
         game_state = GameState(character, world, starting_location="Forest")
         game_state.current_combat = CombatEncounter(character, enemy)
         game_state.current_combat.is_active = True
@@ -1587,7 +1593,7 @@ class TestGameLoopConversationBreak:
             description="A villager",
             dialogue="Hello!"
         )
-        town_location = Location(name="Town", description="A town", connections={})
+        town_location = Location(name="Town", description="A town")
         town_location.npcs = [npc]
         world = {"Town": town_location}
         game_state = GameState(character, world, starting_location="Town")

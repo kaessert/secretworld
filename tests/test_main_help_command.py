@@ -28,7 +28,6 @@ def basic_world():
         "Test Room": Location(
             name="Test Room",
             description="A test room.",
-            connections={},
             coordinates=(0, 0)
         )
     }

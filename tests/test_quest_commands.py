@@ -64,7 +64,6 @@ def simple_world():
         "Town Square": Location(
             name="Town Square",
             description="A central square.",
-            connections={"north": "Forest"},
             coordinates=(0, 0),
         )
     }
@@ -262,7 +261,6 @@ def game_state_with_npc(character, quest_giver_npc):
     location = Location(
         name="Town Square",
         description="A central square.",
-        connections={"north": "Forest"},
         coordinates=(0, 0),
         npcs=[quest_giver_npc],
     )
