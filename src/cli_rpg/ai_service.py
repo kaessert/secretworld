@@ -659,6 +659,9 @@ class AIService:
             )
             return []
 
+        # Valid roles for NPCs
+        valid_roles = ("villager", "merchant", "quest_giver", "guard", "traveler", "innkeeper")
+
         validated_npcs = []
         for idx, npc in enumerate(npcs_data):
             if not isinstance(npc, dict):
@@ -690,20 +693,86 @@ class AIService:
 
             # Get role (default to 'villager')
             role = npc.get("role", "villager").strip().lower() if isinstance(npc.get("role"), str) else "villager"
-            if role not in ("villager", "merchant", "quest_giver"):
+            if role not in valid_roles:
                 logger.warning(
                     f"Invalid NPC role '{role}' at location '{location_name}', defaulting to 'villager'"
                 )
                 role = "villager"
 
-            validated_npcs.append({
+            # Get faction (optional)
+            faction = None
+            if isinstance(npc.get("faction"), str):
+                faction_str = npc["faction"].strip()
+                if faction_str:
+                    faction = faction_str
+
+            # Parse shop_inventory (optional, for merchants)
+            shop_inventory = self._parse_shop_inventory(npc.get("shop_inventory", []), name, location_name)
+
+            npc_data = {
                 "name": name,
                 "description": description,
                 "dialogue": dialogue,
                 "role": role
-            })
+            }
+
+            # Add optional fields if present
+            if faction:
+                npc_data["faction"] = faction
+            if shop_inventory is not None:
+                npc_data["shop_inventory"] = shop_inventory
+
+            validated_npcs.append(npc_data)
 
         return validated_npcs
+
+    def _parse_shop_inventory(
+        self, inventory_data: list, npc_name: str, location_name: str
+    ) -> Optional[list[dict]]:
+        """Parse and validate shop inventory from AI response.
+
+        Args:
+            inventory_data: List of item dictionaries from AI response
+            npc_name: Name of the NPC (for logging)
+            location_name: Name of the location (for logging)
+
+        Returns:
+            List of validated shop item dictionaries, or None if not provided
+        """
+        if not isinstance(inventory_data, list):
+            return None
+
+        # Empty list is valid (will trigger fallback to default shop)
+        if len(inventory_data) == 0:
+            return []
+
+        validated_items = []
+        for item in inventory_data:
+            if not isinstance(item, dict):
+                continue
+
+            # Validate name
+            item_name = item.get("name", "").strip() if isinstance(item.get("name"), str) else ""
+            if len(item_name) < 1:
+                logger.warning(
+                    f"Invalid shop item name for NPC '{npc_name}' at '{location_name}'"
+                )
+                continue
+
+            # Validate price
+            price = item.get("price")
+            if not isinstance(price, (int, float)) or price < 0:
+                logger.warning(
+                    f"Invalid shop item price for '{item_name}' at '{location_name}'"
+                )
+                continue
+
+            validated_items.append({
+                "name": item_name,
+                "price": int(price)
+            })
+
+        return validated_items
 
     def _get_cached(self, prompt: str) -> Optional[dict[str, Any]]:
         """Get cached location data.

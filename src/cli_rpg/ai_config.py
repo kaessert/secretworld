@@ -334,10 +334,12 @@ Location Details:
 - Category: {location_category}
 
 Requirements:
-1. Generate 1-2 NPCs appropriate for this location
+1. Generate 3-5 NPCs appropriate for this location
 2. Each NPC needs: name (2-30 chars), description (1-200 chars), dialogue (a greeting), role
-3. Roles: villager, merchant, or quest_giver
+3. Roles: villager, merchant, quest_giver, guard, traveler, or innkeeper
 4. Names should follow the world's naming style
+5. Merchants should include shop_inventory with 3-6 theme-appropriate items
+6. NPCs may have a faction affiliation (optional)
 
 Respond with valid JSON in this exact format (no additional text):
 {{
@@ -346,7 +348,18 @@ Respond with valid JSON in this exact format (no additional text):
       "name": "NPC Name",
       "description": "Brief description of the NPC.",
       "dialogue": "What the NPC says when greeted.",
-      "role": "villager"
+      "role": "villager",
+      "faction": "Optional Faction Name"
+    }},
+    {{
+      "name": "Merchant Name",
+      "description": "A merchant description.",
+      "dialogue": "Welcome to my shop!",
+      "role": "merchant",
+      "shop_inventory": [
+        {{"name": "Item Name", "price": 50}},
+        {{"name": "Another Item", "price": 100}}
+      ]
     }}
   ]
 }}"""

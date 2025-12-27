@@ -46,6 +46,7 @@ class NPC:
     persuaded: bool = False  # Whether NPC has been persuaded this session
     haggleable: bool = True  # Whether merchant allows haggling
     haggle_cooldown: int = 0  # Turns remaining before haggling allowed again
+    faction: Optional[str] = None  # Faction affiliation (e.g., "Merchant Guild")
 
     def __post_init__(self):
         """Validate NPC attributes."""
@@ -144,6 +145,7 @@ class NPC:
             "persuaded": self.persuaded,
             "haggleable": self.haggleable,
             "haggle_cooldown": self.haggle_cooldown,
+            "faction": self.faction,
         }
         # Only include ascii_art if it's not empty
         if self.ascii_art:
@@ -185,4 +187,5 @@ class NPC:
             persuaded=data.get("persuaded", False),  # Default False for backward compat
             haggleable=data.get("haggleable", True),  # Default True for backward compat
             haggle_cooldown=data.get("haggle_cooldown", 0),  # Default 0 for backward compat
+            faction=data.get("faction"),  # None for backward compat
         )

@@ -74,6 +74,39 @@ def _create_default_merchant_shop() -> Shop:
 MERCHANT_KEYWORDS = {"merchant", "trader", "vendor", "shopkeeper", "seller", "dealer"}
 
 
+def _create_shop_from_ai_inventory(shop_inventory: list[dict], shop_name: str) -> Optional[Shop]:
+    """Create a Shop from AI-generated inventory items.
+
+    Args:
+        shop_inventory: List of item dicts with 'name' and 'price'
+        shop_name: Name for the shop
+
+    Returns:
+        Shop with AI items, or None if inventory is empty/invalid
+    """
+    if not shop_inventory:
+        return None
+
+    shop_items = []
+    for item_data in shop_inventory:
+        try:
+            # Create a generic consumable item from AI data
+            item = Item(
+                name=item_data["name"],
+                description=f"A {item_data['name'].lower()} available for purchase.",
+                item_type=ItemType.MISC
+            )
+            shop_items.append(ShopItem(item=item, buy_price=item_data["price"]))
+        except (KeyError, ValueError) as e:
+            logger.warning(f"Failed to create shop item from AI data: {e}")
+            continue
+
+    if not shop_items:
+        return None
+
+    return Shop(name=shop_name, inventory=shop_items)
+
+
 def _create_npcs_from_data(npcs_data: list[dict]) -> list[NPC]:
     """Create NPC objects from parsed NPC data.
 
@@ -100,7 +133,18 @@ def _create_npcs_from_data(npcs_data: list[dict]) -> list[NPC]:
             # Create shop for merchant NPCs
             shop = None
             if is_merchant:
-                shop = _create_default_merchant_shop()
+                # Try to use AI-generated inventory first
+                ai_inventory = npc_data.get("shop_inventory", [])
+                if ai_inventory:
+                    shop = _create_shop_from_ai_inventory(
+                        ai_inventory, f"{npc_data['name']}'s Wares"
+                    )
+                # Fall back to default shop if AI inventory failed
+                if shop is None:
+                    shop = _create_default_merchant_shop()
+
+            # Get faction (optional)
+            faction = npc_data.get("faction")
 
             npc = NPC(
                 name=npc_data["name"],
@@ -108,7 +152,8 @@ def _create_npcs_from_data(npcs_data: list[dict]) -> list[NPC]:
                 dialogue=npc_data.get("dialogue", "Hello, traveler."),
                 is_merchant=is_merchant,
                 is_quest_giver=is_quest_giver,
-                shop=shop
+                shop=shop,
+                faction=faction
             )
             npcs.append(npc)
         except (KeyError, ValueError) as e:
