@@ -25,9 +25,12 @@
 
 ---
 
-### 🚨 BLOCKER: Connections Inferred from Terrain Passability
-**Status**: BLOCKER - HIGHEST PRIORITY
+### ✅ RESOLVED: Connections Inferred from Terrain Passability
+**Status**: RESOLVED
 **Date Added**: 2025-12-26
+**Date Resolved**: 2025-12-27
+
+**Resolution**: All `Location.connections` field references have been removed from the codebase. Movement is now determined by coordinate adjacency and terrain passability via the WFC ChunkManager. All 3573 tests pass.
 
 **Problem**: Location connections are currently stored explicitly and managed separately from terrain. Connections should be INFERRED at runtime from terrain passability - if two adjacent tiles are both passable, the player can move between them. Period.
 
@@ -130,12 +133,12 @@ def get_valid_moves(chunk_manager: ChunkManager, x: int, y: int) -> list[str]:
 - `src/cli_rpg/world.py`: Remove connection generation logic
 
 **Success Criteria**:
-- [ ] `Location.connections` field removed entirely
+- [x] `Location.connections` field removed entirely ✅
 - [x] `PASSABLE_TERRAIN` and `IMPASSABLE_TERRAIN` defined in world_tiles.py ✅
 - [x] `is_passable()` and `get_valid_moves()` functions implemented ✅
 - [x] `go <direction>` checks terrain passability, not connection dict ✅ (2025-12-26 - Step 3 complete)
 - [x] Map shows valid exits based on adjacent terrain types ✅ (resolved per WFC exit display fix)
-- [ ] No code references "connections" for movement logic (connections still exist for legacy/SubGrid support)
+- [x] No code references "connections" for movement logic ✅
 
 ---
 
@@ -238,9 +241,67 @@ Instead of one monolithic prompt, use a hierarchical generation system:
 
 ### WFC World Generation Overhaul
 **Status**: IN PROGRESS
-**Priority**: HIGH
+**Priority**: CRITICAL - BLOCKS IMMERSION
 
-Transform the world generation system to support infinite procedural terrain as the default experience.
+Transform the world generation system to match traditional RPG map design: **vast stretches of traversable terrain with occasional points of interest**.
+
+#### The Problem: Every Tile is a "Location"
+
+**Current behavior breaks immersion.** Walking one tile in any direction spawns a new AI-generated named location with unique NPCs. This creates a world where:
+
+- Every single step is a "destination" - nothing feels like travel
+- The world feels cluttered and artificial
+- AI generation costs explode (every tile = API call)
+- No sense of scale or distance between meaningful places
+
+**Compare to classic RPGs:**
+
+| Game | Overworld Design |
+|------|------------------|
+| **Zelda/Final Fantasy** | Large overworld map, towns/dungeons are sub-areas you enter |
+| **Skyrim** | Vast wilderness, cities/caves are distinct enterable locations |
+| **Baldur's Gate** | Region maps with named areas as clickable destinations |
+| **Our current system** | ❌ Every tile is a named location with NPCs |
+
+#### Target Architecture: Sparse Overworld + Dense Sub-locations
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│  OVERWORLD (95% of tiles)                                       │
+│  ─────────────────────────────────────────────────────────────  │
+│  • Generic terrain: "Dense Forest", "Rolling Plains", "Rocky    │
+│    Hillside" - NO unique names, NO NPCs, NO AI generation       │
+│  • Template-based: instant generation, zero API cost            │
+│  • Purpose: create sense of travel, scale, and journey          │
+│  • Player moves freely through passable terrain                 │
+└─────────────────────────────────────────────────────────────────┘
+                              │
+                              ▼
+┌─────────────────────────────────────────────────────────────────┐
+│  NAMED LOCATIONS (5% of tiles) - Enterable Sub-areas            │
+│  ─────────────────────────────────────────────────────────────  │
+│  • Villages: 5-15 interior rooms (inn, shop, houses, square)    │
+│  • Cities: 20-50 interior rooms (districts, guilds, palace)     │
+│  • Dungeons: 10-30 rooms (corridors, chambers, boss room)       │
+│  • Landmarks: 3-5 rooms (shrine, ruins, cave)                   │
+│  • Full AI generation: unique names, NPCs, quests, shops        │
+│  • Player uses `enter` command to access interior SubGrid       │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+**Visual comparison:**
+
+```
+CURRENT (bad):                    TARGET (good):
+┌─────────────────────┐          ┌─────────────────────┐
+│ Town │Cave │Temple │          │  .  .  .  .  .  .   │
+├──────┼─────┼───────┤          │  .  .  ⌂  .  .  .   │  ⌂ = Village (enter)
+│Ruins │Inn  │Shrine │          │  .  .  .  .  .  .   │
+├──────┼─────┼───────┤          │  .  ▲  .  .  .  ☠   │  ▲ = Mountain, ☠ = Dungeon
+│Grove │Mill │Tower  │          │  .  .  .  .  .  .   │
+└─────────────────────┘          └─────────────────────┘
+Every tile = named location      Mostly terrain, rare POIs
+```
 
 #### Goals
 
@@ -280,10 +341,21 @@ Transform the world generation system to support infinite procedural terrain as 
 
 **Ratio Target:** ~1 named location per 10-20 unnamed tiles (achieved via linear probability curve)
 
-**Remaining Integration:**
-- Wire `should_generate_named_location()` into world expansion flow
-- Track `tiles_since_named` counter in GameState
-- Use `get_unnamed_location_template()` for unnamed tiles instead of AI calls
+**🚨 REMAINING INTEGRATION - THIS IS THE BLOCKER:**
+
+The infrastructure exists but is **NOT WIRED UP**. Currently every tile still triggers AI generation.
+
+| Task | Status | Impact |
+|------|--------|--------|
+| Wire `should_generate_named_location()` into world expansion | ❌ NOT DONE | Blocks sparse world |
+| Track `tiles_since_named` counter in GameState | ❌ NOT DONE | Required for trigger |
+| Use `get_unnamed_location_template()` for unnamed tiles | ❌ NOT DONE | Blocks template usage |
+| Make named locations enterable SubGrids (not overworld tiles) | ❌ NOT DONE | Core architecture change |
+
+**The fix is straightforward:**
+1. When player moves to unexplored tile → check `should_generate_named_location()`
+2. If FALSE → use template, no AI call, no NPCs, generic terrain description
+3. If TRUE → generate named location as SubGrid, place entry point on overworld tile
 
 #### 3. Variable SubGrid Sizes
 
@@ -1170,6 +1242,8 @@ completed_quest_outcomes: List[QuestOutcome] = field(default_factory=list)
 **Status**: ACTIVE
 **Date Added**: 2025-12-26
 
+**⚠️ Related to: WFC World Generation Overhaul** - Both issues stem from the same root cause: we generate AI content for every tile instead of treating the overworld as traversable terrain with sparse named sub-locations.
+
 **Analysis Summary**: Deep analysis of the world generation system revealed excellent procedural terrain generation (WFC) and solid spatial management (WorldGrid), but critical disconnects that harm immersion.
 
 #### Current Architecture
@@ -1206,9 +1280,16 @@ The AI prompt for location generation (`ai_config.py`) doesn't include:
 
 Result: Locations feel random, not part of a cohesive world.
 
-**3. Minimal NPC/Content Generation**
+**3. NPCs Scattered Across Overworld (Wrong)**
 
-- Only 0-2 NPCs per AI-generated location
+Current: Every overworld tile can have 0-2 NPCs spawned on it.
+Target: NPCs should **only exist inside named sub-locations** (villages, dungeons, etc.).
+
+- Overworld tiles = wilderness, no NPCs, just terrain and random encounters
+- Named locations (SubGrids) = towns, dungeons, etc. with rich NPC populations
+- This matches RPG conventions: you don't find shopkeepers standing in random forests
+
+**Also:**
 - No shop inventories generated
 - No quest hooks or faction ties
 - Hardcoded merchants feel out of place in AI worlds

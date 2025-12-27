@@ -231,18 +231,6 @@ class TestNPCPersistenceNavigation:
             loc.npcs = [NPC(name=f"NPC_{name}", description=f"An NPC in {name}", dialogue="Hi")]
             locations[name] = loc
 
-        # Set up connections
-        locations["Center"].connections = {
-            "north": "North",
-            "south": "South",
-            "east": "East",
-            "west": "West",
-        }
-        locations["North"].connections = {"south": "Center"}
-        locations["South"].connections = {"north": "Center"}
-        locations["East"].connections = {"west": "Center"}
-        locations["West"].connections = {"east": "Center"}
-
         game_state = GameState(char, locations, starting_location="Center")
 
         # Visit all locations and return to center
