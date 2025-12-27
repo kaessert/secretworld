@@ -12,6 +12,37 @@ from cli_rpg.game_state import GameState
 from cli_rpg.world import create_default_world
 
 
+def navigate_to_boss_chamber(game_state: GameState) -> bool:
+    """Navigate through the mines from entry point to Boss Chamber.
+
+    Path: Abandoned Mines -> Mine Entrance (entry) -> north to Flooded Level -> north to Boss Chamber
+    Defeats any bosses encountered along the way (e.g., Flooded Level boss).
+
+    Returns True if successfully reached Boss Chamber.
+    """
+    # Enter at Mine Entrance (entry point)
+    success, _ = game_state.enter("Mine Entrance")
+    if not success:
+        return False
+
+    # Navigate to Flooded Level (north from entrance)
+    success, _ = game_state.move("north")
+    if not success:
+        return False
+
+    # Defeat Flooded Level boss if triggered
+    if game_state.is_in_combat():
+        boss = game_state.current_combat.enemies[0]
+        boss.take_damage(boss.health)
+        game_state.current_combat.end_combat(victory=True)
+        game_state.mark_boss_defeated()
+        game_state.current_combat = None
+
+    # Navigate to Boss Chamber (north from flooded level)
+    success, _ = game_state.move("north")
+    return success
+
+
 class TestBossChamberTriggersEncounter:
     """Tests that Boss Chamber triggers boss encounter on first entry."""
 
@@ -21,8 +52,8 @@ class TestBossChamberTriggersEncounter:
         player = Character(name="Hero", strength=10, dexterity=10, intelligence=10)
         game_state = GameState(player, world, starting_location="Abandoned Mines")
 
-        # Enter Boss Chamber
-        success, message = game_state.enter("Boss Chamber")
+        # Navigate to Boss Chamber through entry point
+        success = navigate_to_boss_chamber(game_state)
 
         # Should trigger boss combat
         assert success
@@ -37,10 +68,11 @@ class TestBossChamberTriggersEncounter:
         player = Character(name="Hero", strength=10, dexterity=10, intelligence=10)
         game_state = GameState(player, world, starting_location="Abandoned Mines")
 
-        # Enter Boss Chamber
-        success, message = game_state.enter("Boss Chamber")
+        # Navigate to Boss Chamber through entry point
+        success = navigate_to_boss_chamber(game_state)
 
         # Boss should be Stone Sentinel
+        assert success
         assert game_state.current_combat is not None
         boss = game_state.current_combat.enemies[0]
         assert boss.name == "The Stone Sentinel"
@@ -111,8 +143,12 @@ class TestBossChamberNoRespawn:
         player = Character(name="Hero", strength=10, dexterity=10, intelligence=10)
         game_state = GameState(player, world, starting_location="Abandoned Mines")
 
-        # Enter Boss Chamber and defeat boss
-        success, _ = game_state.enter("Boss Chamber")
+        # Navigate to Boss Chamber through entry point
+        success = navigate_to_boss_chamber(game_state)
+        assert success
+        assert game_state.current_combat is not None
+
+        # Defeat the boss
         boss = game_state.current_combat.enemies[0]
         boss.take_damage(boss.health)
         game_state.current_combat.end_combat(victory=True)
@@ -139,8 +175,12 @@ class TestBossChamberNoRespawn:
         boss_chamber = mines.sub_grid.get_by_name("Boss Chamber")
         assert boss_chamber.is_safe_zone is False
 
-        # Enter Boss Chamber and defeat boss
-        success, _ = game_state.enter("Boss Chamber")
+        # Navigate to Boss Chamber through entry point
+        success = navigate_to_boss_chamber(game_state)
+        assert success
+        assert game_state.current_combat is not None
+
+        # Defeat the boss
         boss = game_state.current_combat.enemies[0]
         boss.take_damage(boss.health)
         game_state.current_combat.end_combat(victory=True)

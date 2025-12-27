@@ -826,6 +826,21 @@ class GameState:
                     sub_grid_location = loc
                     break
 
+            # Only allow entry through entry_point (is_exit_point locations)
+            if sub_grid_location is not None and not sub_grid_location.is_exit_point:
+                entry_point_name = current.entry_point
+                if entry_point_name is None:
+                    # Find entry point from is_exit_point flag
+                    for loc in current.sub_grid._by_name.values():
+                        if loc.is_exit_point:
+                            entry_point_name = loc.name
+                            break
+                return (
+                    False,
+                    f"You can't enter {matched_location} directly. "
+                    f"Enter through {colors.location(entry_point_name or 'the entrance')}.",
+                )
+
         # Fall back to traditional sub_locations list (in world dict)
         if matched_location is None:
             for sub_name in current.sub_locations:

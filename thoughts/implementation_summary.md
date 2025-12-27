@@ -1,31 +1,54 @@
-# Implementation Summary: Fix Flaky Poison Test
+# Implementation Summary: Enter Command Entry Point Restriction
 
 ## What Was Implemented
 
-Fixed a flaky test `test_enemy_with_poison_can_apply_poison` in `tests/test_status_effects.py` by adding a mock to prevent random dodge behavior.
+The implementation restricts the `enter` command to only allow entering through designated entry points when a location has a `sub_grid` (interior grid system). This prevents players from teleporting directly into any interior room.
 
-## Changes Made
+### Changes Made
 
-**File**: `tests/test_status_effects.py`, lines 278-293
+1. **`src/cli_rpg/models/location.py`**:
+   - `get_layered_description()` (lines 259-271): Now shows only the entry point in the "Enter:" line when `sub_grid` exists. Falls back to showing all `sub_locations` for legacy locations.
+   - `__str__()` (lines 470-481): Same logic applied for consistency in string representation.
 
-Added `unittest.mock.patch` to mock `cli_rpg.combat.random.random` with a fixed return value of `0.50`, which:
-- Prevents the character from dodging the enemy attack (dodge requires random value < 0.10 for 10% dodge chance)
-- Ensures the poison application code is reached every time
+2. **`src/cli_rpg/game_state.py`**:
+   - `enter()` method (lines 829-842): Validates that only entry point locations (those with `is_exit_point=True`) can be entered directly. Rejects attempts to enter non-entry-point rooms with a helpful error message directing the player to the entry point.
 
-## Root Cause
+### Test Coverage
 
-The character fixture had `dexterity=10`, giving ~10% dodge chance. Without mocking, approximately 1 in 10 test runs would result in a dodge, skipping the poison application code entirely and failing the assertion.
+Created `tests/test_enter_entry_point.py` with 9 tests covering:
+- `test_enter_shows_only_entry_point_with_sub_grid` - Description shows only entry point
+- `test_enter_shows_entry_point_from_is_exit_point_fallback` - Falls back to `is_exit_point` when no explicit `entry_point`
+- `test_enter_legacy_sub_locations_shows_all` - Legacy locations still show all sub_locations
+- `test_str_shows_only_entry_point_with_sub_grid` - `__str__()` shows only entry point
+- `test_str_legacy_shows_all_sub_locations` - Legacy behavior preserved in `__str__()`
+- `test_enter_command_allows_entry_point` - Entry point access works
+- `test_enter_command_rejects_non_entry_point` - Non-entry rooms blocked
+- `test_enter_command_rejects_treasury_directly` - Additional room rejection test
+- `test_enter_no_argument_uses_entry_point` - No-argument enter uses default entry point
 
 ## Test Results
 
-- Target test passes consistently (verified 10 consecutive runs)
-- All 75 tests in `tests/test_status_effects.py` pass
+All tests pass:
+- `tests/test_enter_entry_point.py`: 9 passed
+- `tests/test_location.py`: 44 passed
+- `tests/test_game_state.py`: 44 passed
+- `tests/test_world_grid.py`: 47 passed
 
-## Technical Details
+Total: 135 tests passed in related test files.
 
-The fix follows the established pattern used in other similar tests:
-- `test_burn_applies_in_combat` (line 530)
-- `test_stun_applies_in_combat` (line 682)
-- `test_bleed_applies_in_combat` (line 1266)
+## Design Decisions
 
-All use the same mocking approach to prevent dodge from interfering with status effect application tests.
+1. **Entry point discovery**: When `entry_point` field is not set, the code searches the sub_grid for the first location with `is_exit_point=True`.
+
+2. **Backward compatibility**: Legacy locations with only `sub_locations` list (no `sub_grid`) continue to show all sub-locations and allow direct entry to any of them.
+
+3. **Error messages**: When attempting to enter a non-entry-point room, the error message explicitly names the correct entry point to help players.
+
+## E2E Validation
+
+To validate in-game:
+1. Navigate to an overworld location with a sub_grid (e.g., Castle Ruins)
+2. Verify "Enter:" shows only the entry point
+3. Try `enter Council Chamber` - should fail with message mentioning Entry Hall
+4. Try `enter Entry Hall` - should succeed
+5. Navigate internally to reach other rooms

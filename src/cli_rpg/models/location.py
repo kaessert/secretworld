@@ -256,7 +256,17 @@ class Location:
             result += "Exits: None"
 
         # Show sub-locations if any exist
-        if self.sub_locations:
+        if self.sub_grid is not None:
+            # Only show entry point for sub_grid locations
+            if self.entry_point:
+                result += f"\nEnter: {colors.location(self.entry_point)}"
+            else:
+                # Find first is_exit_point location in sub_grid
+                for loc in self.sub_grid._by_name.values():
+                    if loc.is_exit_point:
+                        result += f"\nEnter: {colors.location(loc.name)}"
+                        break
+        elif self.sub_locations:
             sub_loc_names = [colors.location(name) for name in self.sub_locations]
             result += f"\nEnter: {', '.join(sub_loc_names)}"
 
@@ -457,7 +467,17 @@ class Location:
         # Use get_layered_description() for full exit display
         result += "Exits: (use look command)"
 
-        if self.sub_locations:
+        if self.sub_grid is not None:
+            # Only show entry point for sub_grid locations
+            if self.entry_point:
+                result += f"\nEnter: {self.entry_point}"
+            else:
+                # Find first is_exit_point location in sub_grid
+                for loc in self.sub_grid._by_name.values():
+                    if loc.is_exit_point:
+                        result += f"\nEnter: {loc.name}"
+                        break
+        elif self.sub_locations:
             result += f"\nEnter: {', '.join(self.sub_locations)}"
 
         return result

@@ -14,6 +14,23 @@ from cli_rpg.game_state import GameState
 from cli_rpg.world import create_default_world
 
 
+def navigate_to_flooded_level(game_state: GameState) -> bool:
+    """Navigate through the mines from entry point to Flooded Level.
+
+    Path: Abandoned Mines -> Mine Entrance (entry) -> north to Flooded Level
+
+    Returns True if successfully reached Flooded Level.
+    """
+    # Enter at Mine Entrance (entry point)
+    success, _ = game_state.enter("Mine Entrance")
+    if not success:
+        return False
+
+    # Navigate to Flooded Level (north from entrance)
+    success, _ = game_state.move("north")
+    return success
+
+
 class TestFloodedLevelConfiguration:
     """Tests for Flooded Level configuration with boss_enemy."""
 
@@ -52,8 +69,8 @@ class TestFloodedLevelTriggersEncounter:
         player = Character(name="Hero", strength=10, dexterity=10, intelligence=10)
         game_state = GameState(player, world, starting_location="Abandoned Mines")
 
-        # Enter Flooded Level
-        success, message = game_state.enter("Flooded Level")
+        # Navigate to Flooded Level through entry point
+        success = navigate_to_flooded_level(game_state)
 
         # Should trigger boss combat
         assert success
@@ -69,10 +86,11 @@ class TestFloodedLevelTriggersEncounter:
         player = Character(name="Hero", strength=10, dexterity=10, intelligence=10)
         game_state = GameState(player, world, starting_location="Abandoned Mines")
 
-        # Enter Flooded Level
-        success, message = game_state.enter("Flooded Level")
+        # Navigate to Flooded Level through entry point
+        success = navigate_to_flooded_level(game_state)
 
         # Boss should be Drowned Overseer
+        assert success
         assert game_state.current_combat is not None
         boss = game_state.current_combat.enemies[0]
         assert boss.name == "The Drowned Overseer"

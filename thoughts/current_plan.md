@@ -1,70 +1,63 @@
-# Implementation Plan: Fix Flaky Poison Test
+# Plan: Fix "Enter" Command to Only Show Entry Point
 
-**Issue**: `test_enemy_with_poison_can_apply_poison` in `tests/test_status_effects.py` is flaky - passes individually but sometimes fails in full test suite.
+## Problem
+When at an overworld location with a sub_grid, all sub-locations are shown in the "Enter:" prompt, allowing players to teleport directly into any room. Players should only be able to enter through the designated entry point (marked with `is_exit_point=True`), then navigate internally.
 
-## Root Cause
+## Spec
+- **Display**: When displaying "Enter:" options, show only the entry point (`entry_point` field or first sub-location in sub_grid with `is_exit_point=True`)
+- **Command**: The `enter` command should only allow entering the entry point location when a sub_grid exists
+- Preserve backward compatibility for locations using the legacy `sub_locations` list without `sub_grid`
 
-The test creates a character with `dexterity=10`, giving ~10% dodge chance. When the enemy attacks:
-1. Combat checks `random.random() < dodge_chance` (line 1676 in combat.py)
-2. If dodge succeeds, the attack is skipped via `continue` (line 1687)
-3. Poison application code (lines 1792-1804) is never reached
-4. Test assertion fails because no poison was applied
+## Implementation Steps
 
-The test doesn't mock `random.random()`, so ~10% of runs will fail due to dodge.
+### 1. Update `Location.get_layered_description()` (src/cli_rpg/models/location.py, ~line 258-261)
+**Current**: Shows all sub_locations in "Enter:" line
+**Change**: When `self.sub_grid` exists, show only the `self.entry_point` (or find the first location with `is_exit_point=True` from sub_grid). Fall back to showing all `sub_locations` when no sub_grid exists.
 
-## Fix
-
-Add `unittest.mock.patch` to prevent dodge, matching the pattern already used in:
-- `test_burn_applies_in_combat` (line 530)
-- `test_stun_applies_in_combat` (line 682)
-- `test_bleed_applies_in_combat` (line 1266)
-
-## Implementation
-
-**File**: `tests/test_status_effects.py`, lines 278-289
-
-Change from:
 ```python
-def test_enemy_with_poison_can_apply_poison(self, character, poison_enemy):
-    """Spec: Enemies can apply poison to the player (20% chance on attack)."""
-    combat = CombatEncounter(player=character, enemy=poison_enemy)
-    combat.start()
+# Current (~line 258-261):
+if self.sub_locations:
+    sub_loc_names = [colors.location(name) for name in self.sub_locations]
+    result += f"\nEnter: {', '.join(sub_loc_names)}"
 
-    # Enemy attacks - with 100% poison chance, should always apply
-    initial_effects = len(character.status_effects)
-    combat.enemy_turn()
-
-    # Character should now have poison
-    assert len(character.status_effects) == initial_effects + 1
-    assert character.status_effects[0].name == "Poison"
+# Change to:
+if self.sub_grid is not None:
+    # Only show entry point for sub_grid locations
+    if self.entry_point:
+        result += f"\nEnter: {colors.location(self.entry_point)}"
+    else:
+        # Find first is_exit_point location in sub_grid
+        for loc in self.sub_grid._by_name.values():
+            if loc.is_exit_point:
+                result += f"\nEnter: {colors.location(loc.name)}"
+                break
+elif self.sub_locations:
+    sub_loc_names = [colors.location(name) for name in self.sub_locations]
+    result += f"\nEnter: {', '.join(sub_loc_names)}"
 ```
 
-To:
+### 2. Update `Location.__str__()` (src/cli_rpg/models/location.py, ~line 460-461)
+Apply same pattern for consistency in string representation.
+
+### 3. Update `GameState.enter()` (src/cli_rpg/game_state.py, ~line 820-835)
+**Current**: Searches all sub_grid locations for name match
+**Change**: When entering from overworld with sub_grid, only allow entry to the entry_point location. Reject attempts to enter other sub-locations directly.
+
 ```python
-def test_enemy_with_poison_can_apply_poison(self, character, poison_enemy):
-    """Spec: Enemies can apply poison to the player (20% chance on attack)."""
-    from unittest.mock import patch
-
-    combat = CombatEncounter(player=character, enemy=poison_enemy)
-    combat.start()
-
-    initial_effects = len(character.status_effects)
-
-    # Mock random to prevent dodge and ensure poison applies
-    with patch('cli_rpg.combat.random.random', return_value=0.50):
-        combat.enemy_turn()
-
-    # Character should now have poison
-    assert len(character.status_effects) == initial_effects + 1
-    assert character.status_effects[0].name == "Poison"
+# After finding sub_grid_location (~line 827), add validation:
+if sub_grid_location is not None and not sub_grid_location.is_exit_point:
+    return (False, f"You can't enter {matched_location} directly. Enter through {current.entry_point}.")
 ```
 
-## Verification
+## Tests to Add (tests/test_enter_entry_point.py)
 
-```bash
-# Run test multiple times to confirm no flakiness
-for i in {1..10}; do pytest tests/test_status_effects.py::TestCombatStatusEffects::test_enemy_with_poison_can_apply_poison -v; done
+1. **test_enter_shows_only_entry_point** - `get_layered_description()` with sub_grid shows only entry_point
+2. **test_enter_command_allows_entry_point** - `enter()` succeeds for entry_point location
+3. **test_enter_command_rejects_non_entry_point** - `enter("Council Chamber")` fails with helpful message
+4. **test_enter_legacy_sub_locations_still_works** - locations without sub_grid still show all sub_locations
+5. **test_enter_str_shows_only_entry_point** - `__str__()` shows only entry point when sub_grid exists
 
-# Full test suite
-pytest
-```
+## Files to Modify
+1. `src/cli_rpg/models/location.py` - `get_layered_description()` and `__str__()` methods
+2. `src/cli_rpg/game_state.py` - `enter()` method
+3. `tests/test_enter_entry_point.py` - new test file

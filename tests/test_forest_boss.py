@@ -14,6 +14,23 @@ from cli_rpg.game_state import GameState
 from cli_rpg.world import create_default_world
 
 
+def navigate_to_ancient_grove(game_state: GameState) -> bool:
+    """Navigate through the forest from entry point to Ancient Grove.
+
+    Path: Forest -> Forest Edge (entry) -> east to Ancient Grove
+
+    Returns True if successfully reached Ancient Grove.
+    """
+    # Enter at Forest Edge (entry point)
+    success, _ = game_state.enter("Forest Edge")
+    if not success:
+        return False
+
+    # Navigate to Ancient Grove (east from Forest Edge)
+    success, _ = game_state.move("east")
+    return success
+
+
 class TestAncientGroveConfiguration:
     """Tests for Ancient Grove configuration with boss_enemy."""
 
@@ -52,8 +69,8 @@ class TestAncientGroveTriggersEncounter:
         player = Character(name="Hero", strength=10, dexterity=10, intelligence=10)
         game_state = GameState(player, world, starting_location="Forest")
 
-        # Enter Ancient Grove
-        success, message = game_state.enter("Ancient Grove")
+        # Navigate to Ancient Grove through entry point
+        success = navigate_to_ancient_grove(game_state)
 
         # Should trigger boss combat
         assert success
@@ -69,10 +86,11 @@ class TestAncientGroveTriggersEncounter:
         player = Character(name="Hero", strength=10, dexterity=10, intelligence=10)
         game_state = GameState(player, world, starting_location="Forest")
 
-        # Enter Ancient Grove
-        success, message = game_state.enter("Ancient Grove")
+        # Navigate to Ancient Grove through entry point
+        success = navigate_to_ancient_grove(game_state)
 
         # Boss should be Elder Treant
+        assert success
         assert game_state.current_combat is not None
         boss = game_state.current_combat.enemies[0]
         assert boss.name == "The Elder Treant"

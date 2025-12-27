@@ -137,19 +137,24 @@ class TestEnterWithSubGrid:
         assert success
         assert game_state.current_location == "Town Hall Entrance"
 
-    def test_enter_with_target_name_goes_to_specific_sub_location(self):
-        """Test entering with target name goes to that sub-location if it exists."""
+    def test_enter_rejects_non_entry_point_sub_location(self):
+        """Test entering directly to non-entry-point sub-location is blocked.
+
+        Spec: Only entry_point locations can be entered from overworld.
+        Players must navigate internally to reach other rooms.
+        """
         character = make_character()
         world = make_simple_world()
-        # Add Council Chamber to sub_locations list for it to be enterable
+        # Add Council Chamber to sub_locations list (doesn't make it enterable)
         world["Town Square"].sub_locations.append("Council Chamber")
         game_state = GameState(character, world, starting_location="Town Square")
 
-        # Enter Council Chamber directly
-        success, _ = game_state.enter("Council Chamber")
-        assert success
-        assert game_state.current_location == "Council Chamber"
-        assert game_state.in_sub_location is True
+        # Try to enter Council Chamber directly (should fail)
+        success, message = game_state.enter("Council Chamber")
+        assert not success, "Should not be able to enter non-entry-point directly"
+        assert "Town Hall Entrance" in message, "Should mention entry point"
+        assert game_state.current_location == "Town Square"
+        assert game_state.in_sub_location is False
 
 
 class TestMoveInsideSubGrid:

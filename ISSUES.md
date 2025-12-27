@@ -806,16 +806,14 @@ Issues discovered during WFC mode playtesting (WFC is now enabled by default; up
      - Add pagination or search
      - Fix "(saved: unknown)" to show actual timestamps
 
-5. **Can enter any sub-location instead of designated entry point**
-   - Currently shows multiple "Enter:" options for all sub-locations in an area
-   - Player can enter any sub-location directly (e.g., "Enter: Data Glade, Cyber Grove, Neon Orchard, Quantum Glade")
-   - **Problem**: This is unrealistic - you shouldn't be able to teleport into any room
-   - **Expected behavior**: Only show the single entry point location (the one with `is_exit_point=True`)
-   - Example: "Enter: Data Glade" (the designated entrance), then navigate internally to other rooms
-   - **Files to investigate**:
-     - `src/cli_rpg/game_state.py`: `get_enterable_locations()` or similar
-     - `src/cli_rpg/main.py`: `enter` command handling
-     - `src/cli_rpg/models/location.py`: `sub_grid` and entry point logic
+5. ~~**Can enter any sub-location instead of designated entry point**~~ ✅ RESOLVED (2025-12-27)
+   - Fixed: Location descriptions now show only the entry point (location with `is_exit_point=True`)
+   - Fixed: `enter` command validates that only entry point locations can be entered directly
+   - Non-entry-point rooms are now blocked with a helpful error message directing players to the entry point
+   - **Files modified**:
+     - `src/cli_rpg/models/location.py`: `get_layered_description()` and `__str__()` show only entry point
+     - `src/cli_rpg/game_state.py`: `enter()` validates entry point access
+   - 9 new tests in `tests/test_enter_entry_point.py`
 
 #### LOW PRIORITY / UX ISSUES
 
