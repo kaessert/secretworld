@@ -2,6 +2,64 @@
 
 ---
 
+### No Enterable Sublocations on Overworld
+**Status**: ACTIVE
+**Priority**: CRITICAL - BLOCKER
+**Date Added**: 2025-12-27
+
+Named locations that should be enterable (dungeons, caves, towns, ruins) never appear on the overworld. The `enter` command exists but there's nothing to enter.
+
+#### The Problem
+
+During extensive playtesting across multiple seeds:
+- Overworld generates terrain tiles correctly (forests, plains, mountains, etc.)
+- Named locations spawn with NPCs (Mystic Grove, Dragon's Roost, etc.)
+- But **zero enterable sublocations** were found (no dungeons, caves, ruins, temples)
+- The `enter` command always fails: "Unknown destination" or no valid targets
+
+This breaks the core gameplay loop:
+- SubGrid architecture exists but is never exercised
+- Dungeon content (bosses, treasures, multi-level) is unreachable
+- Players can only explore flat overworld terrain
+- No interior spaces to discover
+
+#### Expected Behavior
+
+Sparse but discoverable enterable locations:
+- ~1 dungeon/cave per 20-30 overworld tiles explored
+- Named locations should have `category` set to enterable types (dungeon, cave, ruins, temple)
+- `enter <location>` should transition to SubGrid interior
+- Map should show enterable locations with distinct markers
+
+#### Root Cause Investigation Needed
+
+1. **Are enterable categories being generated?**
+   - Check `should_generate_named_location()` output categories
+   - Verify AI prompts request enterable location types
+
+2. **Is the enter command finding them?**
+   - Check `cmd_enter()` location matching logic
+   - Verify `is_enterable()` or equivalent check
+
+3. **Is SubGrid creation triggered?**
+   - Check `expand_area()` invocation path
+   - Verify SubGrid bounds are applied
+
+#### Implementation
+
+**Files to Investigate**:
+- `src/cli_rpg/world_tiles.py` - Named location category selection
+- `src/cli_rpg/ai_world.py` - `expand_area()` trigger conditions
+- `src/cli_rpg/main.py` - `cmd_enter()` implementation
+- `src/cli_rpg/game_state.py` - SubGrid transition logic
+
+**Potential Fixes**:
+- Force spawn dungeon/cave after N tiles without one
+- Add `ENTERABLE_CATEGORIES` constant and ensure they're generated
+- Wire `enter` command to create SubGrid on-demand for appropriate categories
+
+---
+
 ### Rest Command Tiredness Threshold Mismatch
 **Status**: ACTIVE - Documentation/Implementation Discrepancy
 **Priority**: LOW

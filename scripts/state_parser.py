@@ -291,8 +291,14 @@ def update_state(state: AgentState, message: dict[str, Any]) -> None:
             if "sub_grid" in loc_data and loc_data["sub_grid"]:
                 sub_grid = loc_data["sub_grid"]
                 if "locations" in sub_grid:
-                    for sub_loc in sub_grid["locations"].values():
-                        if sub_loc.get("is_exit_point", False):
+                    locations = sub_grid["locations"]
+                    # Handle both dict (keyed by coord) and list formats
+                    if isinstance(locations, dict):
+                        location_items = locations.values()
+                    else:
+                        location_items = locations
+                    for sub_loc in location_items:
+                        if isinstance(sub_loc, dict) and sub_loc.get("is_exit_point", False):
                             state.enterables.append(sub_loc.get("name", ""))
             if "sub_locations" in loc_data:
                 state.enterables.extend(loc_data["sub_locations"])

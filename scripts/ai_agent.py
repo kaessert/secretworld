@@ -567,8 +567,9 @@ class GameSession:
     def _reader_worker(self) -> None:
         """Background thread that reads stdout lines into a queue."""
         try:
-            for line in self.process.stdout:
-                if self._stop_reader:
+            while not self._stop_reader:
+                line = self.process.stdout.readline()
+                if not line:  # EOF
                     break
                 self._output_queue.put(line)
         except (ValueError, OSError):
@@ -622,24 +623,36 @@ class GameSession:
         if self._reader_thread and self._reader_thread.is_alive():
             self._reader_thread.join(timeout=1)
 
-    def _read_output(self, wait_time: float = 0.1) -> list[str]:
+    def _read_output(self, wait_time: float = 0.1, min_lines: int = 0) -> list[str]:
         """Read available output lines from the queue.
 
         Args:
             wait_time: Time to wait for output
+            min_lines: Minimum lines to wait for (will retry until timeout)
 
         Returns:
             List of output lines
         """
-        time.sleep(wait_time)
-
+        deadline = time.time() + wait_time
         lines = []
+
+        while time.time() < deadline:
+            try:
+                line = self._output_queue.get(timeout=0.05)
+                lines.append(line)
+            except queue.Empty:
+                if len(lines) >= min_lines:
+                    break
+                continue
+
+        # Drain any remaining lines
         while True:
             try:
                 line = self._output_queue.get_nowait()
                 lines.append(line)
             except queue.Empty:
                 break
+
         return lines
 
     def _send_command(self, command: str) -> None:
@@ -787,29 +800,40 @@ class GameSession:
         start_time = time.time()
 
         try:
-            # Wait a bit for game to initialize
-            time.sleep(0.5)
-
-            # Drain any initial output
-            initial_output = self._read_output(wait_time=0.3)
+            # Wait for game to initialize and capture initial output
+            # The game emits session_info, state, narrative, actions immediately
+            time.sleep(0.3)
+            initial_output = self._read_output(wait_time=1.0, min_lines=3)
+            if self.verbose:
+                print(f"[SESSION] Initial output: {len(initial_output)} lines")
+                for line in initial_output[:5]:
+                    print(f"[SESSION]   {line[:100]}...")
             self._process_messages(initial_output)
 
-            # Send initial look command to get game state
+            # Send look command to refresh state
             self._send_command("look")
-            look_lines = self._read_output(wait_time=0.5)
+            look_lines = self._read_output(wait_time=0.5, min_lines=2)
             self._process_messages(look_lines)
             self._initial_gold = self.state.gold
 
             # Get full state with dump-state
             self._send_command("dump-state")
-            state_lines = self._read_output(wait_time=0.3)
+            state_lines = self._read_output(wait_time=0.5, min_lines=1)
             self._process_messages(state_lines)
 
-            # Additional look to ensure exits are captured
+            # If still no exits, try one more look
             if not self.state.exits:
+                if self.verbose:
+                    print("[SESSION] No exits detected, retrying look")
                 self._send_command("look")
-                extra_lines = self._read_output(wait_time=0.3)
+                extra_lines = self._read_output(wait_time=0.5, min_lines=2)
                 self._process_messages(extra_lines)
+
+            # Debug: show what we captured
+            if self.verbose and not self.state.exits:
+                print(f"[SESSION] WARNING: Still no exits. State: location={self.state.location}, npcs={self.state.npcs}")
+            elif self.verbose:
+                print(f"[SESSION] Ready: location={self.state.location}, exits={self.state.exits}")
 
             # Main loop
             while self.stats.commands_issued < self.max_commands:
