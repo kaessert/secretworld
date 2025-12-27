@@ -372,3 +372,96 @@ class TestDreamTirednessIntegration:
         low_chance = get_tiredness_dream_chance(40)  # light sleep
         high_chance = get_tiredness_dream_chance(90)  # deep sleep
         assert high_chance > low_chance
+
+
+# =============================================================================
+# Status Command Display Tests
+# =============================================================================
+
+
+class TestTirednessStatusDisplay:
+    """Tests for tiredness display in status command.
+
+    Tests verify the spec: status command should display tiredness meter.
+    """
+
+    def test_status_shows_tiredness_meter(self):
+        """Status command should include tiredness meter display."""
+        from cli_rpg.models.character import Character
+        from cli_rpg.models.location import Location
+        from cli_rpg.game_state import GameState
+        from cli_rpg.main import handle_exploration_command
+
+        char = Character(
+            name="Test",
+            strength=10,
+            dexterity=10,
+            intelligence=10,
+            charisma=10,
+            perception=10,
+            luck=10,
+        )
+        world = {"Town Square": Location(name="Town Square", description="A town square")}
+        game_state = GameState(char, world, "Town Square")
+
+        # Set some tiredness
+        char.tiredness.current = 42
+
+        success, output = handle_exploration_command(game_state, "status", [])
+
+        assert success
+        assert "TIREDNESS" in output
+        assert "42%" in output
+
+    def test_status_shows_tiredness_at_zero(self):
+        """Status command should show tiredness at 0% for rested character."""
+        from cli_rpg.models.character import Character
+        from cli_rpg.models.location import Location
+        from cli_rpg.game_state import GameState
+        from cli_rpg.main import handle_exploration_command
+
+        char = Character(
+            name="Test",
+            strength=10,
+            dexterity=10,
+            intelligence=10,
+            charisma=10,
+            perception=10,
+            luck=10,
+        )
+        world = {"Town Square": Location(name="Town Square", description="A town square")}
+        game_state = GameState(char, world, "Town Square")
+
+        success, output = handle_exploration_command(game_state, "status", [])
+
+        assert success
+        assert "TIREDNESS" in output
+        assert "0%" in output
+
+    def test_status_shows_tiredness_at_exhausted(self):
+        """Status command should show tiredness at 100% for exhausted character."""
+        from cli_rpg.models.character import Character
+        from cli_rpg.models.location import Location
+        from cli_rpg.game_state import GameState
+        from cli_rpg.main import handle_exploration_command
+
+        char = Character(
+            name="Test",
+            strength=10,
+            dexterity=10,
+            intelligence=10,
+            charisma=10,
+            perception=10,
+            luck=10,
+        )
+        world = {"Town Square": Location(name="Town Square", description="A town square")}
+        game_state = GameState(char, world, "Town Square")
+
+        # Set max tiredness
+        char.tiredness.current = 100
+
+        success, output = handle_exploration_command(game_state, "status", [])
+
+        assert success
+        assert "TIREDNESS" in output
+        assert "100%" in output

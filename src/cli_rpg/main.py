@@ -1120,7 +1120,8 @@ def handle_exploration_command(game_state: GameState, command: str, args: list[s
         time_display = game_state.game_time.get_display()
         weather_display = game_state.weather.get_display()
         dread_display = game_state.current_character.dread_meter.get_display()
-        return (True, f"\n{status_output}\nTime: {time_display}\nWeather: {weather_display}\n{dread_display}")
+        tiredness_display = game_state.current_character.tiredness.get_display()
+        return (True, f"\n{status_output}\nTime: {time_display}\nWeather: {weather_display}\n{dread_display}\n{tiredness_display}")
 
     elif command == "inventory":
         return (True, "\n" + str(game_state.current_character.inventory))
