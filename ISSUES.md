@@ -784,9 +784,10 @@ Issues discovered during WFC mode playtesting (WFC is now enabled by default; up
 
 #### MEDIUM PRIORITY BUGS
 
-1. **Exits disappear/change when revisiting locations**
-   - Available exits change inconsistently when revisiting a location
-   - Whispering Woods initially shows "east, north, west", later shows "east, west" (north gone)
+1. ~~**Exits disappear/change when revisiting locations**~~ ✅ RESOLVED (2025-12-27)
+   - Fixed: `get_filtered_directions()` now uses terrain-based exits for overworld (via WFC `get_valid_moves()`)
+   - SubGrid interiors continue to use location-based logic since they have predefined bounded layouts
+   - 3 new tests added in `tests/test_wfc_exit_display.py`
 
 2. ~~**Wild Boar ASCII art is a cat**~~ ✅ RESOLVED (2025-12-27)
    - Fixed: Added boar-specific ASCII art with pig snout (`(  oo  )`) and hooves in `combat.py`

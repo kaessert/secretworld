@@ -319,3 +319,95 @@ class TestIntegration:
 
         # Verify north was excluded
         assert "north" not in filtered
+
+
+class TestExitStability:
+    """Tests for stable exit display across revisits (Bug fix: exits disappearing).
+
+    Root cause: get_filtered_directions() previously relied on get_available_directions()
+    which only shows exits where Location objects exist. Since locations are generated
+    on-demand, unexplored but passable directions were hidden.
+
+    Fix: For overworld with WFC, use get_valid_moves() (terrain passability) directly
+    instead of filtering get_available_directions() (location existence).
+    """
+
+    def test_exits_shown_for_unexplored_passable_directions(self):
+        """Exits should be shown for passable terrain even if no location exists there yet.
+
+        Spec: get_filtered_directions() shows all passable directions from WFC terrain,
+        not just directions where Location objects have been created.
+        """
+        # Create a location with NO adjacent locations in the world
+        location = Location(name="Test Loc", description="Test location", coordinates=(0, 0))
+        world = {"Test Loc": location}  # Only current location exists
+
+        # Mock ChunkManager that returns passable terrain in all directions
+        chunk_manager = Mock()
+        chunk_manager.get_tile_at = Mock(return_value="plains")
+
+        # Get filtered directions - should show all passable terrain directions
+        filtered = location.get_filtered_directions(chunk_manager, world=world)
+
+        # All 4 directions should be shown even though no locations exist there
+        assert sorted(filtered) == ["east", "north", "south", "west"]
+
+    def test_exits_stable_across_revisits(self):
+        """Exits should not change when revisiting a location after exploring.
+
+        Spec: Adding new Location objects to the world should not change which
+        exits are displayed (exits are determined by terrain, not location existence).
+        """
+        location = Location(name="Central", description="Central location", coordinates=(5, 5))
+
+        # Initial world state: only the current location exists
+        world_initial = {"Central": location}
+
+        # Later world state: a new location was created to the north
+        north_loc = Location(name="North Area", description="North area", coordinates=(5, 6))
+        world_later = {"Central": location, "North Area": north_loc}
+
+        # Mock ChunkManager: south is water (impassable), others are passable
+        chunk_manager = Mock()
+        def get_tile_at(x, y):
+            if y == 4:  # South of (5, 5)
+                return "water"
+            return "plains"
+        chunk_manager.get_tile_at = get_tile_at
+
+        # Get exits at both points in time
+        exits_initial = location.get_filtered_directions(chunk_manager, world=world_initial)
+        exits_later = location.get_filtered_directions(chunk_manager, world=world_later)
+
+        # Exits should be identical - terrain hasn't changed
+        assert sorted(exits_initial) == sorted(exits_later)
+        # Should have east, north, west (south is water)
+        assert sorted(exits_initial) == ["east", "north", "west"]
+
+    def test_subgrid_uses_location_based_exits(self):
+        """SubGrid interiors should still use location-based exits (bounded grid).
+
+        Spec: Interior navigation uses get_available_directions() which checks
+        for existing locations, since interiors have predefined room layouts.
+        WFC terrain should not affect interior navigation.
+        """
+        from cli_rpg.world_grid import SubGrid
+
+        # Create a SubGrid with two rooms
+        sub_grid = SubGrid()
+        sub_grid.bounds = (-2, 2, -2, 2)
+        loc = Location(name="Room One", description="A room", coordinates=None)
+        loc2 = Location(name="Room Two", description="Another room", coordinates=None)
+        sub_grid.add_location(loc, 0, 0)
+        sub_grid.add_location(loc2, 0, 1)  # Room2 is north of Room1
+
+        # Mock ChunkManager that would say all terrain is passable
+        chunk_manager = Mock()
+        chunk_manager.get_tile_at = Mock(return_value="plains")
+
+        # For SubGrid navigation, should use location-based logic not terrain
+        exits = loc.get_filtered_directions(chunk_manager, sub_grid=sub_grid)
+
+        # Only north should be shown (where Room2 exists)
+        # East, south, west should NOT be shown even though terrain is "passable"
+        assert exits == ["north"]

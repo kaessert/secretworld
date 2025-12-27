@@ -137,9 +137,14 @@ class Location:
     ) -> list[str]:
         """Get exit directions filtered by WFC terrain passability.
 
-        When a ChunkManager is provided, filters out directions where the
-        WFC terrain is impassable (e.g., water). This prevents showing exits
-        that the player cannot actually traverse.
+        For overworld navigation with WFC:
+            Uses terrain passability directly (via get_valid_moves) to determine
+            exits. This ensures exits are stable - they depend on terrain, not
+            whether Location objects have been generated yet.
+
+        For interior (SubGrid) navigation:
+            Uses location-based logic (via get_available_directions) since
+            interiors have predefined bounded layouts.
 
         Args:
             chunk_manager: Optional ChunkManager for WFC terrain lookup.
@@ -150,40 +155,19 @@ class Location:
         Returns:
             A sorted list of direction names with passable terrain
         """
-        directions = self.get_available_directions(world=world, sub_grid=sub_grid)
+        # For sub-grid locations (interiors), use location-based logic
+        # Interiors have bounded grids with predefined room layouts
+        if sub_grid is not None:
+            return self.get_available_directions(sub_grid=sub_grid)
 
-        # Return all directions if no chunk_manager or no coordinates
-        if chunk_manager is None or self.coordinates is None:
-            return directions
+        # For overworld WITH WFC: use terrain passability directly
+        # This ensures exits are stable (terrain doesn't depend on exploration)
+        if chunk_manager is not None and self.coordinates is not None:
+            from cli_rpg.world_tiles import get_valid_moves
+            return get_valid_moves(chunk_manager, self.coordinates[0], self.coordinates[1])
 
-        # Import here to avoid circular dependency
-        from cli_rpg.world_tiles import TERRAIN_PASSABLE
-
-        # Direction offsets for coordinate calculation
-        offsets = {
-            "north": (0, 1),
-            "south": (0, -1),
-            "east": (1, 0),
-            "west": (-1, 0),
-        }
-
-        filtered = []
-        for direction in directions:
-            if direction not in offsets:
-                # Unknown direction, include for safety
-                filtered.append(direction)
-                continue
-
-            dx, dy = offsets[direction]
-            target_x = self.coordinates[0] + dx
-            target_y = self.coordinates[1] + dy
-
-            # Get terrain at target coordinates
-            terrain = chunk_manager.get_tile_at(target_x, target_y)
-            if TERRAIN_PASSABLE.get(terrain, True):
-                filtered.append(direction)
-
-        return sorted(filtered)
+        # Fallback (no WFC): use existing location-based logic
+        return self.get_available_directions(world=world, sub_grid=sub_grid)
 
     def find_npc_by_name(self, name: str) -> Optional["NPC"]:
         """Find an NPC by name (case-insensitive).

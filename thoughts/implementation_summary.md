@@ -1,66 +1,45 @@
-# Dream Frequency Fix - Implementation Summary
+# Implementation Summary: Exits Disappear When Revisiting Locations Bug Fix
 
 ## What Was Implemented
 
-### 1. Reduced Dream Trigger Rates (dreams.py)
-- **DREAM_CHANCE**: Changed from 0.25 (25%) to 0.10 (10%)
-- **CAMP_DREAM_CHANCE**: New constant set to 0.15 (15%), replacing the old 40%
+Fixed a bug where available exits would change inconsistently when revisiting overworld locations. For example, a location might show "east, north, west" initially, but later show only "east, west" after exploration.
 
-### 2. Dream Cooldown System (dreams.py, game_state.py)
-- Added **DREAM_COOLDOWN_HOURS = 12** constant
-- Updated `maybe_trigger_dream()` to accept new parameters:
-  - `dream_chance`: Optional override for trigger chance
-  - `last_dream_hour`: Hour of last dream for cooldown check
-  - `current_hour`: Current game hour for cooldown check
-- Dreams are blocked if less than 12 hours have passed since the last dream
+### Root Cause
+`get_filtered_directions()` relied on `get_available_directions()` which only returns directions where **Location objects already exist** in the world dict. Since locations are generated on-demand when the player moves, unexplored but passable directions were hidden.
 
-### 3. GameState Tracking (game_state.py)
-- Added `last_dream_hour: Optional[int] = None` attribute
-- Added serialization in `to_dict()` and deserialization in `from_dict()`
-- Backward compatible: old saves without `last_dream_hour` default to None
+### Solution
+Modified `get_filtered_directions()` in `src/cli_rpg/models/location.py` to:
 
-### 4. Rest Command Updates (main.py)
-- Added `--quick` / `-q` flag parsing to skip dream check entirely
-- Updated to pass cooldown params to `maybe_trigger_dream()`
-- Updates `last_dream_hour` when a dream triggers
+1. **For overworld with WFC**: Use `get_valid_moves()` directly to determine exits based on terrain passability, not location existence
+2. **For interior (SubGrid) navigation**: Continue using location-based logic since interiors have predefined bounded layouts
 
-### 5. Camp Command Updates (camping.py)
-- Removed local `CAMP_DREAM_CHANCE = 0.40` constant
-- Now imports `CAMP_DREAM_CHANCE` from dreams.py
-- Updated to pass cooldown params to `maybe_trigger_dream()`
-- Updates `last_dream_hour` when a dream triggers
+### Files Modified
 
-## Files Modified
-- `src/cli_rpg/dreams.py` - Constants and cooldown logic in maybe_trigger_dream()
-- `src/cli_rpg/game_state.py` - last_dream_hour attribute and serialization
-- `src/cli_rpg/main.py` - rest --quick flag, cooldown params
-- `src/cli_rpg/camping.py` - CAMP_DREAM_CHANCE import, cooldown params
-- `tests/test_dreams.py` - Updated and added 16 new tests
-- `tests/test_camping.py` - Added 3 new tests for camp dream behavior
+| File | Change |
+|------|--------|
+| `src/cli_rpg/models/location.py` | Rewrote `get_filtered_directions()` to use terrain-based exits for overworld |
+| `tests/test_wfc_exit_display.py` | Added 3 new test cases in `TestExitStability` class |
+
+### New Test Cases
+
+1. `test_exits_shown_for_unexplored_passable_directions` - Verifies exits are shown for all passable terrain directions even when no Location objects exist there yet
+
+2. `test_exits_stable_across_revisits` - Verifies exits remain consistent when revisiting a location (adding new locations to the world doesn't change displayed exits)
+
+3. `test_subgrid_uses_location_based_exits` - Verifies SubGrid interiors still use location-based logic (only rooms that exist are shown as exits)
 
 ## Test Results
-- All 47 dream tests pass
-- All 48 camping tests pass
-- Full test suite: **3635 tests passed**
 
-## New Tests Added
+- All 11 tests in `test_wfc_exit_display.py` pass
+- All 58 WFC-related tests pass
+- All 44 location model tests pass
+- Full test suite: **3638 tests passed**
 
-### test_dreams.py
-- TestDreamConstants: test_dream_chance_is_10_percent, test_camp_dream_chance_is_15_percent, test_dream_cooldown_is_12_hours
-- TestMaybeTriggerDream: test_dream_chance_is_10_percent (updated statistical test)
-- TestDreamCooldown: 4 tests for cooldown blocking/allowing dreams
-- TestDreamChanceOverride: 3 tests for custom dream_chance parameter
-- TestRestQuickFlag: 2 tests for --quick/-q flag skipping dreams
-- TestLastDreamHourTracking: 4 tests for GameState tracking and serialization
+## E2E Validation
 
-### test_camping.py
-- TestCampDreamChance: 3 tests for camp using 15% chance with cooldown
-
-## E2E Validation Notes
-To validate the implementation works end-to-end:
-1. Start the game and damage character
-2. Use `rest` multiple times - dreams should occur ~10% of the time
-3. After a dream, use `rest` again within 12 game hours - no dream should occur
-4. Use `rest --quick` - no dream should ever occur
-5. Use `camp` in wilderness - dreams should occur ~15% of the time
-6. Save/load game - `last_dream_hour` should persist correctly
+To validate this fix in E2E testing:
+1. Start a new game with WFC enabled (default)
+2. Note the exits shown at the starting location
+3. Explore in one direction, then return to the starting location
+4. Verify the exits shown are identical to the initial observation
+5. The exits should be determined by terrain passability (e.g., no exits to water tiles)
