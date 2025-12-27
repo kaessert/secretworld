@@ -1,64 +1,5 @@
-# Implementation Plan: Issue 15 - Interconnected Quest Networks
-
-## Summary
-Create `QuestNetworkManager` to manage storyline systems with branching quests and investigations. This builds on the existing `Quest` model which already has `chain_id`, `prerequisite_quests`, and `unlocks_quests` fields, but lacks a manager to coordinate networks.
-
-## Spec
-
-**QuestNetworkManager** dataclass providing:
-1. **Quest Registration** - Add/get quests by name (case-insensitive lookup)
-2. **Chain Management** - Group quests by `chain_id`, get chain progression
-3. **Dependency Tracking** - Query available quests based on completed prerequisites
-4. **Storyline Queries** - Find connected quests, get investigation paths (BFS)
-5. **Serialization** - Full to_dict/from_dict support
-
----
-
-## Tests (tests/test_quest_network.py)
-
-### TestQuestNetworkBasics
-1. `test_add_quest` - Quest added and retrievable
-2. `test_get_quest_case_insensitive` - "Goblin War" matches "goblin war"
-3. `test_get_quest_not_found` - Returns None for missing quest
-4. `test_get_all_quests` - Returns all registered quests
-
-### TestChainManagement
-5. `test_get_chain_quests_sorted` - Returns quests sorted by chain_position
-6. `test_get_chain_quests_empty` - Returns [] for unknown chain_id
-7. `test_get_chain_progression` - Returns (completed_count, total_count)
-8. `test_get_next_in_chain` - Returns first incomplete quest in chain
-9. `test_get_next_in_chain_all_complete` - Returns None when chain finished
-
-### TestDependencyQueries
-10. `test_get_available_quests_no_prereqs` - Includes quests with empty prerequisite_quests
-11. `test_get_available_quests_prereqs_met` - Includes quests with satisfied prerequisites
-12. `test_get_available_quests_excludes_unmet` - Excludes quests with unmet prerequisites
-13. `test_get_unlocked_quests` - Returns quests in unlocks_quests list
-
-### TestStorylineQueries
-14. `test_get_prerequisites_of` - Returns Quest objects for prerequisite_quests
-15. `test_get_unlocks_of` - Returns Quest objects for unlocks_quests
-16. `test_find_path_direct` - Finds path A→B when B in A.unlocks_quests
-17. `test_find_path_multi_hop` - Finds A→B→C chain
-18. `test_find_path_no_connection` - Returns None for unconnected quests
-
-### TestSerialization
-19. `test_to_dict_from_dict_roundtrip` - Preserves all quests through serialization
-
----
-
-## Implementation Steps
-
-### Step 1: Create tests
-**File**: `tests/test_quest_network.py`
-
-Write all 19 tests per spec above.
-
-### Step 2: Create model
-**File**: `src/cli_rpg/models/quest_network.py`
-
-```python
 """Quest Network Manager for managing interconnected quest storylines."""
+
 from collections import deque
 from dataclasses import dataclass, field
 from typing import Dict, List, Optional, Tuple
@@ -210,19 +151,3 @@ class QuestNetworkManager:
             quest = Quest.from_dict(quest_data)
             manager.add_quest(quest)
         return manager
-```
-
-### Step 3: Run tests
-
-```bash
-pytest tests/test_quest_network.py -v
-```
-
----
-
-## Files to Create
-- `src/cli_rpg/models/quest_network.py` - QuestNetworkManager dataclass
-- `tests/test_quest_network.py` - 19 tests
-
-## Files to Modify
-None - standalone model. GameState integration deferred to future issue.

@@ -99,6 +99,7 @@ src/cli_rpg/
     ├── npc_network.py   # NPC network manager for family generation and network queries
     ├── npc_arc.py       # NPC character arc progression (stages, interactions, serialization)
     ├── quest.py         # Quest system with objectives and progress tracking
+    ├── quest_network.py # QuestNetworkManager for interconnected quest storylines
     ├── quest_outcome.py # Quest completion outcomes for NPC memory/reactions
     ├── shop.py          # Shop system
     ├── status_effect.py # Status effects (poison, buffs, debuffs)

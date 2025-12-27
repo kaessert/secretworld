@@ -1,89 +1,61 @@
-# Implementation Summary: Issue 14 - Living Economy System
+# Implementation Summary: Issue 15 - Interconnected Quest Networks
 
 ## Status: COMPLETE
 
-All 34 economy tests pass. Full test suite: 4835 tests pass.
+All 19 quest network tests pass. Existing quest tests (47 tests) also pass.
 
 ## What Was Implemented
 
-The Living Economy System was already largely implemented before this task. This task completed the implementation by adding the missing **integration tests** (tests 15-18 from the spec) that verify the economy modifiers are correctly applied in actual buy/sell/shop commands.
+Created `QuestNetworkManager` dataclass in `src/cli_rpg/models/quest_network.py` to manage interconnected quest storylines.
 
-### Files Already Implemented (verified working):
-1. **`src/cli_rpg/models/economy.py`** - EconomyState dataclass with:
-   - `item_supply` dict for per-item supply/demand modifiers
-   - `regional_disruption` for world event effects
-   - `record_buy()` / `record_sell()` to track transactions
-   - `update_time()` for time-based price recovery toward baseline
-   - `get_modifier()` combining supply, location, and disruption
-   - `to_dict()` / `from_dict()` for serialization
+### Features Implemented
 
-2. **`src/cli_rpg/economy.py`** - Helper functions:
-   - `get_economy_price_modifier()` for calculating item prices
-   - `update_economy_from_events()` for invasion/caravan effects
+1. **Quest Registration**
+   - `add_quest(quest)` - Register quest by name (case-insensitive storage)
+   - `get_quest(name)` - Lookup by name (case-insensitive)
+   - `get_all_quests()` - Get all registered quests
 
-3. **`src/cli_rpg/game_state.py`** - Full integration:
-   - `economy_state` field initialized in `__init__`
-   - Time-based recovery called in `move()` and `fast_travel()`
-   - Serialization in `to_dict()` / `from_dict()`
+2. **Chain Management**
+   - `get_chain_quests(chain_id)` - Get quests in chain, sorted by `chain_position`
+   - `get_chain_progression(chain_id, completed)` - Returns `(completed_count, total_count)` tuple
+   - `get_next_in_chain(chain_id, completed)` - Get first incomplete quest in chain
 
-4. **`src/cli_rpg/main.py`** - Buy/sell/shop command integration:
-   - Shop command displays economy-adjusted prices
-   - Buy command applies economy modifier and records transaction
-   - Sell command applies economy modifier and records transaction
+3. **Dependency Queries**
+   - `get_available_quests(completed)` - Get quests with prerequisites met or no prerequisites
+   - `get_unlocked_quests(quest_name)` - Get quests in the completed quest's `unlocks_quests` list
 
-5. **`src/cli_rpg/world_events.py`** - Event integration:
-   - Calls `update_economy_from_events()` in `progress_events()`
+4. **Storyline Queries**
+   - `get_prerequisites_of(quest_name)` - Get Quest objects for prerequisites
+   - `get_unlocks_of(quest_name)` - Get Quest objects for unlocked quests
+   - `find_path(start, end)` - BFS pathfinding between quests via `unlocks_quests` links
 
-### Files Modified in This Task:
+5. **Serialization**
+   - `to_dict()` / `from_dict()` - Full serialization support
 
-**`tests/test_economy.py`** - Added integration test class `TestBuySellIntegration` with 7 new tests:
-- `test_buy_applies_economy_modifier` (Test 15) - Verifies buy price includes economy modifier
-- `test_sell_applies_economy_modifier` (Test 16) - Verifies sell price includes economy modifier
-- `test_shop_display_shows_economy_adjusted_prices` (Test 17) - Shop shows adjusted prices
-- `test_economy_modifier_stacks_with_faction` (Test 18) - Economy + faction modifiers stack
-- `test_buy_records_transaction_in_economy` - Verifies record_buy() is called
-- `test_sell_records_transaction_in_economy` - Verifies record_sell() is called
-- `test_location_category_affects_price` - Verifies location bonuses work
+## Files Created
+
+- `src/cli_rpg/models/quest_network.py` - QuestNetworkManager dataclass (130 lines)
+- `tests/test_quest_network.py` - 19 comprehensive tests
 
 ## Test Results
 
-All 34 economy tests pass:
-- 11 unit tests for EconomyState basics
-- 5 location bonus tests
-- 5 world event integration tests
-- 3 price modifier helper tests
-- 4 time recovery edge case tests
-- 7 buy/sell integration tests (NEW)
+All 19 tests pass:
+- TestQuestNetworkBasics (4 tests) - Registration and lookup
+- TestChainManagement (5 tests) - Chain queries and progression
+- TestDependencyQueries (4 tests) - Prerequisite and unlock queries
+- TestStorylineQueries (5 tests) - Path finding and relationship queries
+- TestSerialization (1 test) - Roundtrip serialization
 
-Full test suite: 4835 tests pass
+## Design Decisions
 
-## Economy System Behavior
+- Uses existing `Quest` model fields (`chain_id`, `chain_position`, `prerequisite_quests`, `unlocks_quests`, `prerequisites_met()`)
+- Case-insensitive quest lookup via lowercase keys in internal dict
+- BFS algorithm for path finding between quests
+- Standalone manager - GameState integration deferred per plan
 
-### Price Calculation Order
-1. Base price (ShopItem.buy_price)
-2. CHA modifier (existing)
-3. Economy modifier (supply/demand × location × disruption)
-4. Faction modifier (existing)
-5. Persuade/haggle bonuses (existing)
+## E2E Validation
 
-### Supply/Demand Rules
-- **Buy**: +0.05 to item_supply (max 1.5 = +50% price)
-- **Sell**: -0.03 to item_supply (min 0.7 = -30% price)
-- **Time recovery**: Every 6 game hours, drifts 5% toward 1.0
-
-### Location Bonuses
-- Temple: consumables -15%
-- Town/Village: weapons -10%
-- Forest: resources -20%
-
-### World Event Effects
-- Invasion (active): +20% all prices
-- Caravan (active): -10% all prices
-
-## E2E Validation Suggestions
-- Start game, buy items repeatedly, verify prices increase
-- Sell items repeatedly, verify prices decrease
-- Travel for 6+ hours, verify prices drift toward baseline
-- Trigger invasion event, verify +20% prices
-- Trigger caravan event, verify -10% prices
-- Buy consumables at temple, verify 15% discount
+Should verify:
+1. Quest chains progress correctly through gameplay
+2. Prerequisite quests block/unlock appropriately
+3. Save/load preserves quest network state

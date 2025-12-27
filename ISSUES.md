@@ -328,13 +328,22 @@ Created dynamic economy with supply/demand and trade routes.
 ---
 
 ### Issue 15: Interconnected Quest Networks
-**Status**: PENDING
+**Status**: COMPLETED ✓
 **Priority**: MEDIUM
+**Completed**: 2025-12-27
 
-Create storyline system with branching quests and investigations.
+Created QuestNetworkManager for managing interconnected quest storylines.
 
-**Files to Create**:
-- `src/cli_rpg/models/quest_network.py`
+**Implementation**:
+- `src/cli_rpg/models/quest_network.py` - QuestNetworkManager dataclass with:
+  - Quest registration: `add_quest()`, `get_quest()`, `get_all_quests()` (case-insensitive lookup)
+  - Chain management: `get_chain_quests()`, `get_chain_progression()`, `get_next_in_chain()`
+  - Dependency queries: `get_available_quests()`, `get_unlocked_quests()`
+  - Storyline queries: `get_prerequisites_of()`, `get_unlocks_of()`, `find_path()` (BFS pathfinding)
+  - Full serialization: `to_dict()`, `from_dict()`
+- 19 tests in `tests/test_quest_network.py`
+
+**Note**: GameState integration deferred - standalone manager ready for future integration
 
 ---
 
@@ -579,4 +588,4 @@ Create storyline system with branching quests and investigations.
 
 **Phase 7: Economy & Quests** - Issues 14-15
 - ✓ Living economy (Issue 14 complete)
-- Quest networks
+- ✓ Quest networks (Issue 15 complete)
