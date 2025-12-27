@@ -1169,22 +1169,34 @@ class Quest:
         return (current_game_hour - self.accepted_at) >= self.time_limit_hours
 ```
 
-**6. Branching Objectives (HIGH PRIORITY)**
+**6. Branching Objectives ✅ COMPLETE (2025-12-27)**
+
+Implemented alternative completion paths for quests, enabling moral complexity and player choice.
 
 ```python
 @dataclass
 class QuestBranch:
+    id: str
     name: str
     objective_type: ObjectiveType
     target: str
     target_count: int = 1
-    moral_alignment: str = "neutral"  # good/evil/neutral
+    current_count: int = 0
+    description: str = ""
     faction_effects: Dict[str, int] = field(default_factory=dict)
-
-@dataclass
-class Quest:
-    alternative_completions: List[QuestBranch] = field(default_factory=list)
+    gold_modifier: float = 1.0
+    xp_modifier: float = 1.0
 ```
+
+**Features implemented:**
+- `QuestBranch` dataclass with progress tracking and reward modifiers
+- `alternative_branches: List[QuestBranch]` field on Quest
+- `completed_branch_id: Optional[str]` tracks which branch was used
+- `get_branches_display()` method for UI presentation
+- Branch-aware progress in `record_kill()` and `record_talk()`
+- Branch-specific rewards applied in `claim_quest_rewards()`
+- Full serialization support for save/load
+- 17 new tests (all passing)
 
 Example: "Stop the Bandit Leader"
 - **Path A**: Kill the Bandit Leader (+Militia rep)
@@ -1229,8 +1241,8 @@ completed_quest_outcomes: List[QuestOutcome] = field(default_factory=list)
 |-------------|--------|--------|----------|
 | World/Region context in generation | High | Low | ✅ **DONE** |
 | Faction integration | High | Medium | ✅ **DONE** |
-| Quest chains & prerequisites | High | Medium | **P1** |
-| Branching objectives/choices | High | High | **P1** |
+| Quest chains & prerequisites | High | Medium | ✅ **DONE** |
+| Branching objectives/choices | High | High | ✅ **DONE** |
 | Difficulty indicators | Medium | Low | **P2** |
 | Time-sensitive quests | Medium | Low | **P2** |
 | Multi-stage objectives | Medium | High | **P2** |

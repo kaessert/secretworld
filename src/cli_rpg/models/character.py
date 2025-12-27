@@ -497,6 +497,30 @@ class Character:
         """
         return any(q.name.lower() == quest_name.lower() for q in self.quests)
 
+    def _check_branch_progress(
+        self, quest: "Quest", objective_type: "ObjectiveType", target: str
+    ) -> Optional[str]:
+        """Check if any branch of a quest is progressed/completed by an action.
+
+        Args:
+            quest: The quest to check branches for
+            objective_type: The objective type that was performed
+            target: The target of the action
+
+        Returns:
+            The branch id if a branch was completed, None otherwise
+        """
+        for branch in quest.alternative_branches:
+            if (
+                branch.objective_type == objective_type
+                and branch.target.lower() == target.lower()
+                and not branch.is_complete
+            ):
+                branch.progress()
+                if branch.is_complete:
+                    return branch.id
+        return None
+
     def record_kill(self, enemy_name: str) -> List[str]:
         """Record an enemy kill for quest progress.
 
@@ -510,9 +534,44 @@ class Character:
 
         messages = []
         for quest in self.quests:
-            if (
-                quest.status == QuestStatus.ACTIVE
-                and quest.objective_type == ObjectiveType.KILL
+            if quest.status != QuestStatus.ACTIVE:
+                continue
+
+            # Check alternative branches first
+            if quest.alternative_branches:
+                completed_branch_id = self._check_branch_progress(
+                    quest, ObjectiveType.KILL, enemy_name
+                )
+                if completed_branch_id:
+                    quest.status = QuestStatus.READY_TO_TURN_IN
+                    quest.completed_branch_id = completed_branch_id
+                    if quest.quest_giver:
+                        messages.append(
+                            f"Quest objectives complete: {quest.name}! "
+                            f"Return to {quest.quest_giver} to claim your reward."
+                        )
+                    else:
+                        messages.append(
+                            f"Quest objectives complete: {quest.name}! "
+                            "Return to the quest giver to claim your reward."
+                        )
+                    continue
+                # Check if any branch got progress (but not complete)
+                for branch in quest.alternative_branches:
+                    if (
+                        branch.objective_type == ObjectiveType.KILL
+                        and branch.target.lower() == enemy_name.lower()
+                        and branch.current_count > 0
+                        and not branch.is_complete
+                    ):
+                        messages.append(
+                            f"Quest progress: {quest.name} - {branch.name} "
+                            f"[{branch.current_count}/{branch.target_count}]"
+                        )
+
+            # Check main quest objective (for quests without branches or as fallback)
+            elif (
+                quest.objective_type == ObjectiveType.KILL
                 and quest.target.lower() == enemy_name.lower()
             ):
                 completed = quest.progress()
@@ -661,9 +720,44 @@ class Character:
 
         messages = []
         for quest in self.quests:
-            if (
-                quest.status == QuestStatus.ACTIVE
-                and quest.objective_type == ObjectiveType.TALK
+            if quest.status != QuestStatus.ACTIVE:
+                continue
+
+            # Check alternative branches first
+            if quest.alternative_branches:
+                completed_branch_id = self._check_branch_progress(
+                    quest, ObjectiveType.TALK, npc_name
+                )
+                if completed_branch_id:
+                    quest.status = QuestStatus.READY_TO_TURN_IN
+                    quest.completed_branch_id = completed_branch_id
+                    if quest.quest_giver:
+                        messages.append(
+                            f"Quest objectives complete: {quest.name}! "
+                            f"Return to {quest.quest_giver} to claim your reward."
+                        )
+                    else:
+                        messages.append(
+                            f"Quest objectives complete: {quest.name}! "
+                            "Return to the quest giver to claim your reward."
+                        )
+                    continue
+                # Check if any branch got progress (but not complete)
+                for branch in quest.alternative_branches:
+                    if (
+                        branch.objective_type == ObjectiveType.TALK
+                        and branch.target.lower() == npc_name.lower()
+                        and branch.current_count > 0
+                        and not branch.is_complete
+                    ):
+                        messages.append(
+                            f"Quest progress: {quest.name} - {branch.name} "
+                            f"[{branch.current_count}/{branch.target_count}]"
+                        )
+
+            # Check main quest objective (for quests without branches or as fallback)
+            elif (
+                quest.objective_type == ObjectiveType.TALK
                 and quest.target.lower() == npc_name.lower()
             ):
                 completed = quest.progress()
@@ -972,14 +1066,29 @@ class Character:
 
         messages = []
 
-        # Grant gold reward
-        if quest.gold_reward > 0:
-            self.add_gold(quest.gold_reward)
-            messages.append(f"Received {quest.gold_reward} gold!")
+        # Get reward modifiers from completed branch (if any)
+        gold_modifier = 1.0
+        xp_modifier = 1.0
+        branch_faction_effects: Dict[str, int] = {}
 
-        # Grant XP reward
+        if quest.completed_branch_id and quest.alternative_branches:
+            for branch in quest.alternative_branches:
+                if branch.id == quest.completed_branch_id:
+                    gold_modifier = branch.gold_modifier
+                    xp_modifier = branch.xp_modifier
+                    branch_faction_effects = branch.faction_effects
+                    break
+
+        # Grant gold reward (with modifier)
+        if quest.gold_reward > 0:
+            modified_gold = int(quest.gold_reward * gold_modifier)
+            self.add_gold(modified_gold)
+            messages.append(f"Received {modified_gold} gold!")
+
+        # Grant XP reward (with modifier)
         if quest.xp_reward > 0:
-            xp_messages = self.gain_xp(quest.xp_reward)
+            modified_xp = int(quest.xp_reward * xp_modifier)
+            xp_messages = self.gain_xp(modified_xp)
             messages.extend(xp_messages)
 
         # Grant item rewards
@@ -993,8 +1102,32 @@ class Character:
             self.inventory.add_item(item)
             messages.append(f"Received item: {item_name}!")
 
-        # Apply faction reputation changes
-        if quest.faction_affiliation and factions:
+        # Apply branch-specific faction effects (if any)
+        if branch_faction_effects and factions:
+            for faction_name, rep_change in branch_faction_effects.items():
+                faction = None
+                for f in factions:
+                    if f.name.lower() == faction_name.lower():
+                        faction = f
+                        break
+                if faction:
+                    if rep_change > 0:
+                        level_msg = faction.add_reputation(rep_change)
+                        messages.append(
+                            f"Reputation with {faction.name} increased by {rep_change}."
+                        )
+                    elif rep_change < 0:
+                        level_msg = faction.reduce_reputation(abs(rep_change))
+                        messages.append(
+                            f"Reputation with {faction.name} decreased by {abs(rep_change)}."
+                        )
+                    else:
+                        level_msg = None
+                    if level_msg:
+                        messages.append(level_msg)
+
+        # Apply quest-level faction reputation changes (if no branch effects)
+        elif quest.faction_affiliation and factions:
             from cli_rpg.faction_combat import _find_faction_by_name, FACTION_RIVALRIES
 
             affiliated = _find_faction_by_name(factions, quest.faction_affiliation)

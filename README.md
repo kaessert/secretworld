@@ -331,6 +331,13 @@ Quest-giver NPCs can be found throughout the world. Interact with them to receiv
 
 You'll see progress messages after each relevant action.
 
+**Branching Objectives**: Some quests offer multiple paths to completion, each with different rewards and consequences:
+- View available branches with `quest <name>` to see all completion options
+- Each branch has its own objective type and target (e.g., kill vs. convince)
+- Branch-specific rewards may modify gold/XP amounts
+- Different branches can affect faction reputation differently
+- The first branch you complete determines your rewards
+
 **Turning In Quests**: When quest objectives are complete, you must return to the quest giver:
 1. Travel back to the NPC who gave you the quest
 2. Use `talk <npc>` to interact with them (shows quests ready to turn in)

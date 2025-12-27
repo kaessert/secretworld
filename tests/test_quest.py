@@ -441,6 +441,8 @@ class TestSerialization:
             "chain_position": 0,
             "prerequisite_quests": [],
             "unlocks_quests": [],
+            "alternative_branches": [],
+            "completed_branch_id": None,
         }
 
     def test_from_dict(self):
