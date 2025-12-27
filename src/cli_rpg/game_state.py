@@ -84,6 +84,7 @@ KNOWN_COMMANDS: set[str] = {
     "proficiency",  # Weapon proficiency display
     "reputation",  # Faction reputation display
     "travel",  # Fast travel to discovered named locations
+    "unlock", "pull", "step", "answer", "activate",  # Puzzle commands
 }
 
 # Dread increases by location category (darker areas = more dread)
@@ -881,6 +882,10 @@ class GameState:
 
         if direction not in {"north", "south", "east", "west", "up", "down"}:
             return (False, "Invalid direction. Use: north, south, east, west, up, or down.")
+
+        # Check if direction is blocked by a puzzle
+        if direction in current.blocked_directions:
+            return (False, f"The way {direction} is blocked by a puzzle.")
 
         if current.coordinates is None:
             return (False, "Cannot navigate - location has no coordinates.")

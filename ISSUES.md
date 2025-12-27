@@ -114,7 +114,7 @@ Issues discovered through comprehensive map system playtesting in non-interactiv
 - Hidden rooms in SubGrid locations
 
 **Remaining**:
-- Riddles and puzzles (Issue 23 - Core model complete, command integration pending)
+- Riddles and puzzles (Issue 23 - Commands complete, AI generation pending)
 - Environmental storytelling
 
 ---
@@ -338,7 +338,7 @@ Create storyline system with branching quests and investigations.
 ---
 
 ### Issue 23: Dungeon Puzzle Mechanics
-**Status**: PARTIAL - Core Model Complete
+**Status**: PARTIAL - Commands Complete, AI Generation Pending
 **Priority**: P2
 
 **Problem**: No interactive puzzles exist in dungeons. Gameplay is combat-only.
@@ -349,13 +349,15 @@ Create storyline system with branching quests and investigations.
 - [x] `src/cli_rpg/models/location.py` - Added `puzzles` and `blocked_directions` fields with serialization
 - [x] INT stat provides hints for puzzle solving (hint_threshold system)
 - [x] 30 unit tests in `tests/test_puzzles.py`
+- [x] Add puzzle commands to `main.py` (unlock, pull, step, answer, activate)
+- [x] Add tab completion for puzzle commands in `completer.py`
+- [x] Update KNOWN_COMMANDS in `game_state.py`
+- [x] Add blocked_directions check in movement (`_move_in_sub_grid()`)
+- [x] 16 command integration tests in `tests/test_puzzle_commands.py`
+- [x] Add user-facing documentation to README.md
 
-**Remaining (Command Integration):**
-- [ ] Add puzzle commands to `main.py` (examine, pull, step, answer, activate)
-- [ ] Add tab completion for puzzle commands in `completer.py`
+**Remaining (AI Integration):**
 - [ ] Add puzzle generation in `ai_world.py` during SubGrid creation
-- [ ] Update KNOWN_COMMANDS in `game_state.py`
-- [ ] Add user-facing documentation to README.md
 
 **Acceptance Criteria:**
 - [x] **Locked doors** requiring keys found in other rooms
@@ -369,10 +371,10 @@ Create storyline system with branching quests and investigations.
 - `src/cli_rpg/models/puzzle.py` ✓
 - `src/cli_rpg/puzzles.py` ✓
 - `src/cli_rpg/models/location.py` ✓
-- `src/cli_rpg/main.py` - Commands pending
-- `src/cli_rpg/completer.py` - Tab completion pending
+- `src/cli_rpg/main.py` ✓
+- `src/cli_rpg/completer.py` ✓
+- `src/cli_rpg/game_state.py` ✓
 - `src/cli_rpg/ai_world.py` - Generation pending
-- `src/cli_rpg/game_state.py` - KNOWN_COMMANDS pending
 
 ---
 
@@ -469,7 +471,7 @@ Create storyline system with branching quests and investigations.
 - ✓ Themed hallucinations (Issue 22 complete)
 
 **Phase 4 - Non-Combat Depth (P2)** - Issues 23-24
-- Puzzle mechanics (Issue 23 - Core model complete, command integration pending)
+- Puzzle mechanics (Issue 23 - Commands complete, AI generation pending)
 - Exploration progress tracking
 
 **Phase 5 - Dynamic Polish (P3)** - Issues 25-27

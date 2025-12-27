@@ -2531,7 +2531,56 @@ def handle_exploration_command(game_state: GameState, command: str, args: list[s
     # Generic combat commands: just check combat state
     elif command in ["attack", "defend", "block", "parry", "flee", "rest", "cast", "hide"]:
         return (True, "\n✗ Not in combat.")
-    
+
+    # Puzzle commands
+    elif command == "unlock":
+        if len(args) < 2:
+            return (True, "Usage: unlock <door> <key>")
+        door_name = args[0]
+        key_name = " ".join(args[1:])
+        from cli_rpg.puzzles import attempt_unlock
+        location = game_state.get_current_location()
+        success, msg = attempt_unlock(game_state.current_character, location, door_name, key_name)
+        return (True, msg)
+
+    elif command == "pull":
+        if not args:
+            return (True, "Pull what? Usage: pull <lever>")
+        lever_name = " ".join(args)
+        from cli_rpg.puzzles import pull_lever
+        location = game_state.get_current_location()
+        success, msg = pull_lever(game_state.current_character, location, lever_name)
+        return (True, msg)
+
+    elif command == "step":
+        if not args:
+            return (True, "Step on what? Usage: step <plate>")
+        plate_name = " ".join(args)
+        from cli_rpg.puzzles import step_on_plate
+        location = game_state.get_current_location()
+        success, msg = step_on_plate(game_state.current_character, location, plate_name)
+        return (True, msg)
+
+    elif command == "answer":
+        if len(args) < 2:
+            return (True, "Usage: answer <puzzle> <answer text>")
+        puzzle_name = args[0]
+        answer_text = " ".join(args[1:])
+        from cli_rpg.puzzles import answer_riddle
+        location = game_state.get_current_location()
+        success, msg = answer_riddle(game_state.current_character, location, puzzle_name, answer_text)
+        return (True, msg)
+
+    elif command == "activate":
+        if len(args) < 2:
+            return (True, "Usage: activate <puzzle> <object>")
+        puzzle_name = args[0]
+        object_id = args[1]
+        from cli_rpg.puzzles import activate_sequence
+        location = game_state.get_current_location()
+        success, msg = activate_sequence(game_state.current_character, location, puzzle_name, object_id)
+        return (True, msg)
+
     elif command == "unknown":
         if args and args[0]:
             # Handle "bye" specially - it's for ending conversations, don't suggest "buy"

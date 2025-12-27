@@ -113,6 +113,11 @@ python -m cli_rpg.main
 - `gather` (ga) - Gather resources in wilderness areas (forest/wilderness yields wood and fiber; cave/dungeon yields iron ore and stone; PER-based success chance; 1-hour cooldown)
 - `recipes` - View all available crafting recipes with their ingredients
 - `craft <recipe>` (cr) - Craft an item from gathered resources (e.g., `craft torch`, `craft iron sword`)
+- `unlock <door> <key>` - Use a key to unlock a locked door puzzle (key is consumed on success)
+- `pull <lever>` - Pull a lever to open a blocked passage
+- `step <plate>` - Step on a pressure plate to trigger a mechanism
+- `answer <puzzle> <text>` - Answer a riddle puzzle (case-insensitive matching)
+- `activate <puzzle> <id>` - Activate an object in a sequence puzzle (wrong order resets progress)
 - `events` - View active world events and their status
 - `resolve [event]` - Attempt to resolve an active world event (without args: lists events with requirements)
 - `save` - Save complete game state including world, location, and theme (not available during combat)

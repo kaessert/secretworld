@@ -21,6 +21,7 @@ except ImportError:
 
 from cli_rpg.game_state import KNOWN_COMMANDS
 from cli_rpg.models.item import ItemType
+from cli_rpg.models.puzzle import PuzzleType
 
 if TYPE_CHECKING:
     from cli_rpg.game_state import GameState
@@ -150,6 +151,16 @@ class CommandCompleter:
             return self._complete_treasure(text_lower)
         elif command == "travel":
             return self._complete_travel(text_lower)
+        elif command == "unlock":
+            return self._complete_puzzle_by_type(text_lower, PuzzleType.LOCKED_DOOR)
+        elif command == "pull":
+            return self._complete_puzzle_by_type(text_lower, PuzzleType.LEVER)
+        elif command == "step":
+            return self._complete_puzzle_by_type(text_lower, PuzzleType.PRESSURE_PLATE)
+        elif command == "answer":
+            return self._complete_puzzle_by_type(text_lower, PuzzleType.RIDDLE)
+        elif command == "activate":
+            return self._complete_puzzle_by_type(text_lower, PuzzleType.SEQUENCE)
 
         return []
 
@@ -318,6 +329,27 @@ class CommandCompleter:
 
         destinations = self._game_state.get_fast_travel_destinations()
         return [name for name in destinations if name.lower().startswith(text)]
+
+    def _complete_puzzle_by_type(self, text: str, puzzle_type: Optional[PuzzleType] = None) -> List[str]:
+        """Complete puzzle names filtered by type.
+
+        Args:
+            text: Partial puzzle name text (lowercase)
+            puzzle_type: Type of puzzle to filter for, or None for all types
+
+        Returns:
+            List of matching puzzle names
+        """
+        if self._game_state is None:
+            return []
+
+        location = self._game_state.get_current_location()
+        names = []
+        for puzzle in location.puzzles:
+            if puzzle_type is None or puzzle.puzzle_type == puzzle_type:
+                if not puzzle.solved:
+                    names.append(puzzle.name)
+        return [n for n in names if n.lower().startswith(text)]
 
 
 # Module-level singleton instance for use by input_handler
