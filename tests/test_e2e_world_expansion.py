@@ -42,8 +42,11 @@ def advanced_character():
 @pytest.fixture
 def mock_ai_service_success():
     """Create a mock AI service that successfully generates locations."""
+    from cli_rpg.models.world_context import WorldContext
+    from cli_rpg.models.region_context import RegionContext
+
     service = Mock(spec=AIService)
-    
+
     def generate_location_side_effect(theme, context_locations, source_location, direction):
         """Generate unique location based on direction."""
         location_names = {
@@ -60,7 +63,7 @@ def mock_ai_service_success():
             "east": "west", "west": "east"
         }
         opposite = opposites.get(direction, "north")
-        
+
         return {
             "name": name,
             "description": f"A mysterious {name.lower()}.",
@@ -68,10 +71,15 @@ def mock_ai_service_success():
                 opposite: source_location if source_location else "Town Square"
             }
         }
-    
+
     service.generate_location.side_effect = generate_location_side_effect
     # Mock location ASCII art generation to return a string (fallback will be used)
     service.generate_location_ascii_art.return_value = "  /\\\n / \\\n/___\\"
+    # Mock context generation to return proper serializable objects
+    service.generate_world_context.return_value = WorldContext.default("fantasy")
+    service.generate_region_context.return_value = RegionContext.default(
+        "Test Region", (0, 0)
+    )
     return service
 
 

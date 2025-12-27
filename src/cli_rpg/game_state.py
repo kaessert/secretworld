@@ -572,6 +572,11 @@ class GameState:
                         logger.info(
                             f"Generating named area at {target_coords} from {current.name}"
                         )
+                        # Get layered context for AI generation
+                        world_ctx = self.get_or_create_world_context()
+                        region_ctx = self.get_or_create_region_context(
+                            target_coords, terrain or "wilderness"
+                        )
                         expand_area(
                             world=self.world,
                             ai_service=self.ai_service,
@@ -579,6 +584,8 @@ class GameState:
                             direction=direction,
                             theme=self.theme,
                             target_coords=target_coords,
+                            world_context=world_ctx,
+                            region_context=region_ctx,
                             terrain_type=terrain,
                         )
                         # Find the newly generated location

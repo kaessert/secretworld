@@ -142,10 +142,13 @@ def get_valid_moves(chunk_manager: ChunkManager, x: int, y: int) -> list[str]:
 
 ---
 
-### AI Location Generation Failures - JSON Parsing & Token Limits
-**Status**: HIGH PRIORITY
+### ✅ RESOLVED: AI Location Generation Failures - JSON Parsing & Token Limits
+**Status**: RESOLVED
+**Date Resolved**: 2025-12-27
 
-**Problem**: AI location generation frequently fails with JSON parsing errors:
+**Resolution**: The layered context architecture is fully implemented and integrated. The `move()` method in `game_state.py` now correctly passes both `world_context` and `region_context` to `expand_area()` for AI-generated locations. All 66 related tests pass.
+
+**Original Problem**: AI location generation frequently failed with JSON parsing errors:
 
 ```
 Failed to generate location: Failed to parse response as JSON: Expecting ',' delimiter: line 13 column 7 (char 474)
@@ -236,6 +239,11 @@ Instead of one monolithic prompt, use a hierarchical generation system:
 - ✓ JSON extraction from markdown code blocks
 - ✓ JSON repair for truncated responses
 - ✓ Debug logging for parse failures
+
+**Completed (2025-12-27)**:
+- ✓ Full integration verified: `move()` passes `world_context` and `region_context` to `expand_area()`
+- ✓ 4 integration tests in `tests/test_layered_context_integration.py` confirm context passing
+- ✓ All 66 related tests pass
 
 ---
 
@@ -358,23 +366,24 @@ The named location trigger system is now fully wired up and operational.
 3. If TRUE → generates named location with AI or fallback (`is_named=True`)
 4. `tiles_since_named` counter persists across save/load cycles
 
-#### 3. Variable SubGrid Sizes
+#### 3. Variable SubGrid Sizes ✅ COMPLETE
+
+**Completed 2025-12-27:**
+- ✅ Added `SUBGRID_BOUNDS` config mapping categories to bounds tuples
+- ✅ Added `get_subgrid_bounds(category)` helper with case-insensitive lookup and default fallback
+- ✅ Updated `expand_area()` to use dynamic bounds based on entry location category
+- ✅ 15 new tests in `tests/test_variable_subgrid_sizes.py`
 
 **Size Categories:**
 
-| Category | Bounds | Grid Size | Example |
-|----------|--------|-----------|---------|
-| tiny | `(-1, 1, -1, 1)` | 3x3 | House, shop, cave entrance |
-| small | `(-2, 2, -2, 2)` | 5x5 | Tavern, small dungeon |
-| medium | `(-3, 3, -3, 3)` | 7x7 | Keep, temple, mine |
-| large | `(-5, 5, -5, 5)` | 11x11 | Town, fortress |
-| huge | `(-8, 8, -8, 8)` | 17x17 | City district, mega-dungeon |
-| massive | `(-12, 12, -12, 12)` | 25x25 | Capital city, underworld |
-
-**Implementation:**
-- Add `SUBGRID_SIZE_BY_CATEGORY` and `SUBGRID_BOUNDS` config
-- Add `get_subgrid_bounds(category)` helper function
-- Update `expand_area()` to use dynamic bounds
+| Category | Bounds | Grid Size |
+|----------|--------|-----------|
+| house, shop, cave | `(-1, 1, -1, 1)` | 3x3 (tiny) |
+| tavern, ruins, settlement | `(-2, 2, -2, 2)` | 5x5 (small) |
+| dungeon, forest, temple, wilderness | `(-3, 3, -3, 3)` | 7x7 (medium) |
+| town, village | `(-5, 5, -5, 5)` | 11x11 (large) |
+| city | `(-8, 8, -8, 8)` | 17x17 (huge) |
+| default (fallback) | `(-2, 2, -2, 2)` | 5x5 (small) |
 
 #### 4. Layered AI Integration
 
@@ -782,16 +791,10 @@ Issues discovered during WFC mode playtesting (WFC is now enabled by default; up
    - Available exits change inconsistently when revisiting a location
    - Whispering Woods initially shows "east, north, west", later shows "east, west" (north gone)
 
-2. **Wild Boar ASCII art is a cat**
-   - The Wild Boar enemy uses ASCII art that clearly depicts a cat:
-   ```
-      /\_/\
-     ( o.o )
-      > ^ <
-     /|   |\
-    (_|   |_)
-   ```
-   - The `/\_/\` ears and `( o.o )` face is universal ASCII cat pattern
+2. ~~**Wild Boar ASCII art is a cat**~~ ✅ RESOLVED (2025-12-27)
+   - Fixed: Added boar-specific ASCII art with pig snout (`(  oo  )`) and hooves in `combat.py`
+   - `get_fallback_ascii_art()` now checks for "boar" before falling through to generic beast matching
+   - Files modified: `src/cli_rpg/combat.py`, `tests/test_ascii_art.py`
 
 3. **Inconsistent shop pricing message**
    - Shop display shows one price but error message shows different price

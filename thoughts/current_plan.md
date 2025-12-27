@@ -1,63 +1,131 @@
-# Plan: Fix "Enter" Command to Only Show Entry Point
+# Wire Layered Context into Location Generation Pipeline
 
 ## Problem
-When at an overworld location with a sub_grid, all sub-locations are shown in the "Enter:" prompt, allowing players to teleport directly into any room. Players should only be able to enter through the designated entry point (marked with `is_exit_point=True`), then navigate internally.
+AI-generated location content frequently fails with JSON parsing errors, causing fallback to templates. The layered query architecture (WorldContext → RegionContext → Location → NPCs) was implemented but **not wired up** in the main integration point - `game_state.py:move()` calls `expand_area()` without passing the context parameters.
 
-## Spec
-- **Display**: When displaying "Enter:" options, show only the entry point (`entry_point` field or first sub-location in sub_grid with `is_exit_point=True`)
-- **Command**: The `enter` command should only allow entering the entry point location when a sub_grid exists
-- Preserve backward compatibility for locations using the legacy `sub_locations` list without `sub_grid`
+## Current State
+- ✅ Models exist: `WorldContext`, `RegionContext` with serialization
+- ✅ AIService methods: `generate_world_context()`, `generate_region_context()`, `generate_location_with_context()`, `generate_npcs_for_location()`
+- ✅ Prompts defined: `DEFAULT_LOCATION_PROMPT_MINIMAL`, `DEFAULT_NPC_PROMPT_MINIMAL`, etc.
+- ✅ GameState has caching: `world_context`, `region_contexts`, helper methods
+- ✅ `expand_world()` and `expand_area()` accept context parameters
+- ❌ **GAP**: `game_state.py:move()` doesn't pass contexts when calling `expand_area()`
 
 ## Implementation Steps
 
-### 1. Update `Location.get_layered_description()` (src/cli_rpg/models/location.py, ~line 258-261)
-**Current**: Shows all sub_locations in "Enter:" line
-**Change**: When `self.sub_grid` exists, show only the `self.entry_point` (or find the first location with `is_exit_point=True` from sub_grid). Fall back to showing all `sub_locations` when no sub_grid exists.
+### 1. Update `game_state.py:move()` to pass layered contexts
+
+In `move()` method (~line 575), when calling `expand_area()`, fetch/create contexts first:
 
 ```python
-# Current (~line 258-261):
-if self.sub_locations:
-    sub_loc_names = [colors.location(name) for name in self.sub_locations]
-    result += f"\nEnter: {', '.join(sub_loc_names)}"
+# Get layered context for AI generation
+world_ctx = self.get_or_create_world_context()
+region_ctx = self.get_or_create_region_context(target_coords, terrain or "wilderness")
 
-# Change to:
-if self.sub_grid is not None:
-    # Only show entry point for sub_grid locations
-    if self.entry_point:
-        result += f"\nEnter: {colors.location(self.entry_point)}"
-    else:
-        # Find first is_exit_point location in sub_grid
-        for loc in self.sub_grid._by_name.values():
-            if loc.is_exit_point:
-                result += f"\nEnter: {colors.location(loc.name)}"
-                break
-elif self.sub_locations:
-    sub_loc_names = [colors.location(name) for name in self.sub_locations]
-    result += f"\nEnter: {', '.join(sub_loc_names)}"
+expand_area(
+    world=self.world,
+    ai_service=self.ai_service,
+    from_location=self.current_location,
+    direction=direction,
+    theme=self.theme,
+    target_coords=target_coords,
+    world_context=world_ctx,      # ADD
+    region_context=region_ctx,    # ADD
+    terrain_type=terrain,
+)
 ```
 
-### 2. Update `Location.__str__()` (src/cli_rpg/models/location.py, ~line 460-461)
-Apply same pattern for consistency in string representation.
-
-### 3. Update `GameState.enter()` (src/cli_rpg/game_state.py, ~line 820-835)
-**Current**: Searches all sub_grid locations for name match
-**Change**: When entering from overworld with sub_grid, only allow entry to the entry_point location. Reject attempts to enter other sub-locations directly.
+### 2. Add test for context integration in `tests/test_layered_context_integration.py`
 
 ```python
-# After finding sub_grid_location (~line 827), add validation:
-if sub_grid_location is not None and not sub_grid_location.is_exit_point:
-    return (False, f"You can't enter {matched_location} directly. Enter through {current.entry_point}.")
+"""Tests for layered context integration in location generation."""
+
+import pytest
+from unittest.mock import MagicMock, patch, PropertyMock
+from cli_rpg.game_state import GameState
+from cli_rpg.models.character import Character
+from cli_rpg.models.location import Location
+from cli_rpg.models.world_context import WorldContext
+from cli_rpg.models.region_context import RegionContext
+
+class TestLayeredContextInMove:
+    """Tests that move() passes context to expand_area()."""
+
+    @pytest.fixture
+    def mock_chunk_manager(self):
+        """Create mock ChunkManager that reports all terrain as passable."""
+        cm = MagicMock()
+        cm.get_tile_at.return_value = "plains"
+        return cm
+
+    @pytest.fixture
+    def game_state_with_ai(self, mock_chunk_manager):
+        """Create GameState with mock AI service."""
+        char = Character(name="Test", class_type="warrior")
+        start = Location(name="Start", description="Test", coordinates=(0, 0))
+        world = {"Start": start}
+        ai_service = MagicMock()
+        gs = GameState(char, world, "Start", ai_service=ai_service, theme="fantasy")
+        gs.chunk_manager = mock_chunk_manager
+        return gs
+
+    @patch("cli_rpg.game_state.expand_area")
+    def test_move_passes_world_context_to_expand_area(
+        self, mock_expand_area, game_state_with_ai
+    ):
+        """Verify move() passes world_context when generating new location."""
+        gs = game_state_with_ai
+        # Pre-create world context
+        gs.world_context = WorldContext.default("fantasy")
+
+        # Mock expand_area to create a location (otherwise move fails)
+        new_loc = Location(name="New", description="Test", coordinates=(0, 1))
+        def side_effect(*args, **kwargs):
+            gs.world["New"] = new_loc
+        mock_expand_area.side_effect = side_effect
+
+        gs.move("north")
+
+        # Verify expand_area was called with world_context
+        mock_expand_area.assert_called_once()
+        _, kwargs = mock_expand_area.call_args
+        assert "world_context" in kwargs
+        assert kwargs["world_context"] is not None
+
+    @patch("cli_rpg.game_state.expand_area")
+    def test_move_passes_region_context_to_expand_area(
+        self, mock_expand_area, game_state_with_ai
+    ):
+        """Verify move() passes region_context when generating new location."""
+        gs = game_state_with_ai
+
+        new_loc = Location(name="New", description="Test", coordinates=(0, 1))
+        def side_effect(*args, **kwargs):
+            gs.world["New"] = new_loc
+        mock_expand_area.side_effect = side_effect
+
+        gs.move("north")
+
+        mock_expand_area.assert_called_once()
+        _, kwargs = mock_expand_area.call_args
+        assert "region_context" in kwargs
+        assert kwargs["region_context"] is not None
 ```
 
-## Tests to Add (tests/test_enter_entry_point.py)
+### 3. Run tests
 
-1. **test_enter_shows_only_entry_point** - `get_layered_description()` with sub_grid shows only entry_point
-2. **test_enter_command_allows_entry_point** - `enter()` succeeds for entry_point location
-3. **test_enter_command_rejects_non_entry_point** - `enter("Council Chamber")` fails with helpful message
-4. **test_enter_legacy_sub_locations_still_works** - locations without sub_grid still show all sub_locations
-5. **test_enter_str_shows_only_entry_point** - `__str__()` shows only entry point when sub_grid exists
+```bash
+pytest tests/test_layered_context_integration.py -v
+pytest tests/test_game_state.py -v -k "move"
+pytest -x  # Full suite
+```
 
 ## Files to Modify
-1. `src/cli_rpg/models/location.py` - `get_layered_description()` and `__str__()` methods
-2. `src/cli_rpg/game_state.py` - `enter()` method
-3. `tests/test_enter_entry_point.py` - new test file
+- `src/cli_rpg/game_state.py` - Pass world_context and region_context to `expand_area()`
+- `tests/test_layered_context_integration.py` - NEW test file verifying integration
+
+## Expected Outcome
+- Location generation uses smaller, focused prompts with context
+- Fewer JSON parsing failures (smaller responses = less truncation)
+- Better thematic coherence (world/region context informs location names/descriptions)
+- Context is cached, so only first generation per region incurs extra API call

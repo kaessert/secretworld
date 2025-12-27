@@ -134,8 +134,16 @@ class TestAIFailureFallback:
 
         Spec: Log errors for debugging, show seamless location to player.
         """
+        from cli_rpg.models.world_context import WorldContext
+        from cli_rpg.models.region_context import RegionContext
+
         mock_ai = Mock()
         mock_ai.generate_area.side_effect = Exception("Detailed internal error XYZ123")
+        # Configure context generation to return proper serializable objects
+        mock_ai.generate_world_context.return_value = WorldContext.default("fantasy")
+        mock_ai.generate_region_context.return_value = RegionContext.default(
+            "Test Region", (0, -1)
+        )
 
         gs = GameState(
             character=character,

@@ -42,9 +42,17 @@ def complete_world():
 @pytest.fixture
 def mock_ai_service():
     """Create a mock AI service."""
+    from cli_rpg.models.world_context import WorldContext
+    from cli_rpg.models.region_context import RegionContext
+
     service = Mock(spec=AIService)
     # Mock location ASCII art generation to return a string
     service.generate_location_ascii_art.return_value = "  /\\\n / \\\n/___\\"
+    # Mock context generation to return proper serializable objects
+    service.generate_world_context.return_value = WorldContext.default("fantasy")
+    service.generate_region_context.return_value = RegionContext.default(
+        "Test Region", (0, 0)
+    )
     return service
 
 
