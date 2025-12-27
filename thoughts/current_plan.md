@@ -1,116 +1,280 @@
-# Issue 7: LLM Streaming Support
+# Implementation Plan: Issue 8 - Background Generation Queue
+
+## Overview
+Add background pre-generation of adjacent locations to eliminate blocking during player movement. This builds on the existing `_pregenerate_adjacent_regions()` pattern but extends it to pre-generate actual location content in background threads.
+
+## Key Insight
+The codebase already has:
+1. `_pregenerate_adjacent_regions()` in `game_state.py` - pre-caches **region contexts** synchronously
+2. `progress.py` - threading patterns for non-blocking spinners
+3. `expand_area()` / `expand_world()` in `ai_world.py` - the actual location generation functions
+
+The gap: Region contexts are pre-generated, but **actual location data** (terrain, descriptions, NPCs) is only generated when the player moves there, causing blocking.
 
 ## Spec
 
-Add streaming support to `AIService` for live text display during AI generation. When streaming is enabled, display generated text character-by-character as it arrives from the LLM, replacing the spinner-based progress indicator with real-time content reveal.
+**BackgroundGenerationQueue** provides:
+1. A thread pool (1-2 workers) for background AI generation
+2. Queue adjacent coordinates when player approaches unexplored territory
+3. Cache generated locations until player arrives
+4. Graceful fallback if generation fails or player arrives before completion
+5. No impact on gameplay if disabled or AI unavailable
 
-**Behavior:**
-- When `stream=True` is passed to generation methods (or enabled via config), stream tokens directly to stdout
-- Use typewriter effect (`text_effects.py`) for displaying streamed content
-- Fall back to non-streaming behavior when streaming is disabled or for JSON-structured responses
-- Streaming only applies to free-form text generation (dialogue, lore, dreams, whispers, ASCII art) - NOT to JSON responses that require parsing
+## Tests (tests/test_background_gen.py)
 
-**Scope:**
-- Primary file: `src/cli_rpg/ai_service.py`
-- Secondary files: `src/cli_rpg/ai_config.py` (add `enable_streaming` config option)
+### Test Class: TestBackgroundGenQueue
+1. `test_queue_submits_adjacent_coordinates` - queue.submit(coords, terrain) stores task
+2. `test_worker_generates_location_data` - worker calls ai_service.generate_location
+3. `test_generated_data_cached` - completed tasks stored in cache by coords
+4. `test_get_cached_returns_data` - queue.get_cached(coords) returns data if ready
+5. `test_get_cached_returns_none_if_pending` - returns None for in-progress tasks
+6. `test_shutdown_stops_workers` - queue.shutdown() cleanly stops threads
+7. `test_no_duplicate_submissions` - same coords not queued twice
+8. `test_generation_failure_handled` - AI errors don't crash worker
 
-## Tests
-
-Create `tests/test_ai_streaming.py`:
-
-1. **Test streaming config option**: Verify `AIConfig.enable_streaming` defaults to `False`
-2. **Test OpenAI streaming call**: Mock `stream=True` in `client.chat.completions.create()`, verify chunks are yielded
-3. **Test Anthropic streaming call**: Mock streaming with `with client.messages.stream()`, verify chunks are yielded
-4. **Test Ollama streaming call**: Verify Ollama uses OpenAI-compatible streaming interface
-5. **Test streaming disabled for JSON methods**: Verify `generate_location`, `generate_area`, `generate_quest` never use streaming (they need full JSON response for parsing)
-6. **Test streaming enabled for text methods**: Verify `generate_dialogue`, `generate_lore`, `generate_dream`, `generate_whisper` can stream
-7. **Test streaming respects `effects_enabled()`**: No output when effects disabled (--no-color, --json modes)
-8. **Test streaming fallback on error**: If streaming fails, fall back to non-streaming call
+### Test Class: TestBackgroundGenIntegration
+9. `test_move_uses_cached_location` - GameState.move() checks cache before generating
+10. `test_move_queues_adjacent_after_arrival` - adjacent coords queued after successful move
 
 ## Implementation Steps
 
-### Step 1: Add config option
-In `src/cli_rpg/ai_config.py`:
-- Add `enable_streaming: bool = False` field to `AIConfig` dataclass
-- Add `AI_ENABLE_STREAMING` environment variable support in `from_env()`
-- Include in `to_dict()` and `from_dict()` serialization
+### Step 1: Create background_gen.py
 
-### Step 2: Add streaming LLM methods
-In `src/cli_rpg/ai_service.py`:
-
-Add `_call_llm_streaming()` method:
 ```python
-def _call_llm_streaming(self, prompt: str, output: TextIO = sys.stdout) -> str:
-    """Call LLM with streaming, printing tokens as they arrive.
+# src/cli_rpg/background_gen.py
+"""Background generation queue for pre-generating adjacent locations."""
 
-    Returns the complete response text after streaming completes.
-    """
+import logging
+import queue
+import threading
+from dataclasses import dataclass
+from typing import Optional, Any, TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from cli_rpg.ai_service import AIService
+    from cli_rpg.models.world_context import WorldContext
+    from cli_rpg.models.region_context import RegionContext
+
+logger = logging.getLogger(__name__)
+
+
+@dataclass
+class GenerationTask:
+    """A background generation task."""
+    coords: tuple[int, int]
+    terrain: str
+    world_context: Optional["WorldContext"] = None
+    region_context: Optional["RegionContext"] = None
+
+
+class BackgroundGenerationQueue:
+    """Queue for pre-generating adjacent locations in background threads."""
+
+    def __init__(
+        self,
+        ai_service: Optional["AIService"],
+        theme: str,
+        num_workers: int = 1,
+    ):
+        self._ai_service = ai_service
+        self._theme = theme
+        self._queue: queue.Queue[GenerationTask] = queue.Queue()
+        self._cache: dict[tuple[int, int], dict] = {}
+        self._pending: set[tuple[int, int]] = set()
+        self._lock = threading.Lock()
+        self._running = False
+        self._workers: list[threading.Thread] = []
+        self._num_workers = num_workers
+
+    def start(self) -> None:
+        """Start background worker threads."""
+        if self._ai_service is None:
+            return  # No AI service, no background generation
+
+        with self._lock:
+            if self._running:
+                return
+            self._running = True
+
+            for i in range(self._num_workers):
+                worker = threading.Thread(
+                    target=self._worker_loop,
+                    daemon=True,
+                    name=f"bg-gen-worker-{i}"
+                )
+                worker.start()
+                self._workers.append(worker)
+
+    def shutdown(self) -> None:
+        """Stop background workers."""
+        with self._lock:
+            self._running = False
+
+        # Wake up workers with sentinel values
+        for _ in self._workers:
+            try:
+                self._queue.put_nowait(None)
+            except queue.Full:
+                pass
+
+        # Wait for workers to finish
+        for worker in self._workers:
+            worker.join(timeout=1.0)
+        self._workers.clear()
+
+    def submit(
+        self,
+        coords: tuple[int, int],
+        terrain: str,
+        world_context: Optional["WorldContext"] = None,
+        region_context: Optional["RegionContext"] = None,
+    ) -> bool:
+        """Submit coordinates for background generation.
+
+        Returns:
+            True if submitted, False if already pending/cached or not running.
+        """
+        with self._lock:
+            if not self._running:
+                return False
+            if coords in self._pending or coords in self._cache:
+                return False
+            self._pending.add(coords)
+
+        task = GenerationTask(
+            coords=coords,
+            terrain=terrain,
+            world_context=world_context,
+            region_context=region_context,
+        )
+        self._queue.put(task)
+        return True
+
+    def get_cached(self, coords: tuple[int, int]) -> Optional[dict]:
+        """Get cached location data if available."""
+        with self._lock:
+            return self._cache.get(coords)
+
+    def pop_cached(self, coords: tuple[int, int]) -> Optional[dict]:
+        """Get and remove cached location data."""
+        with self._lock:
+            return self._cache.pop(coords, None)
+
+    def _worker_loop(self) -> None:
+        """Background worker loop."""
+        while self._running:
+            try:
+                task = self._queue.get(timeout=0.5)
+                if task is None:  # Shutdown sentinel
+                    break
+                self._process_task(task)
+            except queue.Empty:
+                continue
+            except Exception as e:
+                logger.warning(f"Background generation error: {e}")
+
+    def _process_task(self, task: GenerationTask) -> None:
+        """Process a single generation task."""
+        try:
+            # Generate location data (simplified - uses generate_location)
+            location_data = self._ai_service.generate_location_with_context(
+                world_context=task.world_context,
+                region_context=task.region_context,
+                source_location=None,
+                direction=None,
+                terrain_type=task.terrain,
+            ) if task.world_context and task.region_context else (
+                self._ai_service.generate_location(
+                    theme=self._theme,
+                    context_locations=[],
+                    source_location=None,
+                    direction=None,
+                )
+            )
+
+            with self._lock:
+                self._cache[task.coords] = location_data
+                self._pending.discard(task.coords)
+
+            logger.debug(f"Pre-generated location at {task.coords}")
+
+        except Exception as e:
+            logger.warning(f"Failed to pre-generate {task.coords}: {e}")
+            with self._lock:
+                self._pending.discard(task.coords)
 ```
 
-Add `_call_openai_streaming()` method:
+### Step 2: Integrate into GameState
+
+Modify `game_state.py`:
+
+1. Add `background_gen_queue` attribute to `__init__`:
 ```python
-def _call_openai_streaming(self, prompt: str, output: TextIO, is_ollama: bool = False) -> str:
-    response = self.client.chat.completions.create(
-        model=self.config.model,
-        messages=[{"role": "user", "content": prompt}],
-        temperature=self.config.temperature,
-        max_tokens=self.config.max_tokens,
-        stream=True  # Enable streaming
-    )
-    full_text = ""
-    for chunk in response:
-        if chunk.choices[0].delta.content:
-            token = chunk.choices[0].delta.content
-            output.write(token)
-            output.flush()
-            full_text += token
-    output.write("\n")
-    return full_text
+self.background_gen_queue: Optional[BackgroundGenerationQueue] = None
 ```
 
-Add `_call_anthropic_streaming()` method:
+2. Add `start_background_generation()` method:
 ```python
-def _call_anthropic_streaming(self, prompt: str, output: TextIO) -> str:
-    with self.client.messages.stream(
-        model=self.config.model,
-        messages=[{"role": "user", "content": prompt}],
-        max_tokens=self.config.max_tokens
-    ) as stream:
-        full_text = ""
-        for text in stream.text_stream:
-            output.write(text)
-            output.flush()
-            full_text += text
-    output.write("\n")
-    return full_text
+def start_background_generation(self) -> None:
+    """Start background generation queue if AI service available."""
+    if self.ai_service is not None:
+        from cli_rpg.background_gen import BackgroundGenerationQueue
+        self.background_gen_queue = BackgroundGenerationQueue(
+            ai_service=self.ai_service,
+            theme=self.theme,
+        )
+        self.background_gen_queue.start()
 ```
 
-### Step 3: Create streamable wrapper method
-Add `_call_llm_streamable()` method that:
-- Checks `self.config.enable_streaming` and `effects_enabled()`
-- If streaming enabled: calls `_call_llm_streaming()`
-- If streaming disabled: calls existing `_call_llm()` with progress indicator
+3. Modify `move()` to check cache before generating:
+```python
+# After calculating target_coords, before generating new location:
+if self.background_gen_queue is not None:
+    cached_data = self.background_gen_queue.pop_cached(target_coords)
+    if cached_data is not None:
+        # Use cached location data instead of calling AI
+        ...
+```
 
-### Step 4: Apply streaming to text-only methods
-Update these methods to use `_call_llm_streamable()`:
-- `generate_npc_dialogue()` (line ~1252)
-- `generate_lore()` (line ~1814)
-- `generate_dream()` (line ~2329)
-- `generate_whisper()` (line ~2365)
-- `generate_ascii_art()` (line ~1459)
-- `generate_location_ascii_art()` (line ~1555)
-- `generate_npc_ascii_art()` (line ~2230)
+4. Modify `_pregenerate_adjacent_regions()` to also queue locations:
+```python
+# After pre-generating region contexts, queue adjacent locations
+if self.background_gen_queue is not None:
+    for direction in DIRECTION_OFFSETS:
+        dx, dy = DIRECTION_OFFSETS[direction]
+        adj_coords = (coords[0] + dx, coords[1] + dy)
+        # Skip if location already exists
+        if self._get_location_by_coordinates(adj_coords) is None:
+            terrain = self.chunk_manager.get_tile_at(*adj_coords) if self.chunk_manager else "plains"
+            self.background_gen_queue.submit(
+                coords=adj_coords,
+                terrain=terrain,
+                world_context=self.world_context,
+                region_context=self.get_or_create_region_context(adj_coords, terrain),
+            )
+```
 
-**Do NOT apply to JSON methods** (they need complete response for parsing):
-- `generate_location()`
-- `generate_area()`
-- `generate_quest()`
-- `generate_enemy()`
-- `generate_item()`
-- All methods that call `_parse_*_response()`
+### Step 3: Integrate into main.py
 
-### Step 5: Handle streaming errors gracefully
-In `_call_llm_streaming()`:
-- Wrap streaming logic in try/except
-- On streaming failure, log warning and fall back to `_call_llm()`
-- Ensure partial output is not left dangling (clear line on failure)
+Add initialization after GameState creation:
+```python
+# After game_state is created:
+game_state.start_background_generation()
+
+# At shutdown (in quit handling):
+if game_state.background_gen_queue:
+    game_state.background_gen_queue.shutdown()
+```
+
+### Step 4: Add serialization support
+
+Modify `to_dict()` and `from_dict()` to handle background_gen_queue:
+- Don't serialize pending queue (ephemeral)
+- Re-create queue on load if AI service available
+
+## Files Changed
+
+1. **Create**: `src/cli_rpg/background_gen.py` - BackgroundGenerationQueue class
+2. **Create**: `tests/test_background_gen.py` - 10 tests
+3. **Modify**: `src/cli_rpg/game_state.py` - Add queue, integrate with move()
+4. **Modify**: `src/cli_rpg/main.py` - Initialize queue at startup, shutdown at quit

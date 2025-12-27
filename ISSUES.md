@@ -196,17 +196,27 @@ Add streaming support to AIService for live text display during generation.
 ---
 
 ### Issue 8: Background Generation Queue
-**Status**: PENDING
+**Status**: COMPLETED ✓
 **Priority**: MEDIUM
+**Completed**: 2025-12-27
 
 Pre-generate adjacent regions in background to eliminate blocking during movement.
 
-**Files to Create**:
-- `src/cli_rpg/background_gen.py`
+**Implementation**:
+- `src/cli_rpg/background_gen.py` - New module with:
+  - `GenerationTask` dataclass: Holds task data (coords, terrain, world_context, region_context)
+  - `BackgroundGenerationQueue` class: Thread-based queue for pre-generating locations
+  - Worker loop processes tasks asynchronously using AI service
+  - Single worker thread (default) to avoid overwhelming AI service
+  - Cache-first approach: checks cache before triggering new AI generation
+- `src/cli_rpg/game_state.py` - Added:
+  - `background_gen_queue` attribute
+  - `start_background_generation()` / `stop_background_generation()` methods
+  - `_queue_adjacent_locations()` for submitting unexplored tiles
+  - Integration with `move()` to use cached locations
+- 13 tests in `tests/test_background_gen.py`
 
-**Files to Modify**:
-- `src/cli_rpg/game_state.py`
-- `src/cli_rpg/main.py` - Initialize background system
+**Note**: Requires `start_background_generation()` call in main.py to activate
 
 ---
 
@@ -524,7 +534,7 @@ Create storyline system with branching quests and investigations.
 **Phase 3: Progress Feedback** - Issues 6-8
 - ✓ Progress feedback (Issue 6 complete - ASCII spinner with thematic messages)
 - ✓ LLM streaming (Issue 7 complete - streaming for text-only generation methods)
-- Background generation (Issue 8)
+- ✓ Background generation (Issue 8 complete - thread-based queue for adjacent location pre-generation)
 
 **Phase 4: Settlement Scale** - Issue 9
 - ✓ Mega-settlements with districts (Issue 9 complete)

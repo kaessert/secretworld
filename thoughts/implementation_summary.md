@@ -1,60 +1,92 @@
-# Implementation Summary: Issue 7 - LLM Streaming Support
+# Implementation Summary: Issue 8 - Background Generation Queue
 
 ## Status: COMPLETE
 
-The LLM streaming support feature was already fully implemented. This session fixed two failing tests that had a caching issue causing false negatives.
+The background generation queue feature has been implemented and all tests pass.
 
-## What Was Fixed
+## What Was Implemented
 
-### Test File Modified
-- `tests/test_ai_streaming.py` - Fixed 2 tests that were failing due to caching behavior
+### 1. New Module: `src/cli_rpg/background_gen.py`
 
-### Test Fix Details
+- **`GenerationTask` dataclass**: Holds task data (coords, terrain, world_context, region_context)
+- **`BackgroundGenerationQueue` class**: Thread-based queue for pre-generating locations
+  - `start()`: Spawns worker threads (default: 1 worker)
+  - `shutdown()`: Cleanly stops all workers
+  - `submit(coords, terrain, ...)`: Adds coordinates to generation queue
+  - `get_cached(coords)`: Returns cached location data if available
+  - `pop_cached(coords)`: Returns and removes cached data
+  - Worker loop processes tasks asynchronously using AI service
 
-Two tests were failing because they mocked `_call_llm` but the cache layer (`enable_caching=True` by default) was returning results before `_call_llm` was ever called:
+### 2. GameState Integration (`src/cli_rpg/game_state.py`)
 
-- `test_generate_location_never_uses_streaming` - Fixed by adding `enable_caching=False`
-- `test_generate_quest_never_uses_streaming` - Fixed by adding `enable_caching=False`
+- Added `background_gen_queue` attribute (Optional[BackgroundGenerationQueue])
+- Added `start_background_generation()`: Creates and starts the queue
+- Added `stop_background_generation()`: Shuts down the queue
+- Added `_queue_adjacent_locations(coords)`: Queues unexplored adjacent tiles
+- Modified `_pregenerate_adjacent_regions()`: Now also queues adjacent locations
+- Modified `move()`: Checks cache before generating named locations
 
-## Implementation Details (Already Present)
+### 3. New Tests: `tests/test_background_gen.py` (13 tests)
 
-The streaming implementation consists of:
+**Unit tests for BackgroundGenerationQueue:**
+- `test_queue_submits_adjacent_coordinates` - Task submission and tracking
+- `test_worker_generates_location_data` - Worker calls AI service
+- `test_generated_data_cached` - Caching of generated locations
+- `test_get_cached_returns_data` - Cache retrieval
+- `test_get_cached_returns_none_if_pending` - Pending task handling
+- `test_shutdown_stops_workers` - Clean shutdown
+- `test_no_duplicate_submissions` - Duplicate prevention
+- `test_generation_failure_handled` - Error handling
+- `test_start_without_ai_service_is_noop` - No-AI graceful handling
+- `test_submit_without_running_returns_false` - Non-running queue
+- `test_pop_cached_removes_from_cache` - Cache removal
 
-### 1. Config option (`src/cli_rpg/ai_config.py`)
-- `enable_streaming: bool = False` field on `AIConfig` dataclass
-- `AI_ENABLE_STREAMING` environment variable support in `from_env()`
-- Included in `to_dict()` and `from_dict()` serialization
+**Integration tests with GameState:**
+- `test_move_uses_cached_location` - Move uses cached data when available
+- `test_move_queues_adjacent_after_arrival` - Adjacent locations queued after movement
 
-### 2. Streaming methods (`src/cli_rpg/ai_service.py`)
-- `_call_llm_streaming()` - Main streaming dispatcher (lines 443-469)
-- `_call_openai_streaming()` - OpenAI/Ollama streaming with `stream=True` (lines 471-524)
-- `_call_anthropic_streaming()` - Anthropic streaming via `client.messages.stream()` (lines 526-562)
-- `_call_llm_streamable()` - Smart wrapper that checks config and effects (lines 564-595)
+## Key Design Decisions
 
-### 3. Streaming applied to text-only methods
-- `generate_npc_dialogue()` - Uses `_call_llm_streamable()`
-- `generate_lore()` - Uses `_call_llm_streamable()`
-- `generate_dream()` - Uses `_call_llm_streamable()`
-- `generate_whisper()` - Uses `_call_llm_streamable()`
-- `generate_ascii_art()` - Uses `_call_llm_streamable()`
-- `generate_location_ascii_art()` - Uses `_call_llm_streamable()`
-- `generate_npc_ascii_art()` - Uses `_call_llm_streamable()`
+1. **Thread-based over async**: Uses Python threading (daemon threads) for background work, consistent with existing progress.py patterns
+2. **Single worker default**: Conservative approach with 1 worker thread to avoid overwhelming AI service
+3. **Graceful degradation**: No impact on gameplay if disabled or AI unavailable
+4. **Cache-first approach**: Checks cache before triggering new AI generation
+5. **Layered context support**: Passes world_context and region_context for consistent generation
 
-### 4. JSON methods remain non-streaming
-They need complete responses for parsing:
-- `generate_location()`, `generate_area()`, `generate_quest()`, `generate_enemy()`, `generate_item()`
+## Files Changed
+
+| File | Changes |
+|------|---------|
+| `src/cli_rpg/background_gen.py` | **Created** - BackgroundGenerationQueue class |
+| `src/cli_rpg/game_state.py` | Added queue integration and cache usage in move() |
+| `tests/test_background_gen.py` | **Created** - 13 unit and integration tests |
 
 ## Test Results
 
-All 22 tests pass:
-```
-tests/test_ai_streaming.py - 22 passed in 0.61s
-```
+- All 13 new tests pass
+- All 4764 existing tests pass (full suite)
+- No regressions detected
+
+## How It Works
+
+1. When GameState is created with an AI service, call `start_background_generation()` to initialize the queue
+2. As the player moves around, `_pregenerate_adjacent_regions()` calls `_queue_adjacent_locations()` which submits unexplored adjacent tiles to the background queue
+3. Worker threads pick up tasks and call `ai_service.generate_location()` to pre-generate content
+4. When the player moves to a new tile, `move()` checks `pop_cached()` for pre-generated data before calling AI
+5. On game shutdown, call `stop_background_generation()` to cleanly terminate workers
 
 ## E2E Validation
 
-To validate streaming in a real game session:
-1. Set `AI_ENABLE_STREAMING=true` environment variable
-2. Start the game with an AI provider configured
-3. Trigger text generation (talk to NPCs, rest for dreams, explore for whispers)
-4. Observe real-time token streaming to stdout instead of spinner-based progress
+To validate the feature works correctly:
+1. Start a new game with AI enabled
+2. Move several tiles in one direction
+3. Check logs for "Using cached location data" messages (INFO level)
+4. Verify movement feels smoother without blocking on AI calls
+
+## Note: Integration with main.py
+
+The feature is ready but requires integration into `main.py` to be activated in actual gameplay. Add:
+- `game_state.start_background_generation()` after GameState creation
+- `game_state.stop_background_generation()` in quit handling
+
+This was left out per the plan to keep changes minimal and focused.

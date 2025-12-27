@@ -9,6 +9,7 @@ from cli_rpg.models.character import Character
 if TYPE_CHECKING:
     from cli_rpg.world_grid import SubGrid
     from cli_rpg.wfc_chunks import ChunkManager
+    from cli_rpg.background_gen import BackgroundGenerationQueue
 from cli_rpg.models.game_time import GameTime
 from cli_rpg.models.location import Location
 from cli_rpg.models.npc import NPC
@@ -305,6 +306,8 @@ class GameState:
         self.seen_tiles: set[tuple[int, int]] = set()
         # World state tracking for persistent world changes
         self.world_state_manager = WorldStateManager()
+        # Background generation queue for pre-generating adjacent locations
+        self.background_gen_queue: Optional["BackgroundGenerationQueue"] = None
 
     @property
     def is_in_conversation(self) -> bool:
@@ -675,7 +678,35 @@ class GameState:
                 category_hint = get_cluster_category_bias(self.world, target_coords)
 
                 ai_succeeded = False
-                if self.ai_service is not None and AI_AVAILABLE and expand_area is not None:
+
+                # Check background generation cache first
+                cached_data = None
+                if self.background_gen_queue is not None:
+                    cached_data = self.background_gen_queue.pop_cached(target_coords)
+
+                if cached_data is not None:
+                    # Use pre-generated location from cache
+                    try:
+                        logger.info(
+                            f"Using cached location data for {target_coords}"
+                        )
+                        new_location = Location(
+                            name=cached_data.get("name", f"Location ({target_coords[0]},{target_coords[1]})"),
+                            description=cached_data.get("description", "A mysterious place."),
+                            coordinates=target_coords,
+                            category=cached_data.get("category", "wilderness"),
+                            terrain=terrain,
+                            is_named=True,
+                            is_overworld=True,
+                        )
+                        self.world[new_location.name] = new_location
+                        self.current_location = new_location.name
+                        ai_succeeded = True
+                    except Exception as e:
+                        logger.warning(f"Failed to use cached location: {e}")
+                        # Fall through to normal generation
+
+                if not ai_succeeded and self.ai_service is not None and AI_AVAILABLE and expand_area is not None:
                     try:
                         logger.info(
                             f"Generating named area at {target_coords} from {current.name}"
@@ -1314,6 +1345,75 @@ class GameState:
                 logger.debug(f"Pre-generated region context for {region_coords}")
             except Exception as e:
                 logger.warning(f"Failed to pre-generate region {region_coords}: {e}")
+
+        # Queue adjacent locations for background generation
+        self._queue_adjacent_locations(coords)
+
+    def _queue_adjacent_locations(self, coords: tuple[int, int]) -> None:
+        """Queue adjacent locations for background generation.
+
+        Submits unexplored adjacent coordinates to the background generation
+        queue for pre-generation before the player arrives.
+
+        Args:
+            coords: Current world coordinates
+        """
+        if self.background_gen_queue is None:
+            return
+
+        from cli_rpg.world_grid import DIRECTION_OFFSETS
+
+        for direction in DIRECTION_OFFSETS:
+            dx, dy = DIRECTION_OFFSETS[direction]
+            adj_coords = (coords[0] + dx, coords[1] + dy)
+
+            # Skip if location already exists
+            if self._get_location_by_coordinates(adj_coords) is not None:
+                continue
+
+            # Get terrain from chunk_manager if available
+            terrain = "plains"
+            if self.chunk_manager is not None:
+                terrain = self.chunk_manager.get_tile_at(*adj_coords)
+
+            # Get context for layered generation
+            world_ctx = self.world_context
+            region_ctx = None
+            if world_ctx is not None:
+                try:
+                    region_ctx = self.get_or_create_region_context(adj_coords, terrain)
+                except Exception:
+                    pass  # Skip context if generation fails
+
+            self.background_gen_queue.submit(
+                coords=adj_coords,
+                terrain=terrain,
+                world_context=world_ctx,
+                region_context=region_ctx,
+            )
+
+    def start_background_generation(self) -> None:
+        """Start background generation queue if AI service available.
+
+        Creates and starts a BackgroundGenerationQueue for pre-generating
+        adjacent locations before the player arrives.
+        """
+        if self.ai_service is not None:
+            from cli_rpg.background_gen import BackgroundGenerationQueue
+            self.background_gen_queue = BackgroundGenerationQueue(
+                ai_service=self.ai_service,
+                theme=self.theme,
+            )
+            self.background_gen_queue.start()
+
+    def stop_background_generation(self) -> None:
+        """Stop background generation queue.
+
+        Shuts down the background generation queue and its worker threads.
+        """
+        if self.background_gen_queue is not None:
+            self.background_gen_queue.shutdown()
+            self.background_gen_queue = None
 
     def record_choice(
         self,
