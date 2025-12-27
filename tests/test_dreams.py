@@ -74,7 +74,8 @@ class TestMaybeTriggerDream:
                 result = maybe_trigger_dream(dread=50)
                 assert result is not None
                 # Check nightmare text is in the result
-                assert any(nightmare in result for nightmare in NIGHTMARES)
+                # Use first 30 chars to avoid matching wrapped text
+                assert any(nightmare[:30] in result for nightmare in NIGHTMARES)
 
     def test_normal_dream_at_low_dread(self):
         """Spec: Low dread (<50) uses normal dream pools."""
@@ -84,8 +85,9 @@ class TestMaybeTriggerDream:
                 result = maybe_trigger_dream(dread=0)
                 assert result is not None
                 # Should be from prophetic or atmospheric pools (not nightmares)
+                # Use first 30 chars to avoid matching wrapped text
                 all_normal_dreams = PROPHETIC_DREAMS + ATMOSPHERIC_DREAMS
-                assert any(dream in result for dream in all_normal_dreams)
+                assert any(dream[:30] in result for dream in all_normal_dreams)
 
 
 class TestChoiceInfluencedDreams:
@@ -405,8 +407,9 @@ class TestAIDreamGeneration:
                 # Should still return a dream (from templates)
                 assert result is not None
                 # Should be from template pools
+                # Use first 30 chars to avoid matching wrapped text
                 all_templates = PROPHETIC_DREAMS + ATMOSPHERIC_DREAMS
-                assert any(template in result for template in all_templates)
+                assert any(template[:30] in result for template in all_templates)
 
     def test_maybe_trigger_dream_uses_templates_without_ai(self):
         """Spec: Uses templates when ai_service is None (current behavior)."""
@@ -421,9 +424,10 @@ class TestAIDreamGeneration:
             )
 
             # Should return a template dream
+            # Use first 30 chars to avoid matching wrapped text
             assert result is not None
             all_templates = PROPHETIC_DREAMS + ATMOSPHERIC_DREAMS
-            assert any(template in result for template in all_templates)
+            assert any(template[:30] in result for template in all_templates)
 
     def test_ai_dream_content_is_validated(self):
         """Spec: AI-generated dream text is validated (length 20-300 chars)."""

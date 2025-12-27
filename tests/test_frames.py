@@ -206,3 +206,38 @@ class TestIntegration:
         assert "Line 1" in result
         assert "Line 2" in result
         assert "Line 3" in result
+
+
+class TestFrameWidthCapping:
+    """Tests for frame width capping - spec: Borders capped at 80 chars."""
+
+    def test_frame_text_caps_width_at_80(self):
+        """Auto-calculated width does not exceed 80 characters."""
+        long_text = "A" * 200  # Very long single line
+        result = frame_text(long_text, style=FrameStyle.SIMPLE)
+        lines = result.split("\n")
+        for line in lines:
+            assert len(line) <= 80, f"Line exceeds 80 chars: {len(line)}"
+
+    def test_frame_dream_caps_width(self):
+        """frame_dream output capped at 80 chars."""
+        from cli_rpg.frames import _visible_len
+
+        long_dream = "You dream of " + "endless " * 30 + "corridors."
+        result = frame_dream(long_dream)
+        lines = result.split("\n")
+        for line in lines:
+            # Account for ANSI codes in measurement
+            assert _visible_len(line) <= 80, f"Line exceeds 80 visible chars"
+
+    def test_explicit_width_under_80_respected(self):
+        """Explicit width < 80 is still respected."""
+        result = frame_text("Hi", style=FrameStyle.SINGLE, width=50)
+        lines = result.split("\n")
+        assert len(lines[0]) == 50
+
+    def test_explicit_width_over_80_capped(self):
+        """Explicit width > 80 is capped to 80."""
+        result = frame_text("Hi", style=FrameStyle.SINGLE, width=120)
+        lines = result.split("\n")
+        assert len(lines[0]) == 80

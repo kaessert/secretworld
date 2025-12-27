@@ -11,6 +11,9 @@ from typing import Optional
 
 from cli_rpg import colors
 
+# Maximum frame width to prevent terminal overflow
+MAX_FRAME_WIDTH = 80
+
 
 class FrameStyle(Enum):
     """Frame character sets for different UI contexts.
@@ -114,9 +117,12 @@ def frame_text(
         else:
             width = max(max_line_len + 4, 40)  # 2 for borders + 2 padding
 
+    # Cap width at MAX_FRAME_WIDTH to prevent terminal overflow
+    width = min(width, MAX_FRAME_WIDTH)
+
     # Calculate inner width (content area)
     if is_simple:
-        inner_width = width
+        inner_width = width - 4  # Account for 4-space indent
     else:
         inner_width = width - 2  # Account for left/right borders
 
