@@ -514,7 +514,7 @@ cli-rpg --non-interactive --skip-character-creation < commands.txt
 
 **Character Creation:**
 - By default, reads character creation inputs from stdin (name, class, stat method, stats, confirmation)
-- Use `--skip-character-creation` to use a default character ("Agent") with balanced stats (10/10/10/10)
+- Use `--skip-character-creation` to use a default Warrior character ("Agent") with balanced stats (10/10/10/10)
 - Manual stats: provide name, class (1-5), "1", str, dex, int, cha, "yes" (one per line)
 - Random stats: provide name, class (1-5), "2", "yes" (one per line)
 - Invalid inputs return error messages and exit with code 1

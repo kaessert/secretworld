@@ -2713,7 +2713,7 @@ def run_json_mode(
     """
     import time
     from cli_rpg.colors import set_colors_enabled
-    from cli_rpg.models.character import Character
+    from cli_rpg.models.character import Character, CharacterClass
     from cli_rpg.json_output import (
         emit_state, emit_narrative, emit_actions, emit_error, emit_combat,
         classify_output, emit_session_info
@@ -2737,7 +2737,7 @@ def run_json_mode(
     # Create character
     if skip_character_creation:
         # Use default character (backward compatible behavior)
-        character = Character(name="Agent", strength=10, dexterity=10, intelligence=10)
+        character = Character(name="Agent", strength=10, dexterity=10, intelligence=10, character_class=CharacterClass.WARRIOR)
     else:
         # Read character creation from stdin
         character, error = create_character_non_interactive(json_mode=True)
@@ -2948,7 +2948,7 @@ def run_non_interactive(
     """
     import time
     from cli_rpg.colors import set_colors_enabled
-    from cli_rpg.models.character import Character
+    from cli_rpg.models.character import Character, CharacterClass
     from cli_rpg.logging_service import GameplayLogger
 
     # Disable ANSI colors, typewriter effects, and sounds for machine-readable output
@@ -2968,7 +2968,7 @@ def run_non_interactive(
     # Create character
     if skip_character_creation:
         # Use default character (backward compatible behavior)
-        character = Character(name="Agent", strength=10, dexterity=10, intelligence=10)
+        character = Character(name="Agent", strength=10, dexterity=10, intelligence=10, character_class=CharacterClass.WARRIOR)
     else:
         # Read character creation from stdin
         character, error = create_character_non_interactive(json_mode=False)

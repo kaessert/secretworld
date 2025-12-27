@@ -1408,73 +1408,18 @@ Target: Giant Spider x3
 
 ---
 
-### Default Character Has No Class (--skip-character-creation)
-**Status**: ACTIVE
+### ✅ RESOLVED: Default Character Has No Class (--skip-character-creation)
+**Status**: RESOLVED
 **Date Added**: 2025-12-27
-**Severity**: Medium (affects automated testing and AI agent playtesting)
+**Date Resolved**: 2025-12-27
 
-#### Problem
+**Problem**: When using `--skip-character-creation` flag, the default "Agent" character was created without a class, making class-specific abilities unavailable for automated testing and AI agent playtesting.
 
-When using `--skip-character-creation` flag for non-interactive mode, the default "Agent" character is created with `character_class: null`. This means:
+**Resolution**: The default "Agent" character is now assigned `CharacterClass.WARRIOR` class, enabling Warrior abilities (bash) during automated testing.
 
-1. **No class abilities available**: bash, sneak, fireball, heal, bless, smite, ice_bolt, track, pick - all class-specific abilities fail with "Only X can [ability]!" errors
-2. **Documentation inconsistency**: README says "Use a default character ('Agent') with balanced stats (10/10/10/10)" but doesn't warn that no class is assigned
-3. **Reduced testing coverage**: Automated tests and AI agents using `--skip-character-creation` cannot test any class-specific functionality
+**Files Modified**:
+- `src/cli_rpg/main.py`: Added `character_class=CharacterClass.WARRIOR` to Character creation in both `run_json_mode()` and `run_non_interactive()`
+- `tests/test_non_interactive_character_creation.py`: Added test `test_skip_character_creation_assigns_warrior_class()`
 
-#### Steps to Reproduce
-
-```bash
-# Create default character
-source venv/bin/activate
-echo -e "n\nbash\nquit" | python -m cli_rpg.main --non-interactive --skip-character-creation --seed 42
-
-# Expected: Warrior bash ability works (or clear indication that Agent has no class)
-# Actual: "Only Warriors can bash!" error in combat
-```
-
-#### Evidence
-
-```bash
-echo -e "dump-state\nquit" | python -m cli_rpg.main --non-interactive --skip-character-creation 2>&1 | grep -i class
-# Output: "character_class": null,
-```
-
-All class-specific commands fail:
-- `bash` → "Only Warriors can bash!"
-- `sneak` → "Only Rogues can sneak!"
-- `fireball` → "Only Mages can cast Fireball!"
-- `heal` → "Only Mages can cast Heal!"
-- `bless` → "Only Clerics can bless!"
-- `track` → "Only Rangers can track!"
-
-#### Expected Behavior
-
-One of:
-1. **Option A**: Default character should have a class (e.g., Warrior) so all basic mechanics can be tested
-2. **Option B**: Documentation should clearly state that `--skip-character-creation` creates a classless character
-3. **Option C**: Add optional `--class <name>` flag to specify class when skipping character creation
-
-#### Suggested Fix
-
-Add default class (Warrior) to the default character creation in character_creation.py or main.py:
-
-```python
-# When --skip-character-creation is used:
-character = Character(
-    name="Agent",
-    character_class="warrior",  # ADD THIS
-    strength=10,
-    dexterity=10,
-    intelligence=10,
-    charisma=10,
-    perception=10,
-    luck=10
-)
-```
-
-#### Impact
-
-- Automated testing cannot cover class-specific abilities
-- AI agent playtesting misses significant game mechanics
-- New users testing with `--skip-character-creation` may be confused
+**Verification**: All 14 tests in `tests/test_non_interactive_character_creation.py` pass
 

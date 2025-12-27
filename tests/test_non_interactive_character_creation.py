@@ -38,6 +38,22 @@ class TestSkipCharacterCreationFlag:
         # Default character is named "Agent"
         assert "Agent" in result.stdout
 
+    def test_skip_character_creation_assigns_warrior_class(self):
+        """--skip-character-creation default character should have Warrior class.
+
+        Spec: Default "Agent" character has character_class="warrior" so class
+        abilities (bash) work in automated testing and AI agent playtesting.
+        """
+        result = subprocess.run(
+            [sys.executable, "-m", "cli_rpg.main", "--non-interactive", "--skip-character-creation"],
+            input="status\n",
+            capture_output=True,
+            text=True,
+            timeout=10
+        )
+        assert result.returncode == 0
+        assert "Warrior" in result.stdout
+
     def test_json_mode_with_skip_flag(self):
         """--json --skip-character-creation works and uses default character.
 
