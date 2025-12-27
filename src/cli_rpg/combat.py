@@ -187,6 +187,15 @@ _ASCII_ART_BEAST = r"""
   (_|   |_)
 """
 
+_ASCII_ART_BOAR = r"""
+    /\  /\
+   (  oo  )
+  ~~|    |~~
+    | || |
+   /  ||  \
+  (_/    \_)
+"""
+
 _ASCII_ART_UNDEAD = r"""
      .-.
     (o o)
@@ -303,8 +312,12 @@ def get_fallback_ascii_art(enemy_name: str) -> str:
     """
     name_lower = enemy_name.lower()
 
-    # Beast category: wolf, bear, boar, lion, etc.
-    if any(term in name_lower for term in ["wolf", "bear", "boar", "lion", "cat", "dog"]):
+    # Boar-specific (before generic beast)
+    if "boar" in name_lower:
+        return _ASCII_ART_BOAR
+
+    # Beast category: wolf, bear, lion, etc.
+    if any(term in name_lower for term in ["wolf", "bear", "lion", "cat", "dog"]):
         return _ASCII_ART_BEAST
 
     # Undead category: skeleton, zombie, ghost, wraith, etc.

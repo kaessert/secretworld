@@ -108,12 +108,25 @@ class TestFallbackAsciiArt:
     """Test fallback ASCII art templates."""
 
     def test_get_fallback_ascii_art_beast(self):
-        """Beast enemies (wolf, bear, boar) get beast art."""
-        for enemy_name in ["Wolf", "Great Bear", "Wild Boar"]:
+        """Beast enemies (wolf, bear) get beast art (cat-like)."""
+        for enemy_name in ["Wolf", "Great Bear"]:
             art = get_fallback_ascii_art(enemy_name)
             assert art  # Non-empty
             assert len(art.splitlines()) >= 3  # At least 3 lines
             assert max(len(line) for line in art.splitlines()) <= 40  # Max 40 chars wide
+            # Verify it's the cat-like beast art
+            assert "/\\_/\\" in art  # Cat-like ears
+
+    def test_get_fallback_ascii_art_boar(self):
+        """Boar enemies get boar-specific art (not cat-like beast art)."""
+        for enemy_name in ["Wild Boar", "Giant Boar", "Razorback Boar"]:
+            art = get_fallback_ascii_art(enemy_name)
+            assert art  # Non-empty
+            assert len(art.splitlines()) >= 3  # At least 3 lines
+            assert max(len(line) for line in art.splitlines()) <= 40  # Max 40 chars wide
+            # Verify it's boar art (not cat-like)
+            assert "/\\_/\\" not in art  # Should NOT have cat ears
+            assert "(  oo  )" in art  # Should have boar snout
 
     def test_get_fallback_ascii_art_undead(self):
         """Undead enemies (skeleton, zombie, ghost) get undead art."""
