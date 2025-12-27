@@ -1,67 +1,48 @@
-# Quest Faction Integration - Implementation Summary
+# Implementation Summary: Quest Chains & Prerequisites
 
 ## What Was Implemented
 
-### 1. Quest Model Updates (`src/cli_rpg/models/quest.py`)
-Added four new fields to the Quest dataclass:
-- `faction_affiliation: Optional[str]` - The faction this quest is associated with (defaults to None)
-- `faction_reward: int` - Reputation gained with affiliated faction on completion (defaults to 0)
-- `faction_penalty: int` - Reputation lost with rival faction on completion (defaults to 0)
-- `required_reputation: Optional[int]` - Minimum reputation with faction required to accept quest (defaults to None)
+### 1. New Fields Added to Quest Model (`src/cli_rpg/models/quest.py`)
+- `chain_id: Optional[str]` - Groups related quests (e.g., "goblin_war")
+- `chain_position: int` - Order in chain (0 = standalone, 1 = first, etc.)
+- `prerequisite_quests: List[str]` - Quest names that must be COMPLETED first
+- `unlocks_quests: List[str]` - Quest names unlocked on completion
 
-Added validation in `__post_init__`:
-- `faction_reward` cannot be negative
-- `faction_penalty` cannot be negative
+### 2. New Method: `prerequisites_met()`
+```python
+def prerequisites_met(self, completed_quests: List[str]) -> bool
+```
+- Checks if all prerequisite quests have been completed
+- Case-insensitive matching
+- Returns True if no prerequisites or all are in completed list
 
-Updated serialization:
-- `to_dict()` includes all four faction fields
-- `from_dict()` restores faction fields with backward compatibility for old save files
+### 3. Serialization Support
+- `to_dict()` now includes all four chain fields
+- `from_dict()` handles chain fields with safe defaults for backward compatibility
 
-### 2. Character Model Updates (`src/cli_rpg/models/character.py`)
-Updated `claim_quest_rewards()` method:
-- Added optional `factions: Optional[List["Faction"]]` parameter
-- On quest completion with faction affiliation:
-  - Applies `faction_reward` to the affiliated faction
-  - Applies `faction_penalty` to the rival faction (using `FACTION_RIVALRIES` mapping)
-  - Returns appropriate reputation change messages
-  - Includes level-up messages when reputation thresholds are crossed
+### 4. Quest Acceptance Prerequisite Check (`src/cli_rpg/main.py`)
+- Added check after faction reputation check in the `accept` command handler
+- Blocks acceptance if prerequisites not met, with message listing missing prereqs
+- Quest cloning now copies chain fields to accepted quests
 
-### 3. Main Command Handler Updates (`src/cli_rpg/main.py`)
+### 5. Quest Display Enhancement (`src/cli_rpg/main.py`)
+- The `quest` command now shows chain info when present:
+  - "Chain: {chain_id} (Part {position})" or "(Prologue)" for position 0
+  - "Prerequisites: {comma-separated list}" if any exist
 
-#### Complete Command (line ~1703)
-- Passes `game_state.factions` to `claim_quest_rewards()` so faction reputation changes are applied
-
-#### Accept Command (line ~1649-1681)
-- Added reputation check before accepting quest:
-  - If quest has `required_reputation` and `faction_affiliation`, checks if player's reputation meets the requirement
-  - If reputation is too low, NPC refuses to give the quest with appropriate message
-- Quest cloning now includes all four faction fields when creating the player's copy
-
-### 4. Test Updates (`tests/test_quest.py`)
-- Updated `test_to_dict` to include the four new faction fields in the expected output
+## Files Modified
+1. `src/cli_rpg/models/quest.py` - Added fields, method, serialization
+2. `src/cli_rpg/main.py` - Added prerequisite check in accept command, chain display in quest command
+3. `tests/test_quest.py` - Added new test classes and updated existing serialization test
 
 ## Test Results
+- All 3795 tests pass
+- New tests added:
+  - `TestQuestChainFields` (5 tests) - Field defaults, assignment, serialization
+  - `TestPrerequisiteValidation` (5 tests) - prerequisites_met() behavior
 
-All tests pass:
-- `tests/test_quest_faction.py`: 22 new tests covering all aspects of the feature
-- `tests/test_quest*.py` and `tests/test_faction*.py`: 308 tests pass
-- Full test suite: 3785 tests pass
-
-## New Test File: `tests/test_quest_faction.py`
-
-Created comprehensive tests covering:
-- Quest model tests (13 tests): field defaults, validation, serialization
-- Claim rewards faction integration tests (6 tests): reputation changes, messages, level-ups
-- Quest acceptance tests (3 tests): reputation requirements
-
-## E2E Validation Scenarios
-
-To validate the implementation end-to-end:
-
-1. **Quest with faction reward**: Create/accept a quest with `faction_affiliation="Town Guard"` and `faction_reward=10`. Complete it and verify Town Guard reputation increases by 10.
-
-2. **Quest with faction penalty**: Create a quest with `faction_penalty=5` for Town Guard. Complete it and verify Thieves Guild reputation decreases by 5.
-
-3. **Reputation requirement**: Create a quest requiring 60 reputation with Town Guard. With player at 50 reputation, verify quest cannot be accepted. Increase reputation to 60+ and verify quest can be accepted.
-
-4. **Save/Load**: Accept a faction quest, save game, load game, and verify all faction fields are preserved on the quest.
+## E2E Tests Should Validate
+1. Create NPC with quest chain (part 1 and part 2 with prerequisite)
+2. Attempt to accept part 2 before completing part 1 - should fail with message
+3. Complete part 1, then accept part 2 - should succeed
+4. View quest details - should show chain info and prerequisites

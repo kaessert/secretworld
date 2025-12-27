@@ -1,188 +1,137 @@
-# Quest Faction Integration Implementation Plan
+# Implementation Plan: Quest Chains & Prerequisites
 
 ## Spec
 
-Quests can be affiliated with factions, affecting reputation on completion:
-1. **`faction_affiliation`** (Optional[str]): The faction this quest is associated with (e.g., "Town Guard")
-2. **`faction_reward`** (int, default 0): Reputation gained with affiliated faction on completion
-3. **`faction_penalty`** (int, default 0): Reputation lost with rival faction on completion
-4. **`required_reputation`** (Optional[int]): Minimum reputation with faction required to accept quest
+Add chain support fields to the Quest model enabling narrative arcs:
 
-Behavior:
-- On quest completion via `complete` command, apply faction reputation changes
-- Display reputation change messages alongside gold/XP/item rewards
-- Quest acceptance checks `required_reputation` against player's current standing
-- AI quest generation includes faction fields when NPC has faction affiliation
+```python
+@dataclass
+class Quest:
+    # ... existing fields ...
+    chain_id: Optional[str] = None              # Groups related quests (e.g., "goblin_war")
+    chain_position: int = 0                      # Order in chain (0 = standalone, 1 = first, etc.)
+    prerequisite_quests: List[str] = field(default_factory=list)  # Quest names that must be COMPLETED first
+    unlocks_quests: List[str] = field(default_factory=list)       # Quest names unlocked on completion
+```
+
+**Behavior**:
+- Quests with prerequisites cannot be accepted until all prerequisite quests have status COMPLETED
+- When a quest is completed, quests in `unlocks_quests` become available (if they exist on the NPC)
+- `chain_id` + `chain_position` are metadata for display/sorting (e.g., "Part 2 of Goblin War")
+- All new fields are optional with safe defaults for backward compatibility
 
 ---
 
-## Tests (TDD)
+## Tests (in `tests/test_quest.py`)
 
-### File: `tests/test_quest_faction.py`
+### New Test Class: `TestQuestChainFields`
+1. `test_quest_chain_fields_default_to_none_and_empty` - New fields have safe defaults
+2. `test_quest_with_chain_id_and_position` - Chain metadata set correctly
+3. `test_quest_with_prerequisites` - prerequisite_quests list stored correctly
+4. `test_quest_with_unlocks` - unlocks_quests list stored correctly
+5. `test_chain_fields_serialization_roundtrip` - to_dict/from_dict preserves all chain fields
 
-```python
-"""Tests for quest faction integration."""
+### New Test Class: `TestPrerequisiteValidation` (in `tests/test_quest.py`)
+1. `test_prerequisites_met_with_no_prerequisites` - Always returns True when list empty
+2. `test_prerequisites_met_with_completed_quest` - Returns True when all prereqs COMPLETED
+3. `test_prerequisites_not_met_with_active_quest` - Returns False when prereq still ACTIVE
+4. `test_prerequisites_not_met_with_missing_quest` - Returns False when prereq not in player's quests
 
-# Quest model tests
-- test_quest_faction_affiliation_field_optional
-- test_quest_faction_reward_field_defaults_to_zero
-- test_quest_faction_penalty_field_defaults_to_zero
-- test_quest_required_reputation_field_optional
-- test_quest_negative_faction_reward_rejected
-- test_quest_negative_faction_penalty_rejected
-- test_quest_to_dict_includes_faction_fields
-- test_quest_from_dict_restores_faction_fields
-- test_quest_from_dict_missing_faction_fields_uses_defaults
-
-# Claim rewards faction integration tests
-- test_claim_quest_rewards_applies_faction_reward
-- test_claim_quest_rewards_applies_faction_penalty_to_rival
-- test_claim_quest_rewards_returns_faction_messages
-- test_claim_quest_rewards_triggers_level_up_message
-- test_claim_quest_rewards_with_no_faction_affiliation_no_changes
-
-# Quest acceptance tests
-- test_accept_quest_allowed_when_reputation_meets_requirement
-- test_accept_quest_blocked_when_reputation_too_low
-- test_accept_quest_allowed_when_no_required_reputation
-```
+### New Test Class: `TestQuestAcceptPrerequisites` (in `tests/test_main.py` or new `tests/test_quest_chains.py`)
+1. `test_accept_quest_with_unmet_prerequisites_fails` - Rejects with message listing missing prereqs
+2. `test_accept_quest_with_met_prerequisites_succeeds` - Accepts normally when prereqs complete
 
 ---
 
 ## Implementation Steps
 
-### 1. Update Quest Model (`src/cli_rpg/models/quest.py`)
+### Step 1: Add chain fields to Quest model
+**File**: `src/cli_rpg/models/quest.py`
 
-Add new fields to `Quest` dataclass:
+Add after `required_reputation` field (line ~67):
 ```python
-faction_affiliation: Optional[str] = field(default=None)
-faction_reward: int = field(default=0)
-faction_penalty: int = field(default=0)
-required_reputation: Optional[int] = field(default=None)
+chain_id: Optional[str] = field(default=None)
+chain_position: int = field(default=0)
+prerequisite_quests: List[str] = field(default_factory=list)
+unlocks_quests: List[str] = field(default_factory=list)
 ```
 
-Add validation in `__post_init__`:
+### Step 2: Add `prerequisites_met()` method to Quest
+**File**: `src/cli_rpg/models/quest.py`
+
+Add method after `is_complete` property:
 ```python
-if self.faction_reward < 0:
-    raise ValueError("faction_reward cannot be negative")
-if self.faction_penalty < 0:
-    raise ValueError("faction_penalty cannot be negative")
+def prerequisites_met(self, completed_quests: List[str]) -> bool:
+    """Check if all prerequisite quests have been completed.
+
+    Args:
+        completed_quests: List of completed quest names (case-insensitive)
+
+    Returns:
+        True if no prerequisites or all are in completed list
+    """
+    if not self.prerequisite_quests:
+        return True
+    completed_lower = {q.lower() for q in completed_quests}
+    return all(prereq.lower() in completed_lower for prereq in self.prerequisite_quests)
 ```
 
-Update `to_dict()` to include:
+### Step 3: Update `to_dict()` serialization
+**File**: `src/cli_rpg/models/quest.py`
+
+Add to the return dict in `to_dict()` (after line ~156):
 ```python
-"faction_affiliation": self.faction_affiliation,
-"faction_reward": self.faction_reward,
-"faction_penalty": self.faction_penalty,
-"required_reputation": self.required_reputation,
+"chain_id": self.chain_id,
+"chain_position": self.chain_position,
+"prerequisite_quests": self.prerequisite_quests,
+"unlocks_quests": self.unlocks_quests,
 ```
 
-Update `from_dict()` to restore:
+### Step 4: Update `from_dict()` deserialization
+**File**: `src/cli_rpg/models/quest.py`
+
+Add to the `cls()` call in `from_dict()` (after `required_reputation`):
 ```python
-faction_affiliation=data.get("faction_affiliation"),
-faction_reward=data.get("faction_reward", 0),
-faction_penalty=data.get("faction_penalty", 0),
-required_reputation=data.get("required_reputation"),
+chain_id=data.get("chain_id"),
+chain_position=data.get("chain_position", 0),
+prerequisite_quests=data.get("prerequisite_quests", []),
+unlocks_quests=data.get("unlocks_quests", []),
 ```
 
-### 2. Update Character.claim_quest_rewards() (`src/cli_rpg/models/character.py`)
+### Step 5: Add prerequisite check to quest acceptance
+**File**: `src/cli_rpg/main.py`
 
-Modify signature to accept optional factions list:
+In the `accept` command handler (around line 1650, after faction reputation check):
 ```python
-def claim_quest_rewards(self, quest: "Quest", factions: Optional[List["Faction"]] = None) -> List[str]:
+# Check prerequisite quests
+if matching_quest.prerequisite_quests:
+    completed_names = [
+        q.name for q in game_state.current_character.quests
+        if q.status == QuestStatus.COMPLETED
+    ]
+    if not matching_quest.prerequisites_met(completed_names):
+        missing = [p for p in matching_quest.prerequisite_quests
+                   if p.lower() not in {c.lower() for c in completed_names}]
+        return (True, f"\nYou must first complete: {', '.join(missing)}")
 ```
 
-After existing reward logic, add faction handling:
+### Step 6: Update quest display to show chain info
+**File**: `src/cli_rpg/main.py`
+
+In the `quest` command handler (around line 1815), add chain display:
 ```python
-# Apply faction reputation changes
-if quest.faction_affiliation and factions:
-    from cli_rpg.faction_combat import _find_faction_by_name, FACTION_RIVALRIES
-
-    affiliated = _find_faction_by_name(factions, quest.faction_affiliation)
-    if affiliated and quest.faction_reward > 0:
-        level_msg = affiliated.add_reputation(quest.faction_reward)
-        messages.append(f"Reputation with {affiliated.name} increased by {quest.faction_reward}.")
-        if level_msg:
-            messages.append(level_msg)
-
-    # Apply penalty to rival faction
-    rival_name = FACTION_RIVALRIES.get(quest.faction_affiliation)
-    if rival_name and quest.faction_penalty > 0:
-        rival = _find_faction_by_name(factions, rival_name)
-        if rival:
-            level_msg = rival.reduce_reputation(quest.faction_penalty)
-            messages.append(f"Reputation with {rival.name} decreased by {quest.faction_penalty}.")
-            if level_msg:
-                messages.append(level_msg)
-```
-
-### 3. Update main.py Complete Command (line ~1703)
-
-Pass factions to claim_quest_rewards:
-```python
-# Change from:
-reward_messages = game_state.current_character.claim_quest_rewards(matching_quest)
-# To:
-reward_messages = game_state.current_character.claim_quest_rewards(
-    matching_quest, factions=game_state.factions
-)
-```
-
-### 4. Update main.py Accept Command (around line 1640-1660)
-
-Add reputation check before accepting quest:
-```python
-# Before creating the new quest, check required reputation
-if matching_quest.required_reputation is not None:
-    from cli_rpg.faction_combat import _find_faction_by_name
-    if matching_quest.faction_affiliation:
-        faction = _find_faction_by_name(game_state.factions, matching_quest.faction_affiliation)
-        if faction and faction.reputation < matching_quest.required_reputation:
-            return (True, f"\n{npc.name} refuses to give you this quest. You need higher reputation with {matching_quest.faction_affiliation}.")
-```
-
-### 5. Update AI Quest Generation Prompt (`src/cli_rpg/ai_config.py`)
-
-Update `DEFAULT_QUEST_GENERATION_PROMPT` (around line 146-195):
-
-Add to JSON schema section:
-```
-6. If the NPC has a faction affiliation, include faction fields:
-   - faction_affiliation: The faction name (same as NPC's faction)
-   - faction_reward: 5-15 reputation points (scaled by quest difficulty)
-   - faction_penalty: 3-10 reputation points for rival faction
-
-Respond with valid JSON in this exact format (no additional text):
-{{
-  "name": "Quest Name",
-  "description": "A brief description of the quest objective.",
-  "objective_type": "kill|collect|explore|talk|drop",
-  "target": "target name",
-  "target_count": <number>,
-  "gold_reward": <number>,
-  "xp_reward": <number>,
-  "faction_affiliation": "Faction Name or null",
-  "faction_reward": <number>,
-  "faction_penalty": <number>
-}}
-```
-
-### 6. Update AIService._parse_quest_response (`src/cli_rpg/ai_service.py`)
-
-In the quest parsing logic (around line 1874), extract faction fields:
-```python
-quest_data["faction_affiliation"] = data.get("faction_affiliation")
-quest_data["faction_reward"] = data.get("faction_reward", 0)
-quest_data["faction_penalty"] = data.get("faction_penalty", 0)
+if quest.chain_id:
+    chain_info = f"Part {quest.chain_position}" if quest.chain_position > 0 else "Prologue"
+    lines.append(f"Chain: {quest.chain_id} ({chain_info})")
+if quest.prerequisite_quests:
+    lines.append(f"Prerequisites: {', '.join(quest.prerequisite_quests)}")
 ```
 
 ---
 
 ## Verification
 
-Run tests:
-```bash
-pytest tests/test_quest_faction.py -v
-pytest tests/test_quest*.py -v  # Ensure no regressions
-pytest tests/test_faction*.py -v  # Ensure faction tests still pass
-```
+1. Run existing quest tests: `pytest tests/test_quest.py -v`
+2. Run new chain tests after adding them
+3. Run full test suite: `pytest`
+4. Manual test: Create quests with prerequisites, verify accept blocks/allows correctly

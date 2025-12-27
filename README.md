@@ -344,6 +344,11 @@ You'll see progress messages after each relevant action.
 
 **Faction-Affiliated Quests**: Some quests require a minimum reputation with a faction before they can be accepted. If your standing is too low, the NPC will refuse to give you the quest until you improve your reputation.
 
+**Quest Chains**: Some quests are part of multi-part story chains that must be completed in order:
+- Use `quest <name>` to view chain information (e.g., "Chain: goblin_war (Part 2)")
+- Quests with prerequisites cannot be accepted until required quests are completed
+- The game will show which prerequisite quests you still need to complete
+
 **Note**: You must talk to an NPC before accepting or completing their quests. Quest names are matched case-insensitively.
 
 ### Save System

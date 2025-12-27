@@ -65,6 +65,11 @@ class Quest:
     faction_reward: int = field(default=0)
     faction_penalty: int = field(default=0)
     required_reputation: Optional[int] = field(default=None)
+    # Quest chain fields for narrative arcs
+    chain_id: Optional[str] = field(default=None)  # Groups related quests (e.g., "goblin_war")
+    chain_position: int = field(default=0)  # Order in chain (0 = standalone, 1 = first, etc.)
+    prerequisite_quests: List[str] = field(default_factory=list)  # Quest names that must be COMPLETED
+    unlocks_quests: List[str] = field(default_factory=list)  # Quest names unlocked on completion
 
     def __post_init__(self) -> None:
         """Validate quest attributes after initialization."""
@@ -122,6 +127,20 @@ class Quest:
         """
         return self.current_count >= self.target_count
 
+    def prerequisites_met(self, completed_quests: List[str]) -> bool:
+        """Check if all prerequisite quests have been completed.
+
+        Args:
+            completed_quests: List of completed quest names (case-insensitive)
+
+        Returns:
+            True if no prerequisites or all are in completed list
+        """
+        if not self.prerequisite_quests:
+            return True
+        completed_lower = {q.lower() for q in completed_quests}
+        return all(prereq.lower() in completed_lower for prereq in self.prerequisite_quests)
+
     def progress(self) -> bool:
         """Increment current_count and check if quest is complete.
 
@@ -154,6 +173,10 @@ class Quest:
             "faction_reward": self.faction_reward,
             "faction_penalty": self.faction_penalty,
             "required_reputation": self.required_reputation,
+            "chain_id": self.chain_id,
+            "chain_position": self.chain_position,
+            "prerequisite_quests": self.prerequisite_quests,
+            "unlocks_quests": self.unlocks_quests,
         }
 
     @classmethod
@@ -187,4 +210,8 @@ class Quest:
             faction_reward=data.get("faction_reward", 0),
             faction_penalty=data.get("faction_penalty", 0),
             required_reputation=data.get("required_reputation"),
+            chain_id=data.get("chain_id"),
+            chain_position=data.get("chain_position", 0),
+            prerequisite_quests=data.get("prerequisite_quests", []),
+            unlocks_quests=data.get("unlocks_quests", []),
         )

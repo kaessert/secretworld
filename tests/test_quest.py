@@ -437,6 +437,10 @@ class TestSerialization:
             "faction_reward": 0,
             "faction_penalty": 0,
             "required_reputation": None,
+            "chain_id": None,
+            "chain_position": 0,
+            "prerequisite_quests": [],
+            "unlocks_quests": [],
         }
 
     def test_from_dict(self):
@@ -512,3 +516,150 @@ class TestSerialization:
             data = {**base_data, "objective_type": obj_type.value}
             quest = Quest.from_dict(data)
             assert quest.objective_type == obj_type
+
+
+class TestQuestChainFields:
+    """Tests for quest chain and prerequisite fields."""
+
+    # Spec: New fields have safe defaults
+    def test_quest_chain_fields_default_to_none_and_empty(self):
+        """Test that chain fields have safe defaults."""
+        quest = Quest(
+            name="Simple Quest",
+            description="A basic quest",
+            objective_type=ObjectiveType.KILL,
+            target="Enemy",
+        )
+        assert quest.chain_id is None
+        assert quest.chain_position == 0
+        assert quest.prerequisite_quests == []
+        assert quest.unlocks_quests == []
+
+    # Spec: Chain metadata set correctly
+    def test_quest_with_chain_id_and_position(self):
+        """Test that chain_id and chain_position are set correctly."""
+        quest = Quest(
+            name="Goblin War Part 1",
+            description="First part of the goblin war arc",
+            objective_type=ObjectiveType.KILL,
+            target="Goblin Scout",
+            chain_id="goblin_war",
+            chain_position=1,
+        )
+        assert quest.chain_id == "goblin_war"
+        assert quest.chain_position == 1
+
+    # Spec: prerequisite_quests list stored correctly
+    def test_quest_with_prerequisites(self):
+        """Test that prerequisite_quests are stored correctly."""
+        quest = Quest(
+            name="Goblin War Part 2",
+            description="Second part of the goblin war arc",
+            objective_type=ObjectiveType.KILL,
+            target="Goblin Leader",
+            prerequisite_quests=["Goblin War Part 1"],
+        )
+        assert quest.prerequisite_quests == ["Goblin War Part 1"]
+
+    # Spec: unlocks_quests list stored correctly
+    def test_quest_with_unlocks(self):
+        """Test that unlocks_quests are stored correctly."""
+        quest = Quest(
+            name="Goblin War Part 1",
+            description="First part of the goblin war arc",
+            objective_type=ObjectiveType.KILL,
+            target="Goblin Scout",
+            unlocks_quests=["Goblin War Part 2", "Goblin Spy Mission"],
+        )
+        assert quest.unlocks_quests == ["Goblin War Part 2", "Goblin Spy Mission"]
+
+    # Spec: to_dict/from_dict preserves all chain fields
+    def test_chain_fields_serialization_roundtrip(self):
+        """Test that chain fields are preserved through serialization."""
+        original = Quest(
+            name="Goblin War Part 2",
+            description="Second part of the goblin war arc",
+            objective_type=ObjectiveType.KILL,
+            target="Goblin Leader",
+            chain_id="goblin_war",
+            chain_position=2,
+            prerequisite_quests=["Goblin War Part 1"],
+            unlocks_quests=["Goblin War Part 3"],
+        )
+        data = original.to_dict()
+        restored = Quest.from_dict(data)
+
+        assert restored.chain_id == original.chain_id
+        assert restored.chain_position == original.chain_position
+        assert restored.prerequisite_quests == original.prerequisite_quests
+        assert restored.unlocks_quests == original.unlocks_quests
+
+
+class TestPrerequisiteValidation:
+    """Tests for prerequisite validation logic."""
+
+    # Spec: Always returns True when list empty
+    def test_prerequisites_met_with_no_prerequisites(self):
+        """Test that prerequisites_met returns True when no prerequisites."""
+        quest = Quest(
+            name="Simple Quest",
+            description="A quest with no prerequisites",
+            objective_type=ObjectiveType.KILL,
+            target="Enemy",
+        )
+        assert quest.prerequisites_met([]) is True
+        assert quest.prerequisites_met(["Some Quest"]) is True
+
+    # Spec: Returns True when all prereqs COMPLETED
+    def test_prerequisites_met_with_completed_quest(self):
+        """Test that prerequisites_met returns True when prereqs are in completed list."""
+        quest = Quest(
+            name="Advanced Quest",
+            description="A quest with prerequisites",
+            objective_type=ObjectiveType.KILL,
+            target="Boss",
+            prerequisite_quests=["Basic Quest", "Tutorial Quest"],
+        )
+        completed = ["Basic Quest", "Tutorial Quest", "Other Quest"]
+        assert quest.prerequisites_met(completed) is True
+
+    # Spec: Returns False when prereq still ACTIVE (not in completed list)
+    def test_prerequisites_not_met_with_active_quest(self):
+        """Test that prerequisites_met returns False when prereq not completed."""
+        quest = Quest(
+            name="Advanced Quest",
+            description="A quest with prerequisites",
+            objective_type=ObjectiveType.KILL,
+            target="Boss",
+            prerequisite_quests=["Basic Quest", "Tutorial Quest"],
+        )
+        # Only one prerequisite completed
+        completed = ["Basic Quest"]
+        assert quest.prerequisites_met(completed) is False
+
+    # Spec: Returns False when prereq not in player's quests
+    def test_prerequisites_not_met_with_missing_quest(self):
+        """Test that prerequisites_met returns False when prereq missing entirely."""
+        quest = Quest(
+            name="Advanced Quest",
+            description="A quest with prerequisites",
+            objective_type=ObjectiveType.KILL,
+            target="Boss",
+            prerequisite_quests=["Never Seen Quest"],
+        )
+        completed = ["Some Other Quest"]
+        assert quest.prerequisites_met(completed) is False
+
+    # Spec: Case-insensitive matching
+    def test_prerequisites_met_case_insensitive(self):
+        """Test that prerequisite matching is case-insensitive."""
+        quest = Quest(
+            name="Advanced Quest",
+            description="A quest with prerequisites",
+            objective_type=ObjectiveType.KILL,
+            target="Boss",
+            prerequisite_quests=["Basic Quest"],
+        )
+        # Different case should still match
+        completed = ["basic quest"]
+        assert quest.prerequisites_met(completed) is True

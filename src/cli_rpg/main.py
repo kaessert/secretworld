@@ -1660,6 +1660,17 @@ def handle_exploration_command(game_state: GameState, command: str, args: list[s
                     f"You need higher reputation with {matching_quest.faction_affiliation}.",
                 )
 
+        # Check prerequisite quests
+        if matching_quest.prerequisite_quests:
+            completed_names = [
+                q.name for q in game_state.current_character.quests
+                if q.status == QuestStatus.COMPLETED
+            ]
+            if not matching_quest.prerequisites_met(completed_names):
+                missing = [p for p in matching_quest.prerequisite_quests
+                           if p.lower() not in {c.lower() for c in completed_names}]
+                return (True, f"\nYou must first complete: {', '.join(missing)}")
+
         # Clone quest and set status to ACTIVE, then add to character
         # Bug fix: Include gold_reward, xp_reward, item_rewards, and set quest_giver
         new_quest = Quest(
@@ -1678,6 +1689,10 @@ def handle_exploration_command(game_state: GameState, command: str, args: list[s
             faction_reward=matching_quest.faction_reward,
             faction_penalty=matching_quest.faction_penalty,
             required_reputation=matching_quest.required_reputation,
+            chain_id=matching_quest.chain_id,
+            chain_position=matching_quest.chain_position,
+            prerequisite_quests=matching_quest.prerequisite_quests.copy(),
+            unlocks_quests=matching_quest.unlocks_quests.copy(),
         )
         game_state.current_character.quests.append(new_quest)
         autosave(game_state)
@@ -1821,6 +1836,11 @@ def handle_exploration_command(game_state: GameState, command: str, args: list[s
         ]
         if quest.quest_giver:
             lines.append(f"Quest Giver: {quest.quest_giver}")
+        if quest.chain_id:
+            chain_info = f"Part {quest.chain_position}" if quest.chain_position > 0 else "Prologue"
+            lines.append(f"Chain: {quest.chain_id} ({chain_info})")
+        if quest.prerequisite_quests:
+            lines.append(f"Prerequisites: {', '.join(quest.prerequisite_quests)}")
         lines.extend([
             "",
             f"{quest.description}",
