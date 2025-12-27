@@ -119,13 +119,15 @@ class TestAIFailureFallback:
             ai_service=mock_ai
         )
 
-        with patch('cli_rpg.game_state.generate_fallback_location') as mock_fallback:
-            mock_fallback.side_effect = Exception("Fallback also failed")
+        # Force named location path (otherwise template generation is used)
+        with patch('cli_rpg.game_state.should_generate_named_location', return_value=True):
+            with patch('cli_rpg.game_state.generate_fallback_location') as mock_fallback:
+                mock_fallback.side_effect = Exception("Fallback also failed")
 
-            success, message = gs.move("west")
+                success, message = gs.move("west")
 
-            assert success is False
-            assert "impassable barrier" in message.lower()
+                assert success is False
+                assert "impassable barrier" in message.lower()
 
     def test_error_logged_but_not_shown(self, character, world_with_coords, caplog):
         """Errors should be logged for debugging but not shown to player.
@@ -142,11 +144,13 @@ class TestAIFailureFallback:
             ai_service=mock_ai
         )
 
-        with caplog.at_level(logging.WARNING):
-            success, message = gs.move("south")
+        # Force named location path (otherwise template generation is used, skipping AI)
+        with patch('cli_rpg.game_state.should_generate_named_location', return_value=True):
+            with caplog.at_level(logging.WARNING):
+                success, message = gs.move("south")
 
-        # Error should be in logs
-        assert "XYZ123" in caplog.text or "Detailed internal error" in caplog.text
-        # But not in player message
-        assert "XYZ123" not in message
-        assert "Detailed internal error" not in message
+            # Error should be in logs
+            assert "XYZ123" in caplog.text or "Detailed internal error" in caplog.text
+            # But not in player message
+            assert "XYZ123" not in message
+            assert "Detailed internal error" not in message

@@ -323,24 +323,26 @@ def test_move_triggers_coordinate_based_ai_expansion(test_character, coord_world
         world["Northern Area"] = new_loc
 
     with patch("cli_rpg.game_state.expand_area", side_effect=mock_expand_area) as mock_expand:
-        game = GameState(
-            character=test_character,
-            world=coord_world,
-            starting_location="Town",
-            ai_service=mock_ai_service,
-            theme="fantasy",
-        )
+        # Force should_generate_named_location to return True to trigger AI path
+        with patch("cli_rpg.game_state.should_generate_named_location", return_value=True):
+            game = GameState(
+                character=test_character,
+                world=coord_world,
+                starting_location="Town",
+                ai_service=mock_ai_service,
+                theme="fantasy",
+            )
 
-        success, msg = game.move("north")
+            success, msg = game.move("north")
 
-        assert success is True
-        assert game.current_location == "Northern Area"
-        mock_expand.assert_called_once()
-        # Verify correct parameters were passed
-        call_kwargs = mock_expand.call_args[1]
-        assert call_kwargs["from_location"] == "Town"
-        assert call_kwargs["direction"] == "north"
-        assert call_kwargs["target_coords"] == (0, 1)
+            assert success is True
+            assert game.current_location == "Northern Area"
+            mock_expand.assert_called_once()
+            # Verify correct parameters were passed
+            call_kwargs = mock_expand.call_args[1]
+            assert call_kwargs["from_location"] == "Town"
+            assert call_kwargs["direction"] == "north"
+            assert call_kwargs["target_coords"] == (0, 1)
 
 
 def test_move_coordinate_expansion_falls_back_on_error(test_character, coord_world, mock_ai_service):

@@ -53,6 +53,13 @@ except ImportError:
 # Import fallback generation
 from cli_rpg.world import generate_fallback_location
 
+# Import named location trigger logic
+from cli_rpg.world_tiles import (
+    should_generate_named_location,
+    get_unnamed_location_template,
+    TERRAIN_TO_CATEGORY,
+)
+
 logger = logging.getLogger(__name__)
 
 # All known commands that the game recognizes
@@ -281,6 +288,8 @@ class GameState:
         # Layered context caching (Step 6-7 of layered query architecture)
         self.world_context: Optional[WorldContext] = None  # Layer 1: World theme context
         self.region_contexts: dict[tuple[int, int], RegionContext] = {}  # Layer 2: Region contexts by coords
+        # Named location trigger counter (tracks tiles since last named POI)
+        self.tiles_since_named: int = 0
 
     @property
     def is_in_conversation(self) -> bool:
@@ -512,6 +521,11 @@ class GameState:
         if target_location is not None:
             # Location exists at target coordinates - move there
             self.current_location = target_location.name
+            # Update tiles_since_named counter based on existing location
+            if target_location.is_named:
+                self.tiles_since_named = 0
+            else:
+                self.tiles_since_named += 1
         else:
             # No location at target - generate new location
             terrain = None
@@ -519,55 +533,93 @@ class GameState:
                 # Get terrain from WFC for location generation
                 terrain = self.chunk_manager.get_tile_at(*target_coords)
 
-            ai_succeeded = False
-            if self.ai_service is not None and AI_AVAILABLE and expand_area is not None:
-                try:
-                    logger.info(
-                        f"Generating area at {target_coords} from {current.name}"
-                    )
-                    expand_area(
-                        world=self.world,
-                        ai_service=self.ai_service,
-                        from_location=self.current_location,
-                        direction=direction,
-                        theme=self.theme,
-                        target_coords=target_coords,
-                        terrain_type=terrain,
-                    )
-                    # Find the newly generated location
-                    target_location = self._get_location_by_coordinates(target_coords)
-                    if target_location:
-                        # Set terrain if from WFC
-                        if terrain is not None:
-                            target_location.terrain = terrain
-                        self.current_location = target_location.name
-                        ai_succeeded = True
-                except Exception as e:
-                    logger.warning(f"AI area generation failed: {e}")
-                    # Mark that AI was attempted but failed
-                    ai_fallback_used = True
+            # Determine if this should be a named location (POI) or unnamed (terrain filler)
+            generate_named = should_generate_named_location(
+                self.tiles_since_named,
+                terrain or "plains"
+            )
 
-            # Use fallback generation when AI failed or is unavailable
-            if not ai_succeeded:
+            if not generate_named:
+                # Generate unnamed location from template (fast, no AI)
                 try:
-                    logger.info(
-                        f"Generating fallback location at {target_coords} from {current.name}"
+                    name_template, desc_template = get_unnamed_location_template(
+                        terrain or "plains"
                     )
-                    new_location = generate_fallback_location(
-                        direction=direction,
-                        source_location=current,
-                        target_coords=target_coords,
+                    category = TERRAIN_TO_CATEGORY.get(terrain or "plains", "wilderness")
+                    new_location = Location(
+                        name=f"{name_template} ({target_coords[0]},{target_coords[1]})",
+                        description=desc_template,
+                        coordinates=target_coords,
+                        category=category,
                         terrain=terrain,
-                        chunk_manager=self.chunk_manager,
+                        is_named=False,
                     )
-                    # Add to world
                     self.world[new_location.name] = new_location
-                    # Move to new location
                     self.current_location = new_location.name
+                    self.tiles_since_named += 1
+                    logger.info(
+                        f"Generated unnamed location '{new_location.name}' at {target_coords}"
+                    )
                 except Exception as e:
-                    logger.error(f"Fallback location generation also failed: {e}")
-                    self.is_sneaking = False  # Clear sneaking mode on any move attempt
+                    logger.error(f"Unnamed location generation failed: {e}")
+                    self.is_sneaking = False
                     return (False, "The path is blocked by an impassable barrier.")
+            else:
+                # Generate named location via AI or fallback
+                ai_succeeded = False
+                if self.ai_service is not None and AI_AVAILABLE and expand_area is not None:
+                    try:
+                        logger.info(
+                            f"Generating named area at {target_coords} from {current.name}"
+                        )
+                        expand_area(
+                            world=self.world,
+                            ai_service=self.ai_service,
+                            from_location=self.current_location,
+                            direction=direction,
+                            theme=self.theme,
+                            target_coords=target_coords,
+                            terrain_type=terrain,
+                        )
+                        # Find the newly generated location
+                        target_location = self._get_location_by_coordinates(target_coords)
+                        if target_location:
+                            # Set terrain and mark as named
+                            if terrain is not None:
+                                target_location.terrain = terrain
+                            target_location.is_named = True
+                            self.current_location = target_location.name
+                            ai_succeeded = True
+                    except Exception as e:
+                        logger.warning(f"AI area generation failed: {e}")
+                        # Mark that AI was attempted but failed
+                        ai_fallback_used = True
+
+                # Use fallback generation when AI failed or is unavailable
+                if not ai_succeeded:
+                    try:
+                        logger.info(
+                            f"Generating named fallback location at {target_coords} from {current.name}"
+                        )
+                        new_location = generate_fallback_location(
+                            direction=direction,
+                            source_location=current,
+                            target_coords=target_coords,
+                            terrain=terrain,
+                            chunk_manager=self.chunk_manager,
+                            is_named=True,  # Mark as named POI
+                        )
+                        # Add to world
+                        self.world[new_location.name] = new_location
+                        # Move to new location
+                        self.current_location = new_location.name
+                    except Exception as e:
+                        logger.error(f"Fallback location generation also failed: {e}")
+                        self.is_sneaking = False  # Clear sneaking mode on any move attempt
+                        return (False, "The path is blocked by an impassable barrier.")
+
+                # Reset counter after generating named location
+                self.tiles_since_named = 0
 
         # Advance time by 1 hour for movement (+1 hour in storm)
         travel_time = 1 + self.weather.get_travel_modifier()
@@ -1069,6 +1121,7 @@ class GameState:
             "hunt_cooldown": self.hunt_cooldown,
             "gather_cooldown": self.gather_cooldown,
             "in_sub_location": self.in_sub_location,
+            "tiles_since_named": self.tiles_since_named,
         }
         # Include chunk_manager if present (WFC terrain)
         if self.chunk_manager is not None:
@@ -1173,6 +1226,9 @@ class GameState:
         game_state.forage_cooldown = data.get("forage_cooldown", 0)
         game_state.hunt_cooldown = data.get("hunt_cooldown", 0)
         game_state.gather_cooldown = data.get("gather_cooldown", 0)
+
+        # Restore tiles_since_named counter (default to 0 for backward compatibility)
+        game_state.tiles_since_named = data.get("tiles_since_named", 0)
 
         # Restore chunk_manager if present (WFC terrain)
         if "chunk_manager" in data:

@@ -144,6 +144,7 @@ def generate_fallback_location(
     target_coords: Tuple[int, int],
     terrain: Optional[str] = None,
     chunk_manager: Optional["ChunkManager"] = None,
+    is_named: bool = False,
 ) -> Location:
     """Generate a fallback location when AI is unavailable.
 
@@ -157,6 +158,7 @@ def generate_fallback_location(
         terrain: Optional WFC terrain type (e.g., "forest", "plains")
         chunk_manager: Optional ChunkManager for WFC terrain checking.
                       When provided, exits to impassable terrain are filtered.
+        is_named: Whether this is a named POI (True) or terrain filler (False)
 
     Returns:
         A new Location instance with proper coordinates for grid placement
@@ -195,7 +197,7 @@ def generate_fallback_location(
     # Determine category from terrain template or use default
     category = template.get("category", None)
 
-    # Create the new location (unnamed by default for fallback/template locations)
+    # Create the new location
     # Note: No connections field - navigation is coordinate-based via WorldGrid
     new_location = Location(
         name=location_name,
@@ -203,7 +205,7 @@ def generate_fallback_location(
         coordinates=target_coords,
         category=category,
         terrain=terrain,
-        is_named=False,  # Fallback locations are always unnamed terrain filler
+        is_named=is_named,  # Named POIs vs terrain filler
     )
 
     logger.info(f"Generated fallback location '{location_name}' at {target_coords}")

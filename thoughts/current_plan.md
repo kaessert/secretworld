@@ -1,58 +1,81 @@
-# Implementation Plan: Complete BLOCKER - Remove `connections` Field
+# Implementation Plan: Wire Named Location Triggers
 
-## Summary
-The `connections` field was already removed from the Location dataclass. The remaining work is cleanup: remove one test file's legacy usage and update ISSUES.md to mark the success criteria as complete.
+**Goal**: Make 95% of tiles use instant template-based terrain instead of expensive AI generation. Only trigger AI for named POIs (towns, dungeons, landmarks).
 
-## Status Assessment
-- **`Location.connections` field**: Already removed from model ✅
-- **Source code**: No `.connections` references in `/src/cli_rpg/` ✅
-- **Test cleanup needed**: 1 test file still sets `.connections` dynamically
+## Spec
+
+- Track `tiles_since_named: int` in GameState (resets when entering a named location)
+- When moving to unexplored tile, call `should_generate_named_location(tiles_since_named, terrain)`
+- If FALSE → use `get_unnamed_location_template(terrain)` for instant generation (no AI)
+- If TRUE → generate named location via AI (current behavior)
+- Named locations have `is_named=True`, unnamed have `is_named=False`
+- Persist `tiles_since_named` in save files
+
+## Test Cases
+
+1. **Counter tracking**:
+   - `tiles_since_named` increments on move to unnamed location
+   - `tiles_since_named` resets to 0 when generating named location
+   - Counter persists through save/load
+
+2. **Template usage for unnamed**:
+   - When `should_generate_named_location()` returns False, new location uses template
+   - Template locations have `is_named=False`
+   - No AI call made for template locations
+
+3. **AI usage for named**:
+   - When `should_generate_named_location()` returns True, AI generates location
+   - AI locations have `is_named=True`
+   - Counter resets after named location generated
 
 ## Implementation Steps
 
-### 1. Fix test_npc_persistence_navigation.py (lines 234-244)
+### 1. Add `tiles_since_named` to GameState
 
-**File**: `tests/test_npc_persistence_navigation.py`
+**File**: `src/cli_rpg/game_state.py`
 
-**Problem**: The `test_npc_names_never_show_question_marks` test dynamically sets `.connections` on Location objects (lines 234-244). This is unnecessary because:
-- Navigation uses coordinate adjacency, not connections
-- The test already sets coordinates correctly on each location
+- Add field in `__init__` (after line 283): `self.tiles_since_named: int = 0`
+- Add to `to_dict()` (after line 1072): `data["tiles_since_named"] = self.tiles_since_named`
+- Add to `from_dict()` (after line 1175): `game_state.tiles_since_named = data.get("tiles_since_named", 0)`
 
-**Fix**: Remove the connection-setting code (lines 234-244). The test will continue to pass because movement is coordinate-based.
+### 2. Wire trigger into move() method
 
-**Before**:
-```python
-        # Set up connections
-        locations["Center"].connections = {
-            "north": "North",
-            "south": "South",
-            "east": "East",
-            "west": "West",
-        }
-        locations["North"].connections = {"south": "Center"}
-        locations["South"].connections = {"north": "Center"}
-        locations["East"].connections = {"west": "Center"}
-        locations["West"].connections = {"east": "Center"}
-```
+**File**: `src/cli_rpg/game_state.py`
 
-**After**: Delete these lines entirely.
+In `move()` method (lines 515-570), replace the unconditional AI/fallback generation with:
 
-### 2. Update ISSUES.md Success Criteria
+1. Import `should_generate_named_location`, `get_unnamed_location_template`, `TERRAIN_TO_CATEGORY` from `world_tiles`
+2. After getting terrain (line 520), check `should_generate_named_location()`
+3. If FALSE: create Location from template, increment counter
+4. If TRUE: use existing AI/fallback path, reset counter to 0 on success
 
-**File**: `ISSUES.md`
+### 3. Update generate_fallback_location for named locations
 
-**Changes**:
-- Line 133: Change `[ ] `Location.connections` field removed entirely` to `[x]`
-- Line 138: Change `[ ] No code references "connections" for movement logic` to `[x]`, and remove the parenthetical note
+**File**: `src/cli_rpg/world.py`
 
-### 3. Run Tests to Verify
+Add `is_named: bool = False` parameter to `generate_fallback_location()` and use it when creating the Location.
 
-```bash
-pytest tests/test_npc_persistence_navigation.py -v
-pytest -x  # Full suite
-```
+### 4. Create integration tests
+
+**File**: `tests/test_named_location_integration.py` (NEW)
+
+- `test_tiles_since_named_increments_on_unnamed`
+- `test_tiles_since_named_resets_on_named`
+- `test_tiles_since_named_persists_save_load`
+- `test_unnamed_location_uses_template_not_ai`
+- `test_named_location_triggers_ai_or_fallback`
+
+## File Changes Summary
+
+| File | Change |
+|------|--------|
+| `src/cli_rpg/game_state.py` | Add `tiles_since_named` field, wire trigger in `move()`, update serialization |
+| `src/cli_rpg/world.py` | Add `is_named` param to `generate_fallback_location()` |
+| `tests/test_named_location_integration.py` | NEW - Integration tests |
 
 ## Verification
-- All 3573+ tests continue to pass
-- No `.connections` references remain in source or tests
-- ISSUES.md BLOCKER has all success criteria checked
+
+```bash
+pytest tests/test_named_locations.py tests/test_unnamed_templates.py tests/test_named_location_integration.py -v
+pytest  # Full suite
+```

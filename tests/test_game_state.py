@@ -697,6 +697,8 @@ class TestGameStateCoordinateBasedMovement:
         monkeypatch.setattr("cli_rpg.game_state.expand_area", mock_expand_area)
         # Ensure AI_AVAILABLE is True so AI path is attempted
         monkeypatch.setattr("cli_rpg.game_state.AI_AVAILABLE", True)
+        # Force should_generate_named_location to return True to trigger AI path
+        monkeypatch.setattr("cli_rpg.game_state.should_generate_named_location", lambda *args, **kwargs: True)
 
         # Move west - AI will fail, should use fallback and inform player
         success, message = game_state.move("west")

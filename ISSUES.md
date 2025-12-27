@@ -324,7 +324,7 @@ Every tile = named location      Mostly terrain, rare POIs
 - `cli-rpg` - Starts with WFC terrain (default)
 - `cli-rpg --no-wfc` - Disables WFC, uses fixed world
 
-#### 2. Named vs Unnamed Location System ✅ CORE COMPLETE
+#### 2. Named vs Unnamed Location System ✅ COMPLETE
 
 **Completed 2025-12-26:**
 - ✅ Added `is_named: bool = False` field to Location model with serialization support
@@ -341,21 +341,22 @@ Every tile = named location      Mostly terrain, rare POIs
 
 **Ratio Target:** ~1 named location per 10-20 unnamed tiles (achieved via linear probability curve)
 
-**🚨 REMAINING INTEGRATION - THIS IS THE BLOCKER:**
+**✅ INTEGRATION COMPLETE (2025-12-27):**
 
-The infrastructure exists but is **NOT WIRED UP**. Currently every tile still triggers AI generation.
+The named location trigger system is now fully wired up and operational.
 
 | Task | Status | Impact |
 |------|--------|--------|
-| Wire `should_generate_named_location()` into world expansion | ❌ NOT DONE | Blocks sparse world |
-| Track `tiles_since_named` counter in GameState | ❌ NOT DONE | Required for trigger |
-| Use `get_unnamed_location_template()` for unnamed tiles | ❌ NOT DONE | Blocks template usage |
-| Make named locations enterable SubGrids (not overworld tiles) | ❌ NOT DONE | Core architecture change |
+| Wire `should_generate_named_location()` into world expansion | ✅ DONE | Sparse world works |
+| Track `tiles_since_named` counter in GameState | ✅ DONE | Persists through save/load |
+| Use `get_unnamed_location_template()` for unnamed tiles | ✅ DONE | Most tiles use templates |
+| Make named locations enterable SubGrids (not overworld tiles) | ❌ NOT DONE | Future enhancement |
 
-**The fix is straightforward:**
-1. When player moves to unexplored tile → check `should_generate_named_location()`
-2. If FALSE → use template, no AI call, no NPCs, generic terrain description
-3. If TRUE → generate named location as SubGrid, place entry point on overworld tile
+**How it works:**
+1. When player moves to unexplored tile → `should_generate_named_location()` is called
+2. If FALSE → uses template (`is_named=False`), no AI call, no NPCs, generic terrain description
+3. If TRUE → generates named location with AI or fallback (`is_named=True`)
+4. `tiles_since_named` counter persists across save/load cycles
 
 #### 3. Variable SubGrid Sizes
 
@@ -599,24 +600,19 @@ Players want a more sophisticated map system with hierarchical locations.
 
 ---
 
-### Sleep sequence borders too wide
-**Status**: HIGH PRIORITY
+### ✅ RESOLVED: Sleep sequence borders too wide
+**Status**: RESOLVED
 **Date Added**: 2025-12-27
+**Date Resolved**: 2025-12-27
 
-**Problem**: Dream sequence decorative borders (`══`) are excessively wide, spanning 200+ characters and breaking terminal display.
+**Problem**: Dream sequence decorative borders (`══`) were excessively wide, spanning 200+ characters and breaking terminal display.
 
-**Example**:
-```
-══════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════
-    You dream of floating through a vast, dark expanse...
-══════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════
-```
+**Resolution**: Added `MAX_FRAME_WIDTH = 80` constant to `frames.py` and modified `frame_text()` to cap width at 80 characters. All frame borders and content now stay within 80 characters.
 
-**Fix**: Cap border width at 80 characters or terminal width.
-
-**Files to Modify**:
-- `src/cli_rpg/frames.py`: Cap decorative border width
-- `src/cli_rpg/dreams.py`: Use capped borders for dream output
+**Files Modified**:
+- `src/cli_rpg/frames.py`: Added `MAX_FRAME_WIDTH = 80`, capped width in `frame_text()`
+- `tests/test_frames.py`: Added `TestFrameWidthCapping` class with 4 tests
+- `tests/test_dreams.py`: Updated 4 tests to use substring matching for wrapped content
 
 ---
 
