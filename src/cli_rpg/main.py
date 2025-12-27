@@ -2245,14 +2245,18 @@ def handle_exploration_command(game_state: GameState, command: str, args: list[s
         messages = []
 
         # Calculate heal amount: 25% of max HP, minimum 1
-        if not at_full_health:
+        if at_full_health:
+            messages.append(f"HP: {char.health}/{char.max_health} (already full)")
+        else:
             heal_amount = max(1, char.max_health // 4)
             actual_heal = min(heal_amount, char.max_health - char.health)
             char.heal(actual_heal)
             messages.append(f"You rest and recover {actual_heal} health.")
 
         # Calculate stamina restore: 25% of max stamina, minimum 1
-        if not at_full_stamina:
+        if at_full_stamina:
+            messages.append(f"Stamina: {char.stamina}/{char.max_stamina} (already full)")
+        else:
             stamina_amount = max(1, char.max_stamina // 4)
             old_stamina = char.stamina
             char.restore_stamina(stamina_amount)

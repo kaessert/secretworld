@@ -128,6 +128,44 @@ class TestParseCommandRest:
         assert args == []
 
 
+class TestRestOutputWhenAlreadyFull:
+    """Tests for rest command output when some stats are already full."""
+
+    # Spec: Show "HP: X/X (already full)" when resting with full HP but not full stamina
+    def test_rest_at_full_health_but_not_stamina_shows_hp_status(self, game_state):
+        """Spec: When HP is full but stamina is low, rest message shows HP as already full."""
+        gs = game_state
+        char = gs.current_character
+        # Ensure HP is full
+        assert char.health == char.max_health
+        # Reduce stamina so rest is valid
+        char.stamina = 1
+
+        cont, msg = handle_exploration_command(gs, "rest", [])
+
+        assert cont is True
+        # Should show HP as already full
+        assert "HP" in msg or "health" in msg.lower()
+        assert "already full" in msg.lower()
+
+    # Spec: Show "Stamina: X/X (already full)" when resting with full stamina but not HP
+    def test_rest_at_full_stamina_but_not_health_shows_stamina_status(self, game_state):
+        """Spec: When stamina is full but HP is low, rest message shows stamina as already full."""
+        gs = game_state
+        char = gs.current_character
+        # Reduce HP so rest is valid
+        char.take_damage(50)
+        # Ensure stamina is full
+        char.stamina = char.max_stamina
+
+        cont, msg = handle_exploration_command(gs, "rest", [])
+
+        assert cont is True
+        # Should show stamina as already full
+        assert "stamina" in msg.lower()
+        assert "already full" in msg.lower()
+
+
 class TestHelpIncludesRest:
     """Test that help text includes rest command."""
 

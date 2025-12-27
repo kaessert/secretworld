@@ -845,20 +845,21 @@ Issues discovered during WFC mode playtesting (WFC is now enabled by default; up
    - Files modified: `src/cli_rpg/main.py` (lines 1595-1615)
    - Tests added: 4 new tests in `tests/test_npc_quests.py`
 
-5. **Terrain blocking message varies**
-   - Water blocked: "The water ahead is impassable."
-   - Wall blocked: "You can't go that way."
-   - Consistent phrasing would be better UX
+5. ~~**Terrain blocking message varies**~~ ✅ PARTIALLY RESOLVED (2025-12-27)
+   - SubGrid messages now consistent:
+     - Bounds exceeded: "You can't go that way - you've reached the edge of this area."
+     - Wall/empty cell: "The path is blocked by a wall."
+   - Overworld impassable terrain: "The {terrain} ahead is impassable."
+   - Error/fallback: "The path is blocked by an impassable barrier."
 
 #### DESIGN OBSERVATIONS
 
 1. ~~**Shop price shows base, not reputation-adjusted price**~~ ✅ RESOLVED (2025-12-26)
    - Shop now displays fully adjusted prices (CHA, faction, persuade, haggle modifiers)
 
-2. **Rest command output**
-   - Shows stamina recovery and dread reduction
-   - HP recovery (25% max) not shown in message if health is full
-   - Consider showing "HP: X/X (already full)" for clarity
+2. ~~**Rest command output**~~ ✅ RESOLVED (2025-12-27)
+   - Fixed: Rest now shows explicit status for both HP and stamina when already full
+   - Example: "HP: 100/100 (already full)" instead of silently omitting the stat
 
 ---
 

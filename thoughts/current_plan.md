@@ -1,31 +1,28 @@
-# Plan: Auto-accept single quest when typing bare "accept"
+# Rest Command Output UX Improvement
 
 ## Spec
-When a player types "accept" without arguments while talking to an NPC with exactly one available quest (that the player doesn't already have), auto-accept that quest instead of showing an error.
+When resting with full HP but not full stamina or dread, show "HP: X/X (already full)" instead of silently omitting HP info.
 
-**Behavior:**
-- If NPC has exactly 1 available quest → auto-accept it
-- If NPC has 0 available quests → show "X doesn't offer any quests."
-- If NPC has 2+ available quests → show "Accept what? Available: Quest1, Quest2" (list quest names)
+## Changes
 
-## Test (update existing test in tests/test_npc_quests.py)
+### 1. Update test (`tests/test_rest_command.py`)
+Add test: `test_rest_at_full_health_but_not_stamina_shows_hp_status`
+- Set character to full health but reduced stamina
+- Rest and verify message includes "HP" and "already full" or similar
 
-Update `test_accept_requires_quest_name` to test new behavior:
-
-1. **test_accept_auto_accepts_single_quest**: NPC with 1 quest, bare "accept" → quest accepted
-2. **test_accept_lists_quests_when_multiple**: NPC with 2+ quests, bare "accept" → shows available quest names
-3. **test_accept_no_quests_shows_none**: NPC is not quest giver, bare "accept" → shows "doesn't offer any quests"
-
-## Implementation (src/cli_rpg/main.py, lines 1590-1591)
-
-Replace the current `if not args` block:
+### 2. Modify rest handler (`src/cli_rpg/main.py` ~line 2247-2252)
+Change from:
 ```python
-if not args:
-    return (True, "\nAccept what? Specify a quest name.")
+if not at_full_health:
+    # heal and append message
 ```
 
-With logic that:
-1. Gets available quests (filter out quests player already has)
-2. If exactly 1 available quest → set `args = [quest.name]` and continue to accept flow
-3. If 0 available quests → return "doesn't offer any quests"
-4. If 2+ available quests → return "Accept what? Available: Quest1, Quest2, ..."
+To:
+```python
+if at_full_health:
+    messages.append(f"HP: {char.health}/{char.max_health} (already full)")
+else:
+    # existing heal logic
+```
+
+Apply same pattern for stamina (show "Stamina: X/X (already full)" when full).
