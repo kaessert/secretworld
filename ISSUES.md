@@ -631,36 +631,19 @@ Created QuestNetworkManager for managing interconnected quest storylines.
 ## UX Issues
 
 ### SubGrid Exit Points Not Visually Indicated
-**Status**: ACTIVE
+**Status**: COMPLETED ✓
 **Priority**: MEDIUM
 **Date Added**: 2025-12-27
+**Completed**: 2025-12-28
 
 #### Description
-When inside a SubGrid interior (dungeon, cave, mine, etc.), exit points are not visually indicated in the location description. Users receive the error "You cannot exit from here. Find an exit point." but have no way to identify which location IS an exit point.
+When inside a SubGrid interior (dungeon, cave, mine, etc.), exit points were not visually indicated in the location description.
 
-#### Steps to Reproduce
-1. Start game in demo mode: `cli-rpg --demo --skip-character-creation`
-2. Navigate to Abandoned Mines: `go east`, `go north`
-3. Enter the mine: `enter mine entrance`
-4. Move deeper into the SubGrid: `go east`
-5. Try to exit: `exit`
-6. See error: "You cannot exit from here. Find an exit point."
-7. Use `look` at any location - there is no indication whether a location is an exit point
+#### Resolution
+Added "Exit to: <parent_location>" display in location descriptions when viewing an exit point inside a SubGrid.
 
-#### Expected Behavior
-Exit points should be clearly indicated in the location description, similar to how "Enter: <location>" is shown for enterable locations. For example:
-- "Exit to: Abandoned Mines" or
-- "[EXIT POINT]" marker in the location display
+**Changes**:
+- `src/cli_rpg/models/location.py`: Added 3 lines to `get_layered_description()` method to show "Exit to: {parent_name}" with cyan coloring
+- `tests/test_exit_points.py`: Added `TestExitPointDisplay` test class with 3 test methods
 
-#### Actual Behavior
-- No visual indicator that a location is an exit point
-- Users must remember which location they entered from, or wander until they find it
-- The "Mine Entrance" location shows "Exits: east, north" but doesn't indicate the `exit` command is available there
-
-#### Impact
-- Users can feel lost inside SubGrids with no clear way to leave
-- Especially problematic in larger SubGrids (cities 17x17, metropolises 25x25, capitals 33x33)
-- Poor UX for new players unfamiliar with the SubGrid system
-
-#### Suggested Fix
-In the location display (look command), add an "Exit to: <overworld_location>" line when `is_exit_point=True`, similar to how "Enter: <location>" is displayed for enterable locations.
+The indicator appears after the "Exits:" line (cardinal directions) but before the "Enter:" line, maintaining logical grouping of navigation information.

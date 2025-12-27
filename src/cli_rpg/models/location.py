@@ -276,6 +276,10 @@ class Location:
         else:
             result += "Exits: None"
 
+        # Show "Exit to:" for exit points inside SubGrids
+        if self.is_exit_point and sub_grid is not None and sub_grid.parent_name:
+            result += f"\nExit to: {colors.location(sub_grid.parent_name)}"
+
         # Show sub-locations if any exist
         if self.sub_grid is not None:
             # Only show entry point for sub_grid locations

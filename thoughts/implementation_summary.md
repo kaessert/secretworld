@@ -1,40 +1,51 @@
-# Implementation Summary: Add colors.success() Function
+# Implementation Summary: SubGrid Exit Point Visual Indicator
 
 ## Status: COMPLETE
 
-All 24 color module tests pass.
+All related tests pass (92 total tests across 3 test files).
 
 ## What Was Implemented
 
-Added the `success()` function to `src/cli_rpg/colors.py` to fix an `AttributeError` crash when SubGrid movement triggers `colors.success()` calls in `game_state.py` line 470.
+Added a visual indicator "Exit to: <overworld_location>" when viewing a location inside a SubGrid that has `is_exit_point=True`. This helps players understand where the exit command will take them when they're exploring dungeons, caves, or other interior locations.
 
-## Files Modified
+### Files Modified
 
-1. **`src/cli_rpg/colors.py`** - Added `success()` function (lines 181-190):
-   ```python
-   def success(text: str) -> str:
-       """Color text as success message (green)."""
-       return colorize(text, GREEN)
-   ```
+1. **`src/cli_rpg/models/location.py`** (lines 279-281)
+   - Added 3 lines to `get_layered_description()` method after the exits display
+   - Shows "Exit to: {parent_name}" with cyan color formatting when:
+     - `is_exit_point` is True
+     - `sub_grid` is not None (player is inside a SubGrid)
+     - `sub_grid.parent_name` exists
 
-2. **`tests/test_colors.py`** - Added test `test_success_uses_green()` (lines 196-203)
+2. **`tests/test_exit_points.py`** (lines 241-291)
+   - Added new test class `TestExitPointDisplay` with 3 test methods:
+     - `test_exit_point_shows_exit_to_in_description` - verifies the indicator appears
+     - `test_non_exit_point_does_not_show_exit_to` - verifies indicator doesn't appear for non-exit locations
+     - `test_exit_to_uses_color_formatting` - verifies cyan ANSI color is applied
 
 ## Test Results
 
 ```
-tests/test_colors.py: 24 passed in 0.08s
+tests/test_exit_points.py - 19 passed
+tests/test_location.py - 44 passed
+tests/test_world_grid.py - 29 passed
 ```
 
-All color module tests pass, including the new `test_success_uses_green` test.
+All related tests pass, confirming no regressions.
 
-## Design Decision
+## Design Decisions
 
-Used GREEN color for `success()` to match the semantic pattern of other helpers in the module (e.g., `heal()` also uses GREEN for positive messages).
+1. **Placement**: The "Exit to:" line is placed after the "Exits:" line (cardinal directions) but before the "Enter:" line, maintaining logical grouping of navigation information.
 
-## E2E Validation
+2. **Color formatting**: Uses the existing `colors.location()` function for consistent cyan coloring of location names throughout the UI.
 
-To verify the fix works end-to-end:
-1. Run `cli-rpg --demo`
-2. Navigate to an enterable location and use `enter`
-3. Use `go north` or similar SubGrid movement
-4. Should display success messages without crashing
+3. **Conditional display**: Only shows when all conditions are met (exit point + inside SubGrid + parent name exists), ensuring it doesn't appear in inappropriate contexts.
+
+## E2E Test Validation
+
+To manually verify:
+1. Run `cli-rpg --demo --skip-character-creation`
+2. Navigate to a location with an enterable SubGrid (e.g., a mine or dungeon)
+3. Enter the SubGrid with `enter <name>`
+4. Run `look` command at the entrance/exit point
+5. Verify "Exit to: <parent location name>" appears in the description

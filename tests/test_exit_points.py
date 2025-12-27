@@ -236,3 +236,55 @@ class TestRoundTrip:
         entrance_restored = restored.sub_grid.get_by_name("Entrance")
         assert entrance_restored is not None
         assert entrance_restored.is_exit_point is True
+
+
+class TestExitPointDisplay:
+    """Tests for exit point visual indicator in location display."""
+
+    def test_exit_point_shows_exit_to_in_description(self):
+        """Test is_exit_point=True shows 'Exit to:' with parent name."""
+        sub_grid = SubGrid(bounds=(-2, 2, -2, 2, 0, 0), parent_name="Abandoned Mines")
+        entrance = Location(
+            name="Mine Entrance",
+            description="A dark opening in the rock.",
+            is_exit_point=True
+        )
+        sub_grid.add_location(entrance, 0, 0)
+
+        description = entrance.get_layered_description(sub_grid=sub_grid)
+        assert "Exit to: Abandoned Mines" in description
+
+    def test_non_exit_point_does_not_show_exit_to(self):
+        """Test is_exit_point=False does not show 'Exit to:'."""
+        sub_grid = SubGrid(bounds=(-2, 2, -2, 2, 0, 0), parent_name="Abandoned Mines")
+        deep_room = Location(
+            name="Deep Chamber",
+            description="A dark chamber.",
+            is_exit_point=False
+        )
+        sub_grid.add_location(deep_room, 0, 1)
+
+        description = deep_room.get_layered_description(sub_grid=sub_grid)
+        assert "Exit to:" not in description
+
+    def test_exit_to_uses_color_formatting(self):
+        """Test 'Exit to:' uses location color formatting."""
+        from cli_rpg import colors
+        # Enable colors for this test
+        colors.set_colors_enabled(True)
+        try:
+            sub_grid = SubGrid(bounds=(-2, 2, -2, 2, 0, 0), parent_name="Castle")
+            entrance = Location(
+                name="Castle Gate",
+                description="The main gate.",
+                is_exit_point=True
+            )
+            sub_grid.add_location(entrance, 0, 0)
+
+            description = entrance.get_layered_description(sub_grid=sub_grid)
+            # Should contain the ANSI color code for location (cyan)
+            assert "\x1b[36m" in description  # CYAN for location color
+            assert "Castle" in description
+        finally:
+            # Reset colors to default behavior
+            colors.set_colors_enabled(None)
