@@ -19,42 +19,55 @@ OPPOSITE_DIRECTIONS: Dict[str, str] = {
     "south": "north",
     "east": "west",
     "west": "east",
+    "up": "down",
+    "down": "up",
+}
+
+# 3D direction offsets for SubGrid navigation (includes z-axis)
+SUBGRID_DIRECTION_OFFSETS: Dict[str, Tuple[int, int, int]] = {
+    "north": (0, 1, 0),
+    "south": (0, -1, 0),
+    "east": (1, 0, 0),
+    "west": (-1, 0, 0),
+    "up": (0, 0, 1),
+    "down": (0, 0, -1),
 }
 
 # SubGrid size configuration by location category
-# Format: (min_x, max_x, min_y, max_y)
-SUBGRID_BOUNDS: Dict[str, Tuple[int, int, int, int]] = {
+# Format: (min_x, max_x, min_y, max_y, min_z, max_z)
+SUBGRID_BOUNDS: Dict[str, Tuple[int, int, int, int, int, int]] = {
     # Tiny (3x3) - Small structures
-    "house": (-1, 1, -1, 1),
-    "shop": (-1, 1, -1, 1),
-    "cave": (-1, 1, -1, 1),
+    "house": (-1, 1, -1, 1, 0, 0),        # single level
+    "shop": (-1, 1, -1, 1, 0, 0),         # single level
+    "cave": (-1, 1, -1, 1, -1, 0),        # goes down one level
     # Small (5x5) - Medium structures
-    "tavern": (-2, 2, -2, 2),
-    "ruins": (-2, 2, -2, 2),
-    "settlement": (-2, 2, -2, 2),
+    "tavern": (-2, 2, -2, 2, 0, 1),       # main floor + upstairs
+    "ruins": (-2, 2, -2, 2, -1, 0),       # basement
+    "settlement": (-2, 2, -2, 2, 0, 0),   # single level
     # Medium (7x7) - Standard interiors
-    "dungeon": (-3, 3, -3, 3),
-    "forest": (-3, 3, -3, 3),
-    "temple": (-3, 3, -3, 3),
-    "wilderness": (-3, 3, -3, 3),
+    "dungeon": (-3, 3, -3, 3, -2, 0),     # multi-level down
+    "forest": (-3, 3, -3, 3, 0, 0),       # single level
+    "temple": (-3, 3, -3, 3, -1, 1),      # basement + main + upper
+    "tower": (-1, 1, -1, 1, 0, 3),        # multi-level up
+    "wilderness": (-3, 3, -3, 3, 0, 0),   # single level
     # Large (11x11) - Towns
-    "town": (-5, 5, -5, 5),
-    "village": (-5, 5, -5, 5),
+    "town": (-5, 5, -5, 5, 0, 0),         # single level
+    "village": (-5, 5, -5, 5, 0, 0),      # single level
     # Huge (17x17) - Cities
-    "city": (-8, 8, -8, 8),
+    "city": (-8, 8, -8, 8, 0, 0),         # single level
     # Default fallback
-    "default": (-2, 2, -2, 2),
+    "default": (-2, 2, -2, 2, 0, 0),      # single level
 }
 
 
-def get_subgrid_bounds(category: Optional[str]) -> Tuple[int, int, int, int]:
+def get_subgrid_bounds(category: Optional[str]) -> Tuple[int, int, int, int, int, int]:
     """Get SubGrid bounds for a location category.
 
     Args:
         category: Location category (town, dungeon, etc.) or None
 
     Returns:
-        Tuple of (min_x, max_x, min_y, max_y)
+        Tuple of (min_x, max_x, min_y, max_y, min_z, max_z)
     """
     if category is None:
         return SUBGRID_BOUNDS["default"]
@@ -66,23 +79,28 @@ class SubGrid:
     """Bounded grid for sub-location interiors.
 
     Unlike WorldGrid which is infinite, SubGrid has defined bounds.
-    Entry is always at (0, 0). Used for interior spaces like castles,
+    Entry is always at (0, 0, 0). Used for interior spaces like castles,
     dungeons, or buildings that have their own coordinate system
     separate from the overworld.
 
+    Supports 3D coordinates with z-axis for multi-level structures:
+    - z=0 is ground level
+    - z>0 is upper floors (towers, etc.)
+    - z<0 is below ground (dungeons, basements, etc.)
+
     Attributes:
-        _grid: Internal storage mapping (x, y) coordinates to locations
+        _grid: Internal storage mapping (x, y, z) coordinates to locations
         _by_name: Name-based lookup for convenience
-        bounds: Tuple of (min_x, max_x, min_y, max_y) defining grid limits
+        bounds: Tuple of (min_x, max_x, min_y, max_y, min_z, max_z) defining grid limits
         parent_name: Name of the parent location for exit navigation
     """
 
-    _grid: Dict[Tuple[int, int], Location] = field(default_factory=dict)
+    _grid: Dict[Tuple[int, int, int], Location] = field(default_factory=dict)
     _by_name: Dict[str, Location] = field(default_factory=dict)
-    bounds: Tuple[int, int, int, int] = (-2, 2, -2, 2)  # min_x, max_x, min_y, max_y
+    bounds: Tuple[int, int, int, int, int, int] = (-2, 2, -2, 2, 0, 0)  # min_x, max_x, min_y, max_y, min_z, max_z
     parent_name: str = ""
 
-    def add_location(self, location: Location, x: int, y: int) -> None:
+    def add_location(self, location: Location, x: int, y: int, z: int = 0) -> None:
         """Add a location within bounds.
 
         This method:
@@ -97,35 +115,37 @@ class SubGrid:
             location: The Location instance to add
             x: X coordinate (east/west axis)
             y: Y coordinate (north/south axis)
+            z: Z coordinate (vertical axis, default 0 = ground level)
 
         Raises:
             ValueError: If coordinates outside bounds or name already exists
         """
-        if not self.is_within_bounds(x, y):
-            raise ValueError(f"Coordinates ({x}, {y}) outside bounds {self.bounds}")
+        if not self.is_within_bounds(x, y, z):
+            raise ValueError(f"Coordinates ({x}, {y}, {z}) outside bounds {self.bounds}")
 
         if location.name in self._by_name:
             raise ValueError(f"Location '{location.name}' already exists in sub-grid")
 
-        # Set coordinates and parent on the location
-        location.coordinates = (x, y)
+        # Set 3D coordinates and parent on the location
+        location.coordinates = (x, y, z)
         location.parent_location = self.parent_name
 
         # Add to both indices
-        self._grid[(x, y)] = location
+        self._grid[(x, y, z)] = location
         self._by_name[location.name] = location
 
-    def get_by_coordinates(self, x: int, y: int) -> Optional[Location]:
+    def get_by_coordinates(self, x: int, y: int, z: int = 0) -> Optional[Location]:
         """Get location at specific coordinates.
 
         Args:
             x: X coordinate
             y: Y coordinate
+            z: Z coordinate (default 0)
 
         Returns:
             Location at coordinates, or None if empty
         """
-        return self._grid.get((x, y))
+        return self._grid.get((x, y, z))
 
     def get_by_name(self, name: str) -> Optional[Location]:
         """Get location by name.
@@ -138,18 +158,24 @@ class SubGrid:
         """
         return self._by_name.get(name)
 
-    def is_within_bounds(self, x: int, y: int) -> bool:
+    def is_within_bounds(self, x: int, y: int, z: int = 0) -> bool:
         """Check if coordinates are within grid bounds.
 
         Args:
             x: X coordinate
             y: Y coordinate
+            z: Z coordinate (default 0)
 
         Returns:
             True if within bounds, False otherwise
         """
-        min_x, max_x, min_y, max_y = self.bounds
-        return min_x <= x <= max_x and min_y <= y <= max_y
+        # Handle both 6-tuple and legacy 4-tuple bounds
+        if len(self.bounds) == 6:
+            min_x, max_x, min_y, max_y, min_z, max_z = self.bounds
+        else:
+            min_x, max_x, min_y, max_y = self.bounds
+            min_z, max_z = 0, 0
+        return min_x <= x <= max_x and min_y <= y <= max_y and min_z <= z <= max_z
 
     def to_dict(self) -> dict:
         """Serialize the sub-grid to a dictionary.
@@ -178,15 +204,25 @@ class SubGrid:
             SubGrid instance with restored locations
         """
         grid = cls()
-        grid.bounds = tuple(data.get("bounds", [-2, 2, -2, 2]))
+        # Handle both legacy 4-tuple and new 6-tuple bounds
+        raw_bounds = data.get("bounds", [-2, 2, -2, 2, 0, 0])
+        if len(raw_bounds) == 4:
+            # Upgrade legacy 4-tuple to 6-tuple with z=0
+            raw_bounds = list(raw_bounds) + [0, 0]
+        grid.bounds = tuple(raw_bounds)
         grid.parent_name = data.get("parent_name", "")
 
         for loc_data in data.get("locations", []):
             location = Location.from_dict(loc_data)
             if location.coordinates is not None:
-                x, y = location.coordinates
+                # Handle both 2D and 3D coordinates
+                if len(location.coordinates) == 2:
+                    x, y = location.coordinates
+                    z = 0
+                else:
+                    x, y, z = location.coordinates
                 # Bypass add_location to preserve existing connections
-                grid._grid[(x, y)] = location
+                grid._grid[(x, y, z)] = location
                 grid._by_name[location.name] = location
 
         return grid

@@ -685,15 +685,15 @@ def test_expand_area_places_locations_at_correct_coordinates(mock_ai_service):
 
     # Entry location has overworld coordinates
     assert updated_world["Central Hub"].coordinates == (0, 1)
-    # Sub-locations are in SubGrid with relative coordinates
+    # Sub-locations are in SubGrid with relative coordinates (3D with z=0)
     entry = updated_world["Central Hub"]
     east_wing = entry.sub_grid.get_by_name("East Wing")
     north_chamber = entry.sub_grid.get_by_name("North Chamber")
     assert east_wing is not None
     assert north_chamber is not None
-    # SubGrid locations have their relative coordinates
-    assert east_wing.coordinates == (1, 0)
-    assert north_chamber.coordinates == (0, 1)
+    # SubGrid locations have their relative coordinates with z=0
+    assert east_wing.coordinates == (1, 0, 0)
+    assert north_chamber.coordinates == (0, 1, 0)
 
 
 # Test: expand_area connects entry to source - spec: lines 454-471
@@ -971,8 +971,8 @@ def test_expand_area_adds_bidirectional_connections(mock_ai_service):
     # East Room is in SubGrid
     east_room = entry.sub_grid.get_by_name("East Room")
     assert east_room is not None
-    # SubGrid locations have relative coordinates
-    assert east_room.coordinates == (1, 0)  # East of entry (relative to SubGrid)
+    # SubGrid locations have relative coordinates (3D with z=0)
+    assert east_room.coordinates == (1, 0, 0)  # East of entry (relative to SubGrid)
 
 
 # ========================================================================

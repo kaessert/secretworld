@@ -113,7 +113,10 @@ class TestSubGridField:
         assert "sub_grid" not in data
 
     def test_location_from_dict_restores_sub_grid(self):
-        """Test from_dict restores sub_grid with locations - spec: deserialization."""
+        """Test from_dict restores sub_grid with locations - spec: deserialization.
+
+        Note: Legacy 4-tuple bounds are auto-upgraded to 6-tuple with z=(0, 0).
+        """
         data = {
             "name": "Castle",
             "description": "A grand castle.",
@@ -137,7 +140,8 @@ class TestSubGridField:
 
         assert location.sub_grid is not None
         assert location.sub_grid.parent_name == "Castle"
-        assert location.sub_grid.bounds == (-2, 2, -2, 2)
+        # Legacy 4-tuple bounds are auto-upgraded to 6-tuple with z=(0, 0)
+        assert location.sub_grid.bounds == (-2, 2, -2, 2, 0, 0)
         assert location.sub_grid.get_by_name("Great Hall") is not None
         assert location.sub_grid.get_by_coordinates(0, 0).name == "Great Hall"
 
@@ -184,7 +188,8 @@ class TestRoundTrip:
 
     def test_roundtrip_with_sub_grid(self):
         """Test roundtrip preserves sub_grid - spec: roundtrip."""
-        sub_grid = SubGrid(bounds=(-3, 3, -2, 2), parent_name="Castle")
+        # Use 6-tuple bounds (new format with z-axis)
+        sub_grid = SubGrid(bounds=(-3, 3, -2, 2, 0, 0), parent_name="Castle")
         hall = Location(name="Great Hall", description="A vast hall.")
         kitchen = Location(name="Kitchen", description="A kitchen.")
         sub_grid.add_location(hall, 0, 0)
@@ -200,7 +205,8 @@ class TestRoundTrip:
         restored = Location.from_dict(data)
 
         assert restored.sub_grid is not None
-        assert restored.sub_grid.bounds == (-3, 3, -2, 2)
+        # Bounds now include z-axis
+        assert restored.sub_grid.bounds == (-3, 3, -2, 2, 0, 0)
         assert restored.sub_grid.parent_name == "Castle"
         assert restored.sub_grid.get_by_name("Great Hall") is not None
         assert restored.sub_grid.get_by_name("Kitchen") is not None

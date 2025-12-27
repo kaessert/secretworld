@@ -1,164 +1,170 @@
-# Implementation Plan: Branching Quest Objectives
-
-## Summary
-Add alternative completion paths to quests, allowing moral complexity and player choice. Example: "Stop the Bandit" can be completed by killing, convincing to leave, or helping him raid.
+# Multi-Level Dungeon Navigation (Z-Coordinate Support)
 
 ## Spec
 
-### New Model: QuestBranch
+Add vertical navigation (`up`/`down` commands) to SubGrid locations, enabling multi-level dungeons with z-coordinate support. The z-axis represents vertical levels (0 = ground floor, positive = upper floors, negative = basement/depths).
+
+**Constraints:**
+- Z-coordinate only applies to SubGrid (interior locations), NOT overworld
+- Overworld remains 2D (x, y) - no changes to ChunkManager/WFC
+- Backward compatible: existing 2D saves auto-upgrade to z=0
+
+## Tests First
+
+### `tests/test_vertical_navigation.py` (new file)
+
 ```python
-@dataclass
-class QuestBranch:
-    """Alternative completion path for a quest."""
-    id: str  # Unique identifier (e.g., "kill", "persuade", "help")
-    name: str  # Display name (e.g., "Eliminate the Threat")
-    objective_type: ObjectiveType
-    target: str
-    target_count: int = 1
-    current_count: int = 0  # Track progress per branch
-    description: str = ""  # Optional flavor text
-    # Consequences
-    faction_effects: Dict[str, int] = field(default_factory=dict)  # {"Militia": 10, "Outlaws": -5}
-    gold_modifier: float = 1.0  # Multiplier on base reward
-    xp_modifier: float = 1.0
+# Location model tests
+- test_location_coordinates_can_have_z_component  # (x, y, z) tuple support
+- test_location_coordinates_default_to_2d  # backward compat: (x, y) stays (x, y)
+- test_location_serialization_includes_z  # to_dict includes 3rd element
+- test_location_deserialization_upgrades_2d_to_3d  # from_dict adds z=0 if missing
+
+# Direction offset tests
+- test_direction_up_offset_is_0_0_1
+- test_direction_down_offset_is_0_0_minus1
+- test_opposite_of_up_is_down
+- test_opposite_of_down_is_up
+
+# SubGrid 3D tests
+- test_subgrid_bounds_include_z_axis  # (min_x, max_x, min_y, max_y, min_z, max_z)
+- test_subgrid_add_location_with_z_coordinate
+- test_subgrid_get_by_coordinates_with_z
+- test_subgrid_is_within_bounds_checks_z
+- test_subgrid_serialization_preserves_z_bounds
+- test_subgrid_deserialization_upgrades_4tuple_to_6tuple
+
+# Movement tests
+- test_move_up_in_subgrid_increases_z
+- test_move_down_in_subgrid_decreases_z
+- test_move_up_blocked_at_max_z
+- test_move_down_blocked_at_min_z
+- test_up_direction_only_works_in_subgrid  # blocked on overworld
+- test_down_direction_only_works_in_subgrid
+
+# Command parsing tests
+- test_go_up_command_calls_move_up
+- test_go_down_command_calls_move_down
 ```
-
-### Quest Model Changes
-```python
-@dataclass
-class Quest:
-    # Existing fields...
-
-    # NEW: Branching support
-    alternative_branches: List[QuestBranch] = field(default_factory=list)
-    completed_branch_id: Optional[str] = None  # Which path was chosen
-```
-
-### Completion Logic
-- When ANY branch reaches its target count → quest becomes READY_TO_TURN_IN
-- On turn-in, apply that branch's faction effects and reward modifiers
-- Store `completed_branch_id` for quest memory/NPC reactions
-
-## Tests (TDD)
-
-### 1. tests/test_quest_branching.py
-- `test_quest_with_no_branches_works_normally` - Backward compatibility
-- `test_quest_branch_serialization_round_trip` - to_dict/from_dict
-- `test_quest_branch_progress_independent` - Each branch tracks separately
-- `test_quest_ready_when_any_branch_complete` - First branch to finish wins
-- `test_completed_branch_id_set_on_completion` - Track which path taken
-- `test_branch_faction_effects_applied` - Rewards differ by path
-- `test_branch_reward_modifiers_applied` - Gold/XP scale by path
-- `test_quest_display_shows_all_branches` - UI shows options
-
-### 2. tests/test_quest_branch_validation.py
-- `test_branch_target_validation_kill` - KILL branches validate enemy
-- `test_branch_target_validation_talk` - TALK branches validate NPC
-- `test_branch_requires_id` - Branch must have unique id
-- `test_branch_requires_name` - Branch must have display name
 
 ## Implementation Steps
 
-### Step 1: Create QuestBranch dataclass
-**File**: `src/cli_rpg/models/quest.py`
-- Add `QuestBranch` dataclass after `ObjectiveType` enum
-- Include `to_dict()` and `from_dict()` methods
-- Add validation in `__post_init__`
+### Step 1: Extend coordinate types in `world_grid.py`
 
-### Step 2: Add branching fields to Quest
-**File**: `src/cli_rpg/models/quest.py`
-- Add `alternative_branches: List[QuestBranch]` field
-- Add `completed_branch_id: Optional[str]` field
-- Update `to_dict()` to serialize branches
-- Update `from_dict()` to deserialize branches
+```python
+# Add 3D direction offsets for SubGrid navigation
+SUBGRID_DIRECTION_OFFSETS: Dict[str, Tuple[int, int, int]] = {
+    "north": (0, 1, 0),
+    "south": (0, -1, 0),
+    "east": (1, 0, 0),
+    "west": (-1, 0, 0),
+    "up": (0, 0, 1),
+    "down": (0, 0, -1),
+}
 
-### Step 3: Add branch progress tracking in Character
-**File**: `src/cli_rpg/models/character.py`
-- Modify `record_kill()`, `record_talk()`, etc. to check branch targets
-- When branch completes, set quest to READY_TO_TURN_IN
-- Helper method: `_check_branch_progress(quest, objective_type, target)`
+# Add to OPPOSITE_DIRECTIONS
+OPPOSITE_DIRECTIONS["up"] = "down"
+OPPOSITE_DIRECTIONS["down"] = "up"
+```
 
-### Step 4: Update quest completion rewards
-**File**: `src/cli_rpg/models/character.py`
-- Modify `claim_quest_rewards()` to use completed branch's modifiers
-- Apply branch-specific faction effects
-- Set `completed_branch_id` on quest
+### Step 2: Update `SUBGRID_BOUNDS` in `world_grid.py`
 
-### Step 5: Update quest display UI
-**File**: `src/cli_rpg/main.py`
-- In `quest` command handler (~line 1816-1851):
-  - Show "Completion Paths:" section if branches exist
-  - Display each branch with name, objective, and progress
-  - Mark completed branch with ★
+Change from 4-tuple to 6-tuple format: `(min_x, max_x, min_y, max_y, min_z, max_z)`
 
-### Step 6: Update AI quest generation (optional enhancement)
-**File**: `src/cli_rpg/ai_service.py`
-- Add `alternative_branches` to quest generation prompt
-- Validate branch targets same as main quest
+```python
+SUBGRID_BOUNDS: Dict[str, Tuple[int, int, int, int, int, int]] = {
+    "house": (-1, 1, -1, 1, 0, 0),      # single level
+    "shop": (-1, 1, -1, 1, 0, 0),
+    "cave": (-1, 1, -1, 1, -1, 0),      # goes down
+    "dungeon": (-3, 3, -3, 3, -2, 0),   # multi-level down
+    "tower": (-1, 1, -1, 1, 0, 3),      # multi-level up
+    "temple": (-3, 3, -3, 3, -1, 1),    # basement + main + upper
+    "city": (-8, 8, -8, 8, 0, 0),
+    "town": (-5, 5, -5, 5, 0, 0),
+    "village": (-5, 5, -5, 5, 0, 0),
+    "tavern": (-2, 2, -2, 2, 0, 1),     # main floor + upstairs
+    "ruins": (-2, 2, -2, 2, -1, 0),     # basement
+    "settlement": (-2, 2, -2, 2, 0, 0),
+    "forest": (-3, 3, -3, 3, 0, 0),
+    "wilderness": (-3, 3, -3, 3, 0, 0),
+    "default": (-2, 2, -2, 2, 0, 0),
+}
 
-## File Changes Summary
+def get_subgrid_bounds(category: Optional[str]) -> Tuple[int, int, int, int, int, int]:
+    """Get SubGrid bounds for a location category (returns 6-tuple with z)."""
+```
+
+### Step 3: Update `SubGrid` class in `world_grid.py`
+
+- Change `_grid: Dict[Tuple[int, int], Location]` → `Dict[Tuple[int, int, int], Location]`
+- Change `bounds: Tuple[int, int, int, int]` → `Tuple[int, int, int, int, int, int]`
+- Update `add_location(location, x, y, z=0)`
+- Update `get_by_coordinates(x, y, z=0)`
+- Update `is_within_bounds(x, y, z=0)`
+- Update `to_dict()` / `from_dict()` with backward compat for 4-tuple bounds
+
+### Step 4: Update `Location.coordinates` in `models/location.py`
+
+Use Union type for 2D or 3D coordinates:
+- `coordinates: Optional[Union[Tuple[int, int], Tuple[int, int, int]]] = None`
+- Helper: `get_z() -> int` returns z or 0 if 2D tuple
+- Update `to_dict()`: serialize 2 or 3 elements based on length
+- Update `from_dict()`: keep as-is (don't upgrade 2D to 3D automatically)
+
+### Step 5: Update `_move_in_sub_grid()` in `game_state.py`
+
+```python
+def _move_in_sub_grid(self, direction: str) -> tuple[bool, str]:
+    from cli_rpg.world_grid import SUBGRID_DIRECTION_OFFSETS
+
+    if direction not in {"north", "south", "east", "west", "up", "down"}:
+        return (False, "Invalid direction. Use: north, south, east, west, up, or down.")
+
+    dx, dy, dz = SUBGRID_DIRECTION_OFFSETS[direction]
+    x, y = current.coordinates[:2]
+    z = current.coordinates[2] if len(current.coordinates) > 2 else 0
+    target_coords = (x + dx, y + dy, z + dz)
+
+    if not self.current_sub_grid.is_within_bounds(*target_coords):
+        if dz != 0:
+            return (False, "There's no way to go that direction.")
+        return (False, "You've reached the edge of this area.")
+
+    destination = self.current_sub_grid.get_by_coordinates(*target_coords)
+    # ... rest of existing logic
+```
+
+### Step 6: Update `move()` in `game_state.py`
+
+Add guard for up/down on overworld:
+```python
+def move(self, direction: str) -> tuple[bool, str]:
+    # Handle sub-grid movement (includes up/down)
+    if self.in_sub_location and self.current_sub_grid is not None:
+        return self._move_in_sub_grid(direction)
+
+    # Overworld only allows 2D movement
+    if direction in ("up", "down"):
+        return (False, "You can only go up or down inside buildings and dungeons.")
+
+    # ... existing overworld logic
+```
+
+### Step 7: Update command parsing in `main.py`
+
+Update help text in go command:
+```python
+elif command == "go":
+    if not args:
+        return (True, "\nGo where? Specify a direction (north, south, east, west, up, down)")
+```
+
+## Files Modified
 
 | File | Changes |
 |------|---------|
-| `src/cli_rpg/models/quest.py` | Add QuestBranch class, extend Quest |
-| `src/cli_rpg/models/character.py` | Branch-aware progress tracking |
-| `src/cli_rpg/main.py` | Quest UI shows branches |
-| `tests/test_quest_branching.py` | NEW - 8+ tests |
-| `tests/test_quest_branch_validation.py` | NEW - 4+ tests |
-
-## Example Quest with Branches
-
-```python
-Quest(
-    name="The Bandit Problem",
-    description="Deal with the bandit leader threatening the village.",
-    objective_type=ObjectiveType.KILL,  # Primary/default path
-    target="Bandit Leader",
-    alternative_branches=[
-        QuestBranch(
-            id="kill",
-            name="Eliminate the Threat",
-            objective_type=ObjectiveType.KILL,
-            target="Bandit Leader",
-            description="Slay the bandit leader.",
-            faction_effects={"Militia": 15},
-            gold_modifier=1.0,
-        ),
-        QuestBranch(
-            id="persuade",
-            name="Peaceful Resolution",
-            objective_type=ObjectiveType.TALK,
-            target="Bandit Leader",
-            description="Convince him to leave peacefully.",
-            faction_effects={"Militia": 5, "Outlaws": 10},
-            gold_modifier=0.5,  # Less gold for non-violent
-            xp_modifier=1.5,   # More XP for diplomacy
-        ),
-        QuestBranch(
-            id="betray",
-            name="Join the Raiders",
-            objective_type=ObjectiveType.KILL,
-            target="Village Elder",
-            description="Help raid the village for a cut of the loot.",
-            faction_effects={"Militia": -20, "Outlaws": 25},
-            gold_modifier=2.0,  # Double gold from raid
-            xp_modifier=0.5,   # Less XP for evil path
-        ),
-    ],
-)
-```
-
-## UI Display Example
-
-```
-=== The Bandit Problem ===
-Status: Active
-Quest Giver: Village Elder
-
-Deal with the bandit leader threatening the village.
-
-Completion Paths:
-  • Eliminate the Threat - Kill Bandit Leader [0/1]
-  • Peaceful Resolution - Talk to Bandit Leader [0/1]
-  • Join the Raiders - Kill Village Elder [0/1]
-```
+| `src/cli_rpg/world_grid.py` | SUBGRID_DIRECTION_OFFSETS, 6-tuple bounds, SubGrid 3D support |
+| `src/cli_rpg/models/location.py` | 3-tuple coordinates support, get_z() helper, serialization |
+| `src/cli_rpg/game_state.py` | `_move_in_sub_grid()` z-movement, `move()` up/down guard |
+| `src/cli_rpg/main.py` | Update go command help text |
+| `tests/test_vertical_navigation.py` | New test file (~22 tests) |

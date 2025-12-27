@@ -480,9 +480,13 @@ class GameState:
         if self.is_in_conversation:
             return (False, "You're in a conversation. Say 'bye' to leave first.")
 
-        # Handle movement inside sub-location grid
+        # Handle movement inside sub-location grid (supports up/down)
         if self.in_sub_location and self.current_sub_grid is not None:
             return self._move_in_sub_grid(direction)
+
+        # Overworld only allows 2D movement - block up/down
+        if direction in ("up", "down"):
+            return (False, "You can only go up or down inside buildings and dungeons.")
 
         from cli_rpg.world_grid import DIRECTION_OFFSETS
 
@@ -745,31 +749,37 @@ class GameState:
     def _move_in_sub_grid(self, direction: str) -> tuple[bool, str]:
         """Handle movement within a sub-location grid.
 
-        Uses coordinate-based movement within the sub-grid bounds.
+        Uses 3D coordinate-based movement within the sub-grid bounds.
+        Supports up/down movement for multi-level dungeons and towers.
 
         Args:
-            direction: The direction to move (north, south, east, west)
+            direction: The direction to move (north, south, east, west, up, down)
 
         Returns:
             Tuple of (success, message) where:
             - success is True if move was successful, False otherwise
             - message describes the result
         """
-        from cli_rpg.world_grid import DIRECTION_OFFSETS
+        from cli_rpg.world_grid import SUBGRID_DIRECTION_OFFSETS
 
         current = self.get_current_location()
 
-        if direction not in {"north", "south", "east", "west"}:
-            return (False, "Invalid direction. Use: north, south, east, or west.")
+        if direction not in {"north", "south", "east", "west", "up", "down"}:
+            return (False, "Invalid direction. Use: north, south, east, west, up, or down.")
 
         if current.coordinates is None:
             return (False, "Cannot navigate - location has no coordinates.")
 
-        dx, dy = DIRECTION_OFFSETS[direction]
-        target_coords = (current.coordinates[0] + dx, current.coordinates[1] + dy)
+        dx, dy, dz = SUBGRID_DIRECTION_OFFSETS[direction]
+        # Get current z-coordinate (support both 2D and 3D locations)
+        x, y = current.coordinates[:2]
+        z = current.coordinates[2] if len(current.coordinates) > 2 else 0
+        target_coords = (x + dx, y + dy, z + dz)
 
         # Check bounds
         if not self.current_sub_grid.is_within_bounds(*target_coords):
+            if dz != 0:
+                return (False, "There's no way to go that direction.")
             return (False, "You can't go that way - you've reached the edge of this area.")
 
         # Find location at target coordinates

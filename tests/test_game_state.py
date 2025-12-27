@@ -463,7 +463,8 @@ class TestGameStateMove:
     def test_move_unsupported_direction_shows_invalid_message(self):
         """Test that unsupported directions show a different error than blocked exits.
 
-        Spec: 'up', 'northwest', etc. should say "Invalid direction" not "You can't go that way."
+        Spec: 'northwest', 'left', etc. should say "Invalid direction" not "You can't go that way."
+        Note: 'up' and 'down' are now valid directions (in SubGrid only), so they show a different message.
         """
         character = Character("Hero", strength=10, dexterity=10, intelligence=10)
         world = {
@@ -473,11 +474,18 @@ class TestGameStateMove:
 
         game_state = GameState(character, world, "Start")
 
-        # Test unsupported directions - these should always fail
-        for invalid_dir in ["up", "northwest", "left", "forward", "xyz"]:
+        # Test invalid directions (not part of any supported direction set)
+        for invalid_dir in ["northwest", "left", "forward", "xyz"]:
             success, message = game_state.move(invalid_dir)
             assert success is False
             assert "Invalid direction" in message, f"Expected 'Invalid direction' for '{invalid_dir}', got: {message}"
+
+        # Test up/down on overworld - valid direction but wrong context
+        for vertical_dir in ["up", "down"]:
+            success, message = game_state.move(vertical_dir)
+            assert success is False
+            # Should say these only work inside buildings/dungeons
+            assert "inside" in message.lower() or "building" in message.lower() or "dungeon" in message.lower()
 
     def test_move_chain_navigation(self):
         """Test multiple moves in sequence work correctly.

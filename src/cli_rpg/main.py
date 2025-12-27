@@ -1056,7 +1056,7 @@ def handle_exploration_command(game_state: GameState, command: str, args: list[s
     
     elif command == "go":
         if not args:
-            return (True, "\nGo where? Specify a direction (north, south, east, west)")
+            return (True, "\nGo where? Specify a direction (north, south, east, west, up, down)")
 
         direction = args[0]
         success, message = game_state.move(direction)

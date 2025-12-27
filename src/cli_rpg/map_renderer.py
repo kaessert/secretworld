@@ -259,6 +259,9 @@ def render_map(
 def _render_sub_grid_map(sub_grid: "SubGrid", current_location: str) -> str:
     """Render a player-centered interior map with exit markers.
 
+    This renders a 2D slice of the 3D SubGrid at the player's current z-level.
+    Multi-level navigation (up/down) is indicated in the legend.
+
     Args:
         sub_grid: The SubGrid to render
         current_location: Name of the player's current location
@@ -266,27 +269,43 @@ def _render_sub_grid_map(sub_grid: "SubGrid", current_location: str) -> str:
     Returns:
         ASCII string representation of the interior map
     """
-    # Get SubGrid bounds
-    bound_min_x, bound_max_x, bound_min_y, bound_max_y = sub_grid.bounds
+    # Get SubGrid bounds (6-tuple: min_x, max_x, min_y, max_y, min_z, max_z)
+    # Handle both legacy 4-tuple and new 6-tuple bounds
+    if len(sub_grid.bounds) == 6:
+        bound_min_x, bound_max_x, bound_min_y, bound_max_y, bound_min_z, bound_max_z = sub_grid.bounds
+    else:
+        bound_min_x, bound_max_x, bound_min_y, bound_max_y = sub_grid.bounds
+        bound_min_z, bound_max_z = 0, 0
 
     # Get current location for positioning
     current_loc = sub_grid.get_by_name(current_location)
     if current_loc is None or current_loc.coordinates is None:
         return "No interior map available."
 
+    # Get player position (handle both 2D and 3D coordinates)
+    if len(current_loc.coordinates) == 3:
+        player_x, player_y, player_z = current_loc.coordinates
+    else:
+        player_x, player_y = current_loc.coordinates
+        player_z = 0
+
     # Center viewport on player (same 9x9 as overworld)
-    player_x, player_y = current_loc.coordinates
     viewport_radius = 4
     view_min_x = player_x - viewport_radius
     view_max_x = player_x + viewport_radius
     view_min_y = player_y - viewport_radius
     view_max_y = player_y + viewport_radius
 
-    # Build coordinate to location mapping
+    # Build coordinate to location mapping for current z-level only
+    # Map 2D coords (x, y) to locations at the player's z-level
     coord_to_location: dict[tuple[int, int], Location] = {}
     for loc in sub_grid._by_name.values():
         if loc.coordinates is not None:
-            coord_to_location[loc.coordinates] = loc
+            loc_x, loc_y = loc.coordinates[:2]
+            loc_z = loc.coordinates[2] if len(loc.coordinates) == 3 else 0
+            # Only include locations at the same z-level as the player
+            if loc_z == player_z:
+                coord_to_location[(loc_x, loc_y)] = loc
 
     # Assign letter symbols (same logic as overworld) - alphabetical order
     SYMBOLS = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz"
@@ -375,9 +394,14 @@ def _render_sub_grid_map(sub_grid: "SubGrid", current_location: str) -> str:
         padding = width - visible_len
         return line + " " * max(0, padding)
 
-    # Assemble output
+    # Assemble output - include level info if multi-level
+    is_multi_level = bound_min_z != bound_max_z
+    if is_multi_level:
+        level_info = f", Level {player_z}"
+    else:
+        level_info = ""
     lines = [
-        f"=== INTERIOR MAP === (Inside: {sub_grid.parent_name})",
+        f"=== INTERIOR MAP === (Inside: {sub_grid.parent_name}{level_info})",
         top_border,
         "│" + pad_to_width(header, content_width) + "│",
     ]

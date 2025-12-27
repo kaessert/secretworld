@@ -430,20 +430,22 @@ Issues discovered through comprehensive map system playtesting in non-interactiv
 
 ---
 
-### OVERWORLD & SUB-LOCATION REWORK - Hierarchical World System
-**Status**: IN PROGRESS (Core Infrastructure Complete)
+### ✅ RESOLVED: OVERWORLD & SUB-LOCATION REWORK - Hierarchical World System
+**Status**: RESOLVED
+**Date Resolved**: 2025-12-27
 
 **Problem**: The current flat world grid doesn't support meaningful world structure.
 
-**Progress**:
+**Resolution**: All features fully implemented:
 - Location model hierarchy fields implemented
 - Town Square, Forest, Millbrook Village, Ironhold City, Abandoned Mines all implemented with sub-locations
 - Enter/exit commands working
 - AI world generation respects hierarchy
 - Safe zone encounters working
-
-**Remaining**:
-- Vertical dungeon navigation (`up`/`down` commands) - deferred
+- **Vertical dungeon navigation**: `up`/`down` commands now work in SubGrid locations with z-coordinate support
+  - Dungeons extend downward (z<0), towers extend upward (z>0)
+  - 6-tuple bounds format: `(min_x, max_x, min_y, max_y, min_z, max_z)`
+  - 37 new tests in `tests/test_vertical_navigation.py`
 
 ---
 
@@ -1373,13 +1375,16 @@ Result: Locations feel random, not part of a cohesive world.
    - [ ] Ensure terrain transitions feel natural (forest → plains → desert, not forest → desert)
    - [ ] Cluster similar locations together
 
-6. **Configurable SubGrid Bounds**
-   - [ ] Support linear dungeons (1x10 corridors)
-   - [ ] Support large open areas (10x10 plazas)
-   - [ ] Multi-level dungeons with z-coordinate
+6. **Configurable SubGrid Bounds** ✅ COMPLETE (2025-12-27)
+   - [x] Support linear dungeons (1x10 corridors)
+   - [x] Support large open areas (10x10 plazas)
+   - [x] Multi-level dungeons with z-coordinate
 
-   **Files to modify**:
-   - `src/cli_rpg/world_grid.py`: Make SubGrid bounds configurable
+   **Implemented**:
+   - 6-tuple bounds: `(min_x, max_x, min_y, max_y, min_z, max_z)`
+   - Category-specific bounds in `SUBGRID_BOUNDS` config
+   - Dungeons go down (z<0), towers go up (z>0)
+   - `up`/`down` commands for vertical navigation
 
 #### Suggested Implementation Order
 

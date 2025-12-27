@@ -62,8 +62,10 @@ python -m cli_rpg.main
 - `go <direction>` (g) - Move in a direction (north, south, east, west)
   - Quick shortcuts: `n`, `gn` (north), `w`, `gw` (west), `gs` (south), `ge` (east)
   - Note: `s` runs `status` and `e` runs `equip`, so use `gs`/`ge` for south/east
+  - **Vertical movement**: Use `go up` / `go down` inside multi-level dungeons and towers
 - `enter <location>` - Enter a sub-location within the current overworld landmark (e.g., enter a tavern within a city)
 - `exit` / `leave` - Exit from a sub-location back to its parent overworld landmark
+  - **Multi-level locations**: Dungeons extend downward (z<0), towers extend upward (z>0). Use `go up`/`go down` to navigate between floors
 - `map` (m) - Display an ASCII map of explored locations with available exits
 - `worldmap` (wm) - Display the overworld map (shows only overworld landmarks)
 - `status` (s, stats) - View your character's stats, gold, XP progress, current time, and weather

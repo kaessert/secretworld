@@ -114,8 +114,8 @@ class TestCreateDefaultWorld:
         entry = town_square.sub_grid.get_by_name("Market District")
         guard_post = town_square.sub_grid.get_by_name("Guard Post")
         town_well = town_square.sub_grid.get_by_name("Town Well")
-        # With SubGrid, entry is at (0,0), adjacent rooms via coordinates
-        assert entry.coordinates == (0, 0)
+        # With SubGrid, entry is at (0,0,0) - 3D coordinates with z=0
+        assert entry.coordinates == (0, 0, 0)
         assert guard_post.coordinates is not None  # east of entry
         assert town_well.coordinates is not None  # north of entry
 
@@ -175,10 +175,10 @@ class TestCreateDefaultWorld:
         """
         world, _ = create_default_world()
         forest = world["Forest"]
-        # Entry point (Forest Edge) should have coordinates
+        # Entry point (Forest Edge) should have 3D coordinates (z=0)
         entry = forest.sub_grid.get_by_name("Forest Edge")
         deep_woods = forest.sub_grid.get_by_name("Deep Woods")
-        assert entry.coordinates == (0, 0)
+        assert entry.coordinates == (0, 0, 0)
         assert deep_woods.coordinates is not None  # Adjacent to entry
 
     def test_default_world_hermit_in_ancient_grove(self):
@@ -245,9 +245,9 @@ class TestCreateDefaultWorld:
         """
         world, _ = create_default_world()
         millbrook = world["Millbrook Village"]
-        # Entry point (Village Square) should have coordinates
+        # Entry point (Village Square) should have 3D coordinates (z=0)
         entry = millbrook.sub_grid.get_by_name("Village Square")
-        assert entry.coordinates == (0, 0)
+        assert entry.coordinates == (0, 0, 0)
 
     def test_default_world_millbrook_village_coordinates(self):
         """Millbrook Village is west of Town Square.
@@ -370,9 +370,9 @@ class TestCreateDefaultWorld:
         """
         world, _ = create_default_world()
         mines = world["Abandoned Mines"]
-        # Entry point (Mine Entrance) should have coordinates
+        # Entry point (Mine Entrance) should have 3D coordinates (z=0)
         entry = mines.sub_grid.get_by_name("Mine Entrance")
-        assert entry.coordinates == (0, 0)
+        assert entry.coordinates == (0, 0, 0)
 
     def test_default_world_abandoned_mines_coordinates(self):
         """Abandoned Mines is north of Cave.
@@ -459,9 +459,9 @@ class TestCreateDefaultWorld:
         """
         world, _ = create_default_world()
         ironhold = world["Ironhold City"]
-        # Entry point (Ironhold Market) should have coordinates
+        # Entry point (Ironhold Market) should have 3D coordinates (z=0)
         entry = ironhold.sub_grid.get_by_name("Ironhold Market")
-        assert entry.coordinates == (0, 0)
+        assert entry.coordinates == (0, 0, 0)
 
     def test_default_world_ironhold_city_coordinates(self):
         """Ironhold City is south of Town Square.

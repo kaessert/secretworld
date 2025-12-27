@@ -62,13 +62,14 @@ class TestGameplayIntegration:
 
         Spec: Move to invalid (non-cardinal) direction should fail with error message.
         Note: With infinite world, valid cardinal directions (n/s/e/w) always succeed
-        by generating new locations. Invalid directions like "up" or "northwest" fail.
+        by generating new locations. Invalid directions like "northwest" fail.
+        Note: "up" and "down" are valid in SubGrid, so we test "northwest" instead.
         """
         character = Character("Hero", strength=10, dexterity=10, intelligence=10)
         world, starting_location = create_default_world()
         game_state = GameState(character, world, starting_location)
 
-        success, message = game_state.move("up")  # Invalid direction (not n/s/e/w)
+        success, message = game_state.move("northwest")  # Invalid direction (diagonal)
 
         assert success is False
         assert isinstance(message, str)

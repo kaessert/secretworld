@@ -11,14 +11,14 @@ class TestSubGridBasics:
     def test_create_subgrid_default_bounds(self):
         """Test creating SubGrid with default bounds - spec: SubGrid class exists with defaults."""
         grid = SubGrid()
-        # Default bounds should be (-2, 2, -2, 2)
-        assert grid.bounds == (-2, 2, -2, 2)
+        # Default bounds should be (-2, 2, -2, 2, 0, 0) - 6-tuple with z
+        assert grid.bounds == (-2, 2, -2, 2, 0, 0)
         assert grid.parent_name == ""
 
     def test_create_subgrid_custom_bounds(self):
         """Test creating SubGrid with custom bounds - spec: bounds customization."""
-        grid = SubGrid(bounds=(-5, 5, -3, 3), parent_name="Castle")
-        assert grid.bounds == (-5, 5, -3, 3)
+        grid = SubGrid(bounds=(-5, 5, -3, 3, -1, 1), parent_name="Castle")
+        assert grid.bounds == (-5, 5, -3, 3, -1, 1)
         assert grid.parent_name == "Castle"
 
     def test_add_location_within_bounds(self):
@@ -33,7 +33,8 @@ class TestSubGridBasics:
         grid = SubGrid(parent_name="Castle")
         location = Location(name="Great Hall", description="A vast hall.")
         grid.add_location(location, 1, 2)
-        assert location.coordinates == (1, 2)
+        # SubGrid now uses 3D coordinates with default z=0
+        assert location.coordinates == (1, 2, 0)
 
     def test_add_location_sets_parent_location(self):
         """Test adding location sets its parent_location - spec: parent tracking."""
@@ -44,7 +45,7 @@ class TestSubGridBasics:
 
     def test_add_location_outside_bounds_raises(self):
         """Test adding location outside bounds raises ValueError - spec: bounds enforcement."""
-        grid = SubGrid(bounds=(-2, 2, -2, 2), parent_name="Castle")
+        grid = SubGrid(bounds=(-2, 2, -2, 2, 0, 0), parent_name="Castle")
         location = Location(name="Far Away", description="Too far.")
 
         # X too low
@@ -138,9 +139,9 @@ class TestSubGridCoordinateNavigation:
         grid.add_location(hall, 0, 0)
         grid.add_location(kitchen, 0, 1)  # north of hall
 
-        # Verify coordinates set correctly
-        assert hall.coordinates == (0, 0)
-        assert kitchen.coordinates == (0, 1)
+        # Verify coordinates set correctly (SubGrid uses 3D coordinates with default z=0)
+        assert hall.coordinates == (0, 0, 0)
+        assert kitchen.coordinates == (0, 1, 0)
         # Verify Kitchen is north of Hall (dy=1)
         assert kitchen.coordinates[1] - hall.coordinates[1] == 1
 
@@ -184,7 +185,7 @@ class TestSubGridSerialization:
 
     def test_to_dict_structure(self):
         """Test to_dict returns correct structure - spec: serialization format."""
-        grid = SubGrid(bounds=(-2, 2, -2, 2), parent_name="Castle")
+        grid = SubGrid(bounds=(-2, 2, -2, 2, 0, 0), parent_name="Castle")
         hall = Location(name="Great Hall", description="A vast hall.")
         grid.add_location(hall, 0, 0)
 
@@ -192,7 +193,7 @@ class TestSubGridSerialization:
         assert "locations" in data
         assert "bounds" in data
         assert "parent_name" in data
-        assert data["bounds"] == [-2, 2, -2, 2]
+        assert data["bounds"] == [-2, 2, -2, 2, 0, 0]
         assert data["parent_name"] == "Castle"
 
     def test_from_dict_restores_locations(self):
@@ -216,7 +217,10 @@ class TestSubGridSerialization:
         assert grid.get_by_coordinates(0, 0) is not None
 
     def test_from_dict_restores_bounds(self):
-        """Test from_dict restores bounds - spec: bounds preservation."""
+        """Test from_dict restores bounds - spec: bounds preservation.
+
+        Note: Legacy 4-tuple bounds are auto-upgraded to 6-tuple with z=(0, 0).
+        """
         data = {
             "locations": [],
             "bounds": [-5, 5, -3, 3],
@@ -224,7 +228,8 @@ class TestSubGridSerialization:
         }
         grid = SubGrid.from_dict(data)
 
-        assert grid.bounds == (-5, 5, -3, 3)
+        # Legacy 4-tuple bounds are upgraded to 6-tuple with z=(0, 0)
+        assert grid.bounds == (-5, 5, -3, 3, 0, 0)
 
     def test_from_dict_restores_parent_name(self):
         """Test from_dict restores parent_name - spec: parent_name preservation."""
@@ -239,7 +244,7 @@ class TestSubGridSerialization:
 
     def test_round_trip_preserves_data(self):
         """Test to_dict -> from_dict preserves all data - spec: roundtrip."""
-        grid = SubGrid(bounds=(-3, 3, -3, 3), parent_name="Castle")
+        grid = SubGrid(bounds=(-3, 3, -3, 3, 0, 0), parent_name="Castle")
         hall = Location(name="Great Hall", description="A vast hall.")
         kitchen = Location(name="Kitchen", description="A kitchen.")
         grid.add_location(hall, 0, 0)
@@ -248,8 +253,8 @@ class TestSubGridSerialization:
         data = grid.to_dict()
         restored = SubGrid.from_dict(data)
 
-        # Check bounds preserved
-        assert restored.bounds == (-3, 3, -3, 3)
+        # Check bounds preserved (6-tuple with z)
+        assert restored.bounds == (-3, 3, -3, 3, 0, 0)
         # Check parent_name preserved
         assert restored.parent_name == "Castle"
         # Check locations preserved
@@ -257,9 +262,9 @@ class TestSubGridSerialization:
         assert restored.get_by_name("Kitchen") is not None
         assert restored.get_by_coordinates(0, 0).name == "Great Hall"
         assert restored.get_by_coordinates(0, 1).name == "Kitchen"
-        # Check coordinates preserved (navigation is coordinate-based)
-        assert restored.get_by_name("Great Hall").coordinates == (0, 0)
-        assert restored.get_by_name("Kitchen").coordinates == (0, 1)
+        # Check coordinates preserved (navigation is coordinate-based, 3D coords)
+        assert restored.get_by_name("Great Hall").coordinates == (0, 0, 0)
+        assert restored.get_by_name("Kitchen").coordinates == (0, 1, 0)
         # Check parent_location preserved
         assert restored.get_by_name("Great Hall").parent_location == "Castle"
         assert restored.get_by_name("Kitchen").parent_location == "Castle"

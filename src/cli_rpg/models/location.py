@@ -2,7 +2,7 @@
 
 import hashlib
 from dataclasses import dataclass, field
-from typing import Any, ClassVar, List, Optional, Tuple, TYPE_CHECKING
+from typing import Any, ClassVar, List, Optional, Tuple, Union, TYPE_CHECKING
 
 from cli_rpg import colors
 
@@ -34,7 +34,8 @@ class Location:
     name: str
     description: str
     npcs: List["NPC"] = field(default_factory=list)
-    coordinates: Optional[Tuple[int, int]] = None
+    # Coordinates can be 2D (x, y) for overworld or 3D (x, y, z) for SubGrid
+    coordinates: Optional[Union[Tuple[int, int], Tuple[int, int, int]]] = None
     category: Optional[str] = None
     ascii_art: str = ""
     details: Optional[str] = None  # Second-look environmental details
@@ -93,6 +94,9 @@ class Location:
         Checks neighboring coordinates for locations. Requires either a world dict
         or sub_grid to perform coordinate lookups.
 
+        For SubGrid (interior navigation), includes vertical directions (up/down)
+        when adjacent locations exist at different z-levels.
+
         Args:
             world: Optional world dict mapping names to Locations (for overworld)
             sub_grid: Optional SubGrid instance (for interior navigation)
@@ -103,24 +107,35 @@ class Location:
         if self.coordinates is None:
             return []
 
-        # Direction offsets for coordinate calculation
-        offsets = {
-            "north": (0, 1),
-            "south": (0, -1),
-            "east": (1, 0),
-            "west": (-1, 0),
-        }
-
         directions = []
-        x, y = self.coordinates
+        x, y = self.coordinates[:2]
+        z = self.coordinates[2] if len(self.coordinates) > 2 else 0
 
-        for direction, (dx, dy) in offsets.items():
-            target = (x + dx, y + dy)
-            if sub_grid is not None:
+        if sub_grid is not None:
+            # 3D navigation for SubGrid (includes up/down)
+            offsets_3d = {
+                "north": (0, 1, 0),
+                "south": (0, -1, 0),
+                "east": (1, 0, 0),
+                "west": (-1, 0, 0),
+                "up": (0, 0, 1),
+                "down": (0, 0, -1),
+            }
+            for direction, (dx, dy, dz) in offsets_3d.items():
+                target = (x + dx, y + dy, z + dz)
                 # Check sub_grid for interior navigation
                 if sub_grid.is_within_bounds(*target) and sub_grid.get_by_coordinates(*target):
                     directions.append(direction)
-            elif world is not None:
+        elif world is not None:
+            # 2D navigation for overworld
+            offsets_2d = {
+                "north": (0, 1),
+                "south": (0, -1),
+                "east": (1, 0),
+                "west": (-1, 0),
+            }
+            for direction, (dx, dy) in offsets_2d.items():
+                target = (x + dx, y + dy)
                 # Check world dict for overworld navigation
                 for loc in world.values():
                     if loc.coordinates == target:
@@ -183,6 +198,21 @@ class Location:
             if npc.name.lower() == name_lower:
                 return npc
         return None
+
+    def get_z(self) -> int:
+        """Get the z-coordinate (vertical level) of this location.
+
+        Returns 0 if coordinates are None or 2D (no z component).
+        For 3D coordinates, returns the z value.
+
+        Returns:
+            The z-coordinate, or 0 if not applicable
+        """
+        if self.coordinates is None:
+            return 0
+        if len(self.coordinates) == 3:
+            return self.coordinates[2]
+        return 0
 
     def get_layered_description(
         self,
@@ -308,8 +338,9 @@ class Location:
             "npcs": [npc.to_dict() for npc in self.npcs]
         }
         # Only include coordinates if present (backward compatibility)
+        # Serialize as 2 or 3 elements depending on tuple length
         if self.coordinates is not None:
-            data["coordinates"] = [self.coordinates[0], self.coordinates[1]]
+            data["coordinates"] = list(self.coordinates)
         # Only include category if present (backward compatibility)
         if self.category is not None:
             data["category"] = self.category
@@ -368,10 +399,11 @@ class Location:
         from cli_rpg.models.npc import NPC
         npcs = [NPC.from_dict(npc_data) for npc_data in data.get("npcs", [])]
         # Parse coordinates if present (convert list to tuple)
+        # Supports both 2D (x, y) and 3D (x, y, z) coordinates
         coordinates = None
         if "coordinates" in data and data["coordinates"] is not None:
             coords = data["coordinates"]
-            coordinates = (coords[0], coords[1])
+            coordinates = tuple(coords)  # Preserve 2D or 3D as-is
         # Parse category if present (for backward compatibility)
         category = data.get("category")
         # Parse ascii_art if present (for backward compatibility)

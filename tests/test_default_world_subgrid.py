@@ -230,10 +230,10 @@ class TestSubGridNavigation:
         guard_post = town_square.sub_grid.get_by_name("Guard Post")
         town_well = town_square.sub_grid.get_by_name("Town Well")
 
-        # Market at (0,0), Guard Post at (1,0), Town Well at (0,1)
-        assert market.coordinates == (0, 0)
-        assert guard_post.coordinates == (1, 0)  # east of market
-        assert town_well.coordinates == (0, 1)  # north of market
+        # Market at (0,0,0), Guard Post at (1,0,0), Town Well at (0,1,0) - 3D coords with z=0
+        assert market.coordinates == (0, 0, 0)
+        assert guard_post.coordinates == (1, 0, 0)  # east of market
+        assert town_well.coordinates == (0, 1, 0)  # north of market
 
     def test_town_square_grid_adjacency(self):
         """Guard Post should be west of Market District by coordinates."""
@@ -251,17 +251,18 @@ class TestSubGridNavigation:
         world, _ = create_default_world()
         mines = world["Abandoned Mines"]
 
-        # Mine Entrance (0,0) -> north -> Flooded Level (0,1) -> north -> Boss Chamber (0,2)
+        # Mine Entrance (0,0,0) -> north -> Flooded Level (0,1,0) -> north -> Boss Chamber (0,2,0)
+        # Uses 3D coordinates with z=0 for this level
         entrance = mines.sub_grid.get_by_name("Mine Entrance")
         flooded = mines.sub_grid.get_by_name("Flooded Level")
         boss = mines.sub_grid.get_by_name("Boss Chamber")
         upper_tunnels = mines.sub_grid.get_by_name("Upper Tunnels")
 
-        # Verify coordinates for dungeon progression
-        assert entrance.coordinates == (0, 0)
-        assert flooded.coordinates == (0, 1)  # north of entrance
-        assert boss.coordinates == (0, 2)  # north of flooded
-        assert upper_tunnels.coordinates == (1, 0)  # east of entrance
+        # Verify coordinates for dungeon progression (3D coords)
+        assert entrance.coordinates == (0, 0, 0)
+        assert flooded.coordinates == (0, 1, 0)  # north of entrance
+        assert boss.coordinates == (0, 2, 0)  # north of flooded
+        assert upper_tunnels.coordinates == (1, 0, 0)  # east of entrance
 
     def test_ironhold_four_way_layout(self):
         """Ironhold Market should have adjacent locations in multiple directions."""
@@ -272,11 +273,12 @@ class TestSubGridNavigation:
         temple_quarter = ironhold.sub_grid.get_by_name("Temple Quarter")
         slums = ironhold.sub_grid.get_by_name("Slums")
 
-        # Market at (0,0), Castle Ward at (1,0), Temple Quarter at (0,1), Slums at (0,-1)
-        assert market.coordinates == (0, 0)
-        assert castle_ward.coordinates == (1, 0)  # east of market
-        assert temple_quarter.coordinates == (0, 1)  # north of market
-        assert slums.coordinates == (0, -1)  # south of market
+        # 3D coordinates with z=0 for ground level
+        # Market at (0,0,0), Castle Ward at (1,0,0), Temple Quarter at (0,1,0), Slums at (0,-1,0)
+        assert market.coordinates == (0, 0, 0)
+        assert castle_ward.coordinates == (1, 0, 0)  # east of market
+        assert temple_quarter.coordinates == (0, 1, 0)  # north of market
+        assert slums.coordinates == (0, -1, 0)  # south of market
 
 
 class TestSubGridParentLocation:
