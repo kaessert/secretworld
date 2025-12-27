@@ -663,6 +663,9 @@ def _place_keys_in_earlier_rooms(
             loc = data.get("location")
             if loc is None:
                 continue
+            # Skip rooms that have locked doors (keys shouldn't be behind other doors)
+            if any(p.puzzle_type == PuzzleType.LOCKED_DOOR for p in loc.puzzles):
+                continue
             rel = data.get("relative_coords", (0, 0, 0))
             if len(rel) == 2:
                 dist = abs(rel[0]) + abs(rel[1])
