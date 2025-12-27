@@ -30,6 +30,7 @@ from cli_rpg.ai_config import AIConfig
 from cli_rpg.models.location import Location
 from cli_rpg.models.world_context import DEFAULT_THEME_ESSENCES, WorldContext
 from cli_rpg.models.region_context import RegionContext
+from cli_rpg.progress import progress_indicator
 
 # Valid directions for grid-based movement (subset of Location.VALID_DIRECTIONS)
 GRID_DIRECTIONS: set[str] = {"north", "south", "east", "west"}
@@ -225,7 +226,7 @@ class AIService:
 
         # Define the generation function that will be retried on parse failures
         def _do_generate() -> dict:
-            response_text = self._call_llm(prompt)
+            response_text = self._call_llm(prompt, generation_type="location")
             return self._parse_location_response(response_text)
 
         # Call with retry wrapper for parse/validation failures
@@ -280,11 +281,13 @@ class AIService:
 
         return prompt
     
-    def _call_llm(self, prompt: str) -> str:
-        """Call LLM API with retry logic.
+    def _call_llm(self, prompt: str, generation_type: str = "default") -> str:
+        """Call LLM API with retry logic and progress indication.
 
         Args:
             prompt: The prompt to send to the LLM
+            generation_type: Type of content being generated for progress messages
+                            (location, npc, enemy, lore, area, default)
 
         Returns:
             Response text from the LLM
@@ -293,13 +296,14 @@ class AIService:
             AIServiceError: If API call fails after retries
             AITimeoutError: If request times out
         """
-        if self.provider == "anthropic":
-            return self._call_anthropic(prompt)
-        elif self.provider == "ollama":
-            # Ollama uses OpenAI-compatible API
-            return self._call_openai(prompt, is_ollama=True)
-        else:
-            return self._call_openai(prompt)
+        with progress_indicator(generation_type):
+            if self.provider == "anthropic":
+                return self._call_anthropic(prompt)
+            elif self.provider == "ollama":
+                # Ollama uses OpenAI-compatible API
+                return self._call_openai(prompt, is_ollama=True)
+            else:
+                return self._call_openai(prompt)
 
     def _call_openai(self, prompt: str, is_ollama: bool = False) -> str:
         """Call OpenAI API with retry logic.
@@ -955,7 +959,7 @@ class AIService:
 
         # Define the generation function that will be retried on parse failures
         def _do_generate() -> list[dict]:
-            response_text = self._call_llm(prompt)
+            response_text = self._call_llm(prompt, generation_type="area")
             return self._parse_area_response(response_text, size)
 
         # Call with retry wrapper for parse/validation failures
@@ -1245,7 +1249,7 @@ Note: Use "EXISTING_WORLD" as placeholder for the connection back to the source 
             location_name=location_name
         )
 
-        response_text = self._call_llm(prompt)
+        response_text = self._call_llm(prompt, generation_type="npc")
 
         # Clean and validate response
         dialogue = response_text.strip().strip('"').strip("'")
@@ -1303,7 +1307,7 @@ Note: Use "EXISTING_WORLD" as placeholder for the connection back to the source 
         )
 
         # Call LLM
-        response_text = self._call_llm(prompt)
+        response_text = self._call_llm(prompt, generation_type="enemy")
 
         # Parse and validate response
         enemy_data = self._parse_enemy_response(response_text, player_level)
@@ -1452,7 +1456,7 @@ Note: Use "EXISTING_WORLD" as placeholder for the connection back to the source 
         )
 
         # Call LLM
-        response_text = self._call_llm(prompt)
+        response_text = self._call_llm(prompt, generation_type="art")
 
         # Clean and validate response
         art = self._parse_ascii_art_response(response_text)
@@ -1548,7 +1552,7 @@ Note: Use "EXISTING_WORLD" as placeholder for the connection back to the source 
         )
 
         # Call LLM
-        response_text = self._call_llm(prompt)
+        response_text = self._call_llm(prompt, generation_type="art")
 
         # Clean and validate response
         art = self._parse_location_ascii_art_response(response_text)
@@ -1648,7 +1652,7 @@ Note: Use "EXISTING_WORLD" as placeholder for the connection back to the source 
         )
 
         # Call LLM
-        response_text = self._call_llm(prompt)
+        response_text = self._call_llm(prompt, generation_type="item")
 
         # Parse and validate response
         item_data = self._parse_item_response(response_text)
@@ -1807,7 +1811,7 @@ Note: Use "EXISTING_WORLD" as placeholder for the connection back to the source 
             lore_category=lore_category
         )
 
-        response_text = self._call_llm(prompt)
+        response_text = self._call_llm(prompt, generation_type="lore")
 
         # Clean and validate response
         lore = response_text.strip().strip('"').strip("'")
@@ -1895,7 +1899,7 @@ Note: Use "EXISTING_WORLD" as placeholder for the connection back to the source 
                 return cached_result
 
         # Call LLM
-        response_text = self._call_llm(prompt)
+        response_text = self._call_llm(prompt, generation_type="quest")
 
         # Parse and validate response
         quest_data = self._parse_quest_response(
@@ -2130,7 +2134,7 @@ Note: Use "EXISTING_WORLD" as placeholder for the connection back to the source 
             player_input=player_input
         )
 
-        response_text = self._call_llm(prompt)
+        response_text = self._call_llm(prompt, generation_type="npc")
 
         # Clean and validate response
         response = response_text.strip().strip('"').strip("'")
@@ -2223,7 +2227,7 @@ Note: Use "EXISTING_WORLD" as placeholder for the connection back to the source 
         )
 
         # Call LLM
-        response_text = self._call_llm(prompt)
+        response_text = self._call_llm(prompt, generation_type="art")
 
         # Clean and validate response
         art = self._parse_npc_ascii_art_response(response_text)
@@ -2322,7 +2326,7 @@ Note: Use "EXISTING_WORLD" as placeholder for the connection back to the source 
             is_nightmare=is_nightmare
         )
 
-        response_text = self._call_llm(prompt)
+        response_text = self._call_llm(prompt, generation_type="dream")
 
         # Clean and validate response
         dream = response_text.strip().strip('"').strip("'")
@@ -2358,7 +2362,7 @@ Note: Use "EXISTING_WORLD" as placeholder for the connection back to the source 
             location_category=location_category
         )
 
-        response_text = self._call_llm(prompt)
+        response_text = self._call_llm(prompt, generation_type="atmosphere")
 
         # Clean and validate response
         whisper = response_text.strip().strip('"').strip("'")
@@ -2452,7 +2456,7 @@ Note: Use "EXISTING_WORLD" as placeholder for the connection back to the source 
         from cli_rpg.models.world_context import WorldContext
 
         prompt = self._build_world_context_prompt(theme)
-        response_text = self._call_llm(prompt)
+        response_text = self._call_llm(prompt, generation_type="lore")
         return self._parse_world_context_response(response_text, theme)
 
     def _build_world_context_prompt(self, theme: str) -> str:
@@ -2557,7 +2561,7 @@ Note: Use "EXISTING_WORLD" as placeholder for the connection back to the source 
         from cli_rpg.models.region_context import RegionContext
 
         prompt = self._build_region_context_prompt(theme, world_context, coordinates, terrain_hint)
-        response_text = self._call_llm(prompt)
+        response_text = self._call_llm(prompt, generation_type="area")
         return self._parse_region_context_response(response_text, coordinates)
 
     def _build_region_context_prompt(
@@ -2731,7 +2735,7 @@ Note: Use "EXISTING_WORLD" as placeholder for the connection back to the source 
 
         # Define the generation function that will be retried on parse failures
         def _do_generate() -> dict:
-            response_text = self._call_llm(prompt)
+            response_text = self._call_llm(prompt, generation_type="location")
             result = self._parse_location_response(response_text)
             # Override npcs with empty list (Layer 3 doesn't generate NPCs)
             result["npcs"] = []
@@ -2827,7 +2831,7 @@ Note: Use "EXISTING_WORLD" as placeholder for the connection back to the source 
         )
 
         # Call LLM
-        response_text = self._call_llm(prompt)
+        response_text = self._call_llm(prompt, generation_type="npc")
 
         # Parse and validate NPCs
         npcs = self._parse_npc_only_response(response_text, location_name)

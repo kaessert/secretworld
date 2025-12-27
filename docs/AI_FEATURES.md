@@ -34,14 +34,25 @@ The AI generation uses a hierarchical architecture for consistent, efficient wor
 
 This architecture reduces API calls and token usage by caching context at higher layers and using minimal prompts at lower layers.
 
-### 3. Graceful Fallbacks
+### 3. Progress Feedback
+- **ASCII spinner**: Non-blocking progress indicator during AI generation
+- **Thematic messages**: Context-aware loading messages that rotate every 2 seconds
+  - Location generation: "Weaving ancient tales...", "Charting unexplored lands..."
+  - NPC generation: "Summoning wanderers...", "Awakening souls..."
+  - Enemy generation: "Summoning creatures...", "Awakening ancient foes..."
+  - Lore generation: "Weaving ancient tales...", "Unraveling mysteries..."
+  - And more for area, item, quest, dream, atmosphere, and art generation
+- **Respects settings**: Disabled when `--no-color` or `--json` mode is active
+- **Thread-safe**: Uses daemon threads with proper cleanup
+
+### 4. Graceful Fallbacks
 - Game works without API key (uses fallback location templates)
 - Falls back to template-based location generation if AI fails
 - Fallback locations include 5 terrain themes (wilderness, rocky, misty, grassy, dense thicket)
 - The world is truly infinite even without AI - fallback locations always have frontier exits
 - No crashes or data loss
 
-### 4. Context-Aware Generation
+### 5. Context-Aware Generation
 - Locations fit the overall theme
 - Connected to existing world structure
 - Bidirectional connections maintained
@@ -50,13 +61,13 @@ This architecture reduces API calls and token usage by caching context at higher
 - **Location categories**: AI assigns a category to each location (town, dungeon, wilderness, settlement, ruins, cave, forest, mountain, village) which influences enemy spawning during combat encounters
 - **NPC population**: AI-generated locations include 3-5 thematically appropriate NPCs with roles (merchant, quest_giver, villager, guard, traveler, innkeeper), faction affiliations, and contextual dialogue. Merchants receive AI-generated shop inventories with theme-appropriate items including proper stats (damage_bonus for weapons, defense_bonus for armor, heal_amount/stamina_restore for consumables). Quest givers automatically receive generated quests tied to the region context.
 
-### 5. Theme Persistence
+### 6. Theme Persistence
 - Theme setting is saved with game state
 - Restored when loading saved games
 - Ensures consistent AI generation across sessions
 - AI service continues using saved theme for new locations
 
-### 6. AI-Generated NPC Dialogue & Extended Conversations
+### 7. AI-Generated NPC Dialogue & Extended Conversations
 - NPCs generate contextual dialogue when players talk to them
 - Dialogue considers NPC role (merchant, quest-giver, villager), location, and world theme
 - Generated greetings are persisted to the NPC's greetings list for consistency
@@ -340,7 +351,7 @@ pytest tests/test_e2e_world_expansion.py -v
 ### Current Limitations
 1. Basic prompt templates
 
-### 7. AI-Generated Enemies
+### 8. AI-Generated Enemies
 - Combat encounters feature AI-generated enemies with unique names and stats
 - Enemies include descriptions (appearance text) and attack flavor text
 - Attack flavor text appears during combat for immersive combat messages
@@ -351,7 +362,7 @@ pytest tests/test_e2e_world_expansion.py -v
 - Enemy stats are scaled to player level for balanced encounters
 - **Distance-based scaling**: Enemy stats scale with Manhattan distance from origin (0,0) using formula `base_stat * (1 + distance * 0.15)`, making exploration progressively more challenging
 
-### 7a. AI-Generated Location ASCII Art
+### 8a. AI-Generated Location ASCII Art
 - Locations display ASCII art when players enter or look at them (3-10 lines, max 50 chars wide)
 - AI generates unique ASCII art for each location via `generate_location_ascii_art()`
 - Art reflects the location category and theme (forest, dungeon, town, etc.)
@@ -361,7 +372,7 @@ pytest tests/test_e2e_world_expansion.py -v
 - Backward compatible: existing saves without ASCII art load correctly (empty string default)
 - ASCII art is persisted with location data and survives save/load cycles
 
-### 7b. AI-Generated NPC ASCII Art
+### 8b. AI-Generated NPC ASCII Art
 - NPCs display ASCII art when players talk to them (5-7 lines, max 40 chars wide)
 - AI generates unique ASCII art for each NPC via `generate_npc_ascii_art()`
 - Art reflects the NPC's role and name (merchant, quest_giver, guard, etc.)
@@ -372,7 +383,7 @@ pytest tests/test_e2e_world_expansion.py -v
 - Backward compatible: existing saves without ASCII art load correctly (empty string default)
 - ASCII art is persisted with NPC data and survives save/load cycles
 
-### 8. AI-Generated Items
+### 9. AI-Generated Items
 - `AIService.generate_item()` creates contextual items based on theme, location, and player level
 - Supports all item types: weapons (damage_bonus), armor (defense_bonus), consumables (heal_amount), misc
 - Optional `item_type` parameter constrains generation to specific type
@@ -380,7 +391,7 @@ pytest tests/test_e2e_world_expansion.py -v
 - Validates generated items against game constraints (name length, stat ranges)
 - Graceful fallback when AI is unavailable
 
-### 9. AI-Generated Lore
+### 10. AI-Generated Lore
 - `AIService.generate_lore()` creates immersive world history and lore snippets
 - Parameters: `theme`, `location_name` (optional), `lore_category` (history/legend/secret)
 - Generates 50-500 character snippets appropriate to the world context
@@ -390,7 +401,7 @@ pytest tests/test_e2e_world_expansion.py -v
   - **secret**: Hidden knowledge, mysteries
 - Graceful handling of empty location names (uses "the world" as context)
 
-### 10. AI-Generated Quests
+### 11. AI-Generated Quests
 - `AIService.generate_quest()` creates dynamic quests appropriate to the world theme
 - **Context-aware generation**: Uses WorldContext (theme essence, tone) and RegionContext (region theme, danger level) for cohesive quest narratives that match the world and region
 - Parameters: `theme`, `npc_name` (quest giver), `player_level`, `location_name` (optional), `world_context` (optional), `region_context` (optional)
@@ -408,7 +419,7 @@ pytest tests/test_e2e_world_expansion.py -v
 - Integrated with caching for performance optimization
 - Graceful fallback when AI is unavailable
 
-### 11. AI-Generated Dreams
+### 12. AI-Generated Dreams
 - `AIService.generate_dream()` creates personalized dream sequences when players rest
 - Triggered with 25% chance when using the `rest` command
 - Parameters: `theme`, `dread_percent`, `choices` (flee/kill counts), `location_name`, `is_nightmare`
@@ -421,7 +432,7 @@ pytest tests/test_e2e_world_expansion.py -v
 - Graceful fallback to template dreams when AI is unavailable or generation fails
 - Dreams display with decorative borders and typewriter effect
 
-### 12. AI-Generated Whispers
+### 13. AI-Generated Whispers
 - `AIService.generate_whisper()` creates atmospheric ambient whispers as players explore
 - Triggered with 30% chance when entering new locations
 - Parameters: `theme` (world theme), `location_category` (dungeon, forest, town, etc.), `depth` (z-level for multi-level dungeons)

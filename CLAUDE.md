@@ -45,6 +45,7 @@ src/cli_rpg/
 ├── ai_config.py         # AI service configuration
 ├── location_art.py      # Fallback ASCII art templates for locations
 ├── npc_art.py           # Fallback ASCII art templates for NPCs
+├── progress.py          # Progress indicators for AI generation (spinner, thematic messages)
 ├── config.py            # General configuration
 ├── colors.py            # ANSI color output utilities
 ├── text_effects.py      # Typewriter text reveal and dramatic pause effects

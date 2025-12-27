@@ -1,82 +1,69 @@
-# Implementation Summary: Dungeon Ambiance System (Issue #27, Increment 1)
+# Implementation Summary: Progress Feedback System (Issue 6)
 
-## Overview
-Implemented a location-specific whisper system for dungeons and interior locations with depth-based intensity and progressive dread.
+## Status: COMPLETE
 
-## Features Implemented
+The progress feedback system has been fully implemented and tested.
 
-### 1. Expanded Category-Specific Whispers
-- **File**: `src/cli_rpg/whisper.py`
-- Expanded `CATEGORY_WHISPERS` dictionary with 8+ templates per category:
-  - `dungeon`: 8 whispers (e.g., "Chains rattle somewhere in the dark", "The torchlight seems dimmer here...")
-  - `cave`: 8 whispers (e.g., "Strange formations gleam in the dim light", "Underground streams whisper of buried secrets...")
-  - `ruins`: 8 whispers (e.g., "Faded murals hint at forgotten stories", "Ghosts of memory drift through empty halls...")
-  - `temple`: 8 whispers (NEW category - e.g., "Incense lingers, though no candles burn", "The divine once dwelt here...")
-  - `forest`: 8 whispers (e.g., "Birdsong falls silent as you approach", "Old growth hides things best left undiscovered...")
-  - Also expanded `town`, `wilderness`, and `default` categories
+## What Was Implemented
 
-### 2. Depth-Based Whisper System
-- **File**: `src/cli_rpg/whisper.py`
-- Added `DEPTH_WHISPERS` dictionary with z-level keys:
-  - `0`: Empty (uses standard category whispers)
-  - `-1`: 4 whispers for shallow depth ("The weight of stone presses down above you...")
-  - `-2`: 4 whispers for deep exploration ("Something ancient stirs in the depths below...")
-  - `-3`: 4 whispers for the deepest levels ("The darkness here feels alive, hungry...")
-- Added `DEPTH_WHISPER_CHANCE = 0.40` constant (40% chance to use depth whispers when underground)
-- Updated `_get_template_whisper()` to check for depth whispers before category whispers
+### New Module: `src/cli_rpg/progress.py`
+- **`ProgressIndicator` class**: Non-blocking progress indicator using threading
+  - ASCII spinner characters: `['|', '/', '-', '\\']`
+  - Thematic messages by generation type (10 types with 5 messages each)
+  - Thread-safe start/stop with proper lock handling
+  - Respects `effects_enabled()` setting (disabled when `--no-color` or `--json`)
+  - Uses carriage return (`\r`) to overwrite line without newlines
+  - Clears line on stop for clean terminal output
 
-### 3. Depth-Based Dread Modifier
-- **File**: `src/cli_rpg/whisper.py`
-- Added `get_depth_dread_modifier(z: int) -> float` function:
-  - z >= 0: returns 1.0 (no modifier)
-  - z == -1: returns 1.25 (25% more dread)
-  - z == -2: returns 1.5 (50% more dread)
-  - z <= -3: returns 2.0 (capped at 100% more dread)
+- **`progress_indicator()` context manager**: Clean interface for wrapping AI calls
+  ```python
+  with progress_indicator("location"):
+      # AI generation work here
+  ```
 
-### 4. Updated get_whisper() Signature
-- **File**: `src/cli_rpg/whisper.py`
-- Added `depth: int = 0` parameter to `get_whisper()` method
-- Backward compatible - existing calls without depth continue to work
+- **Thematic Message Categories**:
+  - `location`: "Weaving ancient tales...", "Charting unexplored lands...", etc.
+  - `npc`: "Summoning wanderers...", "Awakening souls...", etc.
+  - `enemy`: "Summoning creatures...", "Awakening ancient foes...", etc.
+  - `lore`: "Weaving ancient tales...", "Unraveling mysteries...", etc.
+  - `area`: "Expanding horizons...", "Revealing new lands...", etc.
+  - `item`: "Forging treasures...", "Crafting artifacts...", etc.
+  - `quest`: "Weaving destinies...", "Unfolding adventures...", etc.
+  - `dream`: "Drifting into slumber...", "Wandering dreamscapes...", etc.
+  - `atmosphere`: "Sensing the unseen...", "Listening to whispers...", etc.
+  - `art`: "Sketching visions...", "Rendering forms...", etc.
+  - `default`: Fallback for unknown types
 
-### 5. SubGrid Movement Integration
-- **File**: `src/cli_rpg/game_state.py`
-- Updated `_move_in_sub_grid()` method to:
-  - Extract z-coordinate from destination location
-  - Call `get_whisper()` with depth parameter
-  - Apply depth dread modifier to dread gains using `get_depth_dread_modifier()`
-  - Display whispers with typewriter effect during dungeon exploration
+### Integration: `src/cli_rpg/ai_service.py`
+- Import added: `from cli_rpg.progress import progress_indicator`
+- Progress indicator wraps the `_call_llm()` method (line 299)
+- Automatically shows appropriate thematic messages based on `generation_type` parameter
 
-## Files Modified
-1. `src/cli_rpg/whisper.py`:
-   - Added `DEPTH_WHISPER_CHANCE` constant
-   - Expanded all category whisper templates to 8+
-   - Added new `temple` category
-   - Added `DEPTH_WHISPERS` dictionary
-   - Added `get_depth_dread_modifier()` function
-   - Updated `get_whisper()` and `_get_template_whisper()` signatures
-
-2. `src/cli_rpg/game_state.py`:
-   - Updated `_move_in_sub_grid()` to pass depth to whisper service
-   - Added dread calculation with depth modifier
+### Test Suite: `tests/test_progress.py`
+- 23 test cases covering:
+  - Spinner thread starts and stops correctly
+  - Messages exist for each generation type
+  - No output when effects disabled
+  - Context manager cleanup on exception
+  - Thread safety (double start/stop, stop without start)
+  - ASCII character verification
+  - Carriage return output format
 
 ## Test Results
-- Created `tests/test_dungeon_ambiance.py` with 21 tests (spec called for 17, added 4 more for thorough coverage)
-- All 21 new tests pass
-- All 31 existing whisper tests pass (backward compatibility maintained)
-- All 62 game_state tests pass
-- Full test suite: 4610 tests pass
+```
+23 passed in 0.49s
+```
 
-## Test Coverage
-The test file covers:
-- `TestExpandedCategoryWhispers`: Verifies 8+ templates per category
-- `TestDepthWhispers`: Verifies DEPTH_WHISPERS structure and content
-- `TestDepthWhisperSelection`: Verifies depth whisper selection logic
-- `TestDepthDread`: Verifies dread modifier function
-- `TestWhisperIntegrationWithDepth`: Integration tests for SubGrid movement
+## Technical Design Decisions
+1. **Threading for non-blocking operation**: Uses daemon threads so they don't prevent program exit
+2. **No external dependencies**: Built using only Python stdlib (threading, sys, time)
+3. **Graceful degradation**: Completely silent when effects are disabled
+4. **Message cycling**: Messages rotate every 2 seconds to keep the display interesting
 
-## E2E Validation Points
-1. Create a new game and enter a dungeon with multiple levels
-2. Move down through the dungeon levels (z=-1, z=-2, etc.)
-3. Verify whispers become more ominous at deeper levels
-4. Verify dread increases faster at deeper levels
-5. Verify surface-level whispers use standard category templates
+## E2E Validation
+When running the game with AI enabled:
+1. Start the game: `cli-rpg`
+2. Perform actions that trigger AI generation (entering new areas, talking to NPCs)
+3. A spinner with thematic messages should appear during AI generation
+4. The spinner should disappear cleanly when generation completes
+5. With `--no-color` or `--json` flags, no progress indicator should appear

@@ -155,16 +155,21 @@ Create a pre-generated world with AI content (locations, NPCs, quests, items) th
 ---
 
 ### Issue 6: Progress Feedback System
-**Status**: PENDING
+**Status**: COMPLETED ✓
 **Priority**: MEDIUM
+**Completed**: 2025-12-27
 
-Add visual progress bars and thematic loading messages during AI generation.
+Added thematic loading messages and ASCII spinners during AI generation.
 
-**Files to Create**:
-- `src/cli_rpg/progress.py`
-
-**Files to Modify**:
-- `pyproject.toml` - Add rich dependency
+**Implementation**:
+- `src/cli_rpg/progress.py` - New module with:
+  - `ProgressIndicator` class: Non-blocking ASCII spinner using threading
+  - `progress_indicator()` context manager for clean AI call wrapping
+  - Thematic messages for 10 generation types (location, npc, enemy, lore, area, item, quest, dream, atmosphere, art)
+  - Thread-safe start/stop with proper lock handling
+  - Respects `effects_enabled()` setting (disabled when `--no-color` or `--json`)
+- `src/cli_rpg/ai_service.py` - Integrated progress indicator in `_call_llm()` method
+- 23 tests in `tests/test_progress.py`
 
 ---
 
@@ -506,9 +511,9 @@ Create storyline system with branching quests and investigations.
 ### AI Content Generation (Remaining)
 
 **Phase 3: Progress Feedback** - Issues 6-8
-- Progress bars
-- LLM streaming
-- Background generation
+- ✓ Progress feedback (Issue 6 complete - ASCII spinner with thematic messages)
+- LLM streaming (Issue 7)
+- Background generation (Issue 8)
 
 **Phase 4: Settlement Scale** - Issue 9
 - ✓ Mega-settlements with districts (Issue 9 complete)
