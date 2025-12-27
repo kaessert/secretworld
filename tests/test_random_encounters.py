@@ -362,9 +362,10 @@ class TestHostileEncounter:
         original_spawn = None
         captured_args = {}
 
-        def mock_spawn_enemy(location_name, level, location_category=None, distance=0):
+        def mock_spawn_enemy(location_name, level, location_category=None, terrain_type=None, distance=0):
             captured_args["location_name"] = location_name
             captured_args["location_category"] = location_category
+            captured_args["terrain_type"] = terrain_type
             # Return a valid enemy
             return Enemy(
                 name="Wolf", health=30, max_health=30,
@@ -646,3 +647,99 @@ class TestSafeZoneEncounters:
         # Should trigger encounter in non-safe zone
         assert result is not None
         assert "[Random Encounter!]" in result
+
+
+class TestTerrainAwareEncounters:
+    """Tests for terrain-aware random encounters.
+
+    Spec: Hostile encounters should spawn enemies appropriate to the terrain
+    Priority: location.terrain (WFC-generated) > location.category (semantic) > location name matching
+    """
+
+    @pytest.fixture
+    def game_state_with_terrain(self, monkeypatch):
+        """Create game state with terrain-typed location."""
+        monkeypatch.setattr("cli_rpg.game_state.autosave", lambda gs: None)
+
+        character = Character("Hero", strength=10, dexterity=10, intelligence=10)
+        world = {
+            "Desert": Location(
+                "Sandy Wastes", "Hot desert",
+                coordinates=(0, 0), terrain="desert"
+            ),
+        }
+        return GameState(character, world, "Desert")
+
+    def test_hostile_encounter_uses_terrain_for_enemy(self, game_state_with_terrain, monkeypatch):
+        """Hostile encounters spawn terrain-appropriate enemies.
+
+        Spec: When location.terrain is set, spawn_enemy should receive it as terrain_type
+        """
+        # Mock to trigger hostile encounter
+        random_values = [0.05, 0.30]  # trigger=True, type=hostile
+        mock_random = MagicMock(side_effect=random_values)
+        monkeypatch.setattr("cli_rpg.random_encounters.random.random", mock_random)
+
+        captured_args = {}
+
+        def mock_spawn_enemy(location_name, level, location_category=None, terrain_type=None, distance=0):
+            captured_args["terrain_type"] = terrain_type
+            captured_args["location_category"] = location_category
+            return Enemy(
+                name="Scorpion", health=30, max_health=30,
+                attack_power=5, defense=2, xp_reward=20
+            )
+
+        monkeypatch.setattr("cli_rpg.random_encounters.spawn_enemy", mock_spawn_enemy)
+        check_for_random_encounter(game_state_with_terrain)
+
+        assert captured_args.get("terrain_type") == "desert"
+
+    def test_terrain_takes_priority_over_category(self, monkeypatch):
+        """Terrain type should override location category.
+
+        Spec: terrain_type > location_category in spawn_enemy
+        """
+        from cli_rpg.combat import spawn_enemy, ENEMY_TEMPLATES
+
+        # Spawn with both terrain and category (terrain wins)
+        # Mock random.choice to return first item in the list
+        monkeypatch.setattr("cli_rpg.combat.random.choice", lambda x: x[0])
+
+        enemy = spawn_enemy(
+            location_name="Test",
+            level=1,
+            location_category="forest",
+            terrain_type="desert",
+        )
+        # Desert enemies include Scorpion, Sand Serpent, etc. (not forest enemies)
+        assert enemy.name in ENEMY_TEMPLATES["desert"]
+
+    def test_category_used_when_no_terrain(self, monkeypatch):
+        """Location category should be used when terrain is not set.
+
+        Spec: Falls back to category when terrain_type is None
+        """
+        from cli_rpg.combat import spawn_enemy, ENEMY_TEMPLATES
+
+        monkeypatch.setattr("cli_rpg.combat.random.choice", lambda x: x[0])
+
+        enemy = spawn_enemy(
+            location_name="Test",
+            level=1,
+            location_category="forest",
+            terrain_type=None,
+        )
+        assert enemy.name in ENEMY_TEMPLATES["forest"]
+
+    def test_new_terrain_types_have_templates(self):
+        """New terrain types should have enemy templates.
+
+        Spec: plains, desert, swamp, hills, beach, foothills all have templates
+        """
+        from cli_rpg.combat import ENEMY_TEMPLATES
+
+        expected_terrains = ["plains", "desert", "swamp", "hills", "beach", "foothills"]
+        for terrain in expected_terrains:
+            assert terrain in ENEMY_TEMPLATES, f"Missing template for {terrain}"
+            assert len(ENEMY_TEMPLATES[terrain]) >= 4, f"{terrain} should have at least 4 enemies"

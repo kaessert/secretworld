@@ -278,10 +278,12 @@ def _handle_hostile_encounter(game_state: "GameState") -> str:
     level = game_state.current_character.level
 
     # Spawn enemy using existing system
+    # Priority: terrain (WFC-generated) > category (semantic) > name matching
     enemy = spawn_enemy(
         location_name=location.name,
         level=level,
         location_category=location.category,
+        terrain_type=location.terrain,
     )
 
     # Create combat encounter

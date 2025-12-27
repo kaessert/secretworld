@@ -36,6 +36,13 @@ ENEMY_TEMPLATES = {
     "dungeon": ["Skeleton", "Zombie", "Ghost", "Dark Knight"],
     "mountain": ["Eagle", "Goat", "Mountain Lion", "Yeti"],
     "village": ["Bandit", "Thief", "Ruffian", "Outlaw"],
+    # Terrain types from WFC generation
+    "plains": ["Wild Dog", "Highwayman", "Giant Rat", "Roaming Boar"],
+    "desert": ["Scorpion", "Sand Serpent", "Vulture", "Dust Bandit"],
+    "swamp": ["Swamp Leech", "Marsh Troll", "Bog Hag", "Giant Frog"],
+    "hills": ["Hill Giant", "Bandit Scout", "Wild Goat", "Hawk"],
+    "beach": ["Giant Crab", "Sea Serpent", "Coastal Raider", "Seagull Swarm"],
+    "foothills": ["Mountain Cat", "Rock Troll", "Foothill Bandit", "Wild Ram"],
     "default": ["Monster", "Creature", "Beast", "Fiend"]
 }
 
@@ -2157,6 +2164,7 @@ def spawn_enemy(
     location_name: str,
     level: int,
     location_category: Optional[str] = None,
+    terrain_type: Optional[str] = None,
     distance: int = 0
 ) -> Enemy:
     """
@@ -2166,34 +2174,48 @@ def spawn_enemy(
         location_name: Name of the location
         level: Player level for scaling
         location_category: Optional category from Location.category field.
-                          When provided, takes precedence over location name matching.
                           Valid: town, dungeon, wilderness, settlement, ruins, cave, forest, mountain, village
+        terrain_type: Optional terrain from Location.terrain field (WFC-generated).
+                     When provided, takes precedence over location_category.
+                     Valid: forest, plains, desert, swamp, hills, beach, foothills, mountain
         distance: Manhattan distance from origin for difficulty scaling (default 0)
 
     Returns:
         Enemy instance with stats scaled by distance
     """
-    # Category mappings: map location categories to enemy template keys
+    # Category/terrain mappings: map to enemy template keys
     # This allows semantic categories like "wilderness" to map to "forest" enemies
     category_mappings = {
+        # Semantic category mappings
         "wilderness": "forest",
         "ruins": "dungeon",
         "town": "village",
         "settlement": "village",
-        # Direct matches
+        # Direct category matches
         "forest": "forest",
         "cave": "cave",
         "dungeon": "dungeon",
         "mountain": "mountain",
         "village": "village",
+        # Terrain type mappings (direct matches)
+        "plains": "plains",
+        "desert": "desert",
+        "swamp": "swamp",
+        "hills": "hills",
+        "beach": "beach",
+        "foothills": "foothills",
+        # Water is impassable, but include fallback
+        "water": "beach",  # If somehow in water, beach-adjacent enemies
     }
 
     # Determine location type:
-    # 1. Use location_category if provided (takes precedence)
-    # 2. Otherwise fall back to matching against location name
+    # Priority: terrain_type > location_category > name matching
     location_type = "default"
 
-    if location_category:
+    if terrain_type and terrain_type.lower() in category_mappings:
+        # Use terrain type if provided (takes highest precedence)
+        location_type = category_mappings[terrain_type.lower()]
+    elif location_category:
         # Use category mapping if available
         location_type = category_mappings.get(location_category.lower(), "default")
     else:

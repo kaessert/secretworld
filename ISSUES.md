@@ -1453,6 +1453,37 @@ Target: Giant Spider x3
 
 ---
 
+### Tiredness not displayed in status command
+**Status**: ACTIVE
+**Date Added**: 2025-12-27
+**Severity**: Medium (UX Issue)
+
+**Problem**: The README documents a "Tiredness System" that tracks player fatigue (0-100), with specific effects:
+- Tiredness increases from travel (+3 per move) and combat (+5 base + 1 per turn)
+- At 80+ tiredness, attack and perception are reduced by 10%
+- Sleep is only available when tiredness reaches 30+
+
+However, the `status` command does NOT display the player's current tiredness level. The status output shows Health, Mana, Stamina, Gold, XP, all 6 stats, Time, Weather, and Dread - but no Tiredness indicator.
+
+**Steps to Reproduce**:
+1. Start a new game with `--skip-character-creation`
+2. Move between locations several times (e.g., `gs`, `gn`, `gs`, `gn` x5)
+3. Run `status` command
+4. Observe that tiredness is not displayed, even though it should be ~30+ after 10 moves
+
+**Expected Behavior**: The `status` command should display the current tiredness level, similar to how Dread is displayed with a meter.
+
+**Actual Behavior**: Tiredness is tracked internally (the `rest` command shows "Tiredness -25%") but players cannot see their current tiredness value.
+
+**Impact**: Players cannot:
+- Know when they can sleep (requires 30+ tiredness)
+- Know when they're suffering combat penalties (80+ tiredness)
+- Plan their rest strategy effectively
+
+**Note**: This is separate from the "Tiredness stat for realistic sleep/rest mechanics" issue which was marked resolved. That issue covered the implementation of tiredness mechanics, but not the UI display of the tiredness value.
+
+---
+
 ### ✅ RESOLVED: Misleading error message for class-specific abilities outside combat
 **Status**: RESOLVED
 **Date Added**: 2025-12-27

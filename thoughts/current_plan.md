@@ -1,96 +1,174 @@
-# Plan: Fix Class-Specific Ability Error Message Ordering
+# Terrain-Aware Random Encounters
 
 ## Summary
-Fix UX issue where class-specific combat abilities show "Not in combat" instead of class restriction errors when used outside combat by wrong class.
+Make random encounters respect the current location's terrain type. Currently, `_handle_hostile_encounter` passes `location.category` to `spawn_enemy`, but Location also has a `terrain` field from WFC generation. This field should be preferred when present, with `category` as fallback, matching the pattern established by terrain-aware merchant shops.
 
 ## Spec
-- **Warrior-only**: `bash` → "Only Warriors can bash!"
-- **Mage-only**: `fireball`, `ice_bolt`, `heal` → "Only Mages can cast X!"
-- **Cleric-only**: `bless`, `smite` → "Only Clerics can X!"
+- Hostile random encounters should spawn enemies appropriate to the terrain
+- Priority: `location.terrain` (WFC-generated) > `location.category` (semantic) > location name matching
+- Terrain types (from `world_tiles.TerrainType`): forest, mountain, plains, water, desert, swamp, hills, beach, foothills
+- Map terrains to existing ENEMY_TEMPLATES keys or add new templates as needed
 
-When a non-matching class uses these commands outside combat, show class error first.
-When the correct class uses these commands outside combat, show "Not in combat."
+## Changes
 
-## Implementation
-
-### 1. Modify `src/cli_rpg/main.py` (lines 2488-2490)
-
-**Current code:**
+### 1. Extend ENEMY_TEMPLATES (combat.py, line ~33)
+Add templates for terrains not yet covered:
 ```python
-elif command in ["attack", "defend", "block", "parry", "flee", "rest", "cast",
-                  "fireball", "ice_bolt", "heal", "bash", "bless", "smite", "hide"]:
-    return (True, "\n✗ Not in combat.")
+ENEMY_TEMPLATES = {
+    "forest": ["Wolf", "Bear", "Wild Boar", "Giant Spider"],
+    "cave": ["Bat", "Goblin", "Troll", "Cave Dweller"],
+    "dungeon": ["Skeleton", "Zombie", "Ghost", "Dark Knight"],
+    "mountain": ["Eagle", "Goat", "Mountain Lion", "Yeti"],
+    "village": ["Bandit", "Thief", "Ruffian", "Outlaw"],
+    # NEW terrain entries:
+    "plains": ["Wild Dog", "Highwayman", "Giant Rat", "Roaming Boar"],
+    "desert": ["Scorpion", "Sand Serpent", "Vulture", "Dust Bandit"],
+    "swamp": ["Swamp Leech", "Marsh Troll", "Bog Hag", "Giant Frog"],
+    "hills": ["Hill Giant", "Bandit Scout", "Wild Goat", "Hawk"],
+    "beach": ["Giant Crab", "Sea Serpent", "Coastal Raider", "Seagull Swarm"],
+    "foothills": ["Mountain Cat", "Rock Troll", "Foothill Bandit", "Wild Ram"],
+    "default": ["Monster", "Creature", "Beast", "Fiend"]
+}
 ```
 
-**New code:**
+### 2. Extend category_mappings in spawn_enemy (combat.py, line ~2176)
+Add terrain type mappings:
 ```python
-# Class-specific abilities: check class BEFORE combat state
-elif command == "bash":
-    if game_state.current_character.character_class != CharacterClass.WARRIOR:
-        return (True, "\n✗ Only Warriors can bash!")
-    return (True, "\n✗ Not in combat.")
-
-elif command == "fireball":
-    if game_state.current_character.character_class != CharacterClass.MAGE:
-        return (True, "\n✗ Only Mages can cast Fireball!")
-    return (True, "\n✗ Not in combat.")
-
-elif command == "ice_bolt":
-    if game_state.current_character.character_class != CharacterClass.MAGE:
-        return (True, "\n✗ Only Mages can cast Ice Bolt!")
-    return (True, "\n✗ Not in combat.")
-
-elif command == "heal":
-    if game_state.current_character.character_class != CharacterClass.MAGE:
-        return (True, "\n✗ Only Mages can cast Heal!")
-    return (True, "\n✗ Not in combat.")
-
-elif command == "bless":
-    if game_state.current_character.character_class != CharacterClass.CLERIC:
-        return (True, "\n✗ Only Clerics can bless!")
-    return (True, "\n✗ Not in combat.")
-
-elif command == "smite":
-    if game_state.current_character.character_class != CharacterClass.CLERIC:
-        return (True, "\n✗ Only Clerics can smite!")
-    return (True, "\n✗ Not in combat.")
-
-# Generic combat commands: just check combat state
-elif command in ["attack", "defend", "block", "parry", "flee", "rest", "cast", "hide"]:
-    return (True, "\n✗ Not in combat.")
+category_mappings = {
+    # Existing semantic categories
+    "wilderness": "forest",
+    "ruins": "dungeon",
+    "town": "village",
+    "settlement": "village",
+    # Direct matches (existing)
+    "forest": "forest",
+    "cave": "cave",
+    "dungeon": "dungeon",
+    "mountain": "mountain",
+    "village": "village",
+    # NEW terrain type mappings (direct matches)
+    "plains": "plains",
+    "desert": "desert",
+    "swamp": "swamp",
+    "hills": "hills",
+    "beach": "beach",
+    "foothills": "foothills",
+    # Water is impassable, but include fallback
+    "water": "beach",  # If somehow in water, beach-adjacent enemies
+}
 ```
 
-### 2. Add CharacterClass import at top of function
-
-Add near existing imports in `handle_exploration_command`:
+### 3. Update spawn_enemy signature (combat.py, line ~2156)
+Add optional `terrain_type` parameter:
 ```python
-from cli_rpg.models.character import CharacterClass
+def spawn_enemy(
+    location_name: str,
+    level: int,
+    location_category: Optional[str] = None,
+    terrain_type: Optional[str] = None,  # NEW
+    distance: int = 0
+) -> Enemy:
 ```
 
-### 3. Update tests in `tests/test_main_coverage.py`
+Update logic (after line ~2194):
+```python
+location_type = "default"
 
-Update 6 tests (lines 599-675) to test new behavior:
+# Priority: terrain_type > location_category > name matching
+if terrain_type and terrain_type.lower() in category_mappings:
+    location_type = category_mappings[terrain_type.lower()]
+elif location_category:
+    location_type = category_mappings.get(location_category.lower(), "default")
+else:
+    # Fall back to name-based matching
+    ...
+```
 
-- `test_fireball_command_outside_combat`: Create Warrior, expect "Only Mages"
-- `test_ice_bolt_command_outside_combat`: Create Warrior, expect "Only Mages"
-- `test_heal_command_outside_combat`: Create Warrior, expect "Only Mages"
-- `test_bash_command_outside_combat`: Create Mage, expect "Only Warriors"
-- `test_bless_command_outside_combat`: Create Warrior, expect "Only Clerics"
-- `test_smite_command_outside_combat`: Create Warrior, expect "Only Clerics"
+### 4. Update _handle_hostile_encounter (random_encounters.py, line ~268)
+Pass terrain to spawn_enemy:
+```python
+def _handle_hostile_encounter(game_state: "GameState") -> str:
+    location = game_state.get_current_location()
+    level = game_state.current_character.level
 
-Add 6 complementary tests for correct class + "Not in combat":
-- `test_fireball_mage_outside_combat_shows_not_in_combat`
-- `test_ice_bolt_mage_outside_combat_shows_not_in_combat`
-- `test_heal_mage_outside_combat_shows_not_in_combat`
-- `test_bash_warrior_outside_combat_shows_not_in_combat`
-- `test_bless_cleric_outside_combat_shows_not_in_combat`
-- `test_smite_cleric_outside_combat_shows_not_in_combat`
+    enemy = spawn_enemy(
+        location_name=location.name,
+        level=level,
+        location_category=location.category,
+        terrain_type=location.terrain,  # NEW
+    )
+    ...
+```
 
-## Files to Modify
-1. `src/cli_rpg/main.py` - Reorder checks (lines 2488-2490)
-2. `tests/test_main_coverage.py` - Update and add tests (lines 599-675)
+## Tests (tests/test_random_encounters.py)
+
+### New test class: TestTerrainAwareEncounters
+```python
+class TestTerrainAwareEncounters:
+    """Tests for terrain-aware random encounters."""
+
+    @pytest.fixture
+    def game_state_with_terrain(self, monkeypatch):
+        """Create game state with terrain-typed location."""
+        monkeypatch.setattr("cli_rpg.game_state.autosave", lambda gs: None)
+        character = Character("Hero", strength=10, dexterity=10, intelligence=10)
+        world = {
+            "Desert": Location(
+                "Sandy Wastes", "Hot desert",
+                coordinates=(0, 0), terrain="desert"
+            ),
+        }
+        return GameState(character, world, "Desert")
+
+    def test_hostile_encounter_uses_terrain_for_enemy(self, game_state_with_terrain, monkeypatch):
+        """Hostile encounters spawn terrain-appropriate enemies.
+
+        Spec: When location.terrain is set, spawn_enemy should use it
+        """
+        # Mock to trigger hostile encounter
+        random_values = [0.05, 0.30]
+        mock_random = MagicMock(side_effect=random_values)
+        monkeypatch.setattr("cli_rpg.random_encounters.random.random", mock_random)
+
+        captured_args = {}
+        def mock_spawn_enemy(location_name, level, location_category=None, terrain_type=None, distance=0):
+            captured_args["terrain_type"] = terrain_type
+            return Enemy(name="Scorpion", health=30, max_health=30, attack_power=5, defense=2, xp_reward=20)
+
+        monkeypatch.setattr("cli_rpg.random_encounters.spawn_enemy", mock_spawn_enemy)
+        check_for_random_encounter(game_state_with_terrain)
+
+        assert captured_args.get("terrain_type") == "desert"
+
+    def test_terrain_takes_priority_over_category(self, game_state_with_terrain, monkeypatch):
+        """Terrain type should override location category.
+
+        Spec: terrain_type > location_category in spawn_enemy
+        """
+        from cli_rpg.combat import spawn_enemy, ENEMY_TEMPLATES
+
+        # Spawn with both terrain and category (terrain wins)
+        enemy = spawn_enemy(
+            location_name="Test",
+            level=1,
+            location_category="forest",
+            terrain_type="desert",
+        )
+        # Desert enemies include Scorpion, Sand Serpent, etc. (not forest enemies)
+        assert enemy.name in ENEMY_TEMPLATES["desert"]
+```
+
+### Update existing test
+In `TestHostileEncounter.test_encounter_respects_location_category`, update mock to accept terrain_type:
+```python
+def mock_spawn_enemy(location_name, level, location_category=None, terrain_type=None, distance=0):
+    captured_args["terrain_type"] = terrain_type
+    ...
+```
 
 ## Verification
+Run tests:
 ```bash
-pytest tests/test_main_coverage.py::TestExplorationCombatCommandsOutsideCombat -v
+pytest tests/test_random_encounters.py -v
+pytest tests/test_combat.py -v -k spawn_enemy
 ```
