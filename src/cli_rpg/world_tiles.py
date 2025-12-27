@@ -184,7 +184,7 @@ def get_distance_penalty(terrain: str, nearby_terrains: Set[str]) -> float:
 
     Two levels of penalty:
     - Severe (0.01): Biome group incompatibility (temperate near arid)
-    - Moderate (0.3): Jarring terrain pairs (mountain near beach)
+    - Moderate (0.3): Unnatural direct adjacency (mountain near beach)
 
     Args:
         terrain: The terrain type being considered for collapse
@@ -203,10 +203,15 @@ def get_distance_penalty(terrain: str, nearby_terrains: Set[str]) -> float:
         if (terrain_group, nearby_group) in INCOMPATIBLE_GROUPS:
             return 0.01  # 99% weight reduction (very strong penalty)
 
-    # Check for jarring terrain pairs (moderate penalty)
+    # Check for unnatural adjacency using NATURAL_TRANSITIONS (moderate penalty)
+    terrain_natural = NATURAL_TRANSITIONS.get(terrain, set())
     for nearby in nearby_terrains:
-        if frozenset({terrain, nearby}) in JARRING_TERRAIN_PAIRS:
-            return 0.3  # 70% weight reduction (moderate penalty)
+        # If terrain can't naturally border this nearby terrain
+        if nearby not in terrain_natural:
+            # Also check reverse (symmetric check)
+            nearby_natural = NATURAL_TRANSITIONS.get(nearby, set())
+            if terrain not in nearby_natural:
+                return 0.3  # 70% weight reduction (moderate penalty)
 
     return 1.0
 

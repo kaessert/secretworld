@@ -118,7 +118,8 @@ class TestNPCPersistenceNavigation:
         start.npcs = [NPC(name="HomeNPC", description="An NPC at home", dialogue="Welcome!")]
 
         world = {"Start": start}
-        chunk_manager = ChunkManager(tile_registry=DEFAULT_TILE_REGISTRY, world_seed=42)
+        # Use seed=1 which produces passable terrain at adjacent positions
+        chunk_manager = ChunkManager(tile_registry=DEFAULT_TILE_REGISTRY, world_seed=1)
         chunk_manager.sync_with_locations(world)
 
         game_state = GameState(

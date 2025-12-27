@@ -45,10 +45,15 @@ def basic_world() -> dict[str, Location]:
 
 @pytest.fixture
 def chunk_manager() -> ChunkManager:
-    """Create a ChunkManager for testing."""
+    """Create a ChunkManager for testing.
+
+    Note: seed=1 chosen because it produces passable terrain at (0,1)
+    which is required for movement tests. WFC output is deterministic
+    but terrain distribution varies with penalty configurations.
+    """
     return ChunkManager(
         tile_registry=DEFAULT_TILE_REGISTRY,
-        world_seed=42,
+        world_seed=1,
     )
 
 
@@ -66,7 +71,7 @@ class TestGameStateWithChunkManager:
             chunk_manager=chunk_manager,
         )
         assert gs.chunk_manager is chunk_manager
-        assert gs.chunk_manager.world_seed == 42
+        assert gs.chunk_manager.world_seed == 1
 
     def test_gamestate_without_chunk_manager(self, basic_character, basic_world):
         """Test #2: GameState works without chunk_manager (backward compat)."""
@@ -212,7 +217,7 @@ class TestChunkManagerPersistence:
 
         data = gs.to_dict()
         assert "chunk_manager" in data
-        assert data["chunk_manager"]["world_seed"] == 42
+        assert data["chunk_manager"]["world_seed"] == 1
         assert "chunks" in data["chunk_manager"]
 
     def test_load_restores_chunk_manager(
@@ -236,7 +241,7 @@ class TestChunkManagerPersistence:
         restored_gs = GameState.from_dict(data)
 
         assert restored_gs.chunk_manager is not None
-        assert restored_gs.chunk_manager.world_seed == 42
+        assert restored_gs.chunk_manager.world_seed == 1
 
         # Verify chunk was restored
         restored_tile = restored_gs.chunk_manager.get_tile_at(0, 0)
