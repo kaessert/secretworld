@@ -1,85 +1,85 @@
-# Environmental Storytelling for Dungeon Interiors
+# Monster Migration for Issue 25 (Dynamic Interior Events)
 
 ## Overview
-Add environmental storytelling elements (corpses, bloodstains, journals) to SubGrid location descriptions. This addresses Issue 27's "Environmental storytelling" acceptance criteria and also touches on the "Environmental storytelling" item in the Secrets issue.
+Add monster migration events to SubGrid dungeons. When triggered, enemies shift spawn locations within the dungeon, creating dynamic encounter distributions. This builds on the existing `interior_events.py` infrastructure.
 
 ## Spec
-- Non-entry SubGrid rooms in dungeon/cave/ruins/temple categories get 0-2 environmental details
-- Details are selected from category-specific pools and distance-scaled (deeper = darker)
-- Details appear in location descriptions after the main description
-- 40% base chance, scaling with distance from entry
+- Monster migration is a new `InteriorEvent` type: `"monster_migration"`
+- Triggers with 3% chance per SubGrid move (lower than cave-in's 5% since less disruptive)
+- Same category restrictions as cave-ins: dungeon, cave, ruins, temple
+- Effect: Modifies encounter rates for rooms within SubGrid temporarily
+- Duration: 2-6 hours (shorter than cave-ins since less impactful)
+- Player notification: Warning message when migration triggers
 
-### Environmental Detail Types
-1. **Corpses**: Previous adventurer remains with thematic descriptions
-2. **Bloodstains**: Combat evidence, aged or fresh
-3. **Journals/Notes**: Fragmentary lore hints, warnings from past explorers
-
-### Category-Specific Pools
-- **Dungeon**: Skeletal prisoners, tortured victims, desperate messages scratched on walls
-- **Cave**: Mauled hunters, trapped explorers, mineral-stained bones
-- **Ruins**: Ancient corpses, preserved by magic or decay, stone tablets with warnings
-- **Temple**: Sacrificial victims, corrupted priests, profane scripture
+### Migration Mechanic
+Rather than tracking individual enemy positions (enemies spawn on encounter), monster migration modifies **encounter rate multipliers** for SubGrid rooms:
+- Some rooms get increased encounter rate (monsters gathered there)
+- Some rooms get decreased encounter rate (monsters fled)
+- Effect stored in `InteriorEvent` with `affected_rooms` field
 
 ## Implementation
 
-### 1. Create environmental_storytelling.py module
-Location: `src/cli_rpg/environmental_storytelling.py`
-
+### 1. Extend InteriorEvent dataclass
+Add optional `affected_rooms` field for room-specific modifiers:
 ```python
-STORYTELLING_CATEGORIES = frozenset({"dungeon", "cave", "ruins", "temple"})
-BASE_STORYTELLING_CHANCE = 0.40
-
-ENVIRONMENTAL_DETAILS = {
-    "dungeon": [
-        {"type": "corpse", "desc": "A skeleton slumps against the wall, rusted chains still binding its wrists."},
-        {"type": "corpse", "desc": "The remains of an adventurer lie here, their sword still gripped in bony fingers."},
-        {"type": "bloodstain", "desc": "Dark stains splatter across the floor, long since dried."},
-        {"type": "bloodstain", "desc": "A trail of dried blood leads to a dark corner."},
-        {"type": "journal", "desc": "A torn page reads: 'The deeper we go, the worse the whispers get...'"},
-        {"type": "journal", "desc": "Scratched into the stone: 'DON'T TRUST THE SHADOWS'"},
-    ],
-    # ... more categories
-}
+@dataclass
+class InteriorEvent:
+    # ... existing fields ...
+    affected_rooms: Optional[dict] = None  # {(x,y,z): modifier} for migration
 ```
 
-### 2. Add function to generate storytelling elements
+### 2. Add migration constants and functions
+Add to `interior_events.py`:
 ```python
-def get_environmental_details(category: str, distance: int = 0, z_level: int = 0) -> list[str]:
-    """Generate 0-2 environmental storytelling elements for a location."""
+MONSTER_MIGRATION_SPAWN_CHANCE = 0.03
+MONSTER_MIGRATION_DURATION_RANGE = (2, 6)
+MONSTER_MIGRATION_CATEGORIES = CAVE_IN_CATEGORIES  # Same: dungeon, cave, ruins, temple
+
+def check_for_monster_migration(game_state, sub_grid) -> Optional[str]:
+    """Check for monster migration event after SubGrid movement."""
+
+def get_encounter_modifier_at_location(sub_grid, coords) -> float:
+    """Get cumulative encounter rate modifier from active migrations."""
 ```
 
-### 3. Integrate into ai_world.py
-In `generate_subgrid_for_location()` and `expand_area()`, call `get_environmental_details()` for non-entry rooms and store in a new `Location.environmental_details` field.
+### 3. Integrate with random encounter system
+Modify `random_encounters.py` to check for migration modifiers when inside SubGrid:
+```python
+def check_for_random_encounter(game_state):
+    # ... existing code ...
+    # Add: Check for migration modifier in SubGrid
+    if game_state.active_sub_grid:
+        modifier = get_encounter_modifier_at_location(sub_grid, coords)
+        encounter_rate *= modifier
+```
 
-### 4. Update Location model
-Add `environmental_details: List[str]` field to Location dataclass with serialization.
-
-### 5. Update location display
-Modify `get_layered_description()` to include environmental details after description.
+### 4. Clear expired migrations
+Extend `progress_interior_events()` to handle migration expiry.
 
 ## Test Plan
-File: `tests/test_environmental_storytelling.py`
+File: `tests/test_interior_events.py` (extend existing)
 
-1. **test_get_environmental_details_returns_list** - Returns list of 0-2 strings
-2. **test_storytelling_categories_get_details** - dungeon/cave/ruins/temple get details
-3. **test_non_storytelling_categories_empty** - town/village return empty list
-4. **test_distance_scaling** - Further from entry = higher chance
-5. **test_depth_scaling** - Deeper z-level = higher chance
-6. **test_dungeon_details_thematic** - Details match dungeon theme
-7. **test_cave_details_thematic** - Details match cave theme
-8. **test_location_serialization** - environmental_details serializes correctly
-9. **test_location_description_includes_details** - Details appear in display
-10. **test_integration_with_subgrid_generation** - SubGrid rooms get details
+1. **test_monster_migration_event_creation** - Event with type "monster_migration" and affected_rooms
+2. **test_monster_migration_spawn_chance** - 3% spawn rate
+3. **test_monster_migration_valid_categories** - Only dungeon/cave/ruins/temple
+4. **test_monster_migration_duration_range** - 2-6 hours
+5. **test_monster_migration_affected_rooms** - affected_rooms dict populated
+6. **test_get_encounter_modifier_default** - Returns 1.0 when no migrations
+7. **test_get_encounter_modifier_with_migration** - Returns modified value
+8. **test_monster_migration_expiry** - Migration clears after duration
+9. **test_monster_migration_serialization** - affected_rooms serializes correctly
+10. **test_multiple_migrations_stack** - Multiple active migrations combine
 
 ## Files to Modify
-- `src/cli_rpg/environmental_storytelling.py` (NEW)
-- `src/cli_rpg/models/location.py` - Add `environmental_details` field
-- `src/cli_rpg/ai_world.py` - Integrate detail generation
-- `tests/test_environmental_storytelling.py` (NEW)
+- `src/cli_rpg/interior_events.py` - Add migration event logic
+- `src/cli_rpg/random_encounters.py` - Apply migration modifiers
+- `tests/test_interior_events.py` - Add migration tests
 
 ## Acceptance Criteria
-- [x] Environmental details appear in non-entry SubGrid rooms
-- [x] Details are category-appropriate (dungeon ≠ cave ≠ temple)
-- [x] Distance/depth scaling affects detail intensity
-- [x] Details serialize/deserialize correctly for save/load
-- [x] 10 tests pass
+- [ ] Monster migration event type added to InteriorEvent
+- [ ] 3% spawn chance per SubGrid move in valid categories
+- [ ] Affected rooms get encounter rate modifiers (0.5x to 2.0x)
+- [ ] Duration 2-6 hours with auto-expiry
+- [ ] Integration with random encounter system
+- [ ] Serialization preserves affected_rooms
+- [ ] 10 new tests pass

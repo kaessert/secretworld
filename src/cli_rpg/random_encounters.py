@@ -251,6 +251,13 @@ def check_for_random_encounter(game_state: "GameState") -> Optional[str]:
     # Roll for encounter using category-specific rate
     # Issue 21: Location-specific encounter rates
     encounter_rate = get_encounter_rate(location.category) if location.category else RANDOM_ENCOUNTER_CHANCE
+
+    # Issue 25: Apply monster migration modifier if inside SubGrid
+    if game_state.current_sub_grid and location.coordinates:
+        from cli_rpg.interior_events import get_encounter_modifier_at_location
+        modifier = get_encounter_modifier_at_location(game_state.current_sub_grid, location.coordinates)
+        encounter_rate *= modifier
+
     if random.random() > encounter_rate:
         return None
 

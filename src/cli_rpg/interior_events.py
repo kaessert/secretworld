@@ -27,6 +27,19 @@ CAVE_IN_CATEGORIES = {"dungeon", "cave", "ruins", "temple"}
 # Directions that can be blocked (horizontal only, not up/down for now)
 BLOCKABLE_DIRECTIONS = {"north", "south", "east", "west"}
 
+# Monster migration constants
+# Spawn chance: 3% per move (lower than cave-in's 5% since less disruptive)
+MONSTER_MIGRATION_SPAWN_CHANCE = 0.03
+
+# Duration range in hours (shorter than cave-ins since less impactful)
+MONSTER_MIGRATION_DURATION_RANGE = (2, 6)
+
+# Location categories where migrations can occur (same as cave-ins)
+MONSTER_MIGRATION_CATEGORIES = CAVE_IN_CATEGORIES
+
+# Encounter modifier range (0.5x to 2.0x)
+MONSTER_MIGRATION_MODIFIER_RANGE = (0.5, 2.0)
+
 
 @dataclass
 class InteriorEvent:
@@ -34,12 +47,13 @@ class InteriorEvent:
 
     Attributes:
         event_id: Unique identifier for this event
-        event_type: Type of event (e.g., "cave_in")
+        event_type: Type of event (e.g., "cave_in", "monster_migration")
         location_coords: 3-tuple (x, y, z) where the event occurred
-        blocked_direction: Direction that is blocked by this event
+        blocked_direction: Direction that is blocked by this event (for cave_in)
         start_hour: Game hour when the event started
         duration_hours: How long the event lasts (in game hours)
         is_active: Whether the event is still in effect
+        affected_rooms: Dict of {(x,y,z): modifier} for monster_migration events
     """
 
     event_id: str
@@ -49,6 +63,7 @@ class InteriorEvent:
     start_hour: int
     duration_hours: int
     is_active: bool = True
+    affected_rooms: Optional[dict] = None
 
     def is_expired(self, current_hour: int) -> bool:
         """Check if the event has expired based on current game time.
@@ -79,7 +94,7 @@ class InteriorEvent:
         Returns:
             Dictionary representation of the event
         """
-        return {
+        result = {
             "event_id": self.event_id,
             "event_type": self.event_type,
             "location_coords": list(self.location_coords),
@@ -88,6 +103,13 @@ class InteriorEvent:
             "duration_hours": self.duration_hours,
             "is_active": self.is_active,
         }
+        # Serialize affected_rooms: dict with tuple keys -> list of [coords, modifier]
+        if self.affected_rooms is not None:
+            result["affected_rooms"] = [
+                [list(coords), modifier]
+                for coords, modifier in self.affected_rooms.items()
+            ]
+        return result
 
     @classmethod
     def from_dict(cls, data: dict) -> "InteriorEvent":
@@ -99,6 +121,14 @@ class InteriorEvent:
         Returns:
             InteriorEvent instance
         """
+        # Deserialize affected_rooms: list of [coords, modifier] -> dict with tuple keys
+        affected_rooms = None
+        if "affected_rooms" in data and data["affected_rooms"] is not None:
+            affected_rooms = {
+                tuple(coords): modifier
+                for coords, modifier in data["affected_rooms"]
+            }
+
         return cls(
             event_id=data["event_id"],
             event_type=data["event_type"],
@@ -107,6 +137,7 @@ class InteriorEvent:
             start_hour=data["start_hour"],
             duration_hours=data["duration_hours"],
             is_active=data.get("is_active", True),
+            affected_rooms=affected_rooms,
         )
 
 
@@ -211,7 +242,7 @@ def progress_interior_events(
     """Progress interior events and clear expired ones.
 
     Called when time advances. Checks each active interior event and
-    removes blockages when they expire.
+    removes blockages when they expire, or clears migrations.
 
     Args:
         game_state: Current game state
@@ -219,7 +250,7 @@ def progress_interior_events(
         hours: Number of hours that passed (default 1)
 
     Returns:
-        List of messages about cleared cave-ins
+        List of messages about cleared events
     """
     messages = []
     current_hour = game_state.game_time.total_hours
@@ -239,6 +270,16 @@ def progress_interior_events(
                         f"The passage is open again."
                     )
                 )
+
+        elif event.event_type == "monster_migration" and event.is_expired(current_hour):
+            # Clear the migration
+            event.is_active = False
+            messages.append(
+                colors.heal(
+                    "The monster migration has subsided. "
+                    "Creature activity returns to normal."
+                )
+            )
 
     return messages
 
@@ -321,3 +362,140 @@ def get_cave_in_at_location(
             return event
 
     return None
+
+
+def check_for_monster_migration(
+    game_state: "GameState",
+    sub_grid: "SubGrid",
+) -> Optional[str]:
+    """Check if a monster migration should spawn after movement in a SubGrid.
+
+    Spawns a migration with MONSTER_MIGRATION_SPAWN_CHANCE probability, modifying
+    encounter rates for rooms in the SubGrid. Only spawns in appropriate location
+    categories (dungeon, cave, ruins, temple).
+
+    Args:
+        game_state: Current game state
+        sub_grid: The SubGrid the player is moving in
+
+    Returns:
+        Message describing the migration if one occurred, None otherwise
+    """
+    # Get current location
+    current = game_state.get_current_location()
+    if current is None or current.coordinates is None:
+        return None
+
+    # Check if parent location category allows migrations
+    parent_location = game_state.world.get(sub_grid.parent_name)
+    if parent_location is None:
+        return None
+
+    parent_category = (parent_location.category or "").lower()
+    if parent_category not in MONSTER_MIGRATION_CATEGORIES:
+        return None
+
+    # Roll for migration spawn
+    if random.random() > MONSTER_MIGRATION_SPAWN_CHANCE:
+        return None
+
+    # Get all room coordinates in the SubGrid
+    room_coords = []
+    for loc in sub_grid._grid.values():
+        if loc.coordinates:
+            # Normalize to 3-tuple
+            coords = loc.coordinates
+            if len(coords) == 2:
+                coords = (coords[0], coords[1], 0)
+            room_coords.append(coords)
+
+    if len(room_coords) < 2:
+        return None  # Need at least 2 rooms for migration to matter
+
+    # Select 1-3 rooms to be affected (or all if fewer)
+    num_affected = min(random.randint(1, 3), len(room_coords))
+    affected = random.sample(room_coords, num_affected)
+
+    # Assign modifiers to affected rooms
+    min_mod, max_mod = MONSTER_MIGRATION_MODIFIER_RANGE
+    affected_rooms = {}
+    for coords in affected:
+        modifier = random.uniform(min_mod, max_mod)
+        affected_rooms[coords] = round(modifier, 2)
+
+    # Create the migration event
+    coords = current.coordinates
+    x, y = coords[:2]
+    z = coords[2] if len(coords) > 2 else 0
+
+    event_id = f"migration_{x}_{y}_{z}_{random.randint(1000, 9999)}"
+    min_dur, max_dur = MONSTER_MIGRATION_DURATION_RANGE
+    duration = random.randint(min_dur, max_dur)
+
+    event = InteriorEvent(
+        event_id=event_id,
+        event_type="monster_migration",
+        location_coords=(x, y, z),
+        blocked_direction="",  # Not applicable for migrations
+        start_hour=game_state.game_time.total_hours,
+        duration_hours=duration,
+        affected_rooms=affected_rooms,
+    )
+
+    # Add to sub_grid's interior events list
+    sub_grid.interior_events.append(event)
+
+    # Return message
+    return colors.warning(
+        "You hear creatures stirring in the distance... "
+        "A monster migration is underway!"
+    )
+
+
+def get_encounter_modifier_at_location(
+    sub_grid: "SubGrid",
+    coords: tuple,
+) -> float:
+    """Get cumulative encounter rate modifier from active migrations.
+
+    Multiple migrations stack multiplicatively.
+
+    Args:
+        sub_grid: The SubGrid to check
+        coords: (x, y, z) coordinates of the location
+
+    Returns:
+        Cumulative encounter rate modifier (1.0 = no change)
+    """
+    # Normalize coords to 3-tuple
+    if len(coords) == 2:
+        coords = (coords[0], coords[1], 0)
+
+    modifier = 1.0
+
+    for event in sub_grid.interior_events:
+        if (
+            event.is_active
+            and event.event_type == "monster_migration"
+            and event.affected_rooms is not None
+        ):
+            if coords in event.affected_rooms:
+                modifier *= event.affected_rooms[coords]
+
+    return modifier
+
+
+def get_active_migrations(sub_grid: "SubGrid") -> List[InteriorEvent]:
+    """Get all active monster migration events in a SubGrid.
+
+    Args:
+        sub_grid: The SubGrid to check
+
+    Returns:
+        List of active monster migration events
+    """
+    return [
+        event
+        for event in sub_grid.interior_events
+        if event.is_active and event.event_type == "monster_migration"
+    ]

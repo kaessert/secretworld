@@ -496,7 +496,7 @@ Created QuestNetworkManager for managing interconnected quest storylines.
 ### Issue 25: Dynamic Interior Events
 **Status**: PARTIAL ✓
 **Priority**: P3
-**Completed**: 2025-12-27 (Cave-ins)
+**Updated**: 2025-12-28 (Monster Migration)
 
 **Problem**: World events only affect the overworld. Dungeon interiors feel static.
 
@@ -510,9 +510,19 @@ Created QuestNetworkManager for managing interconnected quest storylines.
 - `src/cli_rpg/game_state.py` - Integrated cave-in checks and blocking into SubGrid movement
 - 20 new tests in `tests/test_interior_events.py`
 
+**Implementation (Monster Migration):**
+- `src/cli_rpg/interior_events.py` - Extended with:
+  - `InteriorEvent.affected_rooms`: Optional dict mapping coordinates to encounter rate modifiers
+  - `check_for_monster_migration()`: 3% spawn chance per SubGrid move
+  - `get_encounter_modifier_at_location()`: Returns cumulative encounter modifier for a coordinate
+  - `get_active_migrations()`: Returns list of active migration events
+  - Migration duration: 2-6 hours, modifiers range 0.5x-2.0x
+- `src/cli_rpg/random_encounters.py` - Integrates migration modifiers into encounter rate calculation
+- 10 new tests in `tests/test_interior_events.py` (`TestMonsterMigration` class)
+
 **Acceptance Criteria:**
 - [x] **Cave-in**: Temporarily blocks passages (4-12 hours, auto-clears)
-- [ ] **Monster migration**: Changes enemy spawn locations
+- [x] **Monster migration**: Changes enemy spawn rates via room-specific modifiers (2-6 hours)
 - [ ] **Rival adventurers**: NPCs racing player to boss/treasure
 - [ ] **Ritual in progress**: Time-limited boss fight
 - [ ] **Spreading hazard**: Fire/flooding through dungeon
@@ -521,6 +531,7 @@ Created QuestNetworkManager for managing interconnected quest storylines.
 - `src/cli_rpg/interior_events.py`
 - `src/cli_rpg/world_grid.py`
 - `src/cli_rpg/game_state.py`
+- `src/cli_rpg/random_encounters.py`
 
 ---
 

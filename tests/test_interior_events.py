@@ -473,3 +473,269 @@ class TestSubGridSerialization:
 
         # Should have empty interior_events list
         assert restored.interior_events == []
+
+
+class TestMonsterMigration:
+    """Tests for monster migration events (spec: Issue 25 - Dynamic Interior Events)."""
+
+    @pytest.fixture
+    def dungeon_sub_grid(self):
+        """Create a SubGrid with multiple rooms for migration testing."""
+        sub_grid = SubGrid(
+            bounds=(-2, 2, -2, 2, 0, 0),
+            parent_name="Migration Dungeon",
+        )
+
+        # Create a grid of rooms
+        rooms = [
+            ("Center Hall", 0, 0, 0),
+            ("North Chamber", 0, 1, 0),
+            ("South Corridor", 0, -1, 0),
+            ("East Gallery", 1, 0, 0),
+            ("West Tunnel", -1, 0, 0),
+        ]
+
+        for name, x, y, z in rooms:
+            loc = Location(name=name, description=f"The {name}.")
+            sub_grid.add_location(loc, x, y, z)
+
+        return sub_grid
+
+    @pytest.fixture
+    def mock_game_state(self, dungeon_sub_grid):
+        """Create mock game state for migration testing."""
+        game_state = MagicMock()
+        game_state.game_time.total_hours = 100
+
+        # Current location is center
+        center = dungeon_sub_grid.get_by_coordinates(0, 0, 0)
+        game_state.get_current_location.return_value = center
+
+        # Parent is a dungeon (valid migration category)
+        parent = MagicMock()
+        parent.category = "dungeon"
+        game_state.world = {"Migration Dungeon": parent}
+
+        return game_state
+
+    def test_monster_migration_event_creation(self):
+        """Test: Migration event has type 'monster_migration' and affected_rooms field."""
+        from cli_rpg.interior_events import InteriorEvent
+
+        event = InteriorEvent(
+            event_id="migration_test_1234",
+            event_type="monster_migration",
+            location_coords=(0, 0, 0),
+            blocked_direction="",  # Not applicable for migrations
+            start_hour=100,
+            duration_hours=4,
+            affected_rooms={(1, 0, 0): 1.5, (0, 1, 0): 0.5},
+        )
+
+        assert event.event_type == "monster_migration"
+        assert event.affected_rooms is not None
+        assert event.affected_rooms[(1, 0, 0)] == 1.5
+        assert event.affected_rooms[(0, 1, 0)] == 0.5
+
+    def test_monster_migration_spawn_chance(self, mock_game_state, dungeon_sub_grid):
+        """Test: Monster migration has 3% spawn chance (spec: lower than cave-in's 5%)."""
+        from cli_rpg.interior_events import (
+            MONSTER_MIGRATION_SPAWN_CHANCE,
+            check_for_monster_migration,
+        )
+
+        assert MONSTER_MIGRATION_SPAWN_CHANCE == 0.03
+
+        # Roll above chance - no spawn
+        with patch("cli_rpg.interior_events.random.random", return_value=0.05):
+            message = check_for_monster_migration(mock_game_state, dungeon_sub_grid)
+
+        assert message is None
+        # No migration events added
+        migrations = [e for e in dungeon_sub_grid.interior_events if e.event_type == "monster_migration"]
+        assert len(migrations) == 0
+
+    def test_monster_migration_valid_categories(self, mock_game_state, dungeon_sub_grid):
+        """Test: Migration only in dungeon/cave/ruins/temple (spec: same as cave-ins)."""
+        from cli_rpg.interior_events import (
+            MONSTER_MIGRATION_CATEGORIES,
+            check_for_monster_migration,
+        )
+
+        # Verify categories match cave-in categories
+        assert MONSTER_MIGRATION_CATEGORIES == {"dungeon", "cave", "ruins", "temple"}
+
+        # Test invalid category (town)
+        parent = mock_game_state.world["Migration Dungeon"]
+        parent.category = "town"
+
+        with patch("cli_rpg.interior_events.random.random", return_value=0.01):
+            message = check_for_monster_migration(mock_game_state, dungeon_sub_grid)
+
+        assert message is None
+
+    def test_monster_migration_duration_range(self, mock_game_state, dungeon_sub_grid):
+        """Test: Migration duration is 2-6 hours (spec: shorter than cave-ins)."""
+        from cli_rpg.interior_events import (
+            MONSTER_MIGRATION_DURATION_RANGE,
+            check_for_monster_migration,
+        )
+
+        assert MONSTER_MIGRATION_DURATION_RANGE == (2, 6)
+
+        with patch("cli_rpg.interior_events.random.random", return_value=0.01):
+            with patch(
+                "cli_rpg.interior_events.random.randint",
+                return_value=4,  # Duration in range
+            ) as mock_randint:
+                with patch("cli_rpg.interior_events.random.sample", return_value=[(1, 0, 0), (0, 1, 0)]):
+                    with patch("cli_rpg.interior_events.random.uniform", return_value=1.5):
+                        check_for_monster_migration(mock_game_state, dungeon_sub_grid)
+
+            # Verify randint called with migration duration range
+            mock_randint.assert_any_call(2, 6)
+
+    def test_monster_migration_affected_rooms(self, mock_game_state, dungeon_sub_grid):
+        """Test: Migration populates affected_rooms dict with modifiers."""
+        from cli_rpg.interior_events import check_for_monster_migration
+
+        with patch("cli_rpg.interior_events.random.random", return_value=0.01):
+            with patch("cli_rpg.interior_events.random.randint", return_value=4):
+                with patch("cli_rpg.interior_events.random.sample", return_value=[(1, 0, 0), (0, -1, 0)]):
+                    with patch("cli_rpg.interior_events.random.uniform", side_effect=[1.8, 0.6]):
+                        message = check_for_monster_migration(mock_game_state, dungeon_sub_grid)
+
+        assert message is not None
+        assert "migration" in message.lower()
+
+        # Verify migration event was added with affected_rooms
+        migrations = [e for e in dungeon_sub_grid.interior_events if e.event_type == "monster_migration"]
+        assert len(migrations) == 1
+        event = migrations[0]
+        assert event.affected_rooms is not None
+        assert len(event.affected_rooms) == 2
+
+    def test_get_encounter_modifier_default(self, dungeon_sub_grid):
+        """Test: Returns 1.0 (no modification) when no migrations active."""
+        from cli_rpg.interior_events import get_encounter_modifier_at_location
+
+        # No migrations - should return 1.0
+        modifier = get_encounter_modifier_at_location(dungeon_sub_grid, (0, 0, 0))
+        assert modifier == 1.0
+
+    def test_get_encounter_modifier_with_migration(self, dungeon_sub_grid):
+        """Test: Returns modified value when migration affects location."""
+        from cli_rpg.interior_events import InteriorEvent, get_encounter_modifier_at_location
+
+        # Add migration event with affected rooms
+        event = InteriorEvent(
+            event_id="migration_modifier_test",
+            event_type="monster_migration",
+            location_coords=(0, 0, 0),
+            blocked_direction="",
+            start_hour=100,
+            duration_hours=4,
+            affected_rooms={(1, 0, 0): 1.5, (0, 1, 0): 0.7},
+        )
+        dungeon_sub_grid.interior_events.append(event)
+
+        # Check affected room
+        modifier = get_encounter_modifier_at_location(dungeon_sub_grid, (1, 0, 0))
+        assert modifier == 1.5
+
+        # Check another affected room
+        modifier = get_encounter_modifier_at_location(dungeon_sub_grid, (0, 1, 0))
+        assert modifier == 0.7
+
+        # Check unaffected room
+        modifier = get_encounter_modifier_at_location(dungeon_sub_grid, (-1, 0, 0))
+        assert modifier == 1.0
+
+    def test_monster_migration_expiry(self, dungeon_sub_grid):
+        """Test: Migration clears after duration expires."""
+        from cli_rpg.interior_events import InteriorEvent, progress_interior_events
+
+        # Add migration event
+        event = InteriorEvent(
+            event_id="migration_expiry_test",
+            event_type="monster_migration",
+            location_coords=(0, 0, 0),
+            blocked_direction="",
+            start_hour=100,
+            duration_hours=3,
+            affected_rooms={(1, 0, 0): 1.8},
+        )
+        dungeon_sub_grid.interior_events.append(event)
+
+        game_state = MagicMock()
+
+        # Before expiry
+        game_state.game_time.total_hours = 102
+        messages = progress_interior_events(game_state, dungeon_sub_grid)
+        assert len(messages) == 0
+        assert event.is_active is True
+
+        # After expiry
+        game_state.game_time.total_hours = 104
+        messages = progress_interior_events(game_state, dungeon_sub_grid)
+        assert len(messages) == 1
+        assert "migration" in messages[0].lower()
+        assert event.is_active is False
+
+    def test_monster_migration_serialization(self):
+        """Test: affected_rooms serializes and deserializes correctly."""
+        from cli_rpg.interior_events import InteriorEvent
+
+        event = InteriorEvent(
+            event_id="migration_serial_test",
+            event_type="monster_migration",
+            location_coords=(1, 2, -1),
+            blocked_direction="",
+            start_hour=50,
+            duration_hours=5,
+            affected_rooms={(0, 0, 0): 2.0, (1, 1, 0): 0.5},
+        )
+
+        # Serialize
+        data = event.to_dict()
+        assert "affected_rooms" in data
+        # Dict with tuple keys must be serialized as list of [coords, modifier]
+        assert isinstance(data["affected_rooms"], list)
+
+        # Deserialize
+        restored = InteriorEvent.from_dict(data)
+        assert restored.affected_rooms is not None
+        assert restored.affected_rooms[(0, 0, 0)] == 2.0
+        assert restored.affected_rooms[(1, 1, 0)] == 0.5
+
+    def test_multiple_migrations_stack(self, dungeon_sub_grid):
+        """Test: Multiple active migrations combine multiplicatively."""
+        from cli_rpg.interior_events import InteriorEvent, get_encounter_modifier_at_location
+
+        # Add first migration
+        event1 = InteriorEvent(
+            event_id="migration_stack_1",
+            event_type="monster_migration",
+            location_coords=(0, 0, 0),
+            blocked_direction="",
+            start_hour=100,
+            duration_hours=4,
+            affected_rooms={(1, 0, 0): 1.5},  # +50% at (1,0,0)
+        )
+        dungeon_sub_grid.interior_events.append(event1)
+
+        # Add second migration affecting same room
+        event2 = InteriorEvent(
+            event_id="migration_stack_2",
+            event_type="monster_migration",
+            location_coords=(0, 0, 0),
+            blocked_direction="",
+            start_hour=101,
+            duration_hours=3,
+            affected_rooms={(1, 0, 0): 1.2},  # +20% at (1,0,0)
+        )
+        dungeon_sub_grid.interior_events.append(event2)
+
+        # Modifiers should stack multiplicatively: 1.5 * 1.2 = 1.8
+        modifier = get_encounter_modifier_at_location(dungeon_sub_grid, (1, 0, 0))
+        assert abs(modifier - 1.8) < 0.01  # Float tolerance

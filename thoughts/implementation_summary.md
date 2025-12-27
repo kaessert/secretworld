@@ -1,68 +1,80 @@
-# Environmental Storytelling - Implementation Summary
+# Monster Migration Implementation Summary
 
 ## Status: COMPLETE
 
-All 11 tests pass in `tests/test_environmental_storytelling.py`.
+All 30 interior events tests pass, all 36 random encounters tests pass, and full test suite (4919 tests) passes.
 
 ## What Was Implemented
 
-Added environmental storytelling elements (corpses, bloodstains, journals) to SubGrid location descriptions for dungeon/cave/ruins/temple categories.
+Added monster migration events for SubGrid dungeons (Issue 25 - Dynamic Interior Events). When triggered, migrations modify encounter rate multipliers for rooms within the SubGrid, creating dynamic encounter distributions.
 
-### New File: `src/cli_rpg/environmental_storytelling.py`
+## Files Modified
 
-Created module with:
+### 1. `src/cli_rpg/interior_events.py`
 
-- **STORYTELLING_CATEGORIES**: frozenset of categories that receive details (`dungeon`, `cave`, `ruins`, `temple`)
-- **BASE_STORYTELLING_CHANCE**: 40% base chance for details to appear
-- **ENVIRONMENTAL_DETAILS**: Category-specific detail pools with 3 types:
-  - **Corpses**: Previous adventurer remains (skeletons, mauled hunters, preserved bodies)
-  - **Bloodstains**: Combat evidence (dried blood, splatter patterns, trails)
-  - **Journals**: Lore hints and warnings (scratched messages, torn pages, stone tablets)
+**Extended `InteriorEvent` dataclass:**
+- Added optional `affected_rooms: Optional[dict]` field
+- Stores `{(x,y,z): modifier}` for migration-affected rooms
 
-- **`get_environmental_details(category, distance, z_level)`**: Main function that:
-  - Returns empty list for non-storytelling categories
-  - Calculates scaled chance: `base + (distance * 5%) + (depth * 8%)`
-  - Returns 0-2 randomly selected thematic details
+**Added migration constants:**
+- `MONSTER_MIGRATION_SPAWN_CHANCE = 0.03` (3% per SubGrid move)
+- `MONSTER_MIGRATION_DURATION_RANGE = (2, 6)` (2-6 hours)
+- `MONSTER_MIGRATION_CATEGORIES` (same as cave-ins: dungeon, cave, ruins, temple)
+- `MONSTER_MIGRATION_MODIFIER_RANGE = (0.5, 2.0)` (encounter rate multipliers)
 
-### Modified: `src/cli_rpg/models/location.py`
+**Added new functions:**
+- `check_for_monster_migration(game_state, sub_grid)` - Spawns migration events with affected rooms
+- `get_encounter_modifier_at_location(sub_grid, coords)` - Returns cumulative encounter modifier
+- `get_active_migrations(sub_grid)` - Returns list of active migration events
 
-- Added field: `environmental_details: List[str] = field(default_factory=list)`
-- Updated `to_dict()`: Only includes field when non-empty (backward compat)
-- Updated `from_dict()`: Parses field with empty list fallback
-- Updated `get_layered_description()`: Displays details after main description, before NPCs
+**Updated existing functionality:**
+- `progress_interior_events()` - Now handles migration expiry with appropriate message
+- `to_dict()` and `from_dict()` - Updated to serialize/deserialize `affected_rooms` field
+  - Dict with tuple keys serialized as list of `[coords, modifier]` pairs
 
-### Modified: `src/cli_rpg/ai_world.py`
+### 2. `src/cli_rpg/random_encounters.py`
 
-Integrated environmental storytelling into SubGrid generation:
+**Added migration modifier integration** in `check_for_random_encounter()`:
+- When inside SubGrid, applies encounter rate modifier from active migrations
+- Multiple migrations stack multiplicatively
 
-- **`generate_subgrid_for_location()`**: Adds environmental details to non-entry rooms (line 1098-1101)
-- **`expand_area()`**: Adds environmental details to non-entry SubGrid rooms (line 1794-1797)
+### 3. `tests/test_interior_events.py`
 
-Both functions call `get_environmental_details()` with distance and z_level for scaling.
+**Added 10 new tests** in `TestMonsterMigration` class:
+1. `test_monster_migration_event_creation` - Event with type "monster_migration" and affected_rooms
+2. `test_monster_migration_spawn_chance` - 3% spawn rate
+3. `test_monster_migration_valid_categories` - Only dungeon/cave/ruins/temple
+4. `test_monster_migration_duration_range` - 2-6 hours
+5. `test_monster_migration_affected_rooms` - affected_rooms dict populated
+6. `test_get_encounter_modifier_default` - Returns 1.0 when no migrations
+7. `test_get_encounter_modifier_with_migration` - Returns modified value
+8. `test_monster_migration_expiry` - Migration clears after duration
+9. `test_monster_migration_serialization` - affected_rooms serializes correctly
+10. `test_multiple_migrations_stack` - Multiple active migrations combine multiplicatively
 
 ## Test Results
 
 ```
-tests/test_environmental_storytelling.py - 11 passed
-tests/test_location.py - 73 passed
-tests/test_world_grid.py - 20 passed
-tests/test_persistence.py - 37 passed
+tests/test_interior_events.py - 30 passed
+tests/test_random_encounters.py - 36 passed
+Full test suite: 4919 passed
 ```
-
-All related tests pass, confirming no regressions.
 
 ## Design Decisions
 
-1. **Always visible**: Environmental details appear immediately (not gated by look_count like `details` and `secrets` layers)
-2. **Distance + Depth scaling**: Chance increases with distance (5% per unit) and depth (8% per unit of |z|), capped at 95%
-3. **Category-specific pools**: Each dungeon type has thematic detail pools
-4. **Compact display**: Details appear as single lines after the main description
+1. **Encounter rate modifiers instead of enemy position tracking** - Simpler design that integrates with existing encounter system
+2. **Multiplicative stacking** - Multiple migrations combine multiplicatively (e.g., 1.5 * 1.2 = 1.8)
+3. **Affected rooms range 0.5x to 2.0x** - Balanced to not be too disruptive
+4. **Lower spawn chance than cave-ins** - 3% vs 5% since less disruptive
+5. **Shorter duration than cave-ins** - 2-6 hours vs 4-12 hours since less impactful
 
 ## E2E Test Validation
 
 To manually verify:
 1. Run `cli-rpg --demo`
 2. Enter a dungeon or cave location with `enter <name>`
-3. Navigate to non-entry rooms (away from the entrance)
-4. Run `look` command
-5. Environmental details (corpses, bloodstains, journals) should appear after the main description
+3. Move around within the SubGrid
+4. Observe for "You hear creatures stirring..." migration message (3% chance per move)
+5. If triggered, encounter rates in affected rooms should be modified
+6. Wait or rest for migration to expire and observe "migration has subsided" message
+7. Save and load game to verify migration events persist correctly
