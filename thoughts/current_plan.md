@@ -1,237 +1,199 @@
-# Terrain-Aware Default Merchant Shops
+# Implementation Plan: Natural Terrain Transitions
 
 ## Summary
-Modify `_create_default_merchant_shop()` in `ai_world.py` to accept optional terrain/region parameters and return thematically appropriate inventory instead of hardcoded generic items.
+Add "transition distance" weights to WFC generation that penalize placing extreme biome jumps (like desert near forest) even when the adjacency rules technically allow an intermediate tile. This creates wider transition zones instead of single-tile buffers.
 
 ## Spec
 
-**Current behavior:** `_create_default_merchant_shop()` returns identical shop (Health Potion, Antidote, Travel Rations) regardless of where merchant is located.
+The goal is to prevent thin transition zones like: `forest → plains (1 tile) → desert`. Instead, transitions should span multiple tiles to feel natural.
 
-**Target behavior:** Default merchant shops should have terrain-appropriate inventory:
-- Mountain merchants: climbing gear, cold-weather items, pickaxes
-- Swamp merchants: antidotes, insect repellent, waterproof gear
-- Desert merchants: water skins, sun protection, heat-resistant items
-- Forest merchants: trail rations, rope, camping supplies
-- Beach/coastal: fishing gear, rope, water-related items
-- Default/plains: standard consumables (current behavior)
+**Approach**: Add a "biome distance" penalty system where tiles incompatible with nearby tiles (within 2-3 tile radius) receive reduced weights during WFC collapse.
 
-## Tests (add to `tests/test_ai_merchant_detection.py`)
+### Biome Distance Rules
+```
+Group A (temperate wet): forest, swamp
+Group B (hot dry): desert
+Group C (aquatic): water, beach
+Group D (mountainous): mountain, foothills
+Neutral (bridges all): plains, hills
+```
+
+When collapsing a cell, if there's a Group A tile within 2 tiles, Group B tiles get 0.1x weight penalty (and vice versa). Neutral tiles and same-group tiles are unaffected.
+
+### Key Changes
+1. Add `BIOME_GROUPS` constant mapping terrains to biome groups
+2. Add `INCOMPATIBLE_GROUPS` mapping which groups conflict
+3. Add `get_nearby_tiles()` helper in ChunkManager to check 2-tile radius
+4. Modify `_collapse_cell()` to apply distance penalties based on nearby tiles
+
+---
+
+## Tests (`tests/test_terrain_transitions.py`)
 
 ```python
-class TestTerrainAwareMerchantShops:
-    """Tests for terrain-based default shop inventories."""
+"""Tests for natural terrain transition distances."""
 
-    def test_default_shop_no_terrain_has_standard_items(self):
-        """Default shop without terrain has standard consumables."""
-        shop = _create_default_merchant_shop()
-        assert shop.find_item_by_name("Health Potion") is not None
+class TestBiomeGroups:
+    def test_biome_groups_defined():
+        """BIOME_GROUPS maps all terrain types to a group."""
 
-    def test_mountain_terrain_shop_has_climbing_gear(self):
-        """Mountain terrain shop includes mountain-appropriate items."""
-        shop = _create_default_merchant_shop(terrain_type="mountain")
-        item_names = [si.item.name for si in shop.inventory]
-        assert any("pick" in name.lower() or "climbing" in name.lower()
-                   or "warm" in name.lower() for name in item_names)
+    def test_incompatible_groups_symmetric():
+        """INCOMPATIBLE_GROUPS is symmetric (A conflicts B = B conflicts A)."""
 
-    def test_swamp_terrain_shop_has_antidotes(self):
-        """Swamp terrain shop emphasizes poison cures."""
-        shop = _create_default_merchant_shop(terrain_type="swamp")
-        antidote = shop.find_item_by_name("Antidote")
-        assert antidote is not None
+class TestTransitionWeightPenalty:
+    def test_get_nearby_tiles_returns_tiles_in_radius():
+        """get_nearby_tiles(grid, x, y, radius=2) returns all collapsed tiles within radius."""
 
-    def test_desert_terrain_shop_has_water(self):
-        """Desert terrain shop includes water/hydration items."""
-        shop = _create_default_merchant_shop(terrain_type="desert")
-        item_names = [si.item.name for si in shop.inventory]
-        assert any("water" in name.lower() for name in item_names)
+    def test_collapse_applies_distance_penalty():
+        """When forest is 2 tiles away, desert gets 0.1x weight in collapse."""
 
-    def test_forest_terrain_shop_has_trail_supplies(self):
-        """Forest terrain shop has trail/camping supplies."""
-        shop = _create_default_merchant_shop(terrain_type="forest")
-        item_names = [si.item.name for si in shop.inventory]
-        assert any("ration" in name.lower() or "rope" in name.lower()
-                   for name in item_names)
+    def test_neutral_terrain_unaffected():
+        """Plains/hills don't receive penalties from any nearby biome."""
 
-    def test_beach_terrain_shop_has_fishing_gear(self):
-        """Beach/coastal terrain shop has fishing/water items."""
-        shop = _create_default_merchant_shop(terrain_type="beach")
-        item_names = [si.item.name for si in shop.inventory]
-        assert any("fish" in name.lower() or "rope" in name.lower()
-                   for name in item_names)
+class TestTransitionZoneWidth:
+    def test_forest_desert_transition_minimum_3_tiles():
+        """Statistical: minimum 3 tiles between forest and desert in generated chunks."""
+        # Generate 20 chunks, verify no forest within 2 tiles of desert
 
-    def test_all_terrain_shops_have_health_potion(self):
-        """All terrain shops should include health potion as baseline."""
-        for terrain in ["mountain", "swamp", "desert", "forest", "beach", "plains"]:
-            shop = _create_default_merchant_shop(terrain_type=terrain)
-            assert shop.find_item_by_name("Health Potion") is not None
+    def test_swamp_desert_transition_minimum_3_tiles():
+        """Statistical: minimum 3 tiles between swamp and desert."""
 ```
+
+---
 
 ## Implementation Steps
 
-### 1. Add terrain-specific inventory definitions in `ai_world.py`
-
-Add after line 75 (after `MERCHANT_KEYWORDS`):
+### 1. Add biome group constants to `world_tiles.py`
 
 ```python
-# Terrain-specific default shop inventories
-# Each terrain has thematic items plus a base Health Potion
-TERRAIN_SHOP_ITEMS: dict[str, list[tuple[str, str, ItemType, int, dict]]] = {
-    # (name, description, item_type, price, stats_dict)
-    "mountain": [
-        ("Climbing Pick", "Essential for scaling rocky terrain", ItemType.MISC, 45, {}),
-        ("Warm Cloak", "Protection against mountain cold", ItemType.ARMOR, 60, {"defense_bonus": 2}),
-        ("Trail Rations", "Sustaining food for journeys", ItemType.CONSUMABLE, 20, {"heal_amount": 10}),
-    ],
-    "swamp": [
-        ("Antidote", "Cures poison", ItemType.CONSUMABLE, 40, {}),
-        ("Insect Repellent", "Wards off swamp insects", ItemType.CONSUMABLE, 25, {}),
-        ("Wading Boots", "Keeps feet dry in marshland", ItemType.ARMOR, 55, {"defense_bonus": 1}),
-    ],
-    "desert": [
-        ("Water Skin", "Precious water for desert travel", ItemType.CONSUMABLE, 30, {"stamina_restore": 15}),
-        ("Sun Cloak", "Protection from harsh desert sun", ItemType.ARMOR, 50, {"defense_bonus": 1}),
-        ("Antidote", "Cures poison from desert creatures", ItemType.CONSUMABLE, 40, {}),
-    ],
-    "forest": [
-        ("Trail Rations", "Sustaining food for journeys", ItemType.CONSUMABLE, 20, {"heal_amount": 10}),
-        ("Hemp Rope", "Sturdy rope for woodland travel", ItemType.MISC, 25, {}),
-        ("Herbalist's Kit", "Basic healing herbs", ItemType.CONSUMABLE, 35, {"heal_amount": 15}),
-    ],
-    "beach": [
-        ("Fishing Net", "For catching coastal fish", ItemType.MISC, 30, {}),
-        ("Sturdy Rope", "Sea-worthy rope", ItemType.MISC, 25, {}),
-        ("Dried Fish", "Preserved seafood", ItemType.CONSUMABLE, 15, {"heal_amount": 8}),
-    ],
-    "foothills": [
-        ("Trail Rations", "Sustaining food for journeys", ItemType.CONSUMABLE, 20, {"heal_amount": 10}),
-        ("Climbing Rope", "For ascending rocky terrain", ItemType.MISC, 35, {}),
-        ("Warm Blanket", "Comfort in cool mountain nights", ItemType.MISC, 25, {}),
-    ],
-    "hills": [
-        ("Trail Rations", "Sustaining food for journeys", ItemType.CONSUMABLE, 20, {"heal_amount": 10}),
-        ("Walking Staff", "Aids travel over hilly terrain", ItemType.WEAPON, 40, {"damage_bonus": 2}),
-        ("Antidote", "Cures poison", ItemType.CONSUMABLE, 40, {}),
-    ],
-    "plains": [
-        ("Travel Rations", "Sustaining food for journeys", ItemType.CONSUMABLE, 20, {"heal_amount": 10}),
-        ("Antidote", "Cures poison", ItemType.CONSUMABLE, 40, {}),
-    ],
+# After ADJACENCY_RULES (around line 114)
+
+# Biome groups for transition distance penalties
+BIOME_GROUPS: Dict[str, str] = {
+    "forest": "temperate",
+    "swamp": "temperate",
+    "desert": "arid",
+    "water": "aquatic",
+    "beach": "aquatic",
+    "mountain": "alpine",
+    "foothills": "alpine",
+    "plains": "neutral",
+    "hills": "neutral",
 }
 
-# Terrain-specific shop names for immersion
-TERRAIN_SHOP_NAMES: dict[str, str] = {
-    "mountain": "Mountain Supplies",
-    "swamp": "Swampland Wares",
-    "desert": "Desert Provisions",
-    "forest": "Woodland Goods",
-    "beach": "Coastal Trading Post",
-    "foothills": "Hillside Supplies",
-    "hills": "Hilltop Wares",
-    "plains": "Traveling Wares",
+# Groups that conflict (feel jarring if within 2 tiles of each other)
+INCOMPATIBLE_GROUPS: Set[Tuple[str, str]] = {
+    ("temperate", "arid"),  # forest/swamp too close to desert feels wrong
+    ("arid", "temperate"),  # symmetric
 }
-```
 
-### 2. Modify `_create_default_merchant_shop()` signature and body
-
-Change lines 40-71:
-
-```python
-def _create_default_merchant_shop(
-    terrain_type: Optional[str] = None,
-) -> Shop:
-    """Create a default shop for AI-generated merchant NPCs.
+def get_distance_penalty(terrain: str, nearby_terrains: Set[str]) -> float:
+    """Calculate weight penalty based on nearby incompatible biomes.
 
     Args:
-        terrain_type: Optional terrain type for thematic inventory
+        terrain: The terrain type being considered for collapse
+        nearby_terrains: Set of terrain types within penalty radius
 
     Returns:
-        Shop with terrain-appropriate items (always includes Health Potion)
+        Multiplier (1.0 = no penalty, 0.1 = severe penalty)
     """
-    # Health Potion is always included as baseline
-    potion = Item(
-        name="Health Potion",
-        description="Restores 25 HP",
-        item_type=ItemType.CONSUMABLE,
-        heal_amount=25
-    )
-    shop_items = [ShopItem(item=potion, buy_price=50)]
+    terrain_group = BIOME_GROUPS.get(terrain)
+    if terrain_group == "neutral":
+        return 1.0  # Neutral terrain is never penalized
 
-    # Get terrain-specific items
-    terrain_key = terrain_type.lower() if terrain_type else "plains"
-    terrain_items = TERRAIN_SHOP_ITEMS.get(terrain_key, TERRAIN_SHOP_ITEMS["plains"])
+    for nearby in nearby_terrains:
+        nearby_group = BIOME_GROUPS.get(nearby)
+        if (terrain_group, nearby_group) in INCOMPATIBLE_GROUPS:
+            return 0.1  # 90% weight reduction
 
-    for name, desc, itype, price, stats in terrain_items:
-        item = Item(
-            name=name,
-            description=desc,
-            item_type=itype,
-            **stats
-        )
-        shop_items.append(ShopItem(item=item, buy_price=price))
-
-    shop_name = TERRAIN_SHOP_NAMES.get(terrain_key, "Traveling Wares")
-    return Shop(name=shop_name, inventory=shop_items)
+    return 1.0
 ```
 
-### 3. Update `_create_npcs_from_data()` signature
-
-Add terrain_type parameter at line 189:
+### 2. Add `get_nearby_tiles()` helper to `wfc_chunks.py`
 
 ```python
-def _create_npcs_from_data(
-    npcs_data: list[dict],
-    ai_service: Optional[AIService] = None,
-    location_name: str = "",
-    region_context: Optional[RegionContext] = None,
-    world_context: Optional[WorldContext] = None,
-    valid_locations: Optional[set[str]] = None,
-    valid_npcs: Optional[set[str]] = None,
-    terrain_type: Optional[str] = None,  # NEW
-) -> list[NPC]:
+# In ChunkManager class (around line 365)
+
+def _get_nearby_collapsed_tiles(
+    self,
+    grid: Dict[Tuple[int, int], WFCCell],
+    x: int,
+    y: int,
+    radius: int = 2
+) -> Set[str]:
+    """Get terrain types of collapsed tiles within radius.
+
+    Args:
+        grid: Current WFC grid
+        x, y: Center coordinates
+        radius: Search radius (default 2)
+
+    Returns:
+        Set of terrain types from collapsed cells within radius
+    """
+    nearby = set()
+    for dx in range(-radius, radius + 1):
+        for dy in range(-radius, radius + 1):
+            if dx == 0 and dy == 0:
+                continue
+            cell = grid.get((x + dx, y + dy))
+            if cell and cell.collapsed and cell.tile:
+                nearby.add(cell.tile)
+    return nearby
 ```
 
-Update line 237 call:
+### 3. Modify `_collapse_cell()` in `wfc_chunks.py`
+
 ```python
-shop = _create_default_merchant_shop(terrain_type=terrain_type)
+# Modify existing _collapse_cell (around line 365)
+
+def _collapse_cell(
+    self,
+    cell: WFCCell,
+    rng: random.Random,
+    grid: Optional[Dict[Tuple[int, int], WFCCell]] = None,  # NEW
+) -> str:
+    """Collapse a cell to a single tile using weighted random selection.
+
+    Applies distance penalties when incompatible biomes are nearby.
+    """
+    if len(cell.possible_tiles) == 0:
+        raise ValueError(f"Cannot collapse cell {cell.coords} with no options")
+
+    tiles = sorted(cell.possible_tiles)
+    weights = [self._get_weight(tile) for tile in tiles]
+
+    # Apply distance penalties if grid provided
+    if grid is not None:
+        from cli_rpg.world_tiles import get_distance_penalty
+        nearby = self._get_nearby_collapsed_tiles(grid, cell.coords[0], cell.coords[1])
+        weights = [w * get_distance_penalty(t, nearby) for w, t in zip(weights, tiles)]
+
+    selected = rng.choices(tiles, weights=weights, k=1)[0]
+    # ... rest unchanged
 ```
 
-### 4. Update callers to pass terrain_type
+### 4. Update call sites to pass grid
 
-**Line 453 (`create_ai_world` starting location):** No terrain info available, use default (plains):
+In `_try_generate_with_constraints()` around line 296:
 ```python
-ai_npcs = _create_npcs_from_data(starting_data.get("npcs", []))
-```
-(No change needed - terrain_type=None defaults to plains)
-
-**Line 519 (`create_ai_world` expansion):** No terrain info available:
-```python
-location_npcs = _create_npcs_from_data(location_data.get("npcs", []))
-```
-(No change needed)
-
-**Line 681 (`expand_world`):** terrain_type parameter available:
-```python
-location_npcs = _create_npcs_from_data(
-    location_data.get("npcs", []),
-    terrain_type=terrain_type,
-)
+# Change:
+self._collapse_cell(min_cell, rng)
+# To:
+self._collapse_cell(min_cell, rng, grid)
 ```
 
-**Line 851 (`expand_area`):** Extract terrain from loc_data if available:
-```python
-location_npcs = _create_npcs_from_data(
-    loc_data.get("npcs", []),
-    terrain_type=terrain_type,  # from expand_area parameter
-)
-```
+### 5. Apply same change to `wfc.py` WFCGenerator
 
-## Files to Modify
-1. `src/cli_rpg/ai_world.py` - Add TERRAIN_SHOP_ITEMS, update _create_default_merchant_shop, update _create_npcs_from_data
-2. `tests/test_ai_merchant_detection.py` - Add TestTerrainAwareMerchantShops class
+Similar changes to `WFCGenerator._collapse_cell()` and `_try_generate_chunk()` to pass the grid.
 
-## Verification
-```bash
-pytest tests/test_ai_merchant_detection.py -v
-pytest tests/test_ai_world_generation.py -v
-pytest --cov=src/cli_rpg/ai_world
-```
+---
+
+## File Changes Summary
+
+| File | Changes |
+|------|---------|
+| `src/cli_rpg/world_tiles.py` | Add `BIOME_GROUPS`, `INCOMPATIBLE_GROUPS`, `get_distance_penalty()` |
+| `src/cli_rpg/wfc_chunks.py` | Add `_get_nearby_collapsed_tiles()`, modify `_collapse_cell()` signature |
+| `src/cli_rpg/wfc.py` | Same pattern: modify `_collapse_cell()` to accept grid and apply penalties |
+| `tests/test_terrain_transitions.py` | New test file with ~8 tests |

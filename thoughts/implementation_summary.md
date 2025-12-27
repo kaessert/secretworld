@@ -1,65 +1,60 @@
-# Implementation Summary: Terrain-Aware Default Merchant Shops
+# Implementation Summary: Natural Terrain Transitions
 
 ## What Was Implemented
 
-Modified `_create_default_merchant_shop()` in `ai_world.py` to accept an optional `terrain_type` parameter and return thematically appropriate inventory instead of hardcoded generic items.
-
-### Features Added
-
-1. **Terrain-specific shop inventories** (`TERRAIN_SHOP_ITEMS` dict):
-   - Mountain: Climbing Pick, Warm Cloak, Trail Rations
-   - Swamp: Antidote, Insect Repellent, Wading Boots
-   - Desert: Water Skin, Sun Cloak, Antidote
-   - Forest: Trail Rations, Hemp Rope, Herbalist's Kit
-   - Beach: Fishing Net, Sturdy Rope, Dried Fish
-   - Foothills: Trail Rations, Climbing Rope, Warm Blanket
-   - Hills: Trail Rations, Walking Staff, Antidote
-   - Plains: Travel Rations, Antidote (default fallback)
-
-2. **Terrain-specific shop names** (`TERRAIN_SHOP_NAMES` dict):
-   - Mountain Supplies, Swampland Wares, Desert Provisions, etc.
-
-3. **Health Potion always included**: All terrain shops include Health Potion as baseline.
+Added a "biome distance penalty" system to WFC generation that penalizes placing incompatible terrain types (like desert near forest) within 2 tiles of each other. This creates wider transition zones instead of single-tile buffers.
 
 ### Files Modified
 
-1. **`src/cli_rpg/ai_world.py`**:
-   - Added `TERRAIN_SHOP_ITEMS` dictionary with terrain-specific item tuples
-   - Added `TERRAIN_SHOP_NAMES` dictionary for immersive shop names
-   - Modified `_create_default_merchant_shop()` to accept `terrain_type` parameter
-   - Modified `_create_npcs_from_data()` to accept and forward `terrain_type` parameter
-   - Updated calls in `expand_world()` and `expand_area()` to pass `terrain_type`
+1. **`src/cli_rpg/world_tiles.py`**
+   - Added `BIOME_GROUPS` constant mapping terrain types to biome categories:
+     - temperate: forest, swamp
+     - arid: desert
+     - aquatic: water, beach
+     - alpine: mountain, foothills
+     - neutral: plains, hills (bridge all biomes)
+   - Added `INCOMPATIBLE_GROUPS` set defining which groups conflict (temperate ↔ arid)
+   - Added `get_distance_penalty(terrain, nearby_terrains)` function that returns 0.01 (99% weight reduction) for incompatible biomes nearby, 1.0 otherwise
 
-2. **`tests/test_ai_merchant_detection.py`**:
-   - Added `TestTerrainAwareMerchantShops` test class with 7 tests:
-     - `test_default_shop_no_terrain_has_standard_items`
-     - `test_mountain_terrain_shop_has_climbing_gear`
-     - `test_swamp_terrain_shop_has_antidotes`
-     - `test_desert_terrain_shop_has_water`
-     - `test_forest_terrain_shop_has_trail_supplies`
-     - `test_beach_terrain_shop_has_fishing_gear`
-     - `test_all_terrain_shops_have_health_potion`
+2. **`src/cli_rpg/wfc_chunks.py`**
+   - Added `_get_nearby_collapsed_tiles(grid, x, y, radius=2)` helper method to find terrain types of collapsed cells within radius
+   - Modified `_collapse_cell()` signature to accept optional `grid` parameter
+   - Updated `_collapse_cell()` to apply distance penalties when grid is provided
+   - Updated call site in `_try_generate_with_constraints()` to pass grid
+
+3. **`src/cli_rpg/wfc.py`**
+   - Added same `_get_nearby_collapsed_tiles()` helper method
+   - Modified `_collapse_cell()` signature to accept optional `grid` parameter
+   - Updated `_collapse_cell()` to apply distance penalties
+   - Updated call site in `_try_generate_chunk()` to pass grid
+
+4. **`tests/test_terrain_transitions.py`** (new file)
+   - 10 tests covering:
+     - BIOME_GROUPS definition completeness
+     - INCOMPATIBLE_GROUPS symmetry
+     - Distance penalty calculations for neutral, same-group, and incompatible terrain
+     - `_get_nearby_collapsed_tiles()` helper behavior
+     - Statistical tests for forest-desert and swamp-desert minimum separation
 
 ## Test Results
 
-- **All 25 tests in `test_ai_merchant_detection.py` pass** (18 existing + 7 new)
-- **All 54 tests in `test_ai_world_generation.py` pass**
-- **Total: 79 tests passing**
+All 10 new tests pass, and the full test suite (4102 tests) passes.
 
-## Design Decisions
+## Technical Details
 
-1. **Backward compatibility**: When `terrain_type=None`, defaults to "plains" which has standard consumables (Travel Rations, Antidote), preserving existing behavior.
+### Penalty Mechanism
+- When collapsing a WFC cell, nearby collapsed tiles within radius 2 are collected
+- For each tile option being considered, a weight multiplier is calculated:
+  - 1.0 (no change) for neutral terrain or same biome group
+  - 0.01 (99% reduction) for incompatible biome groups
+- This makes incompatible terrain 100x less likely to be selected near conflicting biomes
 
-2. **Immutable baseline**: Health Potion (50g, heals 25 HP) is always included regardless of terrain.
-
-3. **Layered approach**: Terrain type is passed through the existing `expand_world()` and `expand_area()` functions which already have terrain context.
-
-4. **Fallback handling**: Unknown terrain types fall back to plains inventory.
+### Limitations
+- The penalty is applied during collapse, so tiles collapsed *before* their incompatible neighbors exist won't receive the penalty
+- Statistical tests show ~30-35% of cases still have close transitions due to collapse order
+- This is acceptable as the goal is to reduce jarring transitions, not eliminate all edge cases
 
 ## E2E Validation
-
-When playing the game:
-- Merchants in mountain areas should sell Climbing Pick, Warm Cloak
-- Merchants in swamp areas should sell Antidote, Insect Repellent, Wading Boots
-- Merchants in desert areas should sell Water Skin, Sun Cloak
-- All merchants should still have Health Potion available
+- Generate a few worlds with different seeds and visually inspect terrain
+- Look for smoother transitions between forest/swamp areas and desert areas
+- Verify that neutral terrain (plains, hills) still bridges biomes naturally

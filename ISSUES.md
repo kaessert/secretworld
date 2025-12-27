@@ -1427,3 +1427,37 @@ Target: Giant Spider x3
 
 **Verification**: All 14 tests in `tests/test_non_interactive_character_creation.py` pass
 
+---
+
+### BUG: `travel` command crashes with UnboundLocalError when destinations exist
+**Status**: ACTIVE
+**Date Added**: 2025-12-27
+**Severity**: HIGH - Game crashes, potential data loss
+
+**Problem**: The `travel` command crashes with an `UnboundLocalError` when there are fast travel destinations to display. The error occurs because the `colors` module variable is not properly accessible in the code path that displays fast travel destinations.
+
+**Error Message**:
+```
+UnboundLocalError: local variable 'colors' referenced before assignment
+  File "/Users/tkaesser/up/secretworld/src/cli_rpg/main.py", line 1828, in handle_exploration_command
+    lines = [f"\n{colors.location('Fast Travel Destinations:')}"]
+```
+
+**Steps to Reproduce**:
+1. Start game with `--skip-character-creation --seed 123`
+2. Navigate: `go south`, `go south`, `go east`, `go north`
+3. When a random merchant encounter (e.g., "Traveling Peddler") spawns at a location
+4. Run `travel` command
+
+**Note**: The crash is non-deterministic - it only occurs when:
+- Fast travel destinations exist (locations flagged as named/enterable)
+- The code path that displays destinations is triggered
+- The bug appears related to scoping of the `colors` variable in `handle_exploration_command()`
+
+**Expected Behavior**: The `travel` command should list available fast travel destinations without crashing.
+
+**Actual Behavior**: Game crashes with `UnboundLocalError`, terminating the session.
+
+**Files Affected**:
+- `src/cli_rpg/main.py` (line ~1828): `colors` variable not in scope when displaying destinations
+

@@ -2,7 +2,7 @@
 
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Dict, Set, List, Optional, TYPE_CHECKING
+from typing import Dict, Set, List, Optional, Tuple, TYPE_CHECKING
 
 if TYPE_CHECKING:
     from cli_rpg.wfc_chunks import ChunkManager
@@ -125,6 +125,53 @@ TERRAIN_WEIGHTS: Dict[str, float] = {
     "beach": 0.4,
     "foothills": 0.8,
 }
+
+
+# Biome groups for transition distance penalties
+# Used to prevent jarring biome transitions (e.g., forest directly adjacent to desert)
+BIOME_GROUPS: Dict[str, str] = {
+    "forest": "temperate",
+    "swamp": "temperate",
+    "desert": "arid",
+    "water": "aquatic",
+    "beach": "aquatic",
+    "mountain": "alpine",
+    "foothills": "alpine",
+    "plains": "neutral",
+    "hills": "neutral",
+}
+
+# Groups that conflict (feel jarring if within 2 tiles of each other)
+# Symmetric pairs - if A conflicts with B, B conflicts with A
+INCOMPATIBLE_GROUPS: Set[Tuple[str, str]] = {
+    ("temperate", "arid"),  # forest/swamp too close to desert feels wrong
+    ("arid", "temperate"),  # symmetric
+}
+
+
+def get_distance_penalty(terrain: str, nearby_terrains: Set[str]) -> float:
+    """Calculate weight penalty based on nearby incompatible biomes.
+
+    When collapsing a WFC cell, this function determines if the terrain type
+    should receive a weight penalty based on incompatible biomes nearby.
+
+    Args:
+        terrain: The terrain type being considered for collapse
+        nearby_terrains: Set of terrain types within penalty radius
+
+    Returns:
+        Multiplier (1.0 = no penalty, 0.01 = severe penalty)
+    """
+    terrain_group = BIOME_GROUPS.get(terrain)
+    if terrain_group == "neutral":
+        return 1.0  # Neutral terrain is never penalized
+
+    for nearby in nearby_terrains:
+        nearby_group = BIOME_GROUPS.get(nearby)
+        if (terrain_group, nearby_group) in INCOMPATIBLE_GROUPS:
+            return 0.01  # 99% weight reduction (very strong penalty)
+
+    return 1.0
 
 
 # Region terrain biases for coherent mega-biomes

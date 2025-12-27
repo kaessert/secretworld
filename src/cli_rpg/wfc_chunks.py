@@ -292,8 +292,8 @@ class ChunkManager:
             if min_cell is None:
                 return None
 
-            # Collapse the cell
-            self._collapse_cell(min_cell, rng)
+            # Collapse the cell (pass grid for distance penalty calculations)
+            self._collapse_cell(min_cell, rng, grid)
 
             # Propagate constraints
             if not self._propagate(grid, min_cell.coords):
@@ -362,12 +362,49 @@ class ChunkManager:
 
         return entropy
 
-    def _collapse_cell(self, cell: WFCCell, rng: random.Random) -> str:
+    def _get_nearby_collapsed_tiles(
+        self,
+        grid: Dict[Tuple[int, int], WFCCell],
+        x: int,
+        y: int,
+        radius: int = 2,
+    ) -> Set[str]:
+        """Get terrain types of collapsed tiles within radius.
+
+        Used for biome distance penalty calculations during WFC collapse.
+
+        Args:
+            grid: Current WFC grid
+            x, y: Center coordinates
+            radius: Search radius (default 2)
+
+        Returns:
+            Set of terrain types from collapsed cells within radius
+        """
+        nearby: Set[str] = set()
+        for dx in range(-radius, radius + 1):
+            for dy in range(-radius, radius + 1):
+                if dx == 0 and dy == 0:
+                    continue
+                cell = grid.get((x + dx, y + dy))
+                if cell and cell.collapsed and cell.tile:
+                    nearby.add(cell.tile)
+        return nearby
+
+    def _collapse_cell(
+        self,
+        cell: WFCCell,
+        rng: random.Random,
+        grid: Optional[Dict[Tuple[int, int], WFCCell]] = None,
+    ) -> str:
         """Collapse a cell to a single tile using weighted random selection.
+
+        Applies distance penalties when incompatible biomes are nearby.
 
         Args:
             cell: The cell to collapse
             rng: Random number generator
+            grid: Optional WFC grid for distance penalty calculations
 
         Returns:
             The selected tile name
@@ -378,6 +415,13 @@ class ChunkManager:
         tiles = sorted(cell.possible_tiles)
         # Use _get_weight to respect current weight overrides
         weights = [self._get_weight(tile) for tile in tiles]
+
+        # Apply distance penalties if grid provided
+        if grid is not None:
+            from cli_rpg.world_tiles import get_distance_penalty
+
+            nearby = self._get_nearby_collapsed_tiles(grid, cell.coords[0], cell.coords[1])
+            weights = [w * get_distance_penalty(t, nearby) for w, t in zip(weights, tiles)]
 
         selected = rng.choices(tiles, weights=weights, k=1)[0]
 
