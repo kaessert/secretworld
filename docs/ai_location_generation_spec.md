@@ -172,13 +172,30 @@ Cached region theme context for layered AI generation (Layer 2 of the hierarchic
 
 **Class:** `RegionContext` (`models/region_context.py`)
 
-**Fields:**
+**Core Fields:**
 - `name: str` - Region name (1-50 characters, e.g., "The Whispering Woods")
 - `theme: str` - Region-specific theme (1-200 characters, e.g., "Ancient forest shrouded in mist")
 - `danger_level: str` - One of "safe", "moderate", "dangerous", "deadly"
 - `landmarks: list[str]` - 0-5 notable landmarks (each 1-50 characters)
 - `coordinates: Tuple[int, int]` - Grid coordinates this context was generated for
 - `generated_at: Optional[datetime]` - When context was AI-generated (None if using defaults)
+
+**Economy Fields:**
+- `primary_resources: list[str]` - Resources abundant in the region (e.g., ["iron", "timber"])
+- `scarce_resources: list[str]` - Resources rare in the region (e.g., ["gold", "spices"])
+- `trade_goods: list[str]` - Items commonly exported from the region
+- `price_modifier: float` - Regional price adjustment factor (default 1.0)
+
+**History Fields:**
+- `founding_story: str` - Region origin story
+- `historical_events: list[str]` - Notable past events in the region
+- `ruined_civilizations: list[str]` - Ancient cultures that once inhabited the region
+- `legendary_locations: list[str]` - Mythic places in the region
+
+**Atmosphere Fields:**
+- `common_creatures: list[str]` - Typical fauna/monsters found in the region
+- `weather_tendency: str` - Dominant weather pattern in the region
+- `ambient_sounds: list[str]` - Ambient audio cues for atmosphere
 
 **Methods:**
 - `to_dict() -> dict`: Serializes to dictionary (coordinates as list for JSON compatibility)

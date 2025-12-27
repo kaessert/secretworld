@@ -5,7 +5,7 @@ for consistent AI-generated content within a geographic area. This sits between
 WorldContext (Layer 1) and Location (Layer 3) in the layered query architecture.
 """
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Optional
 
@@ -36,6 +36,23 @@ class RegionContext:
         landmarks: Key points of interest in the region (e.g., ["Rust Tower", "The Vats"])
         coordinates: Center coordinates of the region as (x, y) tuple
         generated_at: When context was AI-generated (None if not AI-generated)
+
+        Economy fields:
+        primary_resources: Resources abundant in the region (e.g., ["iron", "timber"])
+        scarce_resources: Resources rare in the region (e.g., ["gold", "spices"])
+        trade_goods: Items commonly exported from the region
+        price_modifier: Regional price adjustment factor (default 1.0)
+
+        History fields:
+        founding_story: Region origin story
+        historical_events: Notable past events in the region
+        ruined_civilizations: Ancient cultures that once inhabited the region
+        legendary_locations: Mythic places in the region
+
+        Atmosphere fields:
+        common_creatures: Typical fauna/monsters found in the region
+        weather_tendency: Dominant weather pattern in the region
+        ambient_sounds: Ambient audio cues for atmosphere
     """
 
     name: str
@@ -44,6 +61,23 @@ class RegionContext:
     landmarks: list[str]
     coordinates: tuple[int, int]
     generated_at: Optional[datetime] = None
+
+    # Economy fields
+    primary_resources: list[str] = field(default_factory=list)
+    scarce_resources: list[str] = field(default_factory=list)
+    trade_goods: list[str] = field(default_factory=list)
+    price_modifier: float = 1.0
+
+    # History fields
+    founding_story: str = ""
+    historical_events: list[str] = field(default_factory=list)
+    ruined_civilizations: list[str] = field(default_factory=list)
+    legendary_locations: list[str] = field(default_factory=list)
+
+    # Atmosphere fields
+    common_creatures: list[str] = field(default_factory=list)
+    weather_tendency: str = ""
+    ambient_sounds: list[str] = field(default_factory=list)
 
     def to_dict(self) -> dict:
         """Serialize RegionContext to dictionary for save/load.
@@ -59,6 +93,20 @@ class RegionContext:
             "landmarks": self.landmarks,
             "coordinates": list(self.coordinates),
             "generated_at": self.generated_at.isoformat() if self.generated_at else None,
+            # Economy fields
+            "primary_resources": self.primary_resources,
+            "scarce_resources": self.scarce_resources,
+            "trade_goods": self.trade_goods,
+            "price_modifier": self.price_modifier,
+            # History fields
+            "founding_story": self.founding_story,
+            "historical_events": self.historical_events,
+            "ruined_civilizations": self.ruined_civilizations,
+            "legendary_locations": self.legendary_locations,
+            # Atmosphere fields
+            "common_creatures": self.common_creatures,
+            "weather_tendency": self.weather_tendency,
+            "ambient_sounds": self.ambient_sounds,
         }
 
     @classmethod
@@ -82,6 +130,20 @@ class RegionContext:
             landmarks=data["landmarks"],
             coordinates=tuple(data["coordinates"]),
             generated_at=generated_at,
+            # Economy fields (with backward-compatible defaults)
+            primary_resources=data.get("primary_resources", []),
+            scarce_resources=data.get("scarce_resources", []),
+            trade_goods=data.get("trade_goods", []),
+            price_modifier=data.get("price_modifier", 1.0),
+            # History fields (with backward-compatible defaults)
+            founding_story=data.get("founding_story", ""),
+            historical_events=data.get("historical_events", []),
+            ruined_civilizations=data.get("ruined_civilizations", []),
+            legendary_locations=data.get("legendary_locations", []),
+            # Atmosphere fields (with backward-compatible defaults)
+            common_creatures=data.get("common_creatures", []),
+            weather_tendency=data.get("weather_tendency", ""),
+            ambient_sounds=data.get("ambient_sounds", []),
         )
 
     @classmethod

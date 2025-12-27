@@ -221,3 +221,293 @@ class TestRegionContextRoundTrip:
 
         assert restored.name == original.name
         assert restored.generated_at is None
+
+
+class TestRegionContextEconomyFields:
+    """Tests for RegionContext economy fields (primary_resources, scarce_resources, trade_goods, price_modifier)."""
+
+    def test_create_with_economy_fields(self):
+        """Test creation with all economy fields specified."""
+        ctx = RegionContext(
+            name="Mining District",
+            theme="ore veins, pickaxe labor",
+            danger_level="moderate",
+            landmarks=["The Great Mine"],
+            coordinates=(3, 4),
+            primary_resources=["iron", "timber"],
+            scarce_resources=["gold", "spices"],
+            trade_goods=["iron ingots", "lumber"],
+            price_modifier=1.2,
+        )
+
+        assert ctx.primary_resources == ["iron", "timber"]
+        assert ctx.scarce_resources == ["gold", "spices"]
+        assert ctx.trade_goods == ["iron ingots", "lumber"]
+        assert ctx.price_modifier == 1.2
+
+    def test_economy_fields_default_to_empty(self):
+        """Test economy fields default to empty lists and 1.0 modifier."""
+        ctx = RegionContext(
+            name="Basic Region",
+            theme="generic",
+            danger_level="safe",
+            landmarks=[],
+            coordinates=(0, 0),
+        )
+
+        assert ctx.primary_resources == []
+        assert ctx.scarce_resources == []
+        assert ctx.trade_goods == []
+        assert ctx.price_modifier == 1.0
+
+
+class TestRegionContextHistoryFields:
+    """Tests for RegionContext history fields (founding_story, historical_events, ruined_civilizations, legendary_locations)."""
+
+    def test_create_with_history_fields(self):
+        """Test creation with all history fields specified."""
+        ctx = RegionContext(
+            name="Ancient Lands",
+            theme="forgotten memories",
+            danger_level="dangerous",
+            landmarks=["Old Temple"],
+            coordinates=(5, 5),
+            founding_story="Founded by the First King in ages past",
+            historical_events=["The Great War", "The Plague"],
+            ruined_civilizations=["The Eldari", "The Dwarven Empire"],
+            legendary_locations=["The Lost City", "The Hidden Valley"],
+        )
+
+        assert ctx.founding_story == "Founded by the First King in ages past"
+        assert ctx.historical_events == ["The Great War", "The Plague"]
+        assert ctx.ruined_civilizations == ["The Eldari", "The Dwarven Empire"]
+        assert ctx.legendary_locations == ["The Lost City", "The Hidden Valley"]
+
+    def test_history_fields_default_to_empty(self):
+        """Test history fields default to empty strings and lists."""
+        ctx = RegionContext(
+            name="New Region",
+            theme="fresh start",
+            danger_level="safe",
+            landmarks=[],
+            coordinates=(0, 0),
+        )
+
+        assert ctx.founding_story == ""
+        assert ctx.historical_events == []
+        assert ctx.ruined_civilizations == []
+        assert ctx.legendary_locations == []
+
+
+class TestRegionContextAtmosphereFields:
+    """Tests for RegionContext atmosphere fields (common_creatures, weather_tendency, ambient_sounds)."""
+
+    def test_create_with_atmosphere_fields(self):
+        """Test creation with all atmosphere fields specified."""
+        ctx = RegionContext(
+            name="Misty Swamp",
+            theme="murky, damp",
+            danger_level="dangerous",
+            landmarks=["The Bog"],
+            coordinates=(2, -3),
+            common_creatures=["giant frogs", "will-o-wisps", "swamp trolls"],
+            weather_tendency="foggy",
+            ambient_sounds=["croaking", "bubbling", "distant howls"],
+        )
+
+        assert ctx.common_creatures == ["giant frogs", "will-o-wisps", "swamp trolls"]
+        assert ctx.weather_tendency == "foggy"
+        assert ctx.ambient_sounds == ["croaking", "bubbling", "distant howls"]
+
+    def test_atmosphere_fields_default_to_empty(self):
+        """Test atmosphere fields default to empty values."""
+        ctx = RegionContext(
+            name="Plain Region",
+            theme="basic",
+            danger_level="safe",
+            landmarks=[],
+            coordinates=(0, 0),
+        )
+
+        assert ctx.common_creatures == []
+        assert ctx.weather_tendency == ""
+        assert ctx.ambient_sounds == []
+
+
+class TestRegionContextNewFieldsSerialization:
+    """Tests for serialization/deserialization of new economy, history, and atmosphere fields."""
+
+    def test_to_dict_includes_new_fields(self):
+        """Test serialization includes all 11 new fields."""
+        ctx = RegionContext(
+            name="Full Region",
+            theme="complete theme",
+            danger_level="moderate",
+            landmarks=["Landmark"],
+            coordinates=(1, 1),
+            # Economy
+            primary_resources=["iron", "timber"],
+            scarce_resources=["gold"],
+            trade_goods=["weapons"],
+            price_modifier=0.9,
+            # History
+            founding_story="Long ago...",
+            historical_events=["War"],
+            ruined_civilizations=["Ancients"],
+            legendary_locations=["Lost Temple"],
+            # Atmosphere
+            common_creatures=["wolves"],
+            weather_tendency="rainy",
+            ambient_sounds=["wind"],
+        )
+
+        data = ctx.to_dict()
+
+        # Economy fields
+        assert data["primary_resources"] == ["iron", "timber"]
+        assert data["scarce_resources"] == ["gold"]
+        assert data["trade_goods"] == ["weapons"]
+        assert data["price_modifier"] == 0.9
+        # History fields
+        assert data["founding_story"] == "Long ago..."
+        assert data["historical_events"] == ["War"]
+        assert data["ruined_civilizations"] == ["Ancients"]
+        assert data["legendary_locations"] == ["Lost Temple"]
+        # Atmosphere fields
+        assert data["common_creatures"] == ["wolves"]
+        assert data["weather_tendency"] == "rainy"
+        assert data["ambient_sounds"] == ["wind"]
+
+    def test_from_dict_with_new_fields(self):
+        """Test deserialization restores all 11 new fields."""
+        data = {
+            "name": "Full Region",
+            "theme": "complete theme",
+            "danger_level": "moderate",
+            "landmarks": ["Landmark"],
+            "coordinates": [1, 1],
+            "generated_at": None,
+            # Economy
+            "primary_resources": ["iron", "timber"],
+            "scarce_resources": ["gold"],
+            "trade_goods": ["weapons"],
+            "price_modifier": 0.9,
+            # History
+            "founding_story": "Long ago...",
+            "historical_events": ["War"],
+            "ruined_civilizations": ["Ancients"],
+            "legendary_locations": ["Lost Temple"],
+            # Atmosphere
+            "common_creatures": ["wolves"],
+            "weather_tendency": "rainy",
+            "ambient_sounds": ["wind"],
+        }
+
+        ctx = RegionContext.from_dict(data)
+
+        # Economy fields
+        assert ctx.primary_resources == ["iron", "timber"]
+        assert ctx.scarce_resources == ["gold"]
+        assert ctx.trade_goods == ["weapons"]
+        assert ctx.price_modifier == 0.9
+        # History fields
+        assert ctx.founding_story == "Long ago..."
+        assert ctx.historical_events == ["War"]
+        assert ctx.ruined_civilizations == ["Ancients"]
+        assert ctx.legendary_locations == ["Lost Temple"]
+        # Atmosphere fields
+        assert ctx.common_creatures == ["wolves"]
+        assert ctx.weather_tendency == "rainy"
+        assert ctx.ambient_sounds == ["wind"]
+
+    def test_from_dict_backward_compatible(self):
+        """Test old saves without new fields load successfully with defaults."""
+        # Simulates an old save file without any of the new fields
+        old_save_data = {
+            "name": "Old Region",
+            "theme": "old theme",
+            "danger_level": "safe",
+            "landmarks": [],
+            "coordinates": [0, 0],
+            "generated_at": None,
+        }
+
+        ctx = RegionContext.from_dict(old_save_data)
+
+        # Old fields work
+        assert ctx.name == "Old Region"
+        assert ctx.theme == "old theme"
+        # New fields get defaults
+        assert ctx.primary_resources == []
+        assert ctx.scarce_resources == []
+        assert ctx.trade_goods == []
+        assert ctx.price_modifier == 1.0
+        assert ctx.founding_story == ""
+        assert ctx.historical_events == []
+        assert ctx.ruined_civilizations == []
+        assert ctx.legendary_locations == []
+        assert ctx.common_creatures == []
+        assert ctx.weather_tendency == ""
+        assert ctx.ambient_sounds == []
+
+    def test_default_factory_sets_empty_values(self):
+        """Test RegionContext.default() works with new fields."""
+        ctx = RegionContext.default("Default Region", (0, 0))
+
+        # New economy fields
+        assert ctx.primary_resources == []
+        assert ctx.scarce_resources == []
+        assert ctx.trade_goods == []
+        assert ctx.price_modifier == 1.0
+        # New history fields
+        assert ctx.founding_story == ""
+        assert ctx.historical_events == []
+        assert ctx.ruined_civilizations == []
+        assert ctx.legendary_locations == []
+        # New atmosphere fields
+        assert ctx.common_creatures == []
+        assert ctx.weather_tendency == ""
+        assert ctx.ambient_sounds == []
+
+    def test_round_trip_with_new_fields(self):
+        """Test full round-trip preserves all new data."""
+        original = RegionContext(
+            name="Complete Region",
+            theme="full theme",
+            danger_level="dangerous",
+            landmarks=["Tower"],
+            coordinates=(7, 8),
+            generated_at=None,
+            # Economy
+            primary_resources=["copper", "fish"],
+            scarce_resources=["diamonds"],
+            trade_goods=["jewelry", "seafood"],
+            price_modifier=1.5,
+            # History
+            founding_story="The settlers arrived...",
+            historical_events=["Founding Day", "The Fire"],
+            ruined_civilizations=["The Merfolk"],
+            legendary_locations=["Sunken Palace"],
+            # Atmosphere
+            common_creatures=["seagulls", "crabs"],
+            weather_tendency="stormy",
+            ambient_sounds=["waves", "seabirds"],
+        )
+
+        data = original.to_dict()
+        restored = RegionContext.from_dict(data)
+
+        # All new economy fields preserved
+        assert restored.primary_resources == original.primary_resources
+        assert restored.scarce_resources == original.scarce_resources
+        assert restored.trade_goods == original.trade_goods
+        assert restored.price_modifier == original.price_modifier
+        # All new history fields preserved
+        assert restored.founding_story == original.founding_story
+        assert restored.historical_events == original.historical_events
+        assert restored.ruined_civilizations == original.ruined_civilizations
+        assert restored.legendary_locations == original.legendary_locations
+        # All new atmosphere fields preserved
+        assert restored.common_creatures == original.common_creatures
+        assert restored.weather_tendency == original.weather_tendency
+        assert restored.ambient_sounds == original.ambient_sounds

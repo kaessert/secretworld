@@ -1,59 +1,55 @@
-# Implementation Summary: Issue 1 - Expand WorldContext (Layer 1)
+# Implementation Summary: Issue 2 - Expand RegionContext (Layer 2)
 
 ## What Was Implemented
 
-Added 7 new fields to `WorldContext` dataclass for richer world generation:
+Added 11 new fields to the `RegionContext` dataclass for richer region-specific AI generation:
 
-### New Fields Added
-| Field | Type | Purpose |
-|-------|------|---------|
-| `creation_myth` | `str` | World origin story |
-| `major_conflicts` | `list[str]` | 2-3 world-defining conflicts |
-| `legendary_artifacts` | `list[str]` | World-famous items |
-| `prophecies` | `list[str]` | Active prophecies |
-| `major_factions` | `list[str]` | 3-5 world powers |
-| `faction_tensions` | `dict[str, list[str]]` | Faction rivalries |
-| `economic_era` | `str` | stable, recession, boom, war_economy |
+### Economy Fields (4)
+- `primary_resources: list[str]` - Resources abundant in the region (e.g., ["iron", "timber"])
+- `scarce_resources: list[str]` - Resources rare in the region (e.g., ["gold", "spices"])
+- `trade_goods: list[str]` - Items commonly exported from the region
+- `price_modifier: float` - Regional price adjustment factor (default 1.0)
 
-### Files Modified
+### History Fields (4)
+- `founding_story: str` - Region origin story
+- `historical_events: list[str]` - Notable past events in the region
+- `ruined_civilizations: list[str]` - Ancient cultures that once inhabited the region
+- `legendary_locations: list[str]` - Mythic places in the region
 
-1. **`src/cli_rpg/models/world_context.py`**:
+### Atmosphere Fields (3)
+- `common_creatures: list[str]` - Typical fauna/monsters found in the region
+- `weather_tendency: str` - Dominant weather pattern in the region
+- `ambient_sounds: list[str]` - Ambient audio cues for atmosphere
+
+## Files Modified
+
+1. **`src/cli_rpg/models/region_context.py`**
    - Added `field` import from dataclasses
-   - Added 3 new default dictionaries at module level:
-     - `DEFAULT_CREATION_MYTHS` - theme-specific origin stories
-     - `DEFAULT_MAJOR_FACTIONS` - theme-specific faction lists
-     - `DEFAULT_ECONOMIC_ERAS` - theme-specific economic states
-   - Added 7 new fields to the `WorldContext` dataclass with proper defaults
-   - Updated `to_dict()` to serialize all new fields
-   - Updated `from_dict()` to deserialize new fields with backward-compatible defaults
-   - Updated `default()` factory to include sensible defaults for new fields
+   - Added 11 new fields to `RegionContext` dataclass with appropriate defaults
+   - Updated docstring to document all new fields
+   - Updated `to_dict()` to serialize all 11 new fields
+   - Updated `from_dict()` to deserialize with backward-compatible defaults
 
-2. **`tests/test_world_context.py`**:
-   - Added new test class `TestWorldContextLoreAndFactions` with 7 tests:
-     - `test_new_field_creation` - instantiation with all new fields
-     - `test_new_field_defaults` - minimal instantiation preserves defaults
-     - `test_to_dict_includes_new_fields` - serialization includes new fields
-     - `test_from_dict_restores_new_fields` - deserialization restores new fields
-     - `test_from_dict_backward_compatibility` - old saves load correctly
-     - `test_default_includes_new_field_defaults` - factory provides defaults
-     - `test_round_trip_with_new_fields` - serialization cycle preserves data
+2. **`tests/test_region_context.py`**
+   - Added `TestRegionContextEconomyFields` class (2 tests)
+   - Added `TestRegionContextHistoryFields` class (2 tests)
+   - Added `TestRegionContextAtmosphereFields` class (2 tests)
+   - Added `TestRegionContextNewFieldsSerialization` class (5 tests)
+   - Total: 9 new tests
 
 ## Test Results
 
-- **WorldContext tests**: 17 passed (10 existing + 7 new)
-- **Full test suite**: 4192 passed
+- All 23 tests in `tests/test_region_context.py` pass
+- Full test suite: 4203 tests pass (no regressions)
 
 ## Design Decisions
 
-1. **Backward compatibility**: All new fields use `.get()` with empty defaults in `from_dict()` so old save files without these fields continue to work.
+1. **Default factory for lists**: Used `field(default_factory=list)` for all list fields to avoid mutable default argument issues
+2. **Backward compatibility**: The `from_dict()` method uses `.get()` with empty defaults so old save files without the new fields load successfully
+3. **No changes to `default()` factory**: Relies on dataclass field defaults, which is cleaner and more maintainable
 
-2. **List/dict fields use `field(default_factory=...)`**: Per Python dataclass best practices, mutable defaults use factory functions to avoid shared state.
+## E2E Tests Should Validate
 
-3. **Default factory includes subset of new fields**: The `default()` method populates `creation_myth`, `major_factions`, and `economic_era` with theme-specific defaults. Other fields (`major_conflicts`, `legendary_artifacts`, `prophecies`, `faction_tensions`) are left empty since they're more context-dependent and would be AI-generated.
-
-## E2E Validation
-
-The implementation can be validated by:
-1. Creating a new game and checking that `WorldContext.default()` includes the new fields
-2. Loading an old save file to verify backward compatibility
-3. Verifying new games save/load the new fields correctly
+1. Creating a new region with economy/history/atmosphere data
+2. Saving and loading a game with regions that have the new fields populated
+3. Loading an old save file that doesn't have the new fields (backward compatibility)

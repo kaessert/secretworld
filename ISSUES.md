@@ -609,30 +609,33 @@ Added lore and faction fields to WorldContext for richer world generation.
 ---
 
 ### Issue 2: Expand RegionContext (Layer 2)
-**Status**: PENDING
+**Status**: ✅ COMPLETE (2025-12-27)
 **Priority**: HIGH
 
-Add economy and history fields to RegionContext.
+Added economy, history, and atmosphere fields to RegionContext for richer region-specific AI generation.
 
-**Economy Fields**:
-- `primary_resources: list[str]` - ["iron", "timber"]
-- `scarce_resources: list[str]` - ["gold", "spices"]
-- `trade_goods: list[str]` - Exported items
-- `price_modifier: float` - Regional price adjustment
+**New Fields (11 total)**:
 
-**History Fields**:
-- `founding_story: str`
-- `historical_events: list[str]`
-- `ruined_civilizations: list[str]`
-- `legendary_locations: list[str]`
+*Economy Fields (4)*:
+- `primary_resources: list[str]` - Resources abundant in the region (e.g., ["iron", "timber"])
+- `scarce_resources: list[str]` - Resources rare in the region (e.g., ["gold", "spices"])
+- `trade_goods: list[str]` - Items commonly exported from the region
+- `price_modifier: float` - Regional price adjustment factor (default 1.0)
 
-**Atmosphere Fields**:
-- `common_creatures: list[str]`
-- `weather_tendency: str`
-- `ambient_sounds: list[str]`
+*History Fields (4)*:
+- `founding_story: str` - Region origin story
+- `historical_events: list[str]` - Notable past events in the region
+- `ruined_civilizations: list[str]` - Ancient cultures that once inhabited the region
+- `legendary_locations: list[str]` - Mythic places in the region
 
-**Files to Modify**:
-- `src/cli_rpg/models/region_context.py`
+*Atmosphere Fields (3)*:
+- `common_creatures: list[str]` - Typical fauna/monsters found in the region
+- `weather_tendency: str` - Dominant weather pattern in the region
+- `ambient_sounds: list[str]` - Ambient audio cues for atmosphere
+
+**Files Modified**:
+- `src/cli_rpg/models/region_context.py` - Added 11 new fields with defaults, updated to_dict/from_dict
+- `tests/test_region_context.py` - Added 9 new tests (23 total passing)
 
 ---
 
