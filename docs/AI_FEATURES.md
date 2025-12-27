@@ -30,6 +30,7 @@ The AI generation uses a hierarchical architecture for consistent, efficient wor
 - **Layer 3 (Location)**: Individual location details using minimal prompts that reference cached context
 - **Layer 4 (NPCs)**: NPC generation as a separate call, keeping each prompt focused and reliable
 - **Layer 5 (SettlementContext)**: Settlement-level context including character networks (notable families, NPC relationships), economic connections (trade routes, guilds, market specialty), political structure (government type, political figures, tensions), and social atmosphere (population, prosperity, social issues) - model available, integration pending
+- **Layer 6 (LoreContext)**: Region-specific lore including historical events, legendary items/places, prophecies, ancient civilizations, creation myths, and deities - model available, integration pending
 
 This architecture reduces API calls and token usage by caching context at higher layers and using minimal prompts at lower layers.
 

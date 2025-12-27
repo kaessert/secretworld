@@ -1,88 +1,100 @@
-# Implementation Plan: SettlementContext (Layer 5)
+# Implementation Plan: LoreContext (Layer 6)
 
 ## Summary
-Create `SettlementContext` dataclass model for character networks, politics, and trade - enabling richer settlement generation with NPC relationships, guilds, political figures, and trade routes.
+Create the `LoreContext` dataclass model for caching lore information (historical events, legendary items, legendary places, prophecies, ancient civilizations, creation myths, deities) following the established pattern from SettlementContext and RegionContext.
+
+---
 
 ## Spec
-**File**: `src/cli_rpg/models/settlement_context.py`
+
+**Model**: `LoreContext` dataclass in `src/cli_rpg/models/lore_context.py`
 
 ```python
 @dataclass
-class SettlementContext:
+class LoreContext:
     # Required identifiers
-    settlement_name: str
-    location_coordinates: tuple[int, int]
-    generated_at: Optional[datetime] = None
+    region_name: str                           # Region this lore belongs to
+    coordinates: tuple[int, int]               # Region coordinates
+    generated_at: Optional[datetime] = None    # When AI-generated (None if fallback)
 
-    # Character Networks
-    notable_families: list[str] = field(default_factory=list)
-    npc_relationships: list[dict] = field(default_factory=list)  # [{npc_a, npc_b, type, strength}]
+    # Historical Events (list of dicts with name, date, description, impact)
+    historical_events: list[dict] = field(default_factory=list)
 
-    # Economic Connections
-    trade_routes: list[dict] = field(default_factory=list)  # [{origin, destination, goods, status}]
-    local_guilds: list[str] = field(default_factory=list)
-    market_specialty: str = ""
+    # Legendary Items (list of dicts with name, description, powers, location_hint)
+    legendary_items: list[dict] = field(default_factory=list)
 
-    # Political Structure
-    government_type: str = ""  # council, monarchy, theocracy, etc.
-    political_figures: list[dict] = field(default_factory=list)  # [{name, title, faction}]
-    current_tensions: list[str] = field(default_factory=list)
+    # Legendary Places (list of dicts with name, description, danger_level, rumored_location)
+    legendary_places: list[dict] = field(default_factory=list)
 
-    # Social Atmosphere
-    population_size: str = ""  # hamlet, village, town, city, metropolis
-    prosperity_level: str = ""  # poor, modest, prosperous, wealthy
-    social_issues: list[str] = field(default_factory=list)
+    # Prophecies (list of dicts with name, text, interpretation, fulfilled)
+    prophecies: list[dict] = field(default_factory=list)
+
+    # Ancient Civilizations (list of dicts with name, era, achievements, downfall)
+    ancient_civilizations: list[dict] = field(default_factory=list)
+
+    # Creation Myths (list of strings - region-specific origin stories)
+    creation_myths: list[str] = field(default_factory=list)
+
+    # Deities (list of dicts with name, domain, alignment, worship_status)
+    deities: list[dict] = field(default_factory=list)
 ```
 
-**Required methods** (following WorldContext/RegionContext patterns):
-- `to_dict()` - serialize for save/load (datetime as ISO, tuple as list)
-- `from_dict()` - deserialize with backward-compatible defaults
-- `default()` - factory for fallback when AI unavailable
+**Methods**:
+- `to_dict() -> dict` - Serialize for save/load (datetime→ISO, tuple→list)
+- `from_dict(data: dict) -> LoreContext` - Deserialize with backward-compatible defaults
+- `default(region_name: str, coordinates: tuple[int, int]) -> LoreContext` - Fallback factory
+
+**Default Constants**:
+- `DEFAULT_HISTORICAL_EVENT_TYPES` - ["war", "plague", "discovery", "founding", "cataclysm"]
+- `DEFAULT_DEITY_DOMAINS` - ["war", "nature", "death", "knowledge", "trickery", "life"]
+- `DEFAULT_DEITY_ALIGNMENTS` - ["good", "neutral", "evil", "forgotten"]
+
+---
 
 ## Tests
-**File**: `tests/test_settlement_context.py`
 
-1. **Creation tests**:
-   - `test_create_with_all_fields` - all fields specified
-   - `test_create_with_minimal_fields` - only required, defaults applied
-   - `test_create_empty_collections` - empty lists/strings work
+**File**: `tests/test_lore_context.py`
 
-2. **Serialization tests**:
-   - `test_to_dict_with_all_fields` - datetime→ISO, tuple→list
-   - `test_to_dict_with_none_generated_at` - handles None timestamp
+### TestLoreContextCreation
+1. `test_create_with_all_fields` - All fields specified, verify storage
+2. `test_create_with_minimal_fields` - Only required, defaults applied
+3. `test_create_empty_collections` - Empty lists work correctly
 
-3. **Deserialization tests**:
-   - `test_from_dict_with_all_fields` - restores all data correctly
-   - `test_from_dict_backward_compatible` - old saves without new fields load with defaults
-   - `test_from_dict_with_null_generated_at` - handles null timestamp
+### TestLoreContextSerialization
+4. `test_to_dict_with_all_fields` - datetime→ISO, tuple→list conversions
+5. `test_to_dict_with_none_generated_at` - Handles None timestamp
 
-4. **Default factory tests**:
-   - `test_default_creates_valid_context` - creates valid instance
-   - `test_default_with_different_coordinates` - works with various coords
+### TestLoreContextDeserialization
+6. `test_from_dict_with_all_fields` - Restores all data correctly
+7. `test_from_dict_backward_compatible` - Old saves load with defaults
+8. `test_from_dict_with_null_generated_at` - Handles null timestamp
 
-5. **Round-trip test**:
-   - `test_round_trip_preserves_all_data` - to_dict→from_dict preserves everything
+### TestLoreContextDefaultFactory
+9. `test_default_creates_valid_context` - Creates valid instance
+10. `test_default_with_different_coordinates` - Works with various coords
+
+### TestLoreContextRoundTrip
+11. `test_round_trip_preserves_all_data` - to_dict→from_dict preserves everything
+12. `test_round_trip_without_generated_at` - Round-trip with None timestamp
+
+---
 
 ## Implementation Steps
 
-1. **Create model file** `src/cli_rpg/models/settlement_context.py`:
-   - Module docstring explaining Layer 5 purpose
-   - Import dataclass, field, datetime, Optional
-   - Add DEFAULT constants for fallback values (government types, population sizes, prosperity levels)
-   - Define `SettlementContext` dataclass with all fields
-   - Implement `to_dict()` method
-   - Implement `from_dict()` classmethod with backward-compatible defaults
-   - Implement `default()` classmethod factory
+1. **Create test file** `tests/test_lore_context.py`
+   - Copy structure from `test_settlement_context.py`
+   - Update to test LoreContext fields (historical_events, legendary_items, etc.)
+   - 12 test cases covering creation, serialization, deserialization, default factory, round-trip
 
-2. **Create test file** `tests/test_settlement_context.py`:
-   - Follow test patterns from `test_region_context.py`
-   - 11 tests covering creation, serialization, deserialization, default factory, round-trip
+2. **Create model file** `src/cli_rpg/models/lore_context.py`
+   - Add module docstring explaining Layer 6 purpose
+   - Define `DEFAULT_HISTORICAL_EVENT_TYPES`, `DEFAULT_DEITY_DOMAINS`, `DEFAULT_DEITY_ALIGNMENTS`
+   - Create `LoreContext` dataclass with:
+     - Required fields: `region_name`, `coordinates`
+     - Optional: `generated_at`
+     - Lore fields: `historical_events`, `legendary_items`, `legendary_places`, `prophecies`, `ancient_civilizations`, `creation_myths`, `deities`
+   - Implement `to_dict()` with datetime→ISO, tuple→list
+   - Implement `from_dict()` with backward-compatible `.get()` defaults
+   - Implement `default()` factory classmethod
 
-3. **Run tests**: `pytest tests/test_settlement_context.py -v`
-
-## Files to Create
-- `src/cli_rpg/models/settlement_context.py`
-- `tests/test_settlement_context.py`
-
-## Files NOT Modified
-No existing files need changes for this task - this is a new model only. Integration with AI service and GameState will be done in Issue 5 (GenerationContext aggregator).
+3. **Run tests** - Verify all 12 tests pass with `pytest tests/test_lore_context.py -v`

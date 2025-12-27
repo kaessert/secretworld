@@ -801,27 +801,40 @@ class SettlementContext:
 ---
 
 ### Issue 4: LoreContext (Layer 6)
-**Status**: PENDING
+**Status**: ✅ COMPLETE (2025-12-27)
 **Priority**: HIGH
 
-Create new LoreContext for historical events, legendary items, and ancient civilizations.
+Created LoreContext dataclass for historical events, legendary items, and ancient civilizations.
 
-**Model**:
+**Model** (implemented in `src/cli_rpg/models/lore_context.py`):
 ```python
 @dataclass
 class LoreContext:
     region_name: str
-    historical_events: list[HistoricalEvent]
-    legendary_items: list[LegendaryItem]
-    legendary_places: list[LegendaryPlace]
-    prophecies: list[Prophecy]
-    ancient_civilizations: list[AncientCivilization]
+    coordinates: tuple[int, int]
+    generated_at: Optional[datetime]
+    # Lore fields (all list types)
+    historical_events: list[dict]  # name, date, description, impact
+    legendary_items: list[dict]    # name, description, powers, location_hint
+    legendary_places: list[dict]   # name, description, danger_level, rumored_location
+    prophecies: list[dict]         # name, text, interpretation, fulfilled
+    ancient_civilizations: list[dict]  # name, era, achievements, downfall
     creation_myths: list[str]
-    deities: list[str]
+    deities: list[dict]  # name, domain, alignment, worship_status
 ```
 
-**Files to Create**:
+**Implementation Details**:
+- `to_dict()` method for serialization (datetime→ISO, tuple→list)
+- `from_dict()` classmethod for deserialization with backward-compatible defaults
+- `default()` classmethod for fallback when AI unavailable
+- Default constants: `DEFAULT_HISTORICAL_EVENT_TYPES`, `DEFAULT_DEITY_DOMAINS`, `DEFAULT_DEITY_ALIGNMENTS`
+- 12 tests in `tests/test_lore_context.py` covering creation, serialization, deserialization, and defaults
+
+**Files Created**:
 - `src/cli_rpg/models/lore_context.py`
+- `tests/test_lore_context.py`
+
+**Note**: Model complete; integration with GenerationContext aggregator pending (Issue 5).
 
 ---
 
@@ -1236,7 +1249,7 @@ class FactionConflict:
 
 **Phase 2: New Layer Models**
 5. ✅ Create SettlementContext model - Layer 5 (Issue 3 COMPLETE)
-6. Create LoreContext model - Layer 6 (Issue 4)
+6. ✅ Create LoreContext model - Layer 6 (Issue 4 COMPLETE)
 7. Add generation methods to AIService
 8. Integrate with existing generation flow
 

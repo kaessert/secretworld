@@ -1,46 +1,52 @@
-# Implementation Summary: SettlementContext (Layer 5)
+# Implementation Summary: LoreContext (Layer 6)
 
 ## What Was Implemented
 
-Created `SettlementContext` dataclass model for caching settlement-level information including character networks, politics, and trade. This is Layer 5 in the hierarchy for AI-generated content.
+Created the `LoreContext` dataclass model for caching lore information in the layered AI generation architecture.
 
 ### Files Created
 
-1. **`src/cli_rpg/models/settlement_context.py`**
-   - `SettlementContext` dataclass with all specified fields:
-     - Required: `settlement_name`, `location_coordinates`, `generated_at`
-     - Character Networks: `notable_families`, `npc_relationships`
-     - Economic Connections: `trade_routes`, `local_guilds`, `market_specialty`
-     - Political Structure: `government_type`, `political_figures`, `current_tensions`
-     - Social Atmosphere: `population_size`, `prosperity_level`, `social_issues`
-   - `to_dict()` method - serializes to JSON-compatible dict (datetime→ISO, tuple→list)
-   - `from_dict()` classmethod - deserializes with backward-compatible defaults
-   - `default()` classmethod - factory for fallback when AI unavailable
-   - Default constants: `DEFAULT_GOVERNMENT_TYPES`, `DEFAULT_POPULATION_SIZES`, `DEFAULT_PROSPERITY_LEVELS`
+1. **`src/cli_rpg/models/lore_context.py`** - The model implementation
+   - `LoreContext` dataclass with:
+     - Required fields: `region_name`, `coordinates`
+     - Optional: `generated_at` (datetime)
+     - Lore fields (all list types):
+       - `historical_events` - list of dicts with name, date, description, impact
+       - `legendary_items` - list of dicts with name, description, powers, location_hint
+       - `legendary_places` - list of dicts with name, description, danger_level, rumored_location
+       - `prophecies` - list of dicts with name, text, interpretation, fulfilled
+       - `ancient_civilizations` - list of dicts with name, era, achievements, downfall
+       - `creation_myths` - list of strings
+       - `deities` - list of dicts with name, domain, alignment, worship_status
+   - Methods:
+     - `to_dict()` - Serializes with datetime→ISO string, tuple→list conversions
+     - `from_dict()` - Deserializes with backward-compatible `.get()` defaults
+     - `default()` - Factory classmethod for fallback when AI unavailable
+   - Default constants:
+     - `DEFAULT_HISTORICAL_EVENT_TYPES`
+     - `DEFAULT_DEITY_DOMAINS`
+     - `DEFAULT_DEITY_ALIGNMENTS`
 
-2. **`tests/test_settlement_context.py`**
-   - 12 tests covering all spec requirements:
-     - Creation tests (3): all fields, minimal fields, empty collections
-     - Serialization tests (2): all fields, None timestamp
-     - Deserialization tests (3): all fields, backward compatibility, null timestamp
-     - Default factory tests (2): valid context, various coordinates
-     - Round-trip tests (2): preserves all data, handles None timestamp
+2. **`tests/test_lore_context.py`** - Complete test coverage
+   - 12 test cases covering:
+     - Creation (with all fields, minimal fields, empty collections)
+     - Serialization (all fields, None timestamp)
+     - Deserialization (all fields, backward-compatible, null timestamp)
+     - Default factory (valid context, different coordinates)
+     - Round-trip (preserves all data, handles None timestamp)
 
 ## Test Results
 
-```
-12 passed in 0.55s
-```
-
-All tests pass successfully.
+- All 12 new tests pass
+- Full test suite: 4346 tests pass (no regressions)
 
 ## Design Decisions
 
-1. **Followed RegionContext patterns exactly** - same method signatures, serialization approach, and test structure for consistency
-2. **All optional fields use defaults** - enables backward compatibility for old saves without new fields
-3. **Complex fields use `list[dict]`** - allows flexible schema for relationships, trade routes, and political figures
-4. **Minimal default() factory** - only sets required fields, leaves optional fields empty for AI to populate
+- Followed the established pattern from `SettlementContext` and `RegionContext`
+- Used dataclass with `field(default_factory=list)` for mutable defaults
+- Backward-compatible deserialization using `.get()` with default values
+- JSON-compatible serialization (datetime→ISO, tuple→list)
 
 ## E2E Validation
 
-No E2E tests needed for this change - this is a new model with no integration to existing systems yet. Integration will be done in Issue 5 (GenerationContext aggregator).
+No E2E tests needed for this change - this is a new model with no integration to existing systems yet. Integration will be done when the GenerationContext aggregator is implemented.
