@@ -1,8 +1,14 @@
 """Grid-based world representation with spatial consistency."""
 
+from __future__ import annotations
+
 from dataclasses import dataclass, field
-from typing import Dict, Optional, Tuple, List
+from typing import Dict, Optional, Tuple, List, TYPE_CHECKING
+
 from cli_rpg.models.location import Location
+
+if TYPE_CHECKING:
+    from cli_rpg.models.district import District
 
 
 # Direction offsets: (dx, dy)
@@ -74,6 +80,10 @@ SUBGRID_BOUNDS: Dict[str, Tuple[int, int, int, int, int, int]] = {
     "village": (-5, 5, -5, 5, 0, 0),      # single level
     # Huge (17x17) - Cities
     "city": (-8, 8, -8, 8, 0, 0),         # single level
+    # Massive (25x25) - Metropolises
+    "metropolis": (-12, 12, -12, 12, 0, 0),  # single level, multi-district
+    # Enormous (33x33) - Capitals
+    "capital": (-16, 16, -16, 16, 0, 0),     # single level, multi-district
     # Default fallback
     "default": (-2, 2, -2, 2, 0, 0),      # single level
 }
@@ -120,6 +130,7 @@ class SubGrid:
     bounds: Tuple[int, int, int, int, int, int] = (-2, 2, -2, 2, 0, 0)  # min_x, max_x, min_y, max_y, min_z, max_z
     parent_name: str = ""
     secret_passages: List[dict] = field(default_factory=list)
+    districts: List["District"] = field(default_factory=list)
 
     def add_location(self, location: Location, x: int, y: int, z: int = 0) -> None:
         """Add a location within bounds.
@@ -202,7 +213,7 @@ class SubGrid:
         """Serialize the sub-grid to a dictionary.
 
         Returns:
-            Dictionary representation with locations, bounds, parent_name, and secret_passages
+            Dictionary representation with locations, bounds, parent_name, secret_passages, and districts
         """
         locations = []
         for location in self._by_name.values():
@@ -213,6 +224,7 @@ class SubGrid:
             "bounds": list(self.bounds),
             "parent_name": self.parent_name,
             "secret_passages": self.secret_passages,
+            "districts": [d.to_dict() for d in self.districts],
         }
 
     @classmethod
@@ -225,6 +237,9 @@ class SubGrid:
         Returns:
             SubGrid instance with restored locations
         """
+        # Import here to avoid circular imports
+        from cli_rpg.models.district import District
+
         grid = cls()
         # Handle both legacy 4-tuple and new 6-tuple bounds
         raw_bounds = data.get("bounds", [-2, 2, -2, 2, 0, 0])
@@ -234,6 +249,7 @@ class SubGrid:
         grid.bounds = tuple(raw_bounds)
         grid.parent_name = data.get("parent_name", "")
         grid.secret_passages = data.get("secret_passages", [])
+        grid.districts = [District.from_dict(d) for d in data.get("districts", [])]
 
         for loc_data in data.get("locations", []):
             location = Location.from_dict(loc_data)

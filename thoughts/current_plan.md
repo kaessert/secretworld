@@ -1,121 +1,148 @@
-# Issue 12: World State Evolution Implementation Plan
+# Implementation Plan: Issue 9 - Mega-Settlements with Districts
+
+## Overview
+Expand SubGrid bounds for larger cities and add a district system to support mega-settlements with themed districts (market district, temple district, residential, etc.).
 
 ## Spec
 
-**WorldStateManager** tracks persistent world changes from quest outcomes, combat victories, and player actions. Changes are stored as typed `WorldStateChange` records that can be queried by locations, NPCs, and event systems to create meaningful consequences.
+### District Model (`src/cli_rpg/models/district.py`)
+A District represents a themed sub-area within a large settlement:
+- **DistrictType** enum: `MARKET`, `TEMPLE`, `RESIDENTIAL`, `NOBLE`, `SLUMS`, `CRAFTSMEN`, `DOCKS`, `ENTERTAINMENT`, `MILITARY`
+- **District** dataclass:
+  - `name: str` - Display name (e.g., "The Golden Market")
+  - `district_type: DistrictType` - Category from enum
+  - `description: str` - Thematic description
+  - `bounds: tuple[int, int, int, int]` - (min_x, max_x, min_y, max_y) within parent SubGrid
+  - `atmosphere: str` - Mood/feeling (e.g., "bustling", "quiet", "dangerous")
+  - `prosperity: str` - Economic level (poor, modest, prosperous, wealthy)
+  - `notable_features: list[str]` - Key landmarks within district
+  - Serialization: `to_dict()` / `from_dict()` methods
 
-### Core Data Model
+### Settlement Generator (`src/cli_rpg/settlement_generator.py`)
+Functions to partition large settlements into districts:
+- `MEGA_SETTLEMENT_CATEGORIES` - Categories that get districts: `{"city", "metropolis", "capital"}`
+- `MEGA_SETTLEMENT_THRESHOLD` - Minimum size (e.g., 17x17) to qualify
+- `generate_districts(bounds, category, settlement_name, rng)` -> `list[District]`
+- `get_district_at_coords(districts, x, y)` -> `Optional[District]`
+- District layout uses quadrant-based approach for simplicity
 
-```python
-class WorldStateChangeType(Enum):
-    LOCATION_DESTROYED = "location_destroyed"   # Location no longer exists
-    LOCATION_TRANSFORMED = "location_transformed"  # Category/description changed
-    NPC_KILLED = "npc_killed"                   # NPC removed from world
-    NPC_MOVED = "npc_moved"                     # NPC relocated
-    FACTION_ELIMINATED = "faction_eliminated"   # Faction no longer exists
-    BOSS_DEFEATED = "boss_defeated"             # Boss permanently killed
-    AREA_CLEARED = "area_cleared"               # All hostiles removed from location
-    QUEST_WORLD_EFFECT = "quest_world_effect"   # Custom quest-triggered effect
-
-@dataclass
-class WorldStateChange:
-    change_type: WorldStateChangeType
-    target: str                    # Location/NPC/faction name
-    description: str               # Human-readable summary
-    timestamp: int                 # Game hour when change occurred
-    caused_by: Optional[str]       # Quest name or action that caused it
-    metadata: dict                 # Type-specific extra data
-```
-
-### WorldStateManager API
-
-```python
-class WorldStateManager:
-    def __init__(self): ...
-
-    # Recording changes
-    def record_change(self, change: WorldStateChange) -> Optional[str]
-    def record_location_transformed(self, name: str, new_category: str, desc: str, caused_by: str) -> Optional[str]
-    def record_npc_killed(self, npc_name: str, location: str, caused_by: str) -> Optional[str]
-    def record_boss_defeated(self, boss_name: str, location: str) -> Optional[str]
-    def record_area_cleared(self, location: str, caused_by: str) -> Optional[str]
-
-    # Querying changes
-    def get_changes_for_location(self, location: str) -> list[WorldStateChange]
-    def get_changes_by_type(self, change_type: WorldStateChangeType) -> list[WorldStateChange]
-    def is_location_destroyed(self, location: str) -> bool
-    def is_npc_killed(self, npc_name: str) -> bool
-    def is_boss_defeated(self, location: str) -> bool
-    def is_area_cleared(self, location: str) -> bool
-
-    # Serialization
-    def to_dict(self) -> dict
-    @classmethod
-    def from_dict(cls, data: dict) -> WorldStateManager
-```
+### World Grid Updates (`src/cli_rpg/world_grid.py`)
+- Add `"metropolis": (-12, 12, -12, 12, 0, 0)` (25x25) to `SUBGRID_BOUNDS`
+- Add `"capital": (-16, 16, -16, 16, 0, 0)` (33x33) to `SUBGRID_BOUNDS`
+- Add `districts: list[District]` field to `SubGrid` dataclass
+- Update `SubGrid.to_dict()` / `from_dict()` for district serialization
 
 ---
 
-## Tests First (TDD)
+## Test Plan
 
-### File: `tests/test_world_state.py`
+### File: `tests/test_district.py`
 
-1. **WorldStateChange dataclass**
-   - Test creation with required fields
-   - Test validation (non-empty target, valid type)
-   - Test to_dict/from_dict serialization
+```python
+# Test District dataclass creation and validation
+def test_district_creation():
+    """District created with name, type, description, bounds."""
 
-2. **WorldStateManager recording**
-   - Test record_change adds to history
-   - Test record_location_transformed creates correct change
-   - Test record_npc_killed creates correct change
-   - Test record_boss_defeated creates correct change
-   - Test record_area_cleared creates correct change
+def test_district_type_enum():
+    """DistrictType has expected values (MARKET, TEMPLE, etc.)."""
 
-3. **WorldStateManager querying**
-   - Test get_changes_for_location filters correctly
-   - Test get_changes_by_type filters correctly
-   - Test is_location_destroyed returns True/False correctly
-   - Test is_npc_killed returns True/False correctly
-   - Test is_boss_defeated returns True/False correctly
-   - Test is_area_cleared returns True/False correctly
+def test_district_serialization_roundtrip():
+    """to_dict/from_dict preserves all fields."""
 
-4. **Serialization**
-   - Test WorldStateManager to_dict includes all changes
-   - Test WorldStateManager from_dict restores all changes
-   - Test backward compatibility (empty list if no world_state_manager in save)
+def test_district_bounds_validation():
+    """Bounds tuple has 4 integers."""
+```
+
+### File: `tests/test_settlement_generator.py`
+
+```python
+# Test district generation functions
+def test_mega_settlement_categories():
+    """MEGA_SETTLEMENT_CATEGORIES includes city, metropolis, capital."""
+
+def test_generate_districts_for_city():
+    """generate_districts creates 2-4 districts for city-sized settlements."""
+
+def test_generate_districts_returns_covering():
+    """Districts cover the settlement bounds without gaps."""
+
+def test_get_district_at_coords():
+    """get_district_at_coords returns correct district for given coordinates."""
+
+def test_get_district_at_coords_outside_bounds():
+    """get_district_at_coords returns None for coords outside all districts."""
+
+def test_generate_districts_deterministic():
+    """Same RNG seed produces same district layout."""
+```
+
+### File: `tests/test_subgrid_districts.py`
+
+```python
+# Test SubGrid integration with districts
+def test_subgrid_has_districts_field():
+    """SubGrid has districts field defaulting to empty list."""
+
+def test_subgrid_districts_serialization():
+    """SubGrid.to_dict includes districts; from_dict restores them."""
+
+def test_metropolis_bounds():
+    """SUBGRID_BOUNDS has metropolis entry with 25x25 size."""
+
+def test_capital_bounds():
+    """SUBGRID_BOUNDS has capital entry with 33x33 size."""
+```
 
 ---
 
 ## Implementation Steps
 
-### Step 1: Create `tests/test_world_state.py`
-Write all tests first per TDD approach.
+### Step 1: Create District Model
+**File**: `src/cli_rpg/models/district.py`
+1. Create `DistrictType` enum with 9 district types
+2. Create `District` dataclass with fields: name, district_type, description, bounds, atmosphere, prosperity, notable_features
+3. Add `to_dict()` and `from_dict()` methods following existing patterns (see `faction.py`)
+4. Add module docstring explaining the district system
 
-### Step 2: Create `src/cli_rpg/models/world_state.py`
+### Step 2: Create Tests for District Model
+**File**: `tests/test_district.py`
+1. Test district creation with required fields
+2. Test enum values exist
+3. Test serialization roundtrip
+4. Test backward compatibility defaults in from_dict
 
-- Define `WorldStateChangeType` enum
-- Define `WorldStateChange` dataclass with validation in `__post_init__`
-- Define `WorldStateManager` class with:
-  - `_changes: list[WorldStateChange]` storage
-  - Recording methods (all return Optional[str] message)
-  - Query methods (return bool or filtered lists)
-  - to_dict/from_dict for serialization
+### Step 3: Update SubGrid for Districts
+**File**: `src/cli_rpg/world_grid.py`
+1. Add imports for District at top
+2. Add `"metropolis"` and `"capital"` to `SUBGRID_BOUNDS`
+3. Add `districts: list["District"] = field(default_factory=list)` to `SubGrid`
+4. Update `SubGrid.to_dict()` to include districts serialization
+5. Update `SubGrid.from_dict()` to restore districts with backward compatibility
 
-### Step 3: Integrate into `game_state.py`
+### Step 4: Create Tests for SubGrid Districts
+**File**: `tests/test_subgrid_districts.py`
+1. Test new bounds entries exist
+2. Test districts field defaults to empty
+3. Test serialization with districts
 
-- Add `world_state_manager: WorldStateManager` attribute to `GameState.__init__`
-- Initialize to `WorldStateManager()` in constructor
-- Add serialization in `to_dict()`: `"world_state_manager": self.world_state_manager.to_dict()`
-- Add deserialization in `from_dict()`: restore or create empty manager
-- Update `mark_boss_defeated()` to call `world_state_manager.record_boss_defeated()`
+### Step 5: Create Settlement Generator
+**File**: `src/cli_rpg/settlement_generator.py`
+1. Define `MEGA_SETTLEMENT_CATEGORIES` frozenset
+2. Define `MEGA_SETTLEMENT_THRESHOLD` constant
+3. Implement `generate_districts()` with quadrant-based partitioning
+4. Implement `get_district_at_coords()` for coordinate lookup
+5. Add default district descriptions/atmospheres per type
 
----
+### Step 6: Create Tests for Settlement Generator
+**File**: `tests/test_settlement_generator.py`
+1. Test category constants
+2. Test district generation creates appropriate count
+3. Test districts cover bounds
+4. Test coordinate lookup
+5. Test determinism with RNG seed
 
-## Files Changed
-
-| File | Change |
-|------|--------|
-| `tests/test_world_state.py` | **NEW** - All tests for world state system |
-| `src/cli_rpg/models/world_state.py` | **NEW** - WorldStateChangeType, WorldStateChange, WorldStateManager |
-| `src/cli_rpg/game_state.py` | Add world_state_manager attribute, to_dict/from_dict updates, mark_boss_defeated hook |
+### Step 7: Run Full Test Suite
+```bash
+pytest tests/test_district.py tests/test_settlement_generator.py tests/test_subgrid_districts.py -v
+pytest --tb=short
+```

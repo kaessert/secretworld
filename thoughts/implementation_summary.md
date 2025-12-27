@@ -1,66 +1,71 @@
-# Implementation Summary: World State Evolution (Issue 12)
+# Implementation Summary: Issue 9 - Mega-Settlements with Districts
 
-## What was implemented
+## What Was Implemented
 
-### New Module: `src/cli_rpg/models/world_state.py`
+### 1. District Model (`src/cli_rpg/models/district.py`)
+- **DistrictType** enum with 9 district types:
+  - MARKET, TEMPLE, RESIDENTIAL, NOBLE, SLUMS, CRAFTSMEN, DOCKS, ENTERTAINMENT, MILITARY
+- **District** dataclass with fields:
+  - `name: str` - Display name
+  - `district_type: DistrictType` - Category from enum
+  - `description: str` - Thematic description
+  - `bounds: tuple[int, int, int, int]` - (min_x, max_x, min_y, max_y) within parent SubGrid
+  - `atmosphere: str` - Mood/feeling (default: "neutral")
+  - `prosperity: str` - Economic level (default: "modest")
+  - `notable_features: list[str]` - Key landmarks (default: [])
+- `contains(x, y)` method for coordinate checking
+- `to_dict()` / `from_dict()` for serialization with backward compatibility
 
-Created a world state tracking system with:
+### 2. SubGrid Updates (`src/cli_rpg/world_grid.py`)
+- Added new bounds to `SUBGRID_BOUNDS`:
+  - `"metropolis": (-12, 12, -12, 12, 0, 0)` (25x25)
+  - `"capital": (-16, 16, -16, 16, 0, 0)` (33x33)
+- Added `districts: List[District]` field to `SubGrid` dataclass
+- Updated `SubGrid.to_dict()` to serialize districts
+- Updated `SubGrid.from_dict()` to restore districts with backward compatibility (missing districts key defaults to empty list)
 
-1. **WorldStateChangeType Enum** - 8 change types:
-   - `LOCATION_DESTROYED` - Location no longer exists
-   - `LOCATION_TRANSFORMED` - Category/description changed
-   - `NPC_KILLED` - NPC removed from world
-   - `NPC_MOVED` - NPC relocated
-   - `FACTION_ELIMINATED` - Faction no longer exists
-   - `BOSS_DEFEATED` - Boss permanently killed
-   - `AREA_CLEARED` - All hostiles removed from location
-   - `QUEST_WORLD_EFFECT` - Custom quest-triggered effect
+### 3. Settlement Generator (`src/cli_rpg/settlement_generator.py`)
+- `MEGA_SETTLEMENT_CATEGORIES` frozenset: `{"city", "metropolis", "capital"}`
+- `MEGA_SETTLEMENT_THRESHOLD` constant: `17` (minimum size for districts)
+- `generate_districts(bounds, category, settlement_name, rng)` function:
+  - Creates 2-4 districts for cities, 4-6 for metropolises, 5-8 for capitals
+  - Uses quadrant-based partitioning for spatial layout
+  - Generates themed names, atmospheres, prosperity levels, and notable features
+  - Deterministic with RNG seed for reproducibility
+- `get_district_at_coords(districts, x, y)` function for coordinate lookup
+- `DISTRICT_CONFIGS` dictionary with templates for each district type
 
-2. **WorldStateChange Dataclass** - Records individual world changes:
-   - `change_type`: The type of change
-   - `target`: Location/NPC/faction name affected
-   - `description`: Human-readable summary
-   - `timestamp`: Game hour when change occurred
-   - `caused_by`: Optional quest/action that caused it
-   - `metadata`: Type-specific additional data
-   - Includes validation (non-empty target) and full serialization
+## Files Created
+- `src/cli_rpg/models/district.py` - New file
+- `src/cli_rpg/settlement_generator.py` - New file
+- `tests/test_district.py` - 12 tests
+- `tests/test_settlement_generator.py` - 16 tests
+- `tests/test_subgrid_districts.py` - 11 tests
 
-3. **WorldStateManager Class** - Central manager with:
-   - Recording methods: `record_change()`, `record_location_transformed()`, `record_npc_killed()`, `record_boss_defeated()`, `record_area_cleared()`
-   - Query methods: `get_changes_for_location()`, `get_changes_by_type()`, `is_location_destroyed()`, `is_npc_killed()`, `is_boss_defeated()`, `is_area_cleared()`
-   - Full serialization: `to_dict()`, `from_dict()` with backward compatibility
-
-### Integration: `src/cli_rpg/game_state.py`
-
-- Added import for `WorldStateManager`
-- Added `world_state_manager` attribute initialized in `__init__`
-- Updated `mark_boss_defeated()` to record boss defeats in the world state manager
-- Added serialization in `to_dict()`
-- Added deserialization in `from_dict()` with backward compatibility for old saves
+## Files Modified
+- `src/cli_rpg/world_grid.py` - Added imports, new bounds, districts field, serialization
 
 ## Test Results
-
-Created `tests/test_world_state.py` with 27 tests covering:
-- WorldStateChangeType enum values
-- WorldStateChange creation, validation, and serialization
-- WorldStateManager recording methods
-- WorldStateManager query methods
-- Full serialization round-trip
-
-All 27 new tests pass. Full test suite (4466 tests) passes with no regressions.
+- **39 new tests** covering:
+  - District model creation and validation
+  - DistrictType enum values
+  - District serialization roundtrip
+  - SubGrid bounds for metropolis/capital
+  - SubGrid districts field and serialization
+  - District generation for different settlement sizes
+  - District coordinate lookup
+  - Deterministic generation with RNG seeds
+- **4505 total tests passing** (no regressions)
 
 ## Design Decisions
+1. **Quadrant-based partitioning**: Districts are laid out using quadrants rather than complex algorithms, ensuring full coverage without gaps
+2. **Deterministic generation**: Uses seeded Random for reproducible district layouts
+3. **Backward compatibility**: Legacy SubGrid saves without districts key load correctly with empty district list
+4. **TYPE_CHECKING import**: Used to avoid circular imports between world_grid.py and district.py
+5. **District type variety**: Each generated district has a unique type (no duplicates)
 
-1. **Backward Compatibility**: `from_dict()` handles missing `world_state_manager` data by creating an empty manager, ensuring old saves load correctly.
-
-2. **Location Filtering**: `get_changes_for_location()` checks both the target field and metadata.location to find all changes affecting a location.
-
-3. **Boss Defeat Integration**: `mark_boss_defeated()` now records to the world state manager with the current game hour as timestamp, creating a permanent record of the defeat.
-
-4. **Simple Validation**: Only validates that target is non-empty; further validation can be added as needed.
-
-## E2E Tests Should Validate
-
-1. Boss defeat persists after save/load
-2. World state changes visible after game reload
-3. Query methods return correct results after serialization round-trip
+## E2E Validation Suggestions
+1. Create a new game and enter a city-category location to verify districts are generated
+2. Move around within a mega-settlement to verify `get_district_at_coords` correctly identifies current district
+3. Save and reload a game with a mega-settlement to verify district serialization works
+4. Check that district atmosphere/prosperity affects NPC generation or shop prices (future integration)

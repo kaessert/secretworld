@@ -74,8 +74,10 @@ src/cli_rpg/
 ├── faction_combat.py    # Faction reputation changes from combat outcomes
 ├── faction_shop.py      # Faction-based shop price modifiers
 ├── faction_content.py   # Faction-gated NPC/location access based on reputation
+├── settlement_generator.py # District generation for mega-settlements (cities, metropolises, capitals)
 └── models/
     ├── character.py     # Player character model
+    ├── district.py      # District model for mega-settlements (DistrictType enum, bounds, atmosphere)
     ├── dread.py         # Dread meter for psychological horror
     ├── tiredness.py     # Tiredness meter for fatigue and sleep mechanics
     ├── enemy.py         # Enemy/monster model
@@ -106,7 +108,7 @@ src/cli_rpg/
 ## Key Architectural Patterns
 
 - **Grid-based world** (`world_grid.py`): Spatial consistency with coordinate-based navigation
-- **SubGrid architecture**: Interior locations use bounded SubGrid instances (not the main world dict). Entry points marked with `is_exit_point=True` allow exiting back to overworld. SubGrid bounds vary by location category via `SUBGRID_BOUNDS` config and `get_subgrid_bounds(category)` helper (e.g., caves are 3x3, dungeons 7x7, cities 17x17). **On-demand generation**: Named overworld locations with enterable categories (dungeons, caves, towns, etc. defined in `ENTERABLE_CATEGORIES`) generate SubGrids when the player first enters via `generate_subgrid_for_location()`. **Multi-level support**: SubGrids use 6-tuple bounds `(min_x, max_x, min_y, max_y, min_z, max_z)` for vertical navigation - dungeons extend downward (z<0), towers extend upward (z>0). Use `go up`/`go down` for vertical movement.
+- **SubGrid architecture**: Interior locations use bounded SubGrid instances (not the main world dict). Entry points marked with `is_exit_point=True` allow exiting back to overworld. SubGrid bounds vary by location category via `SUBGRID_BOUNDS` config and `get_subgrid_bounds(category)` helper (e.g., caves are 3x3, dungeons 7x7, cities 17x17, metropolises 25x25, capitals 33x33). **On-demand generation**: Named overworld locations with enterable categories (dungeons, caves, towns, etc. defined in `ENTERABLE_CATEGORIES`) generate SubGrids when the player first enters via `generate_subgrid_for_location()`. **Multi-level support**: SubGrids use 6-tuple bounds `(min_x, max_x, min_y, max_y, min_z, max_z)` for vertical navigation - dungeons extend downward (z<0), towers extend upward (z>0). Use `go up`/`go down` for vertical movement. **District system**: Mega-settlements (cities, metropolises, capitals with bounds ≥17) have districts with distinct types (MARKET, TEMPLE, RESIDENTIAL, etc.), atmosphere, and prosperity levels. Districts are generated via `settlement_generator.generate_districts()` and stored in `SubGrid.districts`.
 - **Location model**: Each location has coordinates and NPCs; movement is determined by coordinate adjacency (going north from (0,0) leads to (0,1)). Hierarchical navigation via `enter`/`exit` commands supports overworld/sub-location relationships. Locations have `is_named` flag: unnamed locations (generic terrain) skip NPC generation; named locations (towns, dungeons) get full AI-generated NPCs.
 - **GameState**: Central manager for character, world, combat, and shop state. Tracks `seen_tiles` (set of coordinates within visibility radius) separately from visited locations for map rendering.
 - **AI service**: Optional integration with graceful fallback when unavailable
