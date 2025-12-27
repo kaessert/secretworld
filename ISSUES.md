@@ -480,17 +480,18 @@ Players want a more sophisticated map system with hierarchical locations.
 ---
 
 ### Unique AI-generated ASCII art per entity
-**Status**: ACTIVE
+**Status**: RESOLVED
+**Date Resolved**: 2025-12-27
 
 **Implemented**:
 - Monster art stored in bestiary by monster name
 - First encounter generates and caches art in bestiary
 - Subsequent encounters reuse cached art
 - `bestiary` command displays discovered monster art
-
-**Remaining**:
-- NPC art stored with NPC data in location
-- Consistent art for all entity types
+- NPC art stored with NPC object, generated on first talk, persisted via save/load
+- Location art generated during world creation/expansion, persisted with location data
+- All three entity types follow consistent pattern: field + AI generation + fallback templates + serialization
+- 24 NPC art tests passing in `tests/test_npc_ascii_art.py`
 
 ---
 
@@ -1449,4 +1450,62 @@ Target: Giant Spider x3
 - `src/cli_rpg/main.py`: Added `from cli_rpg import colors` import to `handle_exploration_command()`
 
 **Verification**: All 22 tests in `tests/test_fast_travel.py` pass.
+
+---
+
+### Misleading error message for class-specific abilities outside combat
+**Status**: ACTIVE
+**Date Added**: 2025-12-27
+**Priority**: LOW (UX issue)
+
+**Problem**: Class-specific combat abilities (`bless`, `smite`, `fireball`, `ice_bolt`, `heal`, `bash`) show the error "Not in combat" when used outside of combat, regardless of whether the player has the correct class. This is misleading because:
+
+1. A non-Mage player typing `fireball` outside combat sees "Not in combat"
+2. This implies they could use it if they entered combat
+3. Only DURING combat does the real error appear: "Only Mages can cast Fireball!"
+
+**Expected Behavior**: The class restriction error should take priority over the combat restriction error. A Warrior typing `fireball` outside combat should see "Only Mages can cast Fireball!" (not "Not in combat").
+
+**Steps to Reproduce**:
+```bash
+# Create a Warrior with --skip-character-creation, then try Mage abilities
+echo -e "fireball\nice_bolt\nheal\nbless\nsmite" | cli-rpg --non-interactive --skip-character-creation --seed 123
+```
+
+**Output**:
+```
+✗ Not in combat.
+✗ Not in combat.
+✗ Not in combat.
+✗ Not in combat.
+✗ Not in combat.
+```
+
+**Correct output when in combat** (for comparison):
+```
+Only Mages can cast Fireball!
+Only Mages can cast Ice Bolt!
+Only Mages can cast Heal!
+Only Clerics can bless!
+Only Clerics can smite!
+```
+
+**Fix Suggestion**: In the command handler for each class-specific ability, check class restriction BEFORE checking combat state. Example:
+```python
+# Current (wrong order):
+if not game_state.in_combat:
+    return "Not in combat."
+if character.character_class != CharacterClass.MAGE:
+    return "Only Mages can cast Fireball!"
+
+# Fixed (correct order):
+if character.character_class != CharacterClass.MAGE:
+    return "Only Mages can cast Fireball!"
+if not game_state.in_combat:
+    return "Not in combat."
+```
+
+**Affected Commands**: `fireball`, `ice_bolt`, `heal`, `bless`, `smite`, `bash`
+
+**Files to Modify**: `src/cli_rpg/main.py` (combat command handlers)
 
