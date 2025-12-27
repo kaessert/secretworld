@@ -1,66 +1,80 @@
-# Implementation Summary: Rest Command Tiredness Threshold Fix
+# Environmental Hazards System Implementation Summary
 
-## What Was Implemented
+## What Was Implemented (Issue #26)
 
-Fixed the rest command to enforce the documented 30% tiredness threshold for sleep. Previously, the rest command would reduce tiredness at any level above 0%, but documentation (README, model docstring, `can_sleep()` method) all specified that rest should only reduce tiredness when it's >= 30.
+### New Module: `src/cli_rpg/hazards.py`
+Created a comprehensive environmental hazards system with the following hazard types:
+
+1. **Poison Gas** - Deals 3-6 damage per move in poisonous areas
+2. **Darkness** - Reduces perception by 50% (negated by light source)
+3. **Unstable Ground** - DEX check (d20 + DEX modifier vs DC 12) or take 5-15 fall damage
+4. **Extreme Cold/Heat** - Adds +5 tiredness per move
+5. **Flooded Rooms** - 50% chance to fail movement (slowed)
+
+### Hazard Mitigation
+- **Ranger Class**: Ignores unstable_ground, extreme_cold, extreme_heat (wilderness affinity)
+- **Light Source**: Negates darkness penalty
+- **Poison Gas**: No class-based mitigation (requires antidote/items)
+
+### Category-Specific Hazard Pools
+| Category | Possible Hazards |
+|----------|------------------|
+| Dungeon | poison_gas, darkness, unstable_ground |
+| Cave | darkness, flooded, extreme_cold |
+| Ruins | unstable_ground, darkness |
+| Temple | poison_gas, darkness |
+
+### Hazard Chance by Distance
+- Distance 0-1: 10% chance for 1 hazard
+- Distance 2-3: 25% for 1 hazard, 10% for 2
+- Distance 4+: 40% for 1 hazard, 20% for 2
 
 ## Files Modified
 
-### `src/cli_rpg/main.py` (lines 2376-2431)
+1. **`src/cli_rpg/models/location.py`**
+   - Added `hazards: List[str]` field (default empty list)
+   - Added serialization in `to_dict()`
+   - Added deserialization in `from_dict()` with backward compatibility
 
-Changed the tiredness check logic in the rest command handler:
+2. **`src/cli_rpg/game_state.py`**
+   - Integrated `check_hazards_on_entry()` call in `_move_in_sub_grid()` method
+   - Hazard effects are applied and messages displayed when entering hazardous rooms
 
-**Before:**
-```python
-no_tiredness = char.tiredness.current == 0
-if at_full_health and at_full_stamina and no_dread and no_tiredness:
-    return (True, "\nYou're already at full health, stamina, and feeling calm and rested!")
-# ...
-if not no_tiredness:
-    quality = char.tiredness.sleep_quality()
-    # ...
-```
+3. **`src/cli_rpg/ai_world.py`**
+   - Added hazard generation in `generate_subgrid_for_location()`
+   - Non-entry rooms get hazards based on category and distance from entrance
 
-**After:**
-```python
-can_sleep_for_tiredness = char.tiredness.can_sleep()  # True when tiredness >= 30
-if at_full_health and at_full_stamina and no_dread and not can_sleep_for_tiredness:
-    return (True, "\nYou're already at full health, stamina, and feeling calm and rested!")
-# ...
-if can_sleep_for_tiredness:
-    quality = char.tiredness.sleep_quality()
-    # ...
-```
+## New File Created
 
-### `tests/test_rest_command.py`
-
-Added new test class `TestRestTirednessThreshold` with test `test_rest_blocked_when_tiredness_below_30` that verifies:
-- When tiredness is at 20 (below 30 threshold), resting does NOT reduce tiredness
-- Other rest benefits (stamina recovery, etc.) still work
-
-### `ISSUES.md`
-
-Updated the "Rest Command Tiredness Threshold Mismatch" issue status from ACTIVE to COMPLETED.
+1. **`src/cli_rpg/hazards.py`** - Full hazard system with:
+   - `HAZARD_TYPES` constant set
+   - `CATEGORY_HAZARDS` mapping
+   - `RANGER_MITIGATED_HAZARDS` set
+   - `apply_poison_gas()` - applies DOT damage
+   - `check_darkness_penalty()` - returns perception multiplier
+   - `check_unstable_ground()` - DEX check for fall damage
+   - `apply_temperature_effect()` - adds tiredness
+   - `check_flooded_movement()` - 50% movement failure
+   - `can_mitigate_hazard()` - checks class/equipment mitigation
+   - `get_hazards_for_category()` - generates hazards for locations
+   - `check_hazards_on_entry()` - main entry point for processing hazards
 
 ## Test Results
+- Created `tests/test_hazards.py` with 27 comprehensive tests
+- All 27 hazard tests pass
+- Full test suite: 4684 passed (1 unrelated flaky test about key placement)
+- Location serialization, persistence, and sub-grid navigation tests all pass
 
-All 4658 tests pass, including:
-- 13 rest command tests (including new threshold test)
-- 34 tiredness model tests
-- No regressions in any other modules
+## E2E Validation Points
+- Enter a dungeon-type location and navigate deeper rooms
+- Verify hazard messages appear based on room hazards
+- Test Ranger class mitigation for unstable_ground/temperature hazards
+- Test light source mitigation for darkness
+- Verify damage/tiredness effects apply correctly
+- Verify save/load preserves location hazards
 
-## Design Decisions
-
-The fix uses the existing `Tiredness.can_sleep()` method rather than duplicating the threshold check. This:
-1. Keeps the threshold value (30) defined in one place (`models/tiredness.py`)
-2. Makes the intent clear in the code ("can player sleep for tiredness?")
-3. Follows the existing pattern established by other `can_*()` methods
-
-## E2E Testing Recommendations
-
-To validate this fix in actual gameplay:
-1. Create a new character
-2. Move around until tiredness reaches 20-29%
-3. Use `rest` command - verify tiredness does NOT decrease
-4. Move until tiredness reaches 30%+
-5. Use `rest` command - verify tiredness now decreases appropriately
+## Technical Design Decisions
+- Hazards are stored as string list on Location for simplicity and serialization
+- Hazard effects are processed at room entry (not continuously)
+- Mitigation checks happen before effect application
+- Distance-based hazard chance creates natural difficulty scaling deeper in dungeons

@@ -989,6 +989,12 @@ class GameState:
         if cave_in_message:
             message += f"\n{cave_in_message}"
 
+        # Check for environmental hazards at destination
+        from cli_rpg.hazards import check_hazards_on_entry
+        hazard_messages = check_hazards_on_entry(self, destination)
+        for msg in hazard_messages:
+            message += f"\n{msg}"
+
         return (True, message)
 
     def enter(self, target_name: Optional[str] = None) -> tuple[bool, str]:

@@ -35,6 +35,13 @@ python -m cli_rpg.main
   - **Traps**: DEX >= 12 disarms for 10 XP; otherwise takes damage
   - **Lore Hints**: Grants 5 XP for uncovering world lore
   - **Hidden Doors**: In SubGrid locations (dungeons, caves, etc.), reveals hidden rooms that you can enter via `go <direction>`. Hidden rooms have themed names based on location type and may contain additional treasure secrets. On the overworld, reveals temporary exits instead.
+- **Environmental Hazards**: Dungeon, cave, ruins, and temple locations feature environmental hazards that make exploration dangerous. Hazards are more common in deeper rooms (further from the entrance):
+  - **Poison Gas**: Deals 3-6 damage when entering the room (no class mitigation)
+  - **Darkness**: Reduces Perception by 50% (negated by carrying a light source like a Torch)
+  - **Unstable Ground**: DEX check (d20 + DEX modifier vs DC 12) or take 5-15 fall damage
+  - **Extreme Cold/Heat**: Increases tiredness by +5 when entering the room
+  - **Flooded Rooms**: 50% chance to fail movement (slowed)
+  - **Ranger Mitigation**: Rangers ignore unstable ground, extreme cold, and extreme heat hazards due to their wilderness affinity
 - **Experience System**: Level up by defeating enemies
 - **Colorized Output**: Color-coded terminal output for improved readability (enemies in red, locations in cyan, items in green, etc.)
 - **Tab Completion**: Auto-complete commands and contextual arguments (directions, NPCs, items) with Tab key

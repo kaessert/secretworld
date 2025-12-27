@@ -60,6 +60,7 @@ class Location:
     temporary_exits: List[str] = field(default_factory=list)  # Exits revealed by hidden_door secrets
     puzzles: List["Puzzle"] = field(default_factory=list)  # Puzzles at this location
     blocked_directions: List[str] = field(default_factory=list)  # Directions blocked by puzzles
+    hazards: List[str] = field(default_factory=list)  # Environmental hazards (poison_gas, darkness, etc.)
 
     def __post_init__(self) -> None:
         """Validate location attributes after initialization."""
@@ -401,6 +402,8 @@ class Location:
             data["puzzles"] = [puzzle.to_dict() for puzzle in self.puzzles]
         if self.blocked_directions:
             data["blocked_directions"] = self.blocked_directions.copy()
+        if self.hazards:
+            data["hazards"] = self.hazards.copy()
         return data
     
     @classmethod
@@ -469,6 +472,8 @@ class Location:
             puzzles = [Puzzle.from_dict(p) for p in data["puzzles"]]
         # Parse blocked_directions if present (backward compatibility)
         blocked_directions = data.get("blocked_directions", [])
+        # Parse hazards if present (backward compatibility)
+        hazards = data.get("hazards", [])
         # Note: Legacy 'connections' field is ignored if present (backward compatibility)
         return cls(
             name=data["name"],
@@ -497,6 +502,7 @@ class Location:
             temporary_exits=temporary_exits,
             puzzles=puzzles,
             blocked_directions=blocked_directions,
+            hazards=hazards,
         )
     
     def __str__(self) -> str:

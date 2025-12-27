@@ -1102,6 +1102,11 @@ def generate_subgrid_for_location(
             for key_name, key_cat in keys:
                 all_keys_to_place.append((key_name, key_cat, distance))
 
+            # Add environmental hazards (Issue #26)
+            from cli_rpg.hazards import get_hazards_for_category
+            hazards = get_hazards_for_category(loc_category or "dungeon", distance)
+            new_loc.hazards.extend(hazards)
+
         sub_grid.add_location(new_loc, rel_x, rel_y, rel_z)
         placed_locations[loc_data["name"]] = {
             "location": new_loc,

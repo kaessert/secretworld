@@ -78,6 +78,7 @@ src/cli_rpg/
 ├── settlement_generator.py # District generation for mega-settlements (cities, metropolises, capitals)
 ├── puzzles.py           # Dungeon puzzle interaction logic (unlock, pull, step, answer, activate)
 ├── interior_events.py   # Dynamic interior events (cave-ins) for SubGrid locations
+├── hazards.py           # Environmental hazards system (poison gas, darkness, unstable ground, temperature, flooding)
 └── models/
     ├── character.py     # Player character model
     ├── district.py      # District model for mega-settlements (DistrictType enum, bounds, atmosphere)
@@ -87,7 +88,7 @@ src/cli_rpg/
     ├── game_time.py     # Day/night cycle and time tracking
     ├── item.py          # Item definitions
     ├── inventory.py     # Inventory management
-    ├── location.py      # Location with coordinates and NPCs (movement via coordinate adjacency), puzzles, blocked_directions
+    ├── location.py      # Location with coordinates and NPCs (movement via coordinate adjacency), puzzles, blocked_directions, hazards
     ├── npc.py           # Non-player character model with relationship support
     ├── puzzle.py        # Puzzle model with types (LOCKED_DOOR, LEVER, PRESSURE_PLATE, RIDDLE, SEQUENCE)
     ├── npc_relationship.py # NPC relationship types and trust levels

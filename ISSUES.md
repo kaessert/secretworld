@@ -426,23 +426,31 @@ Create storyline system with branching quests and investigations.
 ---
 
 ### Issue 26: Environmental Hazards
-**Status**: PENDING
+**Status**: COMPLETED ✓
 **Priority**: P3
+**Completed**: 2025-12-27
 
-**Problem**: Movement in dungeons is always safe. No environmental challenges.
+**Implementation:**
+- `src/cli_rpg/hazards.py` - New module with environmental hazard system:
+  - `HAZARD_TYPES`: poison_gas, darkness, unstable_ground, extreme_cold, extreme_heat, flooded
+  - `CATEGORY_HAZARDS`: Location-specific hazard pools (dungeon, cave, ruins, temple)
+  - `RANGER_MITIGATED_HAZARDS`: Rangers ignore unstable_ground, extreme_cold, extreme_heat
+  - Hazard functions: `apply_poison_gas()` (3-6 damage), `check_darkness_penalty()` (50% perception reduction), `check_unstable_ground()` (DEX check vs DC 12 or 5-15 fall damage), `apply_temperature_effect()` (+5 tiredness), `check_flooded_movement()` (50% movement failure)
+  - `can_mitigate_hazard()`: Class/equipment mitigation checks
+  - `get_hazards_for_category()`: Distance-based hazard generation (10-40% chance, 1-2 hazards)
+  - `check_hazards_on_entry()`: Main entry point for processing hazards on room entry
+- `src/cli_rpg/models/location.py` - Added `hazards: List[str]` field with serialization and backward compatibility
+- `src/cli_rpg/ai_world.py` - Integrated hazard generation in `generate_subgrid_for_location()`
+- `src/cli_rpg/game_state.py` - Calls `check_hazards_on_entry()` during SubGrid movement
+- 27 new tests in `tests/test_hazards.py`
 
 **Acceptance Criteria:**
-- [ ] **Poison gas**: Periodic damage, mitigated by antidotes
-- [ ] **Darkness**: Reduces perception, requires torch
-- [ ] **Unstable ground**: Chance to fall (DEX check)
-- [ ] **Extreme cold/heat**: Tiredness drain
-- [ ] **Flooded rooms**: Slows movement
-- [ ] Class/item mitigation (Ranger ignores natural hazards)
-
-**Related Files:**
-- New `src/cli_rpg/hazards.py`
-- `src/cli_rpg/models/location.py`
-- `src/cli_rpg/game_state.py`
+- [x] **Poison gas**: Periodic damage (3-6 per move), no class mitigation
+- [x] **Darkness**: Reduces perception by 50%, negated by light source
+- [x] **Unstable ground**: DEX check (d20 + DEX mod vs DC 12) or 5-15 fall damage
+- [x] **Extreme cold/heat**: +5 tiredness per move
+- [x] **Flooded rooms**: 50% movement failure chance
+- [x] Class/item mitigation (Ranger ignores natural hazards, light negates darkness)
 
 ---
 
@@ -482,7 +490,7 @@ Create storyline system with branching quests and investigations.
 
 **Phase 5 - Dynamic Polish (P3)** - Issues 25-27
 - ✓ Interior events - cave-ins (Issue 25 partial)
-- Environmental hazards
+- ✓ Environmental hazards (Issue 26 complete)
 - Ambiance system
 
 ### AI Content Generation (Remaining)
