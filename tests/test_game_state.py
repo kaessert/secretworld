@@ -1070,7 +1070,7 @@ class TestEnterExitCommands:
     def test_exit_fails_when_no_parent(self, monkeypatch):
         """Test exit fails when not in a sub-location.
 
-        Spec: 'exit' returns "You're not inside a landmark" when no parent.
+        Spec: 'exit' returns "You're not inside a building or dungeon" with travel hint when no parent.
         """
         monkeypatch.setattr("cli_rpg.game_state.autosave", lambda gs: None)
 
@@ -1090,7 +1090,8 @@ class TestEnterExitCommands:
         success, message = game_state.exit_location()
 
         assert success is False
-        assert "not inside a landmark" in message.lower()
+        assert "not inside a building or dungeon" in message.lower()
+        assert "go <direction>" in message.lower()
 
     def test_exit_blocked_during_conversation(self, monkeypatch):
         """Test exit is blocked when in conversation with NPC.

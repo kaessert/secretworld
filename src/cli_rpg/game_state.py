@@ -930,7 +930,7 @@ class GameState:
 
         # Must have a parent location
         if current.parent_location is None:
-            return (False, "You're not inside a landmark.")
+            return (False, "You're not inside a building or dungeon. Use 'go <direction>' to travel.")
 
         # Verify parent exists in world
         if current.parent_location not in self.world:
