@@ -83,7 +83,8 @@ src/cli_rpg/
     ├── item.py          # Item definitions
     ├── inventory.py     # Inventory management
     ├── location.py      # Location with coordinates and NPCs (movement via coordinate adjacency)
-    ├── npc.py           # Non-player character model
+    ├── npc.py           # Non-player character model with relationship support
+    ├── npc_relationship.py # NPC relationship types and trust levels
     ├── quest.py         # Quest system with objectives and progress tracking
     ├── quest_outcome.py # Quest completion outcomes for NPC memory/reactions
     ├── shop.py          # Shop system

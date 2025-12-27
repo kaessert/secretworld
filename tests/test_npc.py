@@ -5,6 +5,7 @@ Tests the NPC model including validation and serialization.
 import pytest
 from unittest.mock import patch
 from cli_rpg.models.npc import NPC
+from cli_rpg.models.npc_relationship import NPCRelationship, RelationshipType
 
 
 class TestNPC:
@@ -173,3 +174,123 @@ class TestNPC:
                 or "coward" in result.lower()
                 or "survivor" in result.lower()
             )
+
+
+class TestNPCRelationships:
+    """Tests for NPC relationships - tests spec: NPC Relationship Networks."""
+
+    def test_npc_relationships_default_empty(self):
+        """NPC relationships list defaults to empty."""
+        npc = NPC(name="Guard", description="A town guard", dialogue="Hello.")
+        assert npc.relationships == []
+
+    def test_add_relationship_basic(self):
+        """add_relationship adds a relationship to the NPC."""
+        npc = NPC(name="Guard", description="A town guard", dialogue="Hello.")
+        npc.add_relationship(
+            target="Elder Mira",
+            rel_type=RelationshipType.FAMILY,
+            trust=75,
+            desc="mother",
+        )
+        assert len(npc.relationships) == 1
+        rel = npc.relationships[0]
+        assert rel.target_npc == "Elder Mira"
+        assert rel.relationship_type == RelationshipType.FAMILY
+        assert rel.trust_level == 75
+        assert rel.description == "mother"
+
+    def test_add_relationship_defaults(self):
+        """add_relationship uses default trust and no description."""
+        npc = NPC(name="Guard", description="A town guard", dialogue="Hello.")
+        npc.add_relationship(target="Bob", rel_type=RelationshipType.ACQUAINTANCE)
+        rel = npc.relationships[0]
+        assert rel.trust_level == 50
+        assert rel.description is None
+
+    def test_get_relationship_by_name(self):
+        """get_relationship returns the relationship for a given NPC name."""
+        npc = NPC(name="Guard", description="A town guard", dialogue="Hello.")
+        npc.add_relationship(
+            target="Elder Mira",
+            rel_type=RelationshipType.FAMILY,
+            trust=75,
+            desc="mother",
+        )
+        npc.add_relationship(target="Bob", rel_type=RelationshipType.FRIEND, trust=60)
+
+        rel = npc.get_relationship("Elder Mira")
+        assert rel is not None
+        assert rel.target_npc == "Elder Mira"
+        assert rel.relationship_type == RelationshipType.FAMILY
+
+    def test_get_relationship_not_found(self):
+        """get_relationship returns None when NPC not found."""
+        npc = NPC(name="Guard", description="A town guard", dialogue="Hello.")
+        assert npc.get_relationship("Unknown NPC") is None
+
+    def test_get_relationships_by_type(self):
+        """get_relationships_by_type returns all relationships of a given type."""
+        npc = NPC(name="Guard", description="A town guard", dialogue="Hello.")
+        npc.add_relationship(target="Mira", rel_type=RelationshipType.FAMILY)
+        npc.add_relationship(target="Chen", rel_type=RelationshipType.FAMILY)
+        npc.add_relationship(target="Bob", rel_type=RelationshipType.FRIEND)
+
+        family_rels = npc.get_relationships_by_type(RelationshipType.FAMILY)
+        assert len(family_rels) == 2
+        assert all(r.relationship_type == RelationshipType.FAMILY for r in family_rels)
+
+    def test_get_relationships_by_type_empty(self):
+        """get_relationships_by_type returns empty list when no matches."""
+        npc = NPC(name="Guard", description="A town guard", dialogue="Hello.")
+        npc.add_relationship(target="Bob", rel_type=RelationshipType.FRIEND)
+
+        rival_rels = npc.get_relationships_by_type(RelationshipType.RIVAL)
+        assert rival_rels == []
+
+    def test_npc_with_relationships_serialization(self):
+        """NPC with relationships can be serialized and deserialized."""
+        npc = NPC(name="Guard", description="A town guard", dialogue="Hello.")
+        npc.add_relationship(
+            target="Elder Mira",
+            rel_type=RelationshipType.FAMILY,
+            trust=75,
+            desc="mother",
+        )
+        npc.add_relationship(target="Bob", rel_type=RelationshipType.FRIEND, trust=60)
+
+        data = npc.to_dict()
+        assert "relationships" in data
+        assert len(data["relationships"]) == 2
+
+        restored = NPC.from_dict(data)
+        assert len(restored.relationships) == 2
+        rel = restored.get_relationship("Elder Mira")
+        assert rel is not None
+        assert rel.relationship_type == RelationshipType.FAMILY
+        assert rel.trust_level == 75
+        assert rel.description == "mother"
+
+    def test_npc_backward_compat_no_relationships(self):
+        """NPC deserializes correctly from old data without relationships."""
+        # Old save data without relationships field
+        data = {
+            "name": "Guard",
+            "description": "A town guard",
+            "dialogue": "Hello.",
+            "is_merchant": False,
+            "shop": None,
+            "is_quest_giver": False,
+            "offered_quests": [],
+            "greetings": [],
+            "conversation_history": [],
+            "available_at_night": True,
+            "is_recruitable": False,
+            "willpower": 5,
+            "bribeable": True,
+            "persuaded": False,
+            "haggleable": True,
+            "haggle_cooldown": 0,
+        }
+        restored = NPC.from_dict(data)
+        assert restored.relationships == []

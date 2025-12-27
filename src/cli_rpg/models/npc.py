@@ -3,6 +3,8 @@ import random
 from dataclasses import dataclass, field
 from typing import List, Optional, TYPE_CHECKING
 
+from cli_rpg.models.npc_relationship import NPCRelationship, RelationshipType
+
 if TYPE_CHECKING:
     from cli_rpg.models.shop import Shop
     from cli_rpg.models.quest import Quest
@@ -49,6 +51,7 @@ class NPC:
     haggle_cooldown: int = 0  # Turns remaining before haggling allowed again
     faction: Optional[str] = None  # Faction affiliation (e.g., "Merchant Guild")
     required_reputation: Optional[int] = None  # Min faction rep to interact (1-100)
+    relationships: List[NPCRelationship] = field(default_factory=list)  # Relationships to other NPCs
 
     def __post_init__(self):
         """Validate NPC attributes."""
@@ -223,6 +226,57 @@ class NPC:
         while len(self.conversation_history) > 10:
             self.conversation_history.pop(0)
 
+    def add_relationship(
+        self,
+        target: str,
+        rel_type: RelationshipType,
+        trust: int = 50,
+        desc: Optional[str] = None,
+    ) -> None:
+        """Add a relationship to another NPC.
+
+        Args:
+            target: Name of the related NPC
+            rel_type: Type of relationship
+            trust: Trust level (1-100, default 50)
+            desc: Optional description (e.g., "sister", "former master")
+        """
+        self.relationships.append(
+            NPCRelationship(
+                target_npc=target,
+                relationship_type=rel_type,
+                trust_level=trust,
+                description=desc,
+            )
+        )
+
+    def get_relationship(self, target: str) -> Optional[NPCRelationship]:
+        """Get the relationship to a specific NPC by name.
+
+        Args:
+            target: Name of the NPC to find relationship with
+
+        Returns:
+            NPCRelationship if found, None otherwise
+        """
+        for rel in self.relationships:
+            if rel.target_npc == target:
+                return rel
+        return None
+
+    def get_relationships_by_type(
+        self, rel_type: RelationshipType
+    ) -> List[NPCRelationship]:
+        """Get all relationships of a specific type.
+
+        Args:
+            rel_type: Type of relationship to filter by
+
+        Returns:
+            List of matching relationships
+        """
+        return [r for r in self.relationships if r.relationship_type == rel_type]
+
     def to_dict(self) -> dict:
         """Serialize NPC to dictionary.
 
@@ -248,6 +302,7 @@ class NPC:
             "haggle_cooldown": self.haggle_cooldown,
             "faction": self.faction,
             "required_reputation": self.required_reputation,
+            "relationships": [r.to_dict() for r in self.relationships],
         }
         # Only include ascii_art if it's not empty
         if self.ascii_art:
@@ -271,6 +326,9 @@ class NPC:
         offered_quests = [
             Quest.from_dict(q) for q in data.get("offered_quests", [])
         ]
+        relationships = [
+            NPCRelationship.from_dict(r) for r in data.get("relationships", [])
+        ]
         return cls(
             name=data["name"],
             description=data["description"],
@@ -291,4 +349,5 @@ class NPC:
             haggle_cooldown=data.get("haggle_cooldown", 0),  # Default 0 for backward compat
             faction=data.get("faction"),  # None for backward compat
             required_reputation=data.get("required_reputation"),  # None for backward compat
+            relationships=relationships,  # Empty list for backward compat
         )

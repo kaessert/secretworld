@@ -1,56 +1,69 @@
-# Fix Map Visibility Radius Integration
+# Issue 10: NPC Relationship Networks - Implementation Plan
 
-## Bug Summary
-The visibility system is fully implemented but not wired up at the command handler level. `seen_tiles` is populated during movement but never passed to the map renderer.
+## Spec
 
-## Root Cause
-In `main.py`, the `map` and `worldmap` commands call `render_map()` without passing `game_state.seen_tiles`.
+Create a relationship model to track connections between NPCs with:
+- **Relationship types**: FAMILY, FRIEND, RIVAL, MENTOR, EMPLOYER, ACQUAINTANCE
+- **Trust levels**: 1-100 scale representing relationship strength
+- **Bidirectional references**: Each NPC stores its relationships to other NPCs (by name)
 
-## Implementation Steps
+## Files to Create
 
-### 1. Fix `map` command (main.py line 1810-1815)
-Pass `seen_tiles` to `render_map()`:
+### 1. `src/cli_rpg/models/npc_relationship.py`
 ```python
-map_output = render_map(
-    game_state.world,
-    game_state.current_location,
-    game_state.current_sub_grid,
-    game_state.chunk_manager,
-    game_state.seen_tiles,  # ADD THIS
-)
+# RelationshipType enum with values: FAMILY, FRIEND, RIVAL, MENTOR, EMPLOYER, ACQUAINTANCE
+# NPCRelationship dataclass:
+#   - target_npc: str (name of related NPC)
+#   - relationship_type: RelationshipType
+#   - trust_level: int (1-100, default 50)
+#   - description: Optional[str] (e.g., "sister", "former master")
+# Methods:
+#   - to_dict() -> dict
+#   - from_dict(cls, data) -> NPCRelationship
 ```
 
-### 2. Fix `render_worldmap` function signature (map_renderer.py line 439)
-Add `seen_tiles` parameter:
+### 2. `tests/test_npc_relationship.py`
 ```python
-def render_worldmap(
-    world: dict[str, Location],
-    current_location: str,
-    seen_tiles: Optional[set[tuple[int, int]]] = None,
-) -> str:
+# Test RelationshipType enum values exist
+# Test NPCRelationship creation with all fields
+# Test trust_level clamping to 1-100
+# Test to_dict() serialization
+# Test from_dict() deserialization
+# Test roundtrip serialization
 ```
 
-### 3. Pass `seen_tiles` in `render_worldmap` body (map_renderer.py line 480)
+## Files to Modify
+
+### 3. `src/cli_rpg/models/npc.py`
+Add to NPC dataclass:
 ```python
-map_output = render_map(overworld_locations, map_center_location, seen_tiles=seen_tiles)
+relationships: List["NPCRelationship"] = field(default_factory=list)
 ```
 
-### 4. Fix `worldmap` command (main.py line 1824)
-Pass `seen_tiles` to `render_worldmap()`:
+Add methods:
 ```python
-worldmap_output = render_worldmap(game_state.world, worldmap_location, game_state.seen_tiles)
+def add_relationship(self, target: str, rel_type: RelationshipType, trust: int = 50, desc: str = None) -> None
+def get_relationship(self, target: str) -> Optional[NPCRelationship]
+def get_relationships_by_type(self, rel_type: RelationshipType) -> List[NPCRelationship]
 ```
 
-## Verification
-```bash
-pytest tests/test_visibility_radius.py tests/test_map_renderer.py -v
+Update `to_dict()` and `from_dict()` to include relationships.
+
+### 4. `tests/test_npc.py`
+Add tests:
+```python
+# test_npc_relationships_default_empty()
+# test_add_relationship_basic()
+# test_get_relationship_by_name()
+# test_get_relationships_by_type()
+# test_npc_with_relationships_serialization()
+# test_npc_backward_compat_no_relationships()
 ```
 
-## Files Changed
+## Implementation Order
 
-| File | Line | Change |
-|------|------|--------|
-| `src/cli_rpg/main.py` | 1810-1815 | Add `game_state.seen_tiles` parameter to `render_map()` |
-| `src/cli_rpg/map_renderer.py` | 439 | Add `seen_tiles` parameter to `render_worldmap()` signature |
-| `src/cli_rpg/map_renderer.py` | 480 | Pass `seen_tiles` to `render_map()` call |
-| `src/cli_rpg/main.py` | 1824 | Add `game_state.seen_tiles` parameter to `render_worldmap()` |
+1. Create `tests/test_npc_relationship.py` with tests for NPCRelationship model
+2. Create `src/cli_rpg/models/npc_relationship.py` - run tests until passing
+3. Add relationship tests to `tests/test_npc.py`
+4. Modify `src/cli_rpg/models/npc.py` to add relationships field and methods - run tests until passing
+5. Run full test suite to verify no regressions

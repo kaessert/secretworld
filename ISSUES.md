@@ -213,16 +213,15 @@ Expand SubGrid bounds for larger cities and add district system.
 ---
 
 ### Issue 10: NPC Relationship Networks
-**Status**: PENDING
+**Status**: COMPLETED ✓
 **Priority**: HIGH
+**Completed**: 2025-12-27
 
-Create relationship system for interconnected NPCs.
+Created relationship system for interconnected NPCs.
 
-**Files to Create**:
-- `src/cli_rpg/models/npc_relationship.py`
-
-**Files to Modify**:
-- `src/cli_rpg/models/npc.py`
+**Implementation**:
+- `src/cli_rpg/models/npc_relationship.py` - RelationshipType enum (FAMILY, FRIEND, RIVAL, MENTOR, EMPLOYER, ACQUAINTANCE) and NPCRelationship dataclass with trust levels (1-100)
+- `src/cli_rpg/models/npc.py` - Added relationships list with add_relationship(), get_relationship(), get_relationships_by_type() methods; updated serialization with backward compatibility
 
 ---
 
@@ -463,7 +462,7 @@ Create storyline system with branching quests and investigations.
 - Mega-settlements with districts
 
 **Phase 5: NPC Networks** - Issues 10-11
-- Relationship system
+- ✓ Relationship system (Issue 10 complete)
 - NPC network manager
 
 **Phase 6: World Evolution** - Issues 12-13
