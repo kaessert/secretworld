@@ -721,8 +721,8 @@ Issues discovered during WFC mode playtesting (WFC is now enabled by default; up
    - **Solution implemented**:
      - Added `MERCHANT_KEYWORDS` set (merchant, trader, vendor, shopkeeper, seller, dealer)
      - NPCs with matching keywords in their name are auto-assigned `role="merchant"`
-     - Merchants automatically receive a default shop with basic items (Health Potion, Antidote, Travel Rations)
-   - Files modified: `src/cli_rpg/ai_world.py` (added `_create_default_merchant_shop()`, `MERCHANT_KEYWORDS`, updated `_create_npcs_from_data()`)
+     - Merchants automatically receive a terrain-aware default shop with thematically appropriate items (e.g., Mountain Supplies with climbing gear, Swamp Wares with antidotes, etc.)
+   - Files modified: `src/cli_rpg/ai_world.py` (added `_create_default_merchant_shop()`, `TERRAIN_SHOP_ITEMS`, `TERRAIN_SHOP_NAMES`, `MERCHANT_KEYWORDS`, updated `_create_npcs_from_data()`)
 
 4. ~~**Caravan world event doesn't provide shop access**~~ ✅ RESOLVED (2025-12-26)
     - Fixed: `shop` command now checks for active caravan events at current location
@@ -1277,7 +1277,7 @@ Result: Locations feel random, not part of a cohesive world.
 **Remaining:**
 - ~~No shop inventories generated~~ ✅ RESOLVED (2025-12-27) - AI-generated shop inventories with item stats
 - ~~No quest hooks or faction ties~~ ✅ RESOLVED (2025-12-27) - Quest hooks for quest_givers, default factions by role
-- Hardcoded merchants feel out of place in AI worlds
+- ~~Hardcoded merchants feel out of place in AI worlds~~ ✅ RESOLVED (2025-12-27) - Terrain-aware default merchant shops now provide thematically appropriate inventory based on terrain type (mountain supplies, swamp remedies, desert provisions, etc.)
 
 #### Implementation Plan
 

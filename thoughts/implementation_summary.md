@@ -1,75 +1,65 @@
-# Implementation Summary: Strategic Frontier Exit Placement
+# Implementation Summary: Terrain-Aware Default Merchant Shops
 
 ## What Was Implemented
 
-### Features and Functions
+Modified `_create_default_merchant_shop()` in `ai_world.py` to accept an optional `terrain_type` parameter and return thematically appropriate inventory instead of hardcoded generic items.
 
-1. **`get_unexplored_region_directions()` in `world_tiles.py`**
-   - Returns a list of cardinal directions (north, south, east, west) that point toward unexplored regions
-   - Takes world coordinates and a set of explored region coordinates as input
-   - Used for determining which directions lead to new content
+### Features Added
 
-2. **`get_prioritized_frontier_exits()` in `WorldGrid` (world_grid.py)**
-   - Similar to existing `find_frontier_exits()` but orders results by exploration status
-   - Exits pointing to unexplored regions appear first in the list
-   - Accepts optional `explored_regions` parameter or calculates from current locations
+1. **Terrain-specific shop inventories** (`TERRAIN_SHOP_ITEMS` dict):
+   - Mountain: Climbing Pick, Warm Cloak, Trail Rations
+   - Swamp: Antidote, Insect Repellent, Wading Boots
+   - Desert: Water Skin, Sun Cloak, Antidote
+   - Forest: Trail Rations, Hemp Rope, Herbalist's Kit
+   - Beach: Fishing Net, Sturdy Rope, Dried Fish
+   - Foothills: Trail Rations, Climbing Rope, Warm Blanket
+   - Hills: Trail Rations, Walking Staff, Antidote
+   - Plains: Travel Rations, Antidote (default fallback)
 
-3. **`get_explored_regions()` in `GameState` (game_state.py)**
-   - Analyzes all locations in the world grid to determine which regions have been explored
-   - Returns a set of (region_x, region_y) tuples
-   - Handles locations without coordinates gracefully
+2. **Terrain-specific shop names** (`TERRAIN_SHOP_NAMES` dict):
+   - Mountain Supplies, Swampland Wares, Desert Provisions, etc.
 
-4. **`FRONTIER_DESCRIPTION_HINTS` in `ai_config.py`**
-   - Dictionary mapping directions to atmospheric description hints
-   - Used for adding flavor text to location descriptions pointing toward unexplored areas
+3. **Health Potion always included**: All terrain shops include Health Potion as baseline.
 
 ### Files Modified
 
-| File | Change |
-|------|--------|
-| `src/cli_rpg/world_tiles.py` | Added `get_unexplored_region_directions()` function |
-| `src/cli_rpg/world_grid.py` | Added `get_prioritized_frontier_exits()` method to `WorldGrid` |
-| `src/cli_rpg/game_state.py` | Added `get_explored_regions()` method to `GameState` |
-| `src/cli_rpg/ai_config.py` | Added `FRONTIER_DESCRIPTION_HINTS` constant |
-| `tests/test_strategic_frontier_exits.py` | New test file with 11 tests |
+1. **`src/cli_rpg/ai_world.py`**:
+   - Added `TERRAIN_SHOP_ITEMS` dictionary with terrain-specific item tuples
+   - Added `TERRAIN_SHOP_NAMES` dictionary for immersive shop names
+   - Modified `_create_default_merchant_shop()` to accept `terrain_type` parameter
+   - Modified `_create_npcs_from_data()` to accept and forward `terrain_type` parameter
+   - Updated calls in `expand_world()` and `expand_area()` to pass `terrain_type`
 
-## Test Results and Verification
+2. **`tests/test_ai_merchant_detection.py`**:
+   - Added `TestTerrainAwareMerchantShops` test class with 7 tests:
+     - `test_default_shop_no_terrain_has_standard_items`
+     - `test_mountain_terrain_shop_has_climbing_gear`
+     - `test_swamp_terrain_shop_has_antidotes`
+     - `test_desert_terrain_shop_has_water`
+     - `test_forest_terrain_shop_has_trail_supplies`
+     - `test_beach_terrain_shop_has_fishing_gear`
+     - `test_all_terrain_shops_have_health_potion`
 
-All 11 new tests pass:
+## Test Results
 
-- `TestGetUnexploredRegionDirections` (4 tests)
-  - Returns directions toward unexplored regions
-  - Excludes directions toward explored regions
-  - Handles all-explored case
-  - Handles negative coordinates
+- **All 25 tests in `test_ai_merchant_detection.py` pass** (18 existing + 7 new)
+- **All 54 tests in `test_ai_world_generation.py` pass**
+- **Total: 79 tests passing**
 
-- `TestGetPrioritizedFrontierExits` (2 tests)
-  - Orders exits by exploration status
-  - Returns all frontier exits
+## Design Decisions
 
-- `TestFrontierAnalysisEdgeCases` (3 tests)
-  - Handles single location
-  - Uses region coords not tile coords
-  - Empty explored regions returns all directions
+1. **Backward compatibility**: When `terrain_type=None`, defaults to "plains" which has standard consumables (Travel Rations, Antidote), preserving existing behavior.
 
-- `TestGameStateGetExploredRegions` (2 tests)
-  - Returns regions from world locations
-  - Handles locations without coordinates
+2. **Immutable baseline**: Health Potion (50g, heals 25 HP) is always included regardless of terrain.
 
-Additionally, all existing tests pass:
-- `tests/test_world_grid.py`: 29 passed
-- `tests/test_game_state.py`: 62 passed
+3. **Layered approach**: Terrain type is passed through the existing `expand_world()` and `expand_area()` functions which already have terrain context.
 
-## Technical Design Decisions
+4. **Fallback handling**: Unknown terrain types fall back to plains inventory.
 
-1. **Region-based exploration tracking**: Uses REGION_SIZE (16x16) tile regions for exploration status rather than individual tiles. This provides coarser-grained tracking suitable for guiding players.
+## E2E Validation
 
-2. **Prioritization vs. filtering**: The `get_prioritized_frontier_exits()` method prioritizes but doesn't filter exits. All passable exits remain available, just reordered.
-
-3. **Lazy calculation**: Explored regions can be calculated on-demand from the world grid or passed explicitly for efficiency.
-
-## E2E Tests Should Validate
-
-1. When generating a new named location at coordinates pointing toward an unexplored region, the description should include atmospheric hints about unexplored territory
-2. The `get_prioritized_frontier_exits()` method should be usable during world generation to influence exit placement
-3. Player movement toward unexplored regions should feel guided toward new content
+When playing the game:
+- Merchants in mountain areas should sell Climbing Pick, Warm Cloak
+- Merchants in swamp areas should sell Antidote, Insect Repellent, Wading Boots
+- Merchants in desert areas should sell Water Skin, Sun Cloak
+- All merchants should still have Health Potion available

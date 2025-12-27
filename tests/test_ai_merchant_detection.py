@@ -245,3 +245,59 @@ class TestDefaultMerchantShop:
         shop = _create_default_merchant_shop()
         for shop_item in shop.inventory:
             assert shop_item.buy_price > 0
+
+
+class TestTerrainAwareMerchantShops:
+    """Tests for terrain-based default shop inventories."""
+
+    def test_default_shop_no_terrain_has_standard_items(self):
+        """Default shop without terrain has standard consumables."""
+        # Spec: Default shop without terrain_type has standard consumables
+        shop = _create_default_merchant_shop()
+        assert shop.find_item_by_name("Health Potion") is not None
+
+    def test_mountain_terrain_shop_has_climbing_gear(self):
+        """Mountain terrain shop includes mountain-appropriate items."""
+        # Spec: Mountain merchants have climbing gear, cold-weather items, pickaxes
+        shop = _create_default_merchant_shop(terrain_type="mountain")
+        item_names = [si.item.name for si in shop.inventory]
+        assert any("pick" in name.lower() or "climbing" in name.lower()
+                   or "warm" in name.lower() for name in item_names)
+
+    def test_swamp_terrain_shop_has_antidotes(self):
+        """Swamp terrain shop emphasizes poison cures."""
+        # Spec: Swamp merchants have antidotes, insect repellent, waterproof gear
+        shop = _create_default_merchant_shop(terrain_type="swamp")
+        antidote = shop.find_item_by_name("Antidote")
+        assert antidote is not None
+
+    def test_desert_terrain_shop_has_water(self):
+        """Desert terrain shop includes water/hydration items."""
+        # Spec: Desert merchants have water skins, sun protection, heat-resistant items
+        shop = _create_default_merchant_shop(terrain_type="desert")
+        item_names = [si.item.name for si in shop.inventory]
+        assert any("water" in name.lower() for name in item_names)
+
+    def test_forest_terrain_shop_has_trail_supplies(self):
+        """Forest terrain shop has trail/camping supplies."""
+        # Spec: Forest merchants have trail rations, rope, camping supplies
+        shop = _create_default_merchant_shop(terrain_type="forest")
+        item_names = [si.item.name for si in shop.inventory]
+        assert any("ration" in name.lower() or "rope" in name.lower()
+                   for name in item_names)
+
+    def test_beach_terrain_shop_has_fishing_gear(self):
+        """Beach/coastal terrain shop has fishing/water items."""
+        # Spec: Beach/coastal merchants have fishing gear, rope, water-related items
+        shop = _create_default_merchant_shop(terrain_type="beach")
+        item_names = [si.item.name for si in shop.inventory]
+        assert any("fish" in name.lower() or "rope" in name.lower()
+                   for name in item_names)
+
+    def test_all_terrain_shops_have_health_potion(self):
+        """All terrain shops should include health potion as baseline."""
+        # Spec: Health Potion is always included as baseline for all terrain types
+        for terrain in ["mountain", "swamp", "desert", "forest", "beach", "plains"]:
+            shop = _create_default_merchant_shop(terrain_type=terrain)
+            assert shop.find_item_by_name("Health Potion") is not None, \
+                f"Health Potion missing for terrain: {terrain}"

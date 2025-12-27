@@ -1,135 +1,237 @@
-# Strategic Frontier Exit Placement
+# Terrain-Aware Default Merchant Shops
+
+## Summary
+Modify `_create_default_merchant_shop()` in `ai_world.py` to accept optional terrain/region parameters and return thematically appropriate inventory instead of hardcoded generic items.
 
 ## Spec
 
-When generating named locations (POIs), strategically place exits that point toward unexplored regions rather than back toward explored territory. This guides players toward new content and creates a sense of world expansion.
+**Current behavior:** `_create_default_merchant_shop()` returns identical shop (Health Potion, Antidote, Travel Rations) regardless of where merchant is located.
 
-**Behavior:**
-1. When a new named location is generated, analyze which directions lead to unexplored regions
-2. Prioritize exits pointing toward unexplored regions (higher chance of interesting content hints)
-3. Location descriptions should hint at unexplored regions in those directions
-4. The `find_frontier_exits()` method should optionally prioritize directions leading to unexplored regions
+**Target behavior:** Default merchant shops should have terrain-appropriate inventory:
+- Mountain merchants: climbing gear, cold-weather items, pickaxes
+- Swamp merchants: antidotes, insect repellent, waterproof gear
+- Desert merchants: water skins, sun protection, heat-resistant items
+- Forest merchants: trail rations, rope, camping supplies
+- Beach/coastal: fishing gear, rope, water-related items
+- Default/plains: standard consumables (current behavior)
 
-**Not in scope:**
-- Terrain transitions (separate sub-task)
-- Location clustering (separate sub-task)
-- Blocking any exits (all passable terrain remains traversable)
-
-## Tests
-
-Create `tests/test_strategic_frontier_exits.py`:
+## Tests (add to `tests/test_ai_merchant_detection.py`)
 
 ```python
-# 1. Test get_unexplored_region_directions returns correct directions
-def test_get_unexplored_region_directions_returns_directions_toward_unexplored_regions():
-    """Directions toward regions with no explored tiles are identified."""
+class TestTerrainAwareMerchantShops:
+    """Tests for terrain-based default shop inventories."""
 
-# 2. Test prioritized_frontier_exits puts unexplored regions first
-def test_prioritized_frontier_exits_orders_by_exploration():
-    """Exits toward unexplored regions are listed before explored ones."""
+    def test_default_shop_no_terrain_has_standard_items(self):
+        """Default shop without terrain has standard consumables."""
+        shop = _create_default_merchant_shop()
+        assert shop.find_item_by_name("Health Potion") is not None
 
-# 3. Test location description includes frontier hints
-def test_named_location_description_includes_frontier_hints():
-    """When generating named locations, descriptions hint at unexplored directions."""
+    def test_mountain_terrain_shop_has_climbing_gear(self):
+        """Mountain terrain shop includes mountain-appropriate items."""
+        shop = _create_default_merchant_shop(terrain_type="mountain")
+        item_names = [si.item.name for si in shop.inventory]
+        assert any("pick" in name.lower() or "climbing" in name.lower()
+                   or "warm" in name.lower() for name in item_names)
 
-# 4. Test frontier analysis handles edge cases
-def test_frontier_analysis_handles_single_location():
-    """Single location shows all directions as unexplored."""
+    def test_swamp_terrain_shop_has_antidotes(self):
+        """Swamp terrain shop emphasizes poison cures."""
+        shop = _create_default_merchant_shop(terrain_type="swamp")
+        antidote = shop.find_item_by_name("Antidote")
+        assert antidote is not None
 
-# 5. Test frontier analysis respects region boundaries
-def test_frontier_analysis_uses_region_coords():
-    """Uses REGION_SIZE to determine unexplored regions, not individual tiles."""
+    def test_desert_terrain_shop_has_water(self):
+        """Desert terrain shop includes water/hydration items."""
+        shop = _create_default_merchant_shop(terrain_type="desert")
+        item_names = [si.item.name for si in shop.inventory]
+        assert any("water" in name.lower() for name in item_names)
+
+    def test_forest_terrain_shop_has_trail_supplies(self):
+        """Forest terrain shop has trail/camping supplies."""
+        shop = _create_default_merchant_shop(terrain_type="forest")
+        item_names = [si.item.name for si in shop.inventory]
+        assert any("ration" in name.lower() or "rope" in name.lower()
+                   for name in item_names)
+
+    def test_beach_terrain_shop_has_fishing_gear(self):
+        """Beach/coastal terrain shop has fishing/water items."""
+        shop = _create_default_merchant_shop(terrain_type="beach")
+        item_names = [si.item.name for si in shop.inventory]
+        assert any("fish" in name.lower() or "rope" in name.lower()
+                   for name in item_names)
+
+    def test_all_terrain_shops_have_health_potion(self):
+        """All terrain shops should include health potion as baseline."""
+        for terrain in ["mountain", "swamp", "desert", "forest", "beach", "plains"]:
+            shop = _create_default_merchant_shop(terrain_type=terrain)
+            assert shop.find_item_by_name("Health Potion") is not None
 ```
 
 ## Implementation Steps
 
-### 1. Add `get_unexplored_region_directions()` to `world_tiles.py`
+### 1. Add terrain-specific inventory definitions in `ai_world.py`
+
+Add after line 75 (after `MERCHANT_KEYWORDS`):
 
 ```python
-def get_unexplored_region_directions(
-    world_x: int,
-    world_y: int,
-    explored_regions: set[tuple[int, int]],
-) -> list[str]:
-    """Return directions pointing toward unexplored regions.
+# Terrain-specific default shop inventories
+# Each terrain has thematic items plus a base Health Potion
+TERRAIN_SHOP_ITEMS: dict[str, list[tuple[str, str, ItemType, int, dict]]] = {
+    # (name, description, item_type, price, stats_dict)
+    "mountain": [
+        ("Climbing Pick", "Essential for scaling rocky terrain", ItemType.MISC, 45, {}),
+        ("Warm Cloak", "Protection against mountain cold", ItemType.ARMOR, 60, {"defense_bonus": 2}),
+        ("Trail Rations", "Sustaining food for journeys", ItemType.CONSUMABLE, 20, {"heal_amount": 10}),
+    ],
+    "swamp": [
+        ("Antidote", "Cures poison", ItemType.CONSUMABLE, 40, {}),
+        ("Insect Repellent", "Wards off swamp insects", ItemType.CONSUMABLE, 25, {}),
+        ("Wading Boots", "Keeps feet dry in marshland", ItemType.ARMOR, 55, {"defense_bonus": 1}),
+    ],
+    "desert": [
+        ("Water Skin", "Precious water for desert travel", ItemType.CONSUMABLE, 30, {"stamina_restore": 15}),
+        ("Sun Cloak", "Protection from harsh desert sun", ItemType.ARMOR, 50, {"defense_bonus": 1}),
+        ("Antidote", "Cures poison from desert creatures", ItemType.CONSUMABLE, 40, {}),
+    ],
+    "forest": [
+        ("Trail Rations", "Sustaining food for journeys", ItemType.CONSUMABLE, 20, {"heal_amount": 10}),
+        ("Hemp Rope", "Sturdy rope for woodland travel", ItemType.MISC, 25, {}),
+        ("Herbalist's Kit", "Basic healing herbs", ItemType.CONSUMABLE, 35, {"heal_amount": 15}),
+    ],
+    "beach": [
+        ("Fishing Net", "For catching coastal fish", ItemType.MISC, 30, {}),
+        ("Sturdy Rope", "Sea-worthy rope", ItemType.MISC, 25, {}),
+        ("Dried Fish", "Preserved seafood", ItemType.CONSUMABLE, 15, {"heal_amount": 8}),
+    ],
+    "foothills": [
+        ("Trail Rations", "Sustaining food for journeys", ItemType.CONSUMABLE, 20, {"heal_amount": 10}),
+        ("Climbing Rope", "For ascending rocky terrain", ItemType.MISC, 35, {}),
+        ("Warm Blanket", "Comfort in cool mountain nights", ItemType.MISC, 25, {}),
+    ],
+    "hills": [
+        ("Trail Rations", "Sustaining food for journeys", ItemType.CONSUMABLE, 20, {"heal_amount": 10}),
+        ("Walking Staff", "Aids travel over hilly terrain", ItemType.WEAPON, 40, {"damage_bonus": 2}),
+        ("Antidote", "Cures poison", ItemType.CONSUMABLE, 40, {}),
+    ],
+    "plains": [
+        ("Travel Rations", "Sustaining food for journeys", ItemType.CONSUMABLE, 20, {"heal_amount": 10}),
+        ("Antidote", "Cures poison", ItemType.CONSUMABLE, 40, {}),
+    ],
+}
 
-    Args:
-        world_x: Current world x coordinate
-        world_y: Current world y coordinate
-        explored_regions: Set of (region_x, region_y) tuples that have been visited
-
-    Returns:
-        List of direction names pointing toward unexplored regions, sorted by priority
-    """
-```
-
-### 2. Add `get_prioritized_frontier_exits()` to `WorldGrid` in `world_grid.py`
-
-```python
-def get_prioritized_frontier_exits(
-    self,
-    explored_regions: Optional[set[tuple[int, int]]] = None
-) -> List[Tuple[str, str, Tuple[int, int]]]:
-    """Find frontier exits prioritized by unexplored regions.
-
-    Similar to find_frontier_exits() but orders results to prefer
-    directions leading to unexplored regions.
-
-    Args:
-        explored_regions: Optional set of visited region coordinates.
-                         If None, uses region analysis from current locations.
-
-    Returns:
-        List of (location_name, direction, target_coords) prioritized
-        with unexplored region directions first.
-    """
-```
-
-### 3. Add `get_explored_regions()` to `GameState` in `game_state.py`
-
-```python
-def get_explored_regions(self) -> set[tuple[int, int]]:
-    """Return set of region coordinates that have been explored.
-
-    Analyzes all locations in world grid to determine which regions
-    (REGION_SIZE x REGION_SIZE tile areas) have been visited.
-
-    Returns:
-        Set of (region_x, region_y) tuples
-    """
-```
-
-### 4. Update `expand_area()` in `ai_world.py` to include frontier hints
-
-Pass unexplored directions to the AI prompt so generated location descriptions can hint at interesting content in unexplored directions.
-
-### 5. Add `FRONTIER_DESCRIPTION_HINTS` to `ai_config.py`
-
-```python
-FRONTIER_DESCRIPTION_HINTS: Dict[str, str] = {
-    "north": "To the north, the land rises toward unknown heights.",
-    "south": "Southward, unexplored territory beckons.",
-    "east": "The eastern horizon holds mysteries yet to be discovered.",
-    "west": "Westward paths lead to lands untraveled.",
+# Terrain-specific shop names for immersion
+TERRAIN_SHOP_NAMES: dict[str, str] = {
+    "mountain": "Mountain Supplies",
+    "swamp": "Swampland Wares",
+    "desert": "Desert Provisions",
+    "forest": "Woodland Goods",
+    "beach": "Coastal Trading Post",
+    "foothills": "Hillside Supplies",
+    "hills": "Hilltop Wares",
+    "plains": "Traveling Wares",
 }
 ```
 
-## Files to Modify
+### 2. Modify `_create_default_merchant_shop()` signature and body
 
-| File | Change |
-|------|--------|
-| `src/cli_rpg/world_tiles.py` | Add `get_unexplored_region_directions()` |
-| `src/cli_rpg/world_grid.py` | Add `get_prioritized_frontier_exits()` |
-| `src/cli_rpg/game_state.py` | Add `get_explored_regions()` |
-| `src/cli_rpg/ai_world.py` | Pass frontier hints to location generation |
-| `src/cli_rpg/ai_config.py` | Add `FRONTIER_DESCRIPTION_HINTS` |
-| `tests/test_strategic_frontier_exits.py` | New test file |
+Change lines 40-71:
+
+```python
+def _create_default_merchant_shop(
+    terrain_type: Optional[str] = None,
+) -> Shop:
+    """Create a default shop for AI-generated merchant NPCs.
+
+    Args:
+        terrain_type: Optional terrain type for thematic inventory
+
+    Returns:
+        Shop with terrain-appropriate items (always includes Health Potion)
+    """
+    # Health Potion is always included as baseline
+    potion = Item(
+        name="Health Potion",
+        description="Restores 25 HP",
+        item_type=ItemType.CONSUMABLE,
+        heal_amount=25
+    )
+    shop_items = [ShopItem(item=potion, buy_price=50)]
+
+    # Get terrain-specific items
+    terrain_key = terrain_type.lower() if terrain_type else "plains"
+    terrain_items = TERRAIN_SHOP_ITEMS.get(terrain_key, TERRAIN_SHOP_ITEMS["plains"])
+
+    for name, desc, itype, price, stats in terrain_items:
+        item = Item(
+            name=name,
+            description=desc,
+            item_type=itype,
+            **stats
+        )
+        shop_items.append(ShopItem(item=item, buy_price=price))
+
+    shop_name = TERRAIN_SHOP_NAMES.get(terrain_key, "Traveling Wares")
+    return Shop(name=shop_name, inventory=shop_items)
+```
+
+### 3. Update `_create_npcs_from_data()` signature
+
+Add terrain_type parameter at line 189:
+
+```python
+def _create_npcs_from_data(
+    npcs_data: list[dict],
+    ai_service: Optional[AIService] = None,
+    location_name: str = "",
+    region_context: Optional[RegionContext] = None,
+    world_context: Optional[WorldContext] = None,
+    valid_locations: Optional[set[str]] = None,
+    valid_npcs: Optional[set[str]] = None,
+    terrain_type: Optional[str] = None,  # NEW
+) -> list[NPC]:
+```
+
+Update line 237 call:
+```python
+shop = _create_default_merchant_shop(terrain_type=terrain_type)
+```
+
+### 4. Update callers to pass terrain_type
+
+**Line 453 (`create_ai_world` starting location):** No terrain info available, use default (plains):
+```python
+ai_npcs = _create_npcs_from_data(starting_data.get("npcs", []))
+```
+(No change needed - terrain_type=None defaults to plains)
+
+**Line 519 (`create_ai_world` expansion):** No terrain info available:
+```python
+location_npcs = _create_npcs_from_data(location_data.get("npcs", []))
+```
+(No change needed)
+
+**Line 681 (`expand_world`):** terrain_type parameter available:
+```python
+location_npcs = _create_npcs_from_data(
+    location_data.get("npcs", []),
+    terrain_type=terrain_type,
+)
+```
+
+**Line 851 (`expand_area`):** Extract terrain from loc_data if available:
+```python
+location_npcs = _create_npcs_from_data(
+    loc_data.get("npcs", []),
+    terrain_type=terrain_type,  # from expand_area parameter
+)
+```
+
+## Files to Modify
+1. `src/cli_rpg/ai_world.py` - Add TERRAIN_SHOP_ITEMS, update _create_default_merchant_shop, update _create_npcs_from_data
+2. `tests/test_ai_merchant_detection.py` - Add TestTerrainAwareMerchantShops class
 
 ## Verification
-
 ```bash
-pytest tests/test_strategic_frontier_exits.py -v
-pytest tests/test_world_grid.py -v
-pytest tests/test_world_tiles.py -v
-pytest --cov=src/cli_rpg
+pytest tests/test_ai_merchant_detection.py -v
+pytest tests/test_ai_world_generation.py -v
+pytest --cov=src/cli_rpg/ai_world
 ```

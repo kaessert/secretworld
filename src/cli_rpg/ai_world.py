@@ -37,42 +37,103 @@ def _infer_hierarchy_from_category(category: Optional[str]) -> tuple[bool, bool]
     return (True, is_safe)
 
 
-def _create_default_merchant_shop() -> Shop:
+def _create_default_merchant_shop(
+    terrain_type: Optional[str] = None,
+) -> Shop:
     """Create a default shop for AI-generated merchant NPCs.
 
+    Args:
+        terrain_type: Optional terrain type for thematic inventory
+
     Returns:
-        Shop with basic consumable items (health potion, antidote, rations)
+        Shop with terrain-appropriate items (always includes Health Potion)
     """
+    # Health Potion is always included as baseline
     potion = Item(
         name="Health Potion",
         description="Restores 25 HP",
         item_type=ItemType.CONSUMABLE,
         heal_amount=25
     )
-    antidote = Item(
-        name="Antidote",
-        description="Cures poison",
-        item_type=ItemType.CONSUMABLE,
-    )
-    rations = Item(
-        name="Travel Rations",
-        description="Sustaining food for journeys",
-        item_type=ItemType.CONSUMABLE,
-        heal_amount=10
-    )
+    shop_items = [ShopItem(item=potion, buy_price=50)]
 
-    return Shop(
-        name="Traveling Wares",
-        inventory=[
-            ShopItem(item=potion, buy_price=50),
-            ShopItem(item=antidote, buy_price=40),
-            ShopItem(item=rations, buy_price=20),
-        ]
-    )
+    # Get terrain-specific items
+    terrain_key = terrain_type.lower() if terrain_type else "plains"
+    terrain_items = TERRAIN_SHOP_ITEMS.get(terrain_key, TERRAIN_SHOP_ITEMS["plains"])
+
+    for name, desc, itype, price, stats in terrain_items:
+        item = Item(
+            name=name,
+            description=desc,
+            item_type=itype,
+            **stats
+        )
+        shop_items.append(ShopItem(item=item, buy_price=price))
+
+    shop_name = TERRAIN_SHOP_NAMES.get(terrain_key, "Traveling Wares")
+    return Shop(name=shop_name, inventory=shop_items)
 
 
 # Keywords that indicate a merchant NPC
 MERCHANT_KEYWORDS = {"merchant", "trader", "vendor", "shopkeeper", "seller", "dealer"}
+
+
+# Terrain-specific default shop inventories
+# Each terrain has thematic items plus a base Health Potion
+# Format: (name, description, item_type, price, stats_dict)
+TERRAIN_SHOP_ITEMS: dict[str, list[tuple[str, str, ItemType, int, dict]]] = {
+    "mountain": [
+        ("Climbing Pick", "Essential for scaling rocky terrain", ItemType.MISC, 45, {}),
+        ("Warm Cloak", "Protection against mountain cold", ItemType.ARMOR, 60, {"defense_bonus": 2}),
+        ("Trail Rations", "Sustaining food for journeys", ItemType.CONSUMABLE, 20, {"heal_amount": 10}),
+    ],
+    "swamp": [
+        ("Antidote", "Cures poison", ItemType.CONSUMABLE, 40, {}),
+        ("Insect Repellent", "Wards off swamp insects", ItemType.CONSUMABLE, 25, {}),
+        ("Wading Boots", "Keeps feet dry in marshland", ItemType.ARMOR, 55, {"defense_bonus": 1}),
+    ],
+    "desert": [
+        ("Water Skin", "Precious water for desert travel", ItemType.CONSUMABLE, 30, {"stamina_restore": 15}),
+        ("Sun Cloak", "Protection from harsh desert sun", ItemType.ARMOR, 50, {"defense_bonus": 1}),
+        ("Antidote", "Cures poison from desert creatures", ItemType.CONSUMABLE, 40, {}),
+    ],
+    "forest": [
+        ("Trail Rations", "Sustaining food for journeys", ItemType.CONSUMABLE, 20, {"heal_amount": 10}),
+        ("Hemp Rope", "Sturdy rope for woodland travel", ItemType.MISC, 25, {}),
+        ("Herbalist's Kit", "Basic healing herbs", ItemType.CONSUMABLE, 35, {"heal_amount": 15}),
+    ],
+    "beach": [
+        ("Fishing Net", "For catching coastal fish", ItemType.MISC, 30, {}),
+        ("Sturdy Rope", "Sea-worthy rope", ItemType.MISC, 25, {}),
+        ("Dried Fish", "Preserved seafood", ItemType.CONSUMABLE, 15, {"heal_amount": 8}),
+    ],
+    "foothills": [
+        ("Trail Rations", "Sustaining food for journeys", ItemType.CONSUMABLE, 20, {"heal_amount": 10}),
+        ("Climbing Rope", "For ascending rocky terrain", ItemType.MISC, 35, {}),
+        ("Warm Blanket", "Comfort in cool mountain nights", ItemType.MISC, 25, {}),
+    ],
+    "hills": [
+        ("Trail Rations", "Sustaining food for journeys", ItemType.CONSUMABLE, 20, {"heal_amount": 10}),
+        ("Walking Staff", "Aids travel over hilly terrain", ItemType.WEAPON, 40, {"damage_bonus": 2}),
+        ("Antidote", "Cures poison", ItemType.CONSUMABLE, 40, {}),
+    ],
+    "plains": [
+        ("Travel Rations", "Sustaining food for journeys", ItemType.CONSUMABLE, 20, {"heal_amount": 10}),
+        ("Antidote", "Cures poison", ItemType.CONSUMABLE, 40, {}),
+    ],
+}
+
+# Terrain-specific shop names for immersion
+TERRAIN_SHOP_NAMES: dict[str, str] = {
+    "mountain": "Mountain Supplies",
+    "swamp": "Swampland Wares",
+    "desert": "Desert Provisions",
+    "forest": "Woodland Goods",
+    "beach": "Coastal Trading Post",
+    "foothills": "Hillside Supplies",
+    "hills": "Hilltop Wares",
+    "plains": "Traveling Wares",
+}
 
 
 def _create_shop_from_ai_inventory(shop_inventory: list[dict], shop_name: str) -> Optional[Shop]:
@@ -194,6 +255,7 @@ def _create_npcs_from_data(
     world_context: Optional[WorldContext] = None,
     valid_locations: Optional[set[str]] = None,
     valid_npcs: Optional[set[str]] = None,
+    terrain_type: Optional[str] = None,
 ) -> list[NPC]:
     """Create NPC objects from parsed NPC data.
 
@@ -205,6 +267,7 @@ def _create_npcs_from_data(
         world_context: Optional Layer 1 context for quest generation
         valid_locations: Optional set of valid location names for quests
         valid_npcs: Optional set of valid NPC names for quests
+        terrain_type: Optional terrain type for terrain-appropriate shop inventory
 
     Returns:
         List of NPC objects
@@ -234,7 +297,7 @@ def _create_npcs_from_data(
                     )
                 # Fall back to default shop if AI inventory failed
                 if shop is None:
-                    shop = _create_default_merchant_shop()
+                    shop = _create_default_merchant_shop(terrain_type=terrain_type)
 
             # Get faction (optional) with role-based defaults
             faction = npc_data.get("faction")
@@ -678,7 +741,10 @@ def expand_world(
     )
 
     # Add AI-generated NPCs to the new location
-    location_npcs = _create_npcs_from_data(location_data.get("npcs", []))
+    location_npcs = _create_npcs_from_data(
+        location_data.get("npcs", []),
+        terrain_type=terrain_type,
+    )
     for npc in location_npcs:
         new_location.npcs.append(npc)
 
@@ -848,7 +914,10 @@ def expand_area(
         # Add AI-generated NPCs to the location - only for named locations
         # Unnamed locations (is_named=False) don't spawn NPCs - they're terrain filler
         if loc_data.get("is_named", True):
-            location_npcs = _create_npcs_from_data(loc_data.get("npcs", []))
+            location_npcs = _create_npcs_from_data(
+                loc_data.get("npcs", []),
+                terrain_type=terrain_type,
+            )
             for npc in location_npcs:
                 new_loc.npcs.append(npc)
 
