@@ -286,6 +286,11 @@ class Location:
         elif self.sub_locations:
             sub_loc_names = [colors.location(name) for name in self.sub_locations]
             result += f"\nEnter: {', '.join(sub_loc_names)}"
+        elif self.is_named and self.is_overworld:
+            # Show "Enter:" for enterable categories that will generate SubGrid on-demand
+            from cli_rpg.world_tiles import is_enterable_category
+            if is_enterable_category(self.category):
+                result += f"\nEnter: {colors.location(self.name)}"
 
         # Add details layer (look_count >= 2) - hidden in reduced visibility
         if visibility != "reduced" and look_count >= 2 and self.details:

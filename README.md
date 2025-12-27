@@ -68,8 +68,8 @@ python -m cli_rpg.main
   - Quick shortcuts: `n`, `gn` (north), `w`, `gw` (west), `gs` (south), `ge` (east)
   - Note: `s` runs `status` and `e` runs `equip`, so use `gs`/`ge` for south/east
   - **Vertical movement**: Use `go up` / `go down` inside multi-level dungeons and towers
-- `enter <location>` - Enter a sub-location within the current overworld landmark (e.g., enter a tavern within a city)
-- `exit` / `leave` - Exit from a sub-location back to its parent overworld landmark
+- `enter <location>` - Enter a named location to explore its interior (dungeons, caves, towns, temples, etc.). The interior is generated on-demand when you first enter. Use `look` to see enterable locations (shown as "Enter: <location_name>")
+- `exit` / `leave` - Exit from a sub-location back to the overworld (must be at an exit point within the interior)
 - `travel <location>` - Fast travel to a previously visited named overworld location. Travel time is proportional to distance (Manhattan distance ÷ 4, clamped 1-8 hours). During travel: time advances, tiredness increases (+3/hour), dread builds (+5/hour), and random encounters may occur (15%/hour). Not available during combat, conversation, or inside sub-locations.
   - **Multi-level locations**: Dungeons extend downward (z<0), towers extend upward (z>0). Use `go up`/`go down` to navigate between floors
 - `map` (m) - Display an ASCII map of explored locations with available exits. Named locations show letter symbols (A, B, C...) in the legend; unnamed terrain shows terrain symbols (T=forest, M=mountain, ~=water, etc.). **Visibility radius**: terrain is revealed within a radius based on terrain type (plains=3, hills=2, forest=1, mountain=0) plus bonuses from standing on mountains (+2) and high Perception (+1 per 5 PER above 10). Seen-but-not-visited tiles show terrain symbols; visited tiles show full details.

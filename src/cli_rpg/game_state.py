@@ -914,6 +914,26 @@ class GameState:
         if not current.is_overworld:
             return (False, "You're not at an overworld location.")
 
+        # On-demand SubGrid generation for enterable categories
+        from cli_rpg.world_tiles import is_enterable_category
+        if current.sub_grid is None and is_enterable_category(current.category):
+            # Generate SubGrid on-demand for enterable locations
+            from cli_rpg.ai_world import generate_subgrid_for_location
+            current.sub_grid = generate_subgrid_for_location(
+                location=current,
+                ai_service=self.ai_service,
+                theme=self.theme,
+                world_context=self.world_context,
+                region_context=self.get_or_create_region_context(
+                    current.coordinates, current.terrain or "wilderness"
+                ) if current.coordinates else None,
+            )
+            # Set entry_point from first is_exit_point location
+            for loc in current.sub_grid._by_name.values():
+                if loc.is_exit_point:
+                    current.entry_point = loc.name
+                    break
+
         # If no target specified, use entry_point
         if target_name is None:
             if current.entry_point is None:

@@ -337,6 +337,28 @@ def get_biased_weights(region_theme: str) -> Dict[str, float]:
     return biased_weights
 
 
+# Categories that should have enterable SubGrids (on-demand generation)
+ENTERABLE_CATEGORIES: frozenset = frozenset({
+    "dungeon", "cave", "ruins", "temple",  # Adventure locations
+    "town", "village", "city", "settlement",  # Settlements
+    "tavern", "shop", "inn",  # Commercial buildings
+})
+
+
+def is_enterable_category(category: Optional[str]) -> bool:
+    """Check if a location category should have an enterable SubGrid.
+
+    Args:
+        category: Location category string, or None
+
+    Returns:
+        True if the category is in ENTERABLE_CATEGORIES, False otherwise
+    """
+    if category is None:
+        return False
+    return category.lower() in ENTERABLE_CATEGORIES
+
+
 # Location types that can spawn on each terrain
 TERRAIN_TO_LOCATIONS: Dict[str, List[str]] = {
     "forest": ["ruins", "grove", "hermit_hut", "bandit_camp", "ancient_tree", "hunter_lodge"],

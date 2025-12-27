@@ -31,7 +31,7 @@ src/cli_rpg/
 ├── game_state.py        # Core game state management
 ├── world.py             # World generation and navigation
 ├── world_grid.py        # Grid-based spatial world system
-├── world_tiles.py       # Terrain tile definitions, adjacency rules, region planning, visibility radius
+├── world_tiles.py       # Terrain tile definitions, adjacency rules, region planning, visibility radius, enterable categories
 ├── wfc.py               # Wave Function Collapse terrain generation
 ├── wfc_chunks.py        # ChunkManager for infinite terrain via cached WFC chunks
 ├── map_renderer.py      # ASCII map display with visibility radius support
@@ -41,7 +41,7 @@ src/cli_rpg/
 ├── persistence.py       # Save/load game state
 ├── autosave.py          # Automatic save functionality
 ├── ai_service.py        # AI integration for content generation
-├── ai_world.py          # AI-powered world content
+├── ai_world.py          # AI-powered world content, on-demand SubGrid generation
 ├── ai_config.py         # AI service configuration
 ├── location_art.py      # Fallback ASCII art templates for locations
 ├── npc_art.py           # Fallback ASCII art templates for NPCs
@@ -101,7 +101,7 @@ src/cli_rpg/
 ## Key Architectural Patterns
 
 - **Grid-based world** (`world_grid.py`): Spatial consistency with coordinate-based navigation
-- **SubGrid architecture**: Interior locations use bounded SubGrid instances (not the main world dict). Entry points marked with `is_exit_point=True` allow exiting back to overworld. SubGrid bounds vary by location category via `SUBGRID_BOUNDS` config and `get_subgrid_bounds(category)` helper (e.g., caves are 3x3, dungeons 7x7, cities 17x17). **Multi-level support**: SubGrids use 6-tuple bounds `(min_x, max_x, min_y, max_y, min_z, max_z)` for vertical navigation - dungeons extend downward (z<0), towers extend upward (z>0). Use `go up`/`go down` for vertical movement.
+- **SubGrid architecture**: Interior locations use bounded SubGrid instances (not the main world dict). Entry points marked with `is_exit_point=True` allow exiting back to overworld. SubGrid bounds vary by location category via `SUBGRID_BOUNDS` config and `get_subgrid_bounds(category)` helper (e.g., caves are 3x3, dungeons 7x7, cities 17x17). **On-demand generation**: Named overworld locations with enterable categories (dungeons, caves, towns, etc. defined in `ENTERABLE_CATEGORIES`) generate SubGrids when the player first enters via `generate_subgrid_for_location()`. **Multi-level support**: SubGrids use 6-tuple bounds `(min_x, max_x, min_y, max_y, min_z, max_z)` for vertical navigation - dungeons extend downward (z<0), towers extend upward (z>0). Use `go up`/`go down` for vertical movement.
 - **Location model**: Each location has coordinates and NPCs; movement is determined by coordinate adjacency (going north from (0,0) leads to (0,1)). Hierarchical navigation via `enter`/`exit` commands supports overworld/sub-location relationships. Locations have `is_named` flag: unnamed locations (generic terrain) skip NPC generation; named locations (towns, dungeons) get full AI-generated NPCs.
 - **GameState**: Central manager for character, world, combat, and shop state. Tracks `seen_tiles` (set of coordinates within visibility radius) separately from visited locations for map rendering.
 - **AI service**: Optional integration with graceful fallback when unavailable

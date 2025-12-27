@@ -432,6 +432,226 @@ def get_opposite_direction(direction: str) -> str:
     return opposites[direction]
 
 
+def generate_subgrid_for_location(
+    location: Location,
+    ai_service: Optional[AIService],
+    theme: str,
+    world_context: Optional[WorldContext] = None,
+    region_context: Optional[RegionContext] = None,
+) -> SubGrid:
+    """Generate a SubGrid for an enterable named location on-demand.
+
+    This function creates interior rooms/areas for locations like dungeons,
+    caves, towns, etc. that should have enterable interiors but don't yet
+    have a SubGrid attached.
+
+    Args:
+        location: The parent location to generate a SubGrid for
+        ai_service: Optional AI service for content generation
+        theme: World theme for generation
+        world_context: Optional Layer 1 context for layered generation
+        region_context: Optional Layer 2 context for layered generation
+
+    Returns:
+        A populated SubGrid with interior locations
+    """
+    from cli_rpg.world_grid import SubGrid, get_subgrid_bounds
+    from cli_rpg.location_art import get_fallback_location_ascii_art
+
+    # Get appropriate bounds for this location category
+    bounds = get_subgrid_bounds(location.category)
+    sub_grid = SubGrid(bounds=bounds, parent_name=location.name)
+
+    # Try AI generation if available
+    area_data = None
+    if ai_service is not None:
+        try:
+            if world_context is not None and region_context is not None:
+                # Use layered generation for coherent interiors
+                area_data = ai_service.generate_area_with_context(
+                    world_context=world_context,
+                    region_context=region_context,
+                    entry_direction="enter",  # Entering, not a cardinal direction
+                    size=5,  # Reasonable interior size
+                    terrain_type=location.terrain,
+                )
+            else:
+                # Use basic area generation
+                area_data = ai_service.generate_area(
+                    theme=theme,
+                    sub_theme_hint=f"interior of {location.category or 'building'}",
+                    entry_direction="enter",
+                    context_locations=[location.name],
+                    size=5,
+                )
+        except Exception as e:
+            logger.warning(f"AI area generation failed for {location.name}: {e}")
+            area_data = None
+
+    # Use fallback generation if AI failed or unavailable
+    if not area_data:
+        area_data = _generate_fallback_interior(location)
+
+    # Place locations in SubGrid
+    first_location = True
+    placed_locations = {}
+
+    for loc_data in area_data:
+        rel_x, rel_y = loc_data.get("relative_coords", (0, 0))
+
+        # Check bounds
+        if not sub_grid.is_within_bounds(rel_x, rel_y):
+            logger.debug(f"Skipping {loc_data['name']}: outside bounds")
+            continue
+
+        # Skip if coordinates occupied
+        if sub_grid.get_by_coordinates(rel_x, rel_y) is not None:
+            continue
+
+        # Generate ASCII art using fallback
+        loc_ascii_art = get_fallback_location_ascii_art(
+            category=loc_data.get("category", location.category),
+            location_name=loc_data["name"]
+        )
+
+        # Infer hierarchy fields
+        loc_category = loc_data.get("category", location.category)
+        _, loc_is_safe_zone = _infer_hierarchy_from_category(loc_category)
+
+        # Create the interior location
+        new_loc = Location(
+            name=loc_data["name"],
+            description=loc_data["description"],
+            category=loc_category,
+            ascii_art=loc_ascii_art,
+            is_overworld=False,  # Interior locations are not overworld
+            is_safe_zone=loc_is_safe_zone,
+            is_exit_point=first_location,  # First location is entry/exit
+        )
+
+        # Add NPCs if present
+        if loc_data.get("npcs"):
+            location_npcs = _create_npcs_from_data(
+                loc_data["npcs"],
+                terrain_type=location.terrain,
+            )
+            for npc in location_npcs:
+                new_loc.npcs.append(npc)
+
+        sub_grid.add_location(new_loc, rel_x, rel_y)
+        placed_locations[loc_data["name"]] = {
+            "location": new_loc,
+            "relative_coords": (rel_x, rel_y),
+            "is_entry": first_location,
+        }
+        first_location = False
+
+    # Place boss in furthest room for dungeon-type categories
+    if location.category in BOSS_CATEGORIES and placed_locations:
+        boss_room_name = _find_furthest_room(placed_locations)
+        if boss_room_name:
+            boss_room = sub_grid.get_by_name(boss_room_name)
+            if boss_room:
+                boss_room.boss_enemy = location.category  # Category-based boss
+
+    return sub_grid
+
+
+def _generate_fallback_interior(location: Location) -> list[dict]:
+    """Generate fallback interior locations when AI is unavailable.
+
+    Creates a simple but functional interior layout based on location category.
+
+    Args:
+        location: The parent location to generate interior for
+
+    Returns:
+        List of location data dicts with relative_coords
+    """
+    category = (location.category or "building").lower()
+
+    # Category-specific interior templates
+    if category in ("dungeon", "cave", "ruins"):
+        return [
+            {
+                "name": f"{location.name} Entrance",
+                "description": f"The entrance to {location.name}. Dark passages stretch ahead.",
+                "relative_coords": (0, 0),
+                "category": category,
+            },
+            {
+                "name": "Dark Corridor",
+                "description": "A narrow passage with damp walls. Shadows dance at the edges of your vision.",
+                "relative_coords": (0, 1),
+                "category": category,
+            },
+            {
+                "name": "Ancient Chamber",
+                "description": "A larger room with crumbling pillars. Something valuable might be hidden here.",
+                "relative_coords": (0, 2),
+                "category": category,
+            },
+        ]
+    elif category in ("town", "village", "city", "settlement"):
+        return [
+            {
+                "name": f"{location.name} Gate",
+                "description": f"The main entrance to {location.name}. Travelers come and go.",
+                "relative_coords": (0, 0),
+                "category": category,
+            },
+            {
+                "name": "Town Square",
+                "description": "The central gathering place. Merchants have set up stalls here.",
+                "relative_coords": (0, 1),
+                "category": category,
+            },
+            {
+                "name": "Marketplace",
+                "description": "A bustling area where goods are bought and sold.",
+                "relative_coords": (1, 1),
+                "category": category,
+            },
+        ]
+    elif category == "temple":
+        return [
+            {
+                "name": f"{location.name} Entrance",
+                "description": f"The sacred entrance to {location.name}. Incense fills the air.",
+                "relative_coords": (0, 0),
+                "category": category,
+            },
+            {
+                "name": "Prayer Hall",
+                "description": "A hall lined with prayer cushions and religious icons.",
+                "relative_coords": (0, 1),
+                "category": category,
+            },
+            {
+                "name": "Inner Sanctum",
+                "description": "The holiest part of the temple. Few are permitted here.",
+                "relative_coords": (0, 2),
+                "category": category,
+            },
+        ]
+    else:
+        # Generic interior for shops, taverns, inns, etc.
+        return [
+            {
+                "name": f"{location.name} Interior",
+                "description": f"Inside {location.name}. The space is well-maintained.",
+                "relative_coords": (0, 0),
+                "category": category,
+            },
+            {
+                "name": "Back Room",
+                "description": "A private area at the back of the establishment.",
+                "relative_coords": (0, 1),
+                "category": category,
+            },
+        ]
+
+
 def create_ai_world(
     ai_service: AIService,
     theme: str = "fantasy",
