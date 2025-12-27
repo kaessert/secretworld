@@ -1,100 +1,112 @@
-# Implementation Plan: LoreContext (Layer 6)
+# Implementation Plan: Unified GenerationContext (Issue 5)
 
-## Summary
-Create the `LoreContext` dataclass model for caching lore information (historical events, legendary items, legendary places, prophecies, ancient civilizations, creation myths, deities) following the established pattern from SettlementContext and RegionContext.
+## Overview
+Create a `GenerationContext` aggregator dataclass that combines all 6 context layers for prompt generation. This enables AI generation methods to access all available context through a single object with a unified `to_prompt_context()` method.
 
 ---
 
-## Spec
+## 1. Create GenerationContext Model
 
-**Model**: `LoreContext` dataclass in `src/cli_rpg/models/lore_context.py`
+**File**: `src/cli_rpg/models/generation_context.py`
 
 ```python
 @dataclass
-class LoreContext:
-    # Required identifiers
-    region_name: str                           # Region this lore belongs to
-    coordinates: tuple[int, int]               # Region coordinates
-    generated_at: Optional[datetime] = None    # When AI-generated (None if fallback)
+class GenerationContext:
+    world: WorldContext                          # Layer 1 - always required
+    region: Optional[RegionContext] = None       # Layer 2
+    settlement: Optional[SettlementContext] = None  # Layer 5
+    world_lore: Optional[LoreContext] = None     # Layer 6 (world-level)
+    region_lore: Optional[LoreContext] = None    # Layer 6 (region-level)
 
-    # Historical Events (list of dicts with name, date, description, impact)
-    historical_events: list[dict] = field(default_factory=list)
+    def to_prompt_context(self) -> dict:
+        """Aggregate all layers into prompt-ready dict."""
 
-    # Legendary Items (list of dicts with name, description, powers, location_hint)
-    legendary_items: list[dict] = field(default_factory=list)
+    def to_dict(self) -> dict:
+        """Serialize for save/load."""
 
-    # Legendary Places (list of dicts with name, description, danger_level, rumored_location)
-    legendary_places: list[dict] = field(default_factory=list)
-
-    # Prophecies (list of dicts with name, text, interpretation, fulfilled)
-    prophecies: list[dict] = field(default_factory=list)
-
-    # Ancient Civilizations (list of dicts with name, era, achievements, downfall)
-    ancient_civilizations: list[dict] = field(default_factory=list)
-
-    # Creation Myths (list of strings - region-specific origin stories)
-    creation_myths: list[str] = field(default_factory=list)
-
-    # Deities (list of dicts with name, domain, alignment, worship_status)
-    deities: list[dict] = field(default_factory=list)
+    @classmethod
+    def from_dict(cls, data: dict) -> "GenerationContext":
+        """Deserialize from save data."""
 ```
 
-**Methods**:
-- `to_dict() -> dict` - Serialize for save/load (datetime→ISO, tuple→list)
-- `from_dict(data: dict) -> LoreContext` - Deserialize with backward-compatible defaults
-- `default(region_name: str, coordinates: tuple[int, int]) -> LoreContext` - Fallback factory
-
-**Default Constants**:
-- `DEFAULT_HISTORICAL_EVENT_TYPES` - ["war", "plague", "discovery", "founding", "cataclysm"]
-- `DEFAULT_DEITY_DOMAINS` - ["war", "nature", "death", "knowledge", "trickery", "life"]
-- `DEFAULT_DEITY_ALIGNMENTS` - ["good", "neutral", "evil", "forgotten"]
+**Key fields in `to_prompt_context()` output**:
+- `theme`, `theme_essence`, `naming_style`, `tone` (from WorldContext)
+- `region_name`, `region_theme`, `danger_level`, `landmarks` (from RegionContext)
+- `settlement_name`, `government_type`, `population_size`, `notable_families` (from SettlementContext)
+- `historical_events`, `legendary_items`, `prophecies`, `deities` (from LoreContext)
 
 ---
 
-## Tests
+## 2. Add Tests for GenerationContext
 
-**File**: `tests/test_lore_context.py`
+**File**: `tests/test_generation_context.py`
 
-### TestLoreContextCreation
-1. `test_create_with_all_fields` - All fields specified, verify storage
-2. `test_create_with_minimal_fields` - Only required, defaults applied
-3. `test_create_empty_collections` - Empty lists work correctly
-
-### TestLoreContextSerialization
-4. `test_to_dict_with_all_fields` - datetime→ISO, tuple→list conversions
-5. `test_to_dict_with_none_generated_at` - Handles None timestamp
-
-### TestLoreContextDeserialization
-6. `test_from_dict_with_all_fields` - Restores all data correctly
-7. `test_from_dict_backward_compatible` - Old saves load with defaults
-8. `test_from_dict_with_null_generated_at` - Handles null timestamp
-
-### TestLoreContextDefaultFactory
-9. `test_default_creates_valid_context` - Creates valid instance
-10. `test_default_with_different_coordinates` - Works with various coords
-
-### TestLoreContextRoundTrip
-11. `test_round_trip_preserves_all_data` - to_dict→from_dict preserves everything
-12. `test_round_trip_without_generated_at` - Round-trip with None timestamp
+Tests to add:
+1. `test_creation_with_world_only` - Minimal context
+2. `test_creation_with_all_layers` - Full context
+3. `test_to_prompt_context_world_only` - Verify output structure
+4. `test_to_prompt_context_full` - All layers in output
+5. `test_to_dict_serialization` - Round-trip serialization
+6. `test_from_dict_deserialization` - Backward compatibility
+7. `test_optional_layers_none` - Handle None gracefully
 
 ---
 
-## Implementation Steps
+## 3. Add `get_generation_context()` to GameState
 
-1. **Create test file** `tests/test_lore_context.py`
-   - Copy structure from `test_settlement_context.py`
-   - Update to test LoreContext fields (historical_events, legendary_items, etc.)
-   - 12 test cases covering creation, serialization, deserialization, default factory, round-trip
+**File**: `src/cli_rpg/game_state.py`
 
-2. **Create model file** `src/cli_rpg/models/lore_context.py`
-   - Add module docstring explaining Layer 6 purpose
-   - Define `DEFAULT_HISTORICAL_EVENT_TYPES`, `DEFAULT_DEITY_DOMAINS`, `DEFAULT_DEITY_ALIGNMENTS`
-   - Create `LoreContext` dataclass with:
-     - Required fields: `region_name`, `coordinates`
-     - Optional: `generated_at`
-     - Lore fields: `historical_events`, `legendary_items`, `legendary_places`, `prophecies`, `ancient_civilizations`, `creation_myths`, `deities`
-   - Implement `to_dict()` with datetime→ISO, tuple→list
-   - Implement `from_dict()` with backward-compatible `.get()` defaults
-   - Implement `default()` factory classmethod
+```python
+def get_generation_context(
+    self,
+    coords: Optional[tuple[int, int]] = None,
+    settlement_name: Optional[str] = None,
+) -> GenerationContext:
+    """Build GenerationContext from cached layers.
 
-3. **Run tests** - Verify all 12 tests pass with `pytest tests/test_lore_context.py -v`
+    Args:
+        coords: Coordinates for region lookup (defaults to current location)
+        settlement_name: Name for settlement context lookup (if applicable)
+
+    Returns:
+        GenerationContext with available layers populated
+    """
+```
+
+Logic:
+1. Get/create WorldContext (always present)
+2. Get/create RegionContext if coords provided
+3. Lookup SettlementContext from cache if settlement_name provided
+4. Lookup LoreContext (world/region) from caches if available
+5. Return assembled GenerationContext
+
+---
+
+## 4. Integration Points (Future)
+
+The GenerationContext will be passed to:
+- `generate_enemy_with_context(context, location, level)` - Use region creatures
+- `generate_item_with_context(context, location, level)` - Use region resources
+- `generate_quest()` - Validate difficulty against danger_level
+- `generate_settlement_context()` - Layer 5 generation
+- `generate_lore_context()` - Layer 6 generation
+
+**Note**: AI service integration is deferred to future work. This plan creates only the model and accessor.
+
+---
+
+## Implementation Order
+
+1. Create `src/cli_rpg/models/generation_context.py` with dataclass
+2. Create `tests/test_generation_context.py` with unit tests
+3. Add import and `get_generation_context()` method to `game_state.py`
+4. Run tests to verify: `pytest tests/test_generation_context.py -v`
+
+---
+
+## Files to Create
+- `src/cli_rpg/models/generation_context.py`
+- `tests/test_generation_context.py`
+
+## Files to Modify
+- `src/cli_rpg/game_state.py` - Add import and `get_generation_context()` method

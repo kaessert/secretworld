@@ -18,6 +18,7 @@ from cli_rpg.models.companion import Companion
 from cli_rpg.models.faction import Faction
 from cli_rpg.models.world_context import WorldContext
 from cli_rpg.models.region_context import RegionContext
+from cli_rpg.models.generation_context import GenerationContext
 from cli_rpg.models.quest_outcome import QuestOutcome
 from cli_rpg.combat import (
     CombatEncounter,
@@ -1405,6 +1406,57 @@ class GameState:
         region_context = RegionContext.default(region_name, center_coords)
         self.region_contexts[region_key] = region_context
         return region_context
+
+    def get_generation_context(
+        self,
+        coords: Optional[tuple[int, int]] = None,
+        settlement_name: Optional[str] = None,
+    ) -> GenerationContext:
+        """Build GenerationContext from cached layers.
+
+        Aggregates all available context layers (WorldContext, RegionContext,
+        SettlementContext, LoreContext) into a single GenerationContext for
+        use in AI prompt generation.
+
+        Args:
+            coords: Coordinates for region lookup (defaults to current location)
+            settlement_name: Name for settlement context lookup (if applicable)
+
+        Returns:
+            GenerationContext with available layers populated
+        """
+        # Get current location for defaults
+        current = self.get_current_location()
+
+        # Use provided coords or fall back to current location coords
+        if coords is None:
+            coords = current.coordinates
+
+        # Layer 1: WorldContext (always present)
+        world_ctx = self.get_or_create_world_context()
+
+        # Layer 2: RegionContext (if coords available)
+        region_ctx = None
+        if coords is not None:
+            terrain_hint = current.terrain or "wilderness"
+            region_ctx = self.get_or_create_region_context(coords, terrain_hint)
+
+        # Layer 5: SettlementContext - not yet implemented in caches
+        # Future: lookup from settlement_contexts cache when available
+        settlement_ctx = None
+
+        # Layer 6: LoreContext - not yet implemented in caches
+        # Future: lookup from lore_contexts cache when available
+        world_lore = None
+        region_lore = None
+
+        return GenerationContext(
+            world=world_ctx,
+            region=region_ctx,
+            settlement=settlement_ctx,
+            world_lore=world_lore,
+            region_lore=region_lore,
+        )
 
     def get_explored_regions(self) -> set[tuple[int, int]]:
         """Return set of region coordinates that have been explored.

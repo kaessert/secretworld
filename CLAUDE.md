@@ -96,7 +96,9 @@ src/cli_rpg/
     ├── faction.py       # Faction reputation system
     ├── world_context.py # Cached world theme context for layered AI generation
     ├── region_context.py # Region-level context for layered AI generation (Layer 2)
-    └── settlement_context.py # Settlement-level context for layered AI generation (Layer 5)
+    ├── settlement_context.py # Settlement-level context for layered AI generation (Layer 5)
+    ├── lore_context.py  # Lore context for historical events, legends (Layer 6)
+    └── generation_context.py # Unified context aggregator for AI prompt generation
 ```
 
 ## Key Architectural Patterns

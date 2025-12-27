@@ -834,43 +834,53 @@ class LoreContext:
 - `src/cli_rpg/models/lore_context.py`
 - `tests/test_lore_context.py`
 
-**Note**: Model complete; integration with GenerationContext aggregator pending (Issue 5).
+**Note**: Model complete. GenerationContext aggregator now implemented (Issue 5 COMPLETE).
 
 ---
 
 ### Issue 5: Unified GenerationContext
-**Status**: PENDING
+**Status**: ✅ COMPLETE (2025-12-27)
 **Priority**: HIGH
 
-Create GenerationContext aggregator that combines all layers for prompt generation.
+Created GenerationContext aggregator that combines all layers for prompt generation.
 
-**Model**:
+**Model** (implemented in `src/cli_rpg/models/generation_context.py`):
 ```python
 @dataclass
 class GenerationContext:
-    world: WorldContext           # Layer 1
-    region: Optional[RegionContext]  # Layer 2
-    settlement: Optional[SettlementContext]  # Layer 5
-    world_lore: Optional[LoreContext]  # Layer 6
-    region_lore: Optional[LoreContext]
+    world: WorldContext                           # Layer 1 - always required
+    region: Optional[RegionContext] = None        # Layer 2
+    settlement: Optional[SettlementContext] = None # Layer 5
+    world_lore: Optional[LoreContext] = None      # Layer 6 (world-level)
+    region_lore: Optional[LoreContext] = None     # Layer 6 (region-level)
 
     def to_prompt_context(self) -> dict:
-        """Convert all layers to prompt-ready dict."""
+        """Aggregates all layers into a flat dictionary for AI prompts."""
+
+    def to_dict() / from_dict():
+        """Serialization for save/load support."""
 ```
 
-**AI Service Integration**:
+**GameState Integration**:
+- Added `get_generation_context()` method to GameState
+- Uses current location coordinates if none provided
+- Gets/creates WorldContext (Layer 1) and RegionContext (Layer 2)
+- Settlement and Lore layers return None (caches pending future implementation)
+
+**Files Created**:
+- `src/cli_rpg/models/generation_context.py`
+- `tests/test_generation_context.py` (8 tests)
+
+**Files Modified**:
+- `src/cli_rpg/game_state.py` - Added `get_generation_context()` method
+- `tests/test_game_state_context.py` - Added 7 new tests
+
+**Future Work (Deferred)**:
 - `generate_enemy_with_context(context, location, level)` - Use region creatures
 - `generate_item_with_context(context, location, level)` - Use region resources
 - `generate_quest` - Validate difficulty against `danger_level`
 - `generate_settlement_context()` - Layer 5 generation
 - `generate_lore_context()` - Layer 6 generation
-
-**Files to Create**:
-- `src/cli_rpg/models/generation_context.py`
-
-**Files to Modify**:
-- `src/cli_rpg/ai_service.py`
-- `src/cli_rpg/game_state.py` - Add `get_generation_context()`
 
 ---
 

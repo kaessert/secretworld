@@ -1,52 +1,105 @@
-# Implementation Summary: LoreContext (Layer 6)
+# Implementation Summary: Unified GenerationContext (Issue 5)
 
 ## What Was Implemented
 
-Created the `LoreContext` dataclass model for caching lore information in the layered AI generation architecture.
+### 1. New Model: GenerationContext
+**File**: `src/cli_rpg/models/generation_context.py`
 
-### Files Created
+Created a new dataclass that aggregates all 6 context layers for AI prompt generation:
 
-1. **`src/cli_rpg/models/lore_context.py`** - The model implementation
-   - `LoreContext` dataclass with:
-     - Required fields: `region_name`, `coordinates`
-     - Optional: `generated_at` (datetime)
-     - Lore fields (all list types):
-       - `historical_events` - list of dicts with name, date, description, impact
-       - `legendary_items` - list of dicts with name, description, powers, location_hint
-       - `legendary_places` - list of dicts with name, description, danger_level, rumored_location
-       - `prophecies` - list of dicts with name, text, interpretation, fulfilled
-       - `ancient_civilizations` - list of dicts with name, era, achievements, downfall
-       - `creation_myths` - list of strings
-       - `deities` - list of dicts with name, domain, alignment, worship_status
-   - Methods:
-     - `to_dict()` - Serializes with datetime→ISO string, tuple→list conversions
-     - `from_dict()` - Deserializes with backward-compatible `.get()` defaults
-     - `default()` - Factory classmethod for fallback when AI unavailable
-   - Default constants:
-     - `DEFAULT_HISTORICAL_EVENT_TYPES`
-     - `DEFAULT_DEITY_DOMAINS`
-     - `DEFAULT_DEITY_ALIGNMENTS`
+```python
+@dataclass
+class GenerationContext:
+    world: WorldContext                           # Layer 1 - always required
+    region: Optional[RegionContext] = None        # Layer 2
+    settlement: Optional[SettlementContext] = None # Layer 5
+    world_lore: Optional[LoreContext] = None      # Layer 6 (world-level)
+    region_lore: Optional[LoreContext] = None     # Layer 6 (region-level)
+```
 
-2. **`tests/test_lore_context.py`** - Complete test coverage
-   - 12 test cases covering:
-     - Creation (with all fields, minimal fields, empty collections)
-     - Serialization (all fields, None timestamp)
-     - Deserialization (all fields, backward-compatible, null timestamp)
-     - Default factory (valid context, different coordinates)
-     - Round-trip (preserves all data, handles None timestamp)
+**Key Methods**:
+- `to_prompt_context()`: Aggregates all layers into a flat dictionary for AI prompts
+- `to_dict()` / `from_dict()`: Serialization for save/load support
+
+### 2. GameState Integration
+**File**: `src/cli_rpg/game_state.py`
+
+Added `get_generation_context()` method:
+```python
+def get_generation_context(
+    self,
+    coords: Optional[tuple[int, int]] = None,
+    settlement_name: Optional[str] = None,
+) -> GenerationContext:
+```
+
+**Behavior**:
+- Uses current location coordinates if none provided
+- Gets/creates WorldContext (Layer 1) via existing `get_or_create_world_context()`
+- Gets/creates RegionContext (Layer 2) via existing `get_or_create_region_context()`
+- Settlement and Lore layers return None (caches not yet implemented)
+
+### 3. Test Coverage
+**File**: `tests/test_generation_context.py` (8 tests)
+
+- `test_creation_with_world_only` - Minimal context creation
+- `test_creation_with_all_layers` - Full context creation
+- `test_to_prompt_context_world_only` - Output with world only
+- `test_to_prompt_context_full` - Output with all layers
+- `test_to_dict_serialization` - Round-trip serialization
+- `test_from_dict_deserialization` - Restore from dict
+- `test_from_dict_minimal` - Backward compatibility
+- `test_optional_layers_none` - Graceful None handling
+
+**File**: `tests/test_game_state_context.py` (7 new tests added)
+
+- `test_returns_generation_context`
+- `test_uses_default_world_context`
+- `test_includes_region_context_with_coords`
+- `test_uses_current_location_coords_by_default`
+- `test_region_none_when_no_coords`
+- `test_optional_layers_none_initially`
+- `test_to_prompt_context_works`
 
 ## Test Results
 
-- All 12 new tests pass
-- Full test suite: 4346 tests pass (no regressions)
+All tests pass:
+- 8 tests in `tests/test_generation_context.py`
+- 18 tests in `tests/test_game_state_context.py` (11 existing + 7 new)
+- Full test suite: **4361 passed**
 
-## Design Decisions
+## Files Modified/Created
 
-- Followed the established pattern from `SettlementContext` and `RegionContext`
-- Used dataclass with `field(default_factory=list)` for mutable defaults
-- Backward-compatible deserialization using `.get()` with default values
-- JSON-compatible serialization (datetime→ISO, tuple→list)
+### Created
+- `src/cli_rpg/models/generation_context.py`
+- `tests/test_generation_context.py`
+
+### Modified
+- `src/cli_rpg/game_state.py` - Added import and `get_generation_context()` method
+- `tests/test_game_state_context.py` - Added 7 new tests for `get_generation_context()`
+
+## Technical Decisions
+
+1. **Layer aggregation**: `to_prompt_context()` flattens all layers into a single dict with clear prefixes for lore fields (`world_historical_events`, `region_historical_events`) to avoid key collisions.
+
+2. **None handling**: Optional layers gracefully exclude their fields from `to_prompt_context()` output when None, keeping prompt context clean.
+
+3. **Serialization**: `to_dict()` only includes non-None layers for compact save files.
+
+4. **Future integration**: Settlement (Layer 5) and Lore (Layer 6) caches are placeholders - the infrastructure is ready for when those caches are added to GameState.
+
+## Future Work (Deferred)
+
+The GenerationContext is ready to be passed to AI generation methods:
+- `generate_enemy_with_context(context, location, level)`
+- `generate_item_with_context(context, location, level)`
+- `generate_quest()` - Validate difficulty against `danger_level`
+- `generate_settlement_context()` - Layer 5 generation
+- `generate_lore_context()` - Layer 6 generation
 
 ## E2E Validation
 
-No E2E tests needed for this change - this is a new model with no integration to existing systems yet. Integration will be done when the GenerationContext aggregator is implemented.
+The implementation can be validated by:
+1. Creating a new game and calling `game_state.get_generation_context()`
+2. Verifying `world` and `region` fields are populated
+3. Calling `to_prompt_context()` and confirming all expected keys are present
