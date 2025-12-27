@@ -2,7 +2,7 @@
 
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import ClassVar, Dict, List, Optional
+from typing import ClassVar, Dict, List, Optional, Tuple
 
 
 class QuestStatus(Enum):
@@ -128,6 +128,77 @@ class QuestBranch:
 
 
 @dataclass
+class QuestStage:
+    """A single stage within a multi-stage quest.
+
+    Attributes:
+        name: Stage title (cannot be empty)
+        description: Stage-specific flavor text
+        objective_type: Type of objective (KILL, TALK, EXPLORE, etc.)
+        target: The target name (cannot be empty)
+        target_count: How many to complete (default 1, must be >= 1)
+        current_count: Current progress (default 0, must be >= 0)
+    """
+
+    name: str
+    description: str
+    objective_type: ObjectiveType
+    target: str
+    target_count: int = 1
+    current_count: int = 0
+
+    def __post_init__(self) -> None:
+        """Validate stage attributes."""
+        if not self.name or not self.name.strip():
+            raise ValueError("Stage name cannot be empty")
+        if not self.target or not self.target.strip():
+            raise ValueError("Stage target cannot be empty")
+        if self.target_count < 1:
+            raise ValueError("Stage target_count must be at least 1")
+        if self.current_count < 0:
+            raise ValueError("Stage current_count must be non-negative")
+        self.name = self.name.strip()
+        self.target = self.target.strip()
+
+    @property
+    def is_complete(self) -> bool:
+        """Check if this stage's objective has been met."""
+        return self.current_count >= self.target_count
+
+    def progress(self) -> bool:
+        """Increment current_count and check if stage is complete.
+
+        Returns:
+            True if stage is now complete, False otherwise.
+        """
+        self.current_count += 1
+        return self.is_complete
+
+    def to_dict(self) -> dict:
+        """Serialize the stage to a dictionary."""
+        return {
+            "name": self.name,
+            "description": self.description,
+            "objective_type": self.objective_type.value,
+            "target": self.target,
+            "target_count": self.target_count,
+            "current_count": self.current_count,
+        }
+
+    @classmethod
+    def from_dict(cls, data: dict) -> "QuestStage":
+        """Create a stage from a dictionary."""
+        return cls(
+            name=data["name"],
+            description=data.get("description", ""),
+            objective_type=ObjectiveType(data["objective_type"]),
+            target=data["target"],
+            target_count=data.get("target_count", 1),
+            current_count=data.get("current_count", 0),
+        )
+
+
+@dataclass
 class Quest:
     """Represents a quest in the game.
 
@@ -180,6 +251,9 @@ class Quest:
     # Time limit fields for urgent quests
     time_limit_hours: Optional[int] = field(default=None)
     accepted_at: Optional[int] = field(default=None)
+    # Multi-stage quest fields
+    stages: List["QuestStage"] = field(default_factory=list)
+    current_stage: int = field(default=0)
 
     def __post_init__(self) -> None:
         """Validate quest attributes after initialization."""
@@ -286,6 +360,40 @@ class Quest:
         remaining = self.time_limit_hours - (current_game_hour - self.accepted_at)
         return max(0, remaining)
 
+    def get_active_stage(self) -> Optional["QuestStage"]:
+        """Return the currently active stage, or None if no stages.
+
+        Returns:
+            The current QuestStage or None if quest has no stages or is past all stages.
+        """
+        if not self.stages or self.current_stage >= len(self.stages):
+            return None
+        return self.stages[self.current_stage]
+
+    def advance_stage(self) -> bool:
+        """Advance to next stage.
+
+        Returns:
+            True if quest is now complete (past all stages), False otherwise.
+        """
+        if not self.stages:
+            return False
+        self.current_stage += 1
+        return self.current_stage >= len(self.stages)
+
+    def get_active_objective(self) -> Tuple[ObjectiveType, str, int, int]:
+        """Return (objective_type, target, target_count, current_count) for active objective.
+
+        Uses current stage if stages exist, otherwise uses root quest fields.
+
+        Returns:
+            Tuple of (objective_type, target, target_count, current_count)
+        """
+        stage = self.get_active_stage()
+        if stage:
+            return (stage.objective_type, stage.target, stage.target_count, stage.current_count)
+        return (self.objective_type, self.target, self.target_count, self.current_count)
+
     def progress(self) -> bool:
         """Increment current_count and check if quest is complete.
 
@@ -328,6 +436,8 @@ class Quest:
             "recommended_level": self.recommended_level,
             "time_limit_hours": self.time_limit_hours,
             "accepted_at": self.accepted_at,
+            "stages": [s.to_dict() for s in self.stages],
+            "current_stage": self.current_stage,
         }
 
     @classmethod
@@ -347,6 +457,10 @@ class Quest:
         # Deserialize branches
         branches_data = data.get("alternative_branches", [])
         branches = [QuestBranch.from_dict(b) for b in branches_data]
+
+        # Deserialize stages
+        stages_data = data.get("stages", [])
+        stages = [QuestStage.from_dict(s) for s in stages_data]
 
         return cls(
             name=data["name"],
@@ -375,6 +489,8 @@ class Quest:
             recommended_level=data.get("recommended_level", 1),
             time_limit_hours=data.get("time_limit_hours"),
             accepted_at=data.get("accepted_at"),
+            stages=stages,
+            current_stage=data.get("current_stage", 0),
         )
 
     def get_branches_display(self) -> List[dict]:

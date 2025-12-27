@@ -1,188 +1,321 @@
-# Implementation Plan: Time-Sensitive Quests
+# Implementation Plan: Multi-Stage Quest Objectives
 
 ## Spec
 
-Add optional time limits to quests, creating urgency and gameplay tension. When a time-limited quest expires, it automatically fails.
+Add sequential stages to quests, enabling multi-step narrative quests (e.g., "First find the witness, then investigate the crime scene, then confront the suspect"). Each stage has its own objective that must be completed before advancing.
 
-**New Fields on Quest dataclass:**
-- `time_limit_hours: Optional[int] = None` - Hours until quest expires (None = no limit)
-- `accepted_at: Optional[int] = None` - Game hour when quest was accepted
-
-**New Methods:**
+**New Dataclass - QuestStage:**
 ```python
-def is_expired(self, current_game_hour: int) -> bool:
-    """Check if quest has expired based on time limit."""
-    if self.time_limit_hours is None or self.accepted_at is None:
-        return False
-    return (current_game_hour - self.accepted_at) >= self.time_limit_hours
-
-def get_time_remaining(self, current_game_hour: int) -> Optional[int]:
-    """Return hours remaining, or None if no time limit."""
-    if self.time_limit_hours is None or self.accepted_at is None:
-        return None
-    remaining = self.time_limit_hours - (current_game_hour - self.accepted_at)
-    return max(0, remaining)
+@dataclass
+class QuestStage:
+    """A single stage within a multi-stage quest."""
+    name: str                           # Stage title (e.g., "Find the Witness")
+    description: str                    # Stage-specific flavor text
+    objective_type: ObjectiveType       # KILL, TALK, EXPLORE, etc.
+    target: str                         # Target name
+    target_count: int = 1               # How many to complete
+    current_count: int = 0              # Progress tracking
 ```
+
+**New Fields on Quest:**
+- `stages: List[QuestStage] = []` - Ordered list of stages (empty = single-objective quest)
+- `current_stage: int = 0` - Index of active stage (0-based)
+
+**Behavior:**
+- When `stages` is non-empty, quest progress uses stages instead of root objective
+- Completing a stage auto-advances to next stage
+- Quest becomes READY_TO_TURN_IN when final stage completes
+- Root `objective_type/target/target_count` used for backward compat when `stages` is empty
 
 ## Tests (TDD)
 
-Create `tests/test_quest_time_limit.py`:
+Create `tests/test_quest_stages.py`:
 
-1. **Model Tests:**
-   - `test_quest_time_limit_defaults_to_none` - new quests have no time limit
-   - `test_quest_accepted_at_defaults_to_none` - new quests have no accepted_at
-   - `test_is_expired_returns_false_when_no_time_limit` - no limit = never expires
-   - `test_is_expired_returns_false_when_time_remaining` - still has time left
-   - `test_is_expired_returns_true_when_time_exceeded` - past deadline
-   - `test_is_expired_returns_true_when_exactly_at_limit` - edge case: exactly at limit
-   - `test_get_time_remaining_returns_none_when_no_limit` - no limit = None
-   - `test_get_time_remaining_returns_hours_left` - calculates correctly
-   - `test_get_time_remaining_returns_zero_when_expired` - floor at 0
-   - `test_time_limit_validation_rejects_zero` - time_limit_hours must be >= 1
-   - `test_time_limit_validation_rejects_negative` - time_limit_hours must be >= 1
+### 1. QuestStage Model Tests
+- `test_quest_stage_creation` - basic creation with required fields
+- `test_quest_stage_defaults` - target_count=1, current_count=0
+- `test_quest_stage_is_complete` - property returns True when current >= target
+- `test_quest_stage_progress` - increments count, returns completion status
+- `test_quest_stage_validation_empty_name` - rejects empty name
+- `test_quest_stage_validation_empty_target` - rejects empty target
+- `test_quest_stage_validation_negative_count` - rejects negative target_count
 
-2. **Serialization Tests:**
-   - `test_to_dict_includes_time_limit_fields` - serializes new fields
-   - `test_from_dict_restores_time_limit_fields` - deserializes correctly
-   - `test_from_dict_handles_missing_time_fields` - backward compat defaults
+### 2. QuestStage Serialization Tests
+- `test_quest_stage_to_dict` - serializes all fields
+- `test_quest_stage_from_dict` - deserializes correctly
+- `test_quest_stage_from_dict_defaults` - handles missing optional fields
 
-3. **Integration Tests:**
-   - `test_accept_quest_sets_accepted_at` - main.py sets accepted_at on accept
-   - `test_companion_quest_sets_accepted_at` - companion_quests.py sets accepted_at
-   - `test_journal_shows_time_remaining` - quests command shows "(Xh left)"
-   - `test_quest_details_shows_time_remaining` - quest command shows deadline
-   - `test_expired_quest_auto_fails` - check_expired_quests fails expired quests
+### 3. Quest with Stages Tests
+- `test_quest_stages_defaults_empty` - new quests have empty stages list
+- `test_quest_current_stage_defaults_zero` - starts at stage 0
+- `test_quest_without_stages_works_normally` - backward compat
+- `test_quest_with_stages_uses_stage_objective` - active stage determines objective
+- `test_quest_get_active_stage_returns_current` - helper method
+- `test_quest_get_active_stage_returns_none_when_no_stages` - edge case
+
+### 4. Stage Progression Tests
+- `test_stage_completion_advances_to_next` - completing stage 0 moves to stage 1
+- `test_final_stage_completion_marks_quest_ready` - last stage -> READY_TO_TURN_IN
+- `test_middle_stage_completion_not_ready` - completing stage 1/3 keeps ACTIVE
+
+### 5. Character Progress Recording Tests
+- `test_record_kill_progresses_active_stage` - kill updates current stage
+- `test_record_talk_progresses_active_stage` - talk updates current stage
+- `test_record_explore_progresses_active_stage` - explore updates current stage
+- `test_record_kill_ignores_wrong_stage_target` - different target no progress
+- `test_stage_progress_message_includes_stage_name` - feedback mentions stage
+
+### 6. Quest Serialization with Stages
+- `test_quest_to_dict_includes_stages` - stages serialized
+- `test_quest_to_dict_includes_current_stage` - current_stage serialized
+- `test_quest_from_dict_restores_stages` - stages deserialized
+- `test_quest_from_dict_handles_missing_stages` - backward compat
+
+### 7. UI Display Tests
+- `test_quest_details_shows_all_stages` - quest command shows stage list
+- `test_quest_details_highlights_current_stage` - marks active stage
+- `test_quest_journal_shows_stage_progress` - quests command shows "Stage 2/3"
 
 ## Implementation Steps
 
-### Step 1: Add fields to Quest model
+### Step 1: Add QuestStage dataclass
 **File:** `src/cli_rpg/models/quest.py`
 
-Add after line 179 (after `recommended_level`):
+Add after QuestBranch class (around line 127):
 ```python
-# Time limit fields for urgent quests
-time_limit_hours: Optional[int] = field(default=None)
-accepted_at: Optional[int] = field(default=None)
+@dataclass
+class QuestStage:
+    """A single stage within a multi-stage quest.
+
+    Attributes:
+        name: Stage title (2-50 characters)
+        description: Stage-specific flavor text
+        objective_type: Type of objective (KILL, TALK, EXPLORE, etc.)
+        target: The target name
+        target_count: How many to complete (default 1)
+        current_count: Current progress (default 0)
+    """
+    name: str
+    description: str
+    objective_type: ObjectiveType
+    target: str
+    target_count: int = 1
+    current_count: int = 0
+
+    def __post_init__(self) -> None:
+        """Validate stage attributes."""
+        if not self.name or not self.name.strip():
+            raise ValueError("Stage name cannot be empty")
+        if not self.target or not self.target.strip():
+            raise ValueError("Stage target cannot be empty")
+        if self.target_count < 1:
+            raise ValueError("Stage target_count must be at least 1")
+        if self.current_count < 0:
+            raise ValueError("Stage current_count must be non-negative")
+        self.name = self.name.strip()
+        self.target = self.target.strip()
+
+    @property
+    def is_complete(self) -> bool:
+        """Check if this stage's objective has been met."""
+        return self.current_count >= self.target_count
+
+    def progress(self) -> bool:
+        """Increment current_count and check if stage is complete."""
+        self.current_count += 1
+        return self.is_complete
+
+    def to_dict(self) -> dict:
+        """Serialize the stage to a dictionary."""
+        return {
+            "name": self.name,
+            "description": self.description,
+            "objective_type": self.objective_type.value,
+            "target": self.target,
+            "target_count": self.target_count,
+            "current_count": self.current_count,
+        }
+
+    @classmethod
+    def from_dict(cls, data: dict) -> "QuestStage":
+        """Create a stage from a dictionary."""
+        return cls(
+            name=data["name"],
+            description=data.get("description", ""),
+            objective_type=ObjectiveType(data["objective_type"]),
+            target=data["target"],
+            target_count=data.get("target_count", 1),
+            current_count=data.get("current_count", 0),
+        )
 ```
 
-Add validation in `__post_init__` (after recommended_level validation):
+### Step 2: Add stages fields to Quest
+**File:** `src/cli_rpg/models/quest.py`
+
+Add fields after `accepted_at` (around line 183):
 ```python
-# Validate time limit fields
-if self.time_limit_hours is not None and self.time_limit_hours < 1:
-    raise ValueError("time_limit_hours must be at least 1")
+# Multi-stage quest fields
+stages: List["QuestStage"] = field(default_factory=list)
+current_stage: int = field(default=0)
 ```
 
-Add methods after `prerequisites_met`:
+Add helper methods after `get_time_remaining`:
 ```python
-def is_expired(self, current_game_hour: int) -> bool:
-    """Check if quest has expired based on time limit."""
-    if self.time_limit_hours is None or self.accepted_at is None:
-        return False
-    return (current_game_hour - self.accepted_at) >= self.time_limit_hours
-
-def get_time_remaining(self, current_game_hour: int) -> Optional[int]:
-    """Return hours remaining, or None if no time limit."""
-    if self.time_limit_hours is None or self.accepted_at is None:
+def get_active_stage(self) -> Optional["QuestStage"]:
+    """Return the currently active stage, or None if no stages."""
+    if not self.stages or self.current_stage >= len(self.stages):
         return None
-    remaining = self.time_limit_hours - (current_game_hour - self.accepted_at)
-    return max(0, remaining)
+    return self.stages[self.current_stage]
+
+def advance_stage(self) -> bool:
+    """Advance to next stage. Returns True if quest is now complete."""
+    if not self.stages:
+        return False
+    self.current_stage += 1
+    return self.current_stage >= len(self.stages)
+
+def get_active_objective(self) -> Tuple[ObjectiveType, str, int, int]:
+    """Return (objective_type, target, target_count, current_count) for active objective.
+
+    Uses current stage if stages exist, otherwise uses root quest fields.
+    """
+    stage = self.get_active_stage()
+    if stage:
+        return (stage.objective_type, stage.target, stage.target_count, stage.current_count)
+    return (self.objective_type, self.target, self.target_count, self.current_count)
 ```
 
-### Step 2: Update Quest serialization
+### Step 3: Update Quest serialization
 **File:** `src/cli_rpg/models/quest.py`
 
-In `to_dict()` add:
+In `to_dict()` add after `accepted_at`:
 ```python
-"time_limit_hours": self.time_limit_hours,
-"accepted_at": self.accepted_at,
+"stages": [s.to_dict() for s in self.stages],
+"current_stage": self.current_stage,
 ```
 
-In `from_dict()` add to constructor:
+In `from_dict()` add deserialization and constructor args:
 ```python
-time_limit_hours=data.get("time_limit_hours"),
-accepted_at=data.get("accepted_at"),
+# Deserialize stages
+stages_data = data.get("stages", [])
+stages = [QuestStage.from_dict(s) for s in stages_data]
+```
+Add to constructor:
+```python
+stages=stages,
+current_stage=data.get("current_stage", 0),
 ```
 
-### Step 3: Set accepted_at on quest acceptance
-**File:** `src/cli_rpg/main.py` (around line 1699)
+### Step 4: Update Character.record_* methods for stages
+**File:** `src/cli_rpg/models/character.py`
 
-When creating new_quest, add:
+Add helper method `_check_stage_progress`:
 ```python
-time_limit_hours=matching_quest.time_limit_hours,
-accepted_at=game_state.game_time.total_hours if matching_quest.time_limit_hours else None,
-```
+def _check_stage_progress(
+    self, quest: "Quest", objective_type: "ObjectiveType", target_name: str
+) -> Optional[str]:
+    """Check and progress active stage for staged quests.
 
-**File:** `src/cli_rpg/companion_quests.py` (around line 73)
-
-Update `accept_companion_quest()` signature to accept `current_hour: Optional[int] = None`:
-```python
-def accept_companion_quest(companion: Companion, current_hour: Optional[int] = None) -> Optional[Quest]:
-```
-
-Add to Quest constructor:
-```python
-time_limit_hours=quest.time_limit_hours,
-accepted_at=current_hour if quest.time_limit_hours and current_hour else None,
-```
-
-Update caller in main.py (around line 2130) to pass current hour:
-```python
-new_quest = accept_companion_quest(companion, game_state.game_time.total_hours)
-```
-
-### Step 4: Display time remaining in journal
-**File:** `src/cli_rpg/main.py`
-
-In `quests` command (around line 1830), modify active quest display:
-```python
-time_info = ""
-if quest.time_limit_hours:
-    remaining = quest.get_time_remaining(game_state.game_time.total_hours)
-    if remaining is not None and remaining > 0:
-        time_info = f" ({remaining}h left)"
-    elif remaining == 0:
-        time_info = " (EXPIRED!)"
-lines.append(f"  {diff_icon} {quest.name} [{quest.current_count}/{quest.target_count}]{time_info}")
-```
-
-In `quest` command details (around line 1878), add after Progress line:
-```python
-if quest.time_limit_hours:
-    remaining = quest.get_time_remaining(game_state.game_time.total_hours)
-    if remaining is not None:
-        if remaining > 0:
-            lines.append(f"Time Remaining: {remaining} hours")
-        else:
-            lines.append("Time Remaining: EXPIRED!")
-```
-
-### Step 5: Add expired quest check
-**File:** `src/cli_rpg/game_state.py`
-
-Add method to GameState:
-```python
-def check_expired_quests(self) -> list[str]:
-    """Check for and fail any expired time-limited quests.
-
-    Returns:
-        List of messages about failed quests
+    Returns stage name if stage completed, None otherwise.
     """
     from cli_rpg.models.quest import QuestStatus
-    messages = []
-    current_hour = self.game_time.total_hours
-    for quest in self.current_character.quests:
-        if quest.status == QuestStatus.ACTIVE and quest.is_expired(current_hour):
-            quest.status = QuestStatus.FAILED
-            messages.append(f"Quest '{quest.name}' has expired and failed!")
-    return messages
+
+    stage = quest.get_active_stage()
+    if not stage:
+        return None
+
+    if stage.objective_type != objective_type:
+        return None
+    if stage.target.lower() != target_name.lower():
+        return None
+
+    stage_complete = stage.progress()
+    if not stage_complete:
+        return None
+
+    stage_name = stage.name
+    quest_complete = quest.advance_stage()
+    if quest_complete:
+        quest.status = QuestStatus.READY_TO_TURN_IN
+
+    return stage_name
 ```
 
-Call this in `move()` method after advancing time, display any failure messages.
+Modify `record_kill` to check stages first (before branches):
+```python
+# Check staged quests first
+if quest.stages:
+    stage_name = self._check_stage_progress(quest, ObjectiveType.KILL, enemy_name)
+    if stage_name:
+        if quest.status == QuestStatus.READY_TO_TURN_IN:
+            messages.append(f"Quest '{quest.name}' complete! Return to turn in.")
+        else:
+            messages.append(f"Stage complete: {stage_name}")
+            next_stage = quest.get_active_stage()
+            if next_stage:
+                messages.append(f"Next: {next_stage.name}")
+    continue
+```
+
+Apply same pattern to `record_talk`, `record_explore`, `record_collection`, `record_drop`, `record_use`.
+
+### Step 5: Update quest UI display
+**File:** `src/cli_rpg/main.py`
+
+In `quest` command (around line 1886), after showing basic progress, add stage display:
+```python
+# Show stages if multi-stage quest
+if quest.stages:
+    lines.append("")
+    lines.append("Stages:")
+    for i, stage in enumerate(quest.stages):
+        if i < quest.current_stage:
+            status = "✓"  # Completed
+        elif i == quest.current_stage:
+            status = "→"  # Current
+        else:
+            status = "○"  # Pending
+        progress = f"[{stage.current_count}/{stage.target_count}]" if i == quest.current_stage else ""
+        lines.append(f"  {status} {stage.name} {progress}")
+        if i == quest.current_stage and stage.description:
+            lines.append(f"      {stage.description}")
+```
+
+In `quests` journal (around line 1838), show stage progress for staged quests:
+```python
+if quest.stages:
+    stage_info = f" (Stage {quest.current_stage + 1}/{len(quest.stages)})"
+else:
+    stage_info = ""
+lines.append(f"  {diff_icon} {quest.name} [{quest.current_count}/{quest.target_count}]{stage_info}{time_info}")
+```
+
+### Step 6: Update quest acceptance to clone stages
+**File:** `src/cli_rpg/main.py`
+
+In accept command (around line 1694), when creating new_quest, add:
+```python
+stages=[
+    QuestStage(
+        name=s.name,
+        description=s.description,
+        objective_type=s.objective_type,
+        target=s.target,
+        target_count=s.target_count,
+        current_count=0,  # Reset progress
+    ) for s in matching_quest.stages
+],
+current_stage=0,
+```
+
+Add import at top of main.py:
+```python
+from cli_rpg.models.quest import QuestStage
+```
 
 ## Files to Modify
 
-1. `src/cli_rpg/models/quest.py` - Add fields, validation, methods, serialization
-2. `src/cli_rpg/main.py` - Set accepted_at on accept, display time in journal/details
-3. `src/cli_rpg/companion_quests.py` - Update accept_companion_quest signature
-4. `src/cli_rpg/game_state.py` - Add check_expired_quests method, call in move()
-5. `tests/test_quest_time_limit.py` - New test file
+1. `src/cli_rpg/models/quest.py` - Add QuestStage, add stages/current_stage to Quest, methods, serialization
+2. `src/cli_rpg/models/character.py` - Add _check_stage_progress, update all record_* methods
+3. `src/cli_rpg/main.py` - Display stages in quest/quests commands, clone stages on accept
+4. `tests/test_quest_stages.py` - New test file with all tests above

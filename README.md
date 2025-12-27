@@ -353,6 +353,12 @@ You'll see progress messages after each relevant action.
 - Different branches can affect faction reputation differently
 - The first branch you complete determines your rewards
 
+**Multi-Stage Quests**: Some quests have multiple stages that must be completed in order:
+- Each stage has its own objective type and target (e.g., first talk to an NPC, then kill enemies, then return)
+- Progress messages show which stage you're on and what comes next
+- The quest journal displays your current stage and overall progress
+- Completing all stages marks the quest as ready to turn in
+
 **Turning In Quests**: When quest objectives are complete, you must return to the quest giver:
 1. Travel back to the NPC who gave you the quest
 2. Use `talk <npc>` to interact with them (shows quests ready to turn in)

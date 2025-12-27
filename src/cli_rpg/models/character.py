@@ -525,6 +525,41 @@ class Character:
                     return branch.id
         return None
 
+    def _check_stage_progress(
+        self, quest: "Quest", objective_type: "ObjectiveType", target_name: str
+    ) -> Tuple[Optional[str], bool]:
+        """Check and progress active stage for staged quests.
+
+        Args:
+            quest: The quest to check stages for
+            objective_type: The objective type that was performed
+            target_name: The target of the action
+
+        Returns:
+            Tuple of (stage_name if stage completed else None, quest_complete)
+        """
+        from cli_rpg.models.quest import QuestStatus
+
+        stage = quest.get_active_stage()
+        if not stage:
+            return (None, False)
+
+        if stage.objective_type != objective_type:
+            return (None, False)
+        if stage.target.lower() != target_name.lower():
+            return (None, False)
+
+        stage_complete = stage.progress()
+        if not stage_complete:
+            return (None, False)
+
+        stage_name = stage.name
+        quest_complete = quest.advance_stage()
+        if quest_complete:
+            quest.status = QuestStatus.READY_TO_TURN_IN
+
+        return (stage_name, quest_complete)
+
     def record_kill(self, enemy_name: str) -> List[str]:
         """Record an enemy kill for quest progress.
 
@@ -539,6 +574,31 @@ class Character:
         messages = []
         for quest in self.quests:
             if quest.status != QuestStatus.ACTIVE:
+                continue
+
+            # Check staged quests first
+            if quest.stages:
+                stage_name, quest_complete = self._check_stage_progress(
+                    quest, ObjectiveType.KILL, enemy_name
+                )
+                if quest_complete:
+                    messages.append(f"Quest '{quest.name}' complete! Return to turn in.")
+                elif stage_name:
+                    messages.append(f"Stage complete: {stage_name}")
+                    next_stage = quest.get_active_stage()
+                    if next_stage:
+                        messages.append(f"Next: {next_stage.name}")
+                else:
+                    # Check for partial stage progress
+                    stage = quest.get_active_stage()
+                    if (
+                        stage
+                        and stage.objective_type == ObjectiveType.KILL
+                        and stage.target.lower() == enemy_name.lower()
+                    ):
+                        messages.append(
+                            f"Quest progress: {quest.name} [{stage.current_count}/{stage.target_count}]"
+                        )
                 continue
 
             # Check alternative branches first
@@ -610,9 +670,37 @@ class Character:
 
         messages = []
         for quest in self.quests:
+            if quest.status != QuestStatus.ACTIVE:
+                continue
+
+            # Check staged quests first
+            if quest.stages:
+                stage_name, quest_complete = self._check_stage_progress(
+                    quest, ObjectiveType.COLLECT, item_name
+                )
+                if quest_complete:
+                    messages.append(f"Quest '{quest.name}' complete! Return to turn in.")
+                elif stage_name:
+                    messages.append(f"Stage complete: {stage_name}")
+                    next_stage = quest.get_active_stage()
+                    if next_stage:
+                        messages.append(f"Next: {next_stage.name}")
+                else:
+                    # Check for partial stage progress
+                    stage = quest.get_active_stage()
+                    if (
+                        stage
+                        and stage.objective_type == ObjectiveType.COLLECT
+                        and stage.target.lower() == item_name.lower()
+                    ):
+                        messages.append(
+                            f"Quest progress: {quest.name} [{stage.current_count}/{stage.target_count}]"
+                        )
+                continue
+
+            # Check main quest objective (for quests without stages)
             if (
-                quest.status == QuestStatus.ACTIVE
-                and quest.objective_type == ObjectiveType.COLLECT
+                quest.objective_type == ObjectiveType.COLLECT
                 and quest.target.lower() == item_name.lower()
             ):
                 completed = quest.progress()
@@ -687,9 +775,37 @@ class Character:
 
         messages = []
         for quest in self.quests:
+            if quest.status != QuestStatus.ACTIVE:
+                continue
+
+            # Check staged quests first
+            if quest.stages:
+                stage_name, quest_complete = self._check_stage_progress(
+                    quest, ObjectiveType.EXPLORE, location_name
+                )
+                if quest_complete:
+                    messages.append(f"Quest '{quest.name}' complete! Return to turn in.")
+                elif stage_name:
+                    messages.append(f"Stage complete: {stage_name}")
+                    next_stage = quest.get_active_stage()
+                    if next_stage:
+                        messages.append(f"Next: {next_stage.name}")
+                else:
+                    # Check for partial stage progress
+                    stage = quest.get_active_stage()
+                    if (
+                        stage
+                        and stage.objective_type == ObjectiveType.EXPLORE
+                        and stage.target.lower() == location_name.lower()
+                    ):
+                        messages.append(
+                            f"Quest progress: {quest.name} [{stage.current_count}/{stage.target_count}]"
+                        )
+                continue
+
+            # Check main quest objective (for quests without stages)
             if (
-                quest.status == QuestStatus.ACTIVE
-                and quest.objective_type == ObjectiveType.EXPLORE
+                quest.objective_type == ObjectiveType.EXPLORE
                 and quest.target.lower() == location_name.lower()
             ):
                 completed = quest.progress()
@@ -725,6 +841,31 @@ class Character:
         messages = []
         for quest in self.quests:
             if quest.status != QuestStatus.ACTIVE:
+                continue
+
+            # Check staged quests first
+            if quest.stages:
+                stage_name, quest_complete = self._check_stage_progress(
+                    quest, ObjectiveType.TALK, npc_name
+                )
+                if quest_complete:
+                    messages.append(f"Quest '{quest.name}' complete! Return to turn in.")
+                elif stage_name:
+                    messages.append(f"Stage complete: {stage_name}")
+                    next_stage = quest.get_active_stage()
+                    if next_stage:
+                        messages.append(f"Next: {next_stage.name}")
+                else:
+                    # Check for partial stage progress
+                    stage = quest.get_active_stage()
+                    if (
+                        stage
+                        and stage.objective_type == ObjectiveType.TALK
+                        and stage.target.lower() == npc_name.lower()
+                    ):
+                        messages.append(
+                            f"Quest progress: {quest.name} [{stage.current_count}/{stage.target_count}]"
+                        )
                 continue
 
             # Check alternative branches first
@@ -796,9 +937,37 @@ class Character:
 
         messages = []
         for quest in self.quests:
+            if quest.status != QuestStatus.ACTIVE:
+                continue
+
+            # Check staged quests first
+            if quest.stages:
+                stage_name, quest_complete = self._check_stage_progress(
+                    quest, ObjectiveType.USE, item_name
+                )
+                if quest_complete:
+                    messages.append(f"Quest '{quest.name}' complete! Return to turn in.")
+                elif stage_name:
+                    messages.append(f"Stage complete: {stage_name}")
+                    next_stage = quest.get_active_stage()
+                    if next_stage:
+                        messages.append(f"Next: {next_stage.name}")
+                else:
+                    # Check for partial stage progress
+                    stage = quest.get_active_stage()
+                    if (
+                        stage
+                        and stage.objective_type == ObjectiveType.USE
+                        and stage.target.lower() == item_name.lower()
+                    ):
+                        messages.append(
+                            f"Quest progress: {quest.name} [{stage.current_count}/{stage.target_count}]"
+                        )
+                continue
+
+            # Check main quest objective (for quests without stages)
             if (
-                quest.status == QuestStatus.ACTIVE
-                and quest.objective_type == ObjectiveType.USE
+                quest.objective_type == ObjectiveType.USE
                 and quest.target.lower() == item_name.lower()
             ):
                 completed = quest.progress()

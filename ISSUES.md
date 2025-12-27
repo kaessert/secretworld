@@ -1156,22 +1156,34 @@ Example: "Stop the Bandit Leader"
 - **Path B**: Convince him to leave (+Outlaw rep)
 - **Path C**: Help him raid (+major Outlaw rep, Militia hostile)
 
-**7. Multi-Stage Objectives (MEDIUM PRIORITY)**
+**7. Multi-Stage Objectives ✅ COMPLETE (2025-12-27)**
+
+Implemented `QuestStage` dataclass for multi-stage quest support:
 
 ```python
 @dataclass
 class QuestStage:
-    description: str
+    name: str  # Stage title (e.g., "Find the Witness")
+    description: str  # Stage-specific flavor text
     objective_type: ObjectiveType
     target: str
     target_count: int = 1
     current_count: int = 0
-
-@dataclass
-class Quest:
-    stages: List[QuestStage] = field(default_factory=list)
-    current_stage: int = 0
 ```
+
+**Quest class extensions:**
+- `stages: List[QuestStage]` - Ordered list of stages
+- `current_stage: int` - Index of active stage (0-based)
+- `get_active_stage()` - Returns current stage or None
+- `advance_stage()` - Moves to next stage, returns True if quest complete
+- `get_active_objective()` - Returns active objective (stage or root quest)
+
+**Character integration:**
+- All `record_*` methods check stage progress before branch/main objectives
+- Stage completion triggers advancement to next stage
+- Final stage completion marks quest as READY_TO_TURN_IN
+
+**Tests:** 50 new tests in `tests/test_quest_stages.py`
 
 **8. Quest Memory & NPC Reactions (MEDIUM PRIORITY)**
 
@@ -1198,7 +1210,7 @@ completed_quest_outcomes: List[QuestOutcome] = field(default_factory=list)
 | Branching objectives/choices | High | High | ✅ **DONE** |
 | Difficulty indicators | Medium | Low | ✅ **DONE** |
 | Time-sensitive quests | Medium | Low | ✅ **DONE** |
-| Multi-stage objectives | Medium | High | **P2** |
+| Multi-stage objectives | Medium | High | ✅ **DONE** |
 | Quest memory/NPC reactions | Medium | Medium | **P3** |
 
 #### Files to Modify

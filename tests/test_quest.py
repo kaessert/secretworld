@@ -447,6 +447,8 @@ class TestSerialization:
             "recommended_level": 1,
             "time_limit_hours": None,
             "accepted_at": None,
+            "stages": [],
+            "current_stage": 0,
         }
 
     def test_from_dict(self):
