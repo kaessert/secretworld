@@ -178,6 +178,18 @@ def heal(text: str) -> str:
     return colorize(text, GREEN)
 
 
+def success(text: str) -> str:
+    """Color text as success message (green).
+
+    Args:
+        text: Success message text.
+
+    Returns:
+        Green-colored text.
+    """
+    return colorize(text, GREEN)
+
+
 def stat_header(text: str) -> str:
     """Color text as a stat header (magenta).
 

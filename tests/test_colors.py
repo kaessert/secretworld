@@ -193,6 +193,15 @@ class TestSemanticHelpers:
             assert colors.CYAN in result
             assert "Kira" in result
 
+    def test_success_uses_green(self):
+        """success() should use green color for success messages."""
+        with patch.dict(os.environ, {}, clear=True):
+            os.environ.pop("CLI_RPG_NO_COLOR", None)
+            _clear_color_cache()
+            result = colors.success("You notice:")
+            assert colors.GREEN in result
+            assert "You notice:" in result
+
 
 class TestColorConstants:
     """Tests for color constant values."""

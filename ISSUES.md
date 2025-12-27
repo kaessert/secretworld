@@ -3,40 +3,22 @@
 ---
 
 ### Game Crashes When Moving Inside SubGrid (colors.success AttributeError)
-**Status**: ACTIVE
+**Status**: COMPLETED ✓
 **Priority**: CRITICAL
 **Date Added**: 2025-12-27
+**Completed**: 2025-12-27
 
 #### Description
-The game crashes with `AttributeError: module 'cli_rpg.colors' has no attribute 'success'` when the player moves within a SubGrid location (e.g., moving inside Market District after entering from Town Square).
+The game crashed with `AttributeError: module 'cli_rpg.colors' has no attribute 'success'` when the player moved within a SubGrid location.
 
-The crash occurs in `game_state.py` at line 470 in the `_check_and_report_passive_secrets` method, which attempts to call `colors.success()` - a function that does not exist in the `colors` module.
+#### Resolution
+Added `success()` function to `src/cli_rpg/colors.py` that colors text green (matching the semantic pattern of `heal()` for positive messages).
 
-#### Steps to Reproduce
-1. Start the game in demo mode: `cli-rpg --demo --non-interactive --skip-character-creation`
-2. Enter a SubGrid location: `enter Market District`
-3. Move within the SubGrid: `go north`
+**Changes**:
+- `src/cli_rpg/colors.py`: Added `success()` function (lines 181-190)
+- `tests/test_colors.py`: Added `test_success_uses_green()` test
 
-**Command to reproduce:**
-```bash
-echo -e "enter Market District\ngo north" | cli-rpg --demo --non-interactive --skip-character-creation
-```
-
-#### Expected Behavior
-The player should move to a new room within the SubGrid and see the location description.
-
-#### Actual Behavior
-The game crashes with the following traceback:
-```
-File "/Users/tkaesser/up/secretworld/src/cli_rpg/game_state.py", line 470, in _check_and_report_passive_secrets
-    lines = [f"{colors.success('You notice:')} {s['description']}" for s in detected]
-AttributeError: module 'cli_rpg.colors' has no attribute 'success'
-```
-
-#### Impact
-- Players cannot explore inside SubGrid locations (dungeons, caves, towns, etc.)
-- Core gameplay loop is broken for interior exploration
-- Demo mode is unusable beyond initial room entry
+All 24 color module tests pass.
 
 ---
 
@@ -643,3 +625,42 @@ Created QuestNetworkManager for managing interconnected quest storylines.
 **Phase 7: Economy & Quests** - Issues 14-15
 - ✓ Living economy (Issue 14 complete)
 - ✓ Quest networks (Issue 15 complete)
+
+---
+
+## UX Issues
+
+### SubGrid Exit Points Not Visually Indicated
+**Status**: ACTIVE
+**Priority**: MEDIUM
+**Date Added**: 2025-12-27
+
+#### Description
+When inside a SubGrid interior (dungeon, cave, mine, etc.), exit points are not visually indicated in the location description. Users receive the error "You cannot exit from here. Find an exit point." but have no way to identify which location IS an exit point.
+
+#### Steps to Reproduce
+1. Start game in demo mode: `cli-rpg --demo --skip-character-creation`
+2. Navigate to Abandoned Mines: `go east`, `go north`
+3. Enter the mine: `enter mine entrance`
+4. Move deeper into the SubGrid: `go east`
+5. Try to exit: `exit`
+6. See error: "You cannot exit from here. Find an exit point."
+7. Use `look` at any location - there is no indication whether a location is an exit point
+
+#### Expected Behavior
+Exit points should be clearly indicated in the location description, similar to how "Enter: <location>" is shown for enterable locations. For example:
+- "Exit to: Abandoned Mines" or
+- "[EXIT POINT]" marker in the location display
+
+#### Actual Behavior
+- No visual indicator that a location is an exit point
+- Users must remember which location they entered from, or wander until they find it
+- The "Mine Entrance" location shows "Exits: east, north" but doesn't indicate the `exit` command is available there
+
+#### Impact
+- Users can feel lost inside SubGrids with no clear way to leave
+- Especially problematic in larger SubGrids (cities 17x17, metropolises 25x25, capitals 33x33)
+- Poor UX for new players unfamiliar with the SubGrid system
+
+#### Suggested Fix
+In the location display (look command), add an "Exit to: <overworld_location>" line when `is_exit_point=True`, similar to how "Enter: <location>" is displayed for enterable locations.
