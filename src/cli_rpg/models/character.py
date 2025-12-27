@@ -64,6 +64,7 @@ if TYPE_CHECKING:
     from cli_rpg.models.quest import Quest
     from cli_rpg.models.enemy import Enemy
     from cli_rpg.models.status_effect import StatusEffect
+    from cli_rpg.models.faction import Faction
 
 
 @dataclass
@@ -948,11 +949,14 @@ class Character:
                 }
             }
 
-    def claim_quest_rewards(self, quest: "Quest") -> List[str]:
+    def claim_quest_rewards(
+        self, quest: "Quest", factions: Optional[List["Faction"]] = None
+    ) -> List[str]:
         """Claim rewards from a quest ready to turn in.
 
         Args:
             quest: The quest to claim rewards from (must be READY_TO_TURN_IN)
+            factions: Optional list of factions for reputation changes
 
         Returns:
             List of reward notification messages
@@ -988,6 +992,31 @@ class Character:
             )
             self.inventory.add_item(item)
             messages.append(f"Received item: {item_name}!")
+
+        # Apply faction reputation changes
+        if quest.faction_affiliation and factions:
+            from cli_rpg.faction_combat import _find_faction_by_name, FACTION_RIVALRIES
+
+            affiliated = _find_faction_by_name(factions, quest.faction_affiliation)
+            if affiliated and quest.faction_reward > 0:
+                level_msg = affiliated.add_reputation(quest.faction_reward)
+                messages.append(
+                    f"Reputation with {affiliated.name} increased by {quest.faction_reward}."
+                )
+                if level_msg:
+                    messages.append(level_msg)
+
+            # Apply penalty to rival faction
+            rival_name = FACTION_RIVALRIES.get(quest.faction_affiliation)
+            if rival_name and quest.faction_penalty > 0:
+                rival = _find_faction_by_name(factions, rival_name)
+                if rival:
+                    level_msg = rival.reduce_reputation(quest.faction_penalty)
+                    messages.append(
+                        f"Reputation with {rival.name} decreased by {quest.faction_penalty}."
+                    )
+                    if level_msg:
+                        messages.append(level_msg)
 
         return messages
 

@@ -340,6 +340,9 @@ You'll see progress messages after each relevant action.
 - **Gold**: Added directly to your gold total
 - **XP**: Grants experience points (may trigger level-ups)
 - **Items**: Quest reward items are added to your inventory
+- **Faction Reputation**: Some quests are affiliated with factions and grant reputation bonuses (or penalties to rival factions) on completion
+
+**Faction-Affiliated Quests**: Some quests require a minimum reputation with a faction before they can be accepted. If your standing is too low, the NPC will refuse to give you the quest until you improve your reputation.
 
 **Note**: You must talk to an NPC before accepting or completing their quests. Quest names are matched case-insensitively.
 

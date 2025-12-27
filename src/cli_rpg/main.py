@@ -1646,6 +1646,20 @@ def handle_exploration_command(game_state: GameState, command: str, args: list[s
         if game_state.current_character.has_quest(matching_quest.name):
             return (True, f"\nYou already have the quest '{matching_quest.name}'.")
 
+        # Check faction reputation requirement
+        if matching_quest.required_reputation is not None and matching_quest.faction_affiliation:
+            from cli_rpg.faction_combat import _find_faction_by_name
+
+            faction = _find_faction_by_name(
+                game_state.factions, matching_quest.faction_affiliation
+            )
+            if faction and faction.reputation < matching_quest.required_reputation:
+                return (
+                    True,
+                    f"\n{npc.name} refuses to give you this quest. "
+                    f"You need higher reputation with {matching_quest.faction_affiliation}.",
+                )
+
         # Clone quest and set status to ACTIVE, then add to character
         # Bug fix: Include gold_reward, xp_reward, item_rewards, and set quest_giver
         new_quest = Quest(
@@ -1660,6 +1674,10 @@ def handle_exploration_command(game_state: GameState, command: str, args: list[s
             xp_reward=matching_quest.xp_reward,
             item_rewards=matching_quest.item_rewards.copy(),
             quest_giver=npc.name,
+            faction_affiliation=matching_quest.faction_affiliation,
+            faction_reward=matching_quest.faction_reward,
+            faction_penalty=matching_quest.faction_penalty,
+            required_reputation=matching_quest.required_reputation,
         )
         game_state.current_character.quests.append(new_quest)
         autosave(game_state)
@@ -1700,7 +1718,9 @@ def handle_exploration_command(game_state: GameState, command: str, args: list[s
             )
 
         # Claim rewards and mark as completed
-        reward_messages = game_state.current_character.claim_quest_rewards(matching_quest)
+        reward_messages = game_state.current_character.claim_quest_rewards(
+            matching_quest, factions=game_state.factions
+        )
         matching_quest.status = QuestStatus.COMPLETED
         autosave(game_state)
         sound_quest_complete()

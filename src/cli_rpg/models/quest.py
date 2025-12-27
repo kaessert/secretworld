@@ -61,6 +61,10 @@ class Quest:
     item_rewards: List[str] = field(default_factory=list)
     quest_giver: Optional[str] = field(default=None)
     drop_item: Optional[str] = field(default=None)
+    faction_affiliation: Optional[str] = field(default=None)
+    faction_reward: int = field(default=0)
+    faction_penalty: int = field(default=0)
+    required_reputation: Optional[int] = field(default=None)
 
     def __post_init__(self) -> None:
         """Validate quest attributes after initialization."""
@@ -104,6 +108,10 @@ class Quest:
             raise ValueError("gold_reward cannot be negative")
         if self.xp_reward < 0:
             raise ValueError("xp_reward cannot be negative")
+        if self.faction_reward < 0:
+            raise ValueError("faction_reward cannot be negative")
+        if self.faction_penalty < 0:
+            raise ValueError("faction_penalty cannot be negative")
 
     @property
     def is_complete(self) -> bool:
@@ -142,6 +150,10 @@ class Quest:
             "item_rewards": self.item_rewards,
             "quest_giver": self.quest_giver,
             "drop_item": self.drop_item,
+            "faction_affiliation": self.faction_affiliation,
+            "faction_reward": self.faction_reward,
+            "faction_penalty": self.faction_penalty,
+            "required_reputation": self.required_reputation,
         }
 
     @classmethod
@@ -171,4 +183,8 @@ class Quest:
             item_rewards=data.get("item_rewards", []),
             quest_giver=data.get("quest_giver"),
             drop_item=data.get("drop_item"),
+            faction_affiliation=data.get("faction_affiliation"),
+            faction_reward=data.get("faction_reward", 0),
+            faction_penalty=data.get("faction_penalty", 0),
+            required_reputation=data.get("required_reputation"),
         )

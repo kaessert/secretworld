@@ -433,6 +433,10 @@ class TestSerialization:
             "item_rewards": [],
             "quest_giver": None,
             "drop_item": None,
+            "faction_affiliation": None,
+            "faction_reward": 0,
+            "faction_penalty": 0,
+            "required_reputation": None,
         }
 
     def test_from_dict(self):

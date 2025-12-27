@@ -1,125 +1,188 @@
-# Implementation Plan: Quest World/Region Context Integration
-
-## Objective
-Integrate `WorldContext` and `RegionContext` into quest generation so AI-generated quests feel cohesive with the world rather than generic/disconnected.
+# Quest Faction Integration Implementation Plan
 
 ## Spec
 
-**Current behavior**: `generate_quest()` receives only `theme`, `npc_name`, `player_level`, and `location_name`. The prompt lacks world essence, naming style, tone, and region theme - producing generic quests.
+Quests can be affiliated with factions, affecting reputation on completion:
+1. **`faction_affiliation`** (Optional[str]): The faction this quest is associated with (e.g., "Town Guard")
+2. **`faction_reward`** (int, default 0): Reputation gained with affiliated faction on completion
+3. **`faction_penalty`** (int, default 0): Reputation lost with rival faction on completion
+4. **`required_reputation`** (Optional[int]): Minimum reputation with faction required to accept quest
 
-**Target behavior**: Pass `world_context` and `region_context` to quest generation. The prompt includes:
-- Theme essence (e.g., "dark supernatural horror with creeping dread")
-- Region theme (e.g., "crumbling stone, forgotten history, decay")
-- Region danger level (for reward scaling hints)
+Behavior:
+- On quest completion via `complete` command, apply faction reputation changes
+- Display reputation change messages alongside gold/XP/item rewards
+- Quest acceptance checks `required_reputation` against player's current standing
+- AI quest generation includes faction fields when NPC has faction affiliation
 
-This mirrors the existing layered architecture used for location/NPC generation.
+---
 
-## Tests (write first)
+## Tests (TDD)
 
-### File: `tests/test_quest_context_integration.py`
+### File: `tests/test_quest_faction.py`
 
-1. **test_generate_quest_accepts_world_context** - `generate_quest()` accepts optional `world_context` param
-2. **test_generate_quest_accepts_region_context** - `generate_quest()` accepts optional `region_context` param
-3. **test_prompt_includes_theme_essence** - When `world_context` provided, prompt contains `theme_essence`
-4. **test_prompt_includes_region_theme** - When `region_context` provided, prompt contains region `theme`
-5. **test_prompt_includes_danger_level** - When `region_context` provided, prompt contains `danger_level`
-6. **test_context_params_are_optional** - Quest generation works without context (backward compatible)
-7. **test_main_passes_context_to_generate_quest** - Integration test: `main.py` passes both contexts to `generate_quest()`
+```python
+"""Tests for quest faction integration."""
+
+# Quest model tests
+- test_quest_faction_affiliation_field_optional
+- test_quest_faction_reward_field_defaults_to_zero
+- test_quest_faction_penalty_field_defaults_to_zero
+- test_quest_required_reputation_field_optional
+- test_quest_negative_faction_reward_rejected
+- test_quest_negative_faction_penalty_rejected
+- test_quest_to_dict_includes_faction_fields
+- test_quest_from_dict_restores_faction_fields
+- test_quest_from_dict_missing_faction_fields_uses_defaults
+
+# Claim rewards faction integration tests
+- test_claim_quest_rewards_applies_faction_reward
+- test_claim_quest_rewards_applies_faction_penalty_to_rival
+- test_claim_quest_rewards_returns_faction_messages
+- test_claim_quest_rewards_triggers_level_up_message
+- test_claim_quest_rewards_with_no_faction_affiliation_no_changes
+
+# Quest acceptance tests
+- test_accept_quest_allowed_when_reputation_meets_requirement
+- test_accept_quest_blocked_when_reputation_too_low
+- test_accept_quest_allowed_when_no_required_reputation
+```
+
+---
 
 ## Implementation Steps
 
-### Step 1: Update `DEFAULT_QUEST_GENERATION_PROMPT` in `ai_config.py`
-Add world/region context section to prompt template:
+### 1. Update Quest Model (`src/cli_rpg/models/quest.py`)
+
+Add new fields to `Quest` dataclass:
 ```python
-DEFAULT_QUEST_GENERATION_PROMPT = """Generate a quest for a {theme} RPG.
-
-World Context:
-- Theme Essence: {theme_essence}
-- Tone: {tone}
-
-Region Context:
-- Region Theme: {region_theme}
-- Danger Level: {danger_level}
-
-NPC Quest Giver: {npc_name}
-Location: {location_name}
-Player Level: {player_level}
-...
-"""
+faction_affiliation: Optional[str] = field(default=None)
+faction_reward: int = field(default=0)
+faction_penalty: int = field(default=0)
+required_reputation: Optional[int] = field(default=None)
 ```
 
-### Step 2: Update `generate_quest()` signature in `ai_service.py`
-Add optional parameters:
+Add validation in `__post_init__`:
 ```python
-def generate_quest(
-    self,
-    theme: str,
-    npc_name: str,
-    player_level: int,
-    location_name: str = "",
-    valid_locations: Optional[set[str]] = None,
-    valid_npcs: Optional[set[str]] = None,
-    world_context: Optional[WorldContext] = None,  # NEW
-    region_context: Optional[RegionContext] = None  # NEW
-) -> dict:
+if self.faction_reward < 0:
+    raise ValueError("faction_reward cannot be negative")
+if self.faction_penalty < 0:
+    raise ValueError("faction_penalty cannot be negative")
 ```
 
-### Step 3: Update `_build_quest_prompt()` in `ai_service.py`
-Extract context values with fallbacks:
+Update `to_dict()` to include:
 ```python
-def _build_quest_prompt(
-    self,
-    theme: str,
-    npc_name: str,
-    player_level: int,
-    location_name: str = "",
-    world_context: Optional[WorldContext] = None,
-    region_context: Optional[RegionContext] = None
-) -> str:
-    theme_essence = world_context.theme_essence if world_context else theme
-    tone = world_context.tone if world_context else "adventurous"
-    region_theme = region_context.theme if region_context else "unexplored lands"
-    danger_level = region_context.danger_level if region_context else "moderate"
-
-    return self.config.quest_generation_prompt.format(
-        theme=theme,
-        theme_essence=theme_essence,
-        tone=tone,
-        region_theme=region_theme,
-        danger_level=danger_level,
-        npc_name=npc_name,
-        player_level=player_level,
-        location_name=location_name or "unknown location"
-    )
+"faction_affiliation": self.faction_affiliation,
+"faction_reward": self.faction_reward,
+"faction_penalty": self.faction_penalty,
+"required_reputation": self.required_reputation,
 ```
 
-### Step 4: Update call site in `main.py`
-Pass contexts from `game_state`:
+Update `from_dict()` to restore:
 ```python
-# Get world and region context
-world_ctx = game_state.get_or_create_world_context()
-current_loc = game_state.world.get(game_state.current_location)
-region_ctx = None
-if current_loc and current_loc.coordinates:
-    region_ctx = game_state.get_or_create_region_context(current_loc.coordinates)
+faction_affiliation=data.get("faction_affiliation"),
+faction_reward=data.get("faction_reward", 0),
+faction_penalty=data.get("faction_penalty", 0),
+required_reputation=data.get("required_reputation"),
+```
 
-quest_data = game_state.ai_service.generate_quest(
-    theme=game_state.theme,
-    npc_name=npc.name,
-    player_level=game_state.current_character.level,
-    location_name=game_state.current_location,
-    valid_locations=valid_locations,
-    valid_npcs=valid_npcs,
-    world_context=world_ctx,  # NEW
-    region_context=region_ctx  # NEW
+### 2. Update Character.claim_quest_rewards() (`src/cli_rpg/models/character.py`)
+
+Modify signature to accept optional factions list:
+```python
+def claim_quest_rewards(self, quest: "Quest", factions: Optional[List["Faction"]] = None) -> List[str]:
+```
+
+After existing reward logic, add faction handling:
+```python
+# Apply faction reputation changes
+if quest.faction_affiliation and factions:
+    from cli_rpg.faction_combat import _find_faction_by_name, FACTION_RIVALRIES
+
+    affiliated = _find_faction_by_name(factions, quest.faction_affiliation)
+    if affiliated and quest.faction_reward > 0:
+        level_msg = affiliated.add_reputation(quest.faction_reward)
+        messages.append(f"Reputation with {affiliated.name} increased by {quest.faction_reward}.")
+        if level_msg:
+            messages.append(level_msg)
+
+    # Apply penalty to rival faction
+    rival_name = FACTION_RIVALRIES.get(quest.faction_affiliation)
+    if rival_name and quest.faction_penalty > 0:
+        rival = _find_faction_by_name(factions, rival_name)
+        if rival:
+            level_msg = rival.reduce_reputation(quest.faction_penalty)
+            messages.append(f"Reputation with {rival.name} decreased by {quest.faction_penalty}.")
+            if level_msg:
+                messages.append(level_msg)
+```
+
+### 3. Update main.py Complete Command (line ~1703)
+
+Pass factions to claim_quest_rewards:
+```python
+# Change from:
+reward_messages = game_state.current_character.claim_quest_rewards(matching_quest)
+# To:
+reward_messages = game_state.current_character.claim_quest_rewards(
+    matching_quest, factions=game_state.factions
 )
 ```
 
-## Files to Modify
+### 4. Update main.py Accept Command (around line 1640-1660)
 
-| File | Changes |
-|------|---------|
-| `src/cli_rpg/ai_config.py` | Update `DEFAULT_QUEST_GENERATION_PROMPT` with context placeholders |
-| `src/cli_rpg/ai_service.py` | Add `world_context`, `region_context` params to `generate_quest()` and `_build_quest_prompt()` |
-| `src/cli_rpg/main.py` | Pass `world_context` and `region_context` to `generate_quest()` call |
-| `tests/test_quest_context_integration.py` | NEW - 7 tests |
+Add reputation check before accepting quest:
+```python
+# Before creating the new quest, check required reputation
+if matching_quest.required_reputation is not None:
+    from cli_rpg.faction_combat import _find_faction_by_name
+    if matching_quest.faction_affiliation:
+        faction = _find_faction_by_name(game_state.factions, matching_quest.faction_affiliation)
+        if faction and faction.reputation < matching_quest.required_reputation:
+            return (True, f"\n{npc.name} refuses to give you this quest. You need higher reputation with {matching_quest.faction_affiliation}.")
+```
+
+### 5. Update AI Quest Generation Prompt (`src/cli_rpg/ai_config.py`)
+
+Update `DEFAULT_QUEST_GENERATION_PROMPT` (around line 146-195):
+
+Add to JSON schema section:
+```
+6. If the NPC has a faction affiliation, include faction fields:
+   - faction_affiliation: The faction name (same as NPC's faction)
+   - faction_reward: 5-15 reputation points (scaled by quest difficulty)
+   - faction_penalty: 3-10 reputation points for rival faction
+
+Respond with valid JSON in this exact format (no additional text):
+{{
+  "name": "Quest Name",
+  "description": "A brief description of the quest objective.",
+  "objective_type": "kill|collect|explore|talk|drop",
+  "target": "target name",
+  "target_count": <number>,
+  "gold_reward": <number>,
+  "xp_reward": <number>,
+  "faction_affiliation": "Faction Name or null",
+  "faction_reward": <number>,
+  "faction_penalty": <number>
+}}
+```
+
+### 6. Update AIService._parse_quest_response (`src/cli_rpg/ai_service.py`)
+
+In the quest parsing logic (around line 1874), extract faction fields:
+```python
+quest_data["faction_affiliation"] = data.get("faction_affiliation")
+quest_data["faction_reward"] = data.get("faction_reward", 0)
+quest_data["faction_penalty"] = data.get("faction_penalty", 0)
+```
+
+---
+
+## Verification
+
+Run tests:
+```bash
+pytest tests/test_quest_faction.py -v
+pytest tests/test_quest*.py -v  # Ensure no regressions
+pytest tests/test_faction*.py -v  # Ensure faction tests still pass
+```

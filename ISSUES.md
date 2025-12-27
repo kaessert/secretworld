@@ -569,10 +569,11 @@ Players want a more sophisticated map system with hierarchical locations.
 - Faction model with reputation levels
 - Combat reputation consequences
 - Merchant Guild shop price modifiers
+- Quest-based reputation changes (faction-affiliated quests reward/penalize reputation on completion)
+- Reputation requirements for quest acceptance
 
 **Remaining**:
 - Faction-based content unlocks
-- Quest-based reputation changes
 
 ---
 
@@ -1122,19 +1123,15 @@ class Quest:
     unlocks_quests: List[str] = field(default_factory=list)
 ```
 
-**3. Faction Integration (HIGH PRIORITY)**
+**3. Faction Integration ✅ COMPLETE (2025-12-27)**
 
-Connect quests to existing faction system:
+Quest-faction integration is now fully implemented:
+- `faction_affiliation: Optional[str]` - The faction this quest is associated with
+- `faction_reward: int` - Reputation gained with affiliated faction on completion
+- `faction_penalty: int` - Reputation lost with rival faction on completion
+- `required_reputation: Optional[int]` - Minimum reputation with faction required to accept quest
 
-```python
-@dataclass
-class Quest:
-    # ... existing fields ...
-    faction_affiliation: Optional[str] = None
-    faction_reward: int = 0
-    faction_penalty: Optional[Tuple[str, int]] = None
-    required_reputation: int = 0
-```
+Completing faction-affiliated quests now properly adjusts reputation with both the affiliated faction and its rival (using `FACTION_RIVALRIES` mapping). NPCs refuse to give quests if player reputation is below the required threshold.
 
 **4. Quest Difficulty (MEDIUM PRIORITY)**
 
@@ -1225,7 +1222,7 @@ completed_quest_outcomes: List[QuestOutcome] = field(default_factory=list)
 | Enhancement | Impact | Effort | Priority |
 |-------------|--------|--------|----------|
 | World/Region context in generation | High | Low | ✅ **DONE** |
-| Faction integration | High | Medium | **P0** |
+| Faction integration | High | Medium | ✅ **DONE** |
 | Quest chains & prerequisites | High | Medium | **P1** |
 | Branching objectives/choices | High | High | **P1** |
 | Difficulty indicators | Medium | Low | **P2** |
