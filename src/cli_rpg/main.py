@@ -1046,6 +1046,8 @@ def handle_exploration_command(game_state: GameState, command: str, args: list[s
     Returns:
         Tuple of (continue_game, message)
     """
+    from cli_rpg import colors
+
     # Decrement haggle cooldown on current NPC (if any)
     npc = game_state.current_npc
     if npc is not None and isinstance(getattr(npc, 'haggle_cooldown', None), int):

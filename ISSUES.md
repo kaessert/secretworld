@@ -1429,35 +1429,17 @@ Target: Giant Spider x3
 
 ---
 
-### BUG: `travel` command crashes with UnboundLocalError when destinations exist
-**Status**: ACTIVE
+### ✅ RESOLVED: `travel` command crashes with UnboundLocalError when destinations exist
+**Status**: RESOLVED
 **Date Added**: 2025-12-27
-**Severity**: HIGH - Game crashes, potential data loss
+**Date Resolved**: 2025-12-27
 
-**Problem**: The `travel` command crashes with an `UnboundLocalError` when there are fast travel destinations to display. The error occurs because the `colors` module variable is not properly accessible in the code path that displays fast travel destinations.
+**Problem**: The `travel` command crashed with an `UnboundLocalError` when there were fast travel destinations to display. The error occurred because the `colors` module was not imported in the `handle_exploration_command()` function.
 
-**Error Message**:
-```
-UnboundLocalError: local variable 'colors' referenced before assignment
-  File "/Users/tkaesser/up/secretworld/src/cli_rpg/main.py", line 1828, in handle_exploration_command
-    lines = [f"\n{colors.location('Fast Travel Destinations:')}"]
-```
+**Resolution**: Added missing `from cli_rpg import colors` import at line 1049 in `src/cli_rpg/main.py`, immediately after the function docstring. This follows the existing pattern in the codebase where functions use local imports.
 
-**Steps to Reproduce**:
-1. Start game with `--skip-character-creation --seed 123`
-2. Navigate: `go south`, `go south`, `go east`, `go north`
-3. When a random merchant encounter (e.g., "Traveling Peddler") spawns at a location
-4. Run `travel` command
+**Files Modified**:
+- `src/cli_rpg/main.py`: Added `from cli_rpg import colors` import to `handle_exploration_command()`
 
-**Note**: The crash is non-deterministic - it only occurs when:
-- Fast travel destinations exist (locations flagged as named/enterable)
-- The code path that displays destinations is triggered
-- The bug appears related to scoping of the `colors` variable in `handle_exploration_command()`
-
-**Expected Behavior**: The `travel` command should list available fast travel destinations without crashing.
-
-**Actual Behavior**: Game crashes with `UnboundLocalError`, terminating the session.
-
-**Files Affected**:
-- `src/cli_rpg/main.py` (line ~1828): `colors` variable not in scope when displaying destinations
+**Verification**: All 22 tests in `tests/test_fast_travel.py` pass.
 
