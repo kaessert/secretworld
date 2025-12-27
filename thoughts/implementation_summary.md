@@ -1,55 +1,57 @@
-# Implementation Summary: Issue 2 - Expand RegionContext (Layer 2)
+# Implementation Summary: AI-Generated Dungeon Bosses (Issue 16)
 
 ## What Was Implemented
 
-Added 11 new fields to the `RegionContext` dataclass for richer region-specific AI generation:
+When `expand_area()` generates a dungeon, cave, or ruins category area, it now automatically places a boss in the room furthest from the entry point.
 
-### Economy Fields (4)
-- `primary_resources: list[str]` - Resources abundant in the region (e.g., ["iron", "timber"])
-- `scarce_resources: list[str]` - Resources rare in the region (e.g., ["gold", "spices"])
-- `trade_goods: list[str]` - Items commonly exported from the region
-- `price_modifier: float` - Regional price adjustment factor (default 1.0)
+### Files Modified
 
-### History Fields (4)
-- `founding_story: str` - Region origin story
-- `historical_events: list[str]` - Notable past events in the region
-- `ruined_civilizations: list[str]` - Ancient cultures that once inhabited the region
-- `legendary_locations: list[str]` - Mythic places in the region
+1. **`src/cli_rpg/ai_world.py`** (~20 lines added)
+   - Added `BOSS_CATEGORIES` constant: `frozenset({"dungeon", "cave", "ruins"})`
+   - Added `_find_furthest_room(placed_locations)` helper function
+   - Wired boss placement into `expand_area()` after SubGrid population
 
-### Atmosphere Fields (3)
-- `common_creatures: list[str]` - Typical fauna/monsters found in the region
-- `weather_tendency: str` - Dominant weather pattern in the region
-- `ambient_sounds: list[str]` - Ambient audio cues for atmosphere
+### New Test File
 
-## Files Modified
+2. **`tests/test_ai_world_boss.py`** (17 tests)
+   - `TestBossCategories`: Validates BOSS_CATEGORIES contains dungeon/cave/ruins, excludes town/village/forest
+   - `TestFindFurthestRoom`: Tests the helper function for Manhattan distance calculation
+   - `TestExpandAreaBossPlacement`: Integration tests for boss placement in dungeons, caves, ruins
 
-1. **`src/cli_rpg/models/region_context.py`**
-   - Added `field` import from dataclasses
-   - Added 11 new fields to `RegionContext` dataclass with appropriate defaults
-   - Updated docstring to document all new fields
-   - Updated `to_dict()` to serialize all 11 new fields
-   - Updated `from_dict()` to deserialize with backward-compatible defaults
+## How It Works
 
-2. **`tests/test_region_context.py`**
-   - Added `TestRegionContextEconomyFields` class (2 tests)
-   - Added `TestRegionContextHistoryFields` class (2 tests)
-   - Added `TestRegionContextAtmosphereFields` class (2 tests)
-   - Added `TestRegionContextNewFieldsSerialization` class (5 tests)
-   - Total: 9 new tests
+1. When `expand_area()` creates a SubGrid for a boss-eligible category (dungeon/cave/ruins):
+   - After all sub-locations are added to the SubGrid
+   - `_find_furthest_room()` identifies the room with maximum Manhattan distance from entry (0,0)
+   - That room's `boss_enemy` field is set to the entry location's category (e.g., "dungeon")
+
+2. The existing `spawn_boss()` function in `combat.py` handles the rest:
+   - When the player enters a room with `boss_enemy` set, `spawn_boss()` is called
+   - It uses category-based templates to create an appropriate boss (e.g., "Lich Lord", "Dark Champion", or "Demon Lord" for dungeon category)
 
 ## Test Results
 
-- All 23 tests in `tests/test_region_context.py` pass
-- Full test suite: 4203 tests pass (no regressions)
+```
+tests/test_ai_world_boss.py: 17 passed
+tests/test_boss_combat.py: 19 passed
+tests/test_ai_world_subgrid.py: 12 passed
+Full test suite: 4220 passed
+```
 
 ## Design Decisions
 
-1. **Default factory for lists**: Used `field(default_factory=list)` for all list fields to avoid mutable default argument issues
-2. **Backward compatibility**: The `from_dict()` method uses `.get()` with empty defaults so old save files without the new fields load successfully
-3. **No changes to `default()` factory**: Relies on dataclass field defaults, which is cleaner and more maintainable
+1. **Category-based boss assignment**: Rather than using specific boss template names, we set `boss_enemy` to the category string (e.g., "dungeon"). This lets `spawn_boss()` randomly select from category-appropriate templates, adding variety.
 
-## E2E Tests Should Validate
+2. **Manhattan distance for "furthest"**: Uses `abs(rel_x) + abs(rel_y)` to measure distance from entry. This creates intuitive "deepest room" placement even with non-linear layouts.
 
-1. Creating a new region with economy/history/atmosphere data
-2. Saving and loading a game with regions that have the new fields populated
-3. Loading an old save file that doesn't have the new fields (backward compatibility)
+3. **Entry rooms excluded**: The entry location (at relative coords 0,0) is never a boss room - bosses are always placed in sub-locations within the SubGrid.
+
+4. **Bounds-aware testing**: Tests account for different SubGrid bounds by category (caves are 3x3, dungeons are 7x7, etc.).
+
+## E2E Test Validation
+
+To validate in-game:
+1. Start a new game with AI world generation
+2. Find or generate a dungeon/cave/ruins location
+3. Enter the area and navigate to the furthest room
+4. A boss encounter should trigger automatically

@@ -21,6 +21,32 @@ logger = logging.getLogger(__name__)
 # Safe zone categories (no random encounters)
 SAFE_ZONE_CATEGORIES = {"town", "village", "settlement"}
 
+# Categories that should have bosses in deepest room
+BOSS_CATEGORIES = frozenset({"dungeon", "cave", "ruins"})
+
+
+def _find_furthest_room(placed_locations: dict) -> Optional[str]:
+    """Find the room furthest from entry (0,0) for boss placement.
+
+    Args:
+        placed_locations: Dict mapping location names to placement data.
+            Each entry should have 'relative_coords' (tuple) and 'is_entry' (bool).
+
+    Returns:
+        Name of the furthest room, or None if no non-entry rooms exist.
+    """
+    max_distance = -1
+    furthest_name = None
+    for name, data in placed_locations.items():
+        if data.get("is_entry", False):
+            continue
+        rel_x, rel_y = data.get("relative_coords", (0, 0))
+        distance = abs(rel_x) + abs(rel_y)
+        if distance > max_distance:
+            max_distance = distance
+            furthest_name = name
+    return furthest_name
+
 
 def _infer_hierarchy_from_category(category: Optional[str]) -> tuple[bool, bool]:
     """Infer hierarchy fields from location category.
@@ -1024,6 +1050,14 @@ def expand_area(
             first_subloc = False
 
             sub_grid.add_location(loc, rel_x, rel_y)
+
+        # Place boss in furthest room for dungeon-type areas
+        if entry_category in BOSS_CATEGORIES:
+            boss_room_name = _find_furthest_room(placed_locations)
+            if boss_room_name:
+                boss_room = sub_grid.get_by_name(boss_room_name)
+                if boss_room:
+                    boss_room.boss_enemy = entry_category  # Category-based boss
 
         # Attach sub_grid to entry
         entry_loc.sub_grid = sub_grid

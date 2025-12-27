@@ -2,6 +2,52 @@
 
 ---
 
+### Map Visibility Radius
+**Status**: ACTIVE
+**Priority**: CRITICAL - BLOCKER
+**Date Added**: 2025-12-27
+
+The map command should automatically reveal nearby locations within the player's visibility radius, not just tiles the player has physically visited.
+
+#### The Problem
+
+Currently, the map only shows tiles the player has walked on. This creates a frustrating experience:
+- Players can't see what's around them without walking to each tile
+- No sense of "scouting ahead" or seeing the lay of the land
+- Exploration feels like walking blind
+- Named locations nearby are invisible until stumbled upon
+
+#### Expected Behavior
+
+When a player enters a location, they should see:
+- All tiles within a configurable radius (e.g., 2-3 tiles)
+- Terrain type visible for nearby unexplored tiles
+- Named locations within range highlighted/marked
+- Visibility modified by terrain (mountains block view, plains extend it)
+- Perception stat could extend visibility radius
+
+#### Implementation
+
+**Files to Modify**:
+- `src/cli_rpg/map_renderer.py` - Add visibility radius calculation
+- `src/cli_rpg/game_state.py` - Track "seen" vs "visited" tiles separately
+- `src/cli_rpg/world_grid.py` - Add `get_tiles_in_radius()` helper
+
+**Config**:
+```python
+VISIBILITY_RADIUS = {
+    "plains": 3,      # Can see far
+    "hills": 2,       # Moderate view
+    "forest": 1,      # Trees block sight
+    "mountain": 0,    # Only current tile (but can see FROM mountains)
+    "swamp": 1,       # Fog limits vision
+}
+```
+
+**Perception Bonus**: `+1 radius per 5 PER above 10`
+
+---
+
 ### WFC World Generation Overhaul
 **Status**: ✅ CORE COMPLETE (All 4 items done)
 **Priority**: CRITICAL - BLOCKS IMMERSION
@@ -1170,29 +1216,34 @@ Transform the dungeon/interior experience from functional to immersive. The SubG
 
 ---
 
-### Issue 16: AI-Generated Dungeon Bosses
+### Issue 16: AI-Generated Dungeon Bosses ✅ COMPLETE
 
 **Labels:** `enhancement` `AI` `gameplay` `P0`
 
+**Status:** ✅ COMPLETE (2025-12-27)
+
 **Problem**: The `boss_enemy` field exists on Location but is only set in hardcoded `world.py`. AI-generated areas via `expand_area()` have no bosses, making dynamically generated dungeons feel empty and anticlimactic.
 
-**Current State:**
-- `boss_enemy` field defined in `models/location.py`
-- Only set manually in `world.py` (lines 523, 774, 791)
-- `expand_area()` in `ai_world.py` never generates bosses
-- No scaling based on dungeon depth or region danger
+**Implementation:**
+- Added `BOSS_CATEGORIES = frozenset({"dungeon", "cave", "ruins"})` constant
+- Added `_find_furthest_room(placed_locations)` helper using Manhattan distance
+- Wired boss placement into `expand_area()` after SubGrid population
+- Boss is placed in the room furthest from entry point (0,0)
+- Uses category-based boss assignment (e.g., "dungeon" → Lich Lord/Dark Champion/Demon Lord)
+- Existing `spawn_boss()` in `combat.py` handles boss creation with category-appropriate templates
 
 **Acceptance Criteria:**
-- [ ] Dungeon/cave areas generated via AI include a boss in the deepest room
-- [ ] Boss stats scale with region danger level (from RegionContext)
-- [ ] Boss names/descriptions match area theme
-- [ ] Boss placement algorithm puts boss in room furthest from entry
-- [ ] Defeating boss triggers "area cleared" state
+- [x] Dungeon/cave/ruins areas generated via AI include a boss in the deepest room
+- [ ] Boss stats scale with region danger level (from RegionContext) - future enhancement
+- [x] Boss names/descriptions match area theme (via category-based templates)
+- [x] Boss placement algorithm puts boss in room furthest from entry
+- [ ] Defeating boss triggers "area cleared" state - future enhancement
 
-**Related Files:**
-- `src/cli_rpg/ai_service.py` - Add boss generation to Layer 4
-- `src/cli_rpg/ai_world.py` - Wire boss placement into `expand_area()`
-- `src/cli_rpg/models/enemy.py` - Boss template generation
+**Tests:**
+- 17 tests in `tests/test_ai_world_boss.py` covering boss categories, distance calculation, and placement integration
+
+**Files Modified:**
+- `src/cli_rpg/ai_world.py` - Added `BOSS_CATEGORIES`, `_find_furthest_room()`, boss placement in `expand_area()`
 
 ---
 
@@ -1504,7 +1555,8 @@ Transform the dungeon/interior experience from functional to immersive. The SubG
 ### Dungeon Immersion Implementation Phases
 
 **Phase 1 - Core Content (P0)** - Issues 16-18
-- AI-generated bosses, treasures, secrets
+- ✅ AI-generated bosses (Issue 16 COMPLETE)
+- AI-generated treasures, secrets (Issues 17-18 pending)
 - Fill the biggest content gap in AI-generated areas
 - Wire passive secret detection
 

@@ -240,6 +240,7 @@ loaded_game.ai_service = ai_service
    - Handles fallbacks gracefully
    - **Hierarchy support**: Sets `is_overworld`, `is_safe_zone`, `parent_location`, `sub_locations`, and `entry_point` fields based on location category
    - Safe zone categories (town, village, settlement) get `is_safe_zone=True`; danger zones (dungeon, wilderness, ruins, cave, forest, mountain) get `is_safe_zone=False`
+   - **Boss placement**: Dungeons, caves, and ruins automatically include a boss in the room furthest from the entry point (using Manhattan distance). The `boss_enemy` field is set to the location category, and `spawn_boss()` in combat.py creates an appropriate boss enemy with category-specific templates
 
 4. **WorldGrid** (`world_grid.py`)
    - Coordinate-based world storage
