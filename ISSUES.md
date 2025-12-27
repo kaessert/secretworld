@@ -225,13 +225,14 @@ Created relationship system for interconnected NPCs.
 ---
 
 ### Issue 11: NPC Network Manager
-**Status**: PENDING
+**Status**: COMPLETED ✓
 **Priority**: MEDIUM
+**Completed**: 2025-12-27
 
-Create manager for NPC networks and family generation.
+Created manager for NPC networks and family generation.
 
-**Files to Create**:
-- `src/cli_rpg/models/npc_network.py`
+**Implementation**:
+- `src/cli_rpg/models/npc_network.py` - FamilyRole enum (SPOUSE, PARENT, CHILD, SIBLING) and NPCNetworkManager dataclass with NPC registration (add_npc, get_npc, get_all_npcs), bidirectional relationship management (add_relationship), family generation (generate_spouse, generate_child, generate_sibling, generate_family_unit), network queries (get_npcs_with_relationship, get_family_members, get_connections with BFS traversal, find_path for shortest paths), and full serialization (to_dict, from_dict)
 
 ---
 
@@ -461,7 +462,7 @@ Create storyline system with branching quests and investigations.
 
 **Phase 5: NPC Networks** - Issues 10-11
 - ✓ Relationship system (Issue 10 complete)
-- NPC network manager
+- ✓ NPC network manager (Issue 11 complete)
 
 **Phase 6: World Evolution** - Issues 12-13
 - ✓ World state tracking (Issue 12 complete)

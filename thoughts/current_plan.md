@@ -1,148 +1,108 @@
-# Implementation Plan: Issue 9 - Mega-Settlements with Districts
-
-## Overview
-Expand SubGrid bounds for larger cities and add a district system to support mega-settlements with themed districts (market district, temple district, residential, etc.).
+# Issue 11: NPC Network Manager
 
 ## Spec
 
-### District Model (`src/cli_rpg/models/district.py`)
-A District represents a themed sub-area within a large settlement:
-- **DistrictType** enum: `MARKET`, `TEMPLE`, `RESIDENTIAL`, `NOBLE`, `SLUMS`, `CRAFTSMEN`, `DOCKS`, `ENTERTAINMENT`, `MILITARY`
-- **District** dataclass:
-  - `name: str` - Display name (e.g., "The Golden Market")
-  - `district_type: DistrictType` - Category from enum
-  - `description: str` - Thematic description
-  - `bounds: tuple[int, int, int, int]` - (min_x, max_x, min_y, max_y) within parent SubGrid
-  - `atmosphere: str` - Mood/feeling (e.g., "bustling", "quiet", "dangerous")
-  - `prosperity: str` - Economic level (poor, modest, prosperous, wealthy)
-  - `notable_features: list[str]` - Key landmarks within district
-  - Serialization: `to_dict()` / `from_dict()` methods
+Create `NPCNetworkManager` class to manage NPC relationship networks including:
+- **Family generation**: Generate family units (spouses, children, siblings) for NPCs
+- **Relationship propagation**: When NPC A knows NPC B, optionally have B know A (bidirectional)
+- **Network queries**: Find NPCs by relationship type, find connected NPCs within N degrees
 
-### Settlement Generator (`src/cli_rpg/settlement_generator.py`)
-Functions to partition large settlements into districts:
-- `MEGA_SETTLEMENT_CATEGORIES` - Categories that get districts: `{"city", "metropolis", "capital"}`
-- `MEGA_SETTLEMENT_THRESHOLD` - Minimum size (e.g., 17x17) to qualify
-- `generate_districts(bounds, category, settlement_name, rng)` -> `list[District]`
-- `get_district_at_coords(districts, x, y)` -> `Optional[District]`
-- District layout uses quadrant-based approach for simplicity
+## Files
 
-### World Grid Updates (`src/cli_rpg/world_grid.py`)
-- Add `"metropolis": (-12, 12, -12, 12, 0, 0)` (25x25) to `SUBGRID_BOUNDS`
-- Add `"capital": (-16, 16, -16, 16, 0, 0)` (33x33) to `SUBGRID_BOUNDS`
-- Add `districts: list[District]` field to `SubGrid` dataclass
-- Update `SubGrid.to_dict()` / `from_dict()` for district serialization
+- **Create**: `src/cli_rpg/models/npc_network.py`
+- **Create**: `tests/test_npc_network.py`
 
----
+## Tests (TDD)
 
-## Test Plan
+### FamilyRole Enum
+- `test_family_role_spouse_exists` - FamilyRole.SPOUSE exists with value "spouse"
+- `test_family_role_parent_exists` - FamilyRole.PARENT exists with value "parent"
+- `test_family_role_child_exists` - FamilyRole.CHILD exists with value "child"
+- `test_family_role_sibling_exists` - FamilyRole.SIBLING exists with value "sibling"
 
-### File: `tests/test_district.py`
+### NPCNetworkManager Initialization
+- `test_network_manager_init_empty` - Manager initializes with empty NPC dict
+- `test_network_manager_add_npc` - `add_npc(npc)` registers NPC by name
+- `test_network_manager_get_npc` - `get_npc(name)` returns NPC or None
+- `test_network_manager_get_all_npcs` - `get_all_npcs()` returns list of all NPCs
 
-```python
-# Test District dataclass creation and validation
-def test_district_creation():
-    """District created with name, type, description, bounds."""
+### Bidirectional Relationships
+- `test_add_relationship_bidirectional` - `add_relationship(npc_a, npc_b, type, bidirectional=True)` adds to both
+- `test_add_relationship_unidirectional` - `add_relationship(npc_a, npc_b, type, bidirectional=False)` adds to A only
+- `test_add_relationship_with_trust` - Trust level is set correctly on both sides
 
-def test_district_type_enum():
-    """DistrictType has expected values (MARKET, TEMPLE, etc.)."""
+### Family Generation
+- `test_generate_spouse` - `generate_spouse(npc, name)` creates spouse NPC with FAMILY relationship
+- `test_generate_child` - `generate_child(parents, name)` creates child linked to both parents
+- `test_generate_sibling` - `generate_sibling(npc, name)` creates sibling with reciprocal relationships
+- `test_generate_family_unit` - `generate_family_unit(head_name, size)` creates connected family
 
-def test_district_serialization_roundtrip():
-    """to_dict/from_dict preserves all fields."""
+### Network Queries
+- `test_get_npcs_by_relationship` - `get_npcs_with_relationship(npc, type)` returns list of connected NPCs
+- `test_get_family_members` - `get_family_members(npc)` returns all FAMILY relationships
+- `test_get_connections_within_degrees` - `get_connections(npc, max_degrees=2)` returns NPCs within N hops
+- `test_find_path_between_npcs` - `find_path(npc_a, npc_b)` returns relationship chain or None
 
-def test_district_bounds_validation():
-    """Bounds tuple has 4 integers."""
-```
-
-### File: `tests/test_settlement_generator.py`
-
-```python
-# Test district generation functions
-def test_mega_settlement_categories():
-    """MEGA_SETTLEMENT_CATEGORIES includes city, metropolis, capital."""
-
-def test_generate_districts_for_city():
-    """generate_districts creates 2-4 districts for city-sized settlements."""
-
-def test_generate_districts_returns_covering():
-    """Districts cover the settlement bounds without gaps."""
-
-def test_get_district_at_coords():
-    """get_district_at_coords returns correct district for given coordinates."""
-
-def test_get_district_at_coords_outside_bounds():
-    """get_district_at_coords returns None for coords outside all districts."""
-
-def test_generate_districts_deterministic():
-    """Same RNG seed produces same district layout."""
-```
-
-### File: `tests/test_subgrid_districts.py`
-
-```python
-# Test SubGrid integration with districts
-def test_subgrid_has_districts_field():
-    """SubGrid has districts field defaulting to empty list."""
-
-def test_subgrid_districts_serialization():
-    """SubGrid.to_dict includes districts; from_dict restores them."""
-
-def test_metropolis_bounds():
-    """SUBGRID_BOUNDS has metropolis entry with 25x25 size."""
-
-def test_capital_bounds():
-    """SUBGRID_BOUNDS has capital entry with 33x33 size."""
-```
-
----
+### Serialization
+- `test_to_dict` - Manager serializes to dict with all NPCs
+- `test_from_dict` - Manager deserializes from dict
+- `test_roundtrip` - Roundtrip preserves all NPCs and relationships
 
 ## Implementation Steps
 
-### Step 1: Create District Model
-**File**: `src/cli_rpg/models/district.py`
-1. Create `DistrictType` enum with 9 district types
-2. Create `District` dataclass with fields: name, district_type, description, bounds, atmosphere, prosperity, notable_features
-3. Add `to_dict()` and `from_dict()` methods following existing patterns (see `faction.py`)
-4. Add module docstring explaining the district system
+1. **Create test file** `tests/test_npc_network.py` with all tests above (initially failing)
 
-### Step 2: Create Tests for District Model
-**File**: `tests/test_district.py`
-1. Test district creation with required fields
-2. Test enum values exist
-3. Test serialization roundtrip
-4. Test backward compatibility defaults in from_dict
+2. **Create FamilyRole enum** in `npc_network.py`:
+   ```python
+   class FamilyRole(Enum):
+       SPOUSE = "spouse"
+       PARENT = "parent"
+       CHILD = "child"
+       SIBLING = "sibling"
+   ```
 
-### Step 3: Update SubGrid for Districts
-**File**: `src/cli_rpg/world_grid.py`
-1. Add imports for District at top
-2. Add `"metropolis"` and `"capital"` to `SUBGRID_BOUNDS`
-3. Add `districts: list["District"] = field(default_factory=list)` to `SubGrid`
-4. Update `SubGrid.to_dict()` to include districts serialization
-5. Update `SubGrid.from_dict()` to restore districts with backward compatibility
+3. **Create NPCNetworkManager class**:
+   - `__init__()` - Initialize `_npcs: dict[str, NPC]`
+   - `add_npc(npc)` - Register NPC by name (lowercase key for case-insensitive lookup)
+   - `get_npc(name)` - Lookup by name
+   - `get_all_npcs()` - Return list of all NPCs
 
-### Step 4: Create Tests for SubGrid Districts
-**File**: `tests/test_subgrid_districts.py`
-1. Test new bounds entries exist
-2. Test districts field defaults to empty
-3. Test serialization with districts
+4. **Implement bidirectional relationships**:
+   - `add_relationship(source, target, rel_type, trust=50, desc=None, bidirectional=True)`:
+     - Get inverse description for bidirectional (e.g., "sister" -> "sister")
+     - Add relationship to source NPC
+     - If bidirectional, add reciprocal relationship to target NPC
 
-### Step 5: Create Settlement Generator
-**File**: `src/cli_rpg/settlement_generator.py`
-1. Define `MEGA_SETTLEMENT_CATEGORIES` frozenset
-2. Define `MEGA_SETTLEMENT_THRESHOLD` constant
-3. Implement `generate_districts()` with quadrant-based partitioning
-4. Implement `get_district_at_coords()` for coordinate lookup
-5. Add default district descriptions/atmospheres per type
+5. **Implement family generation**:
+   - `generate_spouse(npc, spouse_name, desc_a="spouse", desc_b="spouse")`:
+     - Create new NPC with minimal attributes
+     - Register in manager
+     - Add bidirectional FAMILY relationship with descriptions
+   - `generate_child(parent_names: list[str], child_name)`:
+     - Create child NPC
+     - Add FAMILY relationships to each parent (child->parent, parent->child)
+   - `generate_sibling(npc, sibling_name)`:
+     - Create sibling NPC
+     - Add bidirectional FAMILY relationship with "sibling" description
+   - `generate_family_unit(head_name, spouse_name=None, child_names=None)`:
+     - Create head NPC
+     - Optionally add spouse
+     - Optionally add children linked to both parents
 
-### Step 6: Create Tests for Settlement Generator
-**File**: `tests/test_settlement_generator.py`
-1. Test category constants
-2. Test district generation creates appropriate count
-3. Test districts cover bounds
-4. Test coordinate lookup
-5. Test determinism with RNG seed
+6. **Implement network queries**:
+   - `get_npcs_with_relationship(npc_name, rel_type)`:
+     - Return list of NPC names connected via that relationship type
+   - `get_family_members(npc_name)`:
+     - Shortcut for `get_npcs_with_relationship(npc_name, RelationshipType.FAMILY)`
+   - `get_connections(npc_name, max_degrees=1)`:
+     - BFS traversal up to max_degrees hops
+     - Return set of NPC names (excluding starting NPC)
+   - `find_path(npc_a, npc_b)`:
+     - BFS to find shortest path between NPCs
+     - Return list of (npc_name, relationship_type) tuples or None
 
-### Step 7: Run Full Test Suite
-```bash
-pytest tests/test_district.py tests/test_settlement_generator.py tests/test_subgrid_districts.py -v
-pytest --tb=short
-```
+7. **Implement serialization**:
+   - `to_dict()`: Return `{"npcs": [npc.to_dict() for npc in self._npcs.values()]}`
+   - `from_dict(data)`: Create manager, add each NPC from data
+
+8. **Run tests** to verify all pass

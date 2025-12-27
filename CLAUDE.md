@@ -87,6 +87,7 @@ src/cli_rpg/
     ├── location.py      # Location with coordinates and NPCs (movement via coordinate adjacency)
     ├── npc.py           # Non-player character model with relationship support
     ├── npc_relationship.py # NPC relationship types and trust levels
+    ├── npc_network.py   # NPC network manager for family generation and network queries
     ├── quest.py         # Quest system with objectives and progress tracking
     ├── quest_outcome.py # Quest completion outcomes for NPC memory/reactions
     ├── shop.py          # Shop system
