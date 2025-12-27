@@ -34,14 +34,15 @@ class TestRenderWorldmap:
     def test_worldmap_shows_only_overworld_locations(self):
         """Test worldmap filters to only is_overworld=True locations.
 
-        Spec: Only locations with is_overworld=True should appear on the worldmap
+        Spec: Only locations with is_overworld=True and is_named=True should appear on the worldmap
         """
         world = {
             "Eldoria": Location(
                 "Eldoria",
                 "A grand city",
                 coordinates=(0, 0),
-                is_overworld=True
+                is_overworld=True,
+                is_named=True,  # Named locations show in legend
             ),
             "Eldoria Market": Location(
                 "Eldoria Market",
@@ -53,7 +54,8 @@ class TestRenderWorldmap:
                 "Dark Forest",
                 "A dark forest",
                 coordinates=(1, 0),
-                is_overworld=True
+                is_overworld=True,
+                is_named=True,  # Named locations show in legend
             ),
         }
         result = render_worldmap(world, "Eldoria")

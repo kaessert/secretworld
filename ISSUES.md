@@ -420,80 +420,40 @@ The named location trigger system is now fully wired up and operational.
 
 ---
 
-### 🚨 BLOCKER: Map Display - Terrain Symbols for Unnamed Locations
-**Status**: BLOCKER
+### ✅ RESOLVED: Map Display - Terrain Symbols for Unnamed Locations
+**Status**: RESOLVED
 **Date Added**: 2025-12-27
+**Date Resolved**: 2025-12-27
 
-**Problem**: The map currently shows letter symbols (A, B, C...) for ALL locations including unnamed terrain tiles. This undermines the sparse world design - players can't visually distinguish between "just forest" and "The Haunted Grove" on the map.
+**Problem**: The map showed letter symbols (A, B, C...) for ALL locations including unnamed terrain tiles, making it impossible to distinguish terrain from named POIs.
 
-**Current (Wrong)**:
-```
-    N
-    |
-W --+-- E
-    |
-    S
+**Resolution**: Implemented terrain-specific symbols for unnamed locations. Named locations continue to show letter identifiers while unnamed terrain tiles now show ASCII symbols based on their terrain type.
 
-  [ A ]---[ B ]---[ C ]
-    |       |       |
-  [ D ]---[@]---[ E ]
-    |       |       |
-  [ F ]---[ G ]---[ H ]
+**Implementation**:
+- Added `TERRAIN_MAP_SYMBOLS` dict in `world_tiles.py` mapping 9 terrain types to ASCII symbols
+- Added `get_terrain_symbol(terrain: str) -> str` function with fallback to plains (`.`)
+- Updated `render_map()` in `map_renderer.py` to check `location.is_named` before assigning symbols
+- Legend now only includes named locations
+- Terrain symbol key appears at bottom of map output
 
-Legend: @ = You, A = Dense Forest, B = Rolling Hills, C = Whispering Glade...
-```
-Every tile looks equally important. No terrain distinction. Impassable terrain not visible.
+**Terrain Symbol Mapping**:
+| Terrain | Symbol |
+|---------|--------|
+| forest | `T` |
+| plains | `.` |
+| hills | `n` |
+| desert | `:` |
+| swamp | `%` |
+| beach | `,` |
+| foothills | `^` |
+| mountain | `M` |
+| water | `~` |
 
-**Target (Correct)**:
-```
-    N
-    |
-W --+-- E
-    |
-    S
+**Files Modified**:
+- `src/cli_rpg/world_tiles.py`: Added `TERRAIN_MAP_SYMBOLS`, `get_terrain_symbol()`
+- `src/cli_rpg/map_renderer.py`: Updated `render_map()` for terrain-based display
 
-  [ ♣ ]---[ ∩ ]---[ ⌂ ]
-    |       |       |
-  [ ♣ ]---[@]---[ ~ ]
-    |       |       |
-  [ ▲ ]---[ . ]---[ ♣ ]
-
-Legend: @ = You, ⌂ = Whispering Glade (enter), ~ = water (impassable),
-        ♣ = forest, ∩ = hills, ▲ = mountain (impassable), . = plains
-```
-
-**Key Requirements**:
-
-1. **Unnamed locations show terrain symbol**, not letter:
-   | Terrain | Symbol | Passable |
-   |---------|--------|----------|
-   | forest | `♣` or `T` | ✓ |
-   | plains | `.` or `_` | ✓ |
-   | hills | `∩` or `n` | ✓ |
-   | desert | `~` or `:` | ✓ |
-   | swamp | `%` or `&` | ✓ |
-   | water | `≈` or `~` | ✗ |
-   | mountain | `▲` or `^` | ✗ |
-
-2. **Named locations show unique identifier** (letter or icon like `⌂`):
-   - Only named locations (`is_named=True`) get letters in legend
-   - Entry points clearly marked as enterable
-
-3. **Impassable terrain visually distinct**:
-   - Different color (blue for water, gray for mountain)
-   - Or different bracket style: `( ~ )` vs `[ ♣ ]`
-   - Player immediately sees where they CAN'T go
-
-4. **Legend only lists named locations**:
-   - Don't clutter legend with "A = Dense Forest, B = Another Forest..."
-   - Show: `⌂ = Whispering Glade (village), ☠ = Goblin Cave (dungeon)`
-
-**Files to Modify**:
-- `src/cli_rpg/map_renderer.py`: Change symbol logic based on `is_named` and terrain
-- `src/cli_rpg/world_tiles.py`: Add `TERRAIN_MAP_SYMBOLS` constant
-- `src/cli_rpg/models/location.py`: Ensure `terrain_type` available for rendering
-
-**Why BLOCKER**: Without this, the sparse world design is invisible to players. The map looks the same whether every tile is a named location or 95% are generic terrain.
+**Verification**: 9 new tests in `tests/test_terrain_map_symbols.py` + 39 existing tests in `tests/test_map_renderer.py` all pass.
 
 ---
 

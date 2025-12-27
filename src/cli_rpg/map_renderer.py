@@ -7,6 +7,7 @@ from wcwidth import wcswidth
 
 from cli_rpg.models.location import Location
 from cli_rpg import colors
+from cli_rpg.world_tiles import get_terrain_symbol
 
 if TYPE_CHECKING:
     from cli_rpg.world_grid import SubGrid
@@ -126,35 +127,41 @@ def render_map(
     # (adjacent locations without connection are shown as blocked instead)
     coord_to_marker: dict[tuple[int, int], str] = {}
     unreachable_locations: set[tuple[int, int]] = set()
-    reachable_names: set[str] = {current_location}  # Current location is always reachable
+    # Only track named locations for letter assignment
+    named_reachable: set[str] = set()
+    if world.get(current_location) and world[current_location].is_named:
+        named_reachable.add(current_location)
 
     for name, location in locations_with_coords:
         coords = location.coordinates
         assert coords is not None  # We already filtered for non-None coordinates
         if name == current_location:
             coord_to_marker[coords] = "@"
+        elif location.is_named:
+            # Named locations get letter symbols - track them for letter assignment
+            named_reachable.add(name)
         else:
-            # With coordinate-based movement, all adjacent locations are reachable
-            # (terrain passability is checked separately by WFC)
-            reachable_names.add(name)
+            # Unnamed locations get terrain symbols directly
+            terrain = location.terrain or "plains"
+            coord_to_marker[coords] = get_terrain_symbol(terrain)
 
-    # Assign unique letter symbols only to REACHABLE non-current locations
+    # Assign unique letter symbols only to NAMED non-current locations
     SYMBOLS = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz"
-    sorted_names = sorted(name for name in reachable_names if name != current_location)
+    sorted_names = sorted(name for name in named_reachable if name != current_location)
     location_symbols = {name: SYMBOLS[i] for i, name in enumerate(sorted_names) if i < len(SYMBOLS)}
 
-    # Add markers for reachable locations
+    # Add markers for named locations (with letters)
     for name, location in locations_with_coords:
-        if name != current_location and name in reachable_names:
+        if name != current_location and name in named_reachable:
             coords = location.coordinates
             assert coords is not None
             coord_to_marker[coords] = location_symbols.get(name, "?")
 
-    # Build the legend entries (vertical format) - only for reachable locations
+    # Build the legend entries (vertical format) - only for NAMED locations
     legend_entries = []
     for name, location in locations_with_coords:
-        if name not in reachable_names:
-            continue  # Skip unreachable locations
+        if not location.is_named:
+            continue  # Skip unnamed terrain locations
         if name == current_location:
             # Current location marked with @
             legend_entries.append(f"  {colors.bold_colorize('@', colors.CYAN)} = You ({name})")
@@ -251,6 +258,8 @@ def render_map(
     lines.append("Legend:")
     lines.extend(legend_entries)
     lines.append(f"  {WATER_MARKER} = Water (impassable)")
+    lines.append("")
+    lines.append("Terrain: T=forest .=plains n=hills :=desert %=swamp ,=beach ^=foothills M=mountain")
     lines.append(exits_line)
 
     return "\n".join(lines)

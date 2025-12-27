@@ -310,6 +310,31 @@ TERRAIN_DREAD_MODIFIER: Dict[str, int] = {
     "foothills": 3,
 }
 
+# ASCII-safe terrain map symbols for map rendering
+TERRAIN_MAP_SYMBOLS: Dict[str, str] = {
+    "forest": "T",
+    "plains": ".",
+    "hills": "n",
+    "desert": ":",
+    "swamp": "%",
+    "beach": ",",
+    "foothills": "^",
+    "mountain": "M",
+    "water": "~",
+}
+
+
+def get_terrain_symbol(terrain: str) -> str:
+    """Get ASCII map symbol for a terrain type.
+
+    Args:
+        terrain: Terrain type name (e.g., "forest", "water")
+
+    Returns:
+        Single-character ASCII symbol for map display
+    """
+    return TERRAIN_MAP_SYMBOLS.get(terrain, ".")
+
 # Category mapping for location generation
 TERRAIN_TO_CATEGORY: Dict[str, str] = {
     "forest": "forest",

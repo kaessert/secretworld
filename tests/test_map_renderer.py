@@ -251,10 +251,14 @@ class TestPlayerCenteredMap:
         The @ marker with color codes should occupy the same visual width as other markers.
         """
         # Player at (0,0) with a nearby location at (1,0) - same row
-        # Connection needed so East shows as reachable (not blocked)
+        # Both locations must be named to show letter symbols
         world = {
-            "Center": Location("Center", "Center location", {"east": "East"}, coordinates=(0, 0)),
-            "East": Location("East", "East location", {"west": "Center"}, coordinates=(1, 0)),
+            "Center": Location(
+                "Center", "Center location", coordinates=(0, 0), is_named=True
+            ),
+            "East": Location(
+                "East", "East location", coordinates=(1, 0), is_named=True
+            ),
         }
         result = render_map(world, "Center")
 
@@ -357,30 +361,31 @@ class TestMapVisualImprovements:
         assert "│" in result, "Map should have vertical borders (│)"
 
     def test_location_markers_show_category(self):
-        """Verify locations show category-based markers instead of first letters.
+        """Verify named locations show category icons in legend (not grid).
 
-        Spec: Each location type should show its category icon:
+        Spec: Named locations show letter symbols (A, B, C...) in the grid and
+        category icons in the legend. Category icon mapping:
         - town: 🏠
         - shop: 🏪
         - dungeon: ⚔
         - forest: 🌲
         - cave: 🕳
         - water: 🌊
-        - None/uncategorized: •
+        - None/uncategorized: (no icon, just letter)
         """
-        # Connections needed so adjacent locations show as reachable (not blocked)
+        # All locations must be named to appear in legend with letter symbols
         world = {
             "Town Square": Location(
-                "Town Square", "A bustling town", {"east": "General Store"}, coordinates=(0, 0), category="town"
+                "Town Square", "A bustling town", coordinates=(0, 0), category="town", is_named=True
             ),
             "General Store": Location(
-                "General Store", "A shop", {"west": "Town Square", "east": "Dark Dungeon"}, coordinates=(1, 0), category="shop"
+                "General Store", "A shop", coordinates=(1, 0), category="shop", is_named=True
             ),
             "Dark Dungeon": Location(
-                "Dark Dungeon", "A dungeon", {"west": "General Store", "east": "Forest Path"}, coordinates=(2, 0), category="dungeon"
+                "Dark Dungeon", "A dungeon", coordinates=(2, 0), category="dungeon", is_named=True
             ),
             "Forest Path": Location(
-                "Forest Path", "A forest", {"west": "Dark Dungeon"}, coordinates=(3, 0), category="forest"
+                "Forest Path", "A forest", coordinates=(3, 0), category="forest", is_named=True
             ),
         }
         result = render_map(world, "Town Square")
@@ -388,29 +393,32 @@ class TestMapVisualImprovements:
         # Player is at Town Square, so @ should be displayed for current location
         assert "@" in result, "Player marker @ should be visible"
 
-        # Other locations should show their category icons
-        assert "🏪" in result, "Shop should show 🏪 marker"
-        assert "⚔" in result, "Dungeon should show ⚔ marker"
-        assert "🌲" in result, "Forest should show 🌲 marker"
+        # Category icons should appear in the LEGEND section (not grid)
+        legend_section = result.split("Legend:")[1] if "Legend:" in result else result
+        assert "🏪" in legend_section, "Shop should show 🏪 marker in legend"
+        assert "⚔" in legend_section, "Dungeon should show ⚔ marker in legend"
+        assert "🌲" in legend_section, "Forest should show 🌲 marker in legend"
 
     def test_uncategorized_location_shows_letter_marker(self):
-        """Verify uncategorized locations show unique letter markers.
+        """Verify uncategorized named locations show unique letter markers.
 
-        Spec: All non-current locations show letter symbols A-Z on the map grid,
+        Spec: All non-current NAMED locations show letter symbols A-Z on the map grid,
         with the legend showing just the letter and name for uncategorized locations.
         """
-        # Connection needed so adjacent location shows as reachable
+        # Both locations must be named to appear in legend with letter symbols
         world = {
-            "Center": Location("Center", "Center location", {"east": "Nearby"}, coordinates=(0, 0)),
+            "Center": Location(
+                "Center", "Center location", coordinates=(0, 0), is_named=True
+            ),
             "Nearby": Location(
-                "Nearby", "A nearby location", {"west": "Center"}, coordinates=(1, 0), category=None
+                "Nearby", "A nearby location", coordinates=(1, 0), category=None, is_named=True
             ),
         }
         result = render_map(world, "Center")
 
         # The Nearby location should show "A" marker on the map (letter symbol)
         grid_section = result.split("Legend:")[0]
-        assert "A" in grid_section, "Uncategorized location should show letter marker"
+        assert "A" in grid_section, "Uncategorized named location should show letter marker"
         # Legend should show "A = Nearby" (no category icon for uncategorized)
         assert "A = Nearby" in result, "Legend should show letter = name for uncategorized"
 
@@ -462,13 +470,13 @@ class TestMapVisualImprovements:
         Spec: Legend format should be "A = 🏪 Shop" for categorized locations
         (letter symbol + category icon + name).
         """
-        # Connection needed so adjacent location shows as reachable
+        # Both locations must be named to appear in legend with letter symbols
         world = {
             "Town Square": Location(
-                "Town Square", "A town", {"east": "Shop"}, coordinates=(0, 0), category="town"
+                "Town Square", "A town", coordinates=(0, 0), category="town", is_named=True
             ),
             "Shop": Location(
-                "Shop", "A shop", {"west": "Town Square"}, coordinates=(1, 0), category="shop"
+                "Shop", "A shop", coordinates=(1, 0), category="shop", is_named=True
             ),
         }
         result = render_map(world, "Town Square")
@@ -605,10 +613,14 @@ class TestEmojiAlignment:
         """
         import re
 
-        # Connection needed so adjacent location shows as reachable
+        # Both locations must be named to show letter symbols
         world = {
-            "Town": Location("Town", "A town", {"east": "Forest"}, coordinates=(0, 0), category="town"),
-            "Forest": Location("Forest", "A forest", {"west": "Town"}, coordinates=(1, 0), category="forest"),
+            "Town": Location(
+                "Town", "A town", coordinates=(0, 0), category="town", is_named=True
+            ),
+            "Forest": Location(
+                "Forest", "A forest", coordinates=(1, 0), category="forest", is_named=True
+            ),
         }
         result = render_map(world, "Town")
         lines = result.split("\n")
@@ -809,15 +821,15 @@ class TestUniqueLocationSymbols:
     """
 
     def test_unique_symbols_assigned_to_locations(self):
-        """Each non-current location gets a unique letter symbol A-Z.
+        """Each non-current named location gets a unique letter symbol A-Z.
 
-        Spec: Non-current locations get unique letters A-Z in alphabetical order by name.
+        Spec: Non-current named locations get unique letters A-Z in alphabetical order by name.
         """
-        # Connections needed so adjacent locations show as reachable
+        # All locations must be named to show letter symbols
         world = {
-            "Town": Location("Town", "A town", {"east": "Forest"}, coordinates=(0, 0)),
-            "Forest": Location("Forest", "A forest", {"west": "Town", "east": "Cave"}, coordinates=(1, 0)),
-            "Cave": Location("Cave", "A cave", {"west": "Forest"}, coordinates=(2, 0)),
+            "Town": Location("Town", "A town", coordinates=(0, 0), is_named=True),
+            "Forest": Location("Forest", "A forest", coordinates=(1, 0), is_named=True),
+            "Cave": Location("Cave", "A cave", coordinates=(2, 0), is_named=True),
         }
         result = render_map(world, "Town")
         # Cave and Forest get A/B in alphabetical order
@@ -829,10 +841,14 @@ class TestUniqueLocationSymbols:
 
         Spec: Legend format should be "A = 🌲 Forest" (letter + category icon + name).
         """
-        # Connection needed so adjacent location shows as reachable
+        # Both locations must be named to appear in legend with letter symbols
         world = {
-            "Town": Location("Town", "A town", {"east": "Forest"}, coordinates=(0, 0), category="town"),
-            "Forest": Location("Forest", "A forest", {"west": "Town"}, coordinates=(1, 0), category="forest"),
+            "Town": Location(
+                "Town", "A town", coordinates=(0, 0), category="town", is_named=True
+            ),
+            "Forest": Location(
+                "Forest", "A forest", coordinates=(1, 0), category="forest", is_named=True
+            ),
         }
         result = render_map(world, "Town")
         # Legend should show "A = 🌲 Forest"
@@ -843,10 +859,14 @@ class TestUniqueLocationSymbols:
 
         Spec: Category icons move to legend only, not displayed on map grid.
         """
-        # Connection needed so adjacent location shows as reachable
+        # Both locations must be named to appear in legend with letter symbols
         world = {
-            "Town": Location("Town", "A town", {"east": "Forest"}, coordinates=(0, 0), category="town"),
-            "Forest": Location("Forest", "A forest", {"west": "Town"}, coordinates=(1, 0), category="forest"),
+            "Town": Location(
+                "Town", "A town", coordinates=(0, 0), category="town", is_named=True
+            ),
+            "Forest": Location(
+                "Forest", "A forest", coordinates=(1, 0), category="forest", is_named=True
+            ),
         }
         result = render_map(world, "Town")
         grid_section = result.split("Legend:")[0]
@@ -859,10 +879,10 @@ class TestUniqueLocationSymbols:
 
         Spec: Symbol assignment must be consistent between legend and grid display.
         """
-        # Connection needed so adjacent location shows as reachable
+        # Both locations must be named to show letter symbols
         world = {
-            "Alpha": Location("Alpha", "First", {"north": "Beta"}, coordinates=(0, 0)),
-            "Beta": Location("Beta", "Second", {"south": "Alpha"}, coordinates=(0, 1)),
+            "Alpha": Location("Alpha", "First", coordinates=(0, 0), is_named=True),
+            "Beta": Location("Beta", "Second", coordinates=(0, 1), is_named=True),
         }
         result = render_map(world, "Alpha")
         grid_section = result.split("Legend:")[0]
@@ -875,10 +895,10 @@ class TestUniqueLocationSymbols:
 
         Spec: Player marker remains @ (cyan, bold).
         """
-        # Connection needed so adjacent location shows as reachable
+        # Both locations must be named to show letter symbols
         world = {
-            "Town": Location("Town", "A town", {"east": "Forest"}, coordinates=(0, 0)),
-            "Forest": Location("Forest", "A forest", {"west": "Town"}, coordinates=(1, 0)),
+            "Town": Location("Town", "A town", coordinates=(0, 0), is_named=True),
+            "Forest": Location("Forest", "A forest", coordinates=(1, 0), is_named=True),
         }
         result = render_map(world, "Town")
         # Town (current location) should have @ in legend
@@ -889,14 +909,14 @@ class TestUniqueLocationSymbols:
     def test_many_locations_alphabetical_order(self):
         """Multiple locations are assigned letters in alphabetical order by name.
 
-        Spec: Non-current locations get unique letters A-Z in alphabetical order by name.
+        Spec: Non-current named locations get unique letters A-Z in alphabetical order by name.
         """
-        # Connections needed so adjacent locations show as reachable
+        # All locations must be named to show letter symbols
         world = {
-            "Home": Location("Home", "Home base", {"east": "Zebra Zone"}, coordinates=(0, 0)),
-            "Zebra Zone": Location("Zebra Zone", "Z", {"west": "Home", "east": "Apple Orchard"}, coordinates=(1, 0)),
-            "Apple Orchard": Location("Apple Orchard", "A", {"west": "Zebra Zone", "east": "Mountain"}, coordinates=(2, 0)),
-            "Mountain": Location("Mountain", "M", {"west": "Apple Orchard"}, coordinates=(3, 0)),
+            "Home": Location("Home", "Home base", coordinates=(0, 0), is_named=True),
+            "Zebra Zone": Location("Zebra Zone", "Z", coordinates=(1, 0), is_named=True),
+            "Apple Orchard": Location("Apple Orchard", "A", coordinates=(2, 0), is_named=True),
+            "Mountain": Location("Mountain", "M", coordinates=(3, 0), is_named=True),
         }
         result = render_map(world, "Home")
         # Alphabetically: Apple Orchard (A), Mountain (B), Zebra Zone (C)

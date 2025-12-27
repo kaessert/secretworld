@@ -60,15 +60,21 @@ class TestMapRenderer:
         assert "@" in result or "[*]" in result
 
     def test_map_shows_explored_locations(self):
-        """Test all locations in world appear on map.
+        """Test all named locations in world appear on map.
 
-        Spec: All locations should be shown on the map with identifiers
+        Spec: All named locations should be shown on the map with identifiers
         """
-        # Connections needed so adjacent locations show as reachable (not blocked)
+        # All locations must be named to show in legend with letter symbols
         world = {
-            "Town Square": Location("Town Square", "A town square", {"north": "Forest", "east": "Cave"}, coordinates=(0, 0)),
-            "Forest": Location("Forest", "A dark forest", {"south": "Town Square"}, coordinates=(0, 1)),
-            "Cave": Location("Cave", "A dark cave", {"west": "Town Square"}, coordinates=(1, 0)),
+            "Town Square": Location(
+                "Town Square", "A town square", coordinates=(0, 0), is_named=True
+            ),
+            "Forest": Location(
+                "Forest", "A dark forest", coordinates=(0, 1), is_named=True
+            ),
+            "Cave": Location(
+                "Cave", "A dark cave", coordinates=(1, 0), is_named=True
+            ),
         }
         result = render_map(world, "Town Square")
 
