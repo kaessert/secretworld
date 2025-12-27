@@ -1,10 +1,14 @@
 """Secret discovery mechanics using Perception stat."""
+import random
 from enum import Enum
-from typing import List, Tuple
+from typing import List, Optional, Tuple, TYPE_CHECKING
 
 from cli_rpg.models.character import Character
 from cli_rpg.models.item import Item, ItemType
 from cli_rpg.models.location import Location
+
+if TYPE_CHECKING:
+    from cli_rpg.world_grid import SubGrid
 
 
 class SecretType(Enum):
@@ -19,6 +23,106 @@ class SecretType(Enum):
 # Bonuses for active search
 SEARCH_BONUS = 5  # Bonus to PER when actively searching
 LIGHT_BONUS = 2  # Additional bonus when character has active light
+
+# Hidden room templates by parent category
+HIDDEN_ROOM_TEMPLATES = {
+    "dungeon": [
+        ("Hidden Chamber", "A dusty chamber concealed behind the wall. Cobwebs drape ancient shelves."),
+        ("Secret Vault", "A small vault with iron-banded chests. Someone hid their treasures here."),
+        ("Forgotten Cell", "A cramped cell, long abandoned. Scratch marks cover the walls."),
+    ],
+    "cave": [
+        ("Crystal Grotto", "A natural hollow where crystals glitter in the darkness."),
+        ("Hidden Cavern", "A secluded cave with a still pool of water."),
+        ("Secret Pool", "An underground spring hidden from view."),
+    ],
+    "forest": [
+        ("Hidden Glade", "A peaceful clearing hidden by dense undergrowth."),
+        ("Secret Hollow", "A concealed hollow within a massive ancient tree."),
+        ("Fairy Circle", "A mystical circle of mushrooms in a hidden clearing."),
+    ],
+    "temple": [
+        ("Hidden Shrine", "A secret shrine to a forgotten deity."),
+        ("Secret Crypt", "An unmarked crypt beneath the floor."),
+        ("Sacred Chamber", "A chamber of meditation hidden from worldly eyes."),
+    ],
+    "default": [
+        ("Hidden Room", "A secret room concealed behind a false wall."),
+        ("Secret Alcove", "A small alcove hidden from casual view."),
+        ("Concealed Chamber", "A chamber that has been carefully hidden."),
+    ],
+}
+
+
+def generate_hidden_room(
+    location: Location,
+    sub_grid: "SubGrid",
+    direction: str,
+    parent_category: Optional[str] = None,
+) -> Optional[Location]:
+    """Generate a hidden room in the SubGrid at an empty adjacent coordinate.
+
+    Args:
+        location: Current location where door was found
+        sub_grid: The SubGrid to add the room to
+        direction: Direction the hidden door leads (north, south, east, west, up, down)
+        parent_category: Category of parent location for theming
+
+    Returns:
+        The new Location if created, None if no valid position found
+    """
+    from cli_rpg.world_grid import SUBGRID_DIRECTION_OFFSETS
+
+    # Get current location's 3D coordinates
+    if location.coordinates is None:
+        return None
+
+    x, y = location.coordinates[:2]
+    z = location.coordinates[2] if len(location.coordinates) > 2 else 0
+
+    # Get direction offset
+    if direction not in SUBGRID_DIRECTION_OFFSETS:
+        return None
+
+    dx, dy, dz = SUBGRID_DIRECTION_OFFSETS[direction]
+    target_x, target_y, target_z = x + dx, y + dy, z + dz
+
+    # Check if target is within bounds
+    if not sub_grid.is_within_bounds(target_x, target_y, target_z):
+        return None
+
+    # Check if target is already occupied
+    if sub_grid.get_by_coordinates(target_x, target_y, target_z) is not None:
+        return None
+
+    # Get templates for this category
+    category_key = parent_category.lower() if parent_category else "default"
+    templates = HIDDEN_ROOM_TEMPLATES.get(category_key, HIDDEN_ROOM_TEMPLATES["default"])
+
+    # Pick a random template
+    name, description = random.choice(templates)
+
+    # Create the hidden room
+    hidden_room = Location(
+        name=name,
+        description=description,
+        category="hidden_room",
+    )
+
+    # Add to SubGrid (this sets coordinates and parent_location)
+    sub_grid.add_location(hidden_room, target_x, target_y, target_z)
+
+    # 50% chance to add treasure
+    if random.random() < 0.5:
+        hidden_room.hidden_secrets.append({
+            "type": SecretType.HIDDEN_TREASURE.value,
+            "description": "A cache left by whoever built this secret room.",
+            "threshold": 8,  # Easy to find once you're in
+            "discovered": False,
+            "reward_gold": random.randint(20, 50),
+        })
+
+    return hidden_room
 
 
 def check_passive_detection(char: Character, location: Location) -> List[dict]:
@@ -46,7 +150,11 @@ def check_passive_detection(char: Character, location: Location) -> List[dict]:
     return detected
 
 
-def perform_active_search(char: Character, location: Location) -> Tuple[bool, str]:
+def perform_active_search(
+    char: Character,
+    location: Location,
+    sub_grid: Optional["SubGrid"] = None,
+) -> Tuple[bool, str]:
     """Perform active search for hidden secrets using the 'search' command.
 
     Active search grants a +5 bonus to perception, plus +2 if the character
@@ -55,6 +163,7 @@ def perform_active_search(char: Character, location: Location) -> Tuple[bool, st
     Args:
         char: The player character performing the search
         location: The location being searched
+        sub_grid: Optional SubGrid for creating hidden rooms when hidden_door found
 
     Returns:
         Tuple of (found_something, message):
@@ -86,7 +195,7 @@ def perform_active_search(char: Character, location: Location) -> Tuple[bool, st
     messages = []
     for secret in found:
         desc = secret["description"]
-        success, reward_msg = apply_secret_rewards(char, location, secret)
+        success, reward_msg = apply_secret_rewards(char, location, secret, sub_grid)
         if reward_msg:
             messages.append(f"{desc} - {reward_msg}")
         else:
@@ -106,7 +215,8 @@ TRAP_DEX_THRESHOLD = 12
 def apply_secret_rewards(
     char: Character,
     location: Location,
-    secret: dict
+    secret: dict,
+    sub_grid: Optional["SubGrid"] = None,
 ) -> Tuple[bool, str]:
     """Apply rewards/effects for a discovered secret.
 
@@ -114,6 +224,7 @@ def apply_secret_rewards(
         char: Player character
         location: Current location
         secret: The secret dict with type, description, etc.
+        sub_grid: Optional SubGrid for creating hidden rooms when hidden_door found
 
     Returns:
         (success, message) describing what happened
@@ -132,7 +243,7 @@ def apply_secret_rewards(
     elif secret_type == SecretType.LORE_HINT.value:
         messages.append(_apply_lore_reward(char, secret))
     elif secret_type == SecretType.HIDDEN_DOOR.value:
-        messages.append(_apply_hidden_door(location, secret))
+        messages.append(_apply_hidden_door(location, secret, sub_grid))
 
     # Mark reward as applied so it won't be re-applied
     secret["reward_applied"] = True
@@ -268,18 +379,32 @@ def _apply_lore_reward(char: Character, secret: dict) -> str:
     return f"Gained {LORE_HINT_XP} XP for the discovery."
 
 
-def _apply_hidden_door(location: Location, secret: dict) -> str:
-    """Reveal a hidden exit direction.
+def _apply_hidden_door(
+    location: Location,
+    secret: dict,
+    sub_grid: Optional["SubGrid"] = None,
+) -> str:
+    """Reveal a hidden exit direction and create a room if in SubGrid.
 
     Args:
         location: Current location
         secret: The secret dict with exit_direction
+        sub_grid: Optional SubGrid for creating the hidden room
 
     Returns:
         Message describing what happened
     """
-    exit_direction = secret.get("exit_direction", "secret passage")
+    exit_direction = secret.get("exit_direction", "north")
 
+    # Try to generate actual hidden room in SubGrid
+    if sub_grid is not None:
+        hidden_room = generate_hidden_room(
+            location, sub_grid, exit_direction, location.category
+        )
+        if hidden_room is not None:
+            return f"A hidden passage to the {exit_direction} reveals {hidden_room.name}!"
+
+    # Fallback: just add temporary exit (cosmetic)
     if exit_direction not in location.temporary_exits:
         location.temporary_exits.append(exit_direction)
 

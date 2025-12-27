@@ -1,47 +1,75 @@
-# Implementation Summary: Terrain-Aware Random Encounters
+# Implementation Summary: Hidden Rooms via Secret Doors
 
 ## What Was Implemented
 
-Made random encounters respect the current location's terrain type (from WFC generation), with category as fallback.
+This feature makes discovered hidden doors lead to actual navigable hidden rooms within SubGrid locations, rather than just cosmetic temporary exits.
 
-### Changes Made
+### Core Changes
 
-#### 1. Extended ENEMY_TEMPLATES (combat.py, line ~33)
-Added enemy templates for new terrain types:
-- `plains`: Wild Dog, Highwayman, Giant Rat, Roaming Boar
-- `desert`: Scorpion, Sand Serpent, Vulture, Dust Bandit
-- `swamp`: Swamp Leech, Marsh Troll, Bog Hag, Giant Frog
-- `hills`: Hill Giant, Bandit Scout, Wild Goat, Hawk
-- `beach`: Giant Crab, Sea Serpent, Coastal Raider, Seagull Swarm
-- `foothills`: Mountain Cat, Rock Troll, Foothill Bandit, Wild Ram
+1. **`src/cli_rpg/secrets.py`**
+   - Added `HIDDEN_ROOM_TEMPLATES` dictionary with category-specific room templates:
+     - `dungeon`: Hidden Chamber, Secret Vault, Forgotten Cell
+     - `cave`: Crystal Grotto, Hidden Cavern, Secret Pool
+     - `forest`: Hidden Glade, Secret Hollow, Fairy Circle
+     - `temple`: Hidden Shrine, Secret Crypt, Sacred Chamber
+     - `default`: Hidden Room, Secret Alcove, Concealed Chamber
 
-#### 2. Updated spawn_enemy function (combat.py, line ~2163)
-- Added `terrain_type: Optional[str] = None` parameter
-- Updated priority logic: `terrain_type > location_category > name matching`
-- Added terrain type mappings in `category_mappings` dict
-- Added water->beach fallback for edge cases
+   - Added `generate_hidden_room()` function that:
+     - Takes current location, SubGrid, direction, and parent category
+     - Calculates target 3D coordinates using `SUBGRID_DIRECTION_OFFSETS`
+     - Validates target is within bounds and unoccupied
+     - Creates a themed Location using templates
+     - Adds 50% chance of hidden treasure secret in the new room
+     - Returns the new Location (or None if creation failed)
 
-#### 3. Updated _handle_hostile_encounter (random_encounters.py, line ~280)
-- Now passes `terrain_type=location.terrain` to `spawn_enemy()`
+   - Updated `perform_active_search()` to accept optional `sub_grid` parameter
+   - Updated `apply_secret_rewards()` to accept optional `sub_grid` parameter
+   - Updated `_apply_hidden_door()` to:
+     - Attempt room generation when SubGrid is provided
+     - Fall back to temporary_exits when no SubGrid or room creation fails
+     - Return descriptive message including new room name
 
-### Files Modified
-- `src/cli_rpg/combat.py` - Extended ENEMY_TEMPLATES, updated spawn_enemy signature and logic
-- `src/cli_rpg/random_encounters.py` - Pass terrain to spawn_enemy
-- `tests/test_random_encounters.py` - Added TestTerrainAwareEncounters class with 4 tests, updated existing mock
+2. **`src/cli_rpg/main.py`**
+   - Updated search command handler to pass `game_state.current_sub_grid` to `perform_active_search()`
+
+### New Tests
+
+3. **`tests/test_hidden_rooms.py`** (12 tests)
+   - `TestHiddenRoomGeneration`: Tests room creation, bounds checking, occupation detection, template selection, vertical directions, and treasure generation
+   - `TestHiddenDoorCreatesRoom`: Tests integration with search command, SubGrid room creation, and fallback to temporary exits
+   - `TestHiddenRoomNavigation`: Tests that hidden rooms are navigable and have correct parent set
 
 ## Test Results
 
-All tests pass:
-- `tests/test_random_encounters.py`: 32 passed
-- `tests/test_combat.py`: 59 passed
+- All 12 new tests pass
+- All 33 existing secret/perception tests pass (no regression)
+- Full test suite: **4138 passed** in 110.86s
 
-### New Tests Added (TestTerrainAwareEncounters)
-1. `test_hostile_encounter_uses_terrain_for_enemy` - Verifies terrain_type is passed to spawn_enemy
-2. `test_terrain_takes_priority_over_category` - Verifies terrain > category priority
-3. `test_category_used_when_no_terrain` - Verifies category fallback works
-4. `test_new_terrain_types_have_templates` - Verifies all new terrains have enemy lists
+## Technical Details
+
+### Navigation Flow
+1. Player uses `search` command in SubGrid location
+2. If hidden_door secret found and passes PER check, `generate_hidden_room()` is called
+3. New room is placed at adjacent 3D coordinate in SubGrid
+4. Player can now use `go <direction>` to enter the hidden room
+5. Room has parent_location set correctly for exit navigation
+
+### Backward Compatibility
+- Functions with new `sub_grid` parameter default to `None`
+- When `sub_grid=None`, falls back to temporary_exits behavior
+- Overworld hidden doors still use cosmetic temporary_exits
+
+### Room Content
+- Hidden rooms are themed by parent location category
+- 50% chance to contain treasure secret (easy threshold of 8, 20-50 gold)
+- Category set to "hidden_room" for potential future differentiation
 
 ## E2E Validation
-- Travel to locations with WFC-generated terrain and encounter hostiles
-- Verify enemy types match the terrain (e.g., Scorpion in desert, Giant Crab on beach)
-- Verify fallback to category still works for non-terrain locations
+
+To validate end-to-end:
+1. Enter a SubGrid location (dungeon, cave, etc.)
+2. Use `search` command in a room with hidden_door secret
+3. Verify "A hidden passage to the X reveals <Room Name>!" message
+4. Use `go <direction>` to enter the new room
+5. Verify room has themed name/description matching parent category
+6. Use `search` again to find potential treasure in hidden room

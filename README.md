@@ -34,7 +34,7 @@ python -m cli_rpg.main
   - **Hidden Treasure**: Awards gold and items directly to your inventory
   - **Traps**: DEX >= 12 disarms for 10 XP; otherwise takes damage
   - **Lore Hints**: Grants 5 XP for uncovering world lore
-  - **Hidden Doors**: Reveals new exit directions at the current location
+  - **Hidden Doors**: In SubGrid locations (dungeons, caves, etc.), reveals hidden rooms that you can enter via `go <direction>`. Hidden rooms have themed names based on location type and may contain additional treasure secrets. On the overworld, reveals temporary exits instead.
 - **Experience System**: Level up by defeating enemies
 - **Colorized Output**: Color-coded terminal output for improved readability (enemies in red, locations in cyan, items in green, etc.)
 - **Tab Completion**: Auto-complete commands and contextual arguments (directions, NPCs, items) with Tab key

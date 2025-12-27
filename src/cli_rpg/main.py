@@ -1083,7 +1083,11 @@ def handle_exploration_command(game_state: GameState, command: str, args: list[s
     elif command == "search":
         from cli_rpg.secrets import perform_active_search
         location = game_state.get_current_location()
-        found, message = perform_active_search(game_state.current_character, location)
+        found, message = perform_active_search(
+            game_state.current_character,
+            location,
+            sub_grid=game_state.current_sub_grid,
+        )
         return (True, f"\n{message}")
 
     elif command == "track":

@@ -600,10 +600,15 @@ Players want a more sophisticated map system with hierarchical locations.
   - Hidden treasure: awards gold and items
   - Traps: DEX-based disarm (10 XP) or damage
   - Lore hints: 5 XP reward
-  - Hidden doors: reveals new exits via `temporary_exits`
+  - Hidden doors: reveals new exits via `temporary_exits` (overworld) or creates navigable hidden rooms (SubGrid locations)
+- Hidden rooms in SubGrid locations (dungeons, caves, temples, forests):
+  - Generated via `generate_hidden_room()` when hidden door secrets are discovered
+  - Themed room templates based on parent location category (e.g., Crystal Grotto in caves, Hidden Shrine in temples)
+  - 50% chance to contain additional treasure secrets
+  - Navigable via standard `go <direction>` command
+  - 12 tests in `tests/test_hidden_rooms.py`
 
 **Remaining**:
-- Hidden rooms and secret passages (full SubGrid integration)
 - Riddles and puzzles
 - Environmental storytelling
 
@@ -1453,34 +1458,57 @@ Target: Giant Spider x3
 
 ---
 
-### Tiredness not displayed in status command
+### ✅ RESOLVED: Tiredness not displayed in status command
+**Status**: RESOLVED
+**Date Added**: 2025-12-27
+**Date Resolved**: 2025-12-27
+
+**Problem**: The `status` command did not display the player's current tiredness level, despite tiredness being tracked internally.
+
+**Resolution**: Added tiredness meter display to the `status` command output, following the existing pattern used for the Dread meter. The display format is: `TIREDNESS: ████████░░░░░░░░ 53%` with color coding (normal < 60, yellow 60-79, red 80+).
+
+**Files Modified**:
+- `src/cli_rpg/main.py`: Added `tiredness_display = game_state.current_character.tiredness.get_display()` and appended to status output
+- `tests/test_tiredness.py`: Added `TestTirednessStatusDisplay` class with 3 test methods
+
+**Verification**: All 34 tests in `tests/test_tiredness.py` pass.
+
+---
+
+### CRITICAL BUG: Sub-locations not visitable from overworld
 **Status**: ACTIVE
 **Date Added**: 2025-12-27
-**Severity**: Medium (UX Issue)
+**Priority**: CRITICAL - BLOCKS CORE GAMEPLAY
 
-**Problem**: The README documents a "Tiredness System" that tracks player fatigue (0-100), with specific effects:
-- Tiredness increases from travel (+3 per move) and combat (+5 base + 1 per turn)
-- At 80+ tiredness, attack and perception are reduced by 10%
-- Sleep is only available when tiredness reaches 30+
+**Problem**: When at an overworld location that shows an enterable sub-location, the `enter` command fails with "You're not at an overworld location."
 
-However, the `status` command does NOT display the player's current tiredness level. The status output shows Health, Mana, Stamina, Gold, XP, all 6 stats, Time, Weather, and Dread - but no Tiredness indicator.
+**Reproduction**:
+```
+Neon Fields
 
-**Steps to Reproduce**:
-1. Start a new game with `--skip-character-creation`
-2. Move between locations several times (e.g., `gs`, `gn`, `gs`, `gn` x5)
-3. Run `status` command
-4. Observe that tiredness is not displayed, even though it should be ~30+ after 10 moves
+           ~
+    ~~~       ~~~
+  ~~~~~~~~~~~~~~~~~
+ ___________________
+      ~     ~
+   ~     ~     ~
+Endless plains covered in vibrant neon plants...
+NPCs: Razor, Byte, Siren
+Exits: east, north, south, west
+Enter: Neon Fields
 
-**Expected Behavior**: The `status` command should display the current tiredness level, similar to how Dread is displayed with a meter.
+> enter Neon Fields
 
-**Actual Behavior**: Tiredness is tracked internally (the `rest` command shows "Tiredness -25%") but players cannot see their current tiredness value.
+You're not at an overworld location.
+```
 
-**Impact**: Players cannot:
-- Know when they can sleep (requires 30+ tiredness)
-- Know when they're suffering combat penalties (80+ tiredness)
-- Plan their rest strategy effectively
+**Expected Behavior**: The `enter` command should allow the player to enter the displayed sub-location.
 
-**Note**: This is separate from the "Tiredness stat for realistic sleep/rest mechanics" issue which was marked resolved. That issue covered the implementation of tiredness mechanics, but not the UI display of the tiredness value.
+**Likely Cause**: The `enter` command in `game_state.py` is incorrectly detecting the current location as a SubGrid location rather than an overworld location, or the overworld check logic is inverted.
+
+**Files to Investigate**:
+- `src/cli_rpg/game_state.py`: `enter()` method's overworld location validation
+- `src/cli_rpg/main.py`: `enter` command handler
 
 ---
 
