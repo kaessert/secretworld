@@ -30,7 +30,11 @@ python -m cli_rpg.main
 - **Grid-Based World**: Navigate a spatially consistent world where directions are reliable (going north then south returns you to the same place)
 - **Procedural Terrain Generation**: Wave Function Collapse (WFC) terrain generation is enabled by default, providing coherent, infinite terrain with forests, mountains, water, and more. Terrain types affect location generation and some terrain (like water) may be impassable. Use `--no-wfc` to disable.
 - **Lockpicking & Treasure Chests**: Rogues can pick locked chests using DEX-based skill checks. Treasure chests contain valuable items and can be found throughout the world
-- **Secret Discovery**: Use the `search` command to actively search for hidden secrets. Perception (PER) stat determines what you can find - hidden doors, buried treasure, traps, and lore hints await observant players
+- **Secret Discovery**: Use the `search` command to actively search for hidden secrets. Perception (PER) stat determines what you can find. Discovering secrets grants rewards:
+  - **Hidden Treasure**: Awards gold and items directly to your inventory
+  - **Traps**: DEX >= 12 disarms for 10 XP; otherwise takes damage
+  - **Lore Hints**: Grants 5 XP for uncovering world lore
+  - **Hidden Doors**: Reveals new exit directions at the current location
 - **Experience System**: Level up by defeating enemies
 - **Colorized Output**: Color-coded terminal output for improved readability (enemies in red, locations in cyan, items in green, etc.)
 - **Tab Completion**: Auto-complete commands and contextual arguments (directions, NPCs, items) with Tab key

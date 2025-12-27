@@ -56,6 +56,7 @@ class Location:
     is_named: bool = False  # True for story-important POIs, False for terrain filler
     required_faction: Optional[str] = None  # Faction required for entry
     required_reputation: Optional[int] = None  # Min faction rep for entry (1-100)
+    temporary_exits: List[str] = field(default_factory=list)  # Exits revealed by hidden_door secrets
 
     def __post_init__(self) -> None:
         """Validate location attributes after initialization."""
@@ -386,6 +387,8 @@ class Location:
             data["required_faction"] = self.required_faction
         if self.required_reputation is not None:
             data["required_reputation"] = self.required_reputation
+        if self.temporary_exits:
+            data["temporary_exits"] = self.temporary_exits.copy()
         return data
     
     @classmethod
@@ -445,6 +448,8 @@ class Location:
         # Parse faction requirement fields (backward compatibility)
         required_faction = data.get("required_faction")
         required_reputation = data.get("required_reputation")
+        # Parse temporary_exits if present (backward compatibility)
+        temporary_exits = data.get("temporary_exits", [])
         # Note: Legacy 'connections' field is ignored if present (backward compatibility)
         return cls(
             name=data["name"],
@@ -470,6 +475,7 @@ class Location:
             is_named=is_named,
             required_faction=required_faction,
             required_reputation=required_reputation,
+            temporary_exits=temporary_exits,
         )
     
     def __str__(self) -> str:

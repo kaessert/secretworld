@@ -591,11 +591,18 @@ Players want a more sophisticated map system with hierarchical locations.
 ---
 
 ### Secrets and discovery
-**Status**: ACTIVE
+**Status**: ACTIVE (Partial)
 
-**Desired features**:
-- Hidden rooms and secret passages
-- Lore fragments and collectibles
+**Implemented**:
+- Secret discovery via `search` command (PER-based checks)
+- Reward system for discovered secrets:
+  - Hidden treasure: awards gold and items
+  - Traps: DEX-based disarm (10 XP) or damage
+  - Lore hints: 5 XP reward
+  - Hidden doors: reveals new exits via `temporary_exits`
+
+**Remaining**:
+- Hidden rooms and secret passages (full SubGrid integration)
 - Riddles and puzzles
 - Environmental storytelling
 
