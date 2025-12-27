@@ -424,10 +424,14 @@ pytest tests/test_e2e_world_expansion.py -v
 ### 12. AI-Generated Whispers
 - `AIService.generate_whisper()` creates atmospheric ambient whispers as players explore
 - Triggered with 30% chance when entering new locations
-- Parameters: `theme` (world theme), `location_category` (dungeon, forest, town, etc.)
+- Parameters: `theme` (world theme), `location_category` (dungeon, forest, town, etc.), `depth` (z-level for multi-level dungeons)
 - Context-aware generation based on:
   - **World theme**: Whispers fit the game's theme (fantasy, sci-fi, etc.)
   - **Location category**: Whispers reflect the type of area (eerie for dungeons, peaceful for towns)
+  - **Depth level**: Underground whispers (z<0) become increasingly ominous at deeper levels
+- **Depth-based whispers**: When exploring underground (z<0), there's a 40% chance to use depth-specific whispers instead of category whispers. Deeper levels feature more intense, oppressive atmospheric text
+- **Depth-based dread modifier**: Dread builds faster at deeper levels (1.25x at z=-1, 1.5x at z=-2, 2.0x at z≤-3)
+- Expanded template coverage: 8+ whisper templates per location category (dungeon, cave, ruins, temple, forest, town, wilderness)
 - Validates response length (10-100 characters, single sentence)
 - Graceful fallback to template whispers when AI is unavailable or generation fails
 - Whispers display with typewriter effect for atmospheric presentation

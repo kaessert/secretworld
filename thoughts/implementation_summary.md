@@ -1,80 +1,82 @@
-# Environmental Hazards System Implementation Summary
+# Implementation Summary: Dungeon Ambiance System (Issue #27, Increment 1)
 
-## What Was Implemented (Issue #26)
+## Overview
+Implemented a location-specific whisper system for dungeons and interior locations with depth-based intensity and progressive dread.
 
-### New Module: `src/cli_rpg/hazards.py`
-Created a comprehensive environmental hazards system with the following hazard types:
+## Features Implemented
 
-1. **Poison Gas** - Deals 3-6 damage per move in poisonous areas
-2. **Darkness** - Reduces perception by 50% (negated by light source)
-3. **Unstable Ground** - DEX check (d20 + DEX modifier vs DC 12) or take 5-15 fall damage
-4. **Extreme Cold/Heat** - Adds +5 tiredness per move
-5. **Flooded Rooms** - 50% chance to fail movement (slowed)
+### 1. Expanded Category-Specific Whispers
+- **File**: `src/cli_rpg/whisper.py`
+- Expanded `CATEGORY_WHISPERS` dictionary with 8+ templates per category:
+  - `dungeon`: 8 whispers (e.g., "Chains rattle somewhere in the dark", "The torchlight seems dimmer here...")
+  - `cave`: 8 whispers (e.g., "Strange formations gleam in the dim light", "Underground streams whisper of buried secrets...")
+  - `ruins`: 8 whispers (e.g., "Faded murals hint at forgotten stories", "Ghosts of memory drift through empty halls...")
+  - `temple`: 8 whispers (NEW category - e.g., "Incense lingers, though no candles burn", "The divine once dwelt here...")
+  - `forest`: 8 whispers (e.g., "Birdsong falls silent as you approach", "Old growth hides things best left undiscovered...")
+  - Also expanded `town`, `wilderness`, and `default` categories
 
-### Hazard Mitigation
-- **Ranger Class**: Ignores unstable_ground, extreme_cold, extreme_heat (wilderness affinity)
-- **Light Source**: Negates darkness penalty
-- **Poison Gas**: No class-based mitigation (requires antidote/items)
+### 2. Depth-Based Whisper System
+- **File**: `src/cli_rpg/whisper.py`
+- Added `DEPTH_WHISPERS` dictionary with z-level keys:
+  - `0`: Empty (uses standard category whispers)
+  - `-1`: 4 whispers for shallow depth ("The weight of stone presses down above you...")
+  - `-2`: 4 whispers for deep exploration ("Something ancient stirs in the depths below...")
+  - `-3`: 4 whispers for the deepest levels ("The darkness here feels alive, hungry...")
+- Added `DEPTH_WHISPER_CHANCE = 0.40` constant (40% chance to use depth whispers when underground)
+- Updated `_get_template_whisper()` to check for depth whispers before category whispers
 
-### Category-Specific Hazard Pools
-| Category | Possible Hazards |
-|----------|------------------|
-| Dungeon | poison_gas, darkness, unstable_ground |
-| Cave | darkness, flooded, extreme_cold |
-| Ruins | unstable_ground, darkness |
-| Temple | poison_gas, darkness |
+### 3. Depth-Based Dread Modifier
+- **File**: `src/cli_rpg/whisper.py`
+- Added `get_depth_dread_modifier(z: int) -> float` function:
+  - z >= 0: returns 1.0 (no modifier)
+  - z == -1: returns 1.25 (25% more dread)
+  - z == -2: returns 1.5 (50% more dread)
+  - z <= -3: returns 2.0 (capped at 100% more dread)
 
-### Hazard Chance by Distance
-- Distance 0-1: 10% chance for 1 hazard
-- Distance 2-3: 25% for 1 hazard, 10% for 2
-- Distance 4+: 40% for 1 hazard, 20% for 2
+### 4. Updated get_whisper() Signature
+- **File**: `src/cli_rpg/whisper.py`
+- Added `depth: int = 0` parameter to `get_whisper()` method
+- Backward compatible - existing calls without depth continue to work
+
+### 5. SubGrid Movement Integration
+- **File**: `src/cli_rpg/game_state.py`
+- Updated `_move_in_sub_grid()` method to:
+  - Extract z-coordinate from destination location
+  - Call `get_whisper()` with depth parameter
+  - Apply depth dread modifier to dread gains using `get_depth_dread_modifier()`
+  - Display whispers with typewriter effect during dungeon exploration
 
 ## Files Modified
+1. `src/cli_rpg/whisper.py`:
+   - Added `DEPTH_WHISPER_CHANCE` constant
+   - Expanded all category whisper templates to 8+
+   - Added new `temple` category
+   - Added `DEPTH_WHISPERS` dictionary
+   - Added `get_depth_dread_modifier()` function
+   - Updated `get_whisper()` and `_get_template_whisper()` signatures
 
-1. **`src/cli_rpg/models/location.py`**
-   - Added `hazards: List[str]` field (default empty list)
-   - Added serialization in `to_dict()`
-   - Added deserialization in `from_dict()` with backward compatibility
-
-2. **`src/cli_rpg/game_state.py`**
-   - Integrated `check_hazards_on_entry()` call in `_move_in_sub_grid()` method
-   - Hazard effects are applied and messages displayed when entering hazardous rooms
-
-3. **`src/cli_rpg/ai_world.py`**
-   - Added hazard generation in `generate_subgrid_for_location()`
-   - Non-entry rooms get hazards based on category and distance from entrance
-
-## New File Created
-
-1. **`src/cli_rpg/hazards.py`** - Full hazard system with:
-   - `HAZARD_TYPES` constant set
-   - `CATEGORY_HAZARDS` mapping
-   - `RANGER_MITIGATED_HAZARDS` set
-   - `apply_poison_gas()` - applies DOT damage
-   - `check_darkness_penalty()` - returns perception multiplier
-   - `check_unstable_ground()` - DEX check for fall damage
-   - `apply_temperature_effect()` - adds tiredness
-   - `check_flooded_movement()` - 50% movement failure
-   - `can_mitigate_hazard()` - checks class/equipment mitigation
-   - `get_hazards_for_category()` - generates hazards for locations
-   - `check_hazards_on_entry()` - main entry point for processing hazards
+2. `src/cli_rpg/game_state.py`:
+   - Updated `_move_in_sub_grid()` to pass depth to whisper service
+   - Added dread calculation with depth modifier
 
 ## Test Results
-- Created `tests/test_hazards.py` with 27 comprehensive tests
-- All 27 hazard tests pass
-- Full test suite: 4684 passed (1 unrelated flaky test about key placement)
-- Location serialization, persistence, and sub-grid navigation tests all pass
+- Created `tests/test_dungeon_ambiance.py` with 21 tests (spec called for 17, added 4 more for thorough coverage)
+- All 21 new tests pass
+- All 31 existing whisper tests pass (backward compatibility maintained)
+- All 62 game_state tests pass
+- Full test suite: 4610 tests pass
+
+## Test Coverage
+The test file covers:
+- `TestExpandedCategoryWhispers`: Verifies 8+ templates per category
+- `TestDepthWhispers`: Verifies DEPTH_WHISPERS structure and content
+- `TestDepthWhisperSelection`: Verifies depth whisper selection logic
+- `TestDepthDread`: Verifies dread modifier function
+- `TestWhisperIntegrationWithDepth`: Integration tests for SubGrid movement
 
 ## E2E Validation Points
-- Enter a dungeon-type location and navigate deeper rooms
-- Verify hazard messages appear based on room hazards
-- Test Ranger class mitigation for unstable_ground/temperature hazards
-- Test light source mitigation for darkness
-- Verify damage/tiredness effects apply correctly
-- Verify save/load preserves location hazards
-
-## Technical Design Decisions
-- Hazards are stored as string list on Location for simplicity and serialization
-- Hazard effects are processed at room entry (not continuously)
-- Mitigation checks happen before effect application
-- Distance-based hazard chance creates natural difficulty scaling deeper in dungeons
+1. Create a new game and enter a dungeon with multiple levels
+2. Move down through the dungeon levels (z=-1, z=-2, etc.)
+3. Verify whispers become more ominous at deeper levels
+4. Verify dread increases faster at deeper levels
+5. Verify surface-level whispers use standard category templates

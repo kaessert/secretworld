@@ -978,6 +978,34 @@ class GameState:
         if exploration_bonus_message:
             message += exploration_bonus_message
 
+        # Get destination z-coordinate for depth-based features
+        dest_z = 0
+        if destination.coordinates is not None:
+            dest_z = destination.coordinates[2] if len(destination.coordinates) > 2 else 0
+
+        # Update dread based on destination with depth modifier
+        from cli_rpg.whisper import get_depth_dread_modifier
+        category = destination.category or "default"
+        base_dread = DREAD_BY_CATEGORY.get(category, 5)
+        depth_modifier = get_depth_dread_modifier(dest_z)
+        dread_gain = int(base_dread * depth_modifier)
+        dread_message = self.current_character.dread_meter.add_dread(dread_gain)
+        if dread_message:
+            message += f"\n{dread_message}"
+
+        # Check for ambient whisper with depth parameter
+        whisper = self.whisper_service.get_whisper(
+            location_category=destination.category,
+            character=self.current_character,
+            theme=self.theme,
+            is_night=self.game_time.is_night(),
+            dread=self.current_character.dread_meter.dread,
+            depth=dest_z
+        )
+        if whisper:
+            print()  # Blank line for spacing before whisper
+            display_whisper(whisper)
+
         # Progress interior events (clear expired cave-ins)
         from cli_rpg.interior_events import progress_interior_events, check_for_cave_in
         event_messages = progress_interior_events(self, self.current_sub_grid)

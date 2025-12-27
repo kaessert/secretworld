@@ -455,18 +455,28 @@ Create storyline system with branching quests and investigations.
 ---
 
 ### Issue 27: Dungeon Ambiance System
-**Status**: PENDING
+**Status**: PARTIAL ✓
 **Priority**: P3
+**Updated**: 2025-12-27 (Increment 1)
 
 **Problem**: Dungeons have limited atmospheric feedback beyond static descriptions.
 
+**Implementation (Increment 1 - Depth-Based Whispers):**
+- `src/cli_rpg/whisper.py` - Expanded whisper system:
+  - `CATEGORY_WHISPERS`: Expanded to 8+ templates per category (dungeon, cave, ruins, temple, forest, town, wilderness)
+  - `DEPTH_WHISPERS`: New dictionary with depth-specific whispers for z-levels -1, -2, -3+
+  - `DEPTH_WHISPER_CHANCE = 0.40`: 40% chance to use depth whispers when underground
+  - `get_depth_dread_modifier(z)`: Returns dread multiplier based on depth (1.0 surface, 1.25 at z=-1, 1.5 at z=-2, 2.0 at z≤-3)
+  - `get_whisper(depth)`: Updated signature with depth parameter for location-aware whispers
+- `src/cli_rpg/game_state.py` - Integrated depth whispers and dread modifiers into SubGrid movement
+
 **Acceptance Criteria:**
 - [ ] **Ambient sounds**: Dripping water, distant screams
-- [ ] **Progressive dread**: Deeper levels increase dread faster
+- [x] **Progressive dread**: Deeper levels increase dread faster (up to 2x at z≤-3)
 - [ ] **Environmental storytelling**: Corpses, bloodstains, journals
 - [ ] **Weather penetration**: Rain sounds near cave entrance
 - [ ] **Day/night effects**: Undead more active at night
-- [ ] **Location-specific whispers**: Dungeon whispers differ from forest
+- [x] **Location-specific whispers**: Dungeon whispers differ from forest (8+ templates per category, new temple category)
 
 **Related Files:**
 - `src/cli_rpg/whisper.py`
@@ -491,7 +501,7 @@ Create storyline system with branching quests and investigations.
 **Phase 5 - Dynamic Polish (P3)** - Issues 25-27
 - ✓ Interior events - cave-ins (Issue 25 partial)
 - ✓ Environmental hazards (Issue 26 complete)
-- Ambiance system
+- ✓ Ambiance system - depth whispers & progressive dread (Issue 27 partial)
 
 ### AI Content Generation (Remaining)
 

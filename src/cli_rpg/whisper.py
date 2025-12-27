@@ -15,6 +15,7 @@ if TYPE_CHECKING:
 WHISPER_CHANCE = 0.30  # 30% chance of whisper on location entry
 PLAYER_HISTORY_CHANCE = 0.10  # 10% of whispers are player-history-aware
 NIGHT_WHISPER_CHANCE = 0.40  # 40% chance of night whisper when it's night
+DEPTH_WHISPER_CHANCE = 0.40  # 40% chance of depth whisper when underground
 WHISPER_TYPEWRITER_DELAY = 0.03  # Slightly faster than dreams' 0.04
 
 # Night-specific whispers (eerie atmosphere)
@@ -50,36 +51,105 @@ CATEGORY_WHISPERS = {
         "The cobblestones have heard a thousand footsteps...",
         "Somewhere nearby, a door creaks on rusty hinges.",
         "The smell of bread and distant forge fires fills the air.",
+        "Hushed voices carry secrets through narrow alleys.",
+        "A cat watches you from a shadowed windowsill.",
+        "The town bell tolls, marking hours that blur together.",
+        "Laughter echoes from a tavern, warm and distant.",
+        "The market stalls stand silent, waiting for dawn.",
     ],
     "dungeon": [
         "Something skitters in the darkness ahead...",
         "The walls are damp with moisture... or something else.",
         "Ancient carvings here speak of a warning long forgotten.",
+        "Rust-colored stains mark the walls...",
+        "The scent of decay lingers here.",
+        "Chains rattle somewhere in the dark.",
+        "Faint scratching sounds from behind the stones.",
+        "The torchlight seems dimmer here...",
     ],
     "wilderness": [
         "The wind carries whispers from far-off places.",
         "Nature reclaims what was once taken from her.",
         "Somewhere, a creature watches your passage.",
+        "The grass bends beneath an invisible presence.",
+        "A distant howl cuts through the silence.",
+        "Old paths cross here, worn by countless travelers.",
+        "The horizon shimmers with heat or cold.",
+        "Something moves at the edge of your vision.",
     ],
     "ruins": [
         "Echoes of the past linger in these broken stones.",
         "Once, this place knew glory. Now only silence remains.",
         "The dust here has settled for centuries.",
+        "Faded murals hint at forgotten stories.",
+        "Crumbled statues watch with empty eyes.",
+        "The wind plays a mournful tune through cracks.",
+        "Time has been cruel to this place.",
+        "Ghosts of memory drift through empty halls.",
     ],
     "cave": [
         "Dripping water marks the passage of eons.",
         "The darkness here is absolute and patient.",
         "Something ancient sleeps in the depths below.",
+        "Strange formations gleam in the dim light.",
+        "The echo of your footsteps returns distorted.",
+        "Phosphorescent moss traces hidden paths.",
+        "The air grows colder as you venture deeper.",
+        "Underground streams whisper of buried secrets.",
     ],
     "forest": [
         "The trees seem to lean in, listening...",
         "Shafts of light pierce the canopy like golden spears.",
         "The forest remembers those who pass through.",
+        "Birdsong falls silent as you approach.",
+        "Roots twist across the path like grasping fingers.",
+        "The undergrowth rustles with unseen life.",
+        "Old growth hides things best left undiscovered.",
+        "The canopy filters light into emerald shadows.",
+    ],
+    "temple": [
+        "Incense lingers, though no candles burn.",
+        "Sacred symbols watch over forgotten altars.",
+        "The air hums with residual prayers.",
+        "Shadows gather in corners untouched by light.",
+        "Ancient hymns seem to echo from nowhere.",
+        "Offerings lie scattered, aged beyond recognition.",
+        "The divine once dwelt here. Perhaps still does.",
+        "Silence weighs heavy, like a held breath.",
     ],
     "default": [
         "A strange feeling washes over you...",
         "The air here feels different somehow.",
         "You sense you are not entirely alone.",
+        "Something about this place sets you on edge.",
+        "The quiet here is too complete.",
+        "Your instincts whisper of hidden dangers.",
+        "This place holds secrets you cannot yet see.",
+        "An unexplained chill runs down your spine.",
+    ],
+}
+
+# Depth-based whispers for underground exploration (dungeons, caves, etc.)
+# Deeper levels (more negative z) have increasingly ominous whispers
+DEPTH_WHISPERS = {
+    0: [],  # Surface level uses standard category whispers
+    -1: [
+        "The weight of stone presses down above you...",
+        "Echoes seem to take longer to fade here.",
+        "The air grows stale, away from the surface.",
+        "You've descended beyond the reach of sunlight.",
+    ],
+    -2: [
+        "The air grows thick and stale...",
+        "Something ancient stirs in the depths below.",
+        "Few have ventured this deep and returned.",
+        "The walls seem to pulse with an inner darkness.",
+    ],
+    -3: [
+        "You sense you've gone where few return from...",
+        "The darkness here feels alive, hungry.",
+        "Whispers from the abyss call your name.",
+        "Even the stone seems afraid of what lies below.",
     ],
 }
 
@@ -104,6 +174,28 @@ PLAYER_HISTORY_WHISPERS = {
 }
 
 
+def get_depth_dread_modifier(z: int) -> float:
+    """Get dread accumulation modifier based on depth.
+
+    Deeper dungeon levels increase dread accumulation rate to reflect
+    the psychological pressure of exploring underground.
+
+    Args:
+        z: Z-coordinate (0 = surface, negative = underground)
+
+    Returns:
+        Dread multiplier (1.0 at surface, up to 2.0 at depth -3+)
+    """
+    if z >= 0:
+        return 1.0
+    elif z == -1:
+        return 1.25
+    elif z == -2:
+        return 1.5
+    else:  # z <= -3
+        return 2.0
+
+
 class WhisperService:
     """Service for generating ambient whispers."""
 
@@ -121,7 +213,8 @@ class WhisperService:
         character: Optional["Character"] = None,
         theme: str = "fantasy",
         is_night: bool = False,
-        dread: int = 0
+        dread: int = 0,
+        depth: int = 0
     ) -> Optional[str]:
         """Get a whisper for the current location, if one triggers.
 
@@ -131,6 +224,7 @@ class WhisperService:
             theme: World theme for AI generation
             is_night: Whether it's currently night time
             dread: Current dread level (0-100) for paranoid whispers
+            depth: Z-coordinate for depth-based whispers (0 = surface, negative = underground)
 
         Returns:
             Whisper text or None if no whisper triggers
@@ -157,23 +251,32 @@ class WhisperService:
                 pass  # Fall back to templates
 
         # Use template whispers
-        return self._get_template_whisper(location_category, is_night=is_night)
+        return self._get_template_whisper(location_category, is_night=is_night, depth=depth)
 
     def _get_template_whisper(
-        self, category: Optional[str], is_night: bool = False
+        self, category: Optional[str], is_night: bool = False, depth: int = 0
     ) -> str:
         """Get a random template whisper for the location category.
 
         Args:
             category: Location category (town, dungeon, etc.)
             is_night: Whether it's currently night time
+            depth: Z-coordinate for depth-based whispers (0 = surface, negative = underground)
 
         Returns:
-            A random whisper string from the category or night templates
+            A random whisper string from the category, night, or depth templates
         """
         # At night, chance to use night-specific whispers
         if is_night and random.random() < NIGHT_WHISPER_CHANCE:
             return random.choice(NIGHT_WHISPERS)
+
+        # Underground, chance to use depth whispers
+        if depth < 0 and random.random() < DEPTH_WHISPER_CHANCE:
+            # Cap at -3 for whisper lookup
+            depth_key = max(depth, -3)
+            depth_whispers = DEPTH_WHISPERS.get(depth_key, [])
+            if depth_whispers:
+                return random.choice(depth_whispers)
 
         whispers = CATEGORY_WHISPERS.get(category or "default", CATEGORY_WHISPERS["default"])
         return random.choice(whispers)
