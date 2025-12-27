@@ -330,6 +330,12 @@ Quest-giver NPCs can be found throughout the world. Interact with them to receiv
 - Quest details show: "Difficulty: Normal (Recommended: Lv.5)"
 - NPC quest offers show difficulty in brackets: "Goblin Hunt [Hard]"
 
+**Time-Sensitive Quests**: Some quests have time limits that create urgency:
+- Quest journal shows time remaining: "(24h left)" or "(EXPIRED!)"
+- Quest details show: "Time Remaining: 24 hours"
+- Time counts down as you travel and rest (game time, not real time)
+- Expired quests automatically fail - prioritize urgent tasks!
+
 **Quest Progress**: Quests automatically track your progress:
 - **Kill quests**: Progress updates when you defeat matching enemies in combat
 - **Collect quests**: Progress updates when you acquire matching items (from combat loot or shop purchases)

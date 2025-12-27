@@ -1,113 +1,188 @@
-# Quest Difficulty UI/AI Integration Plan
+# Implementation Plan: Time-Sensitive Quests
 
 ## Spec
 
-Complete the quest difficulty feature by wiring it up to UI displays and AI generation. The model layer is already complete (QuestDifficulty enum, difficulty/recommended_level fields, validation, serialization).
+Add optional time limits to quests, creating urgency and gameplay tension. When a time-limited quest expires, it automatically fails.
 
-**Remaining work:**
-1. Display difficulty in quest journal listing
-2. Display difficulty in quest details view
-3. Display difficulty when NPC offers quests
-4. Update AI generation prompt to request difficulty/level
-5. Parse difficulty fields from AI responses
-6. Clone difficulty fields when player accepts quest
+**New Fields on Quest dataclass:**
+- `time_limit_hours: Optional[int] = None` - Hours until quest expires (None = no limit)
+- `accepted_at: Optional[int] = None` - Game hour when quest was accepted
 
-## Tests (tests/test_quest_difficulty_ui.py)
-
+**New Methods:**
 ```python
-class TestQuestDifficultyDisplay:
-    # Journal shows difficulty indicator
-    def test_journal_shows_difficulty_indicator()
+def is_expired(self, current_game_hour: int) -> bool:
+    """Check if quest has expired based on time limit."""
+    if self.time_limit_hours is None or self.accepted_at is None:
+        return False
+    return (current_game_hour - self.accepted_at) >= self.time_limit_hours
 
-    # Quest details shows difficulty and level
-    def test_quest_details_shows_difficulty_and_level()
-
-    # NPC quest list shows difficulty
-    def test_npc_available_quests_shows_difficulty()
-
-class TestQuestDifficultyClone:
-    # Accept command copies difficulty fields
-    def test_accept_copies_difficulty()
-    def test_accept_copies_recommended_level()
-
-class TestQuestDifficultyAIParsing:
-    # AI response parsing handles difficulty
-    def test_parse_quest_includes_difficulty()
-    def test_parse_quest_includes_recommended_level()
-    def test_parse_quest_defaults_difficulty_when_missing()
+def get_time_remaining(self, current_game_hour: int) -> Optional[int]:
+    """Return hours remaining, or None if no time limit."""
+    if self.time_limit_hours is None or self.accepted_at is None:
+        return None
+    remaining = self.time_limit_hours - (current_game_hour - self.accepted_at)
+    return max(0, remaining)
 ```
+
+## Tests (TDD)
+
+Create `tests/test_quest_time_limit.py`:
+
+1. **Model Tests:**
+   - `test_quest_time_limit_defaults_to_none` - new quests have no time limit
+   - `test_quest_accepted_at_defaults_to_none` - new quests have no accepted_at
+   - `test_is_expired_returns_false_when_no_time_limit` - no limit = never expires
+   - `test_is_expired_returns_false_when_time_remaining` - still has time left
+   - `test_is_expired_returns_true_when_time_exceeded` - past deadline
+   - `test_is_expired_returns_true_when_exactly_at_limit` - edge case: exactly at limit
+   - `test_get_time_remaining_returns_none_when_no_limit` - no limit = None
+   - `test_get_time_remaining_returns_hours_left` - calculates correctly
+   - `test_get_time_remaining_returns_zero_when_expired` - floor at 0
+   - `test_time_limit_validation_rejects_zero` - time_limit_hours must be >= 1
+   - `test_time_limit_validation_rejects_negative` - time_limit_hours must be >= 1
+
+2. **Serialization Tests:**
+   - `test_to_dict_includes_time_limit_fields` - serializes new fields
+   - `test_from_dict_restores_time_limit_fields` - deserializes correctly
+   - `test_from_dict_handles_missing_time_fields` - backward compat defaults
+
+3. **Integration Tests:**
+   - `test_accept_quest_sets_accepted_at` - main.py sets accepted_at on accept
+   - `test_companion_quest_sets_accepted_at` - companion_quests.py sets accepted_at
+   - `test_journal_shows_time_remaining` - quests command shows "(Xh left)"
+   - `test_quest_details_shows_time_remaining` - quest command shows deadline
+   - `test_expired_quest_auto_fails` - check_expired_quests fails expired quests
 
 ## Implementation Steps
 
-### 1. Add difficulty display to quest journal (main.py ~line 1827)
+### Step 1: Add fields to Quest model
+**File:** `src/cli_rpg/models/quest.py`
 
-Before:
+Add after line 179 (after `recommended_level`):
 ```python
-lines.append(f"  * {quest.name} [{quest.current_count}/{quest.target_count}]")
+# Time limit fields for urgent quests
+time_limit_hours: Optional[int] = field(default=None)
+accepted_at: Optional[int] = field(default=None)
 ```
 
-After:
+Add validation in `__post_init__` (after recommended_level validation):
 ```python
-diff_icons = {"trivial": ".", "easy": "-", "normal": "~", "hard": "!", "deadly": "!!"}
-diff_icon = diff_icons.get(quest.difficulty.value, "~")
-lines.append(f"  {diff_icon} {quest.name} [{quest.current_count}/{quest.target_count}]")
+# Validate time limit fields
+if self.time_limit_hours is not None and self.time_limit_hours < 1:
+    raise ValueError("time_limit_hours must be at least 1")
 ```
 
-### 2. Add difficulty to quest details (main.py ~line 1872)
-
-After line with "Objective:":
+Add methods after `prerequisites_met`:
 ```python
-lines.append(f"Difficulty: {quest.difficulty.value.capitalize()} (Recommended: Lv.{quest.recommended_level})")
+def is_expired(self, current_game_hour: int) -> bool:
+    """Check if quest has expired based on time limit."""
+    if self.time_limit_hours is None or self.accepted_at is None:
+        return False
+    return (current_game_hour - self.accepted_at) >= self.time_limit_hours
+
+def get_time_remaining(self, current_game_hour: int) -> Optional[int]:
+    """Return hours remaining, or None if no time limit."""
+    if self.time_limit_hours is None or self.accepted_at is None:
+        return None
+    remaining = self.time_limit_hours - (current_game_hour - self.accepted_at)
+    return max(0, remaining)
 ```
 
-### 3. Add difficulty to NPC quest offers (main.py ~line 1350)
+### Step 2: Update Quest serialization
+**File:** `src/cli_rpg/models/quest.py`
 
-Before:
+In `to_dict()` add:
 ```python
-output += f"\n  - {q.name}"
+"time_limit_hours": self.time_limit_hours,
+"accepted_at": self.accepted_at,
 ```
 
-After:
+In `from_dict()` add to constructor:
 ```python
-output += f"\n  - {q.name} [{q.difficulty.value.capitalize()}]"
+time_limit_hours=data.get("time_limit_hours"),
+accepted_at=data.get("accepted_at"),
 ```
 
-### 4. Update quest generation prompt (ai_config.py ~line 182-191)
+### Step 3: Set accepted_at on quest acceptance
+**File:** `src/cli_rpg/main.py` (around line 1699)
 
-Add to JSON schema:
-```json
-"difficulty": "trivial|easy|normal|hard|deadly",
-"recommended_level": <number 1-20>
-```
-
-Add difficulty guidelines after rewards section:
-```
-Difficulty mapping (based on region danger level):
-- "low" danger -> trivial/easy difficulty, recommended_level 1-3
-- "medium" danger -> easy/normal difficulty, recommended_level 3-7
-- "high" danger -> normal/hard difficulty, recommended_level 7-12
-- "deadly" danger -> hard/deadly difficulty, recommended_level 12+
-```
-
-### 5. Update _parse_quest_response (ai_service.py ~line 2055-2064)
-
-Add to return dict:
+When creating new_quest, add:
 ```python
-"difficulty": data.get("difficulty", "normal"),
-"recommended_level": int(data.get("recommended_level", 1)),
+time_limit_hours=matching_quest.time_limit_hours,
+accepted_at=game_state.game_time.total_hours if matching_quest.time_limit_hours else None,
 ```
 
-### 6. Clone difficulty fields in accept (main.py ~line 1697)
+**File:** `src/cli_rpg/companion_quests.py` (around line 73)
 
-Add before closing paren of Quest():
+Update `accept_companion_quest()` signature to accept `current_hour: Optional[int] = None`:
 ```python
-difficulty=matching_quest.difficulty,
-recommended_level=matching_quest.recommended_level,
+def accept_companion_quest(companion: Companion, current_hour: Optional[int] = None) -> Optional[Quest]:
 ```
+
+Add to Quest constructor:
+```python
+time_limit_hours=quest.time_limit_hours,
+accepted_at=current_hour if quest.time_limit_hours and current_hour else None,
+```
+
+Update caller in main.py (around line 2130) to pass current hour:
+```python
+new_quest = accept_companion_quest(companion, game_state.game_time.total_hours)
+```
+
+### Step 4: Display time remaining in journal
+**File:** `src/cli_rpg/main.py`
+
+In `quests` command (around line 1830), modify active quest display:
+```python
+time_info = ""
+if quest.time_limit_hours:
+    remaining = quest.get_time_remaining(game_state.game_time.total_hours)
+    if remaining is not None and remaining > 0:
+        time_info = f" ({remaining}h left)"
+    elif remaining == 0:
+        time_info = " (EXPIRED!)"
+lines.append(f"  {diff_icon} {quest.name} [{quest.current_count}/{quest.target_count}]{time_info}")
+```
+
+In `quest` command details (around line 1878), add after Progress line:
+```python
+if quest.time_limit_hours:
+    remaining = quest.get_time_remaining(game_state.game_time.total_hours)
+    if remaining is not None:
+        if remaining > 0:
+            lines.append(f"Time Remaining: {remaining} hours")
+        else:
+            lines.append("Time Remaining: EXPIRED!")
+```
+
+### Step 5: Add expired quest check
+**File:** `src/cli_rpg/game_state.py`
+
+Add method to GameState:
+```python
+def check_expired_quests(self) -> list[str]:
+    """Check for and fail any expired time-limited quests.
+
+    Returns:
+        List of messages about failed quests
+    """
+    from cli_rpg.models.quest import QuestStatus
+    messages = []
+    current_hour = self.game_time.total_hours
+    for quest in self.current_character.quests:
+        if quest.status == QuestStatus.ACTIVE and quest.is_expired(current_hour):
+            quest.status = QuestStatus.FAILED
+            messages.append(f"Quest '{quest.name}' has expired and failed!")
+    return messages
+```
+
+Call this in `move()` method after advancing time, display any failure messages.
 
 ## Files to Modify
 
-1. `src/cli_rpg/main.py` - Display in journal, details, NPC offers; clone on accept
-2. `src/cli_rpg/ai_config.py` - Update DEFAULT_QUEST_GENERATION_PROMPT
-3. `src/cli_rpg/ai_service.py` - Parse difficulty/recommended_level in _parse_quest_response
-4. `tests/test_quest_difficulty_ui.py` - New test file for UI/parsing tests
+1. `src/cli_rpg/models/quest.py` - Add fields, validation, methods, serialization
+2. `src/cli_rpg/main.py` - Set accepted_at on accept, display time in journal/details
+3. `src/cli_rpg/companion_quests.py` - Update accept_companion_quest signature
+4. `src/cli_rpg/game_state.py` - Add check_expired_quests method, call in move()
+5. `tests/test_quest_time_limit.py` - New test file

@@ -445,6 +445,8 @@ class TestSerialization:
             "completed_branch_id": None,
             "difficulty": "normal",
             "recommended_level": 1,
+            "time_limit_hours": None,
+            "accepted_at": None,
         }
 
     def test_from_dict(self):

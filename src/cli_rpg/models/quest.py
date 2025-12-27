@@ -177,6 +177,9 @@ class Quest:
     # Difficulty indicators
     difficulty: QuestDifficulty = field(default=QuestDifficulty.NORMAL)
     recommended_level: int = field(default=1)
+    # Time limit fields for urgent quests
+    time_limit_hours: Optional[int] = field(default=None)
+    accepted_at: Optional[int] = field(default=None)
 
     def __post_init__(self) -> None:
         """Validate quest attributes after initialization."""
@@ -229,6 +232,10 @@ class Quest:
         if self.recommended_level < 1:
             raise ValueError("recommended_level must be at least 1")
 
+        # Validate time limit fields
+        if self.time_limit_hours is not None and self.time_limit_hours < 1:
+            raise ValueError("time_limit_hours must be at least 1")
+
     @property
     def is_complete(self) -> bool:
         """Check if the quest objective has been met.
@@ -251,6 +258,33 @@ class Quest:
             return True
         completed_lower = {q.lower() for q in completed_quests}
         return all(prereq.lower() in completed_lower for prereq in self.prerequisite_quests)
+
+    def is_expired(self, current_game_hour: int) -> bool:
+        """Check if quest has expired based on time limit.
+
+        Args:
+            current_game_hour: The current game hour (total hours elapsed)
+
+        Returns:
+            True if quest has exceeded its time limit, False otherwise
+        """
+        if self.time_limit_hours is None or self.accepted_at is None:
+            return False
+        return (current_game_hour - self.accepted_at) >= self.time_limit_hours
+
+    def get_time_remaining(self, current_game_hour: int) -> Optional[int]:
+        """Return hours remaining until quest expires, or None if no time limit.
+
+        Args:
+            current_game_hour: The current game hour (total hours elapsed)
+
+        Returns:
+            Hours remaining (floored at 0), or None if quest has no time limit
+        """
+        if self.time_limit_hours is None or self.accepted_at is None:
+            return None
+        remaining = self.time_limit_hours - (current_game_hour - self.accepted_at)
+        return max(0, remaining)
 
     def progress(self) -> bool:
         """Increment current_count and check if quest is complete.
@@ -292,6 +326,8 @@ class Quest:
             "completed_branch_id": self.completed_branch_id,
             "difficulty": self.difficulty.value,
             "recommended_level": self.recommended_level,
+            "time_limit_hours": self.time_limit_hours,
+            "accepted_at": self.accepted_at,
         }
 
     @classmethod
@@ -337,6 +373,8 @@ class Quest:
             completed_branch_id=data.get("completed_branch_id"),
             difficulty=QuestDifficulty(data.get("difficulty", "normal")),
             recommended_level=data.get("recommended_level", 1),
+            time_limit_hours=data.get("time_limit_hours"),
+            accepted_at=data.get("accepted_at"),
         )
 
     def get_branches_display(self) -> List[dict]:

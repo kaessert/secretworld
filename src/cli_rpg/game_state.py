@@ -647,6 +647,9 @@ class GameState:
         travel_time = 1 + self.weather.get_travel_modifier()
         self.game_time.advance(travel_time)
 
+        # Check for expired time-limited quests after time advances
+        expired_quest_messages = self.check_expired_quests()
+
         # Autosave after successful movement
         try:
             autosave(self)
@@ -665,6 +668,10 @@ class GameState:
         if self.weather.condition != "clear":
             weather_flavor = self.weather.get_flavor_text()
             message += f"\n{weather_flavor}"
+
+        # Add expired quest messages (quests that failed due to time limit)
+        for expired_msg in expired_quest_messages:
+            message += f"\n{colors.error(expired_msg)}"
 
         # Trigger weather transition after movement
         self.weather.transition()
@@ -1114,6 +1121,22 @@ class GameState:
             List of choice dicts matching the specified type
         """
         return [c for c in self.choices if c["choice_type"] == choice_type]
+
+    def check_expired_quests(self) -> list[str]:
+        """Check for and fail any expired time-limited quests.
+
+        Returns:
+            List of messages about failed quests
+        """
+        from cli_rpg.models.quest import QuestStatus
+
+        messages = []
+        current_hour = self.game_time.total_hours
+        for quest in self.current_character.quests:
+            if quest.status == QuestStatus.ACTIVE and quest.is_expired(current_hour):
+                quest.status = QuestStatus.FAILED
+                messages.append(f"Quest '{quest.name}' has expired and failed!")
+        return messages
 
     def get_or_create_world_context(self) -> WorldContext:
         """Get cached world context or generate/create default.

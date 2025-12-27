@@ -1696,6 +1696,8 @@ def handle_exploration_command(game_state: GameState, command: str, args: list[s
             unlocks_quests=matching_quest.unlocks_quests.copy(),
             difficulty=matching_quest.difficulty,
             recommended_level=matching_quest.recommended_level,
+            time_limit_hours=matching_quest.time_limit_hours,
+            accepted_at=game_state.game_time.total_hours if matching_quest.time_limit_hours else None,
         )
         game_state.current_character.quests.append(new_quest)
         autosave(game_state)
@@ -1828,7 +1830,15 @@ def handle_exploration_command(game_state: GameState, command: str, args: list[s
             diff_icons = {"trivial": ".", "easy": "-", "normal": "~", "hard": "!", "deadly": "!!"}
             for quest in active_quests:
                 diff_icon = diff_icons.get(quest.difficulty.value, "~")
-                lines.append(f"  {diff_icon} {quest.name} [{quest.current_count}/{quest.target_count}]")
+                # Add time remaining info for time-limited quests
+                time_info = ""
+                if quest.time_limit_hours:
+                    remaining = quest.get_time_remaining(game_state.game_time.total_hours)
+                    if remaining is not None and remaining > 0:
+                        time_info = f" ({remaining}h left)"
+                    elif remaining == 0:
+                        time_info = " (EXPIRED!)"
+                lines.append(f"  {diff_icon} {quest.name} [{quest.current_count}/{quest.target_count}]{time_info}")
 
         if completed_quests:
             lines.append("\nCompleted Quests:")
@@ -1877,6 +1887,14 @@ def handle_exploration_command(game_state: GameState, command: str, args: list[s
             f"Objective: {quest.objective_type.value.capitalize()} {quest.target}",
             f"Progress: {quest.current_count}/{quest.target_count}",
         ])
+        # Add time remaining for time-limited quests
+        if quest.time_limit_hours:
+            remaining = quest.get_time_remaining(game_state.game_time.total_hours)
+            if remaining is not None:
+                if remaining > 0:
+                    lines.append(f"Time Remaining: {remaining} hours")
+                else:
+                    lines.append("Time Remaining: EXPIRED!")
         return (True, "\n".join(lines))
 
     elif command == "bestiary":
@@ -2127,7 +2145,7 @@ def handle_exploration_command(game_state: GameState, command: str, args: list[s
             )
 
         # Accept quest
-        new_quest = accept_companion_quest(companion)
+        new_quest = accept_companion_quest(companion, game_state.game_time.total_hours)
         if new_quest is None:
             return (True, f"\nFailed to accept {companion.name}'s quest.")
 

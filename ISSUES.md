@@ -1095,19 +1095,32 @@ Fully implemented:
 - AI response parsing with backward-compatible defaults
 - 11 model tests + 14 UI/AI integration tests
 
-**5. Time-Sensitive Quests (MEDIUM PRIORITY)**
+**5. Time-Sensitive Quests ✅ COMPLETE (2025-12-27)**
+
+Implemented time-limited quests that expire after a set number of game hours:
 
 ```python
 @dataclass
 class Quest:
-    time_limit_hours: Optional[int] = None
-    accepted_at: Optional[int] = None
+    time_limit_hours: Optional[int] = None  # Hours until quest expires (None = no limit)
+    accepted_at: Optional[int] = None  # Game hour when quest was accepted
 
     def is_expired(self, current_game_hour: int) -> bool:
         if self.time_limit_hours is None:
             return False
         return (current_game_hour - self.accepted_at) >= self.time_limit_hours
+
+    def get_time_remaining(self, current_game_hour: int) -> Optional[int]:
+        # Returns hours remaining, or None if no time limit
 ```
+
+**Features implemented:**
+- Quest model fields: `time_limit_hours`, `accepted_at`
+- `is_expired()` and `get_time_remaining()` methods
+- Expired quests auto-fail when time advances (via `check_expired_quests()` in `move()`)
+- Journal shows countdown: "(Xh left)" or "(EXPIRED!)"
+- Quest details show: "Time Remaining: X hours" or "EXPIRED!"
+- 29 tests covering all time limit functionality
 
 **6. Branching Objectives ✅ COMPLETE (2025-12-27)**
 
@@ -1184,7 +1197,7 @@ completed_quest_outcomes: List[QuestOutcome] = field(default_factory=list)
 | Quest chains & prerequisites | High | Medium | ✅ **DONE** |
 | Branching objectives/choices | High | High | ✅ **DONE** |
 | Difficulty indicators | Medium | Low | ✅ **DONE** |
-| Time-sensitive quests | Medium | Low | **P2** |
+| Time-sensitive quests | Medium | Low | ✅ **DONE** |
 | Multi-stage objectives | Medium | High | **P2** |
 | Quest memory/NPC reactions | Medium | Medium | **P3** |
 

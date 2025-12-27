@@ -39,15 +39,19 @@ def is_quest_available(companion: Companion) -> bool:
     return bond_level in (BondLevel.TRUSTED, BondLevel.DEVOTED)
 
 
-def accept_companion_quest(companion: Companion) -> Optional[Quest]:
+def accept_companion_quest(
+    companion: Companion, current_hour: Optional[int] = None
+) -> Optional[Quest]:
     """Accept a companion's personal quest, returning an ACTIVE copy for the player.
 
     Creates a copy of the quest with:
     - Status set to ACTIVE
     - quest_giver set to the companion's name
+    - accepted_at set to current_hour if quest has a time limit
 
     Args:
         companion: The companion whose quest to accept
+        current_hour: The current game hour for setting accepted_at on time-limited quests
 
     Returns:
         A new Quest instance ready for the player's quest log, or None if
@@ -72,6 +76,8 @@ def accept_companion_quest(companion: Companion) -> Optional[Quest]:
         item_rewards=quest.item_rewards.copy() if quest.item_rewards else [],
         quest_giver=companion.name,
         drop_item=quest.drop_item,
+        time_limit_hours=quest.time_limit_hours,
+        accepted_at=current_hour if quest.time_limit_hours and current_hour else None,
     )
 
 
