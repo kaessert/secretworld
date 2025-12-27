@@ -213,7 +213,7 @@ Status effects are cleared when combat ends.
 - **Revenge** (Defend → Defend → Attack): Counter-attack dealing damage equal to damage taken while defending
 - **Arcane Burst** (Cast → Cast → Cast): Empowered spell dealing 2x magic damage (costs 25 mana total)
 
-The combat status shows your last actions (e.g., "Last actions: [Attack] → [Defend]"). When a combo pattern is complete, you'll see "COMBO AVAILABLE: Frenzy!" - perform the matching action to trigger the combo. Fleeing clears your action history.
+The combat status shows your last actions (e.g., "Last actions: [Attack] → [Defend]"). When a combo pattern is complete, you'll see "COMBO AVAILABLE: Frenzy! (Type 'frenzy' to use)" - type the combo name to trigger it. Fleeing clears your action history.
 
 **Targeting:** When facing multiple enemies, you can target specific enemies by name (e.g., `attack goblin` or `cast orc`). Partial, case-insensitive matching is supported. If no target is specified, attacks hit the first living enemy.
 

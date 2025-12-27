@@ -825,23 +825,25 @@ Issues discovered during WFC mode playtesting (WFC is now enabled by default; up
 
 #### LOW PRIORITY / UX ISSUES
 
-1. **Combo system unclear**
-   - During combat, "COMBO AVAILABLE: Frenzy!" displayed but no obvious trigger command
-   - **Suggestion**: Add hint text like "Type 'frenzy' to use combo!" or document in help
+1. ~~**Combo system unclear**~~ ✅ RESOLVED (2025-12-27)
+   - Fixed: Combo notifications now include usage hint (e.g., "COMBO AVAILABLE: Frenzy! (Type 'frenzy' to use)")
+   - File modified: `src/cli_rpg/combat.py`
 
-2. **Confusing "exit" message when not in sub-location**
-   - Using `exit` when not inside sub-location shows "You're not inside a landmark."
-   - **Suggestion**: Change to "You're not inside a building or dungeon. Use 'go <direction>' to travel."
+2. ~~**Confusing "exit" message when not in sub-location**~~ ✅ RESOLVED (2025-12-27)
+   - Fixed: Changed message from "You're not inside a landmark." to "You're not inside a building or dungeon. Use 'go <direction>' to travel."
+   - Files modified: `src/cli_rpg/game_state.py`, `tests/test_game_state.py`
 
-3. **"bye" command outside of talk mode is confusing**
-   - Typing `bye` when not talking to an NPC shows: "Unknown command 'bye'. Did you mean 'buy'?"
-   - Suggests "buy" which is also contextual (shop only)
-   - Better: "The 'bye' command ends conversations. Use it while talking to an NPC."
+3. ~~**"bye" command outside of talk mode is confusing**~~ ✅ RESOLVED (2025-12-27)
+   - Fixed: Now shows "The 'bye' command ends conversations. Use it while talking to an NPC."
+   - No longer incorrectly suggests "buy" command
+   - Files modified: `src/cli_rpg/main.py`, `tests/test_main.py`
 
-4. **"accept" could auto-accept single quest**
-   - When talking to NPC with only one quest, "accept" says "Accept what? Specify a quest name."
-   - If only one quest available, could auto-accept it
-   - At minimum, show: "Accept what? Available: Quest Name"
+4. ~~**"accept" could auto-accept single quest**~~ ✅ RESOLVED (2025-12-27)
+   - Fixed: Bare `accept` command now auto-accepts when NPC has exactly one available quest
+   - When 0 quests available: Shows "X doesn't offer any quests."
+   - When 2+ quests available: Shows "Accept what? Available: Quest1, Quest2, ..."
+   - Files modified: `src/cli_rpg/main.py` (lines 1595-1615)
+   - Tests added: 4 new tests in `tests/test_npc_quests.py`
 
 5. **Terrain blocking message varies**
    - Water blocked: "The water ahead is impassable."

@@ -267,22 +267,155 @@ class TestAcceptCommand:
 
         assert "talk to an NPC first" in output.lower() or "npc first" in output.lower()
 
-    def test_accept_requires_quest_name(self):
-        """Accept command fails without specifying a quest name."""
+    def test_accept_auto_accepts_single_quest(self):
+        """Bare 'accept' auto-accepts when NPC offers exactly one available quest.
+
+        Spec: When player types 'accept' without arguments while talking to an NPC
+        with exactly one available quest, auto-accept that quest.
+        """
         from cli_rpg.main import handle_exploration_command
 
-        npc = NPC(name="Captain", description="Guard captain", dialogue="Hello!")
+        quest = Quest(
+            name="Kill Goblins",
+            description="Defeat goblins.",
+            objective_type=ObjectiveType.KILL,
+            target="goblin",
+            target_count=5
+        )
+        npc = NPC(
+            name="Captain",
+            description="Guard captain",
+            dialogue="We need heroes!",
+            is_quest_giver=True,
+            offered_quests=[quest]
+        )
         location = Location(name="Town", description="A town.", coordinates=(0, 0), npcs=[npc])
         character = Character(name="Hero", strength=10, dexterity=10, intelligence=10)
         game_state = GameState(character, {"Town": location}, "Town")
 
-        # First talk to the NPC to set context
+        # Talk to NPC first
         handle_exploration_command(game_state, "talk", ["Captain"])
 
-        # Then try to accept without a quest name
+        # Bare accept should auto-accept the single quest
         _, output = handle_exploration_command(game_state, "accept", [])
 
-        assert "specify" in output.lower()
+        assert len(character.quests) == 1
+        assert character.quests[0].name == "Kill Goblins"
+        assert character.quests[0].status == QuestStatus.ACTIVE
+        assert "Kill Goblins" in output
+
+    def test_accept_lists_quests_when_multiple(self):
+        """Bare 'accept' shows available quests when NPC has 2+ quests.
+
+        Spec: When NPC has 2+ available quests, show "Accept what? Available: Quest1, Quest2".
+        """
+        from cli_rpg.main import handle_exploration_command
+
+        quest1 = Quest(
+            name="Kill Goblins",
+            description="Defeat goblins.",
+            objective_type=ObjectiveType.KILL,
+            target="goblin"
+        )
+        quest2 = Quest(
+            name="Collect Herbs",
+            description="Gather herbs.",
+            objective_type=ObjectiveType.COLLECT,
+            target="herb"
+        )
+        npc = NPC(
+            name="Captain",
+            description="Guard captain",
+            dialogue="We need heroes!",
+            is_quest_giver=True,
+            offered_quests=[quest1, quest2]
+        )
+        location = Location(name="Town", description="A town.", coordinates=(0, 0), npcs=[npc])
+        character = Character(name="Hero", strength=10, dexterity=10, intelligence=10)
+        game_state = GameState(character, {"Town": location}, "Town")
+
+        # Talk to NPC first
+        handle_exploration_command(game_state, "talk", ["Captain"])
+
+        # Bare accept should list available quests
+        _, output = handle_exploration_command(game_state, "accept", [])
+
+        assert len(character.quests) == 0  # No quest accepted
+        assert "Accept what?" in output
+        assert "Kill Goblins" in output
+        assert "Collect Herbs" in output
+
+    def test_accept_no_quests_shows_none(self):
+        """Bare 'accept' shows no quests message when NPC isn't a quest giver.
+
+        Spec: When NPC has 0 available quests, show "X doesn't offer any quests."
+        """
+        from cli_rpg.main import handle_exploration_command
+
+        npc = NPC(name="Guard", description="A guard", dialogue="Halt!")
+        location = Location(name="Town", description="A town.", coordinates=(0, 0), npcs=[npc])
+        character = Character(name="Hero", strength=10, dexterity=10, intelligence=10)
+        game_state = GameState(character, {"Town": location}, "Town")
+
+        # Talk to NPC first
+        handle_exploration_command(game_state, "talk", ["Guard"])
+
+        # Bare accept should show no quests message
+        _, output = handle_exploration_command(game_state, "accept", [])
+
+        assert len(character.quests) == 0
+        assert "doesn't offer any quests" in output.lower()
+
+    def test_accept_auto_accepts_only_available_quest(self):
+        """Bare 'accept' auto-accepts when NPC has multiple quests but only one available.
+
+        Spec: Available quests = quests the player doesn't already have.
+        """
+        from cli_rpg.main import handle_exploration_command
+
+        quest1 = Quest(
+            name="Kill Goblins",
+            description="Defeat goblins.",
+            objective_type=ObjectiveType.KILL,
+            target="goblin"
+        )
+        quest2 = Quest(
+            name="Collect Herbs",
+            description="Gather herbs.",
+            objective_type=ObjectiveType.COLLECT,
+            target="herb"
+        )
+        npc = NPC(
+            name="Captain",
+            description="Guard captain",
+            dialogue="We need heroes!",
+            is_quest_giver=True,
+            offered_quests=[quest1, quest2]
+        )
+        location = Location(name="Town", description="A town.", coordinates=(0, 0), npcs=[npc])
+        character = Character(name="Hero", strength=10, dexterity=10, intelligence=10)
+
+        # Player already has the first quest
+        existing_quest = Quest(
+            name="Kill Goblins",
+            description="Defeat goblins.",
+            objective_type=ObjectiveType.KILL,
+            target="goblin",
+            status=QuestStatus.ACTIVE
+        )
+        character.quests.append(existing_quest)
+
+        game_state = GameState(character, {"Town": location}, "Town")
+
+        # Talk to NPC first
+        handle_exploration_command(game_state, "talk", ["Captain"])
+
+        # Bare accept should auto-accept the only available quest
+        _, output = handle_exploration_command(game_state, "accept", [])
+
+        assert len(character.quests) == 2  # Now has both quests
+        assert any(q.name == "Collect Herbs" for q in character.quests)
+        assert "Collect Herbs" in output
 
     def test_accept_adds_quest_to_character(self):
         """Accept command adds quest to character with ACTIVE status."""

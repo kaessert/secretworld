@@ -1,25 +1,37 @@
-# Implementation Summary: Fix "bye" command error message
+# Implementation Summary: Auto-accept Single Quest
 
-## What was implemented
+## What Was Implemented
 
-Fixed the error message displayed when typing "bye" outside of NPC conversation mode. Previously, it would suggest "buy" (which is also contextual), now it provides a helpful contextual message explaining that "bye" is for ending conversations.
+Added auto-accept functionality for the bare `accept` command in `src/cli_rpg/main.py` (lines 1595-1615).
 
-### Files Modified
+**Behavior:**
+- **1 available quest**: Auto-accepts it (sets `args` and continues to normal accept flow)
+- **0 available quests**: Shows "X doesn't offer any quests."
+- **2+ available quests**: Shows "Accept what? Available: Quest1, Quest2, ..."
 
-1. **src/cli_rpg/main.py** (line 2316-2318):
-   - Added special case handling for "bye" in the unknown command handler
-   - Returns contextual message: "The 'bye' command ends conversations. Use it while talking to an NPC."
+Available quests = quests the NPC offers that the player doesn't already have.
 
-2. **tests/test_main.py**:
-   - Added test `test_bye_command_outside_talk_mode` that verifies:
-     - "buy" is NOT suggested when typing "bye"
-     - The message mentions "bye" and explains it's for conversations/NPC interactions
+## Files Modified
+
+1. **`src/cli_rpg/main.py`** (lines 1586-1618): Added logic in the `accept` command handler to:
+   - Check if NPC is a quest giver with offered quests
+   - Filter available quests (exclude already-acquired quests)
+   - Auto-accept if exactly 1 available, list names if 2+, show "no quests" if 0
+
+2. **`tests/test_npc_quests.py`**: Replaced `test_accept_requires_quest_name` with 4 new tests:
+   - `test_accept_auto_accepts_single_quest` - NPC with 1 quest, bare "accept" works
+   - `test_accept_lists_quests_when_multiple` - NPC with 2+ quests, shows list
+   - `test_accept_no_quests_shows_none` - Non-quest-giver NPC shows "doesn't offer"
+   - `test_accept_auto_accepts_only_available_quest` - Player has 1 of 2 quests, auto-accepts remaining
 
 ## Test Results
 
-- All 6 tests in test_main.py pass
-- Full test suite: 3662 tests pass
+All 23 tests in `tests/test_npc_quests.py` pass, including the 4 new tests and all existing tests (no regressions).
 
-## Technical Details
+## E2E Validation
 
-The fix intercepts the "bye" command in `handle_exploration_command()` before it reaches the generic `suggest_command()` function. This prevents the string similarity matching from incorrectly suggesting "buy".
+To test manually:
+1. Start game, find an NPC quest giver with 1 quest
+2. `talk <npc_name>` to start conversation
+3. Type `accept` (no args) - quest should be accepted automatically
+4. Find NPC with 2+ quests, type bare `accept` - should list available quest names

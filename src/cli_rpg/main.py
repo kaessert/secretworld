@@ -1587,10 +1587,32 @@ def handle_exploration_command(game_state: GameState, command: str, args: list[s
         # Accept a quest from the current NPC
         if game_state.current_npc is None:
             return (True, "\nYou need to talk to an NPC first.")
-        if not args:
-            return (True, "\nAccept what? Specify a quest name.")
 
         from cli_rpg.models.quest import Quest, QuestStatus
+
+        npc = game_state.current_npc
+
+        # Handle bare "accept" command - auto-accept if exactly one available quest
+        if not args:
+            # Check if NPC offers quests at all
+            if not npc.is_quest_giver or not npc.offered_quests:
+                return (True, f"\n{npc.name} doesn't offer any quests.")
+
+            # Get available quests (filter out quests player already has)
+            available_quests = [
+                q for q in npc.offered_quests
+                if not game_state.current_character.has_quest(q.name)
+            ]
+
+            if len(available_quests) == 0:
+                return (True, f"\n{npc.name} doesn't offer any quests.")
+            elif len(available_quests) == 1:
+                # Auto-accept the single available quest
+                args = [available_quests[0].name]
+            else:
+                # Multiple available quests - list them
+                quest_names = ", ".join(q.name for q in available_quests)
+                return (True, f"\nAccept what? Available: {quest_names}")
 
         quest_name = " ".join(args)
         npc = game_state.current_npc

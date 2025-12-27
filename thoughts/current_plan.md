@@ -1,71 +1,31 @@
-# Implementation Plan: Verify and Document Shop Pricing Fix
+# Plan: Auto-accept single quest when typing bare "accept"
 
-## Summary
-The "Inconsistent shop pricing message" bug (ISSUES.md line 805) is **already fixed**. The shop display and buy error message both show the same adjusted price. This plan adds a regression test and marks the issue as resolved.
+## Spec
+When a player types "accept" without arguments while talking to an NPC with exactly one available quest (that the player doesn't already have), auto-accept that quest instead of showing an error.
 
-## Problem Statement
-Per ISSUES.md: "Shop displays: 'Iron Sword - 100 gold', Error says: '99 gold needed'"
+**Behavior:**
+- If NPC has exactly 1 available quest → auto-accept it
+- If NPC has 0 available quests → show "X doesn't offer any quests."
+- If NPC has 2+ available quests → show "Accept what? Available: Quest1, Quest2" (list quest names)
 
-## Analysis Findings
+## Test (update existing test in tests/test_npc_quests.py)
 
-### Code Review
-Both shop display (main.py:1384-1396) and buy command (main.py:1425-1437) use **identical price calculation logic**:
-1. Apply CHA modifier via `get_cha_price_modifier()`
-2. Apply faction modifier if present
-3. Apply persuade discount (20%) if NPC was persuaded
-4. Apply haggle bonus if active
+Update `test_accept_requires_quest_name` to test new behavior:
 
-### Manual Verification
+1. **test_accept_auto_accepts_single_quest**: NPC with 1 quest, bare "accept" → quest accepted
+2. **test_accept_lists_quests_when_multiple**: NPC with 2+ quests, bare "accept" → shows available quest names
+3. **test_accept_no_quests_shows_none**: NPC is not quest giver, bare "accept" → shows "doesn't offer any quests"
+
+## Implementation (src/cli_rpg/main.py, lines 1590-1591)
+
+Replace the current `if not args` block:
 ```python
-# Test with CHA 11 (0.99 modifier), 100g base price, 50g in pocket
-# Shop display: "Iron Sword - 99 gold"
-# Buy error: "You can't afford Iron Sword (99 gold)."
+if not args:
+    return (True, "\nAccept what? Specify a quest name.")
 ```
 
-Prices match! The issue was fixed as part of the "Shop price inconsistency" fix on 2025-12-26.
-
-## Implementation Steps
-
-### 1. Add regression test
-**File**: `tests/test_shop_price_consistency.py`
-
-```python
-def test_shop_display_matches_buy_error_with_cha_modifier():
-    """Shop display price matches buy error message price when CHA modifier applies.
-
-    Regression test for ISSUES.md bug: "Shop displays: 'Iron Sword - 100 gold',
-    Error says: '99 gold needed'"
-    """
-    # Create shop with 100g item
-    # Create character with CHA 11 (0.99 modifier), insufficient gold
-    # Verify shop shows 99g
-    # Verify buy error shows 99g
-```
-
-### 2. Mark issue as resolved in ISSUES.md
-**Location**: Line 805
-
-**Change**:
-```markdown
-3. **Inconsistent shop pricing message**
-```
-
-**To**:
-```markdown
-3. ~~**Inconsistent shop pricing message**~~ ✅ RESOLVED (2025-12-27)
-   - Already fixed as part of shop price consistency fix on 2025-12-26
-   - Regression test added in `tests/test_shop_price_consistency.py`
-```
-
-## Files to Modify
-
-| File | Changes |
-|------|---------|
-| `tests/test_shop_price_consistency.py` | New file with regression test |
-| `ISSUES.md` | Mark issue #3 as resolved (lines 805-807) |
-
-## Success Criteria
-
-1. New test passes verifying shop display price == buy error price
-2. All 3657+ tests continue to pass
-3. Issue marked resolved in ISSUES.md
+With logic that:
+1. Gets available quests (filter out quests player already has)
+2. If exactly 1 available quest → set `args = [quest.name]` and continue to accept flow
+3. If 0 available quests → return "doesn't offer any quests"
+4. If 2+ available quests → return "Accept what? Available: Quest1, Quest2, ..."
