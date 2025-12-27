@@ -40,6 +40,40 @@ MONSTER_MIGRATION_CATEGORIES = CAVE_IN_CATEGORIES
 # Encounter modifier range (0.5x to 2.0x)
 MONSTER_MIGRATION_MODIFIER_RANGE = (0.5, 2.0)
 
+# Rival adventurer constants
+# Spawn chance: 15% on SubGrid entry (higher than per-move events since checked once)
+RIVAL_SPAWN_CHANCE = 0.15
+
+# Party size: 1-3 rival adventurers
+RIVAL_PARTY_SIZE_RANGE = (1, 3)
+
+# Location categories where rivals can spawn (same as cave-ins)
+RIVAL_CATEGORIES = CAVE_IN_CATEGORIES
+
+# Rival party names for flavor
+RIVAL_PARTY_NAMES = [
+    "The Iron Seekers",
+    "Shadow Company",
+    "Fortune's Edge",
+    "The Blade Collective",
+    "Crimson Oath",
+    "The Wanderers",
+]
+
+# Rival adventurer combat templates
+RIVAL_ADVENTURER_TEMPLATES = [
+    {"name": "Rival Warrior", "hp": 30, "attack": 8, "defense": 4},
+    {"name": "Rival Mage", "hp": 20, "attack": 10, "defense": 2},
+    {"name": "Rival Rogue", "hp": 25, "attack": 9, "defense": 3},
+]
+
+# Warning messages at different progress percentages
+RIVAL_WARNING_MESSAGES = {
+    25: "You hear distant voices echoing through the corridors...",
+    50: "The sound of hurried footsteps reaches your ears from ahead!",
+    75: "You hear combat sounds in the distance - someone else is fighting!",
+}
+
 
 @dataclass
 class InteriorEvent:
@@ -47,13 +81,18 @@ class InteriorEvent:
 
     Attributes:
         event_id: Unique identifier for this event
-        event_type: Type of event (e.g., "cave_in", "monster_migration")
+        event_type: Type of event (e.g., "cave_in", "monster_migration", "rival_adventurers")
         location_coords: 3-tuple (x, y, z) where the event occurred
         blocked_direction: Direction that is blocked by this event (for cave_in)
         start_hour: Game hour when the event started
         duration_hours: How long the event lasts (in game hours)
         is_active: Whether the event is still in effect
         affected_rooms: Dict of {(x,y,z): modifier} for monster_migration events
+        rival_party: List of rival NPC dicts for rival_adventurers events
+        target_room: Name of boss/treasure room rivals are racing to
+        rival_progress: Current progress toward target (in turns)
+        arrival_turns: Turns until rivals arrive at target
+        rival_at_target: True if rivals have arrived at target room
     """
 
     event_id: str
@@ -64,6 +103,12 @@ class InteriorEvent:
     duration_hours: int
     is_active: bool = True
     affected_rooms: Optional[dict] = None
+    # Rival adventurer fields
+    rival_party: Optional[List[dict]] = None
+    target_room: Optional[str] = None
+    rival_progress: int = 0
+    arrival_turns: int = 0
+    rival_at_target: bool = False
 
     def is_expired(self, current_hour: int) -> bool:
         """Check if the event has expired based on current game time.
@@ -88,6 +133,18 @@ class InteriorEvent:
         remaining = (self.start_hour + self.duration_hours) - current_hour
         return max(0, remaining)
 
+    def is_rival_arrived(self) -> bool:
+        """Check if rival party has arrived at target.
+
+        For rival_adventurers events, returns True when progress >= arrival_turns.
+
+        Returns:
+            True if rivals have arrived at target, False otherwise
+        """
+        if self.event_type != "rival_adventurers":
+            return False
+        return self.rival_progress >= self.arrival_turns
+
     def to_dict(self) -> dict:
         """Serialize the event to a dictionary.
 
@@ -109,6 +166,17 @@ class InteriorEvent:
                 [list(coords), modifier]
                 for coords, modifier in self.affected_rooms.items()
             ]
+        # Serialize rival adventurer fields
+        if self.rival_party is not None:
+            result["rival_party"] = self.rival_party
+        if self.target_room is not None:
+            result["target_room"] = self.target_room
+        if self.rival_progress != 0:
+            result["rival_progress"] = self.rival_progress
+        if self.arrival_turns != 0:
+            result["arrival_turns"] = self.arrival_turns
+        if self.rival_at_target:
+            result["rival_at_target"] = self.rival_at_target
         return result
 
     @classmethod
@@ -138,6 +206,12 @@ class InteriorEvent:
             duration_hours=data["duration_hours"],
             is_active=data.get("is_active", True),
             affected_rooms=affected_rooms,
+            # Rival adventurer fields (with backward-compatible defaults)
+            rival_party=data.get("rival_party"),
+            target_room=data.get("target_room"),
+            rival_progress=data.get("rival_progress", 0),
+            arrival_turns=data.get("arrival_turns", 0),
+            rival_at_target=data.get("rival_at_target", False),
         )
 
 
@@ -499,3 +573,315 @@ def get_active_migrations(sub_grid: "SubGrid") -> List[InteriorEvent]:
         for event in sub_grid.interior_events
         if event.is_active and event.event_type == "monster_migration"
     ]
+
+
+# -----------------------------------------------------------------------------
+# Rival Adventurer Functions
+# -----------------------------------------------------------------------------
+
+
+def _find_target_rooms(sub_grid: "SubGrid") -> tuple[Optional[str], Optional[str]]:
+    """Find boss room and treasure room in SubGrid.
+
+    Args:
+        sub_grid: The SubGrid to search
+
+    Returns:
+        Tuple of (boss_room_name, treasure_room_name), either may be None
+    """
+    boss_room = None
+    treasure_room = None
+
+    for location in sub_grid._by_name.values():
+        # Check for boss room (undefeated boss)
+        if location.boss_enemy and not location.boss_defeated:
+            boss_room = location.name
+        # Check for treasure room (unopened treasure)
+        if location.treasures:
+            for treasure in location.treasures:
+                if not treasure.get("opened", False):
+                    treasure_room = location.name
+                    break
+
+    return boss_room, treasure_room
+
+
+def _calculate_distance_to_target(sub_grid: "SubGrid", target_name: str) -> int:
+    """Calculate Manhattan distance from entry to target room.
+
+    Args:
+        sub_grid: The SubGrid containing the rooms
+        target_name: Name of the target room
+
+    Returns:
+        Manhattan distance (minimum 3 to ensure some race time)
+    """
+    entry_coords = None
+    target_coords = None
+
+    for location in sub_grid._by_name.values():
+        if location.is_exit_point:
+            entry_coords = location.coordinates
+        if location.name == target_name:
+            target_coords = location.coordinates
+
+    if entry_coords is None or target_coords is None:
+        return 5  # Default if can't calculate
+
+    # Calculate Manhattan distance in 3D
+    e_x, e_y = entry_coords[:2]
+    e_z = entry_coords[2] if len(entry_coords) > 2 else 0
+    t_x, t_y = target_coords[:2]
+    t_z = target_coords[2] if len(target_coords) > 2 else 0
+
+    distance = abs(t_x - e_x) + abs(t_y - e_y) + abs(t_z - e_z)
+    return max(3, distance)  # Minimum 3 turns
+
+
+def _create_rival_party(party_size: int) -> List[dict]:
+    """Create a party of rival adventurers.
+
+    Args:
+        party_size: Number of rivals (1-3)
+
+    Returns:
+        List of rival adventurer dicts with combat stats
+    """
+    party = []
+    templates = RIVAL_ADVENTURER_TEMPLATES.copy()
+    random.shuffle(templates)
+
+    for i in range(party_size):
+        template = templates[i % len(templates)]
+        party.append(template.copy())
+
+    return party
+
+
+def check_for_rival_spawn(
+    game_state: "GameState",
+    sub_grid: "SubGrid",
+) -> Optional[str]:
+    """Check if rival adventurers should spawn on SubGrid entry.
+
+    Called once when player first enters a SubGrid. Spawns rivals
+    with RIVAL_SPAWN_CHANCE probability if a valid target exists.
+    Selects target (boss room preferred, then treasure room).
+    Calculates arrival_turns based on distance from entry.
+
+    Args:
+        game_state: Current game state
+        sub_grid: The SubGrid the player is entering
+
+    Returns:
+        Message describing the rival spawn if one occurred, None otherwise
+    """
+    # Check if parent location category allows rivals
+    parent_location = game_state.world.get(sub_grid.parent_name)
+    if parent_location is None:
+        return None
+
+    parent_category = (parent_location.category or "").lower()
+    if parent_category not in RIVAL_CATEGORIES:
+        return None
+
+    # Check if rival event already exists (don't spawn twice)
+    if get_active_rival_event(sub_grid) is not None:
+        return None
+
+    # Roll for rival spawn
+    if random.random() > RIVAL_SPAWN_CHANCE:
+        return None
+
+    # Find target rooms
+    boss_room, treasure_room = _find_target_rooms(sub_grid)
+
+    # Prefer boss room over treasure room
+    target_room = boss_room or treasure_room
+    if target_room is None:
+        return None  # No valid targets
+
+    # Calculate arrival time based on distance
+    arrival_turns = _calculate_distance_to_target(sub_grid, target_room)
+
+    # Create rival party (1-3 members)
+    min_size, max_size = RIVAL_PARTY_SIZE_RANGE
+    party_size = random.randint(min_size, max_size)
+    rival_party = _create_rival_party(party_size)
+
+    # Choose party name
+    party_name = random.choice(RIVAL_PARTY_NAMES)
+
+    # Create the rival event
+    event_id = f"rival_{random.randint(1000, 9999)}"
+    event = InteriorEvent(
+        event_id=event_id,
+        event_type="rival_adventurers",
+        location_coords=(0, 0, 0),  # Entry point
+        blocked_direction="",
+        start_hour=game_state.game_time.total_hours,
+        duration_hours=0,  # Not time-based
+        rival_party=rival_party,
+        target_room=target_room,
+        rival_progress=0,
+        arrival_turns=arrival_turns,
+    )
+
+    sub_grid.interior_events.append(event)
+
+    # Return spawn message
+    return colors.warning(
+        f"You sense you're not alone... {party_name} has entered ahead of you, "
+        f"racing toward the depths!"
+    )
+
+
+def progress_rival_party(
+    game_state: "GameState",
+    sub_grid: "SubGrid",
+) -> Optional[str]:
+    """Advance rival party progress by 1 turn.
+
+    Called after each player move in SubGrid. Returns warning message
+    based on progress percentage. If rivals arrive, updates target room
+    (defeats boss/opens treasure) and marks rivals at location.
+
+    Args:
+        game_state: Current game state
+        sub_grid: The SubGrid containing the rival event
+
+    Returns:
+        Warning or arrival message if applicable, None otherwise
+    """
+    rival_event = get_active_rival_event(sub_grid)
+    if rival_event is None:
+        return None
+
+    # Already arrived, no more progress needed
+    if rival_event.rival_at_target:
+        return None
+
+    # Increment progress
+    rival_event.rival_progress += 1
+
+    # Check for arrival
+    if rival_event.is_rival_arrived():
+        return _handle_rival_arrival(sub_grid, rival_event)
+
+    # Check for warning message based on progress percentage
+    if rival_event.arrival_turns > 0:
+        progress_pct = (rival_event.rival_progress / rival_event.arrival_turns) * 100
+
+        for threshold in sorted(RIVAL_WARNING_MESSAGES.keys()):
+            # Trigger message when just crossing threshold
+            prev_progress = rival_event.rival_progress - 1
+            prev_pct = (prev_progress / rival_event.arrival_turns) * 100
+
+            if prev_pct < threshold <= progress_pct:
+                return colors.warning(RIVAL_WARNING_MESSAGES[threshold])
+
+    return None
+
+
+def _handle_rival_arrival(
+    sub_grid: "SubGrid",
+    rival_event: InteriorEvent,
+) -> str:
+    """Handle rivals arriving at their target room.
+
+    Updates the target location (defeats boss or opens treasure)
+    and positions rivals at that location.
+
+    Args:
+        sub_grid: The SubGrid containing the target
+        rival_event: The rival event that just arrived
+
+    Returns:
+        Message describing what happened
+    """
+    rival_event.rival_at_target = True
+
+    target = sub_grid.get_by_name(rival_event.target_room)
+    if target is None:
+        return colors.error("The rival party has reached their destination!")
+
+    # Update rival event location to target room
+    if target.coordinates:
+        rival_event.location_coords = target.coordinates
+
+    # Check if it's a boss room
+    if target.boss_enemy and not target.boss_defeated:
+        target.boss_defeated = True
+        return colors.damage(
+            f"You hear a triumphant shout echo through the corridors - "
+            f"rival adventurers have defeated the boss in {target.name}!"
+        )
+
+    # Check if it's a treasure room
+    if target.treasures:
+        for treasure in target.treasures:
+            treasure["opened"] = True
+        return colors.damage(
+            f"You hear excited voices and the clinking of coins - "
+            f"rival adventurers have claimed the treasure in {target.name}!"
+        )
+
+    return colors.damage("The rival party has reached their destination!")
+
+
+def get_active_rival_event(sub_grid: "SubGrid") -> Optional[InteriorEvent]:
+    """Get the active rival adventurer event, if any.
+
+    Args:
+        sub_grid: The SubGrid to check
+
+    Returns:
+        The active rival event if one exists, None otherwise
+    """
+    for event in sub_grid.interior_events:
+        if event.is_active and event.event_type == "rival_adventurers":
+            return event
+    return None
+
+
+def get_rival_encounter_at_location(
+    sub_grid: "SubGrid",
+    location: "Location",
+) -> Optional[InteriorEvent]:
+    """Check if rival adventurers are at the specified location.
+
+    Used to trigger combat when player enters a room with rivals.
+
+    Args:
+        sub_grid: The SubGrid to check
+        location: The location to check for rivals
+
+    Returns:
+        The rival event if rivals are at this location, None otherwise
+    """
+    from cli_rpg.models.location import Location
+
+    rival_event = get_active_rival_event(sub_grid)
+    if rival_event is None:
+        return None
+
+    # Check if rivals have arrived at target
+    if not rival_event.rival_at_target:
+        return None
+
+    # Check if this is the target room
+    if rival_event.target_room == location.name:
+        return rival_event
+
+    # Also check by coordinates
+    if location.coordinates and rival_event.location_coords:
+        loc_coords = location.coordinates
+        if len(loc_coords) == 2:
+            loc_coords = (loc_coords[0], loc_coords[1], 0)
+        event_coords = rival_event.location_coords
+        if len(event_coords) == 2:
+            event_coords = (event_coords[0], event_coords[1], 0)
+        if loc_coords == event_coords:
+            return rival_event
+
+    return None

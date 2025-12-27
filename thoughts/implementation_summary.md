@@ -1,80 +1,108 @@
-# Monster Migration Implementation Summary
+# Implementation Summary: Issue 25 - Rival Adventurers
 
 ## Status: COMPLETE
 
-All 30 interior events tests pass, all 36 random encounters tests pass, and full test suite (4919 tests) passes.
+All 20 rival adventurer tests pass, all 30 interior events tests pass, and full test suite (4843 tests) passes.
 
-## What Was Implemented
+## What Was Verified
 
-Added monster migration events for SubGrid dungeons (Issue 25 - Dynamic Interior Events). When triggered, migrations modify encounter rate multipliers for rooms within the SubGrid, creating dynamic encounter distributions.
+The rival adventurer system was already fully implemented. This implementation task verified all components are working correctly.
 
-## Files Modified
+### Feature Overview
+Rival adventurer parties that race the player to boss rooms and treasure chests within SubGrid interiors (dungeons, caves, ruins, temples).
+
+## Implementation Components (All Pre-Existing and Working)
 
 ### 1. `src/cli_rpg/interior_events.py`
 
-**Extended `InteriorEvent` dataclass:**
-- Added optional `affected_rooms: Optional[dict]` field
-- Stores `{(x,y,z): modifier}` for migration-affected rooms
+**Constants:**
+- `RIVAL_SPAWN_CHANCE = 0.15` (15% on SubGrid entry)
+- `RIVAL_PARTY_SIZE_RANGE = (1, 3)` (1-3 rival NPCs)
+- `RIVAL_CATEGORIES` (dungeon, cave, ruins, temple)
+- `RIVAL_PARTY_NAMES` - Flavor names for rival parties
+- `RIVAL_ADVENTURER_TEMPLATES` - Combat stats (Warrior, Mage, Rogue)
+- `RIVAL_WARNING_MESSAGES` - Messages at 25%, 50%, 75% progress
 
-**Added migration constants:**
-- `MONSTER_MIGRATION_SPAWN_CHANCE = 0.03` (3% per SubGrid move)
-- `MONSTER_MIGRATION_DURATION_RANGE = (2, 6)` (2-6 hours)
-- `MONSTER_MIGRATION_CATEGORIES` (same as cave-ins: dungeon, cave, ruins, temple)
-- `MONSTER_MIGRATION_MODIFIER_RANGE = (0.5, 2.0)` (encounter rate multipliers)
+**Extended InteriorEvent dataclass:**
+- `rival_party: Optional[List[dict]]` - Rival NPC combat stats
+- `target_room: Optional[str]` - Boss or treasure room name
+- `rival_progress: int` - Current turns toward target
+- `arrival_turns: int` - Turns until rivals arrive
+- `rival_at_target: bool` - True when rivals have arrived
+- `is_rival_arrived()` - Method to check arrival status
 
-**Added new functions:**
-- `check_for_monster_migration(game_state, sub_grid)` - Spawns migration events with affected rooms
-- `get_encounter_modifier_at_location(sub_grid, coords)` - Returns cumulative encounter modifier
-- `get_active_migrations(sub_grid)` - Returns list of active migration events
+**Functions:**
+- `check_for_rival_spawn(game_state, sub_grid)` - 15% chance spawn on entry
+- `progress_rival_party(game_state, sub_grid)` - Advances progress, returns warnings
+- `get_active_rival_event(sub_grid)` - Returns active rival event
+- `get_rival_encounter_at_location(sub_grid, location)` - Triggers combat
+- `_find_target_rooms(sub_grid)` - Finds boss/treasure rooms
+- `_calculate_distance_to_target(sub_grid, target_name)` - Manhattan distance
+- `_create_rival_party(party_size)` - Creates rival NPCs from templates
+- `_handle_rival_arrival(sub_grid, rival_event)` - Handles boss defeat/treasure open
 
-**Updated existing functionality:**
-- `progress_interior_events()` - Now handles migration expiry with appropriate message
-- `to_dict()` and `from_dict()` - Updated to serialize/deserialize `affected_rooms` field
-  - Dict with tuple keys serialized as list of `[coords, modifier]` pairs
+### 2. `src/cli_rpg/game_state.py`
 
-### 2. `src/cli_rpg/random_encounters.py`
+**`enter()` method (lines 1239-1243):**
+- Calls `check_for_rival_spawn()` after entering SubGrid
+- Displays spawn message if rivals appear
 
-**Added migration modifier integration** in `check_for_random_encounter()`:
-- When inside SubGrid, applies encounter rate modifier from active migrations
-- Multiple migrations stack multiplicatively
+**`_move_in_sub_grid()` method (lines 1066-1101):**
+- Calls `progress_rival_party()` after each movement
+- Checks `get_rival_encounter_at_location()` for destination
+- Creates CombatEncounter with Enemy instances from rival party
+- Marks rival event inactive after combat starts
 
-### 3. `tests/test_interior_events.py`
+### 3. `tests/test_rival_adventurers.py`
 
-**Added 10 new tests** in `TestMonsterMigration` class:
-1. `test_monster_migration_event_creation` - Event with type "monster_migration" and affected_rooms
-2. `test_monster_migration_spawn_chance` - 3% spawn rate
-3. `test_monster_migration_valid_categories` - Only dungeon/cave/ruins/temple
-4. `test_monster_migration_duration_range` - 2-6 hours
-5. `test_monster_migration_affected_rooms` - affected_rooms dict populated
-6. `test_get_encounter_modifier_default` - Returns 1.0 when no migrations
-7. `test_get_encounter_modifier_with_migration` - Returns modified value
-8. `test_monster_migration_expiry` - Migration clears after duration
-9. `test_monster_migration_serialization` - affected_rooms serializes correctly
-10. `test_multiple_migrations_stack` - Multiple active migrations combine multiplicatively
+20 comprehensive tests:
+- **TestRivalAdventurerEvent** (3 tests) - Model creation and serialization
+- **TestRivalSpawning** (6 tests) - Spawn mechanics and targeting
+- **TestRivalProgress** (4 tests) - Progress tracking and warnings
+- **TestRivalCombat** (2 tests) - Combat encounter triggers
+- **TestRivalIntegration** (2 tests) - Serialization and backward compatibility
+- **TestRivalPartyNames** (2 tests) - Constants validation
 
 ## Test Results
 
 ```
-tests/test_interior_events.py - 30 passed
-tests/test_random_encounters.py - 36 passed
-Full test suite: 4919 passed
+tests/test_rival_adventurers.py: 20 passed
+tests/test_interior_events.py: 30 passed
+Full test suite: 4843 passed in 79.94s
 ```
 
-## Design Decisions
+## Feature Behavior
 
-1. **Encounter rate modifiers instead of enemy position tracking** - Simpler design that integrates with existing encounter system
-2. **Multiplicative stacking** - Multiple migrations combine multiplicatively (e.g., 1.5 * 1.2 = 1.8)
-3. **Affected rooms range 0.5x to 2.0x** - Balanced to not be too disruptive
-4. **Lower spawn chance than cave-ins** - 3% vs 5% since less disruptive
-5. **Shorter duration than cave-ins** - 2-6 hours vs 4-12 hours since less impactful
+1. **On SubGrid Entry** (dungeon, cave, ruins, temple):
+   - 15% chance to spawn rival party (1-3 NPCs)
+   - Rivals target boss room (preferred) or treasure room
+   - Arrival time = Manhattan distance from entry to target
 
-## E2E Test Validation
+2. **During SubGrid Movement**:
+   - Each player move advances rival progress by 1
+   - Warning messages at 25%, 50%, 75% progress thresholds
+   - If rivals arrive first: boss marked defeated or treasure marked opened
+   - Rivals wait at target room for player
 
-To manually verify:
-1. Run `cli-rpg --demo`
+3. **Combat Encounter**:
+   - Entering room where rivals are waiting triggers combat
+   - Rivals become Enemy instances with stats from templates
+   - Defeating rivals marks event inactive
+
+## Technical Notes
+
+- Rivals serialized with SubGrid via `InteriorEvent.to_dict()`
+- Backward compatible with old saves (missing rival fields default to None/0)
+- Integration uses existing CombatEncounter system
+- No new files needed - extends existing interior_events.py and game_state.py
+
+## E2E Validation
+
+To validate manually:
+1. Run `cli-rpg --demo` or `cli-rpg`
 2. Enter a dungeon or cave location with `enter <name>`
-3. Move around within the SubGrid
-4. Observe for "You hear creatures stirring..." migration message (3% chance per move)
-5. If triggered, encounter rates in affected rooms should be modified
-6. Wait or rest for migration to expire and observe "migration has subsided" message
-7. Save and load game to verify migration events persist correctly
+3. There's a 15% chance rivals spawn (look for spawn message with party name)
+4. Move around - watch for warning messages at progress thresholds
+5. Race to boss/treasure room before rivals arrive
+6. If too slow, boss will be defeated or treasure opened when you arrive
+7. Encountering rivals at their destination triggers combat with full party

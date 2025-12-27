@@ -173,6 +173,13 @@ Merchants and wanderers are added to your current location and can be interacted
 
 **Rogue Sneak**: Rogues can use the `sneak` command before moving to attempt to avoid random encounters. Success depends on DEX, armor weight, and whether carrying a light source.
 
+### Interior Events
+When exploring dungeon interiors (dungeons, caves, ruins, temples), dynamic events can occur that affect your exploration:
+
+- **Cave-ins** (5% per move): Passages may suddenly collapse, blocking a direction for 4-12 hours. The blockage clears automatically with time.
+- **Monster Migrations** (3% per move): Monster activity shifts within the dungeon, modifying encounter rates in affected rooms (0.5x to 2.0x) for 2-6 hours.
+- **Rival Adventurers** (15% on entry): A competing adventurer party may spawn when you enter a dungeon, racing you to boss rooms or treasure chests. You'll receive warning messages as they progress (at 25%, 50%, 75% completion). If rivals reach their target first, they'll defeat the boss or open the treasure. Encountering rivals at their destination triggers combat with the full party (1-3 adventurers).
+
 ### Combat System
 Combat encounters occur randomly as you explore. You may face multiple enemies at once (1-2 enemies at lower levels, up to 3 at level 4+). Enemies display ASCII art when combat begins.
 

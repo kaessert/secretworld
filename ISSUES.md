@@ -496,7 +496,7 @@ Created QuestNetworkManager for managing interconnected quest storylines.
 ### Issue 25: Dynamic Interior Events
 **Status**: PARTIAL ✓
 **Priority**: P3
-**Updated**: 2025-12-28 (Monster Migration)
+**Updated**: 2025-12-28 (Rival Adventurers)
 
 **Problem**: World events only affect the overworld. Dungeon interiors feel static.
 
@@ -520,10 +520,26 @@ Created QuestNetworkManager for managing interconnected quest storylines.
 - `src/cli_rpg/random_encounters.py` - Integrates migration modifiers into encounter rate calculation
 - 10 new tests in `tests/test_interior_events.py` (`TestMonsterMigration` class)
 
+**Implementation (Rival Adventurers):**
+- `src/cli_rpg/interior_events.py` - Extended with:
+  - `RIVAL_SPAWN_CHANCE = 0.15`: 15% spawn chance on SubGrid entry
+  - `RIVAL_PARTY_SIZE_RANGE = (1, 3)`: 1-3 rival NPCs per party
+  - `RIVAL_CATEGORIES`: dungeon, cave, ruins, temple
+  - `RIVAL_PARTY_NAMES`: Flavor names for rival parties
+  - `RIVAL_ADVENTURER_TEMPLATES`: Combat stats (Warrior, Mage, Rogue)
+  - `RIVAL_WARNING_MESSAGES`: Messages at 25%, 50%, 75% progress
+  - `InteriorEvent` extended: `rival_party`, `target_room`, `rival_progress`, `arrival_turns`, `rival_at_target`
+  - `check_for_rival_spawn()`: Spawns rivals targeting boss/treasure rooms
+  - `progress_rival_party()`: Advances rival progress, returns warning messages
+  - `get_rival_encounter_at_location()`: Triggers combat when player reaches rivals
+  - `_handle_rival_arrival()`: Handles boss defeat/treasure opening when rivals arrive first
+- `src/cli_rpg/game_state.py` - Integrated rival spawning on `enter()` and progress/combat in `_move_in_sub_grid()`
+- 20 new tests in `tests/test_rival_adventurers.py`
+
 **Acceptance Criteria:**
 - [x] **Cave-in**: Temporarily blocks passages (4-12 hours, auto-clears)
 - [x] **Monster migration**: Changes enemy spawn rates via room-specific modifiers (2-6 hours)
-- [ ] **Rival adventurers**: NPCs racing player to boss/treasure
+- [x] **Rival adventurers**: NPCs racing player to boss/treasure (15% spawn, combat encounter)
 - [ ] **Ritual in progress**: Time-limited boss fight
 - [ ] **Spreading hazard**: Fire/flooding through dungeon
 
@@ -532,6 +548,7 @@ Created QuestNetworkManager for managing interconnected quest storylines.
 - `src/cli_rpg/world_grid.py`
 - `src/cli_rpg/game_state.py`
 - `src/cli_rpg/random_encounters.py`
+- `tests/test_rival_adventurers.py`
 
 ---
 
@@ -609,7 +626,7 @@ Created QuestNetworkManager for managing interconnected quest storylines.
 - ✓ Exploration progress tracking (Issue 24 complete)
 
 **Phase 5 - Dynamic Polish (P3)** - Issues 25-27
-- ✓ Interior events - cave-ins (Issue 25 partial)
+- ✓ Interior events - cave-ins, monster migrations, rival adventurers (Issue 25 partial - ritual/spreading hazard remaining)
 - ✓ Environmental hazards (Issue 26 complete)
 - ✓ Ambiance system - depth whispers & progressive dread (Issue 27 partial)
 

@@ -1047,7 +1047,12 @@ class GameState:
             display_whisper(whisper)
 
         # Progress interior events (clear expired cave-ins)
-        from cli_rpg.interior_events import progress_interior_events, check_for_cave_in
+        from cli_rpg.interior_events import (
+            progress_interior_events,
+            check_for_cave_in,
+            progress_rival_party,
+            get_rival_encounter_at_location,
+        )
         event_messages = progress_interior_events(self, self.current_sub_grid)
         for msg in event_messages:
             message += f"\n{msg}"
@@ -1056,6 +1061,44 @@ class GameState:
         cave_in_message = check_for_cave_in(self, self.current_sub_grid)
         if cave_in_message:
             message += f"\n{cave_in_message}"
+
+        # Progress rival adventurer party (if one exists)
+        rival_message = progress_rival_party(self, self.current_sub_grid)
+        if rival_message:
+            message += f"\n{rival_message}"
+
+        # Check for rival encounter at destination (triggers combat)
+        rival_encounter = get_rival_encounter_at_location(
+            self.current_sub_grid, destination
+        )
+        if rival_encounter and rival_encounter.rival_party:
+            # Create enemies from rival party
+            from cli_rpg.models.enemy import Enemy
+            enemies = []
+            for rival in rival_encounter.rival_party:
+                enemy = Enemy(
+                    name=rival["name"],
+                    health=rival["hp"],
+                    max_health=rival["hp"],
+                    attack_power=rival["attack"],
+                    defense=rival["defense"],
+                    xp_reward=rival["hp"],  # XP based on HP
+                    level=self.current_character.level,
+                    description="A rival adventurer racing for the same prize.",
+                )
+                enemies.append(enemy)
+
+            self.current_combat = CombatEncounter(
+                self.current_character,
+                enemies=enemies,
+                weather=self.weather,
+                companions=self.companions,
+                location_category=destination.category,
+                game_state=self,
+            )
+            # Mark rival event as inactive after combat starts
+            rival_encounter.is_active = False
+            message += f"\n\n{colors.enemy('The rival adventurers turn to face you!')}\n{self.current_combat.start()}"
 
         # Check for environmental hazards at destination
         from cli_rpg.hazards import check_hazards_on_entry
@@ -1191,6 +1234,13 @@ class GameState:
 
         # Build success message with look at new location
         message = f"You enter {colors.location(matched_location)}.\n\n{self.look()}"
+
+        # Check for rival adventurer spawn (15% chance on SubGrid entry)
+        if sub_grid_location is not None and self.current_sub_grid is not None:
+            from cli_rpg.interior_events import check_for_rival_spawn
+            rival_message = check_for_rival_spawn(self, self.current_sub_grid)
+            if rival_message:
+                message += f"\n\n{rival_message}"
 
         # Get the actual location for secret and boss checks
         sub_location = sub_grid_location if sub_grid_location is not None else self.world[matched_location]
