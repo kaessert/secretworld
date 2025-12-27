@@ -248,7 +248,7 @@ Instead of one monolithic prompt, use a hierarchical generation system:
 ---
 
 ### WFC World Generation Overhaul
-**Status**: IN PROGRESS
+**Status**: ✅ CORE COMPLETE (All 4 items done)
 **Priority**: CRITICAL - BLOCKS IMMERSION
 
 Transform the world generation system to match traditional RPG map design: **vast stretches of traversable terrain with occasional points of interest**.
@@ -385,7 +385,7 @@ The named location trigger system is now fully wired up and operational.
 | city | `(-8, 8, -8, 8)` | 17x17 (huge) |
 | default (fallback) | `(-2, 2, -2, 2)` | 5x5 (small) |
 
-#### 4. Layered AI Integration
+#### 4. Layered AI Integration ✅ COMPLETE
 
 | Generation Event | Layers Used | Cost |
 |------------------|-------------|------|
@@ -393,9 +393,17 @@ The named location trigger system is now fully wired up and operational.
 | Named location (single) | 1, 2, 3, 4 | 2 AI calls |
 | Named area (SubGrid) | 1, 2, 3+, 4+ | 3+ AI calls |
 
-**Implementation:**
-- Add `generate_area_with_context()` method to AIService
-- Wire all layers together in area generation
+**Completed 2025-12-27:**
+- ✅ Added `generate_area_with_context()` method to AIService
+- ✅ Updated `expand_area()` to use layered generation when contexts provided
+- ✅ 9 new tests in `tests/test_generate_area_with_context.py`
+
+**How it works:**
+1. `generate_area_with_context()` takes WorldContext (Layer 1) and RegionContext (Layer 2) as inputs
+2. Generates area layout coordinates using `_generate_area_layout()`
+3. Calls `generate_location_with_context()` for each location (Layer 3)
+4. Calls `generate_npcs_for_location()` for each location (Layer 4)
+5. Returns list of location dicts with `relative_coords`, `name`, `description`, `category`, `npcs`
 
 #### Files to Modify
 

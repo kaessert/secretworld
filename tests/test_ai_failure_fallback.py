@@ -138,7 +138,9 @@ class TestAIFailureFallback:
         from cli_rpg.models.region_context import RegionContext
 
         mock_ai = Mock()
+        # Mock both area generation methods - layered generation is used when context available
         mock_ai.generate_area.side_effect = Exception("Detailed internal error XYZ123")
+        mock_ai.generate_area_with_context.side_effect = Exception("Detailed internal error XYZ123")
         # Configure context generation to return proper serializable objects
         mock_ai.generate_world_context.return_value = WorldContext.default("fantasy")
         mock_ai.generate_region_context.return_value = RegionContext.default(

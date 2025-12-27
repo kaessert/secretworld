@@ -78,11 +78,22 @@ Core service for interacting with LLM APIs.
 - Store location data in cache
 
 `generate_area(theme: str, sub_theme_hint: str = "", entry_direction: str = "north", context_locations: list[str] = [], size: int = 5) -> list[dict]`
-- Generate a cluster of 4-7 connected locations forming a thematic area
+- Generate a cluster of 4-7 connected locations forming a thematic area (monolithic generation)
 - Returns list of dicts: `{"name": str, "description": str, "relative_coords": [int, int], "connections": dict[str, str]}`
 - Entry location is always at relative coordinates [0, 0]
 - Uses sub-theme hints (mystical forest, ancient ruins, haunted grounds, etc.) for variety
 - Supports caching for performance
+- **Note**: Prefer `generate_area_with_context()` when context objects are available
+
+`generate_area_with_context(theme: str, world_context: WorldContext, region_context: RegionContext, entry_direction: str = "north", size: int = 5) -> list[dict]`
+- Generate a cluster of locations using layered generation (Layers 3-4)
+- Takes WorldContext (Layer 1) and RegionContext (Layer 2) as inputs for thematic consistency
+- Generates area layout coordinates using `_generate_area_layout()`
+- Calls `generate_location_with_context()` for each location (Layer 3)
+- Calls `generate_npcs_for_location()` for each location (Layer 4)
+- Returns list of dicts: `{"name": str, "description": str, "category": str, "npcs": list[dict], "relative_coords": [int, int]}`
+- Entry location is always at relative coordinates [0, 0]
+- Size is clamped to 4-7 locations (matching `generate_area()` behavior)
 
 `generate_world_context(theme: str) -> WorldContext`
 - Generate Layer 1 world context with theme_essence, naming_style, and tone

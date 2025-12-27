@@ -1,158 +1,137 @@
-# Implementation Plan: Load Character Screen UX Improvements
+# Implementation Plan: Layered AI Integration for Area Generation
 
-## Spec
-Improve the load character screen to handle many saves gracefully:
-1. Limit display to 20 most recent saves (manual saves first)
-2. Group autosaves separately with collapse option
-3. Fix "(saved: unknown)" timestamp parsing issue by using file mtime
-4. Add pagination hint when more saves exist
+## Summary
+Add `generate_area_with_context()` method to `AIService` that orchestrates layered AI generation (Layers 1-4) for named location clusters, completing Item 4 of the WFC World Generation Overhaul.
 
-## Files to Modify
-- `src/cli_rpg/persistence.py` - Add `is_autosave` detection, improve timestamp parsing
-- `src/cli_rpg/main.py` - Update `select_and_load_character()` display logic
+## Problem
+Currently `expand_area()` in `ai_world.py` calls `generate_area()` which uses a monolithic prompt ignoring `WorldContext` and `RegionContext`. The layered context is only used when falling back to single location generation. Area clusters (4-7 locations) should also benefit from coherent layered generation.
 
-## Tests First
+## Architecture
 
-### `tests/test_persistence.py` - Add tests:
-```python
-class TestListSavesEnhancements:
-    def test_list_saves_identifies_autosaves(self, tmp_path):
-        """Autosave files should be marked with is_autosave=True."""
-
-    def test_list_saves_parses_timestamp_from_file_mtime(self, tmp_path):
-        """When filename timestamp is 'unknown', use file mtime."""
-
-    def test_list_saves_formats_display_time(self, tmp_path):
-        """Saves should include human-readable display_time field."""
 ```
+Current (broken for areas):
+  expand_area() → generate_area() [monolithic, no context]
+                → fallback: expand_world() → generate_location_with_context() [layered]
 
-### `tests/test_main_load_integration.py` - Add tests:
-```python
-class TestLoadScreenDisplay:
-    def test_display_groups_autosaves_separately(self, tmp_path):
-        """Autosaves shown in collapsed section after manual saves."""
-
-    def test_display_limits_manual_saves(self, tmp_path):
-        """Only 15 most recent manual saves shown with 'more available' hint."""
-
-    def test_display_shows_readable_timestamps(self, tmp_path):
-        """Timestamps displayed as 'Dec 25, 2024 3:45 PM' not '20241225_154500'."""
+Target (coherent for all):
+  expand_area() → generate_area_with_context() [layered, coherent]
+                → for each location: generate_location_with_context() + generate_npcs_for_location()
 ```
 
 ## Implementation Steps
 
-### Step 1: Enhance `list_saves()` in `persistence.py`
+### 1. Add `generate_area_with_context()` to `ai_service.py`
 
-Add helper function and update return format:
-
-```python
-def _format_timestamp(ts: str) -> str:
-    """Convert YYYYMMDD_HHMMSS to human-readable format."""
-    try:
-        dt = datetime.strptime(ts, "%Y%m%d_%H%M%S")
-        return dt.strftime("%b %d, %Y %I:%M %p")
-    except ValueError:
-        return ts
-
-def list_saves(save_dir: str = "saves") -> list[dict[str, str]]:
-    # ... existing file discovery ...
-
-    for json_file in json_files:
-        filename = json_file.stem
-
-        # Detect autosave
-        is_autosave = filename.startswith("autosave_")
-
-        # Parse filename for timestamp (existing logic)
-        parts = filename.rsplit('_', 2)
-        if len(parts) >= 3:
-            character_name = '_'.join(parts[:-2])
-            timestamp = f"{parts[-2]}_{parts[-1]}"
-        else:
-            character_name = filename
-            timestamp = "unknown"
-
-        # Fallback timestamp from file mtime if unknown
-        if timestamp == "unknown":
-            mtime = json_file.stat().st_mtime
-            timestamp = datetime.fromtimestamp(mtime).strftime("%Y%m%d_%H%M%S")
-
-        saves.append({
-            'name': character_name,
-            'filepath': str(json_file),
-            'timestamp': timestamp,
-            'display_time': _format_timestamp(timestamp),
-            'is_autosave': is_autosave
-        })
-
-    # Sort by timestamp (most recent first)
-    saves.sort(key=lambda x: x['timestamp'], reverse=True)
-    return saves
-```
-
-### Step 2: Update `select_and_load_character()` in `main.py`
-
-Refactor display logic:
+**Location**: After `generate_npcs_for_location()` (around line 2754)
 
 ```python
-def select_and_load_character() -> tuple[Optional[Character], Optional[GameState]]:
-    all_saves = list_saves()
+def generate_area_with_context(
+    self,
+    world_context: "WorldContext",
+    region_context: "RegionContext",
+    entry_direction: str,
+    size: int = 5,
+    terrain_type: Optional[str] = None
+) -> list[dict]:
+    """Generate an area of connected locations using layered context.
 
-    if not all_saves:
-        print("\n⚠ No saved characters found.")
-        print("  Create a new character first!")
-        return (None, None)
+    Orchestrates Layer 3 (location) and Layer 4 (NPC) generation for
+    each location in the area, ensuring coherence with world/region themes.
 
-    # Separate manual saves and autosaves
-    manual_saves = [s for s in all_saves if not s.get('is_autosave')]
-    autosaves = [s for s in all_saves if s.get('is_autosave')]
+    Args:
+        world_context: Layer 1 WorldContext with theme essence, naming style, tone
+        region_context: Layer 2 RegionContext with region name, theme, danger level
+        entry_direction: Direction player is coming from
+        size: Target number of locations (4-7, default 5)
+        terrain_type: Optional terrain type for coherent generation
 
-    # Limit display
-    MANUAL_LIMIT = 15
-    displayed_manual = manual_saves[:MANUAL_LIMIT]
-    hidden_manual = len(manual_saves) - len(displayed_manual)
-
-    print("\n" + "=" * 50)
-    print("LOAD CHARACTER")
-    print("=" * 50)
-
-    # Build selection list
-    selectable = []
-    idx = 1
-
-    # Display manual saves
-    if displayed_manual:
-        print("\nSaved Games:")
-        for save in displayed_manual:
-            print(f"  {idx}. {save['name']} ({save['display_time']})")
-            selectable.append(save)
-            idx += 1
-        if hidden_manual > 0:
-            print(f"      ... and {hidden_manual} older saves")
-
-    # Display autosave summary + option
-    if autosaves:
-        latest = autosaves[0]
-        print(f"\n  {idx}. [Autosave] {latest['name']} ({latest['display_time']})")
-        if len(autosaves) > 1:
-            print(f"      ({len(autosaves) - 1} older autosaves available)")
-        selectable.append(latest)
-        idx += 1
-
-    print(f"\n  {idx}. Cancel")
-    print("=" * 50)
-
-    # ... rest of selection logic using selectable list ...
+    Returns:
+        List of location dicts with relative_coords, name, description, category, npcs
+    """
 ```
 
-### Step 3: Run tests
-```bash
-pytest tests/test_persistence.py tests/test_main_load_integration.py -v
+**Implementation approach**:
+1. Generate area layout (coordinates for N locations) using simple geometry
+2. For each position, call `generate_location_with_context()` (Layer 3)
+3. For each location, call `generate_npcs_for_location()` (Layer 4)
+4. Return combined list with relative coordinates
+
+### 2. Update `expand_area()` in `ai_world.py` to use layered generation
+
+**Location**: Lines 573-595 in `expand_area()`
+
+**Current code** (lines 573-581):
+```python
+area_data = ai_service.generate_area(
+    theme=theme,
+    sub_theme_hint=sub_theme,
+    entry_direction=direction,
+    context_locations=list(world.keys()),
+    size=size
+)
 ```
+
+**Replace with**:
+```python
+if world_context is not None and region_context is not None:
+    # Use layered generation for coherent areas
+    area_data = ai_service.generate_area_with_context(
+        world_context=world_context,
+        region_context=region_context,
+        entry_direction=direction,
+        size=size,
+        terrain_type=terrain_type
+    )
+else:
+    # Fall back to monolithic generation
+    area_data = ai_service.generate_area(
+        theme=theme,
+        sub_theme_hint=sub_theme,
+        entry_direction=direction,
+        context_locations=list(world.keys()),
+        size=size
+    )
+```
+
+### 3. Add tests
+
+**File**: `tests/test_generate_area_with_context.py`
+
+Tests to add:
+1. `test_generate_area_with_context_returns_list_of_locations` - Returns list of dicts
+2. `test_generate_area_with_context_includes_entry_at_origin` - Entry location at (0,0)
+3. `test_generate_area_with_context_each_location_has_required_fields` - name, description, category, npcs, relative_coords
+4. `test_generate_area_with_context_uses_world_context_theme` - Location names follow naming style
+5. `test_generate_area_with_context_uses_region_context` - Locations match region theme
+6. `test_generate_area_with_context_generates_npcs_for_each_location` - NPCs present
+7. `test_expand_area_uses_layered_generation_when_contexts_provided` - Integration test
+
+## Files to Modify
+
+| File | Changes |
+|------|---------|
+| `src/cli_rpg/ai_service.py` | Add `generate_area_with_context()` method (~50 lines) |
+| `src/cli_rpg/ai_world.py` | Update `expand_area()` to conditionally use layered generation (~10 lines) |
+| `tests/test_generate_area_with_context.py` | New file with 7 tests |
 
 ## Success Criteria
-- [ ] Manual saves displayed first with human-readable timestamps
-- [ ] At most 15 manual saves shown, with "(X older saves)" hint
-- [ ] Autosaves collapsed to single entry with count
-- [ ] No more "(saved: unknown)" - all saves show readable timestamps
-- [ ] All existing tests pass
+
+1. `generate_area_with_context()` exists and passes all tests
+2. `expand_area()` uses layered generation when contexts are provided
+3. Generated area locations show coherence with world/region themes
+4. All existing 3648 tests continue to pass
+5. ISSUES.md Item 4 can be marked complete
+
+## Cost Analysis
+
+Per ISSUES.md table:
+- Named area (SubGrid): Layers 1, 2, 3+, 4+ = 3+ AI calls
+- With new method: 1 call per location for Layer 3, 1 call per location for Layer 4
+- For 5-location area: ~10 AI calls (vs 1 monolithic call before)
+- Tradeoff: More calls but better coherence and smaller prompts (less likely to fail)
+
+## Out of Scope
+
+- Modifying world_context or region_context generation
+- Changes to Layer 1-2 caching logic (already working)
+- Changes to named location trigger logic (already working)

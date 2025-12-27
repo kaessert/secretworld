@@ -229,7 +229,8 @@ loaded_game.ai_service = ai_service
    - Validates responses
    - Auto-detects provider from configuration
    - Ollama uses OpenAI-compatible API with custom base URL
-   - `generate_area()`: Generates clusters of 4-7 connected locations with thematic consistency
+   - `generate_area()`: Generates clusters of 4-7 connected locations (monolithic generation)
+   - `generate_area_with_context()`: Generates clusters using layered generation (Layers 3-4) for better thematic consistency when WorldContext and RegionContext are available
 
 3. **AI World** (`ai_world.py`)
    - Creates initial AI world using grid coordinates

@@ -572,13 +572,25 @@ def expand_area(
 
     # Generate the area
     logger.info(f"Expanding area: {direction} from {from_location} with theme '{sub_theme}'")
-    area_data = ai_service.generate_area(
-        theme=theme,
-        sub_theme_hint=sub_theme,
-        entry_direction=direction,
-        context_locations=list(world.keys()),
-        size=size
-    )
+
+    if world_context is not None and region_context is not None:
+        # Use layered generation for coherent areas
+        area_data = ai_service.generate_area_with_context(
+            world_context=world_context,
+            region_context=region_context,
+            entry_direction=direction,
+            size=size,
+            terrain_type=terrain_type
+        )
+    else:
+        # Fall back to monolithic generation
+        area_data = ai_service.generate_area(
+            theme=theme,
+            sub_theme_hint=sub_theme,
+            entry_direction=direction,
+            context_locations=list(world.keys()),
+            size=size
+        )
 
     if not area_data:
         logger.debug("No area data generated, falling back to single location")

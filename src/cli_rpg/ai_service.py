@@ -2751,3 +2751,124 @@ Note: Use "EXISTING_WORLD" as placeholder for the connection back to the source 
 
         # Use existing NPC validation
         return self._parse_npcs(npcs_data, location_name)
+
+    def generate_area_with_context(
+        self,
+        world_context: "WorldContext",
+        region_context: "RegionContext",
+        entry_direction: str,
+        size: int = 5,
+        terrain_type: Optional[str] = None
+    ) -> list[dict]:
+        """Generate an area of connected locations using layered context.
+
+        Orchestrates Layer 3 (location) and Layer 4 (NPC) generation for
+        each location in the area, ensuring coherence with world/region themes.
+
+        Args:
+            world_context: Layer 1 WorldContext with theme essence, naming style, tone
+            region_context: Layer 2 RegionContext with region name, theme, danger level
+            entry_direction: Direction player is coming from
+            size: Target number of locations (4-7, default 5)
+            terrain_type: Optional terrain type for coherent generation
+
+        Returns:
+            List of location dicts with relative_coords, name, description, category, npcs
+        """
+        # Clamp size to valid range
+        size = max(4, min(7, size))
+
+        # Generate area layout coordinates
+        layout = self._generate_area_layout(size, entry_direction)
+
+        # Generate each location using layered context
+        area_locations = []
+        for rel_coords in layout:
+            # Layer 3: Generate location
+            location_data = self.generate_location_with_context(
+                world_context=world_context,
+                region_context=region_context,
+                terrain_type=terrain_type
+            )
+
+            # Layer 4: Generate NPCs for this location
+            npcs = self.generate_npcs_for_location(
+                world_context=world_context,
+                location_name=location_data["name"],
+                location_description=location_data["description"],
+                location_category=location_data.get("category")
+            )
+
+            # Combine location with NPCs and coordinates
+            location_data["npcs"] = npcs
+            location_data["relative_coords"] = list(rel_coords)
+            area_locations.append(location_data)
+
+        return area_locations
+
+    def _generate_area_layout(self, size: int, entry_direction: str) -> list[tuple[int, int]]:
+        """Generate relative coordinates for area locations.
+
+        Creates a layout with entry at (0, 0) and expands outward.
+
+        Args:
+            size: Number of locations to generate
+            entry_direction: Direction player entered from
+
+        Returns:
+            List of (x, y) coordinate tuples, with entry at (0, 0)
+        """
+        # Start with entry point at origin
+        coords = [(0, 0)]
+
+        # Define expansion directions (prioritize away from entry)
+        opposite_map = {
+            "north": (0, 1),   # Expand north (away from player coming from south)
+            "south": (0, -1),  # Expand south
+            "east": (1, 0),    # Expand east
+            "west": (-1, 0),   # Expand west
+        }
+        primary_dir = opposite_map.get(entry_direction, (0, 1))
+
+        # Add locations in a branching pattern
+        current_x, current_y = 0, 0
+        while len(coords) < size:
+            # First, extend in primary direction
+            if len(coords) < 2:
+                current_x += primary_dir[0]
+                current_y += primary_dir[1]
+                coords.append((current_x, current_y))
+            else:
+                # Branch out perpendicular to primary
+                if primary_dir[0] == 0:  # Primary is vertical
+                    # Branch east and west
+                    if len(coords) % 2 == 0:
+                        new_coord = (coords[-1][0] + 1, coords[-1][1])
+                    else:
+                        new_coord = (coords[-1][0] - 1, coords[-1][1])
+                else:  # Primary is horizontal
+                    # Branch north and south
+                    if len(coords) % 2 == 0:
+                        new_coord = (coords[-1][0], coords[-1][1] + 1)
+                    else:
+                        new_coord = (coords[-1][0], coords[-1][1] - 1)
+
+                # Avoid duplicates
+                if new_coord not in coords:
+                    coords.append(new_coord)
+                else:
+                    # Continue in primary direction from last point
+                    current_x = coords[-1][0] + primary_dir[0]
+                    current_y = coords[-1][1] + primary_dir[1]
+                    if (current_x, current_y) not in coords:
+                        coords.append((current_x, current_y))
+                    else:
+                        # Fallback: find any adjacent empty spot
+                        for dx, dy in [(0, 1), (0, -1), (1, 0), (-1, 0)]:
+                            new_x = coords[-1][0] + dx
+                            new_y = coords[-1][1] + dy
+                            if (new_x, new_y) not in coords:
+                                coords.append((new_x, new_y))
+                                break
+
+        return coords

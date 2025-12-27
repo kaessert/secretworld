@@ -1,71 +1,78 @@
-# Implementation Summary: Load Character Screen UX Improvements
+# Implementation Summary: Layered AI Integration for Area Generation
 
 ## What Was Implemented
 
-### 1. Enhanced `list_saves()` in `persistence.py`
-- Added `_format_timestamp()` helper function to convert `YYYYMMDD_HHMMSS` to human-readable format (e.g., "Dec 25, 2024 03:45 PM")
-- Added `is_autosave` detection based on `autosave_` filename prefix
-- Added `display_time` field with formatted timestamp for each save
-- Implemented file mtime fallback when filename timestamp can't be parsed (fixes "(saved: unknown)" issue)
-- Updated return type annotation to `list[dict[str, Any]]` to reflect boolean `is_autosave` field
+Added `generate_area_with_context()` method to `AIService` that orchestrates layered AI generation (Layers 3-4) for named location clusters, completing Item 4 of the WFC World Generation Overhaul.
 
-### 2. Refactored `select_and_load_character()` in `main.py`
-- Separates manual saves from autosaves
-- Limits manual save display to 15 most recent with "... and X older saves" hint
-- Groups autosaves into single collapsed entry showing most recent with count of older autosaves
-- Displays human-readable timestamps instead of raw `YYYYMMDD_HHMMSS` format
-- Strips `autosave_` prefix from autosave names for cleaner display
+### Files Modified
 
-### 3. Test Coverage
-- Added `TestListSavesEnhancements` class to `tests/test_persistence.py` (4 tests):
-  - `test_list_saves_identifies_autosaves`
-  - `test_list_saves_parses_timestamp_from_file_mtime`
-  - `test_list_saves_formats_display_time`
-  - `test_list_saves_formats_display_time_correctly`
+1. **src/cli_rpg/ai_service.py** (+120 lines)
+   - Added `generate_area_with_context()` method that:
+     - Takes WorldContext (Layer 1) and RegionContext (Layer 2) as inputs
+     - Generates area layout coordinates using `_generate_area_layout()`
+     - Calls `generate_location_with_context()` for each location (Layer 3)
+     - Calls `generate_npcs_for_location()` for each location (Layer 4)
+     - Returns list of location dicts with `relative_coords`, `name`, `description`, `category`, `npcs`
+   - Added `_generate_area_layout()` helper that creates a branching coordinate pattern from origin (0,0)
 
-- Added `TestLoadScreenDisplay` class to `tests/test_main_load_integration.py` (6 tests):
-  - `test_display_groups_autosaves_separately`
-  - `test_display_limits_manual_saves`
-  - `test_display_shows_readable_timestamps`
-  - `test_display_autosave_count_message`
-  - `test_loads_selected_autosave`
-  - `test_no_saves_message`
+2. **src/cli_rpg/ai_world.py** (+10 lines)
+   - Updated `expand_area()` to conditionally use layered generation:
+     - Uses `generate_area_with_context()` when both `world_context` and `region_context` are provided
+     - Falls back to monolithic `generate_area()` when contexts are None (backward compatibility)
 
-- Updated `tests/test_coverage_gaps.py::TestPersistenceFallbackFilename::test_list_saves_handles_non_standard_filename` to reflect new mtime fallback behavior
+3. **tests/test_generate_area_with_context.py** (new file, 9 tests)
+   - Tests for `generate_area_with_context()`:
+     - Returns list of locations
+     - Includes entry at origin (0,0)
+     - Each location has required fields
+     - Uses world context theme in prompts
+     - Uses region context in prompts
+     - Generates NPCs for each location
+     - Respects size parameter
+   - Integration tests for `expand_area()`:
+     - Uses layered generation when contexts provided
+     - Falls back to monolithic without contexts
+
+4. **tests/test_ai_failure_fallback.py** (1 line fix)
+   - Added mock for `generate_area_with_context` to test error handling
 
 ## Test Results
-- All 3648 tests pass
-- New tests: 10 tests added
-- All existing persistence and load integration tests continue to pass (56 total)
 
-## Files Modified
-1. `src/cli_rpg/persistence.py` - Added `_format_timestamp()`, enhanced `list_saves()` return value
-2. `src/cli_rpg/main.py` - Refactored `select_and_load_character()` display logic
-3. `tests/test_persistence.py` - Added `TestListSavesEnhancements` test class
-4. `tests/test_main_load_integration.py` - Added `TestLoadScreenDisplay` test class
-5. `tests/test_coverage_gaps.py` - Updated test to reflect new mtime fallback behavior
+All 3657 tests pass (9 new tests added).
 
-## Example Output (New Load Screen)
+## Architecture
 
 ```
-==================================================
-LOAD CHARACTER
-==================================================
+Before (monolithic for areas):
+  expand_area() → generate_area() [single prompt, ignores context]
 
-Saved Games:
-  1. Hero (Dec 25, 2024 12:00 PM)
-  2. Warrior (Dec 24, 2024 03:00 PM)
-      ... and 5 older saves
-
-  3. [Autosave] Hero (Dec 25, 2024 03:00 PM)
-      (4 older autosaves available)
-
-  4. Cancel
-==================================================
+After (layered for areas):
+  expand_area() → generate_area_with_context() [orchestrates layers 3+4]
+                → for each location:
+                    → generate_location_with_context() [Layer 3]
+                    → generate_npcs_for_location() [Layer 4]
 ```
 
 ## Design Decisions
-- Manual save limit of 15 chosen to balance visibility with screen real estate
-- Autosaves collapsed to single entry to reduce clutter while maintaining access
-- Stripping `autosave_` prefix from display name for cleaner presentation
-- Using file mtime as fallback ensures no saves show "(saved: unknown)"
+
+1. **Size clamping**: Area size clamped to 4-7 locations (matching existing `generate_area()` behavior)
+
+2. **Layout algorithm**: Simple branching pattern starting from origin:
+   - First location at (0,0)
+   - Expands in primary direction (opposite to entry)
+   - Branches perpendicular for variety
+
+3. **Backward compatibility**: When contexts are None, falls back to monolithic generation
+
+4. **Cost tradeoff**: More AI calls (2 per location) but:
+   - Smaller prompts (less likely to fail/truncate)
+   - Better coherence with world/region themes
+   - Reuses proven Layer 3/4 generation code
+
+## E2E Validation
+
+To validate in-game:
+1. Start game with AI enabled
+2. Move to trigger named location generation (after ~5-10 tiles)
+3. Verify generated area locations reference region/world themes
+4. Check NPCs are present and contextually appropriate
