@@ -148,6 +148,8 @@ class CommandCompleter:
             return self._complete_resolve(text_lower)
         elif command in ("pick", "open"):
             return self._complete_treasure(text_lower)
+        elif command == "travel":
+            return self._complete_travel(text_lower)
 
         return []
 
@@ -299,6 +301,23 @@ class CommandCompleter:
         chest_names = [treasure["name"] for treasure in location.treasures]
 
         return [name for name in chest_names if name.lower().startswith(text)]
+
+    def _complete_travel(self, text: str) -> List[str]:
+        """Complete location name for 'travel' command.
+
+        Returns valid fast travel destinations (named overworld locations).
+
+        Args:
+            text: Partial location name text (lowercase)
+
+        Returns:
+            List of matching destination names
+        """
+        if self._game_state is None:
+            return []
+
+        destinations = self._game_state.get_fast_travel_destinations()
+        return [name for name in destinations if name.lower().startswith(text)]
 
 
 # Module-level singleton instance for use by input_handler

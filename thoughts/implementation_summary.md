@@ -1,82 +1,63 @@
-# Tiredness Stat Implementation Summary
+# Implementation Summary: Fast Travel Between Discovered Overworld Locations
 
 ## What Was Implemented
 
-The Tiredness stat system was already mostly implemented. This task completed the remaining integration for **combat tiredness increases**.
+Added a `travel` command that allows players to teleport to any previously-visited named overworld location. Travel consumes time proportional to distance, increases tiredness and dread, and has a chance for random encounters.
 
-### Changes Made
+## Files Modified
 
-#### 1. Combat Tiredness Integration (`src/cli_rpg/combat.py`)
-- Added tiredness increase at the end of combat (victory only)
-- Formula: `5 base + 1 per turn` of combat
-- Tiredness warning messages are included in combat result if thresholds are crossed
+### 1. `src/cli_rpg/game_state.py`
+- Added `"travel"` to `KNOWN_COMMANDS` set (line 81)
+- Added `get_fast_travel_destinations()` method (lines 1199-1216)
+  - Returns alphabetically sorted list of named overworld locations (excluding current location)
+  - Filters out: unnamed locations, sub-locations (with parent_location), locations without coordinates
+- Added `fast_travel(destination)` method (lines 1218-1313)
+  - Block conditions: combat, conversation, inside sub-location
+  - Case-insensitive partial name matching for destinations
+  - Travel time calculation: Manhattan distance // 4, clamped to 1-8 hours
+  - Per-hour effects: time advance, weather transition, +3 tiredness, +5 dread
+  - 15% encounter chance per hour (skipped if in safe zone)
+  - Autosave on arrival
 
-```python
-# In CombatEncounter.end_combat() after victory
-tiredness_increase = 5 + self.turn_count
-tiredness_msg = self.player.tiredness.increase(tiredness_increase)
-if tiredness_msg:
-    messages.append(tiredness_msg)
-```
+### 2. `src/cli_rpg/main.py`
+- Added help text entry (line 53): `"  travel <location>  - Fast travel to a discovered named location"`
+- Added command handler (lines 1782-1803):
+  - `travel` (no args): Lists available destinations with travel times
+  - `travel <location>`: Invokes `fast_travel()` method
 
-#### 2. New Test (`tests/test_tiredness.py`)
-- Added `TestCombatTiredness` test class
-- Test: `test_combat_victory_increases_tiredness` - verifies combat increases tiredness by 5 base + turn count
+### 3. `src/cli_rpg/completer.py`
+- Added `travel` case in `_complete_argument()` (lines 151-152)
+- Added `_complete_travel()` method (lines 305-320)
+  - Returns matching destination names for tab completion
+
+### 4. `tests/test_fast_travel.py` (NEW)
+- 22 tests covering:
+  - `TestGetFastTravelDestinations`: 6 tests for destination filtering logic
+  - `TestFastTravelBlocks`: 4 tests for blocking conditions (combat, conversation, subgrid, unknown destination)
+  - `TestFastTravelMechanics`: 8 tests for travel time, tiredness, arrival
+  - `TestFastTravelEncounters`: 2 tests for random encounter interruption
+  - `TestFastTravelCompletion`: 2 tests for tab completion
 
 ## Test Results
 
-All 31 tiredness tests pass:
-- 7 Tiredness model tests (defaults, clamping, thresholds)
-- 3 Sleepability tests (can_sleep at various levels)
-- 3 Sleep quality tests (light/normal/deep)
-- 4 Penalty tests (attack and perception penalties at 80+)
-- 4 Serialization tests (to_dict/from_dict)
-- 1 Display test (get_display format)
-- 5 Character integration tests (attribute, serialization, attack penalty)
-- 1 GameState integration test (movement increases tiredness)
-- 1 Combat integration test (NEW - combat increases tiredness)
-- 3 Dream integration tests (blocking, tiredness-based chance)
+```
+tests/test_fast_travel.py: 22 passed
+Full test suite: 3902 passed in 104.10s
+```
 
-Full test suite: **3880 tests passed**
+## Design Decisions
 
-## Pre-existing Implementations (Already in Codebase)
+1. **Safe zone check**: Encounters are skipped when starting from a safe zone (e.g., town), since you're already in a protected area.
 
-These were already implemented before this task:
+2. **Partial name matching**: Allows typing `travel for` to match "Forest Clearing" - case-insensitive with both prefix and substring matching.
 
-1. **Tiredness Model** (`src/cli_rpg/models/tiredness.py`)
-   - Range 0-100 with clamping
-   - Threshold warnings at 60/80/100
-   - Sleep availability (can_sleep at 30+)
-   - Sleep quality (light/normal/deep)
-   - Attack and perception penalties at 80+
-   - Visual display bar
-   - Serialization support
+3. **Weather transitions**: Weather changes during long travel, providing atmospheric variety.
 
-2. **Character Integration** (`src/cli_rpg/models/character.py`)
-   - `tiredness` attribute on Character
-   - Attack power includes tiredness penalty
-   - Serialization in to_dict/from_dict with backward compatibility
+4. **Dread accumulation**: Fixed 5 dread per hour (wilderness average) rather than calculating from intermediate terrain.
 
-3. **GameState Integration** (`src/cli_rpg/game_state.py`)
-   - Movement increases tiredness by 3 per move
+## E2E Test Scenarios
 
-4. **Rest/Camp Integration** (`src/cli_rpg/main.py`, `src/cli_rpg/camping.py`)
-   - Rest reduces tiredness based on sleep quality (25/50/80)
-   - Camp reduces tiredness (40 base + 10 with campfire)
-
-5. **Dream Integration** (`src/cli_rpg/dreams.py`)
-   - Dreams blocked when tiredness < 30
-   - Dream chance modified by tiredness level
-   - Deep sleep (80+) = 40% dream chance
-   - Normal sleep (60-79) = 20% dream chance
-   - Light sleep (<60) = 5% dream chance
-
-## E2E Validation Points
-
-1. Travel multiple times to build tiredness (3 per move)
-2. Verify tiredness warnings at 60, 80, 100 thresholds
-3. Combat should increase tiredness (visible at end of battle)
-4. Rest command should reduce tiredness based on quality
-5. Camp command should reduce tiredness
-6. Attack power should be reduced by 10% at 80+ tiredness
-7. Dreams should only trigger when tiredness >= 30
+1. **Basic travel**: From Town Square, type `travel` to see destinations, then `travel Forest` to arrive
+2. **Blocked travel**: Enter a building, try `travel` - should show "must exit" message
+3. **Combat interrupt**: Travel long distance with random seed that triggers encounter
+4. **Tab completion**: Type `travel For<TAB>` to complete to "Forest Clearing"

@@ -50,6 +50,7 @@ def get_command_reference() -> str:
         "  sell <item>        - Sell an item to the shop",
         "  map (m)            - Display a map of explored areas",
         "  worldmap (wm)      - Display the overworld map",
+        "  travel <location>  - Fast travel to a discovered named location",
         "  lore               - Discover lore about your current location",
         "  rest (r)           - Rest to recover health (25% of max HP)",
         "  camp (ca)          - Set up camp to rest in wilderness (requires supplies)",
@@ -1777,6 +1778,29 @@ def handle_exploration_command(game_state: GameState, command: str, args: list[s
                 worldmap_location = current_loc.parent_location
         worldmap_output = render_worldmap(game_state.world, worldmap_location)
         return (True, f"\n{worldmap_output}")
+
+    elif command == "travel":
+        if not args:
+            # List destinations with travel times
+            destinations = game_state.get_fast_travel_destinations()
+            if not destinations:
+                return (True, "\nNo fast travel destinations available yet.\nExplore named locations (towns, cities, dungeons) to unlock them.")
+            else:
+                current = game_state.get_current_location()
+                lines = [f"\n{colors.location('Fast Travel Destinations:')}"]
+                for dest in destinations:
+                    loc = game_state.world[dest]
+                    dx = abs(loc.coordinates[0] - current.coordinates[0])
+                    dy = abs(loc.coordinates[1] - current.coordinates[1])
+                    distance = dx + dy
+                    hours = max(1, min(8, distance // 4))
+                    lines.append(f"  {dest} ({hours}h travel)")
+                lines.append("\nUsage: travel <location name>")
+                return (True, "\n".join(lines))
+        else:
+            dest = " ".join(args)
+            success, message = game_state.fast_travel(dest)
+            return (True, f"\n{message}")
 
     elif command == "quests":
         quests = game_state.current_character.quests

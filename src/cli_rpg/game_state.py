@@ -78,6 +78,7 @@ KNOWN_COMMANDS: set[str] = {
     "track",  # Ranger ability
     "proficiency",  # Weapon proficiency display
     "reputation",  # Faction reputation display
+    "travel",  # Fast travel to discovered named locations
 }
 
 # Dread increases by location category (darker areas = more dread)
@@ -1194,6 +1195,122 @@ class GameState:
         region_context = RegionContext.default(region_name, center_coords)
         self.region_contexts[region_key] = region_context
         return region_context
+
+    def get_fast_travel_destinations(self) -> list[str]:
+        """Get list of valid fast travel destinations.
+
+        Returns named overworld locations (excluding current location).
+        Only includes locations with coordinates and no parent_location.
+
+        Returns:
+            Alphabetically sorted list of destination names.
+        """
+        destinations = []
+        for loc in self.world.values():
+            # Must be named POI, have coordinates, be overworld (no parent)
+            if (loc.is_named and
+                loc.coordinates is not None and
+                loc.parent_location is None and
+                loc.name != self.current_location):
+                destinations.append(loc.name)
+        return sorted(destinations)
+
+    def fast_travel(self, destination: str) -> tuple[bool, str]:
+        """Travel instantly to a previously-visited named location.
+
+        Consumes time proportional to Manhattan distance, increases tiredness,
+        and has a chance for random encounters during the journey.
+
+        Args:
+            destination: Name of destination (case-insensitive partial match)
+
+        Returns:
+            Tuple of (success, message)
+        """
+        from cli_rpg.combat import spawn_enemy
+
+        # Block conditions
+        if self.is_in_combat():
+            return (False, "You cannot travel while in combat!")
+        if self.is_in_conversation:
+            return (False, "You're in a conversation. Say 'bye' to leave first.")
+        if self.in_sub_location:
+            return (False, "You must exit this location before fast traveling. Use 'exit' first.")
+
+        # Find destination (case-insensitive partial match)
+        dest_lower = destination.lower()
+        matched = None
+        for name in self.get_fast_travel_destinations():
+            if name.lower().startswith(dest_lower) or dest_lower in name.lower():
+                matched = name
+                break
+
+        if matched is None:
+            return (False, f"Unknown destination: {destination}. Use 'travel' to see available locations.")
+
+        dest_location = self.world[matched]
+        current = self.get_current_location()
+
+        # Calculate Manhattan distance and travel time
+        dx = abs(dest_location.coordinates[0] - current.coordinates[0])
+        dy = abs(dest_location.coordinates[1] - current.coordinates[1])
+        distance = dx + dy
+        travel_hours = max(1, min(8, distance // 4))
+
+        messages = [f"You begin your journey to {colors.location(matched)}..."]
+
+        # Simulate travel hour by hour
+        for hour in range(travel_hours):
+            # Advance time
+            self.game_time.advance(1)
+
+            # Weather transition
+            self.weather.transition()
+
+            # Tiredness increase (3 per move)
+            tiredness_msg = self.current_character.tiredness.increase(3)
+            if tiredness_msg:
+                messages.append(tiredness_msg)
+
+            # Dread increase (wilderness average = 5)
+            dread_msg = self.current_character.dread_meter.add_dread(5)
+            if dread_msg:
+                messages.append(dread_msg)
+
+            # Random encounter check (15% per hour)
+            if random.random() < 0.15 and not self.get_current_location().is_safe_zone:
+                # Hostile encounter interrupts travel
+                enemy = spawn_enemy(
+                    location_name=self.current_location,
+                    level=self.current_character.level,
+                    location_category="wilderness",
+                )
+                self.current_combat = CombatEncounter(
+                    self.current_character,
+                    enemies=[enemy],
+                    companions=self.companions,
+                    location_category="wilderness",
+                    game_state=self,
+                )
+                combat_start = self.current_combat.start()
+                messages.append(f"\n{colors.warning('[Ambush!]')} Your journey is interrupted!")
+                messages.append(combat_start)
+                return (True, "\n".join(messages))
+
+        # Arrive at destination
+        self.current_location = matched
+        messages.append(f"\nAfter {travel_hours} hour{'s' if travel_hours > 1 else ''}, you arrive at {colors.location(matched)}.")
+
+        # Look at new location
+        messages.append(f"\n{self.look()}")
+
+        # Autosave
+        try:
+            autosave(self)
+        except IOError:
+            pass
+
+        return (True, "\n".join(messages))
 
     def to_dict(self) -> dict:
         """Serialize game state to dictionary.

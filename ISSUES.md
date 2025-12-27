@@ -464,8 +464,9 @@ Issues discovered through comprehensive map system playtesting in non-interactiv
 
 ---
 
-### Overworld map with cities and sub-locations
-**Status**: ACTIVE (Partially Implemented)
+### ✅ RESOLVED: Overworld map with cities and sub-locations
+**Status**: RESOLVED
+**Date Resolved**: 2025-12-27
 
 Players want a more sophisticated map system with hierarchical locations.
 
@@ -473,10 +474,8 @@ Players want a more sophisticated map system with hierarchical locations.
 - `map` command shows current layer, `worldmap` shows overworld
 - Enter/exit commands for city/dungeon navigation
 - SubGrid system for interior locations
-
-**Remaining**:
-- Fast travel between discovered overworld locations
-- Travel time/random encounters on overworld
+- Fast travel between discovered overworld locations (`travel` command)
+- Travel time/random encounters on overworld (Manhattan distance ÷ 4 hours, 15% encounter chance/hour)
 
 ---
 

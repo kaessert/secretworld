@@ -66,6 +66,7 @@ python -m cli_rpg.main
   - **Vertical movement**: Use `go up` / `go down` inside multi-level dungeons and towers
 - `enter <location>` - Enter a sub-location within the current overworld landmark (e.g., enter a tavern within a city)
 - `exit` / `leave` - Exit from a sub-location back to its parent overworld landmark
+- `travel <location>` - Fast travel to a previously visited named overworld location. Travel time is proportional to distance (Manhattan distance ÷ 4, clamped 1-8 hours). During travel: time advances, tiredness increases (+3/hour), dread builds (+5/hour), and random encounters may occur (15%/hour). Not available during combat, conversation, or inside sub-locations.
   - **Multi-level locations**: Dungeons extend downward (z<0), towers extend upward (z>0). Use `go up`/`go down` to navigate between floors
 - `map` (m) - Display an ASCII map of explored locations with available exits
 - `worldmap` (wm) - Display the overworld map (shows only overworld landmarks)
