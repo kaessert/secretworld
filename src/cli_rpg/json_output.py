@@ -109,6 +109,16 @@ def emit_dump_state(game_state_dict: dict) -> None:
     print(json.dumps({"type": "dump_state", **game_state_dict}))
 
 
+def emit_session_info(seed: int, theme: str) -> None:
+    """Emit session metadata including RNG seed.
+
+    Args:
+        seed: RNG seed used for this session
+        theme: World theme (e.g., "fantasy")
+    """
+    print(json.dumps({"type": "session_info", "seed": seed, "theme": theme}))
+
+
 def classify_output(message: str) -> tuple[str, Optional[str]]:
     """Classify command output as error or narrative.
 

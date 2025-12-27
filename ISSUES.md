@@ -449,8 +449,13 @@ Issues discovered through comprehensive map system playtesting in non-interactiv
 ### Non-interactive mode enhancements
 **Status**: ACTIVE
 
+**Completed**:
+- ✅ RNG seeds included in logs for reproducibility (2025-12-27)
+  - `session_info` JSON output includes seed
+  - Log files include seed in `session_start` entries
+  - `--seed` flag for reproducible runs
+
 **Future enhancements**:
-- Include RNG seeds in logs for reproducibility
 - Log AI-generated content for review
 - Enable session replay from logged state
 

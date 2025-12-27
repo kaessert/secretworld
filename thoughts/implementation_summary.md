@@ -1,51 +1,56 @@
-# Implementation Summary: Add `world_theme_essence` to Location AI Prompt
+# Implementation Summary: RNG Seeds in Logs for Reproducibility
 
 ## What Was Implemented
 
-### 1. Updated `DEFAULT_LOCATION_PROMPT` in `ai_config.py`
-- Added `{theme_essence}` placeholder to the Context section of the prompt template
-- The prompt now includes:
-  ```
-  Context:
-  - World Theme: {theme}
-  - Theme Essence: {theme_essence}
-  - Existing Locations: {context_locations}
-  - Terrain Type: {terrain_type}
-  ```
+Added RNG seed tracking and logging to enable session replay for debugging.
 
-### 2. Updated `generate_location()` in `ai_service.py`
-- Added optional `world_context: Optional[WorldContext] = None` parameter
-- The function signature now supports passing WorldContext for enriched prompts
+### Files Modified
 
-### 3. Updated `_build_location_prompt()` in `ai_service.py`
-- Added `world_context: Optional[WorldContext] = None` parameter
-- Logic to extract `theme_essence`:
-  - If `world_context` is provided: uses `world_context.theme_essence`
-  - Otherwise: falls back to `DEFAULT_THEME_ESSENCES.get(theme, "")` from `world_context.py`
-- Formats the prompt with `theme_essence` field included
+1. **`src/cli_rpg/logging_service.py`**
+   - Updated `log_session_start()` to accept optional `seed` parameter
+   - When seed is provided, it's included in the session_start log entry
 
-### 4. Added Import in `ai_service.py`
-- Imported `DEFAULT_THEME_ESSENCES` and `WorldContext` from `cli_rpg.models.world_context`
+2. **`src/cli_rpg/json_output.py`**
+   - Added new function `emit_session_info(seed: int, theme: str)`
+   - Emits `{"type": "session_info", "seed": ..., "theme": ...}` message
 
-## Files Modified
-- `src/cli_rpg/ai_config.py` - Added `{theme_essence}` to `DEFAULT_LOCATION_PROMPT`
-- `src/cli_rpg/ai_service.py` - Added `world_context` parameter to `generate_location()` and `_build_location_prompt()`
+3. **`src/cli_rpg/main.py`**
+   - Updated `main()` to generate seed early if not provided via `--seed`
+   - Seeds the global RNG with the generated/provided seed
+   - Passes seed to `run_json_mode()` and `run_non_interactive()`
+   - Updated `run_json_mode()`:
+     - Added `seed` parameter
+     - Uses provided seed for ChunkManager instead of generating new one
+     - Emits `session_info` message with seed
+     - Passes seed to `logger.log_session_start()`
+   - Updated `run_non_interactive()`:
+     - Added `seed` parameter
+     - Uses provided seed for ChunkManager
+     - Passes seed to `logger.log_session_start()`
 
-## Tests Added
+### New Test File
 
-### In `tests/test_ai_config.py`
-- `test_ai_config_location_prompt_contains_theme_essence` - Verifies `DEFAULT_LOCATION_PROMPT` contains `{theme_essence}` placeholder
-
-### In `tests/test_ai_service.py`
-- `test_generate_location_includes_theme_essence_with_world_context` - Verifies theme_essence from WorldContext is included in prompt
-- `test_generate_location_uses_default_theme_essence_without_world_context` - Verifies default theme_essence from `DEFAULT_THEME_ESSENCES` is used when no WorldContext
-- `test_generate_location_uses_empty_theme_essence_for_unknown_theme` - Verifies unknown themes get empty theme_essence without errors
+**`tests/test_rng_seed_logging.py`**
+- `test_seed_logged_in_session_start`: Verifies seed field in session_start log entry
+- `test_no_seed_when_not_provided`: Verifies no seed field when not provided
+- `test_emit_session_info`: Verifies session_info JSON output with seed
+- `test_auto_generated_seed_is_positive_integer`: Validates auto-generated seeds
+- `test_same_seed_produces_reproducible_results`: Confirms same seed produces identical results
 
 ## Test Results
-All 122 tests pass (26 in test_ai_config.py, 96 in test_ai_service.py)
+
+All 5 new tests pass. Full test suite: 3678 passed, 1 pre-existing flaky test failed (unrelated combat test).
+
+## Verification
+
+- JSON mode emits `{"type": "session_info", "seed": N, "theme": "fantasy"}` on startup
+- Log files include `"seed": N` in session_start entries
+- Seed is passed through correctly from `--seed` argument
+- Auto-generated seeds are in valid range (0 to 2^31-1)
 
 ## E2E Validation
-The implementation can be validated by:
-1. Creating a new game with AI enabled
-2. Observing that generated locations have thematic consistency with the world's theme_essence
-3. When WorldContext is available (after initial world creation), subsequent location generation should use its theme_essence for richer, more consistent content
+
+To validate:
+1. Run `cli-rpg --json --skip-character-creation --seed 12345` and verify first line contains seed
+2. Run `cli-rpg --non-interactive --log-file test.log --seed 12345` and verify log contains seed in session_start
+3. Run twice with same seed to verify reproducible terrain generation

@@ -492,7 +492,7 @@ cli-rpg --json --delay 200 < commands.txt
 
 **Log format** (JSON Lines, one entry per line):
 ```json
-{"timestamp": "2025-01-15T12:00:00.000000+00:00", "type": "session_start", "character": "Agent", "location": "Town Square", "theme": "fantasy"}
+{"timestamp": "2025-01-15T12:00:00.000000+00:00", "type": "session_start", "character": "Agent", "location": "Town Square", "theme": "fantasy", "seed": 12345}
 {"timestamp": "2025-01-15T12:00:01.000000+00:00", "type": "command", "input": "look"}
 {"timestamp": "2025-01-15T12:00:01.100000+00:00", "type": "response", "text": "=== Town Square ===\n..."}
 {"timestamp": "2025-01-15T12:00:01.100000+00:00", "type": "state", "location": "Town Square", "health": 100, "max_health": 100, "gold": 50, "level": 1}
@@ -500,7 +500,7 @@ cli-rpg --json --delay 200 < commands.txt
 ```
 
 **Entry types:**
-- `session_start` - Session initialization with character, location, and theme
+- `session_start` - Session initialization with character, location, theme, and seed
 - `command` - Player input commands
 - `response` - Game output text
 - `state` - Game state snapshots (location, health, gold, level)
@@ -522,6 +522,7 @@ echo -e "look\ngo north\nstatus" | cli-rpg --json
 ```
 
 **Message types:**
+- `session_info` - Session initialization with seed and theme (first message)
 - `state` - Current game state (location, health, gold, level)
 - `narrative` - Human-readable text (descriptions, action results)
 - `actions` - Available exits, NPCs, and valid commands

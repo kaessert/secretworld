@@ -1,50 +1,60 @@
-# Add `world_theme_essence` to Location AI Prompt
+# RNG Seeds in Logs for Reproducibility
 
 ## Summary
-Add `{theme_essence}` parameter to `DEFAULT_LOCATION_PROMPT` in `ai_config.py` to enrich non-layered AI location generation with WorldContext theme information.
+Include the RNG seed used for each session in logs and JSON output, enabling session replay for debugging.
 
 ## Spec
-- Modify `DEFAULT_LOCATION_PROMPT` to include `{theme_essence}` placeholder in the Context section
-- Modify `generate_location()` to accept optional `world_context` parameter
-- Modify `_build_location_prompt()` to extract and format `theme_essence` from WorldContext
-- When no WorldContext is provided, use a sensible default based on theme
+- When `--seed N` is provided, log that seed in `session_start`
+- When no seed is provided, generate a random seed, apply it, and log it
+- Add `seed` field to `session_start` log entry type
+- Add `emit_session_info()` to JSON output for session metadata including seed
 
 ## Files to Modify
 
-### 1. `src/cli_rpg/ai_config.py`
-Update `DEFAULT_LOCATION_PROMPT` (lines 14-41):
+### 1. `src/cli_rpg/logging_service.py`
+Update `log_session_start()` to accept optional `seed` parameter:
 ```python
-# Add theme_essence to context section:
-Context:
-- World Theme: {theme}
-- Theme Essence: {theme_essence}  # NEW
-- Existing Locations: {context_locations}
-- Terrain Type: {terrain_type}
+def log_session_start(self, character_name: str, location: str, theme: str, seed: Optional[int] = None) -> None:
+```
+Add `seed` to the entry data when provided.
+
+### 2. `src/cli_rpg/json_output.py`
+Add new function for session info in JSON mode:
+```python
+def emit_session_info(seed: int, theme: str) -> None:
+    """Emit session metadata including RNG seed."""
+    print(json.dumps({"type": "session_info", "seed": seed, "theme": theme}))
 ```
 
-### 2. `src/cli_rpg/ai_service.py`
-- `generate_location()` (line 153): Add optional `world_context: Optional[WorldContext] = None` parameter
-- `_build_location_prompt()` (line 208): Add `world_context` parameter and extract `theme_essence`
-  - If `world_context` provided: use `world_context.theme_essence`
-  - Otherwise: use default from `DEFAULT_THEME_ESSENCES.get(theme, "")`
+### 3. `src/cli_rpg/main.py`
+- In `run_json_mode()` (~line 2596-2630):
+  - Generate seed if not provided: `seed = parsed_args.seed if parsed_args.seed is not None else rnd.randint(0, 2**31 - 1)`
+  - Apply seed before world creation: `random.seed(seed)`
+  - Pass seed to `ChunkManager` instead of generating new one
+  - Call `emit_session_info(seed, theme)` after state emit
+  - Pass seed to `logger.log_session_start()`
 
-### 3. `src/cli_rpg/ai_world.py`
-- `create_ai_world()` and initial location generation already call `generate_location()` without world context (acceptable - defaults will apply)
-- No changes needed for now (world context is generated after initial world creation)
+- In `run_non_interactive()` (~line 2817-2850):
+  - Same seed generation/application pattern
+  - Pass seed to `logger.log_session_start()`
 
-## Tests to Add/Modify
+- In `main()` (~line 2994-2996):
+  - Generate seed if not provided before `random.seed()` call
+  - Store seed for later use (pass to game modes)
 
-### `tests/test_ai_service.py` or new `tests/test_ai_location_theme_essence.py`
-1. Test `generate_location()` includes theme_essence in prompt when WorldContext provided
-2. Test `generate_location()` uses default theme_essence when no WorldContext
-3. Test prompt format includes theme_essence field
+## Tests
 
-### `tests/test_ai_config.py`
-1. Verify `DEFAULT_LOCATION_PROMPT` contains `{theme_essence}` placeholder
+### `tests/test_rng_seed_logging.py` (new file)
+1. `test_seed_logged_in_session_start`: Verify `session_start` includes `seed` field
+2. `test_auto_generated_seed_logged`: When no `--seed`, verify a seed is still logged
+3. `test_json_mode_emits_session_info`: Verify `session_info` message with seed in JSON output
+4. `test_same_seed_same_session_log`: Same seed produces identical seeds in log
 
 ## Implementation Order
-1. Update `DEFAULT_LOCATION_PROMPT` in `ai_config.py` to add `{theme_essence}` placeholder
-2. Update `_build_location_prompt()` in `ai_service.py` to accept and format `theme_essence`
-3. Update `generate_location()` signature to accept optional `world_context`
-4. Add/update tests to verify theme_essence is included in prompts
-5. Run `pytest` to ensure all tests pass
+1. Update `log_session_start()` signature in `logging_service.py`
+2. Add `emit_session_info()` to `json_output.py`
+3. Update `run_json_mode()` to generate/track seed and emit session info
+4. Update `run_non_interactive()` to generate/track seed and log it
+5. Update `main()` to generate seed early if needed
+6. Add tests in `tests/test_rng_seed_logging.py`
+7. Run `pytest` to verify

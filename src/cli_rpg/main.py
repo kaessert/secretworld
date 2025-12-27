@@ -2542,7 +2542,8 @@ def show_main_menu() -> str:
 def run_json_mode(
     log_file: Optional[str] = None,
     delay_ms: int = 0,
-    skip_character_creation: bool = False
+    skip_character_creation: bool = False,
+    seed: Optional[int] = None
 ) -> int:
     """Run game in JSON mode, emitting structured JSON Lines output.
 
@@ -2555,6 +2556,7 @@ def run_json_mode(
         delay_ms: Delay in milliseconds between commands (0 = no delay)
         skip_character_creation: If True, use default character. If False, read
             character creation inputs from stdin.
+        seed: Optional RNG seed. If None, a random seed will be generated.
 
     Returns:
         Exit code (0 for success, 1 for error)
@@ -2564,7 +2566,7 @@ def run_json_mode(
     from cli_rpg.models.character import Character
     from cli_rpg.json_output import (
         emit_state, emit_narrative, emit_actions, emit_error, emit_combat,
-        classify_output
+        classify_output, emit_session_info
     )
     from cli_rpg.logging_service import GameplayLogger
 
@@ -2595,13 +2597,17 @@ def run_json_mode(
 
     world, starting_location = create_world(ai_service=ai_service, theme="fantasy", strict=False)
 
-    # Initialize WFC ChunkManager for terrain generation
+    # Generate seed if not provided, and use it for ChunkManager
     import random as rnd
+    if seed is None:
+        seed = rnd.randint(0, 2**31 - 1)
+
+    # Initialize WFC ChunkManager for terrain generation
     from cli_rpg.wfc_chunks import ChunkManager
     from cli_rpg.world_tiles import DEFAULT_TILE_REGISTRY
     chunk_manager = ChunkManager(
         tile_registry=DEFAULT_TILE_REGISTRY,
-        world_seed=rnd.randint(0, 2**32 - 1),
+        world_seed=seed,
     )
     # Sync WFC terrain with existing location coordinates
     chunk_manager.sync_with_locations(world)
@@ -2626,8 +2632,12 @@ def run_json_mode(
         logger.log_session_start(
             character_name=character.name,
             location=starting_location,
-            theme="fantasy"
+            theme="fantasy",
+            seed=seed
         )
+
+    # Emit session info with seed for reproducibility
+    emit_session_info(seed=seed, theme="fantasy")
 
     def get_available_commands() -> list[str]:
         """Get list of available commands based on current state."""
@@ -2768,7 +2778,8 @@ def run_json_mode(
 def run_non_interactive(
     log_file: Optional[str] = None,
     delay_ms: int = 0,
-    skip_character_creation: bool = False
+    skip_character_creation: bool = False,
+    seed: Optional[int] = None
 ) -> int:
     """Run game in non-interactive mode, reading commands from stdin.
 
@@ -2780,6 +2791,7 @@ def run_non_interactive(
         delay_ms: Delay in milliseconds between commands (0 = no delay)
         skip_character_creation: If True, use default character. If False, read
             character creation inputs from stdin.
+        seed: Optional RNG seed. If None, a random seed will be generated.
 
     Returns:
         Exit code (0 for success, 1 for error)
@@ -2816,13 +2828,17 @@ def run_non_interactive(
 
     world, starting_location = create_world(ai_service=ai_service, theme="fantasy", strict=False)
 
-    # Initialize WFC ChunkManager for terrain generation
+    # Generate seed if not provided, and use it for ChunkManager
     import random as rnd
+    if seed is None:
+        seed = rnd.randint(0, 2**31 - 1)
+
+    # Initialize WFC ChunkManager for terrain generation
     from cli_rpg.wfc_chunks import ChunkManager
     from cli_rpg.world_tiles import DEFAULT_TILE_REGISTRY
     chunk_manager = ChunkManager(
         tile_registry=DEFAULT_TILE_REGISTRY,
-        world_seed=rnd.randint(0, 2**32 - 1),
+        world_seed=seed,
     )
     # Sync WFC terrain with existing location coordinates
     chunk_manager.sync_with_locations(world)
@@ -2847,7 +2863,8 @@ def run_non_interactive(
         logger.log_session_start(
             character_name=character.name,
             location=starting_location,
-            theme="fantasy"
+            theme="fantasy",
+            seed=seed
         )
 
     # Show starting location
@@ -2991,9 +3008,13 @@ def main(args: Optional[list] = None) -> int:
     """
     parsed_args = parse_args(args)
 
+    # Generate seed early if not provided, for consistent use across all modes
+    import random
     if parsed_args.seed is not None:
-        import random
-        random.seed(parsed_args.seed)
+        seed = parsed_args.seed
+    else:
+        seed = random.randint(0, 2**31 - 1)
+    random.seed(seed)
 
     # Clamp delay to valid range (0-60000ms)
     delay_ms = max(0, min(60000, parsed_args.delay))
@@ -3002,14 +3023,16 @@ def main(args: Optional[list] = None) -> int:
         return run_json_mode(
             log_file=parsed_args.log_file,
             delay_ms=delay_ms,
-            skip_character_creation=parsed_args.skip_character_creation
+            skip_character_creation=parsed_args.skip_character_creation,
+            seed=seed
         )
 
     if parsed_args.non_interactive:
         return run_non_interactive(
             log_file=parsed_args.log_file,
             delay_ms=delay_ms,
-            skip_character_creation=parsed_args.skip_character_creation
+            skip_character_creation=parsed_args.skip_character_creation,
+            seed=seed
         )
 
     # Initialize readline for command history (arrow keys navigation)

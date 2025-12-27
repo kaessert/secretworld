@@ -50,19 +50,29 @@ class GameplayLogger:
         self.file.write(json.dumps(entry) + "\n")
         self.file.flush()
 
-    def log_session_start(self, character_name: str, location: str, theme: str) -> None:
+    def log_session_start(
+        self,
+        character_name: str,
+        location: str,
+        theme: str,
+        seed: Optional[int] = None
+    ) -> None:
         """Log the start of a game session.
 
         Args:
             character_name: Name of the player character
             location: Starting location name
             theme: World theme (e.g., "fantasy")
+            seed: Optional RNG seed used for reproducibility
         """
-        self._write_entry("session_start", {
+        data = {
             "character": character_name,
             "location": location,
             "theme": theme
-        })
+        }
+        if seed is not None:
+            data["seed"] = seed
+        self._write_entry("session_start", data)
 
     def log_command(self, command: str) -> None:
         """Log a player command.
