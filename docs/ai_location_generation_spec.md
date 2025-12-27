@@ -131,12 +131,21 @@ Cached world theme context for layered AI generation (Layer 1 of the hierarchica
 
 **Class:** `WorldContext` (`models/world_context.py`)
 
-**Fields:**
+**Core Fields:**
 - `theme: str` - Base theme keyword (e.g., "fantasy", "cyberpunk")
 - `theme_essence: str` - AI-generated theme summary describing the world's feel
 - `naming_style: str` - How to name locations/NPCs in this world
 - `tone: str` - Narrative tone (gritty, whimsical, mysterious, etc.)
 - `generated_at: Optional[datetime]` - When context was AI-generated (None if using defaults)
+
+**Lore & Faction Fields:**
+- `creation_myth: str` - World origin story (theme-specific defaults available)
+- `major_conflicts: list[str]` - 2-3 world-defining conflicts
+- `legendary_artifacts: list[str]` - World-famous items
+- `prophecies: list[str]` - Active prophecies
+- `major_factions: list[str]` - 3-5 world powers (theme-specific defaults available)
+- `faction_tensions: dict[str, list[str]]` - Faction rivalries (faction → list of rivals)
+- `economic_era: str` - One of "stable", "recession", "boom", "war_economy" (theme-specific defaults)
 
 **Methods:**
 - `to_dict() -> dict`: Serializes to dictionary with ISO datetime string

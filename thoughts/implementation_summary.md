@@ -1,81 +1,59 @@
-# Implementation Summary: Location Clustering for POI Generation
+# Implementation Summary: Issue 1 - Expand WorldContext (Layer 1)
 
 ## What Was Implemented
 
-Implemented spatial clustering of similar location types when generating named locations (POIs). When generating a new named location, the system now checks for nearby named locations and biases toward generating similar location types, creating more geographically coherent clusters.
+Added 7 new fields to `WorldContext` dataclass for richer world generation:
 
-## Features Added
+### New Fields Added
+| Field | Type | Purpose |
+|-------|------|---------|
+| `creation_myth` | `str` | World origin story |
+| `major_conflicts` | `list[str]` | 2-3 world-defining conflicts |
+| `legendary_artifacts` | `list[str]` | World-famous items |
+| `prophecies` | `list[str]` | Active prophecies |
+| `major_factions` | `list[str]` | 3-5 world powers |
+| `faction_tensions` | `dict[str, list[str]]` | Faction rivalries |
+| `economic_era` | `str` | stable, recession, boom, war_economy |
 
-### 1. Clustering Constants (`src/cli_rpg/world_tiles.py`)
+### Files Modified
 
-- **`LOCATION_CLUSTER_GROUPS`**: Maps location categories to cluster groups:
-  - `settlements`: village, town, city, settlement
-  - `dungeons`: dungeon, cave, ruins
-  - `wilderness_pois`: forest, wilderness, grove
-  - `sacred`: temple, shrine, monastery
-  - `commerce`: shop, tavern, inn, merchant_camp
+1. **`src/cli_rpg/models/world_context.py`**:
+   - Added `field` import from dataclasses
+   - Added 3 new default dictionaries at module level:
+     - `DEFAULT_CREATION_MYTHS` - theme-specific origin stories
+     - `DEFAULT_MAJOR_FACTIONS` - theme-specific faction lists
+     - `DEFAULT_ECONOMIC_ERAS` - theme-specific economic states
+   - Added 7 new fields to the `WorldContext` dataclass with proper defaults
+   - Updated `to_dict()` to serialize all new fields
+   - Updated `from_dict()` to deserialize new fields with backward-compatible defaults
+   - Updated `default()` factory to include sensible defaults for new fields
 
-- **`CLUSTER_RADIUS`**: Set to 10 tiles (Manhattan distance) - locations within this radius are considered for clustering
-
-- **`CLUSTER_PROBABILITY`**: Set to 0.6 (60%) - probability that clustering will occur when nearby similar locations exist
-
-### 2. Clustering Helper Function (`src/cli_rpg/world_tiles.py`)
-
-Added `get_cluster_category_bias(world, target_coords, radius, rng)`:
-- Scans for named locations within radius
-- Returns a category from the most common nearby cluster group
-- Respects `CLUSTER_PROBABILITY` for randomness
-- Returns `None` if no clustering should occur
-
-### 3. Category Hint in Fallback Generation (`src/cli_rpg/world.py`)
-
-Modified `generate_fallback_location()` to accept `category_hint` parameter:
-- For named locations, `category_hint` overrides terrain-based category
-- For unnamed locations (terrain filler), `category_hint` is ignored
-
-### 4. AI Generation Integration (`src/cli_rpg/ai_world.py`)
-
-Modified `expand_area()` to accept `category_hint` parameter:
-- Added category-specific sub-theme hints for AI generation
-- Maps categories like "village", "dungeon", "temple" to thematic prompts
-
-### 5. Game State Integration (`src/cli_rpg/game_state.py`)
-
-Updated `move()` method:
-- Calls `get_cluster_category_bias()` before generating named locations
-- Passes `category_hint` to both `expand_area()` and `generate_fallback_location()`
-
-## Files Modified
-
-1. `src/cli_rpg/world_tiles.py` - Added clustering constants and helper function
-2. `src/cli_rpg/world.py` - Added `category_hint` parameter to `generate_fallback_location()`
-3. `src/cli_rpg/game_state.py` - Integrated clustering into `move()` method
-4. `src/cli_rpg/ai_world.py` - Added `category_hint` parameter to `expand_area()`
-
-## New Test File
-
-Created `tests/test_location_clustering.py` with 16 tests covering:
-- Clustering constant definitions
-- `get_cluster_category_bias()` function behavior
-- `generate_fallback_location()` with category hints
+2. **`tests/test_world_context.py`**:
+   - Added new test class `TestWorldContextLoreAndFactions` with 7 tests:
+     - `test_new_field_creation` - instantiation with all new fields
+     - `test_new_field_defaults` - minimal instantiation preserves defaults
+     - `test_to_dict_includes_new_fields` - serialization includes new fields
+     - `test_from_dict_restores_new_fields` - deserialization restores new fields
+     - `test_from_dict_backward_compatibility` - old saves load correctly
+     - `test_default_includes_new_field_defaults` - factory provides defaults
+     - `test_round_trip_with_new_fields` - serialization cycle preserves data
 
 ## Test Results
 
-- All 16 new tests pass
-- Full test suite (4185 tests) passes with no regressions
+- **WorldContext tests**: 17 passed (10 existing + 7 new)
+- **Full test suite**: 4192 passed
 
-## How It Works
+## Design Decisions
 
-1. When player moves and triggers named location generation
-2. `get_cluster_category_bias()` scans for nearby named locations
-3. If similar locations exist nearby and probability check passes (60%)
-4. Returns a category from the same cluster group
-5. Category hint is passed to location generation
-6. New location is generated with biased category
+1. **Backward compatibility**: All new fields use `.get()` with empty defaults in `from_dict()` so old save files without these fields continue to work.
+
+2. **List/dict fields use `field(default_factory=...)`**: Per Python dataclass best practices, mutable defaults use factory functions to avoid shared state.
+
+3. **Default factory includes subset of new fields**: The `default()` method populates `creation_myth`, `major_factions`, and `economic_era` with theme-specific defaults. Other fields (`major_conflicts`, `legendary_artifacts`, `prophecies`, `faction_tensions`) are left empty since they're more context-dependent and would be AI-generated.
 
 ## E2E Validation
 
-- When exploring near villages, new POIs have ~60% chance to be settlements
-- When exploring near dungeons/caves/ruins, new POIs cluster as dungeons
-- When no nearby named locations exist, generation proceeds normally
-- Unnamed terrain filler locations are unaffected
+The implementation can be validated by:
+1. Creating a new game and checking that `WorldContext.default()` includes the new fields
+2. Loading an old save file to verify backward compatibility
+3. Verifying new games save/load the new fields correctly

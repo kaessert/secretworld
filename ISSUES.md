@@ -582,10 +582,10 @@ Transform the AI content generation system to create bigger, more coherent, and 
 ---
 
 ### Issue 1: Expand WorldContext (Layer 1)
-**Status**: PENDING
+**Status**: ✅ COMPLETE (2025-12-27)
 **Priority**: HIGH
 
-Add lore and faction fields to WorldContext for richer world generation.
+Added lore and faction fields to WorldContext for richer world generation.
 
 **New Fields**:
 - `creation_myth: str` - World origin story
@@ -596,8 +596,15 @@ Add lore and faction fields to WorldContext for richer world generation.
 - `faction_tensions: dict[str, list[str]]` - Faction rivalries
 - `economic_era: str` - stable, recession, boom, war_economy
 
-**Files to Modify**:
-- `src/cli_rpg/models/world_context.py`
+**Files Modified**:
+- `src/cli_rpg/models/world_context.py` - Added 7 new fields with defaults
+- `tests/test_world_context.py` - Added 7 new tests for lore/faction fields
+
+**Implementation Details**:
+- All new fields use `field(default_factory=...)` for mutable defaults
+- Backward compatible: `from_dict()` uses `.get()` with empty defaults
+- `default()` factory includes theme-specific creation myths, factions, and economic eras
+- 17 tests passing (10 existing + 7 new)
 
 ---
 
@@ -1132,4 +1139,414 @@ class FactionConflict:
 26. Create Storyline, Investigation, FactionConflict (Issue 15)
 27. Integrate economy with shops
 28. Create quest network generation
+
+---
+
+## Location & Dungeon System - Immersion Overhaul
+
+**Status**: PLANNED
+**Date Added**: 2025-12-27
+**Priority**: HIGH
+
+Transform the dungeon/interior experience from functional to immersive. The SubGrid architecture supports rich interiors, but AI generation doesn't populate them with meaningful content.
+
+### Background Analysis
+
+**Current Strengths:**
+- SubGrid supports 3D multi-level dungeons (z-axis navigation)
+- Coordinate-based navigation is robust
+- Secret discovery mechanics exist in `secrets.py`
+- Dread/atmosphere systems are well-integrated
+
+**Critical Gaps:**
+- AI-generated areas have no bosses, treasures, or secrets
+- Dungeons are flat (z-axis unused by AI generation)
+- Encounters are generic everywhere
+- No puzzles or environmental hazards
+- No exploration tracking or completion rewards
+
+---
+
+### Issue 16: AI-Generated Dungeon Bosses
+
+**Labels:** `enhancement` `AI` `gameplay` `P0`
+
+**Problem**: The `boss_enemy` field exists on Location but is only set in hardcoded `world.py`. AI-generated areas via `expand_area()` have no bosses, making dynamically generated dungeons feel empty and anticlimactic.
+
+**Current State:**
+- `boss_enemy` field defined in `models/location.py`
+- Only set manually in `world.py` (lines 523, 774, 791)
+- `expand_area()` in `ai_world.py` never generates bosses
+- No scaling based on dungeon depth or region danger
+
+**Acceptance Criteria:**
+- [ ] Dungeon/cave areas generated via AI include a boss in the deepest room
+- [ ] Boss stats scale with region danger level (from RegionContext)
+- [ ] Boss names/descriptions match area theme
+- [ ] Boss placement algorithm puts boss in room furthest from entry
+- [ ] Defeating boss triggers "area cleared" state
+
+**Related Files:**
+- `src/cli_rpg/ai_service.py` - Add boss generation to Layer 4
+- `src/cli_rpg/ai_world.py` - Wire boss placement into `expand_area()`
+- `src/cli_rpg/models/enemy.py` - Boss template generation
+
+---
+
+### Issue 17: AI-Generated Treasure Chests
+
+**Labels:** `enhancement` `AI` `gameplay` `P0`
+
+**Problem**: The `treasures` field on Location exists but AI never populates it. Only hardcoded examples in `world.py`. AI-generated dungeons have no treasure rewards, reducing exploration incentive.
+
+**Current State:**
+- `treasures: List[dict]` defined in Location model
+- Only populated in hardcoded `world.py` (line 735)
+- No loot tables or scaling by difficulty
+- No thematic item generation
+
+**Acceptance Criteria:**
+- [ ] AI-generated areas include 1-3 treasure chests based on area size
+- [ ] Loot tables scale with region danger level
+- [ ] Thematic items match dungeon type (ancient weapons in ruins, crystals in caves)
+- [ ] Some chests are trap-protected (DEX check to open safely)
+- [ ] Treasure distribution spreads across dungeon, not clustered
+
+**Related Files:**
+- `src/cli_rpg/ai_service.py` - Add treasure generation
+- `src/cli_rpg/ai_world.py` - Wire treasure placement into areas
+- `src/cli_rpg/models/location.py` - Treasure schema
+- `src/cli_rpg/models/item.py` - Thematic item templates
+
+---
+
+### Issue 18: AI-Generated Hidden Secrets
+
+**Labels:** `enhancement` `AI` `exploration` `P0`
+
+**Problem**: The `hidden_secrets` field is never populated by AI generation. Additionally, `check_passive_detection()` in `secrets.py` is defined but never called anywhere in the codebase. Players never automatically discover secrets and AI areas have no secrets to find.
+
+**Current State:**
+- `hidden_secrets: List[dict]` defined in Location model
+- `check_passive_detection()` defined in `secrets.py:128-150` but never invoked
+- Secrets only exist in hardcoded `world.py` locations
+- `perform_active_search()` works but finds nothing in AI areas
+
+**Acceptance Criteria:**
+- [ ] AI-generated named locations include 1-2 hidden secrets
+- [ ] Passive detection called when entering a new location
+- [ ] Secret thresholds scale with region danger (harder dungeons = harder secrets)
+- [ ] Secret descriptions match location theme
+- [ ] All four secret types used: HIDDEN_DOOR, HIDDEN_TREASURE, TRAP, LORE_HINT
+- [ ] Discovered secrets show feedback message to player
+
+**Related Files:**
+- `src/cli_rpg/ai_service.py` - Add secret generation
+- `src/cli_rpg/ai_world.py` - Wire secrets into location creation
+- `src/cli_rpg/secrets.py` - Integrate passive detection
+- `src/cli_rpg/game_state.py` - Call passive detection on location entry
+
+---
+
+### Issue 19: Multi-Level Dungeon Generation
+
+**Labels:** `enhancement` `gameplay` `architecture` `P1`
+
+**Problem**: SubGrid architecture supports z-axis navigation (dungeons defined as `z=-2 to 0`) but `expand_area()` only generates flat 2D areas. The multi-level infrastructure exists but is never exercised by AI generation.
+
+**Current State:**
+- `SUBGRID_BOUNDS["dungeon"] = (-3, 3, -3, 3, -2, 0)` supports 3 vertical levels
+- `go up` / `go down` commands work in SubGrid
+- `expand_area()` only uses (x, y) coordinates, ignoring z
+- Hardcoded dungeons in `world.py` use z but AI doesn't
+
+**Acceptance Criteria:**
+- [ ] Dungeon areas generate across multiple z-levels (entry at z=0, descending)
+- [ ] Stairs/ladders connect levels with appropriate descriptions
+- [ ] Deeper levels have increased danger and better loot
+- [ ] Boss placed at lowest level
+- [ ] Vertical shortcuts possible via hidden passages
+- [ ] Map command shows current level indicator
+
+**Related Files:**
+- `src/cli_rpg/ai_world.py` - Extend `expand_area()` for z-axis
+- `src/cli_rpg/ai_service.py` - Multi-level layout generation
+- `src/cli_rpg/map_renderer.py` - Level indicator in map display
+
+---
+
+### Issue 20: Procedural Dungeon Layouts
+
+**Labels:** `enhancement` `AI` `gameplay` `P1`
+
+**Problem**: `_generate_area_layout()` uses a simple branching pattern for all areas. No dungeon-specific layouts exist. All AI-generated interiors feel structurally identical regardless of category.
+
+**Current State:**
+- `_generate_area_layout()` in `ai_service.py` creates simple branching
+- Fixed coordinates relative to entry point
+- No category-specific layout algorithms
+- No secret passages or alternative routes
+
+**Acceptance Criteria:**
+- [ ] **Linear** layout for caves/mines (progression-focused)
+- [ ] **Branching** layout for forests/ruins (exploration-focused)
+- [ ] **Circular/Hub** layout for temples (central hub with spokes)
+- [ ] **Maze** layout for large dungeons (multiple paths, dead ends)
+- [ ] Secret passages connecting non-adjacent rooms
+- [ ] Layout type selected based on location category
+
+**Related Files:**
+- `src/cli_rpg/ai_service.py` - New layout algorithms
+- `src/cli_rpg/ai_world.py` - Layout selection logic
+- `src/cli_rpg/world_grid.py` - Secret passage support in SubGrid
+
+---
+
+### Issue 21: Location-Specific Random Encounters
+
+**Labels:** `enhancement` `gameplay` `immersion` `P2`
+
+**Problem**: Random encounters use the same tables everywhere. Dungeon encounters feel identical to forest encounters. No thematic connection between location and enemies/merchants encountered.
+
+**Current State:**
+- `random_encounters.py` uses generic encounter spawning
+- `spawn_enemy()` only considers terrain, not location category
+- Merchants have same inventory everywhere
+- No dungeon-specific enemy types
+
+**Acceptance Criteria:**
+- [ ] **Dungeon**: undead, constructs, cultists
+- [ ] **Cave**: beasts, spiders, giant bats
+- [ ] **Ruins**: ghosts, treasure hunters, golems
+- [ ] **Forest**: wolves, bandits, fey creatures
+- [ ] **Temple**: dark priests, animated statues
+- [ ] Category-specific merchant inventories (dungeon merchant sells torches/antidotes)
+- [ ] Encounter rate varies by category (dungeons more dangerous)
+
+**Related Files:**
+- `src/cli_rpg/random_encounters.py` - Category-aware encounter tables
+- `src/cli_rpg/combat.py` - Enemy template selection
+- New `src/cli_rpg/encounter_tables.py` - Centralized encounter definitions
+
+---
+
+### Issue 22: Location-Themed Hallucinations
+
+**Labels:** `enhancement` `immersion` `dread` `P2`
+
+**Problem**: High-dread hallucinations use the same 3 templates everywhere regardless of location. A forest hallucination should differ from a dungeon hallucination for thematic coherence.
+
+**Current State:**
+- `hallucinations.py` has 3 hardcoded templates: Shadow Mimic, Phantom Shade, Nightmare Echo
+- No location category consideration
+- No AI generation for unique hallucination descriptions
+- Same experience in every location type
+
+**Acceptance Criteria:**
+- [ ] **Dungeon**: ghostly prisoners, skeletal warriors, whispering chains
+- [ ] **Forest**: twisted treants, shadow wolves, corrupted fey
+- [ ] **Temple**: fallen priests, dark angels, corrupted statues
+- [ ] **Cave**: eyeless horrors, dripping shadows, chittering swarms
+- [ ] Hallucination descriptions reference location-specific elements
+- [ ] Optional AI-generated unique hallucination for named locations
+
+**Related Files:**
+- `src/cli_rpg/hallucinations.py` - Category-based templates
+- `src/cli_rpg/ai_service.py` - Optional AI hallucination generation
+
+---
+
+### Issue 23: Dungeon Puzzle Mechanics
+
+**Labels:** `enhancement` `gameplay` `content` `P2`
+
+**Problem**: No interactive puzzles exist in dungeons. Gameplay is combat-only with occasional loot. Adding puzzles provides non-combat gameplay depth and rewards different character builds (INT-focused).
+
+**Current State:**
+- No puzzle system exists
+- Dungeons only have combat encounters and treasure
+- No keys, levers, or interactive elements
+- No INT-based challenges
+
+**Acceptance Criteria:**
+- [ ] **Locked doors** requiring keys found in other rooms
+- [ ] **Pressure plates/levers** that open passages or disable traps
+- [ ] **Riddle NPCs** guarding boss rooms or treasure
+- [ ] **Sequence puzzles** (light torches in order, rotate statues)
+- [ ] INT stat provides hints for puzzle solving
+- [ ] Puzzles are optional (can be bypassed with combat or STR checks)
+- [ ] 1-2 puzzles per dungeon area
+
+**Related Files:**
+- New `src/cli_rpg/puzzles.py` - Puzzle system
+- `src/cli_rpg/models/location.py` - Puzzle state fields
+- `src/cli_rpg/game_state.py` - Puzzle interaction commands
+
+---
+
+### Issue 24: Exploration Progress Tracking
+
+**Labels:** `enhancement` `gameplay` `QoL` `P2`
+
+**Problem**: No tracking of dungeon completion exists. Players have no way to know if they've fully explored an area and receive no reward for thorough exploration.
+
+**Current State:**
+- No visited/explored state per room
+- No completion percentage
+- No discovery milestones
+- No bonus for 100% exploration
+- Map command shows terrain but not exploration state
+
+**Acceptance Criteria:**
+- [ ] Track visited rooms in SubGrid (persisted in save)
+- [ ] "Fully explored" bonus (XP + gold) when all rooms visited
+- [ ] Discovery milestones: first secret, all treasures, boss defeated
+- [ ] Exploration percentage visible in `map` command
+- [ ] Dungeon completion recorded in player stats
+- [ ] Visited rooms marked differently on map
+
+**Related Files:**
+- `src/cli_rpg/models/location.py` - Add `explored` state
+- `src/cli_rpg/world_grid.py` - SubGrid exploration tracking
+- `src/cli_rpg/game_state.py` - Milestone rewards
+- `src/cli_rpg/map_renderer.py` - Exploration visualization
+
+---
+
+### Issue 25: Dynamic Interior Events
+
+**Labels:** `enhancement` `gameplay` `world` `P3`
+
+**Problem**: World events only affect the overworld. Dungeon interiors feel static and unchanging. Adding interior-specific events makes dungeons feel alive and time-pressured.
+
+**Current State:**
+- `world_events.py` has caravan, plague, invasion events
+- Events only affect overworld locations
+- Dungeon state is static once generated
+- No time-pressure in dungeon exploration
+
+**Acceptance Criteria:**
+- [ ] **Cave-in**: Temporarily blocks passages (clears after time or with STR)
+- [ ] **Monster migration**: Changes enemy spawn locations
+- [ ] **Rival adventurers**: NPCs racing player to boss/treasure
+- [ ] **Ritual in progress**: Time-limited boss fight with consequences
+- [ ] **Spreading hazard**: Fire/flooding that expands through dungeon
+- [ ] Events trigger on dungeon entry or after time spent inside
+
+**Related Files:**
+- `src/cli_rpg/world_events.py` - Interior event types
+- `src/cli_rpg/game_state.py` - Interior event triggers
+- `src/cli_rpg/world_grid.py` - Dynamic passage blocking
+
+---
+
+### Issue 26: Environmental Hazards
+
+**Labels:** `enhancement` `gameplay` `challenge` `P3`
+
+**Problem**: Movement in dungeons is always safe. No environmental challenges exist. Adding hazards creates tactical decisions and item/skill utility.
+
+**Current State:**
+- Movement never causes damage
+- No terrain effects in interiors
+- Light/darkness is purely descriptive
+- Temperature/weather don't affect gameplay
+
+**Acceptance Criteria:**
+- [ ] **Poison gas**: Periodic damage, mitigated by antidotes or holding breath
+- [ ] **Darkness**: Reduces perception checks, requires torch/light spell
+- [ ] **Unstable ground**: Chance to fall (DEX check), minor damage
+- [ ] **Extreme cold/heat**: Tiredness drain, mitigated by gear
+- [ ] **Flooded rooms**: Slows movement, drowning risk if extended
+- [ ] Hazards visible in room description
+- [ ] Class/item mitigation (Ranger ignores natural hazards)
+
+**Related Files:**
+- New `src/cli_rpg/hazards.py` - Hazard system
+- `src/cli_rpg/models/location.py` - Hazard fields
+- `src/cli_rpg/game_state.py` - Hazard damage/effects on movement
+
+---
+
+### Issue 27: Dungeon Ambiance System
+
+**Labels:** `enhancement` `immersion` `atmosphere` `P3`
+
+**Problem**: Dungeons have limited atmospheric feedback beyond static descriptions. Enhanced ambiance makes exploration more immersive and psychologically engaging.
+
+**Current State:**
+- `whisper.py` provides ambient whispers but not location-aware
+- No ambient sounds tied to location
+- Dread buildup is global, not location-specific
+- No environmental storytelling elements
+- Day/night doesn't affect dungeon behavior
+
+**Acceptance Criteria:**
+- [ ] **Ambient sounds**: Dripping water, distant screams, echoing footsteps
+- [ ] **Progressive dread**: Deeper dungeon levels increase dread faster
+- [ ] **Environmental storytelling**: Corpses, bloodstains, journals, graffiti
+- [ ] **Weather penetration**: Rain sounds near cave entrance, fades deeper
+- [ ] **Day/night effects**: Undead more active at night, some creatures sleep
+- [ ] **Location-specific whispers**: Dungeon whispers differ from forest
+- [ ] Ambiance messages appear periodically during exploration
+
+**Related Files:**
+- `src/cli_rpg/whisper.py` - Location-aware whispers
+- `src/cli_rpg/models/location.py` - Ambiance fields
+- `src/cli_rpg/game_state.py` - Periodic ambiance triggers
+- `src/cli_rpg/models/dread.py` - Location-specific dread modifiers
+
+---
+
+### Dungeon Immersion Implementation Phases
+
+**Phase 1 - Core Content (P0)** - Issues 16-18
+- AI-generated bosses, treasures, secrets
+- Fill the biggest content gap in AI-generated areas
+- Wire passive secret detection
+
+**Phase 2 - Dungeon Structure (P1)** - Issues 19-20
+- Multi-level dungeon generation using z-axis
+- Category-specific procedural layouts
+- Makes dungeons feel distinct and designed
+
+**Phase 3 - Thematic Variety (P2)** - Issues 21-22
+- Location-specific encounters
+- Themed hallucinations
+- Adds thematic coherence to exploration
+
+**Phase 4 - Non-Combat Depth (P2)** - Issues 23-24
+- Puzzle mechanics
+- Exploration progress tracking
+- Adds gameplay depth beyond combat
+
+**Phase 5 - Dynamic Polish (P3)** - Issues 25-27
+- Interior events
+- Environmental hazards
+- Ambiance system
+- Adds atmosphere and challenge variety
+
+---
+
+### Architecture Notes
+
+**Key Integration Points:**
+- `expand_area()` in `ai_world.py` is the primary hook for AI content
+- SubGrid in `world_grid.py` already supports 3D coordinates
+- `game_state.py:move()` flow handles encounters, events, dread
+- Layer 1-4 generation in `ai_service.py` can be extended for new content types
+
+**Data Flow:**
+```
+AI Generation → Location Model → SubGrid → GameState → Player Experience
+     ↓              ↓              ↓           ↓
+  Bosses       Treasures      3D Layout    Events
+  Secrets      Hazards        Progress     Ambiance
+  Puzzles      NPCs           Navigation   Combat
+```
+
+**Backward Compatibility:**
+- All new fields should have defaults (existing saves work)
+- Feature flags can gate new systems during rollout
+- Hardcoded content in `world.py` continues to work
 

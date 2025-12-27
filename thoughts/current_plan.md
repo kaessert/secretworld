@@ -1,141 +1,110 @@
-# Implementation Plan: Cluster Similar Locations Together
+# Implementation Plan: Issue 1 - Expand WorldContext (Layer 1)
 
-## Spec Summary
-When generating named locations (POIs), cluster similar location types together spatially. This means that settlements should spawn near other settlements, dungeon entrances near other dungeons, etc., rather than being scattered randomly.
+## Spec
 
-## Design Approach
+Add lore and faction fields to WorldContext for richer world generation:
 
-**Core Idea**: When `should_generate_named_location()` returns True and we're about to generate a named location, bias the **location category** selection based on nearby existing named locations of similar types.
+| Field | Type | Purpose |
+|-------|------|---------|
+| `creation_myth` | `str` | World origin story |
+| `major_conflicts` | `list[str]` | 2-3 world-defining conflicts |
+| `legendary_artifacts` | `list[str]` | World-famous items |
+| `prophecies` | `list[str]` | Active prophecies |
+| `major_factions` | `list[str]` | 3-5 world powers |
+| `faction_tensions` | `dict[str, list[str]]` | Faction rivalries |
+| `economic_era` | `str` | stable, recession, boom, war_economy |
 
-### Location Category Groupings
-Similar location types that should cluster together:
+All new fields default to empty values for backward compatibility.
 
-| Cluster Group | Location Categories |
-|--------------|---------------------|
-| Settlements | village, town, city, settlement |
-| Dungeons | dungeon, cave, ruins |
-| Wilderness POIs | forest, wilderness, grove |
-| Sacred Sites | temple, shrine, monastery |
-| Commerce | shop, tavern, inn, merchant_camp |
+## Tests (add to `tests/test_world_context.py`)
 
-### Implementation Strategy
-
-1. **Track named location positions**: Use existing `world` dictionary which has coordinates
-2. **Detect nearby similar locations**: When generating a new named location, check for existing named locations within a radius and their categories
-3. **Bias category selection**: If there are nearby named locations, weight towards generating the same category
-4. **Apply in fallback generation**: Modify `generate_fallback_location()` to accept optional category bias
-5. **Apply in AI generation**: Pass category hint to expand_area when clustering applies
+1. **Test new field creation** - Instantiate with all new fields, verify values stored
+2. **Test new field defaults** - Minimal instantiation still works, new fields default empty
+3. **Test to_dict includes new fields** - Serialization includes all 7 new fields
+4. **Test from_dict restores new fields** - Deserialization restores all 7 new fields
+5. **Test from_dict backward compatibility** - Old saves without new fields still load
+6. **Test default() includes new field defaults** - Factory method provides sensible defaults
+7. **Test round-trip with new fields** - All new fields survive serialization cycle
 
 ## Implementation Steps
 
-### 1. Define clustering constants in `world_tiles.py`
+### 1. Add new fields to WorldContext dataclass
+**File**: `src/cli_rpg/models/world_context.py`
 
+Add after line 55 (`generated_at` field):
 ```python
-# Location category clustering groups
-LOCATION_CLUSTER_GROUPS: Dict[str, str] = {
-    # Settlements
-    "village": "settlements",
-    "town": "settlements",
-    "city": "settlements",
-    "settlement": "settlements",
-    # Dungeons
-    "dungeon": "dungeons",
-    "cave": "dungeons",
-    "ruins": "dungeons",
-    # Wilderness POIs
-    "forest": "wilderness_pois",
-    "wilderness": "wilderness_pois",
-    "grove": "wilderness_pois",
-    # Sacred
-    "temple": "sacred",
-    "shrine": "sacred",
-    "monastery": "sacred",
-    # Commerce
-    "shop": "commerce",
-    "tavern": "commerce",
-    "inn": "commerce",
+# Lore fields
+creation_myth: str = ""
+major_conflicts: list[str] = field(default_factory=list)
+legendary_artifacts: list[str] = field(default_factory=list)
+prophecies: list[str] = field(default_factory=list)
+# Faction fields
+major_factions: list[str] = field(default_factory=list)
+faction_tensions: dict[str, list[str]] = field(default_factory=dict)
+# Economy field
+economic_era: str = ""
+```
+
+Add import: `from dataclasses import dataclass, field`
+
+### 2. Update to_dict() method
+**File**: `src/cli_rpg/models/world_context.py` (lines 57-69)
+
+Add to return dict:
+```python
+"creation_myth": self.creation_myth,
+"major_conflicts": self.major_conflicts,
+"legendary_artifacts": self.legendary_artifacts,
+"prophecies": self.prophecies,
+"major_factions": self.major_factions,
+"faction_tensions": self.faction_tensions,
+"economic_era": self.economic_era,
+```
+
+### 3. Update from_dict() method
+**File**: `src/cli_rpg/models/world_context.py` (lines 71-91)
+
+Add to return cls():
+```python
+creation_myth=data.get("creation_myth", ""),
+major_conflicts=data.get("major_conflicts", []),
+legendary_artifacts=data.get("legendary_artifacts", []),
+prophecies=data.get("prophecies", []),
+major_factions=data.get("major_factions", []),
+faction_tensions=data.get("faction_tensions", {}),
+economic_era=data.get("economic_era", ""),
+```
+
+### 4. Update default() factory method
+**File**: `src/cli_rpg/models/world_context.py` (lines 93-113)
+
+Add DEFAULT_LORE and DEFAULT_FACTIONS dicts at module level, then include in default():
+```python
+DEFAULT_CREATION_MYTHS = {
+    "fantasy": "Forged by ancient gods from primordial chaos",
+    "cyberpunk": "Built on the ashes of the old world's collapse",
+    ...
 }
-
-# Cluster radius in world tiles
-CLUSTER_RADIUS = 10
-
-# Probability of clustering (vs generating any random type)
-CLUSTER_PROBABILITY = 0.6
+DEFAULT_MAJOR_FACTIONS = {
+    "fantasy": ["The Crown", "The Mage's Circle", "The Merchant League"],
+    ...
+}
+DEFAULT_ECONOMIC_ERAS = {
+    "fantasy": "stable",
+    "cyberpunk": "boom",
+    ...
+}
 ```
 
-### 2. Add clustering helper function in `world_tiles.py`
+### 5. Add tests for new fields
+**File**: `tests/test_world_context.py`
 
-```python
-def get_cluster_category_bias(
-    world: Dict[str, Location],
-    target_coords: Tuple[int, int],
-    radius: int = CLUSTER_RADIUS,
-    rng: Optional[random.Random] = None,
-) -> Optional[str]:
-    """Determine if new location should cluster with nearby similar locations.
+Add new test class `TestWorldContextLoreAndFactions` with the 7 tests specified above.
 
-    Scans for named locations within radius and returns a category bias
-    if clustering should occur.
+## Verification
 
-    Args:
-        world: World dictionary with locations
-        target_coords: Coordinates for new location
-        radius: Search radius for nearby named locations
-        rng: Optional RNG for determinism
-
-    Returns:
-        Category string to bias towards, or None if no clustering
-    """
+```bash
+pytest tests/test_world_context.py -v
 ```
 
-### 3. Integrate into `game_state.py` move() method
-
-In the section where `generate_named = True`:
-- Before calling `generate_fallback_location()` or `expand_area()`, call `get_cluster_category_bias()`
-- Pass the bias as a hint to the generation functions
-
-### 4. Modify `generate_fallback_location()` in `world.py`
-
-Add optional `category_hint` parameter:
-- If provided and matches a terrain template, prefer that template
-- Ensures fallback generation respects clustering
-
-### 5. Modify AI prompt/expand_area in `ai_world.py`
-
-Add optional `category_hint` parameter to `expand_area()`:
-- Include hint in AI prompt to guide location category generation
-
-## Test Plan
-
-### Unit Tests (in `tests/test_location_clustering.py`)
-
-1. **test_cluster_groups_defined**: Verify LOCATION_CLUSTER_GROUPS contains expected mappings
-2. **test_get_cluster_category_bias_no_nearby**: Returns None when no named locations nearby
-3. **test_get_cluster_category_bias_finds_nearby**: Returns category when similar location within radius
-4. **test_get_cluster_category_bias_respects_probability**: Clustering happens ~60% of time
-5. **test_get_cluster_category_bias_radius_boundary**: Location at exactly radius edge counts
-6. **test_get_cluster_category_bias_outside_radius**: Location beyond radius ignored
-7. **test_generate_fallback_respects_category_hint**: Verify fallback uses hint when provided
-8. **test_cluster_groups_cover_common_categories**: Verify all common categories are mapped
-
-### Integration Tests
-
-9. **test_move_applies_clustering_bias**: Verify move() passes bias to generation
-10. **test_clustering_persists_patterns**: Verify multiple moves create clustered patterns
-
-## Files to Modify
-
-1. `src/cli_rpg/world_tiles.py` - Add constants and `get_cluster_category_bias()`
-2. `src/cli_rpg/world.py` - Add `category_hint` param to `generate_fallback_location()`
-3. `src/cli_rpg/game_state.py` - Call clustering logic before named location generation
-4. `src/cli_rpg/ai_world.py` - Add `category_hint` to `expand_area()` (optional enhancement)
-5. `tests/test_location_clustering.py` - New test file
-
-## Implementation Order
-
-1. Add constants and `get_cluster_category_bias()` to `world_tiles.py`
-2. Write unit tests for the new function
-3. Add `category_hint` to `generate_fallback_location()`
-4. Integrate into `game_state.py` move() method
-5. Write integration tests
-6. (Optional) Add to AI prompt in `expand_area()`
+All existing tests must continue to pass (backward compatibility). All 7 new tests must pass.

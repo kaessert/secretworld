@@ -5,7 +5,7 @@ enabling consistent AI-generated content by providing theme essence,
 naming conventions, and tone to all subsequent generation calls.
 """
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Optional
 
@@ -35,6 +35,30 @@ DEFAULT_TONES = {
     "post-apocalyptic": "desperate, gritty, with flickers of hope",
 }
 
+DEFAULT_CREATION_MYTHS = {
+    "fantasy": "Forged by ancient gods from primordial chaos",
+    "cyberpunk": "Built on the ashes of the old world's collapse",
+    "steampunk": "Set in motion by the Great Clockmaker",
+    "horror": "Born from the nightmares of sleeping elder gods",
+    "post-apocalyptic": "What remains after humanity's hubris destroyed civilization",
+}
+
+DEFAULT_MAJOR_FACTIONS = {
+    "fantasy": ["The Crown", "The Mage's Circle", "The Merchant League"],
+    "cyberpunk": ["MegaCorp", "The Resistance", "The Syndicate"],
+    "steampunk": ["The Engineers Guild", "The Aristocracy", "The Workers Union"],
+    "horror": ["The Cult of the Old Ones", "The Order of Light", "The Damned"],
+    "post-apocalyptic": ["The Settlers", "The Raiders", "The Technocrats"],
+}
+
+DEFAULT_ECONOMIC_ERAS = {
+    "fantasy": "stable",
+    "cyberpunk": "boom",
+    "steampunk": "boom",
+    "horror": "recession",
+    "post-apocalyptic": "war_economy",
+}
+
 
 @dataclass
 class WorldContext:
@@ -53,6 +77,16 @@ class WorldContext:
     naming_style: str = ""
     tone: str = ""
     generated_at: Optional[datetime] = None
+    # Lore fields
+    creation_myth: str = ""
+    major_conflicts: list[str] = field(default_factory=list)
+    legendary_artifacts: list[str] = field(default_factory=list)
+    prophecies: list[str] = field(default_factory=list)
+    # Faction fields
+    major_factions: list[str] = field(default_factory=list)
+    faction_tensions: dict[str, list[str]] = field(default_factory=dict)
+    # Economy field
+    economic_era: str = ""
 
     def to_dict(self) -> dict:
         """Serialize WorldContext to dictionary for save/load.
@@ -66,6 +100,13 @@ class WorldContext:
             "naming_style": self.naming_style,
             "tone": self.tone,
             "generated_at": self.generated_at.isoformat() if self.generated_at else None,
+            "creation_myth": self.creation_myth,
+            "major_conflicts": self.major_conflicts,
+            "legendary_artifacts": self.legendary_artifacts,
+            "prophecies": self.prophecies,
+            "major_factions": self.major_factions,
+            "faction_tensions": self.faction_tensions,
+            "economic_era": self.economic_era,
         }
 
     @classmethod
@@ -88,6 +129,13 @@ class WorldContext:
             naming_style=data.get("naming_style", ""),
             tone=data.get("tone", ""),
             generated_at=generated_at,
+            creation_myth=data.get("creation_myth", ""),
+            major_conflicts=data.get("major_conflicts", []),
+            legendary_artifacts=data.get("legendary_artifacts", []),
+            prophecies=data.get("prophecies", []),
+            major_factions=data.get("major_factions", []),
+            faction_tensions=data.get("faction_tensions", {}),
+            economic_era=data.get("economic_era", ""),
         )
 
     @classmethod
@@ -110,4 +158,13 @@ class WorldContext:
             ),
             tone=DEFAULT_TONES.get(theme, DEFAULT_TONES["fantasy"]),
             generated_at=None,
+            creation_myth=DEFAULT_CREATION_MYTHS.get(
+                theme, DEFAULT_CREATION_MYTHS["fantasy"]
+            ),
+            major_factions=DEFAULT_MAJOR_FACTIONS.get(
+                theme, DEFAULT_MAJOR_FACTIONS["fantasy"]
+            ),
+            economic_era=DEFAULT_ECONOMIC_ERAS.get(
+                theme, DEFAULT_ECONOMIC_ERAS["fantasy"]
+            ),
         )
