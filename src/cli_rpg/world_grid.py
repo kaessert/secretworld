@@ -9,6 +9,7 @@ from cli_rpg.models.location import Location
 
 if TYPE_CHECKING:
     from cli_rpg.models.district import District
+    from cli_rpg.interior_events import InteriorEvent
 
 
 # Direction offsets: (dx, dy)
@@ -135,6 +136,7 @@ class SubGrid:
     districts: List["District"] = field(default_factory=list)
     visited_rooms: set = field(default_factory=set)
     exploration_bonus_awarded: bool = False
+    interior_events: List["InteriorEvent"] = field(default_factory=list)
 
     def add_location(self, location: Location, x: int, y: int, z: int = 0) -> None:
         """Add a location within bounds.
@@ -269,6 +271,7 @@ class SubGrid:
             "districts": [d.to_dict() for d in self.districts],
             "visited_rooms": [list(coords) for coords in self.visited_rooms],
             "exploration_bonus_awarded": self.exploration_bonus_awarded,
+            "interior_events": [e.to_dict() for e in self.interior_events],
         }
 
     @classmethod
@@ -283,6 +286,7 @@ class SubGrid:
         """
         # Import here to avoid circular imports
         from cli_rpg.models.district import District
+        from cli_rpg.interior_events import InteriorEvent
 
         grid = cls()
         # Handle both legacy 4-tuple and new 6-tuple bounds
@@ -297,6 +301,10 @@ class SubGrid:
         # Restore visited_rooms (default to empty for backward compat)
         grid.visited_rooms = {tuple(coords) for coords in data.get("visited_rooms", [])}
         grid.exploration_bonus_awarded = data.get("exploration_bonus_awarded", False)
+        # Restore interior_events (default to empty for backward compat)
+        grid.interior_events = [
+            InteriorEvent.from_dict(e) for e in data.get("interior_events", [])
+        ]
 
         for loc_data in data.get("locations", []):
             location = Location.from_dict(loc_data)

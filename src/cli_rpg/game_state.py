@@ -883,9 +883,9 @@ class GameState:
         if direction not in {"north", "south", "east", "west", "up", "down"}:
             return (False, "Invalid direction. Use: north, south, east, west, up, or down.")
 
-        # Check if direction is blocked by a puzzle
+        # Check if direction is blocked (by a puzzle or cave-in)
         if direction in current.blocked_directions:
-            return (False, f"The way {direction} is blocked by a puzzle.")
+            return (False, f"The way {direction} is blocked.")
 
         if current.coordinates is None:
             return (False, "Cannot navigate - location has no coordinates.")
@@ -977,6 +977,17 @@ class GameState:
         # Add exploration bonus message if awarded
         if exploration_bonus_message:
             message += exploration_bonus_message
+
+        # Progress interior events (clear expired cave-ins)
+        from cli_rpg.interior_events import progress_interior_events, check_for_cave_in
+        event_messages = progress_interior_events(self, self.current_sub_grid)
+        for msg in event_messages:
+            message += f"\n{msg}"
+
+        # Check for new cave-in (5% chance)
+        cave_in_message = check_for_cave_in(self, self.current_sub_grid)
+        if cave_in_message:
+            message += f"\n{cave_in_message}"
 
         return (True, message)
 

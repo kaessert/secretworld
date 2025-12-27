@@ -77,6 +77,7 @@ src/cli_rpg/
 ├── faction_content.py   # Faction-gated NPC/location access based on reputation
 ├── settlement_generator.py # District generation for mega-settlements (cities, metropolises, capitals)
 ├── puzzles.py           # Dungeon puzzle interaction logic (unlock, pull, step, answer, activate)
+├── interior_events.py   # Dynamic interior events (cave-ins) for SubGrid locations
 └── models/
     ├── character.py     # Player character model
     ├── district.py      # District model for mega-settlements (DistrictType enum, bounds, atmosphere)

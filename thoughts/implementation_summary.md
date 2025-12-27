@@ -1,65 +1,72 @@
-# Implementation Summary: Exploration Progress Tracking (Issue 24)
+# Implementation Summary: Issue 25 - Dynamic Interior Events (Cave-Ins)
 
 ## What Was Implemented
 
-### SubGrid Exploration Tracking
+### New Module: `src/cli_rpg/interior_events.py`
+Created a new module for interior-specific dynamic events with:
 
-**File: `src/cli_rpg/world_grid.py`**
+- **InteriorEvent dataclass**: Model with fields:
+  - `event_id`: Unique identifier
+  - `event_type`: Type of event (currently "cave_in")
+  - `location_coords`: 3-tuple (x, y, z) where event occurred
+  - `blocked_direction`: Direction blocked by this event
+  - `start_hour`: Game hour when event started
+  - `duration_hours`: How long the event lasts
+  - `is_active`: Whether event is still in effect
+  - Methods: `is_expired()`, `get_time_remaining()`, `to_dict()`, `from_dict()`
 
-Added to `SubGrid` class:
-- `visited_rooms: set` field - Stores (x, y, z) coordinate tuples of visited rooms
-- `exploration_bonus_awarded: bool` field - Prevents bonus from being awarded multiple times
-- `mark_visited(x, y, z)` method - Adds a room coordinate to the visited set
-- `get_exploration_stats()` method - Returns `(visited_count, total_rooms, percentage)`
-- `is_fully_explored()` method - Returns True when all rooms have been visited
-- Updated `to_dict()` - Serializes `visited_rooms` as list of coordinate lists and `exploration_bonus_awarded`
-- Updated `from_dict()` - Restores `visited_rooms` (defaults to empty set for backward compatibility)
+- **Cave-in spawn logic**:
+  - `check_for_cave_in()`: 5% spawn chance per move (matches world events)
+  - Only spawns in valid categories: dungeon, cave, ruins, temple
+  - Blocks a random available direction (north/south/east/west)
+  - Duration: 4-12 hours (random)
 
-### Movement Tracking in GameState
+- **Cave-in clearing logic**:
+  - `progress_interior_events()`: Clears expired cave-ins on time advance
+  - `clear_cave_in()`: Manual clearing function for future digging tools
+  - `get_active_cave_ins()`, `get_cave_in_at_location()`: Query functions
 
-**File: `src/cli_rpg/game_state.py`**
+### Modified Files
 
-- `enter()` method - Now marks the entry room as visited when entering a SubGrid
-- `_move_in_sub_grid()` method - Now marks destination room as visited after each move
-- Exploration bonus logic - Awards XP and gold when SubGrid is fully explored:
-  - XP bonus: 50 × total_rooms
-  - Gold bonus: 25 × total_rooms
-  - Only awarded once (tracked via `exploration_bonus_awarded`)
-  - Displays celebratory message: "★ FULLY EXPLORED! ★"
+1. **`src/cli_rpg/world_grid.py`**:
+   - Added `interior_events: List[InteriorEvent]` field to SubGrid dataclass
+   - Updated `to_dict()` to serialize interior_events
+   - Updated `from_dict()` to deserialize with backward compatibility
 
-### Map Display
+2. **`src/cli_rpg/game_state.py`**:
+   - Modified `_move_in_sub_grid()` to:
+     - Check for blocked directions (now includes cave-ins, not just puzzles)
+     - Call `progress_interior_events()` after time advance
+     - Call `check_for_cave_in()` after successful movement (5% chance)
+     - Display messages for cleared/new cave-ins
 
-**File: `src/cli_rpg/map_renderer.py`**
-
-- `_render_sub_grid_map()` now displays exploration progress:
-  - Shows "Explored: X/Y rooms (Z%)" line after map header
-  - Shows "Complete!" indicator when 100% explored
+### New Test File: `tests/test_interior_events.py`
+20 tests covering:
+- InteriorEvent model creation and serialization
+- Cave-in spawn logic (categories, chance, duration)
+- Cave-in clearing (time-based expiry, manual clearing)
+- Integration with SubGrid and movement blocking
+- Backward-compatible deserialization
 
 ## Test Results
+- All 20 new tests pass
+- Full test suite: 4657 tests pass
 
-All 15 new tests pass:
-- 7 tests for SubGrid visited room tracking
-- 2 tests for serialization/backward compatibility
-- 4 tests for GameState movement tracking and bonus awards
-- 2 tests for map renderer exploration display
+## Design Decisions
 
-Full test suite: **4637 passed**
+1. **Reused existing infrastructure**: Cave-ins use the `blocked_directions` list from Issue 23's puzzle system, ensuring consistent movement blocking behavior.
 
-## Files Modified
+2. **Matches world events pattern**: 5% spawn chance and time-based expiry mirror the overworld world_events system for consistency.
 
-| File | Changes |
-|------|---------|
-| `src/cli_rpg/world_grid.py` | Added `visited_rooms`, `exploration_bonus_awarded`, `mark_visited()`, `get_exploration_stats()`, `is_fully_explored()`, serialization |
-| `src/cli_rpg/game_state.py` | Track visits in `_move_in_sub_grid()`, `enter()`; award bonus on full exploration |
-| `src/cli_rpg/map_renderer.py` | Show exploration percentage in `_render_sub_grid_map()` |
-| `tests/test_exploration_tracking.py` | 15 new tests |
+3. **Backward compatible serialization**: Old saves without `interior_events` field load correctly with an empty list.
+
+4. **Generic blocked message**: Changed the blocked direction message from "blocked by a puzzle" to simply "blocked" since it can now be either puzzles or cave-ins.
 
 ## E2E Validation
-
-To validate manually:
-1. Enter a dungeon/cave (any enterable location)
-2. Use `map` command - should show "Explored: X/Y rooms (Z%)"
-3. Navigate to visit all rooms
-4. On visiting the last room, should see "★ FULLY EXPLORED! ★" message with XP/gold bonus
-5. Use `map` command again - should show "(100% - Complete!)"
-6. Save and reload - exploration progress should persist
+To validate the feature works in-game:
+1. Enter a dungeon/cave/ruins/temple location
+2. Move around inside the SubGrid
+3. With 5% chance, a cave-in message will appear blocking a direction
+4. Attempting to move in that direction will show "The way X is blocked"
+5. After 4-12 game hours, the cave-in clears automatically with a message
+6. Save/load should preserve cave-in state correctly

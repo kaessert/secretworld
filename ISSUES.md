@@ -398,22 +398,33 @@ Create storyline system with branching quests and investigations.
 ---
 
 ### Issue 25: Dynamic Interior Events
-**Status**: PENDING
+**Status**: PARTIAL ✓
 **Priority**: P3
+**Completed**: 2025-12-27 (Cave-ins)
 
 **Problem**: World events only affect the overworld. Dungeon interiors feel static.
 
+**Implementation (Cave-ins):**
+- `src/cli_rpg/interior_events.py` - New module with:
+  - `InteriorEvent` dataclass with event_id, event_type, location_coords, blocked_direction, duration, serialization
+  - `check_for_cave_in()`: 5% spawn chance per move in dungeon/cave/ruins/temple
+  - `progress_interior_events()`: Clears expired cave-ins on time advance
+  - `clear_cave_in()`: Manual clearing function for future digging tools
+- `src/cli_rpg/world_grid.py` - Added `interior_events` field to SubGrid with serialization
+- `src/cli_rpg/game_state.py` - Integrated cave-in checks and blocking into SubGrid movement
+- 20 new tests in `tests/test_interior_events.py`
+
 **Acceptance Criteria:**
-- [ ] **Cave-in**: Temporarily blocks passages
+- [x] **Cave-in**: Temporarily blocks passages (4-12 hours, auto-clears)
 - [ ] **Monster migration**: Changes enemy spawn locations
 - [ ] **Rival adventurers**: NPCs racing player to boss/treasure
 - [ ] **Ritual in progress**: Time-limited boss fight
 - [ ] **Spreading hazard**: Fire/flooding through dungeon
 
 **Related Files:**
-- `src/cli_rpg/world_events.py`
-- `src/cli_rpg/game_state.py`
+- `src/cli_rpg/interior_events.py`
 - `src/cli_rpg/world_grid.py`
+- `src/cli_rpg/game_state.py`
 
 ---
 
@@ -473,7 +484,7 @@ Create storyline system with branching quests and investigations.
 - ✓ Exploration progress tracking (Issue 24 complete)
 
 **Phase 5 - Dynamic Polish (P3)** - Issues 25-27
-- Interior events
+- ✓ Interior events - cave-ins (Issue 25 partial)
 - Environmental hazards
 - Ambiance system
 
