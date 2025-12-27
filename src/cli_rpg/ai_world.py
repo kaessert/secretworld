@@ -26,27 +26,76 @@ SAFE_ZONE_CATEGORIES = {"town", "village", "settlement"}
 BOSS_CATEGORIES = frozenset({"dungeon", "cave", "ruins"})
 
 
-def _find_furthest_room(placed_locations: dict) -> Optional[str]:
-    """Find the room furthest from entry (0,0) for boss placement.
+def _find_furthest_room(
+    placed_locations: dict,
+    prefer_lowest_z: bool = False
+) -> Optional[str]:
+    """Find the room furthest from entry (0,0,0) for boss placement.
 
     Args:
         placed_locations: Dict mapping location names to placement data.
-            Each entry should have 'relative_coords' (tuple) and 'is_entry' (bool).
+            Each entry should have 'relative_coords' (tuple of 2 or 3) and 'is_entry' (bool).
+        prefer_lowest_z: If True, prioritize lowest z-level over Manhattan distance.
+            Boss rooms are placed at the deepest level first, then by distance.
 
     Returns:
         Name of the furthest room, or None if no non-entry rooms exist.
     """
-    max_distance = -1
-    furthest_name = None
-    for name, data in placed_locations.items():
-        if data.get("is_entry", False):
-            continue
-        rel_x, rel_y = data.get("relative_coords", (0, 0))
-        distance = abs(rel_x) + abs(rel_y)
-        if distance > max_distance:
-            max_distance = distance
-            furthest_name = name
-    return furthest_name
+    if prefer_lowest_z:
+        # Find the lowest z-level first, then furthest by Manhattan distance at that level
+        lowest_z = 0
+        candidates = []
+
+        for name, data in placed_locations.items():
+            if data.get("is_entry", False):
+                continue
+
+            rel_coords = data.get("relative_coords", (0, 0, 0))
+            if len(rel_coords) == 2:
+                rel_x, rel_y = rel_coords
+                rel_z = 0
+            else:
+                rel_x, rel_y, rel_z = rel_coords
+
+            # Track lowest z-level seen
+            if rel_z < lowest_z:
+                lowest_z = rel_z
+                candidates = [(name, rel_x, rel_y, rel_z)]
+            elif rel_z == lowest_z:
+                candidates.append((name, rel_x, rel_y, rel_z))
+
+        if not candidates:
+            return None
+
+        # Among candidates at lowest z-level, find furthest by Manhattan distance
+        max_distance = -1
+        furthest_name = None
+        for name, rel_x, rel_y, rel_z in candidates:
+            distance = abs(rel_x) + abs(rel_y)
+            if distance > max_distance:
+                max_distance = distance
+                furthest_name = name
+
+        return furthest_name
+    else:
+        # Original 2D behavior: just Manhattan distance from origin
+        max_distance = -1
+        furthest_name = None
+        for name, data in placed_locations.items():
+            if data.get("is_entry", False):
+                continue
+
+            rel_coords = data.get("relative_coords", (0, 0))
+            if len(rel_coords) == 2:
+                rel_x, rel_y = rel_coords
+            else:
+                rel_x, rel_y, _ = rel_coords
+
+            distance = abs(rel_x) + abs(rel_y)
+            if distance > max_distance:
+                max_distance = distance
+                furthest_name = name
+        return furthest_name
 
 
 def _place_treasures(
@@ -84,9 +133,15 @@ def _place_treasures(
         # Skip boss rooms (boss IS the reward)
         if loc.boss_enemy is not None:
             continue
-        rel_x, rel_y = data.get("relative_coords", (0, 0))
+        # Support both 2D and 3D coordinates
+        rel_coords = data.get("relative_coords", (0, 0, 0))
+        if len(rel_coords) == 2:
+            rel_x, rel_y = rel_coords
+            rel_z = 0
+        else:
+            rel_x, rel_y, rel_z = rel_coords
         distance = abs(rel_x) + abs(rel_y)
-        candidates.append((name, distance, loc))
+        candidates.append((name, distance, rel_z, loc))
 
     if not candidates:
         return
@@ -115,17 +170,18 @@ def _place_treasures(
             selected.append(candidates[i])
 
     # Create treasures for selected rooms
-    for name, distance, loc in selected:
-        treasure = _create_treasure_chest(entry_category, distance)
+    for name, distance, z_level, loc in selected:
+        treasure = _create_treasure_chest(entry_category, distance, z_level)
         loc.treasures.append(treasure)
 
 
-def _create_treasure_chest(category: str, distance: int) -> dict:
+def _create_treasure_chest(category: str, distance: int, z_level: int = 0) -> dict:
     """Create a treasure chest with thematic items.
 
     Args:
         category: Location category (dungeon, cave, etc.)
         distance: Manhattan distance from entry (affects difficulty)
+        z_level: Z-level of the location (negative = deeper, affects difficulty)
 
     Returns:
         Treasure dict with schema matching Location.treasures
@@ -140,8 +196,9 @@ def _create_treasure_chest(category: str, distance: int) -> dict:
     num_items = random.randint(1, min(2, len(loot_table)))
     items = random.sample(loot_table, num_items)
 
-    # Lock difficulty scales with distance (minimum 1)
-    difficulty = max(1, distance + random.randint(0, 1))
+    # Lock difficulty scales with distance and depth (minimum 1)
+    # abs(z_level) because z_level is negative for deeper levels
+    difficulty = max(1, distance + abs(z_level) + random.randint(0, 1))
 
     # Generate description based on chest name and category
     descriptions = {
@@ -354,12 +411,17 @@ SECRET_TEMPLATES: dict[str, list[tuple[str, str, int]]] = {
 }
 
 
-def _generate_secrets_for_location(category: str, distance: int = 0) -> list[dict]:
+def _generate_secrets_for_location(
+    category: str,
+    distance: int = 0,
+    z_level: int = 0
+) -> list[dict]:
     """Generate 1-2 hidden secrets for a location.
 
     Args:
         category: Location category (dungeon, cave, etc.)
         distance: Distance from entry (affects threshold)
+        z_level: Z-level of the location (negative = deeper, affects threshold)
 
     Returns:
         List of secret dicts matching Location.hidden_secrets schema
@@ -376,7 +438,8 @@ def _generate_secrets_for_location(category: str, distance: int = 0) -> list[dic
 
     secrets = []
     for secret_type, description, base_threshold in selected:
-        threshold = base_threshold + min(distance, 4)
+        # Threshold scales with distance and depth (abs(z_level) for negative z)
+        threshold = base_threshold + min(distance, 4) + abs(z_level)
         secret = {
             "type": secret_type,
             "description": description,
@@ -385,9 +448,11 @@ def _generate_secrets_for_location(category: str, distance: int = 0) -> list[dic
         }
 
         if secret_type == "hidden_treasure":
-            secret["reward_gold"] = random.randint(10, 30) + (distance * 5)
+            # Deeper secrets give better rewards
+            secret["reward_gold"] = random.randint(10, 30) + (distance * 5) + (abs(z_level) * 10)
         elif secret_type == "trap":
-            secret["trap_damage"] = 5 + (distance * 2)
+            # Deeper traps are more dangerous
+            secret["trap_damage"] = 5 + (distance * 2) + (abs(z_level) * 3)
         elif secret_type == "hidden_door":
             secret["exit_direction"] = random.choice(["north", "south", "east", "west"])
 
@@ -731,15 +796,21 @@ def generate_subgrid_for_location(
     placed_locations = {}
 
     for loc_data in area_data:
-        rel_x, rel_y = loc_data.get("relative_coords", (0, 0))
+        # Support both 2D and 3D relative coordinates
+        rel_coords = loc_data.get("relative_coords", (0, 0, 0))
+        if len(rel_coords) == 2:
+            rel_x, rel_y = rel_coords
+            rel_z = 0
+        else:
+            rel_x, rel_y, rel_z = rel_coords
 
-        # Check bounds
-        if not sub_grid.is_within_bounds(rel_x, rel_y):
+        # Check bounds (including z-bounds)
+        if not sub_grid.is_within_bounds(rel_x, rel_y, rel_z):
             logger.debug(f"Skipping {loc_data['name']}: outside bounds")
             continue
 
         # Skip if coordinates occupied
-        if sub_grid.get_by_coordinates(rel_x, rel_y) is not None:
+        if sub_grid.get_by_coordinates(rel_x, rel_y, rel_z) is not None:
             continue
 
         # Generate ASCII art using fallback
@@ -775,20 +846,20 @@ def generate_subgrid_for_location(
         # Add hidden secrets to non-entry rooms
         if not first_location:
             distance = abs(rel_x) + abs(rel_y)
-            secrets = _generate_secrets_for_location(loc_category or "dungeon", distance)
+            secrets = _generate_secrets_for_location(loc_category or "dungeon", distance, rel_z)
             new_loc.hidden_secrets.extend(secrets)
 
-        sub_grid.add_location(new_loc, rel_x, rel_y)
+        sub_grid.add_location(new_loc, rel_x, rel_y, rel_z)
         placed_locations[loc_data["name"]] = {
             "location": new_loc,
-            "relative_coords": (rel_x, rel_y),
+            "relative_coords": (rel_x, rel_y, rel_z),
             "is_entry": first_location,
         }
         first_location = False
 
-    # Place boss in furthest room for dungeon-type categories
+    # Place boss in furthest room for dungeon-type categories (prefer lowest z)
     if location.category in BOSS_CATEGORIES and placed_locations:
-        boss_room_name = _find_furthest_room(placed_locations)
+        boss_room_name = _find_furthest_room(placed_locations, prefer_lowest_z=True)
         if boss_room_name:
             boss_room = sub_grid.get_by_name(boss_room_name)
             if boss_room:
@@ -1374,23 +1445,31 @@ def expand_area(
 
     # First pass: create Location objects and calculate absolute coordinates
     for loc_data in area_data:
-        rel_x, rel_y = loc_data["relative_coords"]
+        # Support both 2D and 3D relative coordinates
+        rel_coords = loc_data["relative_coords"]
+        if len(rel_coords) == 2:
+            rel_x, rel_y = rel_coords
+            rel_z = 0
+        else:
+            rel_x, rel_y, rel_z = rel_coords
+
         abs_x = target_coords[0] + rel_x
         abs_y = target_coords[1] + rel_y
 
-        # Skip if coordinates already occupied
-        existing = None
-        for loc in world.values():
-            if loc.coordinates == (abs_x, abs_y):
-                existing = loc
-                break
+        # Skip if coordinates already occupied (only check for entry locations at z=0)
+        if rel_z == 0:
+            existing = None
+            for loc in world.values():
+                if loc.coordinates == (abs_x, abs_y):
+                    existing = loc
+                    break
 
-        if existing is not None:
-            logger.debug(
-                f"Skipping {loc_data['name']}: coordinates ({abs_x}, {abs_y}) "
-                f"already occupied by {existing.name}"
-            )
-            continue
+            if existing is not None:
+                logger.debug(
+                    f"Skipping {loc_data['name']}: coordinates ({abs_x}, {abs_y}) "
+                    f"already occupied by {existing.name}"
+                )
+                continue
 
         # Skip if name already exists
         if loc_data["name"] in world:
@@ -1407,8 +1486,8 @@ def expand_area(
         loc_category = loc_data.get("category")
         _, loc_is_safe_zone = _infer_hierarchy_from_category(loc_category)
 
-        # Determine if this is the entry location (at relative 0,0)
-        is_entry = (rel_x == 0 and rel_y == 0)
+        # Determine if this is the entry location (at relative 0,0,0)
+        is_entry = (rel_x == 0 and rel_y == 0 and rel_z == 0)
 
         # Entry location is overworld, sub-locations are not
         loc_is_overworld = is_entry
@@ -1438,13 +1517,13 @@ def expand_area(
         # Add hidden secrets to non-entry rooms
         if not is_entry:
             distance = abs(rel_x) + abs(rel_y)
-            secrets = _generate_secrets_for_location(loc_category or "dungeon", distance)
+            secrets = _generate_secrets_for_location(loc_category or "dungeon", distance, rel_z)
             new_loc.hidden_secrets.extend(secrets)
 
         placed_locations[loc_data["name"]] = {
             "location": new_loc,
             "coords": (abs_x, abs_y),
-            "relative_coords": (rel_x, rel_y),
+            "relative_coords": (rel_x, rel_y, rel_z),
             "is_entry": is_entry
         }
 
@@ -1507,12 +1586,18 @@ def expand_area(
                 continue  # Skip entry, it goes to world
 
             loc = data["location"]
-            rel_x, rel_y = data["relative_coords"]
+            # Support both 2D and 3D relative coordinates
+            rel_coords = data["relative_coords"]
+            if len(rel_coords) == 2:
+                rel_x, rel_y = rel_coords
+                rel_z = 0
+            else:
+                rel_x, rel_y, rel_z = rel_coords
 
-            # Check SubGrid bounds before adding
-            if not sub_grid.is_within_bounds(rel_x, rel_y):
+            # Check SubGrid bounds before adding (including z-bounds)
+            if not sub_grid.is_within_bounds(rel_x, rel_y, rel_z):
                 logger.debug(
-                    f"Skipping {name}: coords ({rel_x}, {rel_y}) outside SubGrid bounds "
+                    f"Skipping {name}: coords ({rel_x}, {rel_y}, {rel_z}) outside SubGrid bounds "
                     f"{sub_grid.bounds}"
                 )
                 continue
@@ -1524,11 +1609,11 @@ def expand_area(
             loc.is_exit_point = first_subloc
             first_subloc = False
 
-            sub_grid.add_location(loc, rel_x, rel_y)
+            sub_grid.add_location(loc, rel_x, rel_y, rel_z)
 
-        # Place boss in furthest room for dungeon-type areas
+        # Place boss in furthest room for dungeon-type areas (prefer lowest z-level)
         if entry_category in BOSS_CATEGORIES:
-            boss_room_name = _find_furthest_room(placed_locations)
+            boss_room_name = _find_furthest_room(placed_locations, prefer_lowest_z=True)
             if boss_room_name:
                 boss_room = sub_grid.get_by_name(boss_room_name)
                 if boss_room:

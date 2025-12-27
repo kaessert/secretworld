@@ -2991,3 +2991,138 @@ Note: Use "EXISTING_WORLD" as placeholder for the connection back to the source 
                                 break
 
         return coords
+
+    def _generate_area_layout_3d(
+        self,
+        size: int,
+        entry_direction: str,
+        category: Optional[str] = None
+    ) -> list[tuple[int, int, int]]:
+        """Generate 3D coordinates for multi-level areas.
+
+        For categories with z-depth (dungeon, cave, ruins), generates
+        coords descending from z=0 to min_z with stairs connecting levels.
+
+        Args:
+            size: Number of locations to generate
+            entry_direction: Direction player entered from
+            category: Location category (dungeon, cave, etc.)
+
+        Returns:
+            List of (x, y, z) coordinate tuples
+        """
+        from cli_rpg.world_grid import get_subgrid_bounds
+
+        # Get z bounds from category
+        bounds = get_subgrid_bounds(category)
+        min_z = bounds[4]
+        max_z = bounds[5]
+
+        # If single-level (min_z == max_z == 0), use 2D layout with z=0
+        if min_z == max_z == 0:
+            coords_2d = self._generate_area_layout(size, entry_direction)
+            return [(x, y, 0) for x, y in coords_2d]
+
+        # Multi-level layout
+        # Start with entry point at origin (0, 0, 0)
+        coords: list[tuple[int, int, int]] = [(0, 0, 0)]
+
+        # Define expansion directions (prioritize away from entry)
+        opposite_map = {
+            "north": (0, 1),   # Expand north
+            "south": (0, -1),  # Expand south
+            "east": (1, 0),    # Expand east
+            "west": (-1, 0),   # Expand west
+        }
+        primary_dir = opposite_map.get(entry_direction, (0, 1))
+
+        # Calculate z-levels to use
+        # For dungeons (min_z < 0), we descend: 0, -1, -2, ...
+        # For towers (max_z > 0), we ascend: 0, 1, 2, ...
+        if min_z < 0:
+            z_levels = list(range(0, min_z - 1, -1))  # [0, -1, -2]
+        else:
+            z_levels = list(range(0, max_z + 1))  # [0, 1, 2, 3]
+
+        # Distribute locations across z-levels
+        # Aim for roughly equal distribution with stairs connecting levels
+        current_z = 0
+        current_x, current_y = 0, 0
+        level_count = {z: 0 for z in z_levels}
+        level_count[0] = 1  # Entry already at z=0
+
+        # Target locations per level (roughly equal)
+        locs_per_level = max(1, size // len(z_levels))
+
+        # Generate locations
+        while len(coords) < size:
+            # Check if we should descend/ascend to next level
+            if level_count[current_z] >= locs_per_level and len(z_levels) > 1:
+                # Find next z-level to explore
+                z_idx = z_levels.index(current_z)
+                if z_idx < len(z_levels) - 1:
+                    next_z = z_levels[z_idx + 1]
+                    # Add stair location at shared (x, y) but new z
+                    stair_coord = (current_x, current_y, next_z)
+                    if stair_coord not in coords:
+                        coords.append(stair_coord)
+                        level_count[next_z] = level_count.get(next_z, 0) + 1
+                        current_z = next_z
+                        if len(coords) >= size:
+                            break
+                        continue
+
+            # Extend in primary direction on current level
+            if level_count[current_z] < 2:
+                new_x = current_x + primary_dir[0]
+                new_y = current_y + primary_dir[1]
+                new_coord = (new_x, new_y, current_z)
+                if new_coord not in coords:
+                    coords.append(new_coord)
+                    level_count[current_z] += 1
+                    current_x, current_y = new_x, new_y
+                    continue
+
+            # Branch perpendicular to primary on current level
+            if primary_dir[0] == 0:  # Primary is vertical
+                if level_count[current_z] % 2 == 0:
+                    new_coord = (current_x + 1, current_y, current_z)
+                else:
+                    new_coord = (current_x - 1, current_y, current_z)
+            else:  # Primary is horizontal
+                if level_count[current_z] % 2 == 0:
+                    new_coord = (current_x, current_y + 1, current_z)
+                else:
+                    new_coord = (current_x, current_y - 1, current_z)
+
+            if new_coord not in coords:
+                coords.append(new_coord)
+                level_count[current_z] += 1
+                current_x, current_y = new_coord[0], new_coord[1]
+            else:
+                # Find any adjacent empty spot on current level
+                found = False
+                for dx, dy in [(0, 1), (0, -1), (1, 0), (-1, 0)]:
+                    new_coord = (current_x + dx, current_y + dy, current_z)
+                    if new_coord not in coords:
+                        coords.append(new_coord)
+                        level_count[current_z] += 1
+                        current_x, current_y = new_coord[0], new_coord[1]
+                        found = True
+                        break
+
+                if not found:
+                    # Move to next z-level if stuck
+                    z_idx = z_levels.index(current_z)
+                    if z_idx < len(z_levels) - 1:
+                        next_z = z_levels[z_idx + 1]
+                        stair_coord = (current_x, current_y, next_z)
+                        if stair_coord not in coords:
+                            coords.append(stair_coord)
+                            level_count[next_z] = level_count.get(next_z, 0) + 1
+                            current_z = next_z
+                    else:
+                        # Can't expand further, break to avoid infinite loop
+                        break
+
+        return coords
