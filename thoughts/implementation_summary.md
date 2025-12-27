@@ -1,57 +1,71 @@
-# Implementation Summary: AI-Generated Dungeon Bosses (Issue 16)
+# Map Visibility Radius Implementation Summary
 
 ## What Was Implemented
 
-When `expand_area()` generates a dungeon, cave, or ruins category area, it now automatically places a boss in the room furthest from the entry point.
+The map visibility radius feature transforms the map from "visited tiles only" mode to "visibility radius" mode. Players now see nearby terrain within a configurable radius based on terrain type and Perception stat.
+
+### Features Implemented
+
+1. **Visibility Radius by Terrain Type** (`world_tiles.py`)
+   - Plains: 3 tiles (open terrain, far view)
+   - Hills/Beach/Desert/Water: 2 tiles (moderate obstacles)
+   - Forest/Swamp/Foothills: 1 tile (blocked view)
+   - Mountain: 0 tiles (only current tile visible - peaks block everything)
+
+2. **Mountain Standing Bonus**
+   - Standing ON a mountain grants +2 visibility bonus
+   - Allows players to scout from high ground (0 base + 2 bonus = 2 total)
+
+3. **Perception Stat Bonus**
+   - +1 visibility radius per 5 PER above 10
+   - Example: PER 15 = +1, PER 20 = +2
+
+4. **Tile Visibility Tracking** (`game_state.py`)
+   - `seen_tiles: set[tuple[int, int]]` - Tracks all tiles within visibility radius
+   - `calculate_visibility_radius()` - Calculates total radius from terrain + bonuses
+   - `update_visibility()` - Called after movement to update seen tiles
+   - Visibility accumulates as player moves around
+
+5. **Map Rendering Update** (`map_renderer.py`)
+   - Added `seen_tiles` parameter to `render_map()`
+   - Seen-but-not-visited tiles show terrain symbol (T, ., n, etc.)
+   - Visited tiles show full location details
+   - Unseen tiles remain empty
+
+6. **Persistence** (`game_state.py`)
+   - `seen_tiles` serialized in `to_dict()` as list of coordinate tuples
+   - Restored in `from_dict()` with backward compatibility (empty set for old saves)
 
 ### Files Modified
 
-1. **`src/cli_rpg/ai_world.py`** (~20 lines added)
-   - Added `BOSS_CATEGORIES` constant: `frozenset({"dungeon", "cave", "ruins"})`
-   - Added `_find_furthest_room(placed_locations)` helper function
-   - Wired boss placement into `expand_area()` after SubGrid population
-
-### New Test File
-
-2. **`tests/test_ai_world_boss.py`** (17 tests)
-   - `TestBossCategories`: Validates BOSS_CATEGORIES contains dungeon/cave/ruins, excludes town/village/forest
-   - `TestFindFurthestRoom`: Tests the helper function for Manhattan distance calculation
-   - `TestExpandAreaBossPlacement`: Integration tests for boss placement in dungeons, caves, ruins
-
-## How It Works
-
-1. When `expand_area()` creates a SubGrid for a boss-eligible category (dungeon/cave/ruins):
-   - After all sub-locations are added to the SubGrid
-   - `_find_furthest_room()` identifies the room with maximum Manhattan distance from entry (0,0)
-   - That room's `boss_enemy` field is set to the entry location's category (e.g., "dungeon")
-
-2. The existing `spawn_boss()` function in `combat.py` handles the rest:
-   - When the player enters a room with `boss_enemy` set, `spawn_boss()` is called
-   - It uses category-based templates to create an appropriate boss (e.g., "Lich Lord", "Dark Champion", or "Demon Lord" for dungeon category)
+| File | Changes |
+|------|---------|
+| `src/cli_rpg/world_tiles.py` | Added `VISIBILITY_RADIUS` dict, `MOUNTAIN_VISIBILITY_BONUS`, `get_visibility_radius()` |
+| `src/cli_rpg/world_grid.py` | Added `get_tiles_in_radius()` helper function |
+| `src/cli_rpg/game_state.py` | Added `seen_tiles`, `calculate_visibility_radius()`, `update_visibility()`, persistence |
+| `src/cli_rpg/map_renderer.py` | Added `seen_tiles` parameter, display terrain for seen-not-visited tiles |
+| `tests/test_visibility_radius.py` | NEW - 24 comprehensive tests |
 
 ## Test Results
 
-```
-tests/test_ai_world_boss.py: 17 passed
-tests/test_boss_combat.py: 19 passed
-tests/test_ai_world_subgrid.py: 12 passed
-Full test suite: 4220 passed
-```
+All 24 visibility radius tests pass:
+- 3 tests for `get_tiles_in_radius()` (radius 0, 1, 2)
+- 10 tests for visibility radius by terrain type
+- 1 test for mountain standing bonus constant
+- 1 test for mountain visibility calculation
+- 4 tests for Perception stat bonus
+- 2 tests for `update_visibility()` (marking tiles, accumulation)
+- 1 test for save/load persistence
+- 2 tests for map display (seen terrain shown, unseen hidden)
 
-## Design Decisions
+Full test suite: 4242 passed, 2 unrelated failures in `test_ai_agent.py` (pre-existing bug in state_parser.py)
 
-1. **Category-based boss assignment**: Rather than using specific boss template names, we set `boss_enemy` to the category string (e.g., "dungeon"). This lets `spawn_boss()` randomly select from category-appropriate templates, adding variety.
+## E2E Validation
 
-2. **Manhattan distance for "furthest"**: Uses `abs(rel_x) + abs(rel_y)` to measure distance from entry. This creates intuitive "deepest room" placement even with non-linear layouts.
-
-3. **Entry rooms excluded**: The entry location (at relative coords 0,0) is never a boss room - bosses are always placed in sub-locations within the SubGrid.
-
-4. **Bounds-aware testing**: Tests account for different SubGrid bounds by category (caves are 3x3, dungeons are 7x7, etc.).
-
-## E2E Test Validation
-
-To validate in-game:
-1. Start a new game with AI world generation
-2. Find or generate a dungeon/cave/ruins location
-3. Enter the area and navigate to the furthest room
-4. A boss encounter should trigger automatically
+To validate the feature:
+1. Start the game and note the map shows only the current location
+2. Move in any direction - nearby tiles within visibility radius should appear
+3. Test from different terrains (plains vs forest vs mountain)
+4. Test with high PER character to see extended visibility
+5. Climb to a mountain tile - should have enhanced visibility
+6. Save and load - seen tiles should persist

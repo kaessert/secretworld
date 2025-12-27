@@ -3,8 +3,41 @@
 Parses JSON messages emitted by --json mode and updates agent state.
 """
 import json
+import re
 from dataclasses import dataclass, field
 from typing import Any, Optional
+
+
+@dataclass
+class QuestInfo:
+    """Detailed quest information for agent decision-making.
+
+    Attributes:
+        name: Quest name
+        objective_type: Type of objective (kill, collect, explore, talk, drop, use)
+        target: Target name (enemy type, item, location, or NPC)
+        target_count: How many to complete
+        current_count: Current progress
+        quest_giver: NPC who gave the quest
+        status: Quest status (active, ready_to_turn_in, etc.)
+    """
+    name: str = ""
+    objective_type: str = ""
+    target: str = ""
+    target_count: int = 1
+    current_count: int = 0
+    quest_giver: Optional[str] = None
+    status: str = "active"
+
+    @property
+    def is_complete(self) -> bool:
+        """Check if objective has been met."""
+        return self.current_count >= self.target_count
+
+    @property
+    def is_ready_to_turn_in(self) -> bool:
+        """Check if quest can be turned in."""
+        return self.status == "ready_to_turn_in" or self.is_complete
 
 
 @dataclass
@@ -26,6 +59,16 @@ class AgentState:
         inventory: List of item names in inventory
         dread: Current dread level (0-100)
         quests: List of active quest names
+        quest_details: Detailed quest info for tracking objectives
+        in_sub_location: Whether currently in a sub-location (dungeon, cave, etc.)
+        enterables: List of sub-locations that can be entered
+        location_category: Category of current location (town, dungeon, cave, etc.)
+        is_exit_point: Whether current location allows exiting to overworld
+        has_boss: Whether current location has a boss
+        boss_defeated: Whether boss has been defeated
+        visited_locations: Set of all locations visited this session
+        talked_to_npcs: Set of NPCs talked to in current location
+        available_quests: NPCs with available quests to accept
     """
     location: str = ""
     health: int = 100
@@ -41,6 +84,18 @@ class AgentState:
     inventory: list[str] = field(default_factory=list)
     dread: int = 0
     quests: list[str] = field(default_factory=list)
+    quest_details: list[QuestInfo] = field(default_factory=list)
+    in_sub_location: bool = False
+    enterables: list[str] = field(default_factory=list)
+    location_category: str = ""
+    is_exit_point: bool = False
+    has_boss: bool = False
+    boss_defeated: bool = False
+    visited_locations: set[str] = field(default_factory=set)
+    talked_to_npcs: set[str] = field(default_factory=set)
+    available_quests: list[str] = field(default_factory=list)
+    # Track last narrative for context
+    last_narrative: str = ""
 
     @property
     def health_percent(self) -> float:
@@ -68,6 +123,51 @@ class AgentState:
                 if keyword in item_lower:
                     return item
         return None
+
+    def get_kill_quest_target(self) -> Optional[str]:
+        """Get the target name from an active KILL quest."""
+        for quest in self.quest_details:
+            if quest.objective_type == "kill" and not quest.is_complete:
+                return quest.target
+        return None
+
+    def get_explore_quest_target(self) -> Optional[str]:
+        """Get the target location from an active EXPLORE quest."""
+        for quest in self.quest_details:
+            if quest.objective_type == "explore" and not quest.is_complete:
+                return quest.target
+        return None
+
+    def get_talk_quest_target(self) -> Optional[str]:
+        """Get the target NPC from an active TALK quest."""
+        for quest in self.quest_details:
+            if quest.objective_type == "talk" and not quest.is_complete:
+                return quest.target
+        return None
+
+    def has_quest_ready_to_turn_in(self) -> bool:
+        """Check if any quest is ready to turn in."""
+        return any(q.is_ready_to_turn_in for q in self.quest_details)
+
+    def get_quest_giver_for_turnin(self) -> Optional[str]:
+        """Get the quest giver NPC for a quest ready to turn in."""
+        for quest in self.quest_details:
+            if quest.is_ready_to_turn_in and quest.quest_giver:
+                return quest.quest_giver
+        return None
+
+    def can_enter_location(self) -> bool:
+        """Check if there are sub-locations to enter."""
+        return len(self.enterables) > 0 and "enter" in self.commands
+
+    def should_exit_sublocation(self) -> bool:
+        """Check if agent should exit current sub-location."""
+        return self.in_sub_location and self.is_exit_point
+
+    def has_unexplored_exits(self) -> bool:
+        """Check if there are exits leading to unvisited locations."""
+        # This is a heuristic - we don't know for sure without checking
+        return len(self.exits) > 0
 
 
 def parse_line(line: str) -> Optional[dict[str, Any]]:
@@ -103,6 +203,9 @@ def update_state(state: AgentState, message: dict[str, Any]) -> None:
         state.max_health = message.get("max_health", state.max_health)
         state.gold = message.get("gold", state.gold)
         state.level = message.get("level", state.level)
+        # Track visited locations
+        if state.location:
+            state.visited_locations.add(state.location)
 
     elif msg_type == "combat":
         state.in_combat = True
@@ -119,6 +222,16 @@ def update_state(state: AgentState, message: dict[str, Any]) -> None:
         # Actions are emitted when NOT in combat
         # (combat emits "combat" type messages instead)
         state.in_combat = False
+        # Reset talked_to_npcs when NPCs change (new location)
+        # We'll track talks via the agent
+
+    elif msg_type == "narrative":
+        text = message.get("text", "")
+        state.last_narrative = text
+        # Parse "Enter: ..." from narrative for sub-location detection
+        _parse_enterables_from_narrative(state, text)
+        # Parse quest availability hints
+        _parse_quest_hints_from_narrative(state, text)
 
     elif msg_type == "dump_state":
         # Full state snapshot - extract what we need
@@ -139,15 +252,83 @@ def update_state(state: AgentState, message: dict[str, Any]) -> None:
             if "dread_meter" in char:
                 state.dread = char["dread_meter"].get("dread", 0)
 
-            # Extract quests
+            # Extract quests with full details
             if "quests" in char:
-                state.quests = [
-                    q.get("name", "") for q in char["quests"]
-                    if q.get("status") == "active"
-                ]
+                state.quests = []
+                state.quest_details = []
+                for q in char["quests"]:
+                    status = q.get("status", "")
+                    if status in ("active", "ready_to_turn_in"):
+                        state.quests.append(q.get("name", ""))
+                        quest_info = QuestInfo(
+                            name=q.get("name", ""),
+                            objective_type=q.get("objective_type", ""),
+                            target=q.get("target", ""),
+                            target_count=q.get("target_count", 1),
+                            current_count=q.get("current_count", 0),
+                            quest_giver=q.get("quest_giver"),
+                            status=status,
+                        )
+                        state.quest_details.append(quest_info)
 
         if "current_location" in message:
             state.location = message["current_location"]
+            state.visited_locations.add(state.location)
+
+        # Extract sub-location state
+        state.in_sub_location = message.get("in_sub_location", False)
+
+        # Extract current location details from world
+        if "world" in message and state.location:
+            loc_data = message["world"].get(state.location, {})
+            state.location_category = loc_data.get("category", "")
+            state.is_exit_point = loc_data.get("is_exit_point", False)
+            state.has_boss = loc_data.get("boss_enemy") is not None
+            state.boss_defeated = loc_data.get("boss_defeated", False)
+
+            # Extract enterables from sub_grid or sub_locations
+            state.enterables = []
+            if "sub_grid" in loc_data and loc_data["sub_grid"]:
+                sub_grid = loc_data["sub_grid"]
+                if "locations" in sub_grid:
+                    for sub_loc in sub_grid["locations"].values():
+                        if sub_loc.get("is_exit_point", False):
+                            state.enterables.append(sub_loc.get("name", ""))
+            if "sub_locations" in loc_data:
+                state.enterables.extend(loc_data["sub_locations"])
+
+
+def _parse_enterables_from_narrative(state: AgentState, text: str) -> None:
+    """Extract enterable locations from narrative text.
+
+    Looks for patterns like "Enter: Location Name" in the narrative.
+
+    Args:
+        state: AgentState to update
+        text: Narrative text to parse
+    """
+    # Look for "Enter:" lines in narrative
+    enter_match = re.search(r"Enter:\s*(.+?)(?:\n|$)", text, re.IGNORECASE)
+    if enter_match:
+        enterables_text = enter_match.group(1).strip()
+        # Split by comma for multiple enterables
+        enterables = [e.strip() for e in enterables_text.split(",") if e.strip()]
+        if enterables:
+            state.enterables = enterables
+
+
+def _parse_quest_hints_from_narrative(state: AgentState, text: str) -> None:
+    """Extract quest-related hints from narrative text.
+
+    Args:
+        state: AgentState to update
+        text: Narrative text to parse
+    """
+    text_lower = text.lower()
+    # Detect quest availability hints
+    if "quest" in text_lower and ("available" in text_lower or "offer" in text_lower):
+        # NPC might have a quest
+        pass  # Agent will try talking to NPCs
 
 
 def parse_output_lines(lines: list[str], state: AgentState) -> list[dict[str, Any]]:

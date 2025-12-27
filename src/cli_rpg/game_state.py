@@ -297,6 +297,8 @@ class GameState:
         self.last_dream_hour: Optional[int] = None
         # Quest outcome history for NPC reactions
         self.quest_outcomes: list[QuestOutcome] = []
+        # Visibility system: tiles the player has seen (within visibility radius)
+        self.seen_tiles: set[tuple[int, int]] = set()
 
     @property
     def is_in_conversation(self) -> bool:
@@ -337,7 +339,57 @@ class GameState:
             if location.coordinates == coords:
                 return location
         return None
-    
+
+    def calculate_visibility_radius(self, coords: tuple[int, int]) -> int:
+        """Calculate visibility radius from terrain + PER bonus.
+
+        The visibility radius determines how many tiles the player can see
+        from their current position. Base radius depends on terrain type,
+        with bonuses from standing on mountains and high Perception.
+
+        Args:
+            coords: (x, y) coordinate tuple for position
+
+        Returns:
+            Total visibility radius in tiles (Manhattan distance)
+        """
+        from cli_rpg.world_tiles import (
+            get_visibility_radius,
+            MOUNTAIN_VISIBILITY_BONUS,
+        )
+
+        # Get terrain at current position
+        terrain = "plains"
+        if self.chunk_manager:
+            terrain = self.chunk_manager.get_tile_at(*coords)
+
+        # Base radius from terrain
+        base_radius = get_visibility_radius(terrain)
+
+        # Mountain standing bonus (can see far from peaks)
+        if terrain == "mountain":
+            base_radius += MOUNTAIN_VISIBILITY_BONUS
+
+        # Perception bonus: +1 per 5 PER above 10
+        per_bonus = max(0, (self.current_character.perception - 10) // 5)
+
+        return base_radius + per_bonus
+
+    def update_visibility(self, coords: tuple[int, int]) -> None:
+        """Update seen_tiles based on current position and terrain.
+
+        Calculates tiles visible from the given position based on terrain
+        visibility radius and Perception stat, then adds them to seen_tiles.
+
+        Args:
+            coords: (x, y) coordinate tuple for player position
+        """
+        from cli_rpg.world_grid import get_tiles_in_radius
+
+        radius = self.calculate_visibility_radius(coords)
+        visible = get_tiles_in_radius(coords[0], coords[1], radius)
+        self.seen_tiles.update(visible)
+
     def look(self) -> str:
         """Get a formatted description of the current location with progressive detail.
 
@@ -665,6 +717,9 @@ class GameState:
             autosave(self)
         except IOError:
             pass  # Silent failure - don't interrupt gameplay
+
+        # Update visibility based on current position
+        self.update_visibility(target_coords)
 
         # Pre-generate adjacent region contexts if near boundary
         self._pregenerate_adjacent_regions(target_coords)
@@ -1452,6 +1507,7 @@ class GameState:
             "tiles_since_named": self.tiles_since_named,
             "last_dream_hour": self.last_dream_hour,
             "quest_outcomes": [outcome.to_dict() for outcome in self.quest_outcomes],
+            "seen_tiles": list(self.seen_tiles),
         }
         # Include chunk_manager if present (WFC terrain)
         if self.chunk_manager is not None:
@@ -1568,6 +1624,9 @@ class GameState:
             QuestOutcome.from_dict(outcome_data)
             for outcome_data in data.get("quest_outcomes", [])
         ]
+
+        # Restore seen_tiles (default to empty set for backward compatibility)
+        game_state.seen_tiles = set(tuple(t) for t in data.get("seen_tiles", []))
 
         # Restore chunk_manager if present (WFC terrain)
         if "chunk_manager" in data:

@@ -72,7 +72,7 @@ python -m cli_rpg.main
 - `exit` / `leave` - Exit from a sub-location back to its parent overworld landmark
 - `travel <location>` - Fast travel to a previously visited named overworld location. Travel time is proportional to distance (Manhattan distance ÷ 4, clamped 1-8 hours). During travel: time advances, tiredness increases (+3/hour), dread builds (+5/hour), and random encounters may occur (15%/hour). Not available during combat, conversation, or inside sub-locations.
   - **Multi-level locations**: Dungeons extend downward (z<0), towers extend upward (z>0). Use `go up`/`go down` to navigate between floors
-- `map` (m) - Display an ASCII map of explored locations with available exits. Named locations show letter symbols (A, B, C...) in the legend; unnamed terrain shows terrain symbols (T=forest, M=mountain, ~=water, etc.)
+- `map` (m) - Display an ASCII map of explored locations with available exits. Named locations show letter symbols (A, B, C...) in the legend; unnamed terrain shows terrain symbols (T=forest, M=mountain, ~=water, etc.). **Visibility radius**: terrain is revealed within a radius based on terrain type (plains=3, hills=2, forest=1, mountain=0) plus bonuses from standing on mountains (+2) and high Perception (+1 per 5 PER above 10). Seen-but-not-visited tiles show terrain symbols; visited tiles show full details.
 - `worldmap` (wm) - Display the overworld map (shows only overworld landmarks)
 - `status` (s, stats) - View your character's stats, gold, XP progress, current time, and weather
 - `inventory` (i) - View your inventory and equipped items

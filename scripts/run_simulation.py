@@ -65,8 +65,20 @@ Examples:
     )
     parser.add_argument(
         "--verbose", "-v",
+        action="count",
+        default=0,
+        help="Verbosity level: -v for agent decisions, -vv for full game output"
+    )
+    parser.add_argument(
+        "--delay",
+        type=float,
+        default=0.0,
+        help="Delay between actions in seconds (default: 0)"
+    )
+    parser.add_argument(
+        "--unlimited",
         action="store_true",
-        help="Print agent decisions"
+        help="Run indefinitely (ignore max-commands, use Ctrl+C to stop)"
     )
 
     args = parser.parse_args()
@@ -74,7 +86,17 @@ Examples:
     # Use random seed if not specified
     seed = args.seed if args.seed is not None else random.randint(0, 2**31 - 1)
 
-    print(f"Starting simulation with seed={seed}, max_commands={args.max_commands}")
+    # Handle unlimited mode
+    max_commands = float('inf') if args.unlimited else args.max_commands
+    timeout = float('inf') if args.unlimited else args.timeout
+
+    if args.unlimited:
+        print(f"Starting simulation with seed={seed}, unlimited mode (Ctrl+C to stop)")
+    else:
+        print(f"Starting simulation with seed={seed}, max_commands={args.max_commands}")
+
+    if args.delay > 0:
+        print(f"Action delay: {args.delay}s")
     print("-" * 60)
 
     start_time = time.time()
@@ -82,9 +104,11 @@ Examples:
     # Create and run session
     session = GameSession(
         seed=seed,
-        max_commands=args.max_commands,
-        timeout=args.timeout,
-        verbose=args.verbose,
+        max_commands=max_commands,
+        timeout=timeout,
+        verbose=args.verbose >= 1,
+        show_game_output=args.verbose >= 2,
+        action_delay=args.delay,
     )
 
     try:
@@ -105,13 +129,27 @@ Examples:
     print("-" * 60)
     print(f"Duration: {elapsed:.1f}s")
     print(f"Commands issued: {stats.commands_issued}")
+    print()
+    print("=== Exploration ===")
     print(f"Locations visited: {len(stats.locations_visited)}")
+    print(f"Sub-locations entered: {stats.sub_locations_entered}")
+    print(f"NPCs talked to: {len(stats.npcs_talked_to)}")
+    print()
+    print("=== Combat ===")
     print(f"Enemies defeated: {stats.enemies_defeated}")
+    print(f"Bosses defeated: {stats.bosses_defeated}")
     print(f"Deaths: {stats.deaths}")
-    print(f"Potions used: {stats.potions_used}")
     print(f"Times fled: {stats.fled_count}")
+    print()
+    print("=== Quests ===")
+    print(f"Quests accepted: {stats.quests_accepted}")
+    print(f"Quests completed: {stats.quests_completed}")
+    print()
+    print("=== Resources ===")
+    print(f"Potions used: {stats.potions_used}")
     print(f"Times rested: {stats.rested_count}")
     print(f"Gold earned: {stats.gold_earned}")
+    print()
     print(f"Errors encountered: {stats.errors_encountered}")
 
     # Output to file if requested

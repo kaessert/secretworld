@@ -33,6 +33,25 @@ SUBGRID_DIRECTION_OFFSETS: Dict[str, Tuple[int, int, int]] = {
     "down": (0, 0, -1),
 }
 
+
+def get_tiles_in_radius(center_x: int, center_y: int, radius: int) -> set[tuple[int, int]]:
+    """Return all (x, y) coordinates within Manhattan distance radius.
+
+    Args:
+        center_x: X coordinate of center tile
+        center_y: Y coordinate of center tile
+        radius: Maximum Manhattan distance from center (0 = center only)
+
+    Returns:
+        Set of (x, y) coordinate tuples within the radius
+    """
+    tiles = set()
+    for dx in range(-radius, radius + 1):
+        for dy in range(-radius, radius + 1):
+            if abs(dx) + abs(dy) <= radius:
+                tiles.add((center_x + dx, center_y + dy))
+    return tiles
+
 # SubGrid size configuration by location category
 # Format: (min_x, max_x, min_y, max_y, min_z, max_z)
 SUBGRID_BOUNDS: Dict[str, Tuple[int, int, int, int, int, int]] = {

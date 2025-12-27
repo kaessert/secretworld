@@ -2,49 +2,67 @@
 
 ---
 
+### Rest Command Tiredness Threshold Mismatch
+**Status**: ACTIVE - Documentation/Implementation Discrepancy
+**Priority**: LOW
+**Date Added**: 2025-12-27
+
+#### Description
+The README documentation states "Sleep is only available when tiredness reaches 30+" but the actual implementation allows rest at any tiredness level above 0%.
+
+#### Steps to Reproduce
+1. Start a new game: `cli-rpg --non-interactive --skip-character-creation --no-wfc --seed 9999`
+2. Move north once: `go north` (tiredness increases to ~3%)
+3. Run `rest` command
+4. **Expected**: Rest should fail with message about needing 30%+ tiredness
+5. **Actual**: Rest succeeds with message "HP: 165/165 (already full) Stamina: 115/115 (already full) The peaceful rest eases your mind (Dread -5%). Tiredness -3% (light rest)."
+
+#### Evidence from Testing
+- At 0% tiredness + 0% dread + full HP/stamina: Rest is blocked ("You're already at full health, stamina, and feeling calm and rested!")
+- At 3% tiredness: Rest works (reduces dread and tiredness)
+- At 12% tiredness: Rest works
+- At 30% tiredness: Rest works
+
+#### Resolution Options
+**Option A - Fix Documentation**: Update README.md to accurately describe rest behavior:
+- "Rest is available when health/stamina need recovery, dread needs reducing, or tiredness is above 0%"
+
+**Option B - Fix Implementation**: Enforce the documented 30% threshold in `game_state.py`:
+- Only allow rest when tiredness >= 30 (or other conditions like low HP/stamina/dread)
+
+#### Related Files
+- `README.md` - Line 109: Claims "Sleep is only available when tiredness reaches 30+"
+- `src/cli_rpg/game_state.py` - Contains `rest()` method implementation
+
+---
+
 ### Map Visibility Radius
-**Status**: ACTIVE
+**Status**: ✅ COMPLETE (2025-12-27)
 **Priority**: CRITICAL - BLOCKER
 **Date Added**: 2025-12-27
 
-The map command should automatically reveal nearby locations within the player's visibility radius, not just tiles the player has physically visited.
+The map command now automatically reveals nearby terrain within the player's visibility radius, not just tiles physically visited.
 
-#### The Problem
+#### Implementation Complete
 
-Currently, the map only shows tiles the player has walked on. This creates a frustrating experience:
-- Players can't see what's around them without walking to each tile
-- No sense of "scouting ahead" or seeing the lay of the land
-- Exploration feels like walking blind
-- Named locations nearby are invisible until stumbled upon
+**Files Modified**:
+- `src/cli_rpg/world_tiles.py` - Added `VISIBILITY_RADIUS` dict, `MOUNTAIN_VISIBILITY_BONUS`, `get_visibility_radius()`
+- `src/cli_rpg/world_grid.py` - Added `get_tiles_in_radius()` helper function
+- `src/cli_rpg/game_state.py` - Added `seen_tiles`, `calculate_visibility_radius()`, `update_visibility()`, persistence
+- `src/cli_rpg/map_renderer.py` - Added `seen_tiles` parameter, display terrain for seen-not-visited tiles
+- `tests/test_visibility_radius.py` - NEW - 24 comprehensive tests
 
-#### Expected Behavior
+**Visibility by Terrain Type**:
+- Plains: 3 tiles (open terrain, far view)
+- Hills/Beach/Desert/Water: 2 tiles (moderate obstacles)
+- Forest/Swamp/Foothills: 1 tile (blocked view)
+- Mountain: 0 tiles (only current tile - but standing ON mountains grants +2 bonus)
 
-When a player enters a location, they should see:
-- All tiles within a configurable radius (e.g., 2-3 tiles)
-- Terrain type visible for nearby unexplored tiles
-- Named locations within range highlighted/marked
-- Visibility modified by terrain (mountains block view, plains extend it)
-- Perception stat could extend visibility radius
+**Bonuses**:
+- Mountain standing bonus: +2 visibility when on a mountain tile
+- Perception bonus: +1 visibility per 5 PER above 10
 
-#### Implementation
-
-**Files to Modify**:
-- `src/cli_rpg/map_renderer.py` - Add visibility radius calculation
-- `src/cli_rpg/game_state.py` - Track "seen" vs "visited" tiles separately
-- `src/cli_rpg/world_grid.py` - Add `get_tiles_in_radius()` helper
-
-**Config**:
-```python
-VISIBILITY_RADIUS = {
-    "plains": 3,      # Can see far
-    "hills": 2,       # Moderate view
-    "forest": 1,      # Trees block sight
-    "mountain": 0,    # Only current tile (but can see FROM mountains)
-    "swamp": 1,       # Fog limits vision
-}
-```
-
-**Perception Bonus**: `+1 radius per 5 PER above 10`
+**Persistence**: `seen_tiles` saved/loaded with game state (backward compatible with old saves)
 
 ---
 

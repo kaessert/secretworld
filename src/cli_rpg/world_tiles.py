@@ -410,6 +410,35 @@ TERRAIN_MAP_SYMBOLS: Dict[str, str] = {
     "water": "~",
 }
 
+# Visibility radius by terrain type (how far player can see)
+# Higher = better visibility (open terrain), Lower = blocked view
+VISIBILITY_RADIUS: Dict[str, int] = {
+    "plains": 3,      # Open terrain = far view
+    "hills": 2,       # Moderate obstacles
+    "beach": 2,       # Moderate obstacles
+    "desert": 2,      # Moderate obstacles
+    "water": 2,       # Can see across water
+    "forest": 1,      # Trees block view
+    "swamp": 1,       # Dense vegetation blocks view
+    "foothills": 1,   # Rocky terrain blocks view
+    "mountain": 0,    # Only current tile visible (peaks block everything)
+}
+
+# Extra visibility radius when standing ON a mountain (can see far from peaks)
+MOUNTAIN_VISIBILITY_BONUS = 2
+
+
+def get_visibility_radius(terrain: str) -> int:
+    """Get visibility radius for a terrain type.
+
+    Args:
+        terrain: Terrain type name (e.g., "plains", "forest", "mountain")
+
+    Returns:
+        Visibility radius in tiles (Manhattan distance)
+    """
+    return VISIBILITY_RADIUS.get(terrain, 2)
+
 
 def get_terrain_symbol(terrain: str) -> str:
     """Get ASCII map symbol for a terrain type.

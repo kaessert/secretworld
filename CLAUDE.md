@@ -31,10 +31,10 @@ src/cli_rpg/
 ├── game_state.py        # Core game state management
 ├── world.py             # World generation and navigation
 ├── world_grid.py        # Grid-based spatial world system
-├── world_tiles.py       # Terrain tile definitions, adjacency rules, and region planning
+├── world_tiles.py       # Terrain tile definitions, adjacency rules, region planning, visibility radius
 ├── wfc.py               # Wave Function Collapse terrain generation
 ├── wfc_chunks.py        # ChunkManager for infinite terrain via cached WFC chunks
-├── map_renderer.py      # ASCII map display for explored locations
+├── map_renderer.py      # ASCII map display with visibility radius support
 ├── combat.py            # Combat mechanics
 ├── elements.py          # Elemental damage type system (fire, ice, poison)
 ├── character_creation.py # Player character setup
@@ -103,7 +103,7 @@ src/cli_rpg/
 - **Grid-based world** (`world_grid.py`): Spatial consistency with coordinate-based navigation
 - **SubGrid architecture**: Interior locations use bounded SubGrid instances (not the main world dict). Entry points marked with `is_exit_point=True` allow exiting back to overworld. SubGrid bounds vary by location category via `SUBGRID_BOUNDS` config and `get_subgrid_bounds(category)` helper (e.g., caves are 3x3, dungeons 7x7, cities 17x17). **Multi-level support**: SubGrids use 6-tuple bounds `(min_x, max_x, min_y, max_y, min_z, max_z)` for vertical navigation - dungeons extend downward (z<0), towers extend upward (z>0). Use `go up`/`go down` for vertical movement.
 - **Location model**: Each location has coordinates and NPCs; movement is determined by coordinate adjacency (going north from (0,0) leads to (0,1)). Hierarchical navigation via `enter`/`exit` commands supports overworld/sub-location relationships. Locations have `is_named` flag: unnamed locations (generic terrain) skip NPC generation; named locations (towns, dungeons) get full AI-generated NPCs.
-- **GameState**: Central manager for character, world, combat, and shop state
+- **GameState**: Central manager for character, world, combat, and shop state. Tracks `seen_tiles` (set of coordinates within visibility radius) separately from visited locations for map rendering.
 - **AI service**: Optional integration with graceful fallback when unavailable
 - **Dataclasses**: Used extensively for models (Character, Item, Location, etc.)
 

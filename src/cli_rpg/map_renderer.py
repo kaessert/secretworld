@@ -77,6 +77,7 @@ def render_map(
     current_location: str,
     sub_grid: Optional["SubGrid"] = None,
     chunk_manager: Optional["ChunkManager"] = None,
+    seen_tiles: Optional[set[tuple[int, int]]] = None,
 ) -> str:
     """Render an ASCII map of the explored world or interior sub-grid.
 
@@ -87,6 +88,9 @@ def render_map(
                   renders a bounded interior map instead of the overworld.
         chunk_manager: Optional ChunkManager for WFC terrain-based exit filtering.
                       When provided, exits to impassable terrain are hidden.
+        seen_tiles: Optional set of (x, y) coordinates that the player has seen
+                   (within visibility radius). Tiles in this set but not visited
+                   will show terrain symbols.
 
     Returns:
         ASCII string representation of the map with legend
@@ -207,18 +211,22 @@ def render_map(
                     padded = (" " * (cell_width - 1)) + colors.bold_colorize("@", colors.CYAN)
                 row_parts.append(padded)
             else:
-                # Check WFC terrain for water
-                is_water = False
+                # Check if tile is in seen_tiles (seen but not visited)
+                is_seen = seen_tiles is not None and coord in seen_tiles
+                # Check WFC terrain for water or seen terrain display
+                terrain = None
                 if chunk_manager is not None:
                     terrain = chunk_manager.get_tile_at(x, y)
-                    if terrain == "water":
-                        is_water = True
 
-                if is_water:
+                if terrain == "water":
+                    # Always show water (impassable)
                     row_parts.append(pad_marker(WATER_MARKER, cell_width))
+                elif is_seen and terrain is not None:
+                    # Seen but not visited: show terrain symbol
+                    marker = get_terrain_symbol(terrain)
+                    row_parts.append(pad_marker(marker, cell_width))
                 else:
-                    # With coordinate-based movement, unexplored cells are just empty
-                    # (no explicit connections needed for movement)
+                    # Unexplored / unseen cells are empty
                     row_parts.append(" " * cell_width)
         map_rows.append("".join(row_parts))
 
