@@ -1,211 +1,148 @@
-# Implementation Plan: Issue 17 - AI-Generated Treasure Chests
+# Issue 18: AI-Generated Hidden Secrets Implementation Plan
 
-## Spec
-
-AI-generated areas (via `expand_area()` and `generate_subgrid_for_location()`) should include treasure chests that:
-1. Scale with area size (1-3 chests based on number of rooms)
-2. Are distributed across non-entry rooms (not clustered)
-3. Match location category thematically (ancient weapons in ruins, crystals in caves)
-4. Have lock difficulty that scales with distance from entry
-5. Some chests are trap-protected (DEX check to open safely)
-
-## Treasure Schema
-
-Existing schema from `world.py` line 531-543:
-```python
-treasures=[
-    {
-        "name": "Mossy Chest",
-        "description": "An ancient chest covered in moss...",
-        "locked": True,
-        "difficulty": 2,  # Lock difficulty (higher = harder)
-        "opened": False,
-        "items": [
-            {"name": "...", "description": "...", "item_type": "misc"},
-            {"name": "...", "description": "...", "item_type": "consumable", "heal_amount": 25}
-        ],
-        "requires_key": None  # Optional key name
-    }
-]
-```
+## Problem
+The `hidden_secrets` field on Location is never populated by AI generation, and `check_passive_detection()` in `secrets.py` is defined but never called. Players never automatically discover secrets in AI-generated areas.
 
 ## Implementation Steps
 
-### Step 1: Add Thematic Treasure Loot Tables
-**File:** `src/cli_rpg/ai_world.py`
+### 1. Add Secret Generation to `ai_world.py`
 
-Add category-specific loot tables as a constant:
+**Add constants and helper function after `TREASURE_CATEGORIES` (~line 322):**
+
 ```python
-TREASURE_LOOT_TABLES: dict[str, list[dict]] = {
+# Categories that should have secrets
+SECRET_CATEGORIES = frozenset({"dungeon", "cave", "ruins", "temple", "forest"})
+
+# Secret templates: (type, description, base_threshold)
+SECRET_TEMPLATES: dict[str, list[tuple[str, str, int]]] = {
     "dungeon": [
-        {"name": "Ancient Blade", "item_type": "weapon", "damage_bonus": 4},
-        {"name": "Rusted Key", "item_type": "misc"},
-        {"name": "Health Potion", "item_type": "consumable", "heal_amount": 25},
+        ("hidden_treasure", "A loose stone conceals a hidden cache.", 13),
+        ("hidden_door", "Faint scratches on the floor suggest a secret passage.", 14),
+        ("trap", "A pressure plate lurks beneath the dust.", 12),
+        ("lore_hint", "Ancient writing on the wall tells of forgotten secrets.", 11),
     ],
     "cave": [
-        {"name": "Glowing Crystal", "item_type": "misc"},
-        {"name": "Cave Spider Venom", "item_type": "consumable", "heal_amount": 15},
-        {"name": "Miner's Pickaxe", "item_type": "weapon", "damage_bonus": 3},
+        ("hidden_treasure", "A glinting gemstone wedged in a crack.", 12),
+        ("trap", "Unstable rocks threaten to fall.", 11),
+        ("lore_hint", "Primitive drawings depict something deeper in the caves.", 10),
     ],
     "ruins": [
-        {"name": "Ancient Tome", "item_type": "misc"},
-        {"name": "Gilded Amulet", "item_type": "armor", "defense_bonus": 2},
-        {"name": "Relic Dust", "item_type": "consumable", "mana_restore": 20},
+        ("hidden_treasure", "An ornate box buried beneath rubble.", 14),
+        ("hidden_door", "A worn section of wall hints at a secret passage.", 15),
+        ("lore_hint", "Faded inscriptions speak of the civilization that fell here.", 12),
     ],
     "temple": [
-        {"name": "Holy Water", "item_type": "consumable", "heal_amount": 30},
-        {"name": "Sacred Relic", "item_type": "misc"},
-        {"name": "Blessed Medallion", "item_type": "armor", "defense_bonus": 3},
+        ("hidden_treasure", "An offering hidden behind the altar.", 13),
+        ("trap", "A divine ward protects this sacred place.", 14),
+        ("lore_hint", "Sacred texts reveal the temple's true purpose.", 11),
     ],
     "forest": [
-        {"name": "Forest Gem", "item_type": "misc"},
-        {"name": "Herbal Remedy", "item_type": "consumable", "heal_amount": 20},
-        {"name": "Wooden Bow", "item_type": "weapon", "damage_bonus": 3},
+        ("hidden_treasure", "A hollow tree conceals a traveler's stash.", 11),
+        ("hidden_door", "An overgrown path leads to a hidden clearing.", 13),
+        ("trap", "A concealed snare lies among the leaves.", 12),
     ],
 }
 
-TREASURE_CHEST_NAMES: dict[str, list[str]] = {
-    "dungeon": ["Iron Chest", "Dusty Strongbox", "Forgotten Coffer"],
-    "cave": ["Stone Chest", "Crystal Box", "Hidden Cache"],
-    "ruins": ["Ancient Chest", "Ruined Coffer", "Gilded Box"],
-    "temple": ["Sacred Chest", "Offering Box", "Blessed Container"],
-    "forest": ["Mossy Chest", "Hollow Log Cache", "Vine-Covered Box"],
-}
-```
-
-### Step 2: Add Treasure Placement Helper Function
-**File:** `src/cli_rpg/ai_world.py`
-
-Add `_place_treasures()` helper function (similar pattern to `_find_furthest_room()`):
-```python
-def _place_treasures(
-    placed_locations: dict,
-    entry_category: str,
-) -> None:
-    """Place treasures in non-entry rooms based on area size.
-
-    Modifies placed_locations in-place by adding treasures to Location objects.
+def _generate_secrets_for_location(category: str, distance: int = 0) -> list[dict]:
+    """Generate 1-2 hidden secrets for a location.
 
     Args:
-        placed_locations: Dict mapping location names to placement data.
-            Each entry has 'location' (Location), 'relative_coords', 'is_entry'.
-        entry_category: Category of the entry location (dungeon, cave, etc.)
+        category: Location category (dungeon, cave, etc.)
+        distance: Distance from entry (affects threshold)
 
-    Treasure distribution:
-        - 1 chest for 2-3 rooms
-        - 2 chests for 4-5 rooms
-        - 3 chests for 6+ rooms
+    Returns:
+        List of secret dicts matching Location.hidden_secrets schema
     """
+    if category not in SECRET_CATEGORIES:
+        return []
+
+    templates = SECRET_TEMPLATES.get(category, SECRET_TEMPLATES.get("dungeon", []))
+    if not templates:
+        return []
+
+    num_secrets = random.randint(1, 2)
+    selected = random.sample(templates, min(num_secrets, len(templates)))
+
+    secrets = []
+    for secret_type, description, base_threshold in selected:
+        threshold = base_threshold + min(distance, 4)
+        secret = {
+            "type": secret_type,
+            "description": description,
+            "threshold": threshold,
+            "discovered": False,
+        }
+
+        if secret_type == "hidden_treasure":
+            secret["reward_gold"] = random.randint(10, 30) + (distance * 5)
+        elif secret_type == "trap":
+            secret["trap_damage"] = 5 + (distance * 2)
+        elif secret_type == "hidden_door":
+            secret["exit_direction"] = random.choice(["north", "south", "east", "west"])
+
+        secrets.append(secret)
+
+    return secrets
 ```
 
-Key logic:
-1. Count non-entry rooms (exclude boss room)
-2. Determine number of chests (1-3)
-3. Select rooms with spread distribution (by distance from entry)
-4. Generate thematic chest with items from loot table
-5. Lock difficulty = distance from entry + random(0,1)
+**Wire secrets into location creation (3 places):**
 
-### Step 3: Integrate Treasure Placement into expand_area()
-**File:** `src/cli_rpg/ai_world.py`
+1. `generate_subgrid_for_location()` (~line 700, after creating `new_loc`):
+   - Add secrets to non-entry rooms based on category
 
-Add treasure placement after boss placement (around line 1280):
+2. `expand_area()` (~line 1340, after creating `new_loc`):
+   - Add secrets to non-entry rooms based on category
+
+3. `expand_world()` (~line 1150, after creating `new_location`):
+   - Add secrets to named locations with appropriate categories
+
+### 2. Wire Passive Detection into `game_state.py`
+
+**Add import (~line 42):**
 ```python
-# Place boss in furthest room for dungeon-type categories
-if entry_category in BOSS_CATEGORIES:
-    # ... existing boss code ...
-
-# Place treasures in non-boss rooms
-_place_treasures(placed_locations, entry_category)
+from cli_rpg.secrets import check_passive_detection
 ```
 
-### Step 4: Integrate Treasure Placement into generate_subgrid_for_location()
-**File:** `src/cli_rpg/ai_world.py`
-
-Add treasure placement after boss placement (around line 556):
+**Add helper method:**
 ```python
-# Place boss in furthest room for dungeon-type categories
-if location.category in BOSS_CATEGORIES and placed_locations:
-    # ... existing boss code ...
-
-# Place treasures in non-boss rooms
-if placed_locations:
-    _place_treasures(placed_locations, location.category or "dungeon")
+def _check_and_report_passive_secrets(self, location: Location) -> Optional[str]:
+    """Check for passive secret detection and return message if found."""
+    if not self.character:
+        return None
+    detected = check_passive_detection(self.character, location)
+    if not detected:
+        return None
+    return "\n".join(f"You notice: {s['description']}" for s in detected)
 ```
 
-## Tests
+**Call in `move()` (~line 720) and `enter()` (~line 975):**
+- After location change, call `_check_and_report_passive_secrets()`
+- Append result to return message if secrets found
 
-**File:** `tests/test_ai_world_treasure.py`
+### 3. Create Tests
 
-### Test: Treasure Loot Tables Exist
-```python
-def test_treasure_loot_tables_contains_dungeon():
-    assert "dungeon" in TREASURE_LOOT_TABLES
+**File:** `tests/test_ai_secrets.py`
 
-def test_treasure_loot_tables_contains_cave():
-    assert "cave" in TREASURE_LOOT_TABLES
+- `test_secret_categories_defined` - Verify constant exists
+- `test_secret_templates_for_each_category` - Each category has templates
+- `test_generates_1_to_2_secrets` - Output count validation
+- `test_secret_has_required_fields` - Schema validation
+- `test_hidden_treasure_has_gold` - Type-specific field
+- `test_trap_has_damage` - Type-specific field
+- `test_hidden_door_has_direction` - Type-specific field
+- `test_distance_scales_threshold` - Deeper = harder
+- `test_non_secret_category_returns_empty` - Town/village returns []
 
-def test_treasure_loot_tables_items_have_required_fields():
-    for category, items in TREASURE_LOOT_TABLES.items():
-        for item in items:
-            assert "name" in item
-            assert "item_type" in item
-```
+## Files to Modify
+- `src/cli_rpg/ai_world.py` - Add constants and `_generate_secrets_for_location()`, wire into 3 functions
+- `src/cli_rpg/game_state.py` - Import and call `check_passive_detection()`
 
-### Test: Treasure Placement Helper
-```python
-def test_place_treasures_adds_chest_to_location():
-    """_place_treasures adds treasure to non-entry rooms."""
-
-def test_place_treasures_excludes_entry_room():
-    """Entry room should not receive treasures."""
-
-def test_place_treasures_scales_with_room_count():
-    """Number of chests scales: 1 for 2-3, 2 for 4-5, 3 for 6+."""
-
-def test_place_treasures_spreads_across_rooms():
-    """Treasures are distributed, not clustered in one room."""
-
-def test_place_treasures_difficulty_scales_with_distance():
-    """Lock difficulty increases with Manhattan distance from entry."""
-```
-
-### Test: Integration with expand_area()
-```python
-def test_expand_area_dungeon_has_treasures():
-    """expand_area for dungeon category places treasures."""
-
-def test_expand_area_cave_has_treasures():
-    """expand_area for cave category places treasures."""
-
-def test_expand_area_town_has_no_treasures():
-    """Town areas should NOT have random treasures."""
-
-def test_expand_area_treasure_thematically_matches_category():
-    """Treasure items match the category loot table."""
-```
-
-### Test: Integration with generate_subgrid_for_location()
-```python
-def test_generate_subgrid_dungeon_has_treasures():
-    """On-demand SubGrid generation includes treasures."""
-```
-
-## File Changes Summary
-
-| File | Change |
-|------|--------|
-| `src/cli_rpg/ai_world.py` | Add `TREASURE_LOOT_TABLES`, `TREASURE_CHEST_NAMES`, `_place_treasures()`, integrate into `expand_area()` and `generate_subgrid_for_location()` |
-| `tests/test_ai_world_treasure.py` | New test file with ~15 tests |
+## Files to Create
+- `tests/test_ai_secrets.py` - Tests for secret generation
 
 ## Verification
-
 ```bash
-# Run treasure-specific tests
-pytest tests/test_ai_world_treasure.py -v
-
-# Run all AI world tests to ensure no regressions
-pytest tests/test_ai_world*.py -v
-
-# Full test suite
-pytest
+pytest tests/test_ai_secrets.py -v
+pytest tests/test_perception.py -v  # Ensure existing secret tests pass
+pytest  # Full suite
 ```

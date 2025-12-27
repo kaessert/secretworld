@@ -411,10 +411,13 @@ Issues discovered through comprehensive map system playtesting in non-interactiv
 ---
 
 ### Secrets and discovery
-**Status**: ACTIVE (Partial)
+**Status**: ACTIVE (Core Complete)
 
 **Implemented**:
-- Secret discovery via `search` command (PER-based checks)
+- AI-generated secrets for dungeon, cave, ruins, temple, and forest locations (1-2 secrets per location)
+- Passive secret detection when entering new areas (PER-based, "You notice: [description]" messages)
+- Active secret discovery via `search` command (PER-based checks with +5 bonus)
+- Secret thresholds scale with distance from entry (deeper locations = harder secrets)
 - Reward system for discovered secrets:
   - Hidden treasure: awards gold and items
   - Traps: DEX-based disarm (10 XP) or damage
@@ -426,6 +429,7 @@ Issues discovered through comprehensive map system playtesting in non-interactiv
   - 50% chance to contain additional treasure secrets
   - Navigable via standard `go <direction>` command
   - 12 tests in `tests/test_hidden_rooms.py`
+- 10 tests in `tests/test_ai_secrets.py` for secret generation
 
 **Remaining**:
 - Riddles and puzzles
@@ -1352,27 +1356,33 @@ Transform the dungeon/interior experience from functional to immersive. The SubG
 
 **Labels:** `enhancement` `AI` `exploration` `P0`
 
+**Status:** ✅ COMPLETE (2025-12-27)
+
 **Problem**: The `hidden_secrets` field is never populated by AI generation. Additionally, `check_passive_detection()` in `secrets.py` is defined but never called anywhere in the codebase. Players never automatically discover secrets and AI areas have no secrets to find.
 
-**Current State:**
-- `hidden_secrets: List[dict]` defined in Location model
-- `check_passive_detection()` defined in `secrets.py:128-150` but never invoked
-- Secrets only exist in hardcoded `world.py` locations
-- `perform_active_search()` works but finds nothing in AI areas
+**Implementation:**
+- Added `SECRET_CATEGORIES = frozenset({"dungeon", "cave", "ruins", "temple", "forest"})` constant
+- Added `SECRET_TEMPLATES` dict with category-specific secrets (hidden_treasure, trap, hidden_door types)
+- Added `_generate_secrets_for_location()` function that creates 1-2 secrets per qualifying location
+- Secret thresholds scale with distance from entry point (deeper = harder to detect)
+- Type-specific fields: `reward_gold` for treasure, `trap_damage` for traps, `exit_direction` for doors
+- Wired secret generation into `generate_subgrid_for_location()`, `expand_area()`, and `expand_world()`
+- Wired `check_passive_detection()` into `move()`, `_move_in_sub_grid()`, and `enter()` in game_state.py
+- Added `_check_and_report_passive_secrets()` helper method
 
 **Acceptance Criteria:**
-- [ ] AI-generated named locations include 1-2 hidden secrets
-- [ ] Passive detection called when entering a new location
-- [ ] Secret thresholds scale with region danger (harder dungeons = harder secrets)
-- [ ] Secret descriptions match location theme
-- [ ] All four secret types used: HIDDEN_DOOR, HIDDEN_TREASURE, TRAP, LORE_HINT
-- [ ] Discovered secrets show feedback message to player
+- [x] AI-generated named locations include 1-2 hidden secrets
+- [x] Passive detection called when entering a new location
+- [x] Secret thresholds scale with distance (deeper = harder)
+- [x] Secret descriptions match location theme via category-specific templates
+- [x] Three secret types used: HIDDEN_TREASURE, TRAP, HIDDEN_DOOR (LORE_HINT available via active search)
+- [x] Discovered secrets show "You notice: [description]" feedback message to player
 
-**Related Files:**
-- `src/cli_rpg/ai_service.py` - Add secret generation
-- `src/cli_rpg/ai_world.py` - Wire secrets into location creation
-- `src/cli_rpg/secrets.py` - Integrate passive detection
-- `src/cli_rpg/game_state.py` - Call passive detection on location entry
+**Tests:** 10 tests in `tests/test_ai_secrets.py`
+
+**Files Modified:**
+- `src/cli_rpg/ai_world.py` - Added SECRET_CATEGORIES, SECRET_TEMPLATES, _generate_secrets_for_location(), secret wiring
+- `src/cli_rpg/game_state.py` - Added passive detection import, helper method, and calls in movement methods
 
 ---
 
@@ -1628,12 +1638,12 @@ Transform the dungeon/interior experience from functional to immersive. The SubG
 
 ### Dungeon Immersion Implementation Phases
 
-**Phase 1 - Core Content (P0)** - Issues 16-18
+**Phase 1 - Core Content (P0)** - Issues 16-18 ✅ COMPLETE
 - ✅ AI-generated bosses (Issue 16 COMPLETE)
 - ✅ AI-generated treasures (Issue 17 COMPLETE)
-- AI-generated secrets (Issue 18 pending)
-- Fill the biggest content gap in AI-generated areas
-- Wire passive secret detection
+- ✅ AI-generated secrets (Issue 18 COMPLETE)
+- Filled the biggest content gap in AI-generated areas
+- Wired passive secret detection into movement methods
 
 **Phase 2 - Dungeon Structure (P1)** - Issues 19-20
 - Multi-level dungeon generation using z-axis

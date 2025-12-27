@@ -320,6 +320,81 @@ TREASURE_CHEST_NAMES: dict[str, list[str]] = {
 # Categories that should have treasure chests placed
 TREASURE_CATEGORIES = frozenset({"dungeon", "cave", "ruins", "temple", "forest"})
 
+# Categories that should have hidden secrets
+SECRET_CATEGORIES = frozenset({"dungeon", "cave", "ruins", "temple", "forest"})
+
+# Secret templates: (type, description, base_threshold)
+SECRET_TEMPLATES: dict[str, list[tuple[str, str, int]]] = {
+    "dungeon": [
+        ("hidden_treasure", "A loose stone conceals a hidden cache.", 13),
+        ("hidden_door", "Faint scratches on the floor suggest a secret passage.", 14),
+        ("trap", "A pressure plate lurks beneath the dust.", 12),
+        ("lore_hint", "Ancient writing on the wall tells of forgotten secrets.", 11),
+    ],
+    "cave": [
+        ("hidden_treasure", "A glinting gemstone wedged in a crack.", 12),
+        ("trap", "Unstable rocks threaten to fall.", 11),
+        ("lore_hint", "Primitive drawings depict something deeper in the caves.", 10),
+    ],
+    "ruins": [
+        ("hidden_treasure", "An ornate box buried beneath rubble.", 14),
+        ("hidden_door", "A worn section of wall hints at a secret passage.", 15),
+        ("lore_hint", "Faded inscriptions speak of the civilization that fell here.", 12),
+    ],
+    "temple": [
+        ("hidden_treasure", "An offering hidden behind the altar.", 13),
+        ("trap", "A divine ward protects this sacred place.", 14),
+        ("lore_hint", "Sacred texts reveal the temple's true purpose.", 11),
+    ],
+    "forest": [
+        ("hidden_treasure", "A hollow tree conceals a traveler's stash.", 11),
+        ("hidden_door", "An overgrown path leads to a hidden clearing.", 13),
+        ("trap", "A concealed snare lies among the leaves.", 12),
+    ],
+}
+
+
+def _generate_secrets_for_location(category: str, distance: int = 0) -> list[dict]:
+    """Generate 1-2 hidden secrets for a location.
+
+    Args:
+        category: Location category (dungeon, cave, etc.)
+        distance: Distance from entry (affects threshold)
+
+    Returns:
+        List of secret dicts matching Location.hidden_secrets schema
+    """
+    if category not in SECRET_CATEGORIES:
+        return []
+
+    templates = SECRET_TEMPLATES.get(category, SECRET_TEMPLATES.get("dungeon", []))
+    if not templates:
+        return []
+
+    num_secrets = random.randint(1, 2)
+    selected = random.sample(templates, min(num_secrets, len(templates)))
+
+    secrets = []
+    for secret_type, description, base_threshold in selected:
+        threshold = base_threshold + min(distance, 4)
+        secret = {
+            "type": secret_type,
+            "description": description,
+            "threshold": threshold,
+            "discovered": False,
+        }
+
+        if secret_type == "hidden_treasure":
+            secret["reward_gold"] = random.randint(10, 30) + (distance * 5)
+        elif secret_type == "trap":
+            secret["trap_damage"] = 5 + (distance * 2)
+        elif secret_type == "hidden_door":
+            secret["exit_direction"] = random.choice(["north", "south", "east", "west"])
+
+        secrets.append(secret)
+
+    return secrets
+
 
 def _create_shop_from_ai_inventory(shop_inventory: list[dict], shop_name: str) -> Optional[Shop]:
     """Create a Shop from AI-generated inventory items.
@@ -696,6 +771,12 @@ def generate_subgrid_for_location(
             )
             for npc in location_npcs:
                 new_loc.npcs.append(npc)
+
+        # Add hidden secrets to non-entry rooms
+        if not first_location:
+            distance = abs(rel_x) + abs(rel_y)
+            secrets = _generate_secrets_for_location(loc_category or "dungeon", distance)
+            new_loc.hidden_secrets.extend(secrets)
 
         sub_grid.add_location(new_loc, rel_x, rel_y)
         placed_locations[loc_data["name"]] = {
@@ -1157,6 +1238,11 @@ def expand_world(
     for npc in location_npcs:
         new_location.npcs.append(npc)
 
+    # Add hidden secrets to named locations with appropriate categories
+    if new_category in SECRET_CATEGORIES:
+        secrets = _generate_secrets_for_location(new_category, distance=0)
+        new_location.hidden_secrets.extend(secrets)
+
     # Add to world
     world[new_location.name] = new_location
 
@@ -1348,6 +1434,12 @@ def expand_area(
             )
             for npc in location_npcs:
                 new_loc.npcs.append(npc)
+
+        # Add hidden secrets to non-entry rooms
+        if not is_entry:
+            distance = abs(rel_x) + abs(rel_y)
+            secrets = _generate_secrets_for_location(loc_category or "dungeon", distance)
+            new_loc.hidden_secrets.extend(secrets)
 
         placed_locations[loc_data["name"]] = {
             "location": new_loc,

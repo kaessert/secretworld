@@ -39,6 +39,7 @@ from cli_rpg.world_events import (
     progress_events,
     get_location_event_warning,
 )
+from cli_rpg.secrets import check_passive_detection
 
 # Import AI components (with optional support)
 try:
@@ -437,7 +438,27 @@ class GameState:
                 result += f"\n{colors.warning('Your inventory is full! You cannot take the treasure.')}"
 
         return result
-    
+
+    def _check_and_report_passive_secrets(self, location: Location) -> Optional[str]:
+        """Check for passive secret detection and return message if found.
+
+        Uses the character's Perception stat to automatically detect secrets
+        with thresholds at or below their PER value.
+
+        Args:
+            location: The location to check for secrets
+
+        Returns:
+            Formatted message about discovered secrets, or None if none found
+        """
+        if not self.current_character:
+            return None
+        detected = check_passive_detection(self.current_character, location)
+        if not detected:
+            return None
+        lines = [f"{colors.success('You notice:')} {s['description']}" for s in detected]
+        return "\n".join(lines)
+
     def is_in_combat(self) -> bool:
         """Check if combat is currently active.
 
@@ -754,6 +775,11 @@ class GameState:
         if dread_message:
             message += f"\n{dread_message}"
 
+        # Check for passive secret detection (PER-based)
+        secret_message = self._check_and_report_passive_secrets(location)
+        if secret_message:
+            message += f"\n{secret_message}"
+
         # Increase tiredness from travel (3 points per move)
         tiredness_msg = self.current_character.tiredness.increase(3)
         if tiredness_msg:
@@ -890,7 +916,13 @@ class GameState:
             combat_message = self.current_combat.start()
             return (True, f"You head {direction} to {colors.location(self.current_location)}.\n{combat_message}")
 
-        return (True, f"You head {direction} to {colors.location(self.current_location)}.")
+        # Build message and check for passive secret detection
+        message = f"You head {direction} to {colors.location(self.current_location)}."
+        secret_message = self._check_and_report_passive_secrets(destination)
+        if secret_message:
+            message += f"\n{secret_message}"
+
+        return (True, message)
 
     def enter(self, target_name: Optional[str] = None) -> tuple[bool, str]:
         """Enter a sub-location within the current overworld landmark.
@@ -1012,8 +1044,15 @@ class GameState:
         # Build success message with look at new location
         message = f"You enter {colors.location(matched_location)}.\n\n{self.look()}"
 
-        # Check for boss encounter in sub-location
+        # Get the actual location for secret and boss checks
         sub_location = sub_grid_location if sub_grid_location is not None else self.world[matched_location]
+
+        # Check for passive secret detection (PER-based)
+        secret_message = self._check_and_report_passive_secrets(sub_location)
+        if secret_message:
+            message += f"\n{secret_message}"
+
+        # Check for boss encounter in sub-location
         if sub_location.boss_enemy and not sub_location.boss_defeated:
             # Spawn the boss
             boss = spawn_boss(

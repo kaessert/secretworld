@@ -1,81 +1,83 @@
-# Implementation Summary: Issue 17 - AI-Generated Treasure Chests
+# Issue 18: AI-Generated Hidden Secrets Implementation Summary
 
 ## What Was Implemented
 
-AI-generated areas (via `expand_area()` and `generate_subgrid_for_location()`) now include treasure chests that:
+### 1. Secret Generation Constants and Function (`src/cli_rpg/ai_world.py`)
 
-1. **Scale with area size**: 1 chest for 2-3 rooms, 2 for 4-5 rooms, 3 for 6+ rooms
-2. **Are distributed across non-entry rooms**: Treasures are spread using a step-based distribution algorithm
-3. **Match location category thematically**: Each category has a loot table with thematic items
-4. **Have lock difficulty scaling**: Difficulty = Manhattan distance from entry + random(0,1)
-5. **Exclude boss rooms**: Boss room doesn't get treasure (boss IS the reward)
-6. **Exclude entry rooms**: Entry/exit points don't get treasure
-7. **Only apply to appropriate categories**: dungeon, cave, ruins, temple, forest
+**Added constants:**
+- `SECRET_CATEGORIES`: frozenset of categories that should have secrets (`dungeon`, `cave`, `ruins`, `temple`, `forest`)
+- `SECRET_TEMPLATES`: dict mapping each category to a list of secret templates, each containing (type, description, base_threshold)
 
-## Files Modified
+**Added function:**
+- `_generate_secrets_for_location(category: str, distance: int = 0) -> list[dict]`
+  - Generates 1-2 hidden secrets for locations with appropriate categories
+  - Scales threshold based on distance from entry (deeper = harder to detect)
+  - Adds type-specific fields:
+    - `hidden_treasure`: adds `reward_gold` (10-30 + distance*5)
+    - `trap`: adds `trap_damage` (5 + distance*2)
+    - `hidden_door`: adds `exit_direction` (random cardinal direction)
 
-### `src/cli_rpg/ai_world.py`
+### 2. Secret Wiring into Location Generation
 
-Added:
-- `import random` at top
-- `TREASURE_LOOT_TABLES` constant: Category-specific loot tables with items (weapons, armor, consumables, misc)
-- `TREASURE_CHEST_NAMES` constant: Thematic chest names per category
-- `TREASURE_CATEGORIES` constant: frozenset of categories that get treasures
-- `_place_treasures()` function: Places treasures in non-entry, non-boss rooms with scaling based on room count
-- `_create_treasure_chest()` function: Creates a treasure dict with items, difficulty, and schema
+**`generate_subgrid_for_location()` (~line 775):**
+- Adds secrets to non-entry rooms (skips entry/exit point)
+- Uses Manhattan distance from (0,0) for threshold scaling
 
-Integrated treasure placement into:
-- `generate_subgrid_for_location()` (line ~717): Places treasures after boss placement
-- `expand_area()` (line ~1445): Places treasures after boss placement
+**`expand_area()` (~line 1433):**
+- Adds secrets to non-entry locations in area expansions
+- Uses relative coordinates for distance calculation
 
-### `tests/test_ai_world_treasure.py` (NEW)
+**`expand_world()` (~line 1241):**
+- Adds secrets to named overworld locations with secret categories
+- Uses distance=0 since these are standalone locations
 
-Created comprehensive test file with 28 tests covering:
-- `TestTreasureLootTables`: Verifies loot tables exist and have required fields
-- `TestTreasureChestNames`: Verifies chest names exist for categories
-- `TestPlaceTreasuresHelper`: Tests the placement algorithm (scaling, distribution, exclusions)
-- `TestExpandAreaTreasurePlacement`: Integration tests for expand_area()
-- `TestGenerateSubgridTreasurePlacement`: Integration tests for generate_subgrid_for_location()
+### 3. Passive Detection Wiring (`src/cli_rpg/game_state.py`)
 
-## Treasure Schema
+**Added import:**
+- `from cli_rpg.secrets import check_passive_detection`
 
-Treasures follow the existing schema from Location.treasures:
-```python
-{
-    "name": "Iron Chest",
-    "description": "An old chest left behind by previous adventurers.",
-    "locked": True,
-    "difficulty": 2,  # Scales with distance from entry
-    "opened": False,
-    "items": [
-        {"name": "Ancient Blade", "item_type": "weapon", "damage_bonus": 4},
-        {"name": "Health Potion", "item_type": "consumable", "heal_amount": 25}
-    ],
-    "requires_key": None
-}
-```
+**Added helper method:**
+- `_check_and_report_passive_secrets(location: Location) -> Optional[str]`
+  - Calls `check_passive_detection()` with player character and location
+  - Returns formatted message if secrets were detected, None otherwise
+
+**Wired into movement:**
+- `move()` (~line 778): Checks for secrets after updating dread
+- `_move_in_sub_grid()` (~line 919): Checks for secrets before returning success message
+- `enter()` (~line 1050): Checks for secrets after building look message
+
+### 4. Test File (`tests/test_ai_secrets.py`)
+
+Created comprehensive tests:
+- `TestSecretConstants`: Verifies constants are defined correctly
+- `TestGenerateSecretsForLocation`: Tests secret generation logic
+  - Output count validation (1-2 secrets)
+  - Schema validation (required fields)
+  - Type-specific field validation (gold, damage, direction)
+  - Distance scaling validation
+  - Non-secret category handling
 
 ## Test Results
 
 ```
-tests/test_ai_world_treasure.py: 28 passed
-tests/test_ai_world*.py: 137 passed
-Full test suite: 4312 passed
+tests/test_ai_secrets.py: 10 passed
+tests/test_perception.py: 22 passed
+Full suite: 4322 passed in 95.77s
 ```
 
-## Design Decisions
+## Files Modified
 
-1. **Boss rooms excluded**: The boss itself is the reward, so no additional treasure in boss rooms
-2. **Category-limited**: Only dungeons, caves, ruins, temples, and forests get treasures (not towns)
-3. **Distance-based difficulty**: Harder locks further from entry encourages exploration
-4. **Spread distribution**: Uses step-based selection to avoid clustering all treasures together
-5. **Edge case handling**: Small areas (2 rooms with boss) correctly have no treasure candidates
+1. `src/cli_rpg/ai_world.py` - Added SECRET_CATEGORIES, SECRET_TEMPLATES, _generate_secrets_for_location(), and wiring in 3 locations
+2. `src/cli_rpg/game_state.py` - Added import, helper method, and calls in move(), _move_in_sub_grid(), enter()
 
-## E2E Validation
+## Files Created
 
-To verify in-game:
-1. Enter a dungeon/cave/ruins location
-2. Navigate to non-entry, non-boss rooms
-3. Look for treasure chests in those rooms
-4. Verify chest names and items match the category theme
-5. Verify lock difficulty increases with distance from entry
+1. `tests/test_ai_secrets.py` - Test file for secret generation
+
+## E2E Validation Points
+
+Players should now:
+1. See "You notice: [secret description]" messages when entering locations with secrets (if PER meets threshold)
+2. Find secrets in dungeon, cave, ruins, temple, and forest locations
+3. Have harder-to-detect secrets in deeper dungeon rooms
+4. Be able to discover secrets via active `search` command even if passive detection fails
