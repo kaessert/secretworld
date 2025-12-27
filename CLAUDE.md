@@ -83,6 +83,7 @@ src/cli_rpg/
 ├── puzzles.py           # Dungeon puzzle interaction logic (unlock, pull, step, answer, activate)
 ├── interior_events.py   # Dynamic interior events (cave-ins) for SubGrid locations
 ├── hazards.py           # Environmental hazards system (poison gas, darkness, unstable ground, temperature, flooding)
+├── environmental_storytelling.py # Environmental details (corpses, bloodstains, journals) for dungeon atmosphere
 ├── test_world.py        # Demo mode fixture loading (load_test_world, create_demo_game_state)
 └── models/
     ├── character.py     # Player character model

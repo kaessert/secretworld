@@ -42,6 +42,11 @@ python -m cli_rpg.main
   - **Extreme Cold/Heat**: Increases tiredness by +5 when entering the room
   - **Flooded Rooms**: 50% chance to fail movement (slowed)
   - **Ranger Mitigation**: Rangers ignore unstable ground, extreme cold, and extreme heat hazards due to their wilderness affinity
+- **Environmental Storytelling**: Dungeon, cave, ruins, and temple interiors feature atmospheric details that hint at previous explorers' fates:
+  - **Corpses**: Skeletal remains, mauled bodies, and preserved adventurers
+  - **Bloodstains**: Dried blood, splatter patterns, and trails
+  - **Journals**: Scratched warnings, torn pages, and ancient inscriptions
+  - Details appear more frequently the deeper you venture (distance and z-level scaling)
 - **Experience System**: Level up by defeating enemies
 - **Colorized Output**: Color-coded terminal output for improved readability (enemies in red, locations in cyan, items in green, etc.)
 - **Tab Completion**: Auto-complete commands and contextual arguments (directions, NPCs, items) with Tab key

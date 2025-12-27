@@ -1,51 +1,68 @@
-# Implementation Summary: SubGrid Exit Point Visual Indicator
+# Environmental Storytelling - Implementation Summary
 
 ## Status: COMPLETE
 
-All related tests pass (92 total tests across 3 test files).
+All 11 tests pass in `tests/test_environmental_storytelling.py`.
 
 ## What Was Implemented
 
-Added a visual indicator "Exit to: <overworld_location>" when viewing a location inside a SubGrid that has `is_exit_point=True`. This helps players understand where the exit command will take them when they're exploring dungeons, caves, or other interior locations.
+Added environmental storytelling elements (corpses, bloodstains, journals) to SubGrid location descriptions for dungeon/cave/ruins/temple categories.
 
-### Files Modified
+### New File: `src/cli_rpg/environmental_storytelling.py`
 
-1. **`src/cli_rpg/models/location.py`** (lines 279-281)
-   - Added 3 lines to `get_layered_description()` method after the exits display
-   - Shows "Exit to: {parent_name}" with cyan color formatting when:
-     - `is_exit_point` is True
-     - `sub_grid` is not None (player is inside a SubGrid)
-     - `sub_grid.parent_name` exists
+Created module with:
 
-2. **`tests/test_exit_points.py`** (lines 241-291)
-   - Added new test class `TestExitPointDisplay` with 3 test methods:
-     - `test_exit_point_shows_exit_to_in_description` - verifies the indicator appears
-     - `test_non_exit_point_does_not_show_exit_to` - verifies indicator doesn't appear for non-exit locations
-     - `test_exit_to_uses_color_formatting` - verifies cyan ANSI color is applied
+- **STORYTELLING_CATEGORIES**: frozenset of categories that receive details (`dungeon`, `cave`, `ruins`, `temple`)
+- **BASE_STORYTELLING_CHANCE**: 40% base chance for details to appear
+- **ENVIRONMENTAL_DETAILS**: Category-specific detail pools with 3 types:
+  - **Corpses**: Previous adventurer remains (skeletons, mauled hunters, preserved bodies)
+  - **Bloodstains**: Combat evidence (dried blood, splatter patterns, trails)
+  - **Journals**: Lore hints and warnings (scratched messages, torn pages, stone tablets)
+
+- **`get_environmental_details(category, distance, z_level)`**: Main function that:
+  - Returns empty list for non-storytelling categories
+  - Calculates scaled chance: `base + (distance * 5%) + (depth * 8%)`
+  - Returns 0-2 randomly selected thematic details
+
+### Modified: `src/cli_rpg/models/location.py`
+
+- Added field: `environmental_details: List[str] = field(default_factory=list)`
+- Updated `to_dict()`: Only includes field when non-empty (backward compat)
+- Updated `from_dict()`: Parses field with empty list fallback
+- Updated `get_layered_description()`: Displays details after main description, before NPCs
+
+### Modified: `src/cli_rpg/ai_world.py`
+
+Integrated environmental storytelling into SubGrid generation:
+
+- **`generate_subgrid_for_location()`**: Adds environmental details to non-entry rooms (line 1098-1101)
+- **`expand_area()`**: Adds environmental details to non-entry SubGrid rooms (line 1794-1797)
+
+Both functions call `get_environmental_details()` with distance and z_level for scaling.
 
 ## Test Results
 
 ```
-tests/test_exit_points.py - 19 passed
-tests/test_location.py - 44 passed
-tests/test_world_grid.py - 29 passed
+tests/test_environmental_storytelling.py - 11 passed
+tests/test_location.py - 73 passed
+tests/test_world_grid.py - 20 passed
+tests/test_persistence.py - 37 passed
 ```
 
 All related tests pass, confirming no regressions.
 
 ## Design Decisions
 
-1. **Placement**: The "Exit to:" line is placed after the "Exits:" line (cardinal directions) but before the "Enter:" line, maintaining logical grouping of navigation information.
-
-2. **Color formatting**: Uses the existing `colors.location()` function for consistent cyan coloring of location names throughout the UI.
-
-3. **Conditional display**: Only shows when all conditions are met (exit point + inside SubGrid + parent name exists), ensuring it doesn't appear in inappropriate contexts.
+1. **Always visible**: Environmental details appear immediately (not gated by look_count like `details` and `secrets` layers)
+2. **Distance + Depth scaling**: Chance increases with distance (5% per unit) and depth (8% per unit of |z|), capped at 95%
+3. **Category-specific pools**: Each dungeon type has thematic detail pools
+4. **Compact display**: Details appear as single lines after the main description
 
 ## E2E Test Validation
 
 To manually verify:
-1. Run `cli-rpg --demo --skip-character-creation`
-2. Navigate to a location with an enterable SubGrid (e.g., a mine or dungeon)
-3. Enter the SubGrid with `enter <name>`
-4. Run `look` command at the entrance/exit point
-5. Verify "Exit to: <parent location name>" appears in the description
+1. Run `cli-rpg --demo`
+2. Enter a dungeon or cave location with `enter <name>`
+3. Navigate to non-entry rooms (away from the entrance)
+4. Run `look` command
+5. Environmental details (corpses, bloodstains, journals) should appear after the main description

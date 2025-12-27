@@ -120,7 +120,7 @@ Issues discovered through comprehensive map system playtesting in non-interactiv
 ---
 
 ### Secrets and discovery
-**Status**: ACTIVE (Core Complete)
+**Status**: COMPLETED ✓
 
 **Implemented**:
 - AI-generated secrets for dungeon, cave, ruins, temple, and forest locations (1-2 secrets per location)
@@ -130,9 +130,7 @@ Issues discovered through comprehensive map system playtesting in non-interactiv
 - Reward system for discovered secrets
 - Hidden rooms in SubGrid locations
 - Dungeon puzzles (Issue 23 - Complete)
-
-**Remaining**:
-- Environmental storytelling
+- Environmental storytelling (corpses, bloodstains, journals in dungeon/cave/ruins/temple SubGrids)
 
 ---
 
@@ -574,7 +572,7 @@ Created QuestNetworkManager for managing interconnected quest storylines.
 **Acceptance Criteria:**
 - [ ] **Ambient sounds**: Dripping water, distant screams
 - [x] **Progressive dread**: Deeper levels increase dread faster (up to 2x at z≤-3)
-- [ ] **Environmental storytelling**: Corpses, bloodstains, journals
+- [x] **Environmental storytelling**: Corpses, bloodstains, journals (completed - see environmental_storytelling.py)
 - [ ] **Weather penetration**: Rain sounds near cave entrance
 - [ ] **Day/night effects**: Undead more active at night
 - [x] **Location-specific whispers**: Dungeon whispers differ from forest (8+ templates per category, new temple category)

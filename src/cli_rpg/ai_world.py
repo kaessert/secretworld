@@ -1095,6 +1095,11 @@ def generate_subgrid_for_location(
             secrets = _generate_secrets_for_location(loc_category or "dungeon", distance, rel_z)
             new_loc.hidden_secrets.extend(secrets)
 
+            # Add environmental storytelling (Issue #27)
+            from cli_rpg.environmental_storytelling import get_environmental_details
+            env_details = get_environmental_details(loc_category or "dungeon", distance, rel_z)
+            new_loc.environmental_details.extend(env_details)
+
             # Add puzzles to non-entry rooms (Issue #23)
             puzzles, blocked, keys = _generate_puzzles_for_location(
                 loc_category or "dungeon", distance, rel_z
@@ -1785,6 +1790,11 @@ def expand_area(
             distance = abs(rel_x) + abs(rel_y)
             secrets = _generate_secrets_for_location(loc_category or "dungeon", distance, rel_z)
             new_loc.hidden_secrets.extend(secrets)
+
+            # Add environmental storytelling (Issue #27)
+            from cli_rpg.environmental_storytelling import get_environmental_details
+            env_details = get_environmental_details(loc_category or "dungeon", distance, rel_z)
+            new_loc.environmental_details.extend(env_details)
 
             # Add puzzles to non-entry rooms (Issue #23)
             puzzles, blocked, keys = _generate_puzzles_for_location(

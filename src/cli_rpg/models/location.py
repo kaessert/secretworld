@@ -61,6 +61,7 @@ class Location:
     puzzles: List["Puzzle"] = field(default_factory=list)  # Puzzles at this location
     blocked_directions: List[str] = field(default_factory=list)  # Directions blocked by puzzles
     hazards: List[str] = field(default_factory=list)  # Environmental hazards (poison_gas, darkness, etc.)
+    environmental_details: List[str] = field(default_factory=list)  # Environmental storytelling (corpses, bloodstains, journals)
 
     def __post_init__(self) -> None:
         """Validate location attributes after initialization."""
@@ -261,6 +262,11 @@ class Location:
                     break
         result += f"{description}\n"
 
+        # Add environmental storytelling details (always visible, added after description)
+        if self.environmental_details:
+            for detail in self.environmental_details:
+                result += f"{detail}\n"
+
         # NPCs are always visible at the player's current location
         if self.npcs:
             npc_names = [colors.npc(npc.name) for npc in self.npcs]
@@ -408,6 +414,8 @@ class Location:
             data["blocked_directions"] = self.blocked_directions.copy()
         if self.hazards:
             data["hazards"] = self.hazards.copy()
+        if self.environmental_details:
+            data["environmental_details"] = self.environmental_details.copy()
         return data
     
     @classmethod
@@ -478,6 +486,8 @@ class Location:
         blocked_directions = data.get("blocked_directions", [])
         # Parse hazards if present (backward compatibility)
         hazards = data.get("hazards", [])
+        # Parse environmental_details if present (backward compatibility)
+        environmental_details = data.get("environmental_details", [])
         # Note: Legacy 'connections' field is ignored if present (backward compatibility)
         return cls(
             name=data["name"],
@@ -507,6 +517,7 @@ class Location:
             puzzles=puzzles,
             blocked_directions=blocked_directions,
             hazards=hazards,
+            environmental_details=environmental_details,
         )
     
     def __str__(self) -> str:
