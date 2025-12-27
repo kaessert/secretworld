@@ -759,13 +759,13 @@ class GameState:
 
         # Check bounds
         if not self.current_sub_grid.is_within_bounds(*target_coords):
-            return (False, "You can't go that way.")
+            return (False, "You can't go that way - you've reached the edge of this area.")
 
         # Find location at target coordinates
         destination = self.current_sub_grid.get_by_coordinates(*target_coords)
 
         if destination is None:
-            return (False, "The path is blocked.")
+            return (False, "The path is blocked by a wall.")
 
         self.current_location = destination.name
 
