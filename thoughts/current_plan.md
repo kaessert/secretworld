@@ -1,228 +1,111 @@
-# Implementation Plan: Issue 15 - Interconnected Quest Networks
+# Pre-generated Test World Implementation Plan
 
-## Summary
-Create `QuestNetworkManager` to manage storyline systems with branching quests and investigations. This builds on the existing `Quest` model which already has `chain_id`, `prerequisite_quests`, and `unlocks_quests` fields, but lacks a manager to coordinate networks.
+## Feature Spec
 
-## Spec
-
-**QuestNetworkManager** dataclass providing:
-1. **Quest Registration** - Add/get quests by name (case-insensitive lookup)
-2. **Chain Management** - Group quests by `chain_id`, get chain progression
-3. **Dependency Tracking** - Query available quests based on completed prerequisites
-4. **Storyline Queries** - Find connected quests, get investigation paths (BFS)
-5. **Serialization** - Full to_dict/from_dict support
-
----
-
-## Tests (tests/test_quest_network.py)
-
-### TestQuestNetworkBasics
-1. `test_add_quest` - Quest added and retrievable
-2. `test_get_quest_case_insensitive` - "Goblin War" matches "goblin war"
-3. `test_get_quest_not_found` - Returns None for missing quest
-4. `test_get_all_quests` - Returns all registered quests
-
-### TestChainManagement
-5. `test_get_chain_quests_sorted` - Returns quests sorted by chain_position
-6. `test_get_chain_quests_empty` - Returns [] for unknown chain_id
-7. `test_get_chain_progression` - Returns (completed_count, total_count)
-8. `test_get_next_in_chain` - Returns first incomplete quest in chain
-9. `test_get_next_in_chain_all_complete` - Returns None when chain finished
-
-### TestDependencyQueries
-10. `test_get_available_quests_no_prereqs` - Includes quests with empty prerequisite_quests
-11. `test_get_available_quests_prereqs_met` - Includes quests with satisfied prerequisites
-12. `test_get_available_quests_excludes_unmet` - Excludes quests with unmet prerequisites
-13. `test_get_unlocked_quests` - Returns quests in unlocks_quests list
-
-### TestStorylineQueries
-14. `test_get_prerequisites_of` - Returns Quest objects for prerequisite_quests
-15. `test_get_unlocks_of` - Returns Quest objects for unlocks_quests
-16. `test_find_path_direct` - Finds path A→B when B in A.unlocks_quests
-17. `test_find_path_multi_hop` - Finds A→B→C chain
-18. `test_find_path_no_connection` - Returns None for unconnected quests
-
-### TestSerialization
-19. `test_to_dict_from_dict_roundtrip` - Preserves all quests through serialization
-
----
+Create a pre-generated test world fixture and `--demo` mode that enables:
+- Automated testing without AI API costs
+- Reproducible bug reports with known game state
+- CI/CD integration with deterministic tests
+- Demo mode for showcasing gameplay
 
 ## Implementation Steps
 
-### Step 1: Create tests
-**File**: `tests/test_quest_network.py`
+### 1. Create Test World Fixture Data
+**File:** `tests/fixtures/test_world.json`
 
-Write all 19 tests per spec above.
+Generate a comprehensive test world JSON containing:
+- **Character**: Level 3 Warrior with balanced stats, some inventory items, 1-2 active quests
+- **World**: 5 named overworld locations at coordinates (0,0), (0,1), (1,0), (-1,0), (0,-1)
+  - Starting village with merchant NPC and quest giver
+  - Forest area with enemy spawns
+  - Cave entrance (enterable, with 3x3 SubGrid)
+  - Abandoned ruins
+  - Crossroads
+- **NPCs**: 3-4 NPCs with shops, quests, dialogue
+- **SubGrid**: One dungeon interior with 3x3 layout, exit point, treasure, boss
+- **Factions**: Default factions from `get_default_factions()`
+- **GameTime/Weather**: Day 1, morning, clear weather
 
-### Step 2: Create model
-**File**: `src/cli_rpg/models/quest_network.py`
+### 2. Create Fixture Loading Utility
+**File:** `src/cli_rpg/test_world.py`
 
 ```python
-"""Quest Network Manager for managing interconnected quest storylines."""
-from collections import deque
-from dataclasses import dataclass, field
-from typing import Dict, List, Optional, Tuple
+def load_test_world() -> dict:
+    """Load pre-generated test world from fixtures."""
 
-from cli_rpg.models.quest import Quest
-
-
-@dataclass
-class QuestNetworkManager:
-    """Manages interconnected quest networks.
-
-    Provides functionality for:
-    - Registering and looking up quests by name
-    - Chain progression tracking
-    - Dependency-based availability queries
-    - Storyline path finding
-    """
-
-    _quests: Dict[str, Quest] = field(default_factory=dict)
-
-    # Registration
-    def add_quest(self, quest: Quest) -> None:
-        """Register a quest by name (case-insensitive)."""
-        self._quests[quest.name.lower()] = quest
-
-    def get_quest(self, name: str) -> Optional[Quest]:
-        """Look up a quest by name (case-insensitive)."""
-        return self._quests.get(name.lower())
-
-    def get_all_quests(self) -> List[Quest]:
-        """Get all registered quests."""
-        return list(self._quests.values())
-
-    # Chain management
-    def get_chain_quests(self, chain_id: str) -> List[Quest]:
-        """Get all quests in a chain, sorted by chain_position."""
-        quests = [q for q in self._quests.values() if q.chain_id == chain_id]
-        return sorted(quests, key=lambda q: q.chain_position)
-
-    def get_chain_progression(
-        self, chain_id: str, completed_quests: List[str]
-    ) -> Tuple[int, int]:
-        """Get (completed_count, total_count) for a chain."""
-        chain = self.get_chain_quests(chain_id)
-        completed_lower = {q.lower() for q in completed_quests}
-        completed = sum(1 for q in chain if q.name.lower() in completed_lower)
-        return (completed, len(chain))
-
-    def get_next_in_chain(
-        self, chain_id: str, completed_quests: List[str]
-    ) -> Optional[Quest]:
-        """Get first incomplete quest in a chain."""
-        chain = self.get_chain_quests(chain_id)
-        completed_lower = {q.lower() for q in completed_quests}
-        for quest in chain:
-            if quest.name.lower() not in completed_lower:
-                return quest
-        return None
-
-    # Dependency queries
-    def get_available_quests(self, completed_quests: List[str]) -> List[Quest]:
-        """Get quests with satisfied prerequisites (or no prerequisites)."""
-        return [
-            q for q in self._quests.values()
-            if q.prerequisites_met(completed_quests)
-        ]
-
-    def get_unlocked_quests(self, completed_quest_name: str) -> List[Quest]:
-        """Get quests unlocked by completing a quest."""
-        completed = self.get_quest(completed_quest_name)
-        if not completed:
-            return []
-        return [
-            self.get_quest(name)
-            for name in completed.unlocks_quests
-            if self.get_quest(name) is not None
-        ]
-
-    # Storyline queries
-    def get_prerequisites_of(self, quest_name: str) -> List[Quest]:
-        """Get Quest objects for a quest's prerequisites."""
-        quest = self.get_quest(quest_name)
-        if not quest:
-            return []
-        return [
-            self.get_quest(name)
-            for name in quest.prerequisite_quests
-            if self.get_quest(name) is not None
-        ]
-
-    def get_unlocks_of(self, quest_name: str) -> List[Quest]:
-        """Get Quest objects for quests this quest unlocks."""
-        quest = self.get_quest(quest_name)
-        if not quest:
-            return []
-        return [
-            self.get_quest(name)
-            for name in quest.unlocks_quests
-            if self.get_quest(name) is not None
-        ]
-
-    def find_path(
-        self, start_quest: str, end_quest: str
-    ) -> Optional[List[str]]:
-        """Find shortest path between quests via unlocks_quests.
-
-        Uses BFS to find the shortest chain from start to end.
-
-        Returns:
-            List of quest names forming the path (including start and end),
-            or None if no path exists.
-        """
-        start = self.get_quest(start_quest)
-        end = self.get_quest(end_quest)
-        if not start or not end:
-            return None
-        if start_quest.lower() == end_quest.lower():
-            return [start.name]
-
-        visited = {start_quest.lower()}
-        queue: deque[List[str]] = deque([[start.name]])
-
-        while queue:
-            path = queue.popleft()
-            current_name = path[-1]
-            current = self.get_quest(current_name)
-            if not current:
-                continue
-
-            for unlock_name in current.unlocks_quests:
-                if unlock_name.lower() == end_quest.lower():
-                    return path + [end.name]
-                if unlock_name.lower() not in visited:
-                    visited.add(unlock_name.lower())
-                    queue.append(path + [unlock_name])
-
-        return None
-
-    # Serialization
-    def to_dict(self) -> dict:
-        """Serialize the manager to a dictionary."""
-        return {"quests": [q.to_dict() for q in self._quests.values()]}
-
-    @classmethod
-    def from_dict(cls, data: dict) -> "QuestNetworkManager":
-        """Deserialize the manager from a dictionary."""
-        manager = cls()
-        for quest_data in data.get("quests", []):
-            quest = Quest.from_dict(quest_data)
-            manager.add_quest(quest)
-        return manager
+def create_demo_game_state(ai_service=None) -> GameState:
+    """Create GameState from pre-generated test world."""
 ```
 
-### Step 3: Run tests
+### 3. Add Pytest Fixture
+**File:** `tests/conftest.py`
 
-```bash
-pytest tests/test_quest_network.py -v
+Add fixture:
+```python
+@pytest.fixture
+def pregenerated_game_state():
+    """Load fresh copy of pre-generated test world for each test."""
 ```
 
----
+### 4. Add --demo CLI Flag
+**File:** `src/cli_rpg/main.py`
 
-## Files to Create
-- `src/cli_rpg/models/quest_network.py` - QuestNetworkManager dataclass
-- `tests/test_quest_network.py` - 19 tests
+- Add `--demo` argument to `parse_args()`
+- In `main()`, when `--demo` is set:
+  - Skip character creation
+  - Load test world via `create_demo_game_state()`
+  - Skip AI service initialization (no API calls)
 
-## Files to Modify
-None - standalone model. GameState integration deferred to future issue.
+### 5. Create Fixture Generation Script
+**File:** `scripts/generate_test_world.py`
+
+Script that:
+- Creates a GameState programmatically (no AI)
+- Populates with known test data
+- Exports via `game_state.to_dict()`
+- Writes to `tests/fixtures/test_world.json`
+
+This allows regenerating the fixture if models change.
+
+## Test Plan
+
+### Unit Tests
+**File:** `tests/test_test_world.py`
+
+1. `test_load_test_world_returns_valid_dict()` - Fixture loads as valid JSON
+2. `test_create_demo_game_state_returns_game_state()` - GameState.from_dict() succeeds
+3. `test_demo_game_state_has_character()` - Character exists with expected stats
+4. `test_demo_game_state_has_locations()` - World has expected named locations
+5. `test_demo_game_state_has_npcs()` - NPCs exist with shops/quests
+6. `test_demo_game_state_navigation_works()` - Can move between locations
+7. `test_demo_game_state_look_works()` - look() returns valid output
+8. `test_demo_game_state_subgrid_entry()` - Can enter/exit dungeon SubGrid
+
+### Integration Tests
+**File:** `tests/test_demo_mode.py`
+
+1. `test_demo_flag_skips_character_creation()` - No prompts in demo mode
+2. `test_demo_mode_gameplay_loop()` - Can execute commands without AI
+3. `test_demo_mode_no_ai_calls()` - AI service not invoked
+
+## Files to Create/Modify
+
+| File | Action |
+|------|--------|
+| `tests/fixtures/test_world.json` | Create (~50-100KB) |
+| `src/cli_rpg/test_world.py` | Create (~50 lines) |
+| `scripts/generate_test_world.py` | Create (~150 lines) |
+| `tests/conftest.py` | Add 1 fixture (~10 lines) |
+| `src/cli_rpg/main.py` | Add --demo flag (~15 lines) |
+| `tests/test_test_world.py` | Create (~100 lines) |
+| `tests/test_demo_mode.py` | Create (~50 lines) |
+
+## Implementation Order
+
+1. `scripts/generate_test_world.py` - Build the fixture generator
+2. `tests/fixtures/test_world.json` - Generate the fixture
+3. `src/cli_rpg/test_world.py` - Loading utility
+4. `tests/test_test_world.py` - Tests for fixture loading
+5. `tests/conftest.py` - Pytest fixture
+6. `src/cli_rpg/main.py` - --demo flag
+7. `tests/test_demo_mode.py` - Demo mode tests

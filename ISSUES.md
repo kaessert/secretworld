@@ -2,6 +2,44 @@
 
 ---
 
+### Game Crashes When Moving Inside SubGrid (colors.success AttributeError)
+**Status**: ACTIVE
+**Priority**: CRITICAL
+**Date Added**: 2025-12-27
+
+#### Description
+The game crashes with `AttributeError: module 'cli_rpg.colors' has no attribute 'success'` when the player moves within a SubGrid location (e.g., moving inside Market District after entering from Town Square).
+
+The crash occurs in `game_state.py` at line 470 in the `_check_and_report_passive_secrets` method, which attempts to call `colors.success()` - a function that does not exist in the `colors` module.
+
+#### Steps to Reproduce
+1. Start the game in demo mode: `cli-rpg --demo --non-interactive --skip-character-creation`
+2. Enter a SubGrid location: `enter Market District`
+3. Move within the SubGrid: `go north`
+
+**Command to reproduce:**
+```bash
+echo -e "enter Market District\ngo north" | cli-rpg --demo --non-interactive --skip-character-creation
+```
+
+#### Expected Behavior
+The player should move to a new room within the SubGrid and see the location description.
+
+#### Actual Behavior
+The game crashes with the following traceback:
+```
+File "/Users/tkaesser/up/secretworld/src/cli_rpg/game_state.py", line 470, in _check_and_report_passive_secrets
+    lines = [f"{colors.success('You notice:')} {s['description']}" for s in detected]
+AttributeError: module 'cli_rpg.colors' has no attribute 'success'
+```
+
+#### Impact
+- Players cannot explore inside SubGrid locations (dungeons, caves, towns, etc.)
+- Core gameplay loop is broken for interior exploration
+- Demo mode is unusable beyond initial room entry
+
+---
+
 ### Rest Command Tiredness Threshold Mismatch
 **Status**: COMPLETED ✓
 **Priority**: LOW
@@ -128,10 +166,11 @@ Issues discovered through comprehensive map system playtesting in non-interactiv
 ---
 
 ### Pre-generated Test World
-**Status**: PLANNED
+**Status**: COMPLETED ✓
 **Date Added**: 2025-12-27
+**Completed**: 2025-12-27
 
-Create a pre-generated world with AI content (locations, NPCs, quests, items) that can be loaded for testing without requiring live AI service.
+Created a pre-generated world with AI content (locations, NPCs, quests, items) that can be loaded for testing without requiring live AI service.
 
 #### Benefits
 
@@ -143,14 +182,29 @@ Create a pre-generated world with AI content (locations, NPCs, quests, items) th
 
 #### Implementation
 
-**Files to Create**:
-- `scripts/generate_test_world.py` - Generation script
-- `data/test_worlds/default.json` - Pre-generated world
+**Files Created**:
+- `scripts/generate_test_world.py` - Programmatic generation script
+- `tests/fixtures/test_world.json` - Pre-generated world fixture (~12KB)
+- `src/cli_rpg/test_world.py` - Fixture loading utility (`load_test_world()`, `create_demo_game_state()`)
+- `tests/test_test_world.py` - 25 tests for fixture validation
+- `tests/test_demo_mode.py` - 15 tests for demo mode CLI
 
-**Files to Modify**:
-- `src/cli_rpg/main.py` - Add `--load-world` flag
-- `src/cli_rpg/game_state.py` - Add world loading from file
-- `src/cli_rpg/persistence.py` - Extend to save/load full world state
+**Files Modified**:
+- `src/cli_rpg/main.py` - Added `--demo` flag and `run_demo_mode()` function
+- `tests/conftest.py` - Added `pregenerated_game_state` pytest fixture
+
+#### Usage
+
+```bash
+# Start game in demo mode (no AI, pre-generated world)
+cli-rpg --demo
+
+# Regenerate fixture if models change
+python scripts/generate_test_world.py
+
+# Run demo mode tests
+pytest tests/test_test_world.py tests/test_demo_mode.py -v
+```
 
 ---
 

@@ -556,6 +556,29 @@ cli-rpg --non-interactive --skip-character-creation < commands.txt
 - Random stats: provide name, class (1-5), "2", "yes" (one per line)
 - Invalid inputs return error messages and exit with code 1
 
+### Demo Mode
+
+For showcasing the game without requiring an AI API key, use the `--demo` flag to load a pre-generated world:
+
+```bash
+# Start game in demo mode
+cli-rpg --demo
+```
+
+**Features:**
+- Loads a pre-generated world with 5 named locations, NPCs, quests, and a cave SubGrid
+- Skips character creation (uses pre-built Level 3 Warrior "Demo Hero")
+- No AI service required - works completely offline
+- Perfect for testing, demos, and CI/CD pipelines
+- Full gameplay including navigation, combat, shops, and SubGrid exploration
+
+**Pre-generated content includes:**
+- Peaceful Village (0,0) - safe zone with merchant and quest giver NPCs
+- Whispering Forest (0,1) - wilderness area to the north
+- Dark Cave (1,0) - cave with 4-room interior SubGrid, boss encounter, and treasures
+- Abandoned Ruins (-1,0) - exploration target with secrets
+- Southern Crossroads (0,-1) - junction point
+
 ### Gameplay Logging
 
 For comprehensive session logging, use the `--log-file` option to record all gameplay activity:

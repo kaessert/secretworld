@@ -4,6 +4,8 @@ import pytest
 from unittest.mock import patch
 import tempfile
 
+from cli_rpg.test_world import create_demo_game_state
+
 
 @pytest.fixture(autouse=True)
 def disable_colors():
@@ -63,3 +65,19 @@ def mock_autosave_directory():
         except ImportError:
             # If autosave module doesn't exist yet, just yield
             yield tmpdir
+
+
+@pytest.fixture
+def pregenerated_game_state():
+    """Load fresh copy of pre-generated test world for each test.
+
+    Returns a GameState instance initialized from the test world fixture.
+    This provides a reproducible game state for tests that need a fully
+    configured game environment.
+
+    Example:
+        def test_combat(pregenerated_game_state):
+            game_state = pregenerated_game_state
+            # game_state has character, locations, NPCs, etc.
+    """
+    return create_demo_game_state()

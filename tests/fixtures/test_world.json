@@ -1,0 +1,549 @@
+{
+  "character": {
+    "name": "Demo Hero",
+    "strength": 17,
+    "dexterity": 13,
+    "intelligence": 10,
+    "charisma": 10,
+    "perception": 10,
+    "luck": 10,
+    "character_class": "Warrior",
+    "stance": "Balanced",
+    "level": 3,
+    "health": 130,
+    "max_health": 130,
+    "mana": 40,
+    "max_mana": 40,
+    "stamina": 135,
+    "max_stamina": 135,
+    "xp": 250,
+    "inventory": {
+      "capacity": 20,
+      "items": [
+        {
+          "name": "Health Potion",
+          "description": "Restores 30 health points",
+          "item_type": "consumable",
+          "damage_bonus": 0,
+          "defense_bonus": 0,
+          "heal_amount": 30,
+          "mana_restore": 0,
+          "stamina_restore": 0,
+          "light_duration": 0,
+          "is_cure": false
+        },
+        {
+          "name": "Health Potion",
+          "description": "Restores 30 health points",
+          "item_type": "consumable",
+          "damage_bonus": 0,
+          "defense_bonus": 0,
+          "heal_amount": 30,
+          "mana_restore": 0,
+          "stamina_restore": 0,
+          "light_duration": 0,
+          "is_cure": false
+        },
+        {
+          "name": "Torch",
+          "description": "A simple torch that illuminates dark places",
+          "item_type": "misc",
+          "damage_bonus": 0,
+          "defense_bonus": 0,
+          "heal_amount": 0,
+          "mana_restore": 0,
+          "stamina_restore": 0,
+          "light_duration": 10,
+          "is_cure": false
+        }
+      ],
+      "equipped_weapon": {
+        "name": "Iron Sword",
+        "description": "A sturdy iron blade",
+        "item_type": "weapon",
+        "damage_bonus": 8,
+        "defense_bonus": 0,
+        "heal_amount": 0,
+        "mana_restore": 0,
+        "stamina_restore": 0,
+        "light_duration": 0,
+        "is_cure": false
+      },
+      "equipped_armor": {
+        "name": "Leather Armor",
+        "description": "Basic leather protection",
+        "item_type": "armor",
+        "damage_bonus": 0,
+        "defense_bonus": 3,
+        "heal_amount": 0,
+        "mana_restore": 0,
+        "stamina_restore": 0,
+        "light_duration": 0,
+        "is_cure": false
+      }
+    },
+    "gold": 100,
+    "quests": [
+      {
+        "name": "Clear the Cave",
+        "description": "A merchant needs help clearing dangerous creatures from a nearby cave.",
+        "status": "active",
+        "objective_type": "kill",
+        "target": "Cave Spider",
+        "target_count": 3,
+        "current_count": 1,
+        "gold_reward": 50,
+        "xp_reward": 150,
+        "item_rewards": [],
+        "quest_giver": "Merchant Marcus",
+        "drop_item": null,
+        "faction_affiliation": null,
+        "faction_reward": 0,
+        "faction_penalty": 0,
+        "required_reputation": null,
+        "chain_id": null,
+        "chain_position": 0,
+        "prerequisite_quests": [],
+        "unlocks_quests": [],
+        "alternative_branches": [],
+        "completed_branch_id": null,
+        "difficulty": "normal",
+        "recommended_level": 1,
+        "time_limit_hours": null,
+        "accepted_at": null,
+        "stages": [],
+        "current_stage": 0
+      }
+    ],
+    "bestiary": {},
+    "status_effects": [],
+    "look_counts": {},
+    "dread_meter": {
+      "dread": 0
+    },
+    "tiredness": {
+      "current": 0
+    },
+    "light_remaining": 0,
+    "weapon_proficiencies": []
+  },
+  "current_location": "Peaceful Village",
+  "world": {
+    "Peaceful Village": {
+      "name": "Peaceful Village",
+      "description": "A small village nestled in a verdant valley. Smoke rises from cozy cottages.",
+      "npcs": [
+        {
+          "name": "Merchant Marcus",
+          "description": "A portly merchant with a friendly smile.",
+          "dialogue": "Welcome to my shop! I have the finest goods in town.",
+          "is_merchant": true,
+          "shop": {
+            "name": "Marcus's Goods",
+            "inventory": [
+              {
+                "item": {
+                  "name": "Health Potion",
+                  "description": "Restores 30 health points",
+                  "item_type": "consumable",
+                  "damage_bonus": 0,
+                  "defense_bonus": 0,
+                  "heal_amount": 30,
+                  "mana_restore": 0,
+                  "stamina_restore": 0,
+                  "light_duration": 0,
+                  "is_cure": false
+                },
+                "buy_price": 25
+              },
+              {
+                "item": {
+                  "name": "Mana Potion",
+                  "description": "Restores 25 mana points",
+                  "item_type": "consumable",
+                  "damage_bonus": 0,
+                  "defense_bonus": 0,
+                  "heal_amount": 0,
+                  "mana_restore": 25,
+                  "stamina_restore": 0,
+                  "light_duration": 0,
+                  "is_cure": false
+                },
+                "buy_price": 30
+              },
+              {
+                "item": {
+                  "name": "Steel Sword",
+                  "description": "A well-forged steel blade",
+                  "item_type": "weapon",
+                  "damage_bonus": 12,
+                  "defense_bonus": 0,
+                  "heal_amount": 0,
+                  "mana_restore": 0,
+                  "stamina_restore": 0,
+                  "light_duration": 0,
+                  "is_cure": false
+                },
+                "buy_price": 150
+              },
+              {
+                "item": {
+                  "name": "Chainmail",
+                  "description": "Interlocking metal rings",
+                  "item_type": "armor",
+                  "damage_bonus": 0,
+                  "defense_bonus": 6,
+                  "heal_amount": 0,
+                  "mana_restore": 0,
+                  "stamina_restore": 0,
+                  "light_duration": 0,
+                  "is_cure": false
+                },
+                "buy_price": 200
+              },
+              {
+                "item": {
+                  "name": "Torch",
+                  "description": "A simple torch that illuminates dark places",
+                  "item_type": "misc",
+                  "damage_bonus": 0,
+                  "defense_bonus": 0,
+                  "heal_amount": 0,
+                  "mana_restore": 0,
+                  "stamina_restore": 0,
+                  "light_duration": 10,
+                  "is_cure": false
+                },
+                "buy_price": 5
+              }
+            ]
+          },
+          "is_quest_giver": true,
+          "offered_quests": [
+            {
+              "name": "Clear the Cave",
+              "description": "A merchant needs help clearing dangerous creatures from a nearby cave.",
+              "status": "active",
+              "objective_type": "kill",
+              "target": "Cave Spider",
+              "target_count": 3,
+              "current_count": 1,
+              "gold_reward": 50,
+              "xp_reward": 150,
+              "item_rewards": [],
+              "quest_giver": "Merchant Marcus",
+              "drop_item": null,
+              "faction_affiliation": null,
+              "faction_reward": 0,
+              "faction_penalty": 0,
+              "required_reputation": null,
+              "chain_id": null,
+              "chain_position": 0,
+              "prerequisite_quests": [],
+              "unlocks_quests": [],
+              "alternative_branches": [],
+              "completed_branch_id": null,
+              "difficulty": "normal",
+              "recommended_level": 1,
+              "time_limit_hours": null,
+              "accepted_at": null,
+              "stages": [],
+              "current_stage": 0
+            }
+          ],
+          "greetings": [
+            "Ah, a customer! Looking for supplies?",
+            "Welcome back! What can I get you today?"
+          ],
+          "conversation_history": [],
+          "available_at_night": true,
+          "is_recruitable": false,
+          "willpower": 5,
+          "bribeable": true,
+          "persuaded": false,
+          "haggleable": true,
+          "haggle_cooldown": 0,
+          "faction": null,
+          "required_reputation": null,
+          "relationships": [],
+          "arc": null
+        },
+        {
+          "name": "Elder Theron",
+          "description": "A wise old man who leads the village.",
+          "dialogue": "Greetings, traveler. Our village could use your help.",
+          "is_merchant": false,
+          "shop": null,
+          "is_quest_giver": true,
+          "offered_quests": [
+            {
+              "name": "Scout the Ruins",
+              "description": "The elder needs someone to scout the abandoned ruins to the east.",
+              "status": "available",
+              "objective_type": "explore",
+              "target": "Abandoned Ruins",
+              "target_count": 1,
+              "current_count": 0,
+              "gold_reward": 30,
+              "xp_reward": 100,
+              "item_rewards": [],
+              "quest_giver": "Elder Theron",
+              "drop_item": null,
+              "faction_affiliation": null,
+              "faction_reward": 0,
+              "faction_penalty": 0,
+              "required_reputation": null,
+              "chain_id": null,
+              "chain_position": 0,
+              "prerequisite_quests": [],
+              "unlocks_quests": [],
+              "alternative_branches": [],
+              "completed_branch_id": null,
+              "difficulty": "easy",
+              "recommended_level": 1,
+              "time_limit_hours": null,
+              "accepted_at": null,
+              "stages": [],
+              "current_stage": 0
+            }
+          ],
+          "greetings": [
+            "Ah, you've come. I sensed you would.",
+            "The village is grateful for heroes like you."
+          ],
+          "conversation_history": [],
+          "available_at_night": true,
+          "is_recruitable": false,
+          "willpower": 5,
+          "bribeable": true,
+          "persuaded": false,
+          "haggleable": true,
+          "haggle_cooldown": 0,
+          "faction": null,
+          "required_reputation": null,
+          "relationships": [],
+          "arc": null
+        }
+      ],
+      "coordinates": [
+        0,
+        0
+      ],
+      "category": "town",
+      "is_overworld": true,
+      "is_safe_zone": true,
+      "terrain": "plains",
+      "is_named": true
+    },
+    "Whispering Forest": {
+      "name": "Whispering Forest",
+      "description": "Tall trees form a dense canopy overhead. The path winds through ancient oaks.",
+      "npcs": [],
+      "coordinates": [
+        0,
+        1
+      ],
+      "category": "forest",
+      "details": "The forest floor is carpeted with fallen leaves. Bird calls echo through the trees.",
+      "is_overworld": true,
+      "terrain": "forest",
+      "is_named": true
+    },
+    "Dark Cave": {
+      "name": "Dark Cave",
+      "description": "A gaping cave mouth opens in the hillside. Cold air flows from within.",
+      "npcs": [],
+      "coordinates": [
+        1,
+        0
+      ],
+      "category": "cave",
+      "is_overworld": true,
+      "entry_point": "Cave Entrance",
+      "sub_grid": {
+        "locations": [
+          {
+            "name": "Cave Entrance",
+            "description": "The entrance to a dark cave. Daylight filters in from behind you.",
+            "npcs": [],
+            "coordinates": [
+              0,
+              0,
+              0
+            ],
+            "category": "cave",
+            "parent_location": "Dark Cave",
+            "is_exit_point": true
+          },
+          {
+            "name": "Dark Passage",
+            "description": "A narrow tunnel leading deeper into the cave. Spider webs cover the walls.",
+            "npcs": [],
+            "coordinates": [
+              0,
+              1,
+              0
+            ],
+            "category": "cave",
+            "parent_location": "Dark Cave"
+          },
+          {
+            "name": "Spider Den",
+            "description": "A large cavern filled with thick webbing. Something large lurks in the shadows.",
+            "npcs": [],
+            "coordinates": [
+              -1,
+              1,
+              0
+            ],
+            "category": "cave",
+            "parent_location": "Dark Cave",
+            "boss_enemy": "Giant Spider",
+            "treasures": [
+              {
+                "item": "Ancient Key",
+                "locked": false,
+                "opened": false
+              }
+            ]
+          },
+          {
+            "name": "Hidden Alcove",
+            "description": "A small alcove with glittering treasures.",
+            "npcs": [],
+            "coordinates": [
+              1,
+              1,
+              0
+            ],
+            "category": "cave",
+            "parent_location": "Dark Cave",
+            "treasures": [
+              {
+                "item": "Health Potion",
+                "locked": true,
+                "opened": false
+              }
+            ]
+          }
+        ],
+        "bounds": [
+          -1,
+          1,
+          -1,
+          1,
+          -1,
+          0
+        ],
+        "parent_name": "Dark Cave",
+        "secret_passages": [],
+        "districts": [],
+        "visited_rooms": [],
+        "exploration_bonus_awarded": false,
+        "interior_events": []
+      },
+      "terrain": "hills",
+      "is_named": true
+    },
+    "Abandoned Ruins": {
+      "name": "Abandoned Ruins",
+      "description": "Crumbling stone walls mark what was once a grand structure.",
+      "npcs": [],
+      "coordinates": [
+        -1,
+        0
+      ],
+      "category": "ruins",
+      "details": "Moss covers the ancient stones. Fragments of carved inscriptions remain.",
+      "secrets": "Hidden beneath a loose flagstone, you find an old chest.",
+      "is_overworld": true,
+      "hidden_secrets": [
+        {
+          "description": "A hidden chest beneath a flagstone",
+          "threshold": 12,
+          "discovered": false
+        }
+      ],
+      "terrain": "plains",
+      "is_named": true
+    },
+    "Southern Crossroads": {
+      "name": "Southern Crossroads",
+      "description": "A weathered signpost marks the intersection of several roads.",
+      "npcs": [],
+      "coordinates": [
+        0,
+        -1
+      ],
+      "category": "wilderness",
+      "is_overworld": true,
+      "terrain": "plains",
+      "is_named": true
+    }
+  },
+  "theme": "fantasy",
+  "game_time": {
+    "hour": 8,
+    "total_hours": 8
+  },
+  "weather": {
+    "condition": "clear"
+  },
+  "choices": [],
+  "world_events": [],
+  "companions": [],
+  "factions": [
+    {
+      "name": "Town Guard",
+      "description": "The local militia protecting settlements",
+      "reputation": 50
+    },
+    {
+      "name": "Merchant Guild",
+      "description": "Traders and shopkeepers",
+      "reputation": 50
+    },
+    {
+      "name": "Thieves Guild",
+      "description": "A shadowy network of rogues",
+      "reputation": 50
+    }
+  ],
+  "forage_cooldown": 0,
+  "hunt_cooldown": 0,
+  "gather_cooldown": 0,
+  "in_sub_location": false,
+  "tiles_since_named": 0,
+  "last_dream_hour": null,
+  "quest_outcomes": [],
+  "seen_tiles": [
+    [
+      0,
+      1
+    ],
+    [
+      0,
+      0
+    ],
+    [
+      -1,
+      0
+    ],
+    [
+      1,
+      0
+    ],
+    [
+      0,
+      -1
+    ]
+  ],
+  "world_state_manager": {
+    "changes": []
+  },
+  "economy_state": {
+    "item_supply": {},
+    "regional_disruption": 1.0,
+    "last_update_hour": 0
+  }
+}

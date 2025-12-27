@@ -3210,6 +3210,60 @@ def run_non_interactive(
     return 0
 
 
+def run_demo_mode() -> int:
+    """Run game in demo mode with pre-generated test world.
+
+    This mode starts immediately with a pre-generated world, character, and
+    game state. It's useful for:
+    - Showcasing gameplay without AI setup
+    - Reproducible bug reports
+    - Demo presentations
+
+    The demo world includes:
+    - A level 3 Warrior character with equipment and quests
+    - 5 overworld locations with NPCs
+    - A cave SubGrid with boss encounter
+    - Default factions
+
+    Returns:
+        Exit code (0 for success, 1 for error)
+    """
+    from cli_rpg.test_world import create_demo_game_state
+
+    # Initialize readline for command history
+    init_readline()
+
+    print("\n" + "=" * 50)
+    print("CLI RPG - Demo Mode")
+    print("=" * 50)
+    print("\nStarting with pre-generated demo world...")
+
+    try:
+        game_state = create_demo_game_state()
+    except FileNotFoundError:
+        print("\n✗ Demo world fixture not found!")
+        print("  Run 'python scripts/generate_test_world.py' to create it.")
+        return 1
+    except Exception as e:
+        print(f"\n✗ Failed to load demo world: {e}")
+        return 1
+
+    # Display welcome message
+    print(f"\n✓ Welcome, {game_state.current_character.name}!")
+    print(f"  Level {game_state.current_character.level} {game_state.current_character.character_class.value}")
+    print("=" * 50)
+    print("\n" + get_command_reference())
+    print("=" * 50)
+
+    # Show starting location
+    print("\n" + game_state.look())
+
+    # Run the game loop
+    run_game_loop(game_state)
+
+    return 0
+
+
 def parse_args(args: Optional[list] = None):
     """Parse command-line arguments.
 
@@ -3262,6 +3316,11 @@ def parse_args(args: Optional[list] = None):
         action="store_true",
         help="Disable WFC terrain generation (use fixed world instead)"
     )
+    parser.add_argument(
+        "--demo",
+        action="store_true",
+        help="Start in demo mode with pre-generated world (no AI, no character creation)"
+    )
     return parser.parse_args(args)
 
 
@@ -3303,6 +3362,9 @@ def main(args: Optional[list] = None) -> int:
             skip_character_creation=parsed_args.skip_character_creation,
             seed=seed
         )
+
+    if parsed_args.demo:
+        return run_demo_mode()
 
     # Initialize readline for command history (arrow keys navigation)
     init_readline()

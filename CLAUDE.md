@@ -24,7 +24,8 @@ scripts/
 ├── __init__.py          # Package initialization
 ├── state_parser.py      # JSON output parsing for agent state
 ├── ai_agent.py          # Heuristic-based AI agent for playtesting
-└── run_simulation.py    # CLI entry point for running simulations
+├── run_simulation.py    # CLI entry point for running simulations
+└── generate_test_world.py # Regenerate test world fixture if models change
 
 src/cli_rpg/
 ├── main.py              # Entry point
@@ -82,6 +83,7 @@ src/cli_rpg/
 ├── puzzles.py           # Dungeon puzzle interaction logic (unlock, pull, step, answer, activate)
 ├── interior_events.py   # Dynamic interior events (cave-ins) for SubGrid locations
 ├── hazards.py           # Environmental hazards system (poison gas, darkness, unstable ground, temperature, flooding)
+├── test_world.py        # Demo mode fixture loading (load_test_world, create_demo_game_state)
 └── models/
     ├── character.py     # Player character model
     ├── district.py      # District model for mega-settlements (DistrictType enum, bounds, atmosphere)
@@ -140,4 +142,7 @@ src/cli_rpg/
 ```bash
 source venv/bin/activate
 cli-rpg
+
+# Demo mode (pre-generated world, no AI required)
+cli-rpg --demo
 ```
