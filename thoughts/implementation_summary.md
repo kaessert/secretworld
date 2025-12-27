@@ -1,64 +1,77 @@
-# Implementation Summary: NPC Network Manager
+# Issue 21: Location-Specific Random Encounters - Implementation Summary
 
 ## What Was Implemented
 
-### New Files Created
+### New Module: `src/cli_rpg/encounter_tables.py`
 
-1. **`src/cli_rpg/models/npc_network.py`** - NPCNetworkManager class with:
-   - `FamilyRole` enum (SPOUSE, PARENT, CHILD, SIBLING)
-   - `NPCNetworkManager` dataclass for managing NPC relationship networks
+Created a new module with category-specific encounter configuration:
 
-2. **`tests/test_npc_network.py`** - Comprehensive test suite with 23 tests
+1. **CATEGORY_ENEMIES** - Enemy pools by location type:
+   - `dungeon`: Skeleton Warrior, Zombie, Stone Construct, Cultist, Bone Golem, Dark Acolyte
+   - `cave`: Giant Spider, Cave Bear, Giant Bat, Goblin, Troll, Cave Beetle
+   - `ruins`: Restless Ghost, Stone Golem, Treasure Hunter, Phantom, Ancient Guardian, Ruin Lurker
+   - `forest`: Wolf, Bandit, Wild Boar, Dryad, Forest Spirit, Giant Spider
+   - `temple`: Dark Priest, Animated Statue, Temple Guardian, Cultist Zealot, Stone Sentinel, Shadow Monk
 
-### NPCNetworkManager Features
+2. **CATEGORY_ENCOUNTER_RATES** - Variable encounter rates:
+   - `dungeon`: 0.25 (higher danger)
+   - `cave`, `ruins`, `temple`: 0.20
+   - `forest`: 0.15 (default)
+   - `town`, `village`, `city`: 0.05 (safe zones)
 
-#### NPC Registration
-- `add_npc(npc)` - Register NPC by name (case-insensitive key)
-- `get_npc(name)` - Lookup NPC by name (case-insensitive)
-- `get_all_npcs()` - Return list of all registered NPCs
+3. **CATEGORY_MERCHANT_ITEMS** - Location-appropriate merchant inventories:
+   - `dungeon`: healing_potion, antidote, torch
+   - `cave`: torch, rope, healing_potion
+   - `ruins`: lockpick, healing_potion, antidote
+   - `temple`: holy_water, healing_potion, blessed_charm
+   - `forest`: rations, healing_potion, rope
 
-#### Bidirectional Relationships
-- `add_relationship(source, target, type, trust=50, desc=None, bidirectional=True)` - Add relationship between NPCs with optional reciprocal relationship
+4. **Helper Functions**:
+   - `get_enemies_for_category(category)` - Returns enemy list or DEFAULT_ENEMIES
+   - `get_encounter_rate(category)` - Returns rate or DEFAULT_ENCOUNTER_RATE (0.15)
+   - `get_merchant_items(category)` - Returns item templates or DEFAULT_MERCHANT_ITEMS
 
-#### Family Generation
-- `generate_spouse(npc_name, spouse_name)` - Create spouse with bidirectional FAMILY relationship
-- `generate_child(parent_names, child_name)` - Create child linked to multiple parents
-- `generate_sibling(npc_name, sibling_name)` - Create sibling with reciprocal relationship
-- `generate_family_unit(head_name, spouse_name=None, child_names=None)` - Create complete family with head, optional spouse, optional children (all linked as siblings)
+### Modified: `src/cli_rpg/random_encounters.py`
 
-#### Network Queries
-- `get_npcs_with_relationship(npc_name, rel_type)` - Get NPCs connected by relationship type
-- `get_family_members(npc_name)` - Shortcut for FAMILY relationships
-- `get_connections(npc_name, max_degrees=1)` - BFS traversal to find NPCs within N hops
-- `find_path(start_name, end_name)` - Find shortest path between NPCs (returns list of (name, type) tuples)
+- Added import of `get_encounter_rate` and `get_merchant_items` from encounter_tables
+- Updated `check_for_random_encounter()` to use category-specific encounter rate instead of global `RANDOM_ENCOUNTER_CHANCE`
+- Logic: `encounter_rate = get_encounter_rate(location.category) if location.category else RANDOM_ENCOUNTER_CHANCE`
 
-#### Serialization
-- `to_dict()` - Serialize manager to dictionary
-- `from_dict(data)` - Deserialize manager from dictionary
+### New Tests: `tests/test_encounter_tables.py`
+
+18 tests covering:
+- Category enemy table existence and content
+- Minimum enemy counts per category
+- Category encounter rate configuration
+- Safe zone lower rates
+- Merchant item templates
+- Helper function behavior and fallbacks
+
+### Extended Tests: `tests/test_random_encounters.py`
+
+4 new integration tests in `TestCategorySpecificEncounters` class:
+- `test_encounter_rate_uses_category` - Verifies dungeon rate > forest rate
+- `test_dungeon_triggers_more_encounters` - Verifies rate values
+- `test_check_for_random_encounter_uses_category_rate` - Verifies category rate is used
+- `test_no_encounter_when_roll_exceeds_category_rate` - Verifies rate comparison logic
 
 ## Test Results
 
-All 23 tests pass:
-- FamilyRole enum tests (4)
-- NPCNetworkManager initialization tests (4)
-- Bidirectional relationship tests (3)
-- Family generation tests (4)
-- Network query tests (4)
-- Serialization tests (3)
-
-Full test suite: **4528 tests passed** (no regressions)
-
-## Design Decisions
-
-1. **Case-insensitive lookup**: NPC names stored with lowercase keys for flexible lookup
-2. **Trust levels**: Spouse/child relationships default to trust 90, siblings to 80
-3. **BFS algorithms**: Used for `get_connections()` and `find_path()` for efficient network traversal
-4. **Automatic sibling linking**: `generate_family_unit()` automatically links all children as siblings
-5. **Minimal NPC creation**: Generated family members have auto-generated descriptions and dialogue
+- **encounter_tables tests**: 18 passed
+- **random_encounters tests**: 54 passed (including 4 new)
+- **Full test suite**: 4550 passed
 
 ## E2E Validation
 
-The implementation can be validated by:
-1. Creating a family unit and verifying all relationships are correctly established
-2. Testing network queries to find connected NPCs at various degrees of separation
-3. Serializing and deserializing a network with relationships to verify persistence
+To validate in-game:
+1. Enter a dungeon location and move around - should see encounters ~25% of moves
+2. Move in forest areas - should see encounters ~15% of moves
+3. Move in town/village - should see encounters ~5% of moves
+4. Verify hostile encounter enemies match the location category
+
+## Design Decisions
+
+1. **Fallback behavior**: Unknown categories use `DEFAULT_ENCOUNTER_RATE` (0.15) and `DEFAULT_ENEMIES` for graceful degradation
+2. **Category check**: Uses `location.category` attribute; falls back to global rate if category is None
+3. **Merchant items**: Stored as string templates for future integration with item generation system
+4. **Enemy tables separate from combat.py**: Kept `CATEGORY_ENEMIES` in encounter_tables.py as specified, existing `ENEMY_TEMPLATES` in combat.py remains for terrain-based spawns

@@ -12,6 +12,7 @@ from cli_rpg.models.npc import NPC
 from cli_rpg.models.shop import Shop, ShopItem
 from cli_rpg.models.item import Item, ItemType
 from cli_rpg.combat import spawn_enemy, CombatEncounter
+from cli_rpg.encounter_tables import get_encounter_rate, get_merchant_items
 from cli_rpg import colors
 
 if TYPE_CHECKING:
@@ -247,8 +248,10 @@ def check_for_random_encounter(game_state: "GameState") -> Optional[str]:
             return None
         # Sneak failed - continue with normal encounter check
 
-    # Roll for encounter
-    if random.random() > RANDOM_ENCOUNTER_CHANCE:
+    # Roll for encounter using category-specific rate
+    # Issue 21: Location-specific encounter rates
+    encounter_rate = get_encounter_rate(location.category) if location.category else RANDOM_ENCOUNTER_CHANCE
+    if random.random() > encounter_rate:
         return None
 
     # Select encounter type

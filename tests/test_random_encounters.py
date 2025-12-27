@@ -743,3 +743,106 @@ class TestTerrainAwareEncounters:
         for terrain in expected_terrains:
             assert terrain in ENEMY_TEMPLATES, f"Missing template for {terrain}"
             assert len(ENEMY_TEMPLATES[terrain]) >= 4, f"{terrain} should have at least 4 enemies"
+
+
+class TestCategorySpecificEncounters:
+    """Tests for Issue 21: Location-specific random encounters.
+
+    Spec: Encounter rates and hostile spawns vary by location category
+    """
+
+    @pytest.fixture
+    def dungeon_game_state(self, monkeypatch):
+        """Create game state in a dungeon location."""
+        monkeypatch.setattr("cli_rpg.game_state.autosave", lambda gs: None)
+
+        character = Character("Hero", strength=10, dexterity=10, intelligence=10)
+        world = {
+            "Dungeon": Location(
+                "Dark Dungeon", "A dangerous dungeon",
+                coordinates=(0, 0), category="dungeon"
+            ),
+            "Dungeon2": Location(
+                "Dungeon Deeper", "Deeper into the dungeon",
+                coordinates=(0, 1), category="dungeon"
+            ),
+        }
+        return GameState(character, world, "Dungeon")
+
+    @pytest.fixture
+    def forest_game_state(self, monkeypatch):
+        """Create game state in a forest location."""
+        monkeypatch.setattr("cli_rpg.game_state.autosave", lambda gs: None)
+
+        character = Character("Hero", strength=10, dexterity=10, intelligence=10)
+        world = {
+            "Forest": Location(
+                "Dark Forest", "A shadowy forest",
+                coordinates=(0, 0), category="forest"
+            ),
+            "Forest2": Location(
+                "Forest Clearing", "A forest clearing",
+                coordinates=(0, 1), category="forest"
+            ),
+        }
+        return GameState(character, world, "Forest")
+
+    def test_encounter_rate_uses_category(self, dungeon_game_state, monkeypatch):
+        """Encounter rate varies by location category.
+
+        Spec: Dungeons should use higher encounter rate (0.25) vs forest (0.15)
+        """
+        from cli_rpg.encounter_tables import CATEGORY_ENCOUNTER_RATES, DEFAULT_ENCOUNTER_RATE
+
+        # Verify dungeon has higher rate
+        dungeon_rate = CATEGORY_ENCOUNTER_RATES.get("dungeon", DEFAULT_ENCOUNTER_RATE)
+        forest_rate = CATEGORY_ENCOUNTER_RATES.get("forest", DEFAULT_ENCOUNTER_RATE)
+        assert dungeon_rate > forest_rate
+
+    def test_dungeon_triggers_more_encounters(self, dungeon_game_state, forest_game_state, monkeypatch):
+        """Dungeon locations trigger more encounters than forest.
+
+        Spec: Higher rate categories should have more encounters statistically
+        """
+        from cli_rpg.encounter_tables import get_encounter_rate
+
+        # Check the rates are different
+        dungeon_rate = get_encounter_rate("dungeon")
+        forest_rate = get_encounter_rate("forest")
+
+        assert dungeon_rate > forest_rate
+        assert dungeon_rate == 0.25  # Dungeon rate from spec
+        assert forest_rate == 0.15  # Default/forest rate
+
+    def test_check_for_random_encounter_uses_category_rate(self, dungeon_game_state, monkeypatch):
+        """check_for_random_encounter uses category-specific encounter rate.
+
+        Spec: Roll should be against category rate, not global RANDOM_ENCOUNTER_CHANCE
+        """
+        # With rate=0.25 for dungeon, a roll of 0.20 should trigger (0.20 <= 0.25)
+        # But with default rate=0.15, it would NOT trigger (0.20 > 0.15)
+        random_values = [0.20, 0.30]  # First triggers encounter check, second selects hostile
+        mock_random = MagicMock(side_effect=random_values)
+        monkeypatch.setattr("cli_rpg.random_encounters.random.random", mock_random)
+        monkeypatch.setattr("cli_rpg.combat.random.choice", lambda x: x[0])
+        monkeypatch.setattr("cli_rpg.combat.random.randint", lambda a, b: a)
+
+        result = check_for_random_encounter(dungeon_game_state)
+
+        # Should trigger because 0.20 <= 0.25 (dungeon rate)
+        assert result is not None
+        assert "[Random Encounter!]" in result
+
+    def test_no_encounter_when_roll_exceeds_category_rate(self, forest_game_state, monkeypatch):
+        """No encounter when roll exceeds category rate.
+
+        Spec: Roll of 0.20 should NOT trigger in forest (rate=0.15)
+        """
+        # With rate=0.15 for forest, a roll of 0.20 should NOT trigger
+        mock_random = MagicMock(return_value=0.20)
+        monkeypatch.setattr("cli_rpg.random_encounters.random.random", mock_random)
+
+        result = check_for_random_encounter(forest_game_state)
+
+        # Should NOT trigger because 0.20 > 0.15 (forest rate)
+        assert result is None

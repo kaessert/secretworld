@@ -1,108 +1,105 @@
-# Issue 11: NPC Network Manager
+# Issue 21: Location-Specific Random Encounters
 
 ## Spec
 
-Create `NPCNetworkManager` class to manage NPC relationship networks including:
-- **Family generation**: Generate family units (spouses, children, siblings) for NPCs
-- **Relationship propagation**: When NPC A knows NPC B, optionally have B know A (bidirectional)
-- **Network queries**: Find NPCs by relationship type, find connected NPCs within N degrees
+Create `encounter_tables.py` module with category-specific enemy tables and encounter configuration:
+- **Category-specific enemies**: Different enemy pools for dungeon, cave, ruins, forest, temple
+- **Category-specific merchants**: Merchants sell location-appropriate items
+- **Variable encounter rates**: Different encounter chances per category
+
+### Enemy Categories (from ISSUES.md acceptance criteria)
+- **Dungeon**: undead, constructs, cultists
+- **Cave**: beasts, spiders, giant bats
+- **Ruins**: ghosts, treasure hunters, golems
+- **Forest**: wolves, bandits, fey creatures
+- **Temple**: dark priests, animated statues
 
 ## Files
 
-- **Create**: `src/cli_rpg/models/npc_network.py`
-- **Create**: `tests/test_npc_network.py`
+- **Create**: `src/cli_rpg/encounter_tables.py`
+- **Create**: `tests/test_encounter_tables.py`
+- **Modify**: `src/cli_rpg/combat.py` - Import and use category tables
+- **Modify**: `src/cli_rpg/random_encounters.py` - Use category-specific encounter rates and merchant inventories
 
 ## Tests (TDD)
 
-### FamilyRole Enum
-- `test_family_role_spouse_exists` - FamilyRole.SPOUSE exists with value "spouse"
-- `test_family_role_parent_exists` - FamilyRole.PARENT exists with value "parent"
-- `test_family_role_child_exists` - FamilyRole.CHILD exists with value "child"
-- `test_family_role_sibling_exists` - FamilyRole.SIBLING exists with value "sibling"
+### Category Enemy Tables (`test_encounter_tables.py`)
+- `test_dungeon_enemies_exist` - CATEGORY_ENEMIES["dungeon"] has undead/construct enemies
+- `test_cave_enemies_exist` - CATEGORY_ENEMIES["cave"] has beast/spider enemies
+- `test_ruins_enemies_exist` - CATEGORY_ENEMIES["ruins"] has ghost/golem enemies
+- `test_forest_enemies_exist` - CATEGORY_ENEMIES["forest"] has wolf/bandit/fey enemies
+- `test_temple_enemies_exist` - CATEGORY_ENEMIES["temple"] has dark priest/animated statue enemies
+- `test_each_category_has_minimum_enemies` - Each category has at least 4 enemy types
+- `test_get_enemies_for_category_valid` - `get_enemies_for_category("dungeon")` returns enemy list
+- `test_get_enemies_for_category_fallback` - Unknown category returns default enemies
 
-### NPCNetworkManager Initialization
-- `test_network_manager_init_empty` - Manager initializes with empty NPC dict
-- `test_network_manager_add_npc` - `add_npc(npc)` registers NPC by name
-- `test_network_manager_get_npc` - `get_npc(name)` returns NPC or None
-- `test_network_manager_get_all_npcs` - `get_all_npcs()` returns list of all NPCs
+### Category Encounter Rates
+- `test_encounter_rates_exist` - CATEGORY_ENCOUNTER_RATES dict exists
+- `test_dungeon_encounter_rate_higher` - Dungeon has higher rate than overworld
+- `test_safe_categories_lower_rate` - Town/village have lower encounter rates
+- `test_get_encounter_rate_valid` - `get_encounter_rate("dungeon")` returns correct rate
+- `test_get_encounter_rate_default` - Unknown category returns default rate (0.15)
 
-### Bidirectional Relationships
-- `test_add_relationship_bidirectional` - `add_relationship(npc_a, npc_b, type, bidirectional=True)` adds to both
-- `test_add_relationship_unidirectional` - `add_relationship(npc_a, npc_b, type, bidirectional=False)` adds to A only
-- `test_add_relationship_with_trust` - Trust level is set correctly on both sides
+### Category Merchant Inventories
+- `test_merchant_items_exist` - CATEGORY_MERCHANT_ITEMS dict exists
+- `test_dungeon_merchant_sells_healing` - Dungeon merchants favor healing items
+- `test_cave_merchant_sells_light` - Cave merchants sell torches/light items
+- `test_get_merchant_items_valid` - `get_merchant_items("dungeon")` returns item templates
+- `test_get_merchant_items_fallback` - Unknown category returns default items
 
-### Family Generation
-- `test_generate_spouse` - `generate_spouse(npc, name)` creates spouse NPC with FAMILY relationship
-- `test_generate_child` - `generate_child(parents, name)` creates child linked to both parents
-- `test_generate_sibling` - `generate_sibling(npc, name)` creates sibling with reciprocal relationships
-- `test_generate_family_unit` - `generate_family_unit(head_name, size)` creates connected family
-
-### Network Queries
-- `test_get_npcs_by_relationship` - `get_npcs_with_relationship(npc, type)` returns list of connected NPCs
-- `test_get_family_members` - `get_family_members(npc)` returns all FAMILY relationships
-- `test_get_connections_within_degrees` - `get_connections(npc, max_degrees=2)` returns NPCs within N hops
-- `test_find_path_between_npcs` - `find_path(npc_a, npc_b)` returns relationship chain or None
-
-### Serialization
-- `test_to_dict` - Manager serializes to dict with all NPCs
-- `test_from_dict` - Manager deserializes from dict
-- `test_roundtrip` - Roundtrip preserves all NPCs and relationships
+### Integration Tests (`test_random_encounters.py` - extend existing)
+- `test_hostile_encounter_uses_category_table` - Dungeon hostile spawns from dungeon table
+- `test_encounter_rate_varies_by_category` - Dungeon triggers more encounters than forest
+- `test_merchant_inventory_matches_category` - Dungeon merchant has category-specific items
 
 ## Implementation Steps
 
-1. **Create test file** `tests/test_npc_network.py` with all tests above (initially failing)
+1. **Create test file** `tests/test_encounter_tables.py` with tests above
 
-2. **Create FamilyRole enum** in `npc_network.py`:
+2. **Create `encounter_tables.py`** with:
    ```python
-   class FamilyRole(Enum):
-       SPOUSE = "spouse"
-       PARENT = "parent"
-       CHILD = "child"
-       SIBLING = "sibling"
+   CATEGORY_ENEMIES = {
+       "dungeon": ["Skeleton Warrior", "Zombie", "Stone Construct", "Cultist", "Bone Golem", "Dark Acolyte"],
+       "cave": ["Giant Spider", "Cave Bear", "Giant Bat", "Goblin", "Troll", "Cave Beetle"],
+       "ruins": ["Restless Ghost", "Stone Golem", "Treasure Hunter", "Phantom", "Ancient Guardian", "Ruin Lurker"],
+       "forest": ["Wolf", "Bandit", "Wild Boar", "Dryad", "Forest Spirit", "Giant Spider"],
+       "temple": ["Dark Priest", "Animated Statue", "Temple Guardian", "Cultist Zealot", "Stone Sentinel", "Shadow Monk"],
+   }
+
+   CATEGORY_ENCOUNTER_RATES = {
+       "dungeon": 0.25,  # Higher danger
+       "cave": 0.20,
+       "ruins": 0.20,
+       "temple": 0.20,
+       "forest": 0.15,  # Default overworld rate
+       "town": 0.05,    # Safe zones
+       "village": 0.05,
+   }
+
+   CATEGORY_MERCHANT_ITEMS = {
+       "dungeon": ["healing_potion", "antidote", "torch"],
+       "cave": ["torch", "rope", "healing_potion"],
+       "ruins": ["lockpick", "healing_potion", "antidote"],
+       "temple": ["holy_water", "healing_potion", "blessed_charm"],
+       "forest": ["rations", "healing_potion", "rope"],
+   }
    ```
 
-3. **Create NPCNetworkManager class**:
-   - `__init__()` - Initialize `_npcs: dict[str, NPC]`
-   - `add_npc(npc)` - Register NPC by name (lowercase key for case-insensitive lookup)
-   - `get_npc(name)` - Lookup by name
-   - `get_all_npcs()` - Return list of all NPCs
+3. **Add helper functions**:
+   - `get_enemies_for_category(category: str) -> list[str]` - Returns enemy list or default
+   - `get_encounter_rate(category: str) -> float` - Returns rate or default (0.15)
+   - `get_merchant_items(category: str) -> list[str]` - Returns item templates or default
 
-4. **Implement bidirectional relationships**:
-   - `add_relationship(source, target, rel_type, trust=50, desc=None, bidirectional=True)`:
-     - Get inverse description for bidirectional (e.g., "sister" -> "sister")
-     - Add relationship to source NPC
-     - If bidirectional, add reciprocal relationship to target NPC
+4. **Update `combat.py`**:
+   - Import `CATEGORY_ENEMIES` from `encounter_tables`
+   - Modify `spawn_enemy()` to check `CATEGORY_ENEMIES` before `ENEMY_TEMPLATES`
+   - Priority: location_category in CATEGORY_ENEMIES > terrain_type > ENEMY_TEMPLATES
 
-5. **Implement family generation**:
-   - `generate_spouse(npc, spouse_name, desc_a="spouse", desc_b="spouse")`:
-     - Create new NPC with minimal attributes
-     - Register in manager
-     - Add bidirectional FAMILY relationship with descriptions
-   - `generate_child(parent_names: list[str], child_name)`:
-     - Create child NPC
-     - Add FAMILY relationships to each parent (child->parent, parent->child)
-   - `generate_sibling(npc, sibling_name)`:
-     - Create sibling NPC
-     - Add bidirectional FAMILY relationship with "sibling" description
-   - `generate_family_unit(head_name, spouse_name=None, child_names=None)`:
-     - Create head NPC
-     - Optionally add spouse
-     - Optionally add children linked to both parents
+5. **Update `random_encounters.py`**:
+   - Import `get_encounter_rate`, `get_merchant_items` from `encounter_tables`
+   - Modify `check_for_random_encounter()` to use `get_encounter_rate(location.category)`
+   - Modify `spawn_wandering_merchant()` to use `get_merchant_items(category)`
 
-6. **Implement network queries**:
-   - `get_npcs_with_relationship(npc_name, rel_type)`:
-     - Return list of NPC names connected via that relationship type
-   - `get_family_members(npc_name)`:
-     - Shortcut for `get_npcs_with_relationship(npc_name, RelationshipType.FAMILY)`
-   - `get_connections(npc_name, max_degrees=1)`:
-     - BFS traversal up to max_degrees hops
-     - Return set of NPC names (excluding starting NPC)
-   - `find_path(npc_a, npc_b)`:
-     - BFS to find shortest path between NPCs
-     - Return list of (npc_name, relationship_type) tuples or None
+6. **Run tests** to verify all pass
 
-7. **Implement serialization**:
-   - `to_dict()`: Return `{"npcs": [npc.to_dict() for npc in self._npcs.values()]}`
-   - `from_dict(data)`: Create manager, add each NPC from data
-
-8. **Run tests** to verify all pass
+7. **Update ISSUES.md** to mark Issue 21 as COMPLETED

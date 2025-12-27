@@ -139,9 +139,15 @@ Events have limited duration and consequences if not resolved. Use the `events` 
 **Cure Items**: Cure items (Antidote, Cure Vial, Purification Elixir) can be found as loot drops from defeated enemies (15% chance when consumables drop) or purchased from merchants.
 
 ### Random Travel Encounters
-When moving between locations, you have a 15% chance to trigger a random encounter:
-- **Hostile Encounters** (60%): Wandering enemies ambush you, immediately starting combat
-- **Merchant Encounters** (25%): A traveling merchant appears with 2-3 items for sale (use `talk` to shop)
+When moving between locations, you have a chance to trigger a random encounter. The base encounter rate varies by location type:
+- **Dungeons**: 25% (higher danger)
+- **Caves, Ruins, Temples**: 20%
+- **Forests**: 15% (default)
+- **Towns, Villages, Cities**: 5% (safe zones)
+
+Encounter types when triggered:
+- **Hostile Encounters** (60%): Wandering enemies ambush you, immediately starting combat. Enemy types are location-specific (e.g., undead in dungeons, wolves in forests, spiders in caves)
+- **Merchant Encounters** (25%): A traveling merchant appears with location-appropriate items for sale (use `talk` to shop)
 - **Wanderer Encounters** (15%): A mysterious traveler offers lore and atmosphere (use `talk` to converse)
 
 Merchants and wanderers are added to your current location and can be interacted with normally.

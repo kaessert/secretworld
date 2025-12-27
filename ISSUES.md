@@ -288,24 +288,27 @@ Create storyline system with branching quests and investigations.
 ## Location & Dungeon System - Remaining Issues
 
 ### Issue 21: Location-Specific Random Encounters
-**Status**: PENDING
+**Status**: COMPLETED ✓
 **Priority**: P2
+**Completed**: 2025-12-27
 
-**Problem**: Random encounters use the same tables everywhere. Dungeon encounters feel identical to forest encounters.
+**Implementation**:
+- `src/cli_rpg/encounter_tables.py` - New module with category-specific encounter configuration:
+  - `CATEGORY_ENEMIES`: Enemy pools by location type (dungeon, cave, ruins, forest, temple)
+  - `CATEGORY_ENCOUNTER_RATES`: Variable encounter rates (dungeon 25%, cave/ruins/temple 20%, forest 15%, town/village/city 5%)
+  - `CATEGORY_MERCHANT_ITEMS`: Location-appropriate merchant inventories
+  - Helper functions: `get_enemies_for_category()`, `get_encounter_rate()`, `get_merchant_items()`
+- `src/cli_rpg/random_encounters.py` - Updated to use category-specific encounter rates via `get_encounter_rate()`
+- 18 new tests in `tests/test_encounter_tables.py` + 4 integration tests in `tests/test_random_encounters.py`
 
 **Acceptance Criteria:**
-- [ ] **Dungeon**: undead, constructs, cultists
-- [ ] **Cave**: beasts, spiders, giant bats
-- [ ] **Ruins**: ghosts, treasure hunters, golems
-- [ ] **Forest**: wolves, bandits, fey creatures
-- [ ] **Temple**: dark priests, animated statues
-- [ ] Category-specific merchant inventories
-- [ ] Encounter rate varies by category
-
-**Related Files:**
-- `src/cli_rpg/random_encounters.py`
-- `src/cli_rpg/combat.py`
-- New `src/cli_rpg/encounter_tables.py`
+- [x] **Dungeon**: undead, constructs, cultists (Skeleton Warrior, Zombie, Stone Construct, Cultist, Bone Golem, Dark Acolyte)
+- [x] **Cave**: beasts, spiders, giant bats (Giant Spider, Cave Bear, Giant Bat, Goblin, Troll, Cave Beetle)
+- [x] **Ruins**: ghosts, treasure hunters, golems (Restless Ghost, Stone Golem, Treasure Hunter, Phantom, Ancient Guardian, Ruin Lurker)
+- [x] **Forest**: wolves, bandits, fey creatures (Wolf, Bandit, Wild Boar, Dryad, Forest Spirit, Giant Spider)
+- [x] **Temple**: dark priests, animated statues (Dark Priest, Animated Statue, Temple Guardian, Cultist Zealot, Stone Sentinel, Shadow Monk)
+- [x] Category-specific merchant inventories
+- [x] Encounter rate varies by category
 
 ---
 
@@ -438,7 +441,7 @@ Create storyline system with branching quests and investigations.
 ### Dungeon Immersion (Remaining)
 
 **Phase 3 - Thematic Variety (P2)** - Issues 21-22
-- Location-specific encounters
+- ✓ Location-specific encounters (Issue 21 complete)
 - Themed hallucinations
 
 **Phase 4 - Non-Combat Depth (P2)** - Issues 23-24

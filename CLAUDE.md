@@ -59,6 +59,7 @@ src/cli_rpg/
 ├── companion_reactions.py # Companion reactions to player combat choices
 ├── companion_quests.py  # Companion personal quest system
 ├── random_encounters.py # Random travel encounters (merchants, wanderers, hostiles)
+├── encounter_tables.py  # Location-specific encounter rates, enemy pools, merchant items
 ├── world_events.py      # Living world events (plagues, caravans, invasions)
 ├── seasons.py           # Seasonal events and festivals system
 ├── shadow_creature.py   # Shadow creature attack at 100% dread
