@@ -18,6 +18,7 @@ from cli_rpg.models.companion import Companion
 from cli_rpg.models.faction import Faction
 from cli_rpg.models.world_context import WorldContext
 from cli_rpg.models.region_context import RegionContext
+from cli_rpg.models.quest_outcome import QuestOutcome
 from cli_rpg.combat import (
     CombatEncounter,
     ai_spawn_enemy,
@@ -293,6 +294,8 @@ class GameState:
         self.tiles_since_named: int = 0
         # Dream cooldown tracking (hour of last dream, None if never dreamed)
         self.last_dream_hour: Optional[int] = None
+        # Quest outcome history for NPC reactions
+        self.quest_outcomes: list[QuestOutcome] = []
 
     @property
     def is_in_conversation(self) -> bool:
@@ -1133,6 +1136,8 @@ class GameState:
     def check_expired_quests(self) -> list[str]:
         """Check for and fail any expired time-limited quests.
 
+        Also records quest outcomes for failed quests.
+
         Returns:
             List of messages about failed quests
         """
@@ -1143,8 +1148,61 @@ class GameState:
         for quest in self.current_character.quests:
             if quest.status == QuestStatus.ACTIVE and quest.is_expired(current_hour):
                 quest.status = QuestStatus.FAILED
+                # Record the expired quest outcome
+                self.record_quest_outcome(quest, method="expired")
                 messages.append(f"Quest '{quest.name}' has expired and failed!")
         return messages
+
+    def record_quest_outcome(
+        self,
+        quest: "Quest",
+        method: str,
+        branch_name: Optional[str] = None,
+        affected_npcs: Optional[list[str]] = None,
+        faction_changes: Optional[dict[str, int]] = None,
+    ) -> None:
+        """Record a quest completion outcome for NPC memory.
+
+        Args:
+            quest: The completed quest
+            method: How quest was completed ("main", "branch_<id>", "expired", "abandoned")
+            branch_name: Display name of branch if completed via branch
+            affected_npcs: NPCs involved in the quest outcome
+            faction_changes: Faction reputation changes from the quest
+        """
+        from cli_rpg.models.quest import Quest
+
+        outcome = QuestOutcome(
+            quest_name=quest.name,
+            quest_giver=quest.quest_giver or "Unknown",
+            completion_method=method,
+            completed_branch_name=branch_name,
+            timestamp=self.game_time.total_hours,
+            affected_npcs=affected_npcs or [],
+            faction_changes=faction_changes or {},
+        )
+        self.quest_outcomes.append(outcome)
+
+    def get_quest_outcomes_for_npc(self, npc_name: str) -> list[QuestOutcome]:
+        """Get quest outcomes relevant to a specific NPC.
+
+        Returns outcomes where the NPC was either the quest giver or
+        was affected by the quest outcome.
+
+        Args:
+            npc_name: Name of the NPC to filter by
+
+        Returns:
+            List of relevant QuestOutcome objects
+        """
+        relevant = []
+        for outcome in self.quest_outcomes:
+            if (
+                outcome.quest_giver.lower() == npc_name.lower()
+                or npc_name.lower() in [n.lower() for n in outcome.affected_npcs]
+            ):
+                relevant.append(outcome)
+        return relevant
 
     def get_or_create_world_context(self) -> WorldContext:
         """Get cached world context or generate/create default.
@@ -1369,6 +1427,7 @@ class GameState:
             "in_sub_location": self.in_sub_location,
             "tiles_since_named": self.tiles_since_named,
             "last_dream_hour": self.last_dream_hour,
+            "quest_outcomes": [outcome.to_dict() for outcome in self.quest_outcomes],
         }
         # Include chunk_manager if present (WFC terrain)
         if self.chunk_manager is not None:
@@ -1479,6 +1538,12 @@ class GameState:
 
         # Restore last_dream_hour (default to None for backward compatibility)
         game_state.last_dream_hour = data.get("last_dream_hour")
+
+        # Restore quest_outcomes (default to empty list for backward compatibility)
+        game_state.quest_outcomes = [
+            QuestOutcome.from_dict(outcome_data)
+            for outcome_data in data.get("quest_outcomes", [])
+        ]
 
         # Restore chunk_manager if present (WFC terrain)
         if "chunk_manager" in data:

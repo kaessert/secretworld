@@ -1183,20 +1183,20 @@ class QuestStage:
 
 **Tests:** 50 new tests in `tests/test_quest_stages.py`
 
-**8. Quest Memory & NPC Reactions (MEDIUM PRIORITY)**
+**8. Quest Memory & NPC Reactions ✅ COMPLETE (2025-12-27)**
 
-```python
-@dataclass
-class QuestOutcome:
-    quest_name: str
-    completion_method: str
-    timestamp: int
-    affected_npcs: List[str]
-    world_changes: Dict[str, Any]
+NPCs now remember and react to how you completed their quests.
 
-# In Character model
-completed_quest_outcomes: List[QuestOutcome] = field(default_factory=list)
-```
+**Implementation:**
+- `QuestOutcome` model (`src/cli_rpg/models/quest_outcome.py`) tracks quest completions with:
+  - Quest name, giver, completion method (success/branch/failed/abandoned)
+  - Timestamp, affected NPCs, faction changes
+- GameState stores `quest_outcomes` list with `record_quest_outcome()` and `get_quest_outcomes_for_npc()` methods
+- NPC greetings check quest history and respond appropriately:
+  - Quest givers react to how you completed their quests (success, branch, failed, abandoned)
+  - Affected NPCs react positively or negatively based on quest outcomes
+- Full serialization support with backward compatibility
+- 30 tests in `tests/test_quest_outcomes.py`
 
 #### Implementation Priority
 
@@ -1209,7 +1209,7 @@ completed_quest_outcomes: List[QuestOutcome] = field(default_factory=list)
 | Difficulty indicators | Medium | Low | ✅ **DONE** |
 | Time-sensitive quests | Medium | Low | ✅ **DONE** |
 | Multi-stage objectives | Medium | High | ✅ **DONE** |
-| Quest memory/NPC reactions | Medium | Medium | **P3** |
+| Quest memory/NPC reactions | Medium | Medium | ✅ **DONE** |
 
 #### Files to Modify
 
@@ -1405,4 +1405,76 @@ Target: Giant Spider x3
 | Ranger Track ability | Working |
 | Random encounters | Working |
 | KILL quest validation | ✅ **NEW** |
+
+---
+
+### Default Character Has No Class (--skip-character-creation)
+**Status**: ACTIVE
+**Date Added**: 2025-12-27
+**Severity**: Medium (affects automated testing and AI agent playtesting)
+
+#### Problem
+
+When using `--skip-character-creation` flag for non-interactive mode, the default "Agent" character is created with `character_class: null`. This means:
+
+1. **No class abilities available**: bash, sneak, fireball, heal, bless, smite, ice_bolt, track, pick - all class-specific abilities fail with "Only X can [ability]!" errors
+2. **Documentation inconsistency**: README says "Use a default character ('Agent') with balanced stats (10/10/10/10)" but doesn't warn that no class is assigned
+3. **Reduced testing coverage**: Automated tests and AI agents using `--skip-character-creation` cannot test any class-specific functionality
+
+#### Steps to Reproduce
+
+```bash
+# Create default character
+source venv/bin/activate
+echo -e "n\nbash\nquit" | python -m cli_rpg.main --non-interactive --skip-character-creation --seed 42
+
+# Expected: Warrior bash ability works (or clear indication that Agent has no class)
+# Actual: "Only Warriors can bash!" error in combat
+```
+
+#### Evidence
+
+```bash
+echo -e "dump-state\nquit" | python -m cli_rpg.main --non-interactive --skip-character-creation 2>&1 | grep -i class
+# Output: "character_class": null,
+```
+
+All class-specific commands fail:
+- `bash` → "Only Warriors can bash!"
+- `sneak` → "Only Rogues can sneak!"
+- `fireball` → "Only Mages can cast Fireball!"
+- `heal` → "Only Mages can cast Heal!"
+- `bless` → "Only Clerics can bless!"
+- `track` → "Only Rangers can track!"
+
+#### Expected Behavior
+
+One of:
+1. **Option A**: Default character should have a class (e.g., Warrior) so all basic mechanics can be tested
+2. **Option B**: Documentation should clearly state that `--skip-character-creation` creates a classless character
+3. **Option C**: Add optional `--class <name>` flag to specify class when skipping character creation
+
+#### Suggested Fix
+
+Add default class (Warrior) to the default character creation in character_creation.py or main.py:
+
+```python
+# When --skip-character-creation is used:
+character = Character(
+    name="Agent",
+    character_class="warrior",  # ADD THIS
+    strength=10,
+    dexterity=10,
+    intelligence=10,
+    charisma=10,
+    perception=10,
+    luck=10
+)
+```
+
+#### Impact
+
+- Automated testing cannot cover class-specific abilities
+- AI agent playtesting misses significant game mechanics
+- New users testing with `--skip-character-creation` may be confused
 

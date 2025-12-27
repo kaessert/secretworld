@@ -1269,7 +1269,12 @@ def handle_exploration_command(game_state: GameState, command: str, args: list[s
         if faction_greeting:
             greeting = faction_greeting
         else:
-            greeting = npc.get_greeting(choices=game_state.choices)
+            # Get quest outcomes relevant to this NPC for personalized greetings
+            relevant_outcomes = game_state.get_quest_outcomes_for_npc(npc.name)
+            greeting = npc.get_greeting(
+                choices=game_state.choices,
+                quest_outcomes=relevant_outcomes,
+            )
         dialogue_text = f'"{greeting}"'
         output += f"\n{colors.npc(npc.name)}: {colors.dialogue(dialogue_text)}"
 
@@ -1754,6 +1759,23 @@ def handle_exploration_command(game_state: GameState, command: str, args: list[s
             matching_quest, factions=game_state.factions
         )
         matching_quest.status = QuestStatus.COMPLETED
+
+        # Record quest outcome for NPC memory
+        if matching_quest.completed_branch_id:
+            # Find the branch name from alternative_branches
+            branch_name = None
+            for branch in matching_quest.alternative_branches:
+                if branch.id == matching_quest.completed_branch_id:
+                    branch_name = branch.name
+                    break
+            game_state.record_quest_outcome(
+                quest=matching_quest,
+                method=f"branch_{matching_quest.completed_branch_id}",
+                branch_name=branch_name,
+            )
+        else:
+            game_state.record_quest_outcome(quest=matching_quest, method="main")
+
         autosave(game_state)
         sound_quest_complete()
 

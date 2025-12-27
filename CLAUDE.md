@@ -85,6 +85,7 @@ src/cli_rpg/
     ├── location.py      # Location with coordinates and NPCs (movement via coordinate adjacency)
     ├── npc.py           # Non-player character model
     ├── quest.py         # Quest system with objectives and progress tracking
+    ├── quest_outcome.py # Quest completion outcomes for NPC memory/reactions
     ├── shop.py          # Shop system
     ├── status_effect.py # Status effects (poison, buffs, debuffs)
     ├── random_encounter.py # Random encounter model for travel events

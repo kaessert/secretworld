@@ -1,49 +1,82 @@
-# Implementation Summary: Faction-Gated Content
+# Quest Memory & NPC Reactions - Implementation Summary
+
+## Implementation Status: COMPLETE ✅
+
+The Quest Memory & NPC Reactions feature has been fully implemented and tested. All components from the plan are in place and working correctly.
 
 ## What Was Implemented
 
-The faction-gated content system was already partially implemented. This session fixed test issues in the integration test file to make all tests pass.
+### 1. QuestOutcome Model (`src/cli_rpg/models/quest_outcome.py`)
+- **NEW FILE** - Dataclass tracking quest completion outcomes
+- Fields: `quest_name`, `quest_giver`, `completion_method`, `completed_branch_name`, `timestamp`, `affected_npcs`, `faction_changes`
+- Validation for required fields and valid completion methods
+- Properties: `is_success`, `is_branch_completion`
+- Full serialization support with `to_dict()` and `from_dict()`
 
-### Core Module (`src/cli_rpg/faction_content.py`)
-Already implemented with:
-- `check_npc_access(npc, factions)` - Checks if player can interact with an NPC based on faction standing
-- `check_location_access(location, factions)` - Checks if player can enter a location based on faction standing
-- `filter_visible_npcs(npcs, factions)` - Filters NPCs visible to player based on faction standing
-- `get_faction_greeting_modifier(npc, factions)` - Returns appropriate greeting based on faction standing
+### 2. GameState Integration (`src/cli_rpg/game_state.py`)
+- Added `quest_outcomes: list[QuestOutcome]` attribute (line 298)
+- Added `record_quest_outcome()` method (lines 1156-1184) to record completions
+- Added `get_quest_outcomes_for_npc()` method (lines 1186-1205) to filter relevant outcomes
+- Added serialization in `to_dict()` (line 1430)
+- Added deserialization in `from_dict()` with backward compatibility (lines 1543-1546)
+- Modified `check_expired_quests()` to record expired outcomes (line 1152)
 
-### Model Changes (Already in place)
-- `NPC` model: `required_reputation` field (Optional[int])
-- `Location` model: `required_faction` and `required_reputation` fields
+### 3. Main Game Integration (`src/cli_rpg/main.py`)
+- Quest completion handler (lines 1771-1777) records outcomes for main and branch completions
+- Talk command handler (lines 1273-1276) passes quest outcomes to NPC greetings
 
-### Integration (Already in place)
-- `main.py`: `handle_exploration_command` uses faction gating for `talk` command
-- `game_state.py`: `enter()` method uses faction gating for location access
+### 4. NPC Greeting Reactions (`src/cli_rpg/models/npc.py`)
+- Extended `get_greeting()` signature to accept `quest_outcomes` parameter (lines 60-64)
+- Added quest-based greeting selection with priority: quest giver > affected NPC > reputation > default
+- Added `_get_quest_reaction_greeting()` method (lines 114-184) with template categories:
+  - `quest_giver_success`: Positive response to main completion
+  - `quest_giver_branch`: Neutral/varied response to branch completion
+  - `quest_giver_failed`: Disappointed response to expired quests
+  - `quest_giver_abandoned`: Negative response to abandoned quests
+  - `affected_positive`: Grateful response from affected NPCs (success)
+  - `affected_negative`: Hostile response from affected NPCs (failure)
 
-## Changes Made This Session
-
-### Fixed: `tests/test_faction_content_integration.py`
-
-1. **Fixed GameState initialization** - Changed from using `current_character` keyword (which doesn't exist) to proper constructor signature with `character`, `world`, and `starting_location`
-
-2. **Fixed command invocation** - Changed from non-existent `process_command` to actual `handle_exploration_command(game_state, command, args)`
-
-3. **Fixed SubGrid method calls** - Changed from `sub_grid.add(location)` to `sub_grid.add_location(location, x, y, z)`
-
-4. **Fixed Location coordinates** - Removed explicit `coordinates` from Location objects that are added via `add_location()` since the method sets coordinates automatically
+### 5. Test Coverage (`tests/test_quest_outcomes.py`)
+- **NEW FILE** - 30 comprehensive tests covering:
+  - QuestOutcome model creation (4 tests)
+  - QuestOutcome validation (3 tests)
+  - QuestOutcome serialization (3 tests)
+  - GameState outcome recording (3 tests)
+  - GameState outcome filtering (3 tests)
+  - GameState serialization with outcomes (3 tests)
+  - NPC greeting reactions (11 tests)
 
 ## Test Results
 
-All tests pass:
-- `test_faction_content.py`: 29 unit tests
-- `test_faction_content_integration.py`: 8 integration tests
-- Full test suite: 4043 tests pass
+```
+tests/test_quest_outcomes.py: 30 passed ✅
+Full test suite: 4073 passed ✅
+```
 
-## E2E Tests Should Validate
+## Files Modified/Created
 
-1. Player with low faction reputation cannot talk to NPCs with high `required_reputation`
-2. Player with sufficient faction reputation can talk to NPCs
-3. Hostile faction NPCs refuse to interact with the player
-4. Friendly faction NPCs show warm greetings
-5. Player cannot enter locations that require higher faction standing
-6. Player can enter locations when faction requirements are met
-7. Locations without faction requirements are always accessible
+| File | Status | Changes |
+|------|--------|---------|
+| `src/cli_rpg/models/quest_outcome.py` | ✅ NEW | QuestOutcome dataclass with full implementation |
+| `src/cli_rpg/game_state.py` | ✅ MODIFIED | Added quest_outcomes list and helper methods |
+| `src/cli_rpg/main.py` | ✅ MODIFIED | Records outcomes on quest complete, passes to NPC greetings |
+| `src/cli_rpg/models/npc.py` | ✅ MODIFIED | Extended get_greeting() with quest reaction templates |
+| `tests/test_quest_outcomes.py` | ✅ NEW | 30 tests for all components |
+
+## Design Decisions
+
+1. **Most recent outcome priority**: When an NPC has multiple relevant outcomes, the most recent (last in list) takes priority
+2. **Quest giver over affected**: If an NPC is both a quest giver and affected by another quest, the quest giver role takes priority
+3. **Case-insensitive matching**: NPC name matching for outcomes is case-insensitive
+4. **Backward compatibility**: Old saves without `quest_outcomes` deserialize with an empty list
+5. **Unknown quest giver fallback**: Quests without a `quest_giver` are recorded with "Unknown" as the giver
+
+## E2E Validation Scenarios
+
+To validate this feature works end-to-end:
+
+1. **Quest completion path**: Accept a quest → Complete it → Talk to quest giver → Verify they reference the completed quest
+2. **Branch completion**: Complete a quest via alternative branch → Quest giver mentions the unconventional approach
+3. **Expired quest**: Let a timed quest expire → Quest giver is disappointed
+4. **Affected NPC**: Complete a quest affecting another NPC → That NPC thanks you (or blames you for failure)
+5. **Save/Load**: Complete quests → Save → Load → Verify NPC greetings still reference past quests

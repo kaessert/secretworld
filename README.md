@@ -383,6 +383,8 @@ You'll see progress messages after each relevant action.
 - Quests with prerequisites cannot be accepted until required quests are completed
 - The game will show which prerequisite quests you still need to complete
 
+**Quest Memory**: NPCs remember how you completed their quests. Quest givers react differently based on whether you completed the main objective, used an alternative branch, let the quest expire, or abandoned it. NPCs affected by your quest outcomes (listed in the quest details) will also acknowledge your actions when you speak with them.
+
 **Note**: You must talk to an NPC before accepting or completing their quests. Quest names are matched case-insensitively.
 
 ### Save System

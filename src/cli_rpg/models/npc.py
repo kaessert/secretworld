@@ -6,6 +6,7 @@ from typing import List, Optional, TYPE_CHECKING
 if TYPE_CHECKING:
     from cli_rpg.models.shop import Shop
     from cli_rpg.models.quest import Quest
+    from cli_rpg.models.quest_outcome import QuestOutcome
 
 
 @dataclass
@@ -56,18 +57,45 @@ class NPC:
         if not 1 <= len(self.description) <= 200:
             raise ValueError("Description must be 1-200 characters")
 
-    def get_greeting(self, choices: Optional[List[dict]] = None) -> str:
+    def get_greeting(
+        self,
+        choices: Optional[List[dict]] = None,
+        quest_outcomes: Optional[List["QuestOutcome"]] = None,
+    ) -> str:
         """Get a greeting to display when talking to this NPC.
 
         Args:
             choices: Optional list of player choice dicts to check for reputation.
                      Each choice dict should have a "choice_type" key.
+            quest_outcomes: Optional list of QuestOutcome objects relevant to this NPC.
+                           Used to generate quest-aware greetings.
 
-        Returns a greeting potentially modified by player reputation,
+        Returns a greeting potentially modified by player reputation or quest outcomes,
         or a random greeting from the greetings list if available,
         otherwise falls back to the dialogue field.
         """
-        # Check for reputation-based greetings first
+        # Check for quest-based greetings first (most recent outcomes take priority)
+        if quest_outcomes:
+            # Find the most recent outcome where this NPC was the quest giver
+            quest_giver_outcomes = [
+                o for o in quest_outcomes if o.quest_giver.lower() == self.name.lower()
+            ]
+            if quest_giver_outcomes:
+                # Use most recent (last in list)
+                latest_outcome = quest_giver_outcomes[-1]
+                return self._get_quest_reaction_greeting(latest_outcome, is_quest_giver=True)
+
+            # Check if NPC was affected by any quest outcome
+            affected_outcomes = [
+                o
+                for o in quest_outcomes
+                if self.name.lower() in [n.lower() for n in o.affected_npcs]
+            ]
+            if affected_outcomes:
+                latest_outcome = affected_outcomes[-1]
+                return self._get_quest_reaction_greeting(latest_outcome, is_quest_giver=False)
+
+        # Check for reputation-based greetings
         if choices:
             flee_count = sum(1 for c in choices if c.get("choice_type") == "combat_flee")
             if flee_count >= 3:
@@ -82,6 +110,78 @@ class NPC:
         if self.greetings:
             return random.choice(self.greetings)
         return self.dialogue
+
+    def _get_quest_reaction_greeting(
+        self, outcome: "QuestOutcome", is_quest_giver: bool
+    ) -> str:
+        """Get greeting based on quest outcome history.
+
+        Args:
+            outcome: The QuestOutcome to react to
+            is_quest_giver: True if this NPC gave the quest, False if affected by it
+
+        Returns:
+            A quest-aware greeting string with the quest name substituted.
+        """
+        templates = {
+            "quest_giver_success": [
+                "Well done! I knew I could count on you to handle {quest_name}.",
+                "You've proven yourself. {quest_name} is complete, thanks to you.",
+                "Ah, the hero who completed {quest_name}! What brings you back?",
+            ],
+            "quest_giver_branch": [
+                "I heard how you handled {quest_name}. Interesting approach...",
+                "The job's done with {quest_name}, though some say your methods were... unconventional.",
+                "You found your own way to complete {quest_name}. I can respect that.",
+            ],
+            "quest_giver_failed": [
+                "You failed me with {quest_name}. I expected more from you.",
+                "Time ran out on {quest_name}. Disappointing.",
+                "I trusted you with {quest_name}... and you let me down.",
+            ],
+            "quest_giver_abandoned": [
+                "You abandoned {quest_name}. I don't forget such things easily.",
+                "Walking away from {quest_name}? I had higher hopes for you.",
+                "I see you couldn't handle {quest_name}. Perhaps I misjudged you.",
+            ],
+            "affected_positive": [
+                "I heard what you did. You have my gratitude.",
+                "Word spreads fast. Thank you for your help with {quest_name}.",
+                "You helped with {quest_name}. I won't forget that kindness.",
+            ],
+            "affected_negative": [
+                "I know what you did with {quest_name}. Don't expect any favors from me.",
+                "After what happened with {quest_name}? We have nothing to discuss.",
+                "Your actions regarding {quest_name} have not gone unnoticed.",
+            ],
+        }
+
+        # Determine template category
+        if is_quest_giver:
+            if outcome.completion_method == "main":
+                category = "quest_giver_success"
+            elif outcome.completion_method.startswith("branch_"):
+                category = "quest_giver_branch"
+            elif outcome.completion_method == "expired":
+                category = "quest_giver_failed"
+            elif outcome.completion_method == "abandoned":
+                category = "quest_giver_abandoned"
+            else:
+                category = "quest_giver_success"  # Fallback
+        else:
+            # Affected NPC - determine positive or negative based on outcome
+            if outcome.is_success:
+                category = "affected_positive"
+            else:
+                category = "affected_negative"
+
+        options = templates.get(category, [])
+        if options:
+            template = random.choice(options)
+            return template.format(quest_name=outcome.quest_name)
+
+        # Fallback to normal greeting
+        return self.get_greeting(choices=None, quest_outcomes=None)
 
     def _get_reputation_greeting(self, reputation_type: str) -> str:
         """Get greeting based on player reputation.
