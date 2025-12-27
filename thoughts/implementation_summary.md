@@ -1,77 +1,60 @@
-# Issue 21: Location-Specific Random Encounters - Implementation Summary
+# Issue 22: Location-Themed Hallucinations - Implementation Summary
 
 ## What Was Implemented
 
-### New Module: `src/cli_rpg/encounter_tables.py`
+Extended the hallucination system (`src/cli_rpg/hallucinations.py`) to spawn location-category-specific hallucination enemies instead of using generic templates everywhere.
 
-Created a new module with category-specific encounter configuration:
+### New Components
 
-1. **CATEGORY_ENEMIES** - Enemy pools by location type:
-   - `dungeon`: Skeleton Warrior, Zombie, Stone Construct, Cultist, Bone Golem, Dark Acolyte
-   - `cave`: Giant Spider, Cave Bear, Giant Bat, Goblin, Troll, Cave Beetle
-   - `ruins`: Restless Ghost, Stone Golem, Treasure Hunter, Phantom, Ancient Guardian, Ruin Lurker
-   - `forest`: Wolf, Bandit, Wild Boar, Dryad, Forest Spirit, Giant Spider
-   - `temple`: Dark Priest, Animated Statue, Temple Guardian, Cultist Zealot, Stone Sentinel, Shadow Monk
+1. **`CATEGORY_HALLUCINATION_TEMPLATES`** - Dictionary mapping location categories to themed hallucination templates:
+   - `dungeon`: Ghostly Prisoner, Skeletal Warrior
+   - `forest`: Twisted Treant, Shadow Wolf
+   - `temple`: Fallen Priest, Dark Angel
+   - `cave`: Eyeless Horror, Dripping Shadow
 
-2. **CATEGORY_ENCOUNTER_RATES** - Variable encounter rates:
-   - `dungeon`: 0.25 (higher danger)
-   - `cave`, `ruins`, `temple`: 0.20
-   - `forest`: 0.15 (default)
-   - `town`, `village`, `city`: 0.05 (safe zones)
+2. **`get_hallucination_templates(category: str | None)`** - Helper function that returns templates for a given category, falling back to default `HALLUCINATION_TEMPLATES` for unknown/None categories.
 
-3. **CATEGORY_MERCHANT_ITEMS** - Location-appropriate merchant inventories:
-   - `dungeon`: healing_potion, antidote, torch
-   - `cave`: torch, rope, healing_potion
-   - `ruins`: lockpick, healing_potion, antidote
-   - `temple`: holy_water, healing_potion, blessed_charm
-   - `forest`: rations, healing_potion, rope
+3. **Updated `spawn_hallucination(level, category=None)`** - Added optional `category` parameter to spawn themed hallucinations.
 
-4. **Helper Functions**:
-   - `get_enemies_for_category(category)` - Returns enemy list or DEFAULT_ENEMIES
-   - `get_encounter_rate(category)` - Returns rate or DEFAULT_ENCOUNTER_RATE (0.15)
-   - `get_merchant_items(category)` - Returns item templates or DEFAULT_MERCHANT_ITEMS
+4. **Updated `check_for_hallucination()`** - Now retrieves the current location's category and passes it to `spawn_hallucination()` for themed hallucinations.
 
-### Modified: `src/cli_rpg/random_encounters.py`
+### Files Modified
 
-- Added import of `get_encounter_rate` and `get_merchant_items` from encounter_tables
-- Updated `check_for_random_encounter()` to use category-specific encounter rate instead of global `RANDOM_ENCOUNTER_CHANCE`
-- Logic: `encounter_rate = get_encounter_rate(location.category) if location.category else RANDOM_ENCOUNTER_CHANCE`
-
-### New Tests: `tests/test_encounter_tables.py`
-
-18 tests covering:
-- Category enemy table existence and content
-- Minimum enemy counts per category
-- Category encounter rate configuration
-- Safe zone lower rates
-- Merchant item templates
-- Helper function behavior and fallbacks
-
-### Extended Tests: `tests/test_random_encounters.py`
-
-4 new integration tests in `TestCategorySpecificEncounters` class:
-- `test_encounter_rate_uses_category` - Verifies dungeon rate > forest rate
-- `test_dungeon_triggers_more_encounters` - Verifies rate values
-- `test_check_for_random_encounter_uses_category_rate` - Verifies category rate is used
-- `test_no_encounter_when_roll_exceeds_category_rate` - Verifies rate comparison logic
+- `src/cli_rpg/hallucinations.py` - Added templates, helper function, updated function signatures
+- `tests/test_hallucinations.py` - Added 10 new tests in `TestCategoryHallucinations` class
+- `ISSUES.md` - Marked Issue 22 as COMPLETED
 
 ## Test Results
 
-- **encounter_tables tests**: 18 passed
-- **random_encounters tests**: 54 passed (including 4 new)
-- **Full test suite**: 4550 passed
+All 4560 tests pass, including:
+- 27 hallucination tests (17 existing + 10 new category tests)
+- All integration tests for themed hallucinations in caves
+
+### New Tests Added
+
+1. `test_dungeon_templates_exist` - Verifies dungeon templates
+2. `test_forest_templates_exist` - Verifies forest templates
+3. `test_temple_templates_exist` - Verifies temple templates
+4. `test_cave_templates_exist` - Verifies cave templates
+5. `test_unknown_category_uses_defaults` - Unknown category falls back
+6. `test_none_category_uses_defaults` - None falls back
+7. `test_spawn_with_dungeon_category` - Spawns dungeon enemy
+8. `test_spawn_with_forest_category` - Spawns forest enemy
+9. `test_spawn_with_no_category` - Spawns default enemy
+10. `test_check_uses_location_category` - Integration test with cave location
+
+## Design Decisions
+
+- Followed the existing pattern from `encounter_tables.py` (Issue 21)
+- Each category has exactly 2 themed templates (matching the spec)
+- Unknown categories gracefully fall back to default templates
+- Backward compatible - `spawn_hallucination(level)` still works without category
 
 ## E2E Validation
 
 To validate in-game:
-1. Enter a dungeon location and move around - should see encounters ~25% of moves
-2. Move in forest areas - should see encounters ~15% of moves
-3. Move in town/village - should see encounters ~5% of moves
-4. Verify hostile encounter enemies match the location category
-
-## Design Decisions
-
-1. **Fallback behavior**: Unknown categories use `DEFAULT_ENCOUNTER_RATE` (0.15) and `DEFAULT_ENEMIES` for graceful degradation
-2. **Category check**: Uses `location.category` attribute; falls back to global rate if category is None
-3. **Merchant items**: Stored as string templates for future integration with item generation system
-4. **Enemy tables separate from combat.py**: Kept `CATEGORY_ENEMIES` in encounter_tables.py as specified, existing `ENEMY_TEMPLATES` in combat.py remains for terrain-based spawns
+1. Start a new character
+2. Navigate to a dungeon/cave/temple/forest location
+3. Increase dread to 75%+ (via travel or other mechanics)
+4. Continue moving until a hallucination triggers
+5. Verify the hallucination enemy name matches the location theme

@@ -1,105 +1,60 @@
-# Issue 21: Location-Specific Random Encounters
+# Issue 22: Location-Themed Hallucinations
 
 ## Spec
 
-Create `encounter_tables.py` module with category-specific enemy tables and encounter configuration:
-- **Category-specific enemies**: Different enemy pools for dungeon, cave, ruins, forest, temple
-- **Category-specific merchants**: Merchants sell location-appropriate items
-- **Variable encounter rates**: Different encounter chances per category
+Extend `hallucinations.py` to use location-category-specific templates instead of the current 3 generic templates. Pattern follows `encounter_tables.py` (Issue 21).
 
-### Enemy Categories (from ISSUES.md acceptance criteria)
-- **Dungeon**: undead, constructs, cultists
-- **Cave**: beasts, spiders, giant bats
-- **Ruins**: ghosts, treasure hunters, golems
-- **Forest**: wolves, bandits, fey creatures
-- **Temple**: dark priests, animated statues
+**Categories to support:**
+- `dungeon`: ghostly prisoners, skeletal warriors
+- `forest`: twisted treants, shadow wolves
+- `temple`: fallen priests, dark angels
+- `cave`: eyeless horrors, dripping shadows
+- Default: existing generic templates (Shadow Mimic, Phantom Shade, Nightmare Echo)
 
-## Files
+## Tests (TDD) - `tests/test_hallucinations.py`
 
-- **Create**: `src/cli_rpg/encounter_tables.py`
-- **Create**: `tests/test_encounter_tables.py`
-- **Modify**: `src/cli_rpg/combat.py` - Import and use category tables
-- **Modify**: `src/cli_rpg/random_encounters.py` - Use category-specific encounter rates and merchant inventories
+Add new `TestCategoryHallucinations` class:
 
-## Tests (TDD)
-
-### Category Enemy Tables (`test_encounter_tables.py`)
-- `test_dungeon_enemies_exist` - CATEGORY_ENEMIES["dungeon"] has undead/construct enemies
-- `test_cave_enemies_exist` - CATEGORY_ENEMIES["cave"] has beast/spider enemies
-- `test_ruins_enemies_exist` - CATEGORY_ENEMIES["ruins"] has ghost/golem enemies
-- `test_forest_enemies_exist` - CATEGORY_ENEMIES["forest"] has wolf/bandit/fey enemies
-- `test_temple_enemies_exist` - CATEGORY_ENEMIES["temple"] has dark priest/animated statue enemies
-- `test_each_category_has_minimum_enemies` - Each category has at least 4 enemy types
-- `test_get_enemies_for_category_valid` - `get_enemies_for_category("dungeon")` returns enemy list
-- `test_get_enemies_for_category_fallback` - Unknown category returns default enemies
-
-### Category Encounter Rates
-- `test_encounter_rates_exist` - CATEGORY_ENCOUNTER_RATES dict exists
-- `test_dungeon_encounter_rate_higher` - Dungeon has higher rate than overworld
-- `test_safe_categories_lower_rate` - Town/village have lower encounter rates
-- `test_get_encounter_rate_valid` - `get_encounter_rate("dungeon")` returns correct rate
-- `test_get_encounter_rate_default` - Unknown category returns default rate (0.15)
-
-### Category Merchant Inventories
-- `test_merchant_items_exist` - CATEGORY_MERCHANT_ITEMS dict exists
-- `test_dungeon_merchant_sells_healing` - Dungeon merchants favor healing items
-- `test_cave_merchant_sells_light` - Cave merchants sell torches/light items
-- `test_get_merchant_items_valid` - `get_merchant_items("dungeon")` returns item templates
-- `test_get_merchant_items_fallback` - Unknown category returns default items
-
-### Integration Tests (`test_random_encounters.py` - extend existing)
-- `test_hostile_encounter_uses_category_table` - Dungeon hostile spawns from dungeon table
-- `test_encounter_rate_varies_by_category` - Dungeon triggers more encounters than forest
-- `test_merchant_inventory_matches_category` - Dungeon merchant has category-specific items
+1. `test_dungeon_templates_exist` - `get_hallucination_templates("dungeon")` returns dungeon-themed templates
+2. `test_forest_templates_exist` - `get_hallucination_templates("forest")` returns forest-themed templates
+3. `test_temple_templates_exist` - `get_hallucination_templates("temple")` returns temple-themed templates
+4. `test_cave_templates_exist` - `get_hallucination_templates("cave")` returns cave-themed templates
+5. `test_unknown_category_uses_defaults` - Unknown category returns `HALLUCINATION_TEMPLATES`
+6. `test_none_category_uses_defaults` - `None` returns `HALLUCINATION_TEMPLATES`
+7. `test_spawn_with_dungeon_category` - `spawn_hallucination(5, "dungeon")` spawns dungeon-themed enemy
+8. `test_spawn_with_forest_category` - `spawn_hallucination(5, "forest")` spawns forest-themed enemy
+9. `test_spawn_with_no_category` - `spawn_hallucination(5)` spawns default-themed enemy
+10. `test_check_uses_location_category` - Integration: cave location spawns cave-themed hallucination
 
 ## Implementation Steps
 
-1. **Create test file** `tests/test_encounter_tables.py` with tests above
+1. **Add `CATEGORY_HALLUCINATION_TEMPLATES` dict** after existing `HALLUCINATION_TEMPLATES` (line 36):
+   - `"dungeon"`: Ghostly Prisoner, Skeletal Warrior
+   - `"forest"`: Twisted Treant, Shadow Wolf
+   - `"temple"`: Fallen Priest, Dark Angel
+   - `"cave"`: Eyeless Horror, Dripping Shadow
 
-2. **Create `encounter_tables.py`** with:
+2. **Add `get_hallucination_templates(category: str | None) -> list[dict]`** helper function
+
+3. **Update `spawn_hallucination` signature** to accept optional `category` parameter:
    ```python
-   CATEGORY_ENEMIES = {
-       "dungeon": ["Skeleton Warrior", "Zombie", "Stone Construct", "Cultist", "Bone Golem", "Dark Acolyte"],
-       "cave": ["Giant Spider", "Cave Bear", "Giant Bat", "Goblin", "Troll", "Cave Beetle"],
-       "ruins": ["Restless Ghost", "Stone Golem", "Treasure Hunter", "Phantom", "Ancient Guardian", "Ruin Lurker"],
-       "forest": ["Wolf", "Bandit", "Wild Boar", "Dryad", "Forest Spirit", "Giant Spider"],
-       "temple": ["Dark Priest", "Animated Statue", "Temple Guardian", "Cultist Zealot", "Stone Sentinel", "Shadow Monk"],
-   }
-
-   CATEGORY_ENCOUNTER_RATES = {
-       "dungeon": 0.25,  # Higher danger
-       "cave": 0.20,
-       "ruins": 0.20,
-       "temple": 0.20,
-       "forest": 0.15,  # Default overworld rate
-       "town": 0.05,    # Safe zones
-       "village": 0.05,
-   }
-
-   CATEGORY_MERCHANT_ITEMS = {
-       "dungeon": ["healing_potion", "antidote", "torch"],
-       "cave": ["torch", "rope", "healing_potion"],
-       "ruins": ["lockpick", "healing_potion", "antidote"],
-       "temple": ["holy_water", "healing_potion", "blessed_charm"],
-       "forest": ["rations", "healing_potion", "rope"],
-   }
+   def spawn_hallucination(level: int, category: str | None = None) -> Enemy:
    ```
 
-3. **Add helper functions**:
-   - `get_enemies_for_category(category: str) -> list[str]` - Returns enemy list or default
-   - `get_encounter_rate(category: str) -> float` - Returns rate or default (0.15)
-   - `get_merchant_items(category: str) -> list[str]` - Returns item templates or default
+4. **Update template selection in `spawn_hallucination`** (line 57):
+   ```python
+   templates = get_hallucination_templates(category)
+   template = random.choice(templates)
+   ```
 
-4. **Update `combat.py`**:
-   - Import `CATEGORY_ENEMIES` from `encounter_tables`
-   - Modify `spawn_enemy()` to check `CATEGORY_ENEMIES` before `ENEMY_TEMPLATES`
-   - Priority: location_category in CATEGORY_ENEMIES > terrain_type > ENEMY_TEMPLATES
+5. **Update `check_for_hallucination`** call site (line ~101):
+   ```python
+   hallucination = spawn_hallucination(
+       game_state.current_character.level,
+       category=location.category if location else None
+   )
+   ```
 
-5. **Update `random_encounters.py`**:
-   - Import `get_encounter_rate`, `get_merchant_items` from `encounter_tables`
-   - Modify `check_for_random_encounter()` to use `get_encounter_rate(location.category)`
-   - Modify `spawn_wandering_merchant()` to use `get_merchant_items(category)`
+6. **Run tests** and verify all 4550+ tests pass
 
-6. **Run tests** to verify all pass
-
-7. **Update ISSUES.md** to mark Issue 21 as COMPLETED
+7. **Update ISSUES.md** to mark Issue 22 as COMPLETED

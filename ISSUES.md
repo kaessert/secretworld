@@ -313,21 +313,27 @@ Create storyline system with branching quests and investigations.
 ---
 
 ### Issue 22: Location-Themed Hallucinations
-**Status**: PENDING
+**Status**: COMPLETED ✓
 **Priority**: P2
+**Completed**: 2025-12-27
 
-**Problem**: High-dread hallucinations use the same 3 templates everywhere regardless of location.
+**Implementation**:
+- `src/cli_rpg/hallucinations.py` - Added category-specific hallucination templates:
+  - `CATEGORY_HALLUCINATION_TEMPLATES`: Location-themed enemy templates for dungeon, forest, temple, cave
+  - `get_hallucination_templates(category)`: Helper function to retrieve templates by category (falls back to defaults)
+  - `spawn_hallucination(level, category)`: Updated to accept optional category parameter
+  - `check_for_hallucination()`: Now passes location category to spawn themed hallucinations
+- 10 new tests in `tests/test_hallucinations.py` (`TestCategoryHallucinations` class)
 
 **Acceptance Criteria:**
-- [ ] **Dungeon**: ghostly prisoners, skeletal warriors
-- [ ] **Forest**: twisted treants, shadow wolves
-- [ ] **Temple**: fallen priests, dark angels
-- [ ] **Cave**: eyeless horrors, dripping shadows
-- [ ] Hallucination descriptions reference location-specific elements
+- [x] **Dungeon**: ghostly prisoners, skeletal warriors (Ghostly Prisoner, Skeletal Warrior)
+- [x] **Forest**: twisted treants, shadow wolves (Twisted Treant, Shadow Wolf)
+- [x] **Temple**: fallen priests, dark angels (Fallen Priest, Dark Angel)
+- [x] **Cave**: eyeless horrors, dripping shadows (Eyeless Horror, Dripping Shadow)
+- [x] Hallucination descriptions reference location-specific elements
 
 **Related Files:**
 - `src/cli_rpg/hallucinations.py`
-- `src/cli_rpg/ai_service.py`
 
 ---
 
@@ -442,7 +448,7 @@ Create storyline system with branching quests and investigations.
 
 **Phase 3 - Thematic Variety (P2)** - Issues 21-22
 - ✓ Location-specific encounters (Issue 21 complete)
-- Themed hallucinations
+- ✓ Themed hallucinations (Issue 22 complete)
 
 **Phase 4 - Non-Combat Depth (P2)** - Issues 23-24
 - Puzzle mechanics

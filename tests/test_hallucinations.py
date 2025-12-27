@@ -216,3 +216,95 @@ class TestDreadReductionOnDispel:
     def test_dread_reduction_constant(self):
         """Verify dread reduction constant is set."""
         assert DREAD_REDUCTION_ON_DISPEL == 5
+
+
+class TestCategoryHallucinations:
+    """Test location-category-specific hallucination templates (Issue 22)."""
+
+    def test_dungeon_templates_exist(self):
+        """get_hallucination_templates('dungeon') returns dungeon-themed templates."""
+        from cli_rpg.hallucinations import get_hallucination_templates
+        templates = get_hallucination_templates("dungeon")
+        assert len(templates) >= 2
+        names = [t["name"] for t in templates]
+        assert "Ghostly Prisoner" in names
+        assert "Skeletal Warrior" in names
+
+    def test_forest_templates_exist(self):
+        """get_hallucination_templates('forest') returns forest-themed templates."""
+        from cli_rpg.hallucinations import get_hallucination_templates
+        templates = get_hallucination_templates("forest")
+        assert len(templates) >= 2
+        names = [t["name"] for t in templates]
+        assert "Twisted Treant" in names
+        assert "Shadow Wolf" in names
+
+    def test_temple_templates_exist(self):
+        """get_hallucination_templates('temple') returns temple-themed templates."""
+        from cli_rpg.hallucinations import get_hallucination_templates
+        templates = get_hallucination_templates("temple")
+        assert len(templates) >= 2
+        names = [t["name"] for t in templates]
+        assert "Fallen Priest" in names
+        assert "Dark Angel" in names
+
+    def test_cave_templates_exist(self):
+        """get_hallucination_templates('cave') returns cave-themed templates."""
+        from cli_rpg.hallucinations import get_hallucination_templates
+        templates = get_hallucination_templates("cave")
+        assert len(templates) >= 2
+        names = [t["name"] for t in templates]
+        assert "Eyeless Horror" in names
+        assert "Dripping Shadow" in names
+
+    def test_unknown_category_uses_defaults(self):
+        """Unknown category returns HALLUCINATION_TEMPLATES."""
+        from cli_rpg.hallucinations import get_hallucination_templates, HALLUCINATION_TEMPLATES
+        templates = get_hallucination_templates("unknown_category")
+        assert templates == HALLUCINATION_TEMPLATES
+
+    def test_none_category_uses_defaults(self):
+        """None returns HALLUCINATION_TEMPLATES."""
+        from cli_rpg.hallucinations import get_hallucination_templates, HALLUCINATION_TEMPLATES
+        templates = get_hallucination_templates(None)
+        assert templates == HALLUCINATION_TEMPLATES
+
+    def test_spawn_with_dungeon_category(self):
+        """spawn_hallucination(5, 'dungeon') spawns dungeon-themed enemy."""
+        dungeon_names = ["Ghostly Prisoner", "Skeletal Warrior"]
+        enemy = spawn_hallucination(5, "dungeon")
+        assert enemy.name in dungeon_names
+        assert enemy.is_hallucination is True
+
+    def test_spawn_with_forest_category(self):
+        """spawn_hallucination(5, 'forest') spawns forest-themed enemy."""
+        forest_names = ["Twisted Treant", "Shadow Wolf"]
+        enemy = spawn_hallucination(5, "forest")
+        assert enemy.name in forest_names
+        assert enemy.is_hallucination is True
+
+    def test_spawn_with_no_category(self):
+        """spawn_hallucination(5) spawns default-themed enemy."""
+        default_names = ["Shadow Mimic", "Phantom Shade", "Nightmare Echo"]
+        enemy = spawn_hallucination(5)
+        assert enemy.name in default_names
+        assert enemy.is_hallucination is True
+
+    def test_check_uses_location_category(self):
+        """Integration: cave location spawns cave-themed hallucination."""
+        char = create_test_character()
+        world = create_test_world()
+        # Start at Dark Cave which has category="cave"
+        game_state = GameState(char, world, "Dark Cave")
+        char.dread_meter.dread = 80
+
+        # Force trigger
+        with patch("cli_rpg.hallucinations.random.random", return_value=0.1):
+            result = check_for_hallucination(game_state)
+
+        assert result is not None
+        assert game_state.is_in_combat()
+        enemy = game_state.current_combat.enemy
+        assert enemy.is_hallucination is True
+        cave_names = ["Eyeless Horror", "Dripping Shadow"]
+        assert enemy.name in cave_names

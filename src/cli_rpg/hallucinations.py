@@ -35,6 +35,73 @@ HALLUCINATION_TEMPLATES = [
     },
 ]
 
+# Category-specific hallucination templates (Issue 22)
+# Pattern follows encounter_tables.py (Issue 21)
+CATEGORY_HALLUCINATION_TEMPLATES: dict[str, list[dict]] = {
+    "dungeon": [
+        {
+            "name": "Ghostly Prisoner",
+            "description": "A spectral figure bound in phantom chains, moaning of eternal torment.",
+            "attack_flavor": "reaches through you with incorporeal hands",
+        },
+        {
+            "name": "Skeletal Warrior",
+            "description": "An animated skeleton in rusted armor, its eye sockets burning with cold fire.",
+            "attack_flavor": "swings a corroded blade",
+        },
+    ],
+    "forest": [
+        {
+            "name": "Twisted Treant",
+            "description": "A gnarled tree creature with branches that writhe like grasping fingers.",
+            "attack_flavor": "lashes with thorned limbs",
+        },
+        {
+            "name": "Shadow Wolf",
+            "description": "A wolf-shaped mass of darkness with eyes that gleam like dying embers.",
+            "attack_flavor": "lunges with fangs of shadow",
+        },
+    ],
+    "temple": [
+        {
+            "name": "Fallen Priest",
+            "description": "A robed figure with a face of hollow despair, whispering blasphemous prayers.",
+            "attack_flavor": "invokes corrupted blessings",
+        },
+        {
+            "name": "Dark Angel",
+            "description": "A winged being of terrible beauty, its halo cracked and bleeding shadow.",
+            "attack_flavor": "strikes with wings of black flame",
+        },
+    ],
+    "cave": [
+        {
+            "name": "Eyeless Horror",
+            "description": "A pale, eyeless creature that navigates by sensing your heartbeat.",
+            "attack_flavor": "claws blindly toward your chest",
+        },
+        {
+            "name": "Dripping Shadow",
+            "description": "A formless mass of darkness that drips like tar from the ceiling.",
+            "attack_flavor": "engulfs you in suffocating darkness",
+        },
+    ],
+}
+
+
+def get_hallucination_templates(category: Optional[str]) -> list[dict]:
+    """Get hallucination templates for a location category.
+
+    Args:
+        category: Location category (dungeon, forest, temple, cave) or None
+
+    Returns:
+        List of hallucination templates for the category, or defaults if unknown
+    """
+    if category is None:
+        return HALLUCINATION_TEMPLATES
+    return CATEGORY_HALLUCINATION_TEMPLATES.get(category, HALLUCINATION_TEMPLATES)
+
 HALLUCINATION_ASCII_ART = r"""
    .~.~.
   ( ? ? )
@@ -45,16 +112,18 @@ HALLUCINATION_ASCII_ART = r"""
 """
 
 
-def spawn_hallucination(level: int) -> Enemy:
+def spawn_hallucination(level: int, category: Optional[str] = None) -> Enemy:
     """Spawn a hallucination enemy.
 
     Args:
         level: Player level for stat scaling
+        category: Location category for themed hallucinations (dungeon, forest, etc.)
 
     Returns:
         Enemy with is_hallucination=True
     """
-    template = random.choice(HALLUCINATION_TEMPLATES)
+    templates = get_hallucination_templates(category)
+    template = random.choice(templates)
 
     return Enemy(
         name=template["name"],
@@ -97,11 +166,16 @@ def check_for_hallucination(game_state: "GameState") -> Optional[str]:
     if random.random() > HALLUCINATION_CHANCE:
         return None
 
-    # Spawn hallucination
-    hallucination = spawn_hallucination(game_state.current_character.level)
+    # Get location for category-themed hallucinations
+    location = game_state.get_current_location()
+
+    # Spawn hallucination using location category for themed templates
+    hallucination = spawn_hallucination(
+        game_state.current_character.level,
+        category=location.category if location else None,
+    )
 
     # Create combat encounter
-    location = game_state.get_current_location()
     game_state.current_combat = CombatEncounter(
         game_state.current_character,
         enemies=[hallucination],
