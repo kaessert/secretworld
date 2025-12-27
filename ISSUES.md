@@ -273,13 +273,26 @@ Created world state tracking system for persistent world changes.
 ---
 
 ### Issue 13: NPC Character Arcs
-**Status**: PENDING
+**Status**: COMPLETED ✓
 **Priority**: MEDIUM
+**Completed**: 2025-12-27
 
-Add character arc progression for NPCs based on player interactions.
+Created NPC character arc system for tracking relationship progression based on player interactions.
 
-**Files to Create**:
-- `src/cli_rpg/models/npc_arc.py`
+**Implementation**:
+- `src/cli_rpg/models/npc_arc.py` - New module with:
+  - `NPCArcStage` enum: 7 stages (STRANGER → ACQUAINTANCE → TRUSTED → DEVOTED for positive; WARY → HOSTILE → ENEMY for negative)
+  - `InteractionType` enum: 8 interaction types (TALKED, HELPED_QUEST, FAILED_QUEST, INTIMIDATED, BRIBED, DEFENDED, ATTACKED, GIFTED)
+  - `NPCInteraction` dataclass: Records individual interactions with timestamps
+  - `NPCArc` dataclass: Tracks arc_points (-100 to 100), interaction history (capped at 20), with `get_stage()` and `record_interaction()` methods
+- `src/cli_rpg/models/npc.py` - Added optional `arc` field with full serialization and backward compatibility
+- 37 tests in `tests/test_npc_arc.py`
+
+**Future Integration Points (Not Yet Implemented)**:
+- Dialogue selection based on arc stage
+- Shop price modifiers based on arc
+- Quest prerequisites based on arc stage
+- Automatic arc updates from game commands
 
 ---
 
@@ -545,7 +558,7 @@ Create storyline system with branching quests and investigations.
 
 **Phase 6: World Evolution** - Issues 12-13
 - ✓ World state tracking (Issue 12 complete)
-- NPC character arcs
+- ✓ NPC character arcs (Issue 13 complete)
 
 **Phase 7: Economy & Quests** - Issues 14-15
 - Living economy

@@ -95,6 +95,7 @@ src/cli_rpg/
     ├── puzzle.py        # Puzzle model with types (LOCKED_DOOR, LEVER, PRESSURE_PLATE, RIDDLE, SEQUENCE)
     ├── npc_relationship.py # NPC relationship types and trust levels
     ├── npc_network.py   # NPC network manager for family generation and network queries
+    ├── npc_arc.py       # NPC character arc progression (stages, interactions, serialization)
     ├── quest.py         # Quest system with objectives and progress tracking
     ├── quest_outcome.py # Quest completion outcomes for NPC memory/reactions
     ├── shop.py          # Shop system

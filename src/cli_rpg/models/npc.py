@@ -4,6 +4,7 @@ from dataclasses import dataclass, field
 from typing import List, Optional, TYPE_CHECKING
 
 from cli_rpg.models.npc_relationship import NPCRelationship, RelationshipType
+from cli_rpg.models.npc_arc import NPCArc
 
 if TYPE_CHECKING:
     from cli_rpg.models.shop import Shop
@@ -52,6 +53,7 @@ class NPC:
     faction: Optional[str] = None  # Faction affiliation (e.g., "Merchant Guild")
     required_reputation: Optional[int] = None  # Min faction rep to interact (1-100)
     relationships: List[NPCRelationship] = field(default_factory=list)  # Relationships to other NPCs
+    arc: Optional[NPCArc] = None  # Character arc tracking (optional for backward compat)
 
     def __post_init__(self):
         """Validate NPC attributes."""
@@ -303,6 +305,7 @@ class NPC:
             "faction": self.faction,
             "required_reputation": self.required_reputation,
             "relationships": [r.to_dict() for r in self.relationships],
+            "arc": self.arc.to_dict() if self.arc else None,
         }
         # Only include ascii_art if it's not empty
         if self.ascii_art:
@@ -329,6 +332,8 @@ class NPC:
         relationships = [
             NPCRelationship.from_dict(r) for r in data.get("relationships", [])
         ]
+        arc_data = data.get("arc")
+        arc = NPCArc.from_dict(arc_data) if arc_data else None
         return cls(
             name=data["name"],
             description=data["description"],
@@ -350,4 +355,5 @@ class NPC:
             faction=data.get("faction"),  # None for backward compat
             required_reputation=data.get("required_reputation"),  # None for backward compat
             relationships=relationships,  # Empty list for backward compat
+            arc=arc,  # None for backward compat
         )
