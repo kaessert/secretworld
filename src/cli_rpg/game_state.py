@@ -1285,6 +1285,23 @@ class GameState:
         self.region_contexts[region_key] = region_context
         return region_context
 
+    def get_explored_regions(self) -> set[tuple[int, int]]:
+        """Return set of region coordinates that have been explored.
+
+        Analyzes all locations in world grid to determine which regions
+        (REGION_SIZE x REGION_SIZE tile areas) have been visited.
+
+        Returns:
+            Set of (region_x, region_y) tuples
+        """
+        from cli_rpg.world_tiles import get_region_coords
+
+        explored = set()
+        for location in self.world.values():
+            if location.coordinates is not None:
+                explored.add(get_region_coords(*location.coordinates))
+        return explored
+
     def get_fast_travel_destinations(self) -> list[str]:
         """Get list of valid fast travel destinations.
 

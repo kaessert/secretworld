@@ -10,6 +10,16 @@ class AIConfigError(Exception):
     pass
 
 
+# Frontier description hints for guiding players toward unexplored regions
+# Used when generating named locations to add atmospheric hints about unexplored directions
+FRONTIER_DESCRIPTION_HINTS: dict[str, str] = {
+    "north": "To the north, the land rises toward unknown heights.",
+    "south": "Southward, unexplored territory beckons.",
+    "east": "The eastern horizon holds mysteries yet to be discovered.",
+    "west": "Westward paths lead to lands untraveled.",
+}
+
+
 # Default prompt template for location generation
 DEFAULT_LOCATION_PROMPT = """You are a creative game world designer. Generate a new location for a {theme} RPG game.
 

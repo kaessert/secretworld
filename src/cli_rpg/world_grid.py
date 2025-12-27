@@ -509,3 +509,67 @@ class WorldGrid:
                 frontier.append(self._by_name[location_name])
 
         return frontier
+
+    def get_prioritized_frontier_exits(
+        self,
+        explored_regions: Optional[set[tuple[int, int]]] = None
+    ) -> List[Tuple[str, str, Tuple[int, int]]]:
+        """Find frontier exits prioritized by unexplored regions.
+
+        Similar to find_frontier_exits() but orders results to prefer
+        directions leading to unexplored regions. This guides players
+        toward new content and creates a sense of world expansion.
+
+        Args:
+            explored_regions: Optional set of visited region coordinates.
+                             If None, calculates from current locations.
+
+        Returns:
+            List of (location_name, direction, target_coords) prioritized
+            with unexplored region directions first.
+        """
+        from cli_rpg.world_tiles import (
+            get_region_coords,
+            get_unexplored_region_directions,
+        )
+
+        # Get all frontier exits
+        all_exits = self.find_frontier_exits()
+
+        if not all_exits:
+            return []
+
+        # If no explored regions provided, calculate from grid locations
+        if explored_regions is None:
+            explored_regions = set()
+            for location in self._by_name.values():
+                if location.coordinates is not None:
+                    explored_regions.add(get_region_coords(*location.coordinates))
+
+        # Partition exits into unexplored-region and explored-region groups
+        unexplored_exits = []
+        explored_exits = []
+
+        for exit_info in all_exits:
+            location_name, direction, target_coords = exit_info
+            location = self._by_name.get(location_name)
+
+            if location is None or location.coordinates is None:
+                # Can't determine priority, add to explored (lower priority)
+                explored_exits.append(exit_info)
+                continue
+
+            # Get unexplored directions from this location
+            unexplored_dirs = get_unexplored_region_directions(
+                location.coordinates[0],
+                location.coordinates[1],
+                explored_regions
+            )
+
+            if direction in unexplored_dirs:
+                unexplored_exits.append(exit_info)
+            else:
+                explored_exits.append(exit_info)
+
+        # Return unexplored exits first, then explored exits
+        return unexplored_exits + explored_exits

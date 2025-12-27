@@ -1,35 +1,75 @@
-# Implementation Summary: Default Warrior Class for --skip-character-creation
+# Implementation Summary: Strategic Frontier Exit Placement
 
 ## What Was Implemented
 
-Added `CharacterClass.WARRIOR` as the default class for the "Agent" character when using `--skip-character-creation` flag.
+### Features and Functions
+
+1. **`get_unexplored_region_directions()` in `world_tiles.py`**
+   - Returns a list of cardinal directions (north, south, east, west) that point toward unexplored regions
+   - Takes world coordinates and a set of explored region coordinates as input
+   - Used for determining which directions lead to new content
+
+2. **`get_prioritized_frontier_exits()` in `WorldGrid` (world_grid.py)**
+   - Similar to existing `find_frontier_exits()` but orders results by exploration status
+   - Exits pointing to unexplored regions appear first in the list
+   - Accepts optional `explored_regions` parameter or calculates from current locations
+
+3. **`get_explored_regions()` in `GameState` (game_state.py)**
+   - Analyzes all locations in the world grid to determine which regions have been explored
+   - Returns a set of (region_x, region_y) tuples
+   - Handles locations without coordinates gracefully
+
+4. **`FRONTIER_DESCRIPTION_HINTS` in `ai_config.py`**
+   - Dictionary mapping directions to atmospheric description hints
+   - Used for adding flavor text to location descriptions pointing toward unexplored areas
 
 ### Files Modified
 
-1. **`src/cli_rpg/main.py`** (4 changes):
-   - Line 2716: Added `CharacterClass` to import in `run_json_mode()`
-   - Line 2740: Added `character_class=CharacterClass.WARRIOR` to Character creation in `run_json_mode()`
-   - Line 2951: Added `CharacterClass` to import in `run_non_interactive()`
-   - Line 2971: Added `character_class=CharacterClass.WARRIOR` to Character creation in `run_non_interactive()`
+| File | Change |
+|------|--------|
+| `src/cli_rpg/world_tiles.py` | Added `get_unexplored_region_directions()` function |
+| `src/cli_rpg/world_grid.py` | Added `get_prioritized_frontier_exits()` method to `WorldGrid` |
+| `src/cli_rpg/game_state.py` | Added `get_explored_regions()` method to `GameState` |
+| `src/cli_rpg/ai_config.py` | Added `FRONTIER_DESCRIPTION_HINTS` constant |
+| `tests/test_strategic_frontier_exits.py` | New test file with 11 tests |
 
-2. **`tests/test_non_interactive_character_creation.py`**:
-   - Added new test `test_skip_character_creation_assigns_warrior_class()` to verify the behavior
+## Test Results and Verification
 
-## Test Results
+All 11 new tests pass:
 
-All 14 tests in `tests/test_non_interactive_character_creation.py` pass:
-- `TestSkipCharacterCreationFlag::test_non_interactive_with_skip_flag_uses_default_character`
-- `TestSkipCharacterCreationFlag::test_skip_character_creation_assigns_warrior_class` (NEW)
-- `TestSkipCharacterCreationFlag::test_json_mode_with_skip_flag`
-- All other tests continue to pass
+- `TestGetUnexploredRegionDirections` (4 tests)
+  - Returns directions toward unexplored regions
+  - Excludes directions toward explored regions
+  - Handles all-explored case
+  - Handles negative coordinates
 
-## Verification
+- `TestGetPrioritizedFrontierExits` (2 tests)
+  - Orders exits by exploration status
+  - Returns all frontier exits
 
-```bash
-pytest tests/test_non_interactive_character_creation.py -v
-# 14 passed in 6.73s
-```
+- `TestFrontierAnalysisEdgeCases` (3 tests)
+  - Handles single location
+  - Uses region coords not tile coords
+  - Empty explored regions returns all directions
 
-## Technical Details
+- `TestGameStateGetExploredRegions` (2 tests)
+  - Returns regions from world locations
+  - Handles locations without coordinates
 
-The change ensures that when using `--skip-character-creation` (for automated testing or AI agent playtesting), the default "Agent" character has access to Warrior class abilities like `bash`, enabling class-specific gameplay testing without requiring interactive character creation.
+Additionally, all existing tests pass:
+- `tests/test_world_grid.py`: 29 passed
+- `tests/test_game_state.py`: 62 passed
+
+## Technical Design Decisions
+
+1. **Region-based exploration tracking**: Uses REGION_SIZE (16x16) tile regions for exploration status rather than individual tiles. This provides coarser-grained tracking suitable for guiding players.
+
+2. **Prioritization vs. filtering**: The `get_prioritized_frontier_exits()` method prioritizes but doesn't filter exits. All passable exits remain available, just reordered.
+
+3. **Lazy calculation**: Explored regions can be calculated on-demand from the world grid or passed explicitly for efficiency.
+
+## E2E Tests Should Validate
+
+1. When generating a new named location at coordinates pointing toward an unexplored region, the description should include atmospheric hints about unexplored territory
+2. The `get_prioritized_frontier_exits()` method should be usable during world generation to influence exit placement
+3. Player movement toward unexplored regions should feel guided toward new content

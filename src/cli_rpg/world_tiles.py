@@ -492,3 +492,41 @@ def should_generate_named_location(
     probability = min(1.0, tiles_since_named / (effective_interval * 2))
 
     return rng.random() < probability
+
+
+def get_unexplored_region_directions(
+    world_x: int,
+    world_y: int,
+    explored_regions: set[tuple[int, int]],
+) -> list[str]:
+    """Return directions pointing toward unexplored regions.
+
+    Analyzes which cardinal directions from the given world coordinates
+    lead to regions that have not been explored. This is used for strategic
+    exit placement to guide players toward new content.
+
+    Args:
+        world_x: Current world x coordinate
+        world_y: Current world y coordinate
+        explored_regions: Set of (region_x, region_y) tuples that have been visited
+
+    Returns:
+        List of direction names (north, south, east, west) pointing toward
+        unexplored regions. Order is consistent but arbitrary.
+    """
+    current_region = get_region_coords(world_x, world_y)
+    unexplored_directions = []
+
+    # Check each cardinal direction
+    for direction, (dx, dy) in DIRECTION_OFFSETS.items():
+        # Calculate which region is in that direction
+        # We use a point one region away in that direction
+        target_x = current_region[0] + dx
+        target_y = current_region[1] + dy
+        target_region = (target_x, target_y)
+
+        # If that region is not explored, include this direction
+        if target_region not in explored_regions:
+            unexplored_directions.append(direction)
+
+    return unexplored_directions

@@ -1332,7 +1332,11 @@ Result: Locations feel random, not part of a cohesive world.
 **Phase 3: Lower Priority (Polish)**
 
 5. **Strategic World Expansion**
-   - [ ] Place frontier exits strategically (toward unexplored regions)
+   - [x] Place frontier exits strategically (toward unexplored regions)
+     - ✅ Added `get_unexplored_region_directions()` in `world_tiles.py`
+     - ✅ Added `get_prioritized_frontier_exits()` in `WorldGrid`
+     - ✅ Added `get_explored_regions()` in `GameState`
+     - ✅ Added `FRONTIER_DESCRIPTION_HINTS` in `ai_config.py`
    - [ ] Ensure terrain transitions feel natural (forest → plains → desert, not forest → desert)
    - [ ] Cluster similar locations together
 
