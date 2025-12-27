@@ -122,6 +122,7 @@ Core service for interacting with LLM APIs.
 - Uses `npc_prompt_minimal` template from AIConfig
 - Returns list of validated NPC dicts with fields: `name`, `description`, `dialogue`, `role`
 - Keeps NPC generation isolated for reliable JSON parsing
+- **Note**: Only called for named locations (`is_named=True`). Unnamed locations (generic terrain tiles) have empty NPC lists.
 - Raises `AIGenerationError` on generation failure
 
 ### 3.3 WorldContext

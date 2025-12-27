@@ -456,14 +456,19 @@ def expand_world(
             terrain_type=terrain_type,
             neighboring_locations=neighboring_locations if neighboring_locations else None
         )
-        # Generate NPCs separately (Layer 4)
-        npcs_data = ai_service.generate_npcs_for_location(
-            world_context=world_context,
-            location_name=location_data["name"],
-            location_description=location_data["description"],
-            location_category=location_data.get("category")
-        )
-        location_data["npcs"] = npcs_data
+        # Generate NPCs separately (Layer 4) - only for named locations
+        # Unnamed locations (is_named=False) don't spawn NPCs - they're terrain filler
+        is_named = location_data.get("is_named", True)  # Default True for backward compat
+        if is_named:
+            npcs_data = ai_service.generate_npcs_for_location(
+                world_context=world_context,
+                location_name=location_data["name"],
+                location_description=location_data["description"],
+                location_category=location_data.get("category")
+            )
+            location_data["npcs"] = npcs_data
+        else:
+            location_data["npcs"] = []
     else:
         # Use original generation
         location_data = ai_service.generate_location(
@@ -678,10 +683,12 @@ def expand_area(
             is_safe_zone=loc_is_safe_zone
         )
 
-        # Add AI-generated NPCs to the location
-        location_npcs = _create_npcs_from_data(loc_data.get("npcs", []))
-        for npc in location_npcs:
-            new_loc.npcs.append(npc)
+        # Add AI-generated NPCs to the location - only for named locations
+        # Unnamed locations (is_named=False) don't spawn NPCs - they're terrain filler
+        if loc_data.get("is_named", True):
+            location_npcs = _create_npcs_from_data(loc_data.get("npcs", []))
+            for npc in location_npcs:
+                new_loc.npcs.append(npc)
 
         placed_locations[loc_data["name"]] = {
             "location": new_loc,

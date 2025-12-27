@@ -358,6 +358,7 @@ The named location trigger system is now fully wired up and operational.
 | Wire `should_generate_named_location()` into world expansion | ✅ DONE | Sparse world works |
 | Track `tiles_since_named` counter in GameState | ✅ DONE | Persists through save/load |
 | Use `get_unnamed_location_template()` for unnamed tiles | ✅ DONE | Most tiles use templates |
+| Skip NPC generation for unnamed locations | ✅ DONE | NPCs only in named sub-locations |
 | Make named locations enterable SubGrids (not overworld tiles) | ❌ NOT DONE | Future enhancement |
 
 **How it works:**
@@ -1290,16 +1291,18 @@ The AI prompt for location generation (`ai_config.py`) doesn't include:
 
 Result: Locations feel random, not part of a cohesive world.
 
-**3. NPCs Scattered Across Overworld (Wrong)**
+**3. NPCs Scattered Across Overworld ✅ RESOLVED (2025-12-27)**
 
-Current: Every overworld tile can have 0-2 NPCs spawned on it.
-Target: NPCs should **only exist inside named sub-locations** (villages, dungeons, etc.).
+~~Current: Every overworld tile can have 0-2 NPCs spawned on it.~~
+~~Target: NPCs should **only exist inside named sub-locations** (villages, dungeons, etc.).~~
 
-- Overworld tiles = wilderness, no NPCs, just terrain and random encounters
-- Named locations (SubGrids) = towns, dungeons, etc. with rich NPC populations
-- This matches RPG conventions: you don't find shopkeepers standing in random forests
+**Resolution**: Unnamed locations (`is_named=False`) now skip NPC generation entirely. Both `expand_world()` and `expand_area()` in `ai_world.py` check the `is_named` field before generating NPCs.
 
-**Also:**
+- ✅ Overworld tiles = wilderness, no NPCs, just terrain and random encounters
+- ✅ Named locations = towns, dungeons, etc. with rich NPC populations
+- ✅ Matches RPG conventions: you don't find shopkeepers standing in random forests
+
+**Remaining:**
 - No shop inventories generated
 - No quest hooks or faction ties
 - Hardcoded merchants feel out of place in AI worlds
