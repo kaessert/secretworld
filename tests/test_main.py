@@ -84,3 +84,31 @@ def test_main_returns_zero():
 
         # Should return 0 for success (or None which is also acceptable)
         assert result == 0 or result is None
+
+
+def test_bye_command_outside_talk_mode():
+    """Test that 'bye' outside talk mode gives contextual error, not 'buy' suggestion.
+
+    Verifies: 'bye' command should explain it's for ending conversations,
+    not suggest 'buy' which is also contextual.
+    """
+    from cli_rpg.main import handle_exploration_command
+    from cli_rpg.game_state import GameState
+    from cli_rpg.models.character import Character
+    from cli_rpg.world import create_default_world
+
+    # Create a minimal game state
+    character = Character("TestHero", strength=10, dexterity=10, intelligence=10)
+    world, starting_location = create_default_world()
+    game_state = GameState(character, world, starting_location)
+
+    # Test the "bye" command (which comes as "unknown" with args=["bye"])
+    continue_game, message = handle_exploration_command(game_state, "unknown", ["bye"])
+
+    # Should NOT suggest "buy"
+    assert "buy" not in message.lower(), f"Message should not suggest 'buy': {message}"
+
+    # Should give contextual help about 'bye' being for conversations
+    assert "bye" in message.lower(), f"Message should mention 'bye': {message}"
+    assert "conversation" in message.lower() or "talking" in message.lower() or "npc" in message.lower(), \
+        f"Message should explain 'bye' is for conversations: {message}"

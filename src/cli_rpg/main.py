@@ -2313,6 +2313,9 @@ def handle_exploration_command(game_state: GameState, command: str, args: list[s
     
     elif command == "unknown":
         if args and args[0]:
+            # Handle "bye" specially - it's for ending conversations, don't suggest "buy"
+            if args[0] == "bye":
+                return (True, "\n✗ The 'bye' command ends conversations. Use it while talking to an NPC.")
             suggestion = suggest_command(args[0], KNOWN_COMMANDS)
             if suggestion:
                 return (True, f"\n✗ Unknown command '{args[0]}'. Did you mean '{suggestion}'?")
