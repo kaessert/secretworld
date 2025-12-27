@@ -26,6 +26,16 @@ class ObjectiveType(Enum):
     USE = "use"
 
 
+class QuestDifficulty(Enum):
+    """Difficulty rating for quests."""
+
+    TRIVIAL = "trivial"
+    EASY = "easy"
+    NORMAL = "normal"
+    HARD = "hard"
+    DEADLY = "deadly"
+
+
 @dataclass
 class QuestBranch:
     """Alternative completion path for a quest.
@@ -164,6 +174,9 @@ class Quest:
     # Branching quest support
     alternative_branches: List["QuestBranch"] = field(default_factory=list)  # Alternative completion paths
     completed_branch_id: Optional[str] = field(default=None)  # Which branch was completed
+    # Difficulty indicators
+    difficulty: QuestDifficulty = field(default=QuestDifficulty.NORMAL)
+    recommended_level: int = field(default=1)
 
     def __post_init__(self) -> None:
         """Validate quest attributes after initialization."""
@@ -211,6 +224,10 @@ class Quest:
             raise ValueError("faction_reward cannot be negative")
         if self.faction_penalty < 0:
             raise ValueError("faction_penalty cannot be negative")
+
+        # Validate difficulty fields
+        if self.recommended_level < 1:
+            raise ValueError("recommended_level must be at least 1")
 
     @property
     def is_complete(self) -> bool:
@@ -273,6 +290,8 @@ class Quest:
             "unlocks_quests": self.unlocks_quests,
             "alternative_branches": [b.to_dict() for b in self.alternative_branches],
             "completed_branch_id": self.completed_branch_id,
+            "difficulty": self.difficulty.value,
+            "recommended_level": self.recommended_level,
         }
 
     @classmethod
@@ -316,6 +335,8 @@ class Quest:
             unlocks_quests=data.get("unlocks_quests", []),
             alternative_branches=branches,
             completed_branch_id=data.get("completed_branch_id"),
+            difficulty=QuestDifficulty(data.get("difficulty", "normal")),
+            recommended_level=data.get("recommended_level", 1),
         )
 
     def get_branches_display(self) -> List[dict]:

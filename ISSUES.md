@@ -1081,21 +1081,19 @@ Quest-faction integration is now fully implemented:
 
 Completing faction-affiliated quests now properly adjusts reputation with both the affiliated faction and its rival (using `FACTION_RIVALRIES` mapping). NPCs refuse to give quests if player reputation is below the required threshold.
 
-**4. Quest Difficulty (MEDIUM PRIORITY)**
+**4. Quest Difficulty ✅ MODEL COMPLETE (2025-12-27)**
 
-```python
-class QuestDifficulty(Enum):
-    TRIVIAL = "trivial"
-    EASY = "easy"
-    NORMAL = "normal"
-    CHALLENGING = "challenging"
-    HEROIC = "heroic"
+Model layer complete:
+- `QuestDifficulty` enum: TRIVIAL, EASY, NORMAL, HARD, DEADLY
+- `difficulty` and `recommended_level` fields on Quest dataclass
+- Validation: recommended_level must be ≥1
+- Full serialization with backward compatibility
+- 11 new tests in `tests/test_quest_difficulty.py`
 
-@dataclass
-class Quest:
-    difficulty: QuestDifficulty = QuestDifficulty.NORMAL
-    recommended_level: int = 1
-```
+**Remaining (UI/AI integration)**:
+- Quest display updates in main.py (journal, quest details, NPC available quests)
+- AI quest generation prompt updates in ai_config.py
+- Parsing updates in ai_service.py
 
 **5. Time-Sensitive Quests (MEDIUM PRIORITY)**
 
@@ -1185,7 +1183,7 @@ completed_quest_outcomes: List[QuestOutcome] = field(default_factory=list)
 | Faction integration | High | Medium | ✅ **DONE** |
 | Quest chains & prerequisites | High | Medium | ✅ **DONE** |
 | Branching objectives/choices | High | High | ✅ **DONE** |
-| Difficulty indicators | Medium | Low | **P2** |
+| Difficulty indicators | Medium | Low | ✅ **MODEL DONE** (UI pending) |
 | Time-sensitive quests | Medium | Low | **P2** |
 | Multi-stage objectives | Medium | High | **P2** |
 | Quest memory/NPC reactions | Medium | Medium | **P3** |

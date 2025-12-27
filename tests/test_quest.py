@@ -443,6 +443,8 @@ class TestSerialization:
             "unlocks_quests": [],
             "alternative_branches": [],
             "completed_branch_id": None,
+            "difficulty": "normal",
+            "recommended_level": 1,
         }
 
     def test_from_dict(self):
