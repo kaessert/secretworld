@@ -290,6 +290,8 @@ class GameState:
         self.region_contexts: dict[tuple[int, int], RegionContext] = {}  # Layer 2: Region contexts by coords
         # Named location trigger counter (tracks tiles since last named POI)
         self.tiles_since_named: int = 0
+        # Dream cooldown tracking (hour of last dream, None if never dreamed)
+        self.last_dream_hour: Optional[int] = None
 
     @property
     def is_in_conversation(self) -> bool:
@@ -1144,6 +1146,7 @@ class GameState:
             "gather_cooldown": self.gather_cooldown,
             "in_sub_location": self.in_sub_location,
             "tiles_since_named": self.tiles_since_named,
+            "last_dream_hour": self.last_dream_hour,
         }
         # Include chunk_manager if present (WFC terrain)
         if self.chunk_manager is not None:
@@ -1251,6 +1254,9 @@ class GameState:
 
         # Restore tiles_since_named counter (default to 0 for backward compatibility)
         game_state.tiles_since_named = data.get("tiles_since_named", 0)
+
+        # Restore last_dream_hour (default to None for backward compatibility)
+        game_state.last_dream_hour = data.get("last_dream_hour")
 
         # Restore chunk_manager if present (WFC terrain)
         if "chunk_manager" in data:

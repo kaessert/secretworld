@@ -97,7 +97,7 @@ python -m cli_rpg.main
 - `companion-quest <name>` - Accept a companion's personal quest (requires TRUSTED bond level)
 - `dump-state` - Export complete game state as JSON for programmatic inspection
 - `sneak` (sn) - **Rogue only**: Move stealthily to avoid random encounters (costs 10 stamina). Success chance: 50% + (DEX × 2%) - (armor defense × 5%) - (15% if lit), capped 10-90%. Effect consumed on next move.
-- `rest` (r) - Rest to recover health and stamina (restores 25% of max HP and 25% of max stamina, advances time by 4 hours, reduces dread, may trigger dreams; not available during combat)
+- `rest` (r) - Rest to recover health and stamina (restores 25% of max HP and 25% of max stamina, advances time by 4 hours, reduces dread, may trigger dreams; not available during combat). Use `rest --quick` or `rest -q` to skip the dream check entirely.
 - `camp` (ca) - Set up camp in wilderness areas (requires Camping Supplies; heals 50% HP, reduces dread by 30-40, advances time 8 hours; campfire cooks raw meat and may attract friendly visitors)
 - `forage` (fg) - Search for herbs and berries (forest/wilderness only; PER-based success chance; 1-hour cooldown)
 - `hunt` (hu) - Hunt game for meat and pelts (forest/wilderness only; DEX/PER-based success chance; 2-hour cooldown)

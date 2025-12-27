@@ -18,7 +18,9 @@ if TYPE_CHECKING:  # pragma: no cover
 
 logger = logging.getLogger(__name__)
 
-DREAM_CHANCE = 0.25  # 25% chance on rest
+DREAM_CHANCE = 0.10  # 10% chance on rest (reduced from 25%)
+CAMP_DREAM_CHANCE = 0.15  # 15% chance on camp (reduced from 40%)
+DREAM_COOLDOWN_HOURS = 12  # Minimum hours between dreams
 NIGHTMARE_DREAD_THRESHOLD = 50
 
 # Prophetic dreams - hints at future/foreshadowing
@@ -65,7 +67,10 @@ def maybe_trigger_dream(
     choices: Optional[list[dict]] = None,
     theme: str = "fantasy",
     ai_service: Optional["AIService"] = None,
-    location_name: str = ""
+    location_name: str = "",
+    dream_chance: Optional[float] = None,
+    last_dream_hour: Optional[int] = None,
+    current_hour: Optional[int] = None,
 ) -> Optional[str]:
     """Potentially trigger a dream during rest.
 
@@ -75,12 +80,24 @@ def maybe_trigger_dream(
         theme: World theme for AI generation
         ai_service: Optional AI service for generating personalized dreams
         location_name: Current location name for AI context
+        dream_chance: Override for dream chance (default: DREAM_CHANCE)
+        last_dream_hour: Hour of last dream (for cooldown check)
+        current_hour: Current game hour (for cooldown check)
 
     Returns:
         Formatted dream text if triggered, None otherwise
     """
-    # 25% chance to dream
-    if random.random() > DREAM_CHANCE:
+    # Use provided dream_chance or default
+    chance = dream_chance if dream_chance is not None else DREAM_CHANCE
+
+    # Check cooldown: require 12+ hours since last dream
+    if last_dream_hour is not None and current_hour is not None:
+        hours_since = current_hour - last_dream_hour
+        if hours_since < DREAM_COOLDOWN_HOURS:
+            return None
+
+    # Check dream chance
+    if random.random() > chance:
         return None
 
     # Determine if this is a nightmare

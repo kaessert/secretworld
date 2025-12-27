@@ -30,7 +30,7 @@ CAMP_HEAL_PERCENT = 50  # Heal 50% of max HP
 CAMP_DREAD_REDUCTION = 30  # Base dread reduction
 CAMP_CAMPFIRE_BONUS = 10  # Extra dread reduction with campfire
 CAMP_TIME_HOURS = 8  # Time advance for camping
-CAMP_DREAM_CHANCE = 0.40  # 40% chance of dream during camp
+# NOTE: Dream chance now imported from dreams.py (CAMP_DREAM_CHANCE = 0.15)
 CAMP_VISITOR_CHANCE = 0.20  # 20% chance of campfire visitor
 
 # Forage mechanics
@@ -330,7 +330,7 @@ def execute_camp(game_state: "GameState") -> Tuple[bool, str]:
         Tuple of (success, message)
     """
     from cli_rpg import colors
-    from cli_rpg.dreams import maybe_trigger_dream, display_dream
+    from cli_rpg.dreams import maybe_trigger_dream, display_dream, CAMP_DREAM_CHANCE
 
     location = game_state.get_current_location()
     character = game_state.current_character
@@ -411,16 +411,21 @@ def execute_camp(game_state: "GameState") -> Tuple[bool, str]:
                 character.dread_meter.reduce_dread(visitor["dread_reduction"])
                 messages.append(f"Their stories calm your nerves. (Dread -{visitor['dread_reduction']}%)")
 
-    # Check for dream
+    # Check for dream (uses CAMP_DREAM_CHANCE = 15%, with cooldown)
     result_message = "\n".join(messages)
     dream = maybe_trigger_dream(
         dread=character.dread_meter.dread,
         choices=getattr(game_state, 'choices', None),
         theme=getattr(game_state, 'theme', 'fantasy'),
         ai_service=getattr(game_state, 'ai_service', None),
-        location_name=game_state.current_location
+        location_name=game_state.current_location,
+        dream_chance=CAMP_DREAM_CHANCE,
+        last_dream_hour=game_state.last_dream_hour,
+        current_hour=game_state.game_time.total_hours,
     )
     if dream:
+        # Update last_dream_hour for cooldown tracking
+        game_state.last_dream_hour = game_state.game_time.total_hours
         # Display dream immediately with typewriter effect
         print("\n" + result_message)
         display_dream(dream)

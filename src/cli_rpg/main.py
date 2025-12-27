@@ -2170,6 +2170,11 @@ def handle_exploration_command(game_state: GameState, command: str, args: list[s
             return (True, "\n=== Ancient Lore ===\nThe mysteries of this place remain hidden...")
 
     elif command == "rest":
+        # Parse --quick or -q flag to skip dreams
+        skip_dream = "--quick" in args or "-q" in args
+        # Remove flags from args for any future processing
+        args = [a for a in args if a not in ("--quick", "-q")]
+
         # Check if already at full health, stamina, and dread
         char = game_state.current_character
         at_full_health = char.health >= char.max_health
@@ -2211,19 +2216,26 @@ def handle_exploration_command(game_state: GameState, command: str, args: list[s
         # Build the rest message first
         result_message = "\n" + " ".join(messages)
 
-        # Check for dream during rest (displayed separately with typewriter effect)
-        dream = maybe_trigger_dream(
-            dread=char.dread_meter.dread,
-            choices=getattr(game_state, 'choices', None),
-            theme=getattr(game_state, 'theme', 'fantasy'),
-            ai_service=getattr(game_state, 'ai_service', None),
-            location_name=game_state.current_location
-        )
-        if dream:
-            # Print rest message first, then display dream with typewriter effect
-            print(result_message)
-            display_dream(dream)
-            return (True, result_message)  # Return message for test assertions
+        # Check for dream during rest (skip if --quick flag)
+        if not skip_dream:
+            from cli_rpg.dreams import DREAM_CHANCE
+            dream = maybe_trigger_dream(
+                dread=char.dread_meter.dread,
+                choices=getattr(game_state, 'choices', None),
+                theme=getattr(game_state, 'theme', 'fantasy'),
+                ai_service=getattr(game_state, 'ai_service', None),
+                location_name=game_state.current_location,
+                dream_chance=DREAM_CHANCE,
+                last_dream_hour=game_state.last_dream_hour,
+                current_hour=game_state.game_time.total_hours,
+            )
+            if dream:
+                # Update last_dream_hour for cooldown tracking
+                game_state.last_dream_hour = game_state.game_time.total_hours
+                # Print rest message first, then display dream with typewriter effect
+                print(result_message)
+                display_dream(dream)
+                return (True, result_message)  # Return message for test assertions
 
         return (True, result_message)
 

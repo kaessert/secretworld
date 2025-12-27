@@ -1,66 +1,66 @@
-# Implementation Summary: Layered Context Integration
+# Dream Frequency Fix - Implementation Summary
 
 ## What Was Implemented
 
-The layered context architecture was already fully wired up in the codebase. Upon review:
+### 1. Reduced Dream Trigger Rates (dreams.py)
+- **DREAM_CHANCE**: Changed from 0.25 (25%) to 0.10 (10%)
+- **CAMP_DREAM_CHANCE**: New constant set to 0.15 (15%), replacing the old 40%
 
-### Code Already Present in `game_state.py` (lines 575-590)
+### 2. Dream Cooldown System (dreams.py, game_state.py)
+- Added **DREAM_COOLDOWN_HOURS = 12** constant
+- Updated `maybe_trigger_dream()` to accept new parameters:
+  - `dream_chance`: Optional override for trigger chance
+  - `last_dream_hour`: Hour of last dream for cooldown check
+  - `current_hour`: Current game hour for cooldown check
+- Dreams are blocked if less than 12 hours have passed since the last dream
 
-```python
-# Get layered context for AI generation
-world_ctx = self.get_or_create_world_context()
-region_ctx = self.get_or_create_region_context(
-    target_coords, terrain or "wilderness"
-)
-expand_area(
-    world=self.world,
-    ai_service=self.ai_service,
-    from_location=self.current_location,
-    direction=direction,
-    theme=self.theme,
-    target_coords=target_coords,
-    world_context=world_ctx,      # Already passing context
-    region_context=region_ctx,    # Already passing context
-    terrain_type=terrain,
-)
-```
+### 3. GameState Tracking (game_state.py)
+- Added `last_dream_hour: Optional[int] = None` attribute
+- Added serialization in `to_dict()` and deserialization in `from_dict()`
+- Backward compatible: old saves without `last_dream_hour` default to None
 
-### Tests in `tests/test_layered_context_integration.py`
+### 4. Rest Command Updates (main.py)
+- Added `--quick` / `-q` flag parsing to skip dream check entirely
+- Updated to pass cooldown params to `maybe_trigger_dream()`
+- Updates `last_dream_hour` when a dream triggers
 
-Four tests verify the integration:
-1. `test_move_passes_world_context_to_expand_area` - Confirms world_context is passed
-2. `test_move_passes_region_context_to_expand_area` - Confirms region_context is passed
-3. `test_move_creates_world_context_if_missing` - Verifies lazy creation
-4. `test_move_creates_region_context_for_target_coords` - Verifies region context is target-appropriate
+### 5. Camp Command Updates (camping.py)
+- Removed local `CAMP_DREAM_CHANCE = 0.40` constant
+- Now imports `CAMP_DREAM_CHANCE` from dreams.py
+- Updated to pass cooldown params to `maybe_trigger_dream()`
+- Updates `last_dream_hour` when a dream triggers
 
-### Helper Methods Available in `GameState`
-
-- `get_or_create_world_context()` (line 1055)
-- `get_or_create_region_context()` (line 1082)
+## Files Modified
+- `src/cli_rpg/dreams.py` - Constants and cooldown logic in maybe_trigger_dream()
+- `src/cli_rpg/game_state.py` - last_dream_hour attribute and serialization
+- `src/cli_rpg/main.py` - rest --quick flag, cooldown params
+- `src/cli_rpg/camping.py` - CAMP_DREAM_CHANCE import, cooldown params
+- `tests/test_dreams.py` - Updated and added 16 new tests
+- `tests/test_camping.py` - Added 3 new tests for camp dream behavior
 
 ## Test Results
+- All 47 dream tests pass
+- All 48 camping tests pass
+- Full test suite: **3635 tests passed**
 
-```
-tests/test_layered_context_integration.py ....           [100%]
-tests/test_game_state.py (move-related tests) ....       [100%]
+## New Tests Added
 
-66 passed in 0.51s
-```
+### test_dreams.py
+- TestDreamConstants: test_dream_chance_is_10_percent, test_camp_dream_chance_is_15_percent, test_dream_cooldown_is_12_hours
+- TestMaybeTriggerDream: test_dream_chance_is_10_percent (updated statistical test)
+- TestDreamCooldown: 4 tests for cooldown blocking/allowing dreams
+- TestDreamChanceOverride: 3 tests for custom dream_chance parameter
+- TestRestQuickFlag: 2 tests for --quick/-q flag skipping dreams
+- TestLastDreamHourTracking: 4 tests for GameState tracking and serialization
 
-## Technical Details
+### test_camping.py
+- TestCampDreamChance: 3 tests for camp using 15% chance with cooldown
 
-- The `expand_area()` function in `ai_world.py` already accepts `world_context` and `region_context` as optional parameters
-- The `move()` method fetches/creates contexts before each `expand_area()` call
-- Context is cached in GameState (`world_context`, `region_contexts` dict)
-
-## E2E Validation
-
-To validate in actual gameplay:
-- Start a new game with AI enabled
-- Move to a new location that triggers named location generation
-- Verify locations have thematically coherent names/descriptions
-- Check logs for context-related messages
-
-## Conclusion
-
-No code changes were required - the plan identified a gap that had already been addressed. All tests pass confirming the integration is correctly implemented.
+## E2E Validation Notes
+To validate the implementation works end-to-end:
+1. Start the game and damage character
+2. Use `rest` multiple times - dreams should occur ~10% of the time
+3. After a dream, use `rest` again within 12 game hours - no dream should occur
+4. Use `rest --quick` - no dream should ever occur
+5. Use `camp` in wilderness - dreams should occur ~15% of the time
+6. Save/load game - `last_dream_hour` should persist correctly

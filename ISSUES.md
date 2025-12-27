@@ -625,37 +625,34 @@ Players want a more sophisticated map system with hierarchical locations.
 
 ---
 
-### Dream sequences trigger too frequently
-**Status**: ACTIVE
+### ✅ RESOLVED: Dream sequences trigger too frequently
+**Status**: RESOLVED
+**Date Added**: 2025-12-27
+**Date Resolved**: 2025-12-27
 
-**Problem**: Players report dreams happen too often, becoming annoying rather than atmospheric. Current trigger rates:
-- 25% chance on `rest` command
-- 40% chance during `camp` command
+**Problem**: Players reported dreams happened too often, becoming annoying rather than atmospheric.
 
-This means players see dreams almost every other rest, which:
-- Breaks gameplay flow
-- Makes dreams feel mundane instead of special
-- Adds unwanted delay when trying to heal quickly
+**Resolution**: Implemented the following fixes:
 
-**Proposed Fix**:
+1. **Reduced base trigger rates**:
+   - `rest`: 25% → 10% (`DREAM_CHANCE` constant)
+   - `camp`: 40% → 15% (`CAMP_DREAM_CHANCE` constant)
 
-1. **Reduce base trigger rates**:
-   - `rest`: 25% → 10%
-   - `camp`: 40% → 15%
+2. **Added cooldown between dreams**:
+   - Added `DREAM_COOLDOWN_HOURS = 12` constant
+   - Dreams are blocked if less than 12 game hours have passed since the last dream
+   - `last_dream_hour` tracked in GameState and persists across save/load
 
-2. **Add cooldown between dreams**:
-   - Track `last_dream_time` in GameState
-   - Minimum 3-4 rests between dreams
-   - Cooldown resets on significant events (level up, quest complete, boss kill)
+3. **Added player control**:
+   - `rest --quick` or `rest -q` flag skips dream check entirely
 
-3. **Make dreams contextual** (only trigger when meaningful):
-   - High dread (50%+): Nightmare more likely
-   - After major event: Prophetic dream
-   - Low activity: Skip dreams entirely
+**Files Modified**:
+- `src/cli_rpg/dreams.py`: Constants and cooldown logic
+- `src/cli_rpg/game_state.py`: `last_dream_hour` attribute and serialization
+- `src/cli_rpg/main.py`: `rest --quick` flag, cooldown params
+- `src/cli_rpg/camping.py`: Uses shared `CAMP_DREAM_CHANCE`, cooldown params
 
-4. **Add player control**:
-   - `rest --quick` or `r!` to skip dream check entirely
-   - Settings option to disable dreams
+**Tests Added**: 16 new dream tests, 3 new camping tests (all 3635 tests pass)
 
 ---
 

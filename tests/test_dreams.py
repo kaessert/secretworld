@@ -11,6 +11,8 @@ import pytest
 
 from cli_rpg.dreams import (
     DREAM_CHANCE,
+    CAMP_DREAM_CHANCE,
+    DREAM_COOLDOWN_HOURS,
     NIGHTMARE_DREAD_THRESHOLD,
     PROPHETIC_DREAMS,
     ATMOSPHERIC_DREAMS,
@@ -27,9 +29,17 @@ class TestDreamConstants:
     Spec: Dream constants exist with correct values
     """
 
-    def test_dream_chance_is_25_percent(self):
-        """Spec: DREAM_CHANCE is 0.25 (25%)."""
-        assert DREAM_CHANCE == 0.25
+    def test_dream_chance_is_10_percent(self):
+        """Spec: DREAM_CHANCE is 0.10 (10%, reduced from 25%)."""
+        assert DREAM_CHANCE == 0.10
+
+    def test_camp_dream_chance_is_15_percent(self):
+        """Spec: CAMP_DREAM_CHANCE is 0.15 (15%, reduced from 40%)."""
+        assert CAMP_DREAM_CHANCE == 0.15
+
+    def test_dream_cooldown_is_12_hours(self):
+        """Spec: DREAM_COOLDOWN_HOURS is 12."""
+        assert DREAM_COOLDOWN_HOURS == 12
 
     def test_nightmare_dread_threshold_is_50(self):
         """Spec: NIGHTMARE_DREAD_THRESHOLD is 50."""
@@ -39,7 +49,7 @@ class TestDreamConstants:
 class TestMaybeTriggerDream:
     """Tests for maybe_trigger_dream() function.
 
-    Spec: Returns formatted dream text or None based on 25% trigger rate
+    Spec: Returns formatted dream text or None based on 10% trigger rate
     """
 
     def test_returns_string_or_none(self):
@@ -48,10 +58,10 @@ class TestMaybeTriggerDream:
             result = maybe_trigger_dream()
             assert result is None or isinstance(result, str)
 
-    def test_dream_chance_is_25_percent(self):
-        """Spec: ~25% trigger rate (statistical test).
+    def test_dream_chance_is_10_percent(self):
+        """Spec: ~10% trigger rate (statistical test, reduced from 25%).
 
-        We run 1000 trials and check that trigger rate is roughly 25%.
+        We run 1000 trials and check that trigger rate is roughly 10%.
         """
         random.seed(42)
 
@@ -62,9 +72,9 @@ class TestMaybeTriggerDream:
             if result is not None:
                 triggers += 1
 
-        # Allow 15-35% range for statistical variance
+        # Allow 5-20% range for statistical variance (10% ± 10%)
         trigger_rate = triggers / trials
-        assert 0.15 <= trigger_rate <= 0.35, f"Trigger rate {trigger_rate} outside expected range"
+        assert 0.05 <= trigger_rate <= 0.20, f"Trigger rate {trigger_rate} outside expected range"
 
     def test_nightmare_at_high_dread(self):
         """Spec: High dread (50%+) uses NIGHTMARES pool."""
@@ -514,3 +524,243 @@ class TestAIDreamGeneration:
         # Check from_dict restores it
         restored_config = AIConfig.from_dict(config_dict)
         assert restored_config.dream_generation_prompt == DEFAULT_DREAM_GENERATION_PROMPT
+
+
+class TestDreamCooldown:
+    """Tests for dream cooldown functionality.
+
+    Spec: Dreams should require 12+ hours between occurrences.
+    """
+
+    def test_dream_cooldown_blocks_frequent_dreams(self):
+        """Spec: Cooldown blocks dream if <12 hours since last dream."""
+        # Force dream to always trigger (by setting chance)
+        with patch("cli_rpg.dreams.random.random", return_value=0.01):
+            # Last dream at hour 10, current hour 15 (only 5 hours later)
+            result = maybe_trigger_dream(
+                dread=0,
+                last_dream_hour=10,
+                current_hour=15,
+            )
+            # Should return None because cooldown hasn't expired
+            assert result is None
+
+    def test_dream_cooldown_allows_dream_after_threshold(self):
+        """Spec: Cooldown allows dream after 12+ hours."""
+        # Force dream to always trigger
+        with patch("cli_rpg.dreams.random.random", return_value=0.01):
+            # Last dream at hour 10, current hour 25 (15 hours later)
+            result = maybe_trigger_dream(
+                dread=0,
+                last_dream_hour=10,
+                current_hour=25,
+            )
+            # Should return a dream because 15 >= 12
+            assert result is not None
+
+    def test_dream_cooldown_exactly_12_hours(self):
+        """Spec: Dream allowed at exactly 12 hours."""
+        # Force dream to always trigger
+        with patch("cli_rpg.dreams.random.random", return_value=0.01):
+            # Last dream at hour 10, current hour 22 (exactly 12 hours later)
+            result = maybe_trigger_dream(
+                dread=0,
+                last_dream_hour=10,
+                current_hour=22,
+            )
+            # Should return a dream because 12 >= 12
+            assert result is not None
+
+    def test_dream_without_cooldown_params(self):
+        """Spec: Dream works normally when cooldown params not provided."""
+        # Force dream to always trigger
+        with patch("cli_rpg.dreams.random.random", return_value=0.01):
+            # No cooldown params = backward compatible behavior
+            result = maybe_trigger_dream(dread=0)
+            assert result is not None
+
+
+class TestDreamChanceOverride:
+    """Tests for dream_chance parameter override.
+
+    Spec: Callers can specify custom dream chances.
+    """
+
+    def test_custom_dream_chance_15_percent(self):
+        """Spec: Camp uses 15% chance via dream_chance param."""
+        random.seed(42)
+
+        triggers = 0
+        trials = 1000
+        for _ in range(trials):
+            result = maybe_trigger_dream(dream_chance=0.15)
+            if result is not None:
+                triggers += 1
+
+        # Allow 8-25% range for statistical variance (15% ± ~10%)
+        trigger_rate = triggers / trials
+        assert 0.08 <= trigger_rate <= 0.25, f"Trigger rate {trigger_rate} outside expected range"
+
+    def test_dream_chance_zero_never_triggers(self):
+        """Spec: dream_chance=0 should never trigger a dream."""
+        for _ in range(100):
+            result = maybe_trigger_dream(dream_chance=0.0)
+            assert result is None
+
+    def test_dream_chance_one_always_triggers(self):
+        """Spec: dream_chance=1.0 should always trigger a dream (if no cooldown)."""
+        for _ in range(10):
+            result = maybe_trigger_dream(dream_chance=1.0)
+            assert result is not None
+
+
+class TestRestQuickFlag:
+    """Tests for rest --quick flag.
+
+    Spec: rest --quick or rest -q skips dream check entirely.
+    """
+
+    def _create_test_character(self):
+        """Helper to create a test character."""
+        from cli_rpg.models.character import Character
+        return Character(name="TestHero", strength=10, dexterity=10, intelligence=10)
+
+    def _create_test_world(self):
+        """Helper to create a minimal test world."""
+        from cli_rpg.models.location import Location
+        return {
+            "Town Square": Location(
+                name="Town Square",
+                description="A town center.",
+                coordinates=(0, 0),
+                category="town"
+            )
+        }
+
+    def test_rest_quick_flag_skips_dream(self, capsys):
+        """Spec: rest --quick skips dream check entirely."""
+        from cli_rpg.game_state import GameState
+        from cli_rpg.main import handle_exploration_command
+
+        char = self._create_test_character()
+        char.health = char.max_health // 2  # Ensure rest does something
+        world = self._create_test_world()
+        gs = GameState(char, world)
+
+        # Force dream to always trigger (would trigger without --quick)
+        with patch("cli_rpg.dreams.random.random", return_value=0.01):
+            success, message = handle_exploration_command(gs, "rest", ["--quick"])
+
+        assert success
+        # No dream should be displayed with --quick flag
+        captured = capsys.readouterr()
+        # Check that dream frame is not in output
+        assert "═" not in captured.out or "sleep" not in captured.out.lower()
+
+    def test_rest_q_flag_skips_dream(self, capsys):
+        """Spec: rest -q (short form) also skips dream check."""
+        from cli_rpg.game_state import GameState
+        from cli_rpg.main import handle_exploration_command
+
+        char = self._create_test_character()
+        char.health = char.max_health // 2
+        world = self._create_test_world()
+        gs = GameState(char, world)
+
+        # Force dream to always trigger
+        with patch("cli_rpg.dreams.random.random", return_value=0.01):
+            success, message = handle_exploration_command(gs, "rest", ["-q"])
+
+        assert success
+        captured = capsys.readouterr()
+        # Dream frame should not appear
+        assert "═" not in captured.out or "sleep" not in captured.out.lower()
+
+
+class TestLastDreamHourTracking:
+    """Tests for last_dream_hour tracking in GameState.
+
+    Spec: GameState tracks last_dream_hour and serializes it.
+    """
+
+    def _create_test_character(self):
+        """Helper to create a test character."""
+        from cli_rpg.models.character import Character
+        return Character(name="TestHero", strength=10, dexterity=10, intelligence=10)
+
+    def _create_test_world(self):
+        """Helper to create a minimal test world."""
+        from cli_rpg.models.location import Location
+        return {
+            "Town Square": Location(
+                name="Town Square",
+                description="A town center.",
+                coordinates=(0, 0),
+                category="town"
+            )
+        }
+
+    def test_game_state_has_last_dream_hour(self):
+        """Spec: GameState has last_dream_hour attribute."""
+        from cli_rpg.game_state import GameState
+        char = self._create_test_character()
+        world = self._create_test_world()
+        gs = GameState(char, world)
+
+        assert hasattr(gs, 'last_dream_hour')
+        assert gs.last_dream_hour is None  # Initially None
+
+    def test_last_dream_hour_serialization(self):
+        """Spec: last_dream_hour is included in to_dict/from_dict."""
+        from cli_rpg.game_state import GameState
+        char = self._create_test_character()
+        world = self._create_test_world()
+        gs = GameState(char, world)
+        gs.last_dream_hour = 42
+
+        # Serialize
+        data = gs.to_dict()
+        assert "last_dream_hour" in data
+        assert data["last_dream_hour"] == 42
+
+        # Deserialize
+        gs2 = GameState.from_dict(data)
+        assert gs2.last_dream_hour == 42
+
+    def test_last_dream_hour_backward_compatibility(self):
+        """Spec: Missing last_dream_hour defaults to None (backward compat)."""
+        from cli_rpg.game_state import GameState
+        char = self._create_test_character()
+        world = self._create_test_world()
+        gs = GameState(char, world)
+
+        # Serialize then remove last_dream_hour (simulating old save)
+        data = gs.to_dict()
+        del data["last_dream_hour"]
+
+        # Should load without error, defaulting to None
+        gs2 = GameState.from_dict(data)
+        assert gs2.last_dream_hour is None
+
+    def test_cooldown_resets_on_dream_trigger(self, capsys):
+        """Spec: last_dream_hour updates when dream triggers."""
+        from cli_rpg.game_state import GameState
+        from cli_rpg.main import handle_exploration_command
+
+        char = self._create_test_character()
+        char.health = char.max_health // 2
+        world = self._create_test_world()
+        gs = GameState(char, world)
+
+        # Set initial time and no previous dream
+        gs.game_time.total_hours = 100
+        gs.last_dream_hour = None
+
+        # Force dream to trigger
+        with patch("cli_rpg.dreams.random.random", return_value=0.01):
+            success, message = handle_exploration_command(gs, "rest", [])
+
+        # After successful rest with dream, last_dream_hour should be updated
+        # Note: rest advances time by 4 hours, so total_hours will be 104
+        if gs.last_dream_hour is not None:
+            assert gs.last_dream_hour == 104  # Updated to current hour

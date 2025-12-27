@@ -1,131 +1,59 @@
-# Wire Layered Context into Location Generation Pipeline
+# Dream Frequency Fix Implementation Plan
 
-## Problem
-AI-generated location content frequently fails with JSON parsing errors, causing fallback to templates. The layered query architecture (WorldContext → RegionContext → Location → NPCs) was implemented but **not wired up** in the main integration point - `game_state.py:move()` calls `expand_area()` without passing the context parameters.
+## Spec
 
-## Current State
-- ✅ Models exist: `WorldContext`, `RegionContext` with serialization
-- ✅ AIService methods: `generate_world_context()`, `generate_region_context()`, `generate_location_with_context()`, `generate_npcs_for_location()`
-- ✅ Prompts defined: `DEFAULT_LOCATION_PROMPT_MINIMAL`, `DEFAULT_NPC_PROMPT_MINIMAL`, etc.
-- ✅ GameState has caching: `world_context`, `region_contexts`, helper methods
-- ✅ `expand_world()` and `expand_area()` accept context parameters
-- ❌ **GAP**: `game_state.py:move()` doesn't pass contexts when calling `expand_area()`
+**Problem**: Dreams trigger too frequently (25% on rest, 40% on camp), causing them to feel mundane rather than atmospheric.
+
+**Fix**:
+1. Reduce base rates: rest 25%→10%, camp 40%→15%
+2. Add cooldown: track `last_dream_hour` in GameState, require 12+ game-hours between dreams
+3. Add `--quick` flag to `rest` command to skip dream check entirely
+
+## Test Plan
+
+Update `tests/test_dreams.py`:
+1. `test_dream_chance_is_10_percent` - Update statistical test for new 10% rate
+2. `test_camp_dream_chance_is_15_percent` - New test for camp-specific rate
+3. `test_dream_cooldown_blocks_frequent_dreams` - Cooldown blocks dream if <12 hours since last
+4. `test_dream_cooldown_allows_dream_after_threshold` - Cooldown allows dream after 12+ hours
+5. `test_cooldown_resets_on_dream_trigger` - `last_dream_hour` updates when dream triggers
+6. `test_rest_quick_flag_skips_dream` - `rest --quick` or `rest -q` skips dream check
+
+Update `tests/test_camping.py`:
+7. `test_camp_uses_camp_dream_chance` - Verify camp uses 15% (not 25%)
 
 ## Implementation Steps
 
-### 1. Update `game_state.py:move()` to pass layered contexts
+### 1. Update `src/cli_rpg/dreams.py`
+- Change `DREAM_CHANCE = 0.25` to `DREAM_CHANCE = 0.10`
+- Add `CAMP_DREAM_CHANCE = 0.15` constant (for export)
+- Add `DREAM_COOLDOWN_HOURS = 12` constant
+- Update `maybe_trigger_dream()` signature to accept `dream_chance: float = DREAM_CHANCE` and `last_dream_hour: Optional[int] = None`, `current_hour: Optional[int] = None`
+- Add cooldown logic: if `last_dream_hour` provided and `current_hour - last_dream_hour < DREAM_COOLDOWN_HOURS`, return None
 
-In `move()` method (~line 575), when calling `expand_area()`, fetch/create contexts first:
+### 2. Update `src/cli_rpg/game_state.py`
+- Add `last_dream_hour: Optional[int] = None` attribute in `__init__`
+- Add to `to_dict()` serialization
+- Add to `from_dict()` deserialization
 
-```python
-# Get layered context for AI generation
-world_ctx = self.get_or_create_world_context()
-region_ctx = self.get_or_create_region_context(target_coords, terrain or "wilderness")
+### 3. Update `src/cli_rpg/main.py` (rest command)
+- Parse `--quick` or `-q` flag from args
+- If quick flag set, skip `maybe_trigger_dream()` call entirely
+- Pass `dream_chance=DREAM_CHANCE`, `last_dream_hour=game_state.last_dream_hour`, `current_hour=game_state.game_time.hour` to `maybe_trigger_dream()`
+- If dream triggers, update `game_state.last_dream_hour = game_state.game_time.hour`
 
-expand_area(
-    world=self.world,
-    ai_service=self.ai_service,
-    from_location=self.current_location,
-    direction=direction,
-    theme=self.theme,
-    target_coords=target_coords,
-    world_context=world_ctx,      # ADD
-    region_context=region_ctx,    # ADD
-    terrain_type=terrain,
-)
-```
+### 4. Update `src/cli_rpg/camping.py`
+- Import `CAMP_DREAM_CHANCE` from dreams (or define locally as 0.15)
+- Pass `dream_chance=CAMP_DREAM_CHANCE`, `last_dream_hour`, `current_hour` to `maybe_trigger_dream()`
+- If dream triggers, update `game_state.last_dream_hour`
 
-### 2. Add test for context integration in `tests/test_layered_context_integration.py`
+### 5. Update tests
+- Update `test_dream_chance_is_25_percent` → `test_dream_chance_is_10_percent` with new bounds (5-20% range)
+- Add new tests as listed in Test Plan
 
-```python
-"""Tests for layered context integration in location generation."""
-
-import pytest
-from unittest.mock import MagicMock, patch, PropertyMock
-from cli_rpg.game_state import GameState
-from cli_rpg.models.character import Character
-from cli_rpg.models.location import Location
-from cli_rpg.models.world_context import WorldContext
-from cli_rpg.models.region_context import RegionContext
-
-class TestLayeredContextInMove:
-    """Tests that move() passes context to expand_area()."""
-
-    @pytest.fixture
-    def mock_chunk_manager(self):
-        """Create mock ChunkManager that reports all terrain as passable."""
-        cm = MagicMock()
-        cm.get_tile_at.return_value = "plains"
-        return cm
-
-    @pytest.fixture
-    def game_state_with_ai(self, mock_chunk_manager):
-        """Create GameState with mock AI service."""
-        char = Character(name="Test", class_type="warrior")
-        start = Location(name="Start", description="Test", coordinates=(0, 0))
-        world = {"Start": start}
-        ai_service = MagicMock()
-        gs = GameState(char, world, "Start", ai_service=ai_service, theme="fantasy")
-        gs.chunk_manager = mock_chunk_manager
-        return gs
-
-    @patch("cli_rpg.game_state.expand_area")
-    def test_move_passes_world_context_to_expand_area(
-        self, mock_expand_area, game_state_with_ai
-    ):
-        """Verify move() passes world_context when generating new location."""
-        gs = game_state_with_ai
-        # Pre-create world context
-        gs.world_context = WorldContext.default("fantasy")
-
-        # Mock expand_area to create a location (otherwise move fails)
-        new_loc = Location(name="New", description="Test", coordinates=(0, 1))
-        def side_effect(*args, **kwargs):
-            gs.world["New"] = new_loc
-        mock_expand_area.side_effect = side_effect
-
-        gs.move("north")
-
-        # Verify expand_area was called with world_context
-        mock_expand_area.assert_called_once()
-        _, kwargs = mock_expand_area.call_args
-        assert "world_context" in kwargs
-        assert kwargs["world_context"] is not None
-
-    @patch("cli_rpg.game_state.expand_area")
-    def test_move_passes_region_context_to_expand_area(
-        self, mock_expand_area, game_state_with_ai
-    ):
-        """Verify move() passes region_context when generating new location."""
-        gs = game_state_with_ai
-
-        new_loc = Location(name="New", description="Test", coordinates=(0, 1))
-        def side_effect(*args, **kwargs):
-            gs.world["New"] = new_loc
-        mock_expand_area.side_effect = side_effect
-
-        gs.move("north")
-
-        mock_expand_area.assert_called_once()
-        _, kwargs = mock_expand_area.call_args
-        assert "region_context" in kwargs
-        assert kwargs["region_context"] is not None
-```
-
-### 3. Run tests
-
-```bash
-pytest tests/test_layered_context_integration.py -v
-pytest tests/test_game_state.py -v -k "move"
-pytest -x  # Full suite
-```
-
-## Files to Modify
-- `src/cli_rpg/game_state.py` - Pass world_context and region_context to `expand_area()`
-- `tests/test_layered_context_integration.py` - NEW test file verifying integration
-
-## Expected Outcome
-- Location generation uses smaller, focused prompts with context
-- Fewer JSON parsing failures (smaller responses = less truncation)
-- Better thematic coherence (world/region context informs location names/descriptions)
-- Context is cached, so only first generation per region incurs extra API call
+## Files Modified
+- `src/cli_rpg/dreams.py` - Rate constants, cooldown logic
+- `src/cli_rpg/game_state.py` - `last_dream_hour` attribute and serialization
+- `src/cli_rpg/main.py` - `rest --quick` flag, pass cooldown params
+- `src/cli_rpg/camping.py` - Use `CAMP_DREAM_CHANCE`, pass cooldown params
+- `tests/test_dreams.py` - Update and add dream trigger tests
