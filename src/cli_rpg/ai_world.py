@@ -1,6 +1,7 @@
 """AI-powered world generation module."""
 
 import logging
+import random
 from typing import Optional
 from cli_rpg.ai_service import AIService
 from cli_rpg.models.location import Location
@@ -46,6 +47,121 @@ def _find_furthest_room(placed_locations: dict) -> Optional[str]:
             max_distance = distance
             furthest_name = name
     return furthest_name
+
+
+def _place_treasures(
+    placed_locations: dict,
+    entry_category: str,
+) -> None:
+    """Place treasures in non-entry rooms based on area size.
+
+    Modifies placed_locations in-place by adding treasures to Location objects.
+
+    Args:
+        placed_locations: Dict mapping location names to placement data.
+            Each entry has 'location' (Location), 'relative_coords', 'is_entry'.
+        entry_category: Category of the entry location (dungeon, cave, etc.)
+
+    Treasure distribution:
+        - 1 chest for 2-3 rooms
+        - 2 chests for 4-5 rooms
+        - 3 chests for 6+ rooms
+
+    Excludes entry rooms and boss rooms from treasure placement.
+    """
+    # Only place treasures in appropriate categories
+    if entry_category not in TREASURE_CATEGORIES:
+        return
+
+    # Collect non-entry, non-boss rooms with their distances from entry
+    candidates = []
+    for name, data in placed_locations.items():
+        if data.get("is_entry", False):
+            continue
+        loc = data.get("location")
+        if loc is None:
+            continue
+        # Skip boss rooms (boss IS the reward)
+        if loc.boss_enemy is not None:
+            continue
+        rel_x, rel_y = data.get("relative_coords", (0, 0))
+        distance = abs(rel_x) + abs(rel_y)
+        candidates.append((name, distance, loc))
+
+    if not candidates:
+        return
+
+    # Determine number of chests based on total room count
+    total_rooms = len(placed_locations)
+    if total_rooms <= 3:
+        num_chests = 1
+    elif total_rooms <= 5:
+        num_chests = 2
+    else:
+        num_chests = 3
+
+    # Limit to available candidates
+    num_chests = min(num_chests, len(candidates))
+
+    # Sort candidates by distance (furthest first for distribution)
+    candidates.sort(key=lambda x: -x[1])
+
+    # Select rooms with spread distribution
+    # Pick every N-th candidate to spread chests across the area
+    step = max(1, len(candidates) // num_chests)
+    selected = []
+    for i in range(0, len(candidates), step):
+        if len(selected) < num_chests:
+            selected.append(candidates[i])
+
+    # Create treasures for selected rooms
+    for name, distance, loc in selected:
+        treasure = _create_treasure_chest(entry_category, distance)
+        loc.treasures.append(treasure)
+
+
+def _create_treasure_chest(category: str, distance: int) -> dict:
+    """Create a treasure chest with thematic items.
+
+    Args:
+        category: Location category (dungeon, cave, etc.)
+        distance: Manhattan distance from entry (affects difficulty)
+
+    Returns:
+        Treasure dict with schema matching Location.treasures
+    """
+    # Get thematic chest name
+    chest_names = TREASURE_CHEST_NAMES.get(category, ["Treasure Chest"])
+    chest_name = random.choice(chest_names)
+
+    # Get thematic loot
+    loot_table = TREASURE_LOOT_TABLES.get(category, TREASURE_LOOT_TABLES["dungeon"])
+    # Select 1-2 items from loot table
+    num_items = random.randint(1, min(2, len(loot_table)))
+    items = random.sample(loot_table, num_items)
+
+    # Lock difficulty scales with distance (minimum 1)
+    difficulty = max(1, distance + random.randint(0, 1))
+
+    # Generate description based on chest name and category
+    descriptions = {
+        "dungeon": "An old chest left behind by previous adventurers.",
+        "cave": "A chest hidden among the rocks.",
+        "ruins": "An ancient container from a forgotten era.",
+        "temple": "A sacred chest placed as an offering.",
+        "forest": "A chest concealed by overgrown vegetation.",
+    }
+    description = descriptions.get(category, "A mysterious treasure chest.")
+
+    return {
+        "name": chest_name,
+        "description": description,
+        "locked": True,
+        "difficulty": difficulty,
+        "opened": False,
+        "items": [item.copy() for item in items],
+        "requires_key": None,
+    }
 
 
 def _infer_hierarchy_from_category(category: Optional[str]) -> tuple[bool, bool]:
@@ -160,6 +276,49 @@ TERRAIN_SHOP_NAMES: dict[str, str] = {
     "hills": "Hilltop Wares",
     "plains": "Traveling Wares",
 }
+
+
+# Treasure loot tables per location category
+# Items are selected randomly to populate treasure chests
+TREASURE_LOOT_TABLES: dict[str, list[dict]] = {
+    "dungeon": [
+        {"name": "Ancient Blade", "item_type": "weapon", "damage_bonus": 4},
+        {"name": "Rusted Key", "item_type": "misc"},
+        {"name": "Health Potion", "item_type": "consumable", "heal_amount": 25},
+    ],
+    "cave": [
+        {"name": "Glowing Crystal", "item_type": "misc"},
+        {"name": "Cave Spider Venom", "item_type": "consumable", "heal_amount": 15},
+        {"name": "Miner's Pickaxe", "item_type": "weapon", "damage_bonus": 3},
+    ],
+    "ruins": [
+        {"name": "Ancient Tome", "item_type": "misc"},
+        {"name": "Gilded Amulet", "item_type": "armor", "defense_bonus": 2},
+        {"name": "Relic Dust", "item_type": "consumable", "mana_restore": 20},
+    ],
+    "temple": [
+        {"name": "Holy Water", "item_type": "consumable", "heal_amount": 30},
+        {"name": "Sacred Relic", "item_type": "misc"},
+        {"name": "Blessed Medallion", "item_type": "armor", "defense_bonus": 3},
+    ],
+    "forest": [
+        {"name": "Forest Gem", "item_type": "misc"},
+        {"name": "Herbal Remedy", "item_type": "consumable", "heal_amount": 20},
+        {"name": "Wooden Bow", "item_type": "weapon", "damage_bonus": 3},
+    ],
+}
+
+# Thematic chest names per category
+TREASURE_CHEST_NAMES: dict[str, list[str]] = {
+    "dungeon": ["Iron Chest", "Dusty Strongbox", "Forgotten Coffer"],
+    "cave": ["Stone Chest", "Crystal Box", "Hidden Cache"],
+    "ruins": ["Ancient Chest", "Ruined Coffer", "Gilded Box"],
+    "temple": ["Sacred Chest", "Offering Box", "Blessed Container"],
+    "forest": ["Mossy Chest", "Hollow Log Cache", "Vine-Covered Box"],
+}
+
+# Categories that should have treasure chests placed
+TREASURE_CATEGORIES = frozenset({"dungeon", "cave", "ruins", "temple", "forest"})
 
 
 def _create_shop_from_ai_inventory(shop_inventory: list[dict], shop_name: str) -> Optional[Shop]:
@@ -553,6 +712,10 @@ def generate_subgrid_for_location(
             boss_room = sub_grid.get_by_name(boss_room_name)
             if boss_room:
                 boss_room.boss_enemy = location.category  # Category-based boss
+
+    # Place treasures in non-entry, non-boss rooms
+    if placed_locations:
+        _place_treasures(placed_locations, location.category or "dungeon")
 
     return sub_grid
 
@@ -1278,6 +1441,9 @@ def expand_area(
                 boss_room = sub_grid.get_by_name(boss_room_name)
                 if boss_room:
                     boss_room.boss_enemy = entry_category  # Category-based boss
+
+        # Place treasures in non-entry, non-boss rooms
+        _place_treasures(placed_locations, entry_category or "dungeon")
 
         # Attach sub_grid to entry
         entry_loc.sub_grid = sub_grid

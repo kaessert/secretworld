@@ -1,159 +1,211 @@
-# Implementation Plan: Enterable Sublocations on Overworld
+# Implementation Plan: Issue 17 - AI-Generated Treasure Chests
 
-## Problem Summary
-Named locations (dungeons, caves, towns, ruins) are generated on the overworld but **never** have SubGrids attached, making them non-enterable. The `enter` command fails because `current.sub_grid` is always `None` for AI-generated named locations.
+## Spec
 
-## Root Cause Analysis
-1. **Named locations are flat**: `expand_area()` creates named locations with `is_overworld=True` but only creates a SubGrid when there are multiple area locations. Single named locations (the common case on overworld) have no SubGrid.
+AI-generated areas (via `expand_area()` and `generate_subgrid_for_location()`) should include treasure chests that:
+1. Scale with area size (1-3 chests based on number of rooms)
+2. Are distributed across non-entry rooms (not clustered)
+3. Match location category thematically (ancient weapons in ruins, crystals in caves)
+4. Have lock difficulty that scales with distance from entry
+5. Some chests are trap-protected (DEX check to open safely)
 
-2. **No on-demand SubGrid creation**: When player uses `enter` on a named location, the code checks `current.sub_grid is not None` - if it's None (never populated), entry fails.
+## Treasure Schema
 
-3. **ENTERABLE_CATEGORIES not defined**: There's no constant defining which location categories should be enterable. The `BOSS_CATEGORIES` in `ai_world.py` hints at this (dungeon, cave, ruins) but isn't used for determining enterability.
-
-## Implementation
-
-### 1. Define ENTERABLE_CATEGORIES constant
-**File**: `src/cli_rpg/world_tiles.py`
-
-Add a constant defining which location categories should be enterable:
+Existing schema from `world.py` line 531-543:
 ```python
-# Categories that should have enterable SubGrids
-ENTERABLE_CATEGORIES = frozenset({
-    "dungeon", "cave", "ruins", "temple",  # Adventure locations
-    "town", "village", "city", "settlement",  # Settlements
-    "tavern", "shop", "inn",  # Commercial buildings
-})
+treasures=[
+    {
+        "name": "Mossy Chest",
+        "description": "An ancient chest covered in moss...",
+        "locked": True,
+        "difficulty": 2,  # Lock difficulty (higher = harder)
+        "opened": False,
+        "items": [
+            {"name": "...", "description": "...", "item_type": "misc"},
+            {"name": "...", "description": "...", "item_type": "consumable", "heal_amount": 25}
+        ],
+        "requires_key": None  # Optional key name
+    }
+]
 ```
 
-### 2. Create helper to check if a location is enterable
-**File**: `src/cli_rpg/world_tiles.py`
+## Implementation Steps
 
+### Step 1: Add Thematic Treasure Loot Tables
+**File:** `src/cli_rpg/ai_world.py`
+
+Add category-specific loot tables as a constant:
 ```python
-def is_enterable_category(category: Optional[str]) -> bool:
-    """Check if a location category should have an enterable SubGrid."""
-    if category is None:
-        return False
-    return category.lower() in ENTERABLE_CATEGORIES
+TREASURE_LOOT_TABLES: dict[str, list[dict]] = {
+    "dungeon": [
+        {"name": "Ancient Blade", "item_type": "weapon", "damage_bonus": 4},
+        {"name": "Rusted Key", "item_type": "misc"},
+        {"name": "Health Potion", "item_type": "consumable", "heal_amount": 25},
+    ],
+    "cave": [
+        {"name": "Glowing Crystal", "item_type": "misc"},
+        {"name": "Cave Spider Venom", "item_type": "consumable", "heal_amount": 15},
+        {"name": "Miner's Pickaxe", "item_type": "weapon", "damage_bonus": 3},
+    ],
+    "ruins": [
+        {"name": "Ancient Tome", "item_type": "misc"},
+        {"name": "Gilded Amulet", "item_type": "armor", "defense_bonus": 2},
+        {"name": "Relic Dust", "item_type": "consumable", "mana_restore": 20},
+    ],
+    "temple": [
+        {"name": "Holy Water", "item_type": "consumable", "heal_amount": 30},
+        {"name": "Sacred Relic", "item_type": "misc"},
+        {"name": "Blessed Medallion", "item_type": "armor", "defense_bonus": 3},
+    ],
+    "forest": [
+        {"name": "Forest Gem", "item_type": "misc"},
+        {"name": "Herbal Remedy", "item_type": "consumable", "heal_amount": 20},
+        {"name": "Wooden Bow", "item_type": "weapon", "damage_bonus": 3},
+    ],
+}
+
+TREASURE_CHEST_NAMES: dict[str, list[str]] = {
+    "dungeon": ["Iron Chest", "Dusty Strongbox", "Forgotten Coffer"],
+    "cave": ["Stone Chest", "Crystal Box", "Hidden Cache"],
+    "ruins": ["Ancient Chest", "Ruined Coffer", "Gilded Box"],
+    "temple": ["Sacred Chest", "Offering Box", "Blessed Container"],
+    "forest": ["Mossy Chest", "Hollow Log Cache", "Vine-Covered Box"],
+}
 ```
 
-### 3. Create on-demand SubGrid generation function
-**File**: `src/cli_rpg/ai_world.py`
+### Step 2: Add Treasure Placement Helper Function
+**File:** `src/cli_rpg/ai_world.py`
 
-Add a function to generate a SubGrid for a named location that doesn't have one:
+Add `_place_treasures()` helper function (similar pattern to `_find_furthest_room()`):
 ```python
-def generate_subgrid_for_location(
-    location: Location,
-    ai_service: Optional[AIService],
-    theme: str,
-    world_context: Optional[WorldContext] = None,
-    region_context: Optional[RegionContext] = None,
-) -> SubGrid:
-    """Generate a SubGrid for an enterable named location on-demand."""
+def _place_treasures(
+    placed_locations: dict,
+    entry_category: str,
+) -> None:
+    """Place treasures in non-entry rooms based on area size.
+
+    Modifies placed_locations in-place by adding treasures to Location objects.
+
+    Args:
+        placed_locations: Dict mapping location names to placement data.
+            Each entry has 'location' (Location), 'relative_coords', 'is_entry'.
+        entry_category: Category of the entry location (dungeon, cave, etc.)
+
+    Treasure distribution:
+        - 1 chest for 2-3 rooms
+        - 2 chests for 4-5 rooms
+        - 3 chests for 6+ rooms
+    """
 ```
 
-This function should:
-- Get bounds from `get_subgrid_bounds(location.category)`
-- Call `ai_service.generate_area_with_context()` to get interior layout
-- Create SubGrid and populate with generated locations
-- Mark entry location with `is_exit_point=True`
-- Place boss in furthest room for BOSS_CATEGORIES
-- Return the populated SubGrid
+Key logic:
+1. Count non-entry rooms (exclude boss room)
+2. Determine number of chests (1-3)
+3. Select rooms with spread distribution (by distance from entry)
+4. Generate thematic chest with items from loot table
+5. Lock difficulty = distance from entry + random(0,1)
 
-### 4. Modify `enter()` to generate SubGrid on-demand
-**File**: `src/cli_rpg/game_state.py`
+### Step 3: Integrate Treasure Placement into expand_area()
+**File:** `src/cli_rpg/ai_world.py`
 
-In `GameState.enter()`, after checking `current.is_overworld`, add logic to:
-1. Check if location is enterable category but has no sub_grid
-2. Generate SubGrid on-demand using the new function
-3. Attach SubGrid to the location
-4. Continue with normal entry flow
-
+Add treasure placement after boss placement (around line 1280):
 ```python
-def enter(self, target_name: Optional[str] = None) -> tuple[bool, str]:
-    # ... existing code ...
+# Place boss in furthest room for dungeon-type categories
+if entry_category in BOSS_CATEGORIES:
+    # ... existing boss code ...
 
-    # If location is enterable category but has no sub_grid, generate one
-    from cli_rpg.world_tiles import is_enterable_category
-    if current.sub_grid is None and is_enterable_category(current.category):
-        from cli_rpg.ai_world import generate_subgrid_for_location
-        current.sub_grid = generate_subgrid_for_location(
-            location=current,
-            ai_service=self.ai_service,
-            theme=self.theme,
-            world_context=self.world_context,
-            region_context=self.get_or_create_region_context(
-                current.coordinates, current.terrain or "wilderness"
-            ) if current.coordinates else None,
-        )
-        # Set entry_point from first is_exit_point location
-        for loc in current.sub_grid._by_name.values():
-            if loc.is_exit_point:
-                current.entry_point = loc.name
-                break
-
-    # ... rest of existing code ...
+# Place treasures in non-boss rooms
+_place_treasures(placed_locations, entry_category)
 ```
 
-### 5. Update `generate_fallback_location` for enterable categories
-**File**: `src/cli_rpg/world.py`
+### Step 4: Integrate Treasure Placement into generate_subgrid_for_location()
+**File:** `src/cli_rpg/ai_world.py`
 
-When `is_named=True` and `category_hint` is an enterable category, set up `sub_locations` and `entry_point` for fallback generation (even if SubGrid is generated lazily later).
-
-### 6. Display "Enter:" prompt for enterable locations
-**File**: `src/cli_rpg/models/location.py`
-
-Update `get_layered_description()` to show "Enter: <name>" for enterable categories even when sub_grid is None (indicating it will be generated on demand):
-
+Add treasure placement after boss placement (around line 556):
 ```python
-# After existing sub_grid/sub_locations display logic:
-elif is_enterable_category(self.category) and self.is_named:
-    result += f"\nEnter: {colors.location(self.name)}"
+# Place boss in furthest room for dungeon-type categories
+if location.category in BOSS_CATEGORIES and placed_locations:
+    # ... existing boss code ...
+
+# Place treasures in non-boss rooms
+if placed_locations:
+    _place_treasures(placed_locations, location.category or "dungeon")
 ```
 
 ## Tests
 
-### File: `tests/test_enterable_sublocations.py`
+**File:** `tests/test_ai_world_treasure.py`
 
+### Test: Treasure Loot Tables Exist
 ```python
-def test_enterable_categories_constant():
-    """ENTERABLE_CATEGORIES contains expected categories."""
+def test_treasure_loot_tables_contains_dungeon():
+    assert "dungeon" in TREASURE_LOOT_TABLES
 
-def test_is_enterable_category():
-    """is_enterable_category returns correct values."""
+def test_treasure_loot_tables_contains_cave():
+    assert "cave" in TREASURE_LOOT_TABLES
 
-def test_generate_subgrid_for_dungeon():
-    """generate_subgrid_for_location creates SubGrid for dungeon."""
-
-def test_generate_subgrid_for_cave():
-    """generate_subgrid_for_location creates SubGrid for cave."""
-
-def test_generate_subgrid_for_town():
-    """generate_subgrid_for_location creates SubGrid for town."""
-
-def test_enter_generates_subgrid_on_demand():
-    """enter() generates SubGrid when needed for enterable location."""
-
-def test_enter_uses_existing_subgrid():
-    """enter() uses existing SubGrid if already populated."""
-
-def test_enter_fails_for_non_enterable():
-    """enter() fails for non-enterable category locations."""
-
-def test_location_description_shows_enter_for_enterable():
-    """get_layered_description shows Enter: for enterable locations."""
-
-def test_subgrid_has_entry_point():
-    """Generated SubGrid has is_exit_point location for exit."""
-
-def test_boss_placed_in_dungeon_subgrid():
-    """Boss is placed in furthest room for dungeon SubGrids."""
+def test_treasure_loot_tables_items_have_required_fields():
+    for category, items in TREASURE_LOOT_TABLES.items():
+        for item in items:
+            assert "name" in item
+            assert "item_type" in item
 ```
 
-## Implementation Order
+### Test: Treasure Placement Helper
+```python
+def test_place_treasures_adds_chest_to_location():
+    """_place_treasures adds treasure to non-entry rooms."""
 
-1. Add `ENTERABLE_CATEGORIES` and `is_enterable_category()` to `world_tiles.py`
-2. Add `generate_subgrid_for_location()` to `ai_world.py`
-3. Modify `GameState.enter()` to use on-demand generation
-4. Update `Location.get_layered_description()` to show Enter: prompt
-5. Write and run tests
-6. Manual testing with different seeds
+def test_place_treasures_excludes_entry_room():
+    """Entry room should not receive treasures."""
+
+def test_place_treasures_scales_with_room_count():
+    """Number of chests scales: 1 for 2-3, 2 for 4-5, 3 for 6+."""
+
+def test_place_treasures_spreads_across_rooms():
+    """Treasures are distributed, not clustered in one room."""
+
+def test_place_treasures_difficulty_scales_with_distance():
+    """Lock difficulty increases with Manhattan distance from entry."""
+```
+
+### Test: Integration with expand_area()
+```python
+def test_expand_area_dungeon_has_treasures():
+    """expand_area for dungeon category places treasures."""
+
+def test_expand_area_cave_has_treasures():
+    """expand_area for cave category places treasures."""
+
+def test_expand_area_town_has_no_treasures():
+    """Town areas should NOT have random treasures."""
+
+def test_expand_area_treasure_thematically_matches_category():
+    """Treasure items match the category loot table."""
+```
+
+### Test: Integration with generate_subgrid_for_location()
+```python
+def test_generate_subgrid_dungeon_has_treasures():
+    """On-demand SubGrid generation includes treasures."""
+```
+
+## File Changes Summary
+
+| File | Change |
+|------|--------|
+| `src/cli_rpg/ai_world.py` | Add `TREASURE_LOOT_TABLES`, `TREASURE_CHEST_NAMES`, `_place_treasures()`, integrate into `expand_area()` and `generate_subgrid_for_location()` |
+| `tests/test_ai_world_treasure.py` | New test file with ~15 tests |
+
+## Verification
+
+```bash
+# Run treasure-specific tests
+pytest tests/test_ai_world_treasure.py -v
+
+# Run all AI world tests to ensure no regressions
+pytest tests/test_ai_world*.py -v
+
+# Full test suite
+pytest
+```
