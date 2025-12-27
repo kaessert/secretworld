@@ -1,78 +1,60 @@
-# Implementation Summary: Layered AI Integration for Area Generation
+# Implementation Summary: Shop Pricing Consistency Regression Test
 
 ## What Was Implemented
 
-Added `generate_area_with_context()` method to `AIService` that orchestrates layered AI generation (Layers 3-4) for named location clusters, completing Item 4 of the WFC World Generation Overhaul.
+### Verification of Existing Fix
+Confirmed that the "Inconsistent shop pricing message" bug (ISSUES.md line 805) was **already fixed**. The shop display (lines 1384-1396 in main.py) and buy command (lines 1425-1437 in main.py) use identical price calculation logic:
 
-### Files Modified
+1. Apply CHA modifier via `get_cha_price_modifier()`
+2. Apply faction modifier if present
+3. Apply persuade discount (20%) if NPC was persuaded
+4. Apply haggle bonus if active
 
-1. **src/cli_rpg/ai_service.py** (+120 lines)
-   - Added `generate_area_with_context()` method that:
-     - Takes WorldContext (Layer 1) and RegionContext (Layer 2) as inputs
-     - Generates area layout coordinates using `_generate_area_layout()`
-     - Calls `generate_location_with_context()` for each location (Layer 3)
-     - Calls `generate_npcs_for_location()` for each location (Layer 4)
-     - Returns list of location dicts with `relative_coords`, `name`, `description`, `category`, `npcs`
-   - Added `_generate_area_layout()` helper that creates a branching coordinate pattern from origin (0,0)
+### New Test File Created
+**File**: `tests/test_shop_price_consistency.py`
 
-2. **src/cli_rpg/ai_world.py** (+10 lines)
-   - Updated `expand_area()` to conditionally use layered generation:
-     - Uses `generate_area_with_context()` when both `world_context` and `region_context` are provided
-     - Falls back to monolithic `generate_area()` when contexts are None (backward compatibility)
+Added 4 regression tests:
+- `test_shop_display_matches_buy_error_with_cha_modifier()` - Core regression test for the bug
+- `test_shop_display_matches_buy_error_high_cha()` - Tests CHA 20 (10% discount)
+- `test_shop_display_matches_buy_error_low_cha()` - Tests CHA 5 (5% markup)
+- `test_cha_modifier_formula_verified()` - Verifies the CHA modifier formula
 
-3. **tests/test_generate_area_with_context.py** (new file, 9 tests)
-   - Tests for `generate_area_with_context()`:
-     - Returns list of locations
-     - Includes entry at origin (0,0)
-     - Each location has required fields
-     - Uses world context theme in prompts
-     - Uses region context in prompts
-     - Generates NPCs for each location
-     - Respects size parameter
-   - Integration tests for `expand_area()`:
-     - Uses layered generation when contexts provided
-     - Falls back to monolithic without contexts
+### Documentation Update
+**File**: `ISSUES.md` (lines 805-808)
 
-4. **tests/test_ai_failure_fallback.py** (1 line fix)
-   - Added mock for `generate_area_with_context` to test error handling
+Marked issue #3 as resolved with:
+- Resolution date
+- Reference to the fix being part of shop price consistency fix
+- Link to the new regression test file
 
 ## Test Results
+- All 4 new tests pass
+- Full test suite: 3661 passed in 103.21s
 
-All 3657 tests pass (9 new tests added).
+## Files Modified
 
-## Architecture
+| File | Changes |
+|------|---------|
+| `tests/test_shop_price_consistency.py` | New file with 4 regression tests |
+| `ISSUES.md` | Issue #3 marked as RESOLVED |
 
+## Technical Details
+
+The CHA price modifier formula is:
+```python
+# From social_skills.py
+def get_cha_price_modifier(charisma: int) -> float:
+    return 1.0 - (charisma - 10) * 0.01
 ```
-Before (monolithic for areas):
-  expand_area() → generate_area() [single prompt, ignores context]
 
-After (layered for areas):
-  expand_area() → generate_area_with_context() [orchestrates layers 3+4]
-                → for each location:
-                    → generate_location_with_context() [Layer 3]
-                    → generate_npcs_for_location() [Layer 4]
-```
+Examples:
+- CHA 10 = 1.00 (baseline, no change)
+- CHA 11 = 0.99 (1% discount, 100g → 99g)
+- CHA 20 = 0.90 (10% discount, 100g → 90g)
+- CHA 5 = 1.05 (5% markup, 100g → 105g)
 
-## Design Decisions
-
-1. **Size clamping**: Area size clamped to 4-7 locations (matching existing `generate_area()` behavior)
-
-2. **Layout algorithm**: Simple branching pattern starting from origin:
-   - First location at (0,0)
-   - Expands in primary direction (opposite to entry)
-   - Branches perpendicular for variety
-
-3. **Backward compatibility**: When contexts are None, falls back to monolithic generation
-
-4. **Cost tradeoff**: More AI calls (2 per location) but:
-   - Smaller prompts (less likely to fail/truncate)
-   - Better coherence with world/region themes
-   - Reuses proven Layer 3/4 generation code
-
-## E2E Validation
-
-To validate in-game:
-1. Start game with AI enabled
-2. Move to trigger named location generation (after ~5-10 tiles)
-3. Verify generated area locations reference region/world themes
-4. Check NPCs are present and contextually appropriate
+## E2E Test Validation
+If applicable, E2E tests should verify:
+1. Shopping at a merchant displays correct CHA-adjusted prices
+2. Attempting to buy with insufficient gold shows same price in error as in shop display
+3. Successful purchase deducts the displayed (adjusted) price from gold

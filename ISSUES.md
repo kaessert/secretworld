@@ -802,9 +802,10 @@ Issues discovered during WFC mode playtesting (WFC is now enabled by default; up
    - `get_fallback_ascii_art()` now checks for "boar" before falling through to generic beast matching
    - Files modified: `src/cli_rpg/combat.py`, `tests/test_ascii_art.py`
 
-3. **Inconsistent shop pricing message**
-   - Shop display shows one price but error message shows different price
-   - Shop displays: "Iron Sword - 100 gold", Error says: "99 gold needed"
+3. ~~**Inconsistent shop pricing message**~~ ✅ RESOLVED (2025-12-27)
+   - Already fixed as part of shop price consistency fix on 2025-12-26
+   - Shop display and buy command now use identical price calculation logic
+   - Regression test added in `tests/test_shop_price_consistency.py`
 
 4. ~~**Load character screen is overwhelming**~~ ✅ RESOLVED (2025-12-27)
    - Fixed: Load screen now groups autosaves into a single collapsed entry
