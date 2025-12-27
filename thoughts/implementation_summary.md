@@ -1,73 +1,66 @@
-# Issue 10: NPC Relationship Networks - Implementation Summary
+# Implementation Summary: World State Evolution (Issue 12)
 
-## What Was Implemented
+## What was implemented
 
-### New File: `src/cli_rpg/models/npc_relationship.py`
-Created a new model for NPC relationships with:
+### New Module: `src/cli_rpg/models/world_state.py`
 
-1. **`RelationshipType` enum** with 6 relationship types:
-   - `FAMILY` - Family connections
-   - `FRIEND` - Friendship relationships
-   - `RIVAL` - Rivalry/competition
-   - `MENTOR` - Teacher/student relationships
-   - `EMPLOYER` - Employment relationships
-   - `ACQUAINTANCE` - Casual acquaintances
+Created a world state tracking system with:
 
-2. **`NPCRelationship` dataclass** with:
-   - `target_npc: str` - Name of the related NPC
-   - `relationship_type: RelationshipType` - Type of relationship
-   - `trust_level: int` - Trust level 1-100 (default 50, clamped in `__post_init__`)
-   - `description: Optional[str]` - Optional description (e.g., "sister", "former master")
-   - `to_dict()` - Serialization method
-   - `from_dict()` - Deserialization class method
+1. **WorldStateChangeType Enum** - 8 change types:
+   - `LOCATION_DESTROYED` - Location no longer exists
+   - `LOCATION_TRANSFORMED` - Category/description changed
+   - `NPC_KILLED` - NPC removed from world
+   - `NPC_MOVED` - NPC relocated
+   - `FACTION_ELIMINATED` - Faction no longer exists
+   - `BOSS_DEFEATED` - Boss permanently killed
+   - `AREA_CLEARED` - All hostiles removed from location
+   - `QUEST_WORLD_EFFECT` - Custom quest-triggered effect
 
-### Modified File: `src/cli_rpg/models/npc.py`
-Added relationship support to the existing NPC model:
+2. **WorldStateChange Dataclass** - Records individual world changes:
+   - `change_type`: The type of change
+   - `target`: Location/NPC/faction name affected
+   - `description`: Human-readable summary
+   - `timestamp`: Game hour when change occurred
+   - `caused_by`: Optional quest/action that caused it
+   - `metadata`: Type-specific additional data
+   - Includes validation (non-empty target) and full serialization
 
-1. **New field**: `relationships: List[NPCRelationship]` (default empty list)
+3. **WorldStateManager Class** - Central manager with:
+   - Recording methods: `record_change()`, `record_location_transformed()`, `record_npc_killed()`, `record_boss_defeated()`, `record_area_cleared()`
+   - Query methods: `get_changes_for_location()`, `get_changes_by_type()`, `is_location_destroyed()`, `is_npc_killed()`, `is_boss_defeated()`, `is_area_cleared()`
+   - Full serialization: `to_dict()`, `from_dict()` with backward compatibility
 
-2. **New methods**:
-   - `add_relationship(target, rel_type, trust=50, desc=None)` - Add a relationship to another NPC
-   - `get_relationship(target)` - Get relationship by target NPC name (returns Optional[NPCRelationship])
-   - `get_relationships_by_type(rel_type)` - Get all relationships of a given type
+### Integration: `src/cli_rpg/game_state.py`
 
-3. **Updated serialization**:
-   - `to_dict()` now includes `relationships` array
-   - `from_dict()` deserializes relationships (with backward compatibility for saves without relationships)
+- Added import for `WorldStateManager`
+- Added `world_state_manager` attribute initialized in `__init__`
+- Updated `mark_boss_defeated()` to record boss defeats in the world state manager
+- Added serialization in `to_dict()`
+- Added deserialization in `from_dict()` with backward compatibility for old saves
 
 ## Test Results
 
-### New Tests Created
+Created `tests/test_world_state.py` with 27 tests covering:
+- WorldStateChangeType enum values
+- WorldStateChange creation, validation, and serialization
+- WorldStateManager recording methods
+- WorldStateManager query methods
+- Full serialization round-trip
 
-1. **`tests/test_npc_relationship.py`** (16 tests):
-   - 6 tests for RelationshipType enum values
-   - 10 tests for NPCRelationship (creation, trust clamping, serialization, roundtrip)
-
-2. **`tests/test_npc.py`** - Added `TestNPCRelationships` class (9 tests):
-   - Default empty relationships
-   - add_relationship (basic and with defaults)
-   - get_relationship (found and not found)
-   - get_relationships_by_type (with matches and empty)
-   - Full serialization roundtrip
-   - Backward compatibility with old saves
-
-### All Tests Pass
-- 25 NPC tests pass
-- 16 NPCRelationship tests pass
-- Full test suite: **4439 tests passed**
+All 27 new tests pass. Full test suite (4466 tests) passes with no regressions.
 
 ## Design Decisions
 
-1. **Bidirectional by name**: Relationships reference other NPCs by name string rather than object reference, allowing for flexibility and simpler serialization.
+1. **Backward Compatibility**: `from_dict()` handles missing `world_state_manager` data by creating an empty manager, ensuring old saves load correctly.
 
-2. **Trust clamping**: Trust levels are automatically clamped to 1-100 range in `__post_init__` to ensure valid values.
+2. **Location Filtering**: `get_changes_for_location()` checks both the target field and metadata.location to find all changes affecting a location.
 
-3. **Backward compatibility**: Old save files without relationships field deserialize with empty relationships list.
+3. **Boss Defeat Integration**: `mark_boss_defeated()` now records to the world state manager with the current game hour as timestamp, creating a permanent record of the defeat.
 
-4. **Relationship stored on NPC**: Each NPC stores its own list of relationships to other NPCs, allowing for asymmetric relationships (NPC A sees B as a friend, but B might see A as an acquaintance).
+4. **Simple Validation**: Only validates that target is non-empty; further validation can be added as needed.
 
-## E2E Validation Suggestions
+## E2E Tests Should Validate
 
-- Create NPCs with relationships and verify they appear correctly
-- Save/load game with NPCs that have relationships
-- Test loading old save files (should work with empty relationships)
+1. Boss defeat persists after save/load
+2. World state changes visible after game reload
+3. Query methods return correct results after serialization round-trip

@@ -20,6 +20,7 @@ from cli_rpg.models.world_context import WorldContext
 from cli_rpg.models.region_context import RegionContext
 from cli_rpg.models.generation_context import GenerationContext
 from cli_rpg.models.quest_outcome import QuestOutcome
+from cli_rpg.models.world_state import WorldStateManager
 from cli_rpg.combat import (
     CombatEncounter,
     ai_spawn_enemy,
@@ -301,6 +302,8 @@ class GameState:
         self.quest_outcomes: list[QuestOutcome] = []
         # Visibility system: tiles the player has seen (within visibility radius)
         self.seen_tiles: set[tuple[int, int]] = set()
+        # World state tracking for persistent world changes
+        self.world_state_manager = WorldStateManager()
 
     @property
     def is_in_conversation(self) -> bool:
@@ -472,12 +475,19 @@ class GameState:
         """Mark the current location's boss as defeated.
 
         Called after a boss is defeated in combat. Sets boss_defeated=True
-        and makes the location a safe zone.
+        and makes the location a safe zone. Also records the defeat in the
+        world state manager for permanent tracking.
         """
         location = self.get_current_location()
         if location.boss_enemy and not location.boss_defeated:
             location.boss_defeated = True
             location.is_safe_zone = True
+            # Record in world state manager for permanent tracking
+            self.world_state_manager.record_boss_defeated(
+                boss_name=location.boss_enemy,
+                location=location.name,
+                timestamp=self.game_time.total_hours,
+            )
     
     def trigger_encounter(self, location_name: str) -> Optional[str]:
         """Potentially spawn enemies based on location.
@@ -1619,6 +1629,7 @@ class GameState:
             "last_dream_hour": self.last_dream_hour,
             "quest_outcomes": [outcome.to_dict() for outcome in self.quest_outcomes],
             "seen_tiles": list(self.seen_tiles),
+            "world_state_manager": self.world_state_manager.to_dict(),
         }
         # Include chunk_manager if present (WFC terrain)
         if self.chunk_manager is not None:
@@ -1738,6 +1749,11 @@ class GameState:
 
         # Restore seen_tiles (default to empty set for backward compatibility)
         game_state.seen_tiles = set(tuple(t) for t in data.get("seen_tiles", []))
+
+        # Restore world_state_manager (default to empty for backward compatibility)
+        game_state.world_state_manager = WorldStateManager.from_dict(
+            data.get("world_state_manager")
+        )
 
         # Restore chunk_manager if present (WFC terrain)
         if "chunk_manager" in data:

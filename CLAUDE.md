@@ -99,7 +99,8 @@ src/cli_rpg/
     ├── region_context.py # Region-level context for layered AI generation (Layer 2)
     ├── settlement_context.py # Settlement-level context for layered AI generation (Layer 5)
     ├── lore_context.py  # Lore context for historical events, legends (Layer 6)
-    └── generation_context.py # Unified context aggregator for AI prompt generation
+    ├── generation_context.py # Unified context aggregator for AI prompt generation
+    └── world_state.py   # World state tracking for permanent changes (boss defeats, NPC deaths, etc.)
 ```
 
 ## Key Architectural Patterns

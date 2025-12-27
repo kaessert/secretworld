@@ -1,69 +1,121 @@
-# Issue 10: NPC Relationship Networks - Implementation Plan
+# Issue 12: World State Evolution Implementation Plan
 
 ## Spec
 
-Create a relationship model to track connections between NPCs with:
-- **Relationship types**: FAMILY, FRIEND, RIVAL, MENTOR, EMPLOYER, ACQUAINTANCE
-- **Trust levels**: 1-100 scale representing relationship strength
-- **Bidirectional references**: Each NPC stores its relationships to other NPCs (by name)
+**WorldStateManager** tracks persistent world changes from quest outcomes, combat victories, and player actions. Changes are stored as typed `WorldStateChange` records that can be queried by locations, NPCs, and event systems to create meaningful consequences.
 
-## Files to Create
+### Core Data Model
 
-### 1. `src/cli_rpg/models/npc_relationship.py`
 ```python
-# RelationshipType enum with values: FAMILY, FRIEND, RIVAL, MENTOR, EMPLOYER, ACQUAINTANCE
-# NPCRelationship dataclass:
-#   - target_npc: str (name of related NPC)
-#   - relationship_type: RelationshipType
-#   - trust_level: int (1-100, default 50)
-#   - description: Optional[str] (e.g., "sister", "former master")
-# Methods:
-#   - to_dict() -> dict
-#   - from_dict(cls, data) -> NPCRelationship
+class WorldStateChangeType(Enum):
+    LOCATION_DESTROYED = "location_destroyed"   # Location no longer exists
+    LOCATION_TRANSFORMED = "location_transformed"  # Category/description changed
+    NPC_KILLED = "npc_killed"                   # NPC removed from world
+    NPC_MOVED = "npc_moved"                     # NPC relocated
+    FACTION_ELIMINATED = "faction_eliminated"   # Faction no longer exists
+    BOSS_DEFEATED = "boss_defeated"             # Boss permanently killed
+    AREA_CLEARED = "area_cleared"               # All hostiles removed from location
+    QUEST_WORLD_EFFECT = "quest_world_effect"   # Custom quest-triggered effect
+
+@dataclass
+class WorldStateChange:
+    change_type: WorldStateChangeType
+    target: str                    # Location/NPC/faction name
+    description: str               # Human-readable summary
+    timestamp: int                 # Game hour when change occurred
+    caused_by: Optional[str]       # Quest name or action that caused it
+    metadata: dict                 # Type-specific extra data
 ```
 
-### 2. `tests/test_npc_relationship.py`
+### WorldStateManager API
+
 ```python
-# Test RelationshipType enum values exist
-# Test NPCRelationship creation with all fields
-# Test trust_level clamping to 1-100
-# Test to_dict() serialization
-# Test from_dict() deserialization
-# Test roundtrip serialization
+class WorldStateManager:
+    def __init__(self): ...
+
+    # Recording changes
+    def record_change(self, change: WorldStateChange) -> Optional[str]
+    def record_location_transformed(self, name: str, new_category: str, desc: str, caused_by: str) -> Optional[str]
+    def record_npc_killed(self, npc_name: str, location: str, caused_by: str) -> Optional[str]
+    def record_boss_defeated(self, boss_name: str, location: str) -> Optional[str]
+    def record_area_cleared(self, location: str, caused_by: str) -> Optional[str]
+
+    # Querying changes
+    def get_changes_for_location(self, location: str) -> list[WorldStateChange]
+    def get_changes_by_type(self, change_type: WorldStateChangeType) -> list[WorldStateChange]
+    def is_location_destroyed(self, location: str) -> bool
+    def is_npc_killed(self, npc_name: str) -> bool
+    def is_boss_defeated(self, location: str) -> bool
+    def is_area_cleared(self, location: str) -> bool
+
+    # Serialization
+    def to_dict(self) -> dict
+    @classmethod
+    def from_dict(cls, data: dict) -> WorldStateManager
 ```
 
-## Files to Modify
+---
 
-### 3. `src/cli_rpg/models/npc.py`
-Add to NPC dataclass:
-```python
-relationships: List["NPCRelationship"] = field(default_factory=list)
-```
+## Tests First (TDD)
 
-Add methods:
-```python
-def add_relationship(self, target: str, rel_type: RelationshipType, trust: int = 50, desc: str = None) -> None
-def get_relationship(self, target: str) -> Optional[NPCRelationship]
-def get_relationships_by_type(self, rel_type: RelationshipType) -> List[NPCRelationship]
-```
+### File: `tests/test_world_state.py`
 
-Update `to_dict()` and `from_dict()` to include relationships.
+1. **WorldStateChange dataclass**
+   - Test creation with required fields
+   - Test validation (non-empty target, valid type)
+   - Test to_dict/from_dict serialization
 
-### 4. `tests/test_npc.py`
-Add tests:
-```python
-# test_npc_relationships_default_empty()
-# test_add_relationship_basic()
-# test_get_relationship_by_name()
-# test_get_relationships_by_type()
-# test_npc_with_relationships_serialization()
-# test_npc_backward_compat_no_relationships()
-```
+2. **WorldStateManager recording**
+   - Test record_change adds to history
+   - Test record_location_transformed creates correct change
+   - Test record_npc_killed creates correct change
+   - Test record_boss_defeated creates correct change
+   - Test record_area_cleared creates correct change
 
-## Implementation Order
+3. **WorldStateManager querying**
+   - Test get_changes_for_location filters correctly
+   - Test get_changes_by_type filters correctly
+   - Test is_location_destroyed returns True/False correctly
+   - Test is_npc_killed returns True/False correctly
+   - Test is_boss_defeated returns True/False correctly
+   - Test is_area_cleared returns True/False correctly
 
-1. Create `tests/test_npc_relationship.py` with tests for NPCRelationship model
-2. Create `src/cli_rpg/models/npc_relationship.py` - run tests until passing
-3. Add relationship tests to `tests/test_npc.py`
-4. Modify `src/cli_rpg/models/npc.py` to add relationships field and methods - run tests until passing
-5. Run full test suite to verify no regressions
+4. **Serialization**
+   - Test WorldStateManager to_dict includes all changes
+   - Test WorldStateManager from_dict restores all changes
+   - Test backward compatibility (empty list if no world_state_manager in save)
+
+---
+
+## Implementation Steps
+
+### Step 1: Create `tests/test_world_state.py`
+Write all tests first per TDD approach.
+
+### Step 2: Create `src/cli_rpg/models/world_state.py`
+
+- Define `WorldStateChangeType` enum
+- Define `WorldStateChange` dataclass with validation in `__post_init__`
+- Define `WorldStateManager` class with:
+  - `_changes: list[WorldStateChange]` storage
+  - Recording methods (all return Optional[str] message)
+  - Query methods (return bool or filtered lists)
+  - to_dict/from_dict for serialization
+
+### Step 3: Integrate into `game_state.py`
+
+- Add `world_state_manager: WorldStateManager` attribute to `GameState.__init__`
+- Initialize to `WorldStateManager()` in constructor
+- Add serialization in `to_dict()`: `"world_state_manager": self.world_state_manager.to_dict()`
+- Add deserialization in `from_dict()`: restore or create empty manager
+- Update `mark_boss_defeated()` to call `world_state_manager.record_boss_defeated()`
+
+---
+
+## Files Changed
+
+| File | Change |
+|------|--------|
+| `tests/test_world_state.py` | **NEW** - All tests for world state system |
+| `src/cli_rpg/models/world_state.py` | **NEW** - WorldStateChangeType, WorldStateChange, WorldStateManager |
+| `src/cli_rpg/game_state.py` | Add world_state_manager attribute, to_dict/from_dict updates, mark_boss_defeated hook |
