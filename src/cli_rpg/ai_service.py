@@ -2567,7 +2567,8 @@ Note: Use "EXISTING_WORLD" as placeholder for the connection back to the source 
         region_context: "RegionContext",
         source_location: Optional[str] = None,
         direction: Optional[str] = None,
-        terrain_type: Optional[str] = None
+        terrain_type: Optional[str] = None,
+        neighboring_locations: Optional[list[dict]] = None
     ) -> dict:
         """Generate a new location using layered context (Layer 3).
 
@@ -2581,6 +2582,7 @@ Note: Use "EXISTING_WORLD" as placeholder for the connection back to the source 
             source_location: Optional location to expand from
             direction: Optional direction of expansion from source
             terrain_type: Optional terrain type (e.g., "desert", "forest") for coherent generation
+            neighboring_locations: Optional list of dicts with name and direction for spatial coherence
 
         Returns:
             Dictionary with keys: name, description, category, npcs (empty list)
@@ -2596,7 +2598,8 @@ Note: Use "EXISTING_WORLD" as placeholder for the connection back to the source 
             region_context=region_context,
             source_location=source_location,
             direction=direction,
-            terrain_type=terrain_type
+            terrain_type=terrain_type,
+            neighboring_locations=neighboring_locations
         )
 
         # Check cache if enabled
@@ -2630,7 +2633,8 @@ Note: Use "EXISTING_WORLD" as placeholder for the connection back to the source 
         region_context: "RegionContext",
         source_location: Optional[str],
         direction: Optional[str],
-        terrain_type: Optional[str] = None
+        terrain_type: Optional[str] = None,
+        neighboring_locations: Optional[list[dict]] = None
     ) -> str:
         """Build prompt for location generation using layered context.
 
@@ -2640,6 +2644,7 @@ Note: Use "EXISTING_WORLD" as placeholder for the connection back to the source 
             source_location: Deprecated, kept for API compatibility
             direction: Deprecated, kept for API compatibility
             terrain_type: Optional terrain type for coherent generation
+            neighboring_locations: Optional list of dicts with name and direction for spatial coherence
 
         Returns:
             Formatted prompt string using minimal template
@@ -2647,13 +2652,22 @@ Note: Use "EXISTING_WORLD" as placeholder for the connection back to the source 
         # Format terrain type (source_location and direction no longer used)
         terrain_text = terrain_type if terrain_type else "wilderness"
 
+        # Format neighboring locations as comma-separated "Name (direction)" or "none yet"
+        if neighboring_locations:
+            neighbors_text = ", ".join(
+                f"{loc['name']} ({loc['direction']})" for loc in neighboring_locations
+            )
+        else:
+            neighbors_text = "none yet"
+
         # Use minimal template from config
         prompt = self.config.location_prompt_minimal.format(
             theme=world_context.theme,
             theme_essence=world_context.theme_essence,
             region_name=region_context.name,
             region_theme=region_context.theme,
-            terrain_type=terrain_text
+            terrain_type=terrain_text,
+            neighboring_locations=neighbors_text
         )
 
         return prompt

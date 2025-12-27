@@ -434,13 +434,27 @@ def expand_world(
     # Generate new location - use layered approach if contexts provided
     logger.info(f"Expanding world: {direction} from {from_location}")
     if world_context is not None and region_context is not None:
+        # Gather neighboring locations for spatial coherence
+        neighboring_locations: list[dict] = []
+        if target_coords is not None:
+            for dir_name, (dx, dy) in DIRECTION_OFFSETS.items():
+                neighbor_coords = (target_coords[0] + dx, target_coords[1] + dy)
+                for loc in world.values():
+                    if loc.coordinates == neighbor_coords:
+                        neighboring_locations.append({
+                            "name": loc.name,
+                            "direction": dir_name
+                        })
+                        break
+
         # Use layered generation (Layer 3 for location, Layer 4 for NPCs)
         location_data = ai_service.generate_location_with_context(
             world_context=world_context,
             region_context=region_context,
             source_location=from_location,
             direction=direction,
-            terrain_type=terrain_type
+            terrain_type=terrain_type,
+            neighboring_locations=neighboring_locations if neighboring_locations else None
         )
         # Generate NPCs separately (Layer 4)
         npcs_data = ai_service.generate_npcs_for_location(

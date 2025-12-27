@@ -1308,11 +1308,11 @@ Target: NPCs should **only exist inside named sub-locations** (villages, dungeon
 
 **Phase 1: High Priority (Integrate existing systems)**
 
-1. **Enrich Location Prompts** (Partially Complete)
+1. **Enrich Location Prompts** (Complete)
    - [x] Add `terrain_type` from ChunkManager to prompt ✓ (2025-12-26)
    - [x] Add `world_theme_essence` from WorldContext to prompt ✓ (2025-12-27)
-   - [ ] Add `region_theme` from RegionContext to prompt
-   - [ ] Add `neighboring_locations` names/themes for coherence
+   - [x] Add `region_theme` from RegionContext to prompt ✓ (2025-12-27)
+   - [x] Add `neighboring_locations` names/themes for coherence ✓ (2025-12-27)
 
    **Files to modify**:
    - `src/cli_rpg/ai_config.py`: Expand `DEFAULT_LOCATION_PROMPT_MINIMAL`

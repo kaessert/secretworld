@@ -305,6 +305,7 @@ Region Context:
 - Region Name: {region_name}
 - Region Theme: {region_theme}
 - Terrain: {terrain_type}
+- Nearby: {neighboring_locations}
 
 Requirements:
 1. Create a unique location name (2-50 characters) that fits the region theme and terrain

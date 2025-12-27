@@ -402,3 +402,14 @@ def test_ai_config_serialization_includes_new_prompts():
     assert restored_config.region_context_prompt == custom_region
     assert restored_config.location_prompt_minimal == custom_location
     assert restored_config.npc_prompt_minimal == custom_npc
+
+
+# Test: LOCATION_PROMPT_MINIMAL contains {neighboring_locations} placeholder
+def test_ai_config_location_prompt_minimal_has_neighboring():
+    """Test location_prompt_minimal includes {neighboring_locations} placeholder.
+
+    Spec: Phase 1, item 4 of World Generation Immersion - Add neighboring_locations
+    names/themes for spatial coherence in location generation.
+    """
+    config = AIConfig(api_key="test-key")
+    assert "{neighboring_locations}" in config.location_prompt_minimal

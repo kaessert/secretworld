@@ -107,12 +107,13 @@ Core service for interacting with LLM APIs.
 - Returns `RegionContext` instance
 - Raises `AIGenerationError` on generation failure
 
-`generate_location_with_context(theme: str, world_context: WorldContext, region_context: RegionContext, source_location: Optional[str] = None, direction: Optional[str] = None, terrain_type: Optional[str] = None) -> dict`
+`generate_location_with_context(theme: str, world_context: WorldContext, region_context: RegionContext, source_location: Optional[str] = None, direction: Optional[str] = None, terrain_type: Optional[str] = None, neighboring_locations: Optional[list[dict]] = None) -> dict`
 - Generate Layer 3 location using minimal prompt with cached context
 - Uses `location_prompt_minimal` template from AIConfig
 - Returns location dict with empty `npcs` list (NPCs generated separately in Layer 4)
 - Accepts optional `world_context` and `region_context` for thematic consistency
 - Accepts optional `terrain_type` to ensure generated locations match WFC terrain (e.g., desert oasis on desert tiles)
+- Accepts optional `neighboring_locations` list (each dict has `name`, `direction`) for spatial coherence with adjacent locations
 - Defaults to "wilderness" when terrain_type is None
 - Raises `AIGenerationError` on generation failure
 
@@ -334,6 +335,7 @@ Context:
 - Terrain Type: {terrain_type}
 - Expanding from: {source_location}
 - Direction: {direction}
+- Nearby: {neighboring_locations}
 
 Requirements:
 1. Create a unique location name (2-50 characters)
@@ -341,6 +343,7 @@ Requirements:
 3. Assign a category (town, dungeon, wilderness, settlement, ruins, cave, forest, mountain, village)
 4. Ensure the location fits the {theme} theme
 5. Make the location interesting and explorable
+6. Consider nearby locations for thematic and spatial consistency
 
 Respond with valid JSON in this exact format:
 {
@@ -350,7 +353,7 @@ Respond with valid JSON in this exact format:
 }
 ```
 
-**Note**: This is a simplified example. The actual prompts (`DEFAULT_LOCATION_PROMPT_MINIMAL` in `ai_config.py`) include world context, region context, and request NPCs separately. Connections are NOT requested - they are determined by the WFC terrain system.
+**Note**: This is a simplified example. The actual prompts (`DEFAULT_LOCATION_PROMPT_MINIMAL` in `ai_config.py`) include world context, region context, neighboring locations, and request NPCs separately. Connections are NOT requested - they are determined by the WFC terrain system.
 
 ## 5. Error Handling
 

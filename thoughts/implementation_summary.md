@@ -1,56 +1,49 @@
-# Implementation Summary: RNG Seeds in Logs for Reproducibility
+# Implementation Summary: Add Neighboring Locations to Location Prompts
 
 ## What Was Implemented
 
-Added RNG seed tracking and logging to enable session replay for debugging.
+Added `{neighboring_locations}` context to the minimal location generation prompt (Phase 1, item 4 of World Generation Immersion). This provides the AI with context about nearby locations for spatial coherence when generating new locations.
 
 ### Files Modified
 
-1. **`src/cli_rpg/logging_service.py`**
-   - Updated `log_session_start()` to accept optional `seed` parameter
-   - When seed is provided, it's included in the session_start log entry
+1. **`src/cli_rpg/ai_config.py`** (line 308)
+   - Added `- Nearby: {neighboring_locations}` placeholder to `DEFAULT_LOCATION_PROMPT_MINIMAL` under Region Context
 
-2. **`src/cli_rpg/json_output.py`**
-   - Added new function `emit_session_info(seed: int, theme: str)`
-   - Emits `{"type": "session_info", "seed": ..., "theme": ...}` message
+2. **`src/cli_rpg/ai_service.py`** (lines 2571, 2585, 2602, 2637, 2647, 2655-2661, 2670)
+   - Added `neighboring_locations: Optional[list[dict]] = None` parameter to `generate_location_with_context()`
+   - Added `neighboring_locations: Optional[list[dict]] = None` parameter to `_build_location_with_context_prompt()`
+   - Added formatting logic: neighbors displayed as comma-separated "Name (direction)" or "none yet" if empty
+   - Pass `neighboring_locations` through to template format call
 
-3. **`src/cli_rpg/main.py`**
-   - Updated `main()` to generate seed early if not provided via `--seed`
-   - Seeds the global RNG with the generated/provided seed
-   - Passes seed to `run_json_mode()` and `run_non_interactive()`
-   - Updated `run_json_mode()`:
-     - Added `seed` parameter
-     - Uses provided seed for ChunkManager instead of generating new one
-     - Emits `session_info` message with seed
-     - Passes seed to `logger.log_session_start()`
-   - Updated `run_non_interactive()`:
-     - Added `seed` parameter
-     - Uses provided seed for ChunkManager
-     - Passes seed to `logger.log_session_start()`
+3. **`src/cli_rpg/ai_world.py`** (lines 437-448, 457)
+   - Added neighbor gathering logic in `expand_world()` before calling `generate_location_with_context()`
+   - Iterates through `DIRECTION_OFFSETS` to find existing locations at neighboring coordinates
+   - Builds list of `{name, direction}` dicts for each neighbor found
 
-### New Test File
+4. **`tests/test_ai_config.py`** (lines 407-415)
+   - Added `test_ai_config_location_prompt_minimal_has_neighboring()` test verifying the placeholder exists
 
-**`tests/test_rng_seed_logging.py`**
-- `test_seed_logged_in_session_start`: Verifies seed field in session_start log entry
-- `test_no_seed_when_not_provided`: Verifies no seed field when not provided
-- `test_emit_session_info`: Verifies session_info JSON output with seed
-- `test_auto_generated_seed_is_positive_integer`: Validates auto-generated seeds
-- `test_same_seed_produces_reproducible_results`: Confirms same seed produces identical results
+5. **`ISSUES.md`** (lines 1311-1315)
+   - Updated Phase 1 task status to "Complete"
+   - Marked `region_theme` as done (was already implemented)
+   - Marked `neighboring_locations` as done
 
 ## Test Results
 
-All 5 new tests pass. Full test suite: 3678 passed, 1 pre-existing flaky test failed (unrelated combat test).
+- All 3680 tests pass
+- New test `test_ai_config_location_prompt_minimal_has_neighboring` passes
+- All 123 ai_config and ai_service tests pass
 
-## Verification
+## Design Decisions
 
-- JSON mode emits `{"type": "session_info", "seed": N, "theme": "fantasy"}` on startup
-- Log files include `"seed": N` in session_start entries
-- Seed is passed through correctly from `--seed` argument
-- Auto-generated seeds are in valid range (0 to 2^31-1)
+1. **Format**: Neighbors formatted as "Name (direction)" for readability, e.g., "Dark Forest (north), Ancient Tower (east)"
+2. **Empty state**: "none yet" when no neighbors exist (first location or edge of explored area)
+3. **Optional parameter**: Default to `None` for backward compatibility
+4. **Coordinate-based lookup**: Uses `target_coords` to find neighbors at adjacent coordinates, consistent with existing grid-based navigation
 
 ## E2E Validation
 
-To validate:
-1. Run `cli-rpg --json --skip-character-creation --seed 12345` and verify first line contains seed
-2. Run `cli-rpg --non-interactive --log-file test.log --seed 12345` and verify log contains seed in session_start
-3. Run twice with same seed to verify reproducible terrain generation
+When playing the game and exploring, the AI should now generate locations that:
+- Reference nearby locations in their descriptions
+- Have names/themes that fit with adjacent areas
+- Create more spatially coherent world-building

@@ -1,60 +1,99 @@
-# RNG Seeds in Logs for Reproducibility
+# Implementation Plan: Add Neighboring Locations to Location Prompts
 
 ## Summary
-Include the RNG seed used for each session in logs and JSON output, enabling session replay for debugging.
+Add `neighboring_locations` context to the minimal location generation prompt (Phase 1, item 4 of World Generation Immersion). This provides the AI with context about nearby locations for spatial coherence.
+
+**Note**: The `region_theme` task (line 1314 in ISSUES.md) is already complete - it's implemented in `ai_config.py:306` and `ai_service.py:2655`. ISSUES.md should be updated to check it off.
+
+---
 
 ## Spec
-- When `--seed N` is provided, log that seed in `session_start`
-- When no seed is provided, generate a random seed, apply it, and log it
-- Add `seed` field to `session_start` log entry type
-- Add `emit_session_info()` to JSON output for session metadata including seed
 
-## Files to Modify
+**Goal**: Pass a list of neighboring location names/descriptions to the location generation prompt so AI can generate locations that fit spatially with their surroundings.
 
-### 1. `src/cli_rpg/logging_service.py`
-Update `log_session_start()` to accept optional `seed` parameter:
+**Input**:
+- Existing prompt parameters plus `neighboring_locations: list[dict]` where each dict has `name`, `description`, `direction`
+
+**Output**:
+- Location generation prompt includes "Nearby:" section listing what's nearby
+
+**Constraints**:
+- Only include existing neighbors (not all 4 directions)
+- Keep neighbor info concise (name + direction)
+- Optional parameter - "none yet" if no neighbors exist
+
+---
+
+## Implementation Steps
+
+### 1. Update `DEFAULT_LOCATION_PROMPT_MINIMAL` in `ai_config.py`
+
+Add `{neighboring_locations}` placeholder after terrain_type (line ~307):
+
 ```python
-def log_session_start(self, character_name: str, location: str, theme: str, seed: Optional[int] = None) -> None:
+Region Context:
+- Region Name: {region_name}
+- Region Theme: {region_theme}
+- Terrain: {terrain_type}
+- Nearby: {neighboring_locations}
 ```
-Add `seed` to the entry data when provided.
 
-### 2. `src/cli_rpg/json_output.py`
-Add new function for session info in JSON mode:
+### 2. Update `_build_location_with_context_prompt` in `ai_service.py`
+
+Modify signature (line ~2627) and implementation (line ~2647):
+
+- Add parameter: `neighboring_locations: Optional[list[dict]] = None`
+- Format as comma-separated "Name (direction)" or "none yet" if empty
+- Pass to template format call
+
+### 3. Update `generate_location_with_context` in `ai_service.py`
+
+Add parameter (line ~2564) and pass through to prompt builder (line ~2594).
+
+### 4. Update `expand_world` in `ai_world.py`
+
+Gather neighbor info before calling `generate_location_with_context` (line ~436):
+
 ```python
-def emit_session_info(seed: int, theme: str) -> None:
-    """Emit session metadata including RNG seed."""
-    print(json.dumps({"type": "session_info", "seed": seed, "theme": theme}))
+neighboring_locations = []
+if target_coords:
+    for dir_name, (dx, dy) in DIRECTION_OFFSETS.items():
+        neighbor_coords = (target_coords[0] + dx, target_coords[1] + dy)
+        for loc in world.values():
+            if loc.coordinates == neighbor_coords:
+                neighboring_locations.append({
+                    "name": loc.name,
+                    "direction": dir_name
+                })
+                break
 ```
 
-### 3. `src/cli_rpg/main.py`
-- In `run_json_mode()` (~line 2596-2630):
-  - Generate seed if not provided: `seed = parsed_args.seed if parsed_args.seed is not None else rnd.randint(0, 2**31 - 1)`
-  - Apply seed before world creation: `random.seed(seed)`
-  - Pass seed to `ChunkManager` instead of generating new one
-  - Call `emit_session_info(seed, theme)` after state emit
-  - Pass seed to `logger.log_session_start()`
+### 5. Add test in `tests/test_ai_config.py`
 
-- In `run_non_interactive()` (~line 2817-2850):
-  - Same seed generation/application pattern
-  - Pass seed to `logger.log_session_start()`
+```python
+def test_ai_config_location_prompt_minimal_has_neighboring():
+    """Test location_prompt_minimal includes {neighboring_locations} placeholder."""
+    config = AIConfig(api_key="test-key")
+    assert "{neighboring_locations}" in config.location_prompt_minimal
+```
 
-- In `main()` (~line 2994-2996):
-  - Generate seed if not provided before `random.seed()` call
-  - Store seed for later use (pass to game modes)
+### 6. Update ISSUES.md (line ~1311-1315)
 
-## Tests
+Mark both tasks complete:
+```markdown
+1. **Enrich Location Prompts** (Complete)
+   - [x] Add `terrain_type` from ChunkManager ✓ (2025-12-26)
+   - [x] Add `world_theme_essence` from WorldContext ✓ (2025-12-27)
+   - [x] Add `region_theme` from RegionContext ✓ (2025-12-27)
+   - [x] Add `neighboring_locations` names for coherence ✓ (2025-12-27)
+```
 
-### `tests/test_rng_seed_logging.py` (new file)
-1. `test_seed_logged_in_session_start`: Verify `session_start` includes `seed` field
-2. `test_auto_generated_seed_logged`: When no `--seed`, verify a seed is still logged
-3. `test_json_mode_emits_session_info`: Verify `session_info` message with seed in JSON output
-4. `test_same_seed_same_session_log`: Same seed produces identical seeds in log
+---
 
-## Implementation Order
-1. Update `log_session_start()` signature in `logging_service.py`
-2. Add `emit_session_info()` to `json_output.py`
-3. Update `run_json_mode()` to generate/track seed and emit session info
-4. Update `run_non_interactive()` to generate/track seed and log it
-5. Update `main()` to generate seed early if needed
-6. Add tests in `tests/test_rng_seed_logging.py`
-7. Run `pytest` to verify
+## Files Modified
+
+1. `src/cli_rpg/ai_config.py` - Add `{neighboring_locations}` to prompt template
+2. `src/cli_rpg/ai_service.py` - Add parameter to generation methods, format neighbors
+3. `src/cli_rpg/ai_world.py` - Gather neighbor info in `expand_world`
+4. `tests/test_ai_config.py` - Add test for new placeholder
+5. `ISSUES.md` - Mark tasks complete
