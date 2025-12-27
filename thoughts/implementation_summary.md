@@ -82,14 +82,58 @@
 
 6. **Backward compatible serialization** - New fields are only included in `to_dict()` if non-empty, and `from_dict()` provides sensible defaults.
 
+### Phase 3 (Just Completed - AI Puzzle Generation)
+
+#### Modified Files
+
+1. **`src/cli_rpg/ai_world.py`**
+   - `PUZZLE_CATEGORIES` (line 384): frozenset of categories that get puzzles (dungeon, cave, ruins, temple)
+   - `PUZZLE_TEMPLATES` (lines 424-472): Dict mapping categories to puzzle template tuples with all 5 puzzle types
+   - `_generate_puzzles_for_location()` (lines 525-644): Generates 0-2 puzzles per room based on:
+     - Distance from entry (no puzzles at entry room)
+     - Random chance (25% none, 50% one, 25% two)
+     - Hint threshold scales with distance and z-level
+   - `_place_keys_in_earlier_rooms()` (lines 647-703): Places keys for LOCKED_DOOR puzzles in rooms at distance < door_distance
+   - Integration in `generate_subgrid_for_location()` (lines 1096-1127): Adds puzzles and keys during SubGrid generation
+   - Integration in `expand_area()` (lines 1781-1895): Adds puzzles and keys during area expansion
+
+2. **`tests/test_ai_puzzle_generation.py`** (New File - 472 lines)
+   - TestPuzzleConstants (2 tests): Constants validation
+   - TestGeneratePuzzlesForLocation (8 tests): Puzzle generation logic
+   - TestPlaceKeysInEarlierRooms (2 tests): Key placement for locked doors
+   - TestSubGridPuzzleIntegration (4 tests): End-to-end SubGrid integration
+
+#### Puzzle Template Format
+Each puzzle type has a specific tuple format:
+- LOCKED_DOOR: `(type, name, desc, required_key, hint_threshold, hint_text)`
+- LEVER/PRESSURE_PLATE: `(type, name, desc, None, hint_threshold, hint_text)`
+- RIDDLE: `(type, name, desc, riddle_text, riddle_answer, hint_threshold, hint_text)`
+- SEQUENCE: `(type, name, desc, sequence_ids, hint_threshold, hint_text)`
+
+#### Key Placement Logic
+Keys are placed using this priority:
+1. Non-entry room at distance < door_distance (closest to door preferred)
+2. Fallback to entry room if no valid candidates
+
+#### Threshold Scaling
+`threshold = base_threshold + min(distance, 3) + abs(z_level)`
+
+This makes deeper rooms require higher INT for hints.
+
+## Test Results
+
+- **Puzzle model tests**: 30 tests in `test_puzzles.py`
+- **Command tests**: 16 tests in `test_puzzle_commands.py`
+- **AI generation tests**: 16 tests in `test_ai_puzzle_generation.py`
+- **Total puzzle tests**: 62 passing
+- **Full test suite**: 4606+ tests passing
+
 ## E2E Validation Checklist
 
-1. Enter a dungeon location with puzzles
-2. Use `unlock <door> <key>` with correct/wrong/missing keys
-3. Use `pull <lever>` on lever puzzles
-4. Use `step <plate>` on pressure plates
-5. Use `answer <riddle> <text>` with correct/wrong answers
-6. Use `activate <puzzle> <id>` for sequence puzzles
-7. Verify movement is blocked when direction is in blocked_directions
-8. Verify movement is allowed after puzzle is solved
-9. Verify tab completion works for all puzzle commands
+1. Start game and find a dungeon/cave/ruins/temple
+2. Use `enter` to go inside the SubGrid
+3. Navigate to non-entry rooms (should see puzzles when describing)
+4. Verify puzzles work with: `unlock`, `pull`, `step`, `answer`, `activate`
+5. Check that solving puzzles removes blocked directions
+6. Verify keys are placed in earlier rooms for locked doors
+7. Verify tab completion works for all puzzle commands

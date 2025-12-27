@@ -462,8 +462,15 @@ class TestExpandAreaTreasurePlacement:
             for treasure in loc.treasures:
                 all_items.extend(treasure.get("items", []))
 
-        # All items should be from dungeon loot table
+        # All items should be from dungeon loot table OR puzzle keys
+        # Puzzle keys are placed in treasures for locked door puzzles (Issue #23)
+        from cli_rpg.ai_world import PUZZLE_TEMPLATES
+        from cli_rpg.models.puzzle import PuzzleType
         dungeon_item_names = {item["name"] for item in TREASURE_LOOT_TABLES["dungeon"]}
+        # Add puzzle keys from dungeon templates
+        for template in PUZZLE_TEMPLATES.get("dungeon", []):
+            if template[0] == PuzzleType.LOCKED_DOOR:
+                dungeon_item_names.add(template[3])  # required_key is at index 3
         for item in all_items:
             assert item["name"] in dungeon_item_names
 

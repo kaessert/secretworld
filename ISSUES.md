@@ -112,9 +112,9 @@ Issues discovered through comprehensive map system playtesting in non-interactiv
 - Secret thresholds scale with distance from entry (deeper locations = harder secrets)
 - Reward system for discovered secrets
 - Hidden rooms in SubGrid locations
+- Dungeon puzzles (Issue 23 - Complete)
 
 **Remaining**:
-- Riddles and puzzles (Issue 23 - Commands complete, AI generation pending)
 - Environmental storytelling
 
 ---
@@ -338,26 +338,24 @@ Create storyline system with branching quests and investigations.
 ---
 
 ### Issue 23: Dungeon Puzzle Mechanics
-**Status**: PARTIAL - Commands Complete, AI Generation Pending
+**Status**: COMPLETED ✓
 **Priority**: P2
+**Completed**: 2025-12-27
 
-**Problem**: No interactive puzzles exist in dungeons. Gameplay is combat-only.
-
-**Completed:**
-- [x] `src/cli_rpg/models/puzzle.py` - Puzzle model with 5 types (LOCKED_DOOR, LEVER, PRESSURE_PLATE, RIDDLE, SEQUENCE)
-- [x] `src/cli_rpg/puzzles.py` - Puzzle interaction logic (unlock, pull, step, answer, activate)
-- [x] `src/cli_rpg/models/location.py` - Added `puzzles` and `blocked_directions` fields with serialization
-- [x] INT stat provides hints for puzzle solving (hint_threshold system)
-- [x] 30 unit tests in `tests/test_puzzles.py`
-- [x] Add puzzle commands to `main.py` (unlock, pull, step, answer, activate)
-- [x] Add tab completion for puzzle commands in `completer.py`
-- [x] Update KNOWN_COMMANDS in `game_state.py`
-- [x] Add blocked_directions check in movement (`_move_in_sub_grid()`)
-- [x] 16 command integration tests in `tests/test_puzzle_commands.py`
-- [x] Add user-facing documentation to README.md
-
-**Remaining (AI Integration):**
-- [ ] Add puzzle generation in `ai_world.py` during SubGrid creation
+**Implementation:**
+- `src/cli_rpg/models/puzzle.py` - Puzzle model with 5 types (LOCKED_DOOR, LEVER, PRESSURE_PLATE, RIDDLE, SEQUENCE)
+- `src/cli_rpg/puzzles.py` - Puzzle interaction logic (unlock, pull, step, answer, activate)
+- `src/cli_rpg/models/location.py` - Added `puzzles` and `blocked_directions` fields with serialization
+- `src/cli_rpg/main.py` - Puzzle commands (unlock, pull, step, answer, activate)
+- `src/cli_rpg/completer.py` - Tab completion for puzzle commands
+- `src/cli_rpg/game_state.py` - KNOWN_COMMANDS and blocked_directions movement check
+- `src/cli_rpg/ai_world.py` - AI puzzle generation during SubGrid creation:
+  - `PUZZLE_CATEGORIES`: dungeon, cave, ruins, temple get puzzles
+  - `PUZZLE_TEMPLATES`: Category-specific puzzle templates for all 5 types
+  - `_generate_puzzles_for_location()`: 0-2 puzzles per room based on distance from entry
+  - `_place_keys_in_earlier_rooms()`: Keys for LOCKED_DOOR puzzles placed in accessible rooms
+  - Hint threshold scales with distance and z-level (deeper = higher INT required)
+- 62 tests total: 30 in `test_puzzles.py`, 16 in `test_puzzle_commands.py`, 16 in `test_ai_puzzle_generation.py`
 
 **Acceptance Criteria:**
 - [x] **Locked doors** requiring keys found in other rooms
@@ -365,16 +363,7 @@ Create storyline system with branching quests and investigations.
 - [x] **Riddle NPCs** guarding boss rooms
 - [x] **Sequence puzzles** (light torches in order)
 - [x] INT stat provides hints for puzzle solving
-- [ ] 1-2 puzzles per dungeon area (requires AI integration)
-
-**Related Files:**
-- `src/cli_rpg/models/puzzle.py` ✓
-- `src/cli_rpg/puzzles.py` ✓
-- `src/cli_rpg/models/location.py` ✓
-- `src/cli_rpg/main.py` ✓
-- `src/cli_rpg/completer.py` ✓
-- `src/cli_rpg/game_state.py` ✓
-- `src/cli_rpg/ai_world.py` - Generation pending
+- [x] 1-2 puzzles per dungeon area (AI integration complete)
 
 ---
 
@@ -471,7 +460,7 @@ Create storyline system with branching quests and investigations.
 - ✓ Themed hallucinations (Issue 22 complete)
 
 **Phase 4 - Non-Combat Depth (P2)** - Issues 23-24
-- Puzzle mechanics (Issue 23 - Commands complete, AI generation pending)
+- ✓ Puzzle mechanics (Issue 23 complete)
 - Exploration progress tracking
 
 **Phase 5 - Dynamic Polish (P3)** - Issues 25-27

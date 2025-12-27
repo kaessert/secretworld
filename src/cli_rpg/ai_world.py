@@ -380,6 +380,9 @@ TREASURE_CATEGORIES = frozenset({"dungeon", "cave", "ruins", "temple", "forest"}
 # Categories that should have hidden secrets
 SECRET_CATEGORIES = frozenset({"dungeon", "cave", "ruins", "temple", "forest"})
 
+# Categories that should have puzzles (Issue #23)
+PUZZLE_CATEGORIES = frozenset({"dungeon", "cave", "ruins", "temple"})
+
 # Secret templates: (type, description, base_threshold)
 SECRET_TEMPLATES: dict[str, list[tuple[str, str, int]]] = {
     "dungeon": [
@@ -407,6 +410,64 @@ SECRET_TEMPLATES: dict[str, list[tuple[str, str, int]]] = {
         ("hidden_treasure", "A hollow tree conceals a traveler's stash.", 11),
         ("hidden_door", "An overgrown path leads to a hidden clearing.", 13),
         ("trap", "A concealed snare lies among the leaves.", 12),
+    ],
+}
+
+# Puzzle templates by category (Issue #23)
+# Format varies by type:
+#   LOCKED_DOOR: (type, name, desc, required_key, hint_threshold, hint_text)
+#   LEVER/PRESSURE_PLATE: (type, name, desc, None, hint_threshold, hint_text)
+#   RIDDLE: (type, name, desc, riddle_text, riddle_answer, hint_threshold, hint_text)
+#   SEQUENCE: (type, name, desc, sequence_ids, hint_threshold, hint_text)
+from cli_rpg.models.puzzle import PuzzleType
+
+PUZZLE_TEMPLATES: dict[str, list[tuple]] = {
+    "dungeon": [
+        # LOCKED_DOOR puzzles
+        (PuzzleType.LOCKED_DOOR, "Rusted Iron Door", "A heavy iron door blocks the passage.",
+         "Iron Key", 14, "The lock shows signs of rust."),
+        (PuzzleType.LOCKED_DOOR, "Ancient Stone Door", "A massive stone door with intricate carvings.",
+         "Stone Key", 15, "The keyhole matches ancient stonework."),
+        # LEVER puzzles
+        (PuzzleType.LEVER, "Wall Lever", "A rusted lever protrudes from the wall.",
+         None, 12, "Scratch marks show it can be pulled."),
+        (PuzzleType.LEVER, "Chain Mechanism", "Heavy chains hang from a pulley.",
+         None, 13, "The chain is worn from use."),
+        # PRESSURE_PLATE puzzles
+        (PuzzleType.PRESSURE_PLATE, "Floor Plate", "A stone plate slightly raised from the floor.",
+         None, 11, "It depresses slightly under weight."),
+        # RIDDLE puzzles
+        (PuzzleType.RIDDLE, "Stone Guardian", "A statue with glowing eyes blocks the way.",
+         "What has keys but no locks?", "piano", 15, "Think of music."),
+        (PuzzleType.RIDDLE, "Whispering Face", "A carved face in the wall speaks in riddles.",
+         "I have cities but no houses, forests but no trees. What am I?", "map", 14, "Think of representations."),
+        # SEQUENCE puzzles
+        (PuzzleType.SEQUENCE, "Torch Row", "Four torches line the walls.",
+         ["torch_1", "torch_2", "torch_3", "torch_4"], 16, "The murals show a lighting order."),
+    ],
+    "cave": [
+        (PuzzleType.PRESSURE_PLATE, "Cracked Stone", "A cracked stone in the floor.",
+         None, 10, "Pressure seems to shift it."),
+        (PuzzleType.LEVER, "Crystal Lever", "A lever formed from cave crystal.",
+         None, 11, "The crystal glows faintly."),
+        (PuzzleType.LOCKED_DOOR, "Boulder Door", "A massive boulder blocks the tunnel.",
+         "Cave Key", 13, "There's a keyhole in the rock."),
+    ],
+    "ruins": [
+        (PuzzleType.LOCKED_DOOR, "Sealed Portal", "An ancient portal sealed by magic.",
+         "Portal Key", 15, "Glyphs suggest a key exists."),
+        (PuzzleType.RIDDLE, "Ancient Oracle", "A spectral figure poses a challenge.",
+         "I am always in front of you but can never be seen. What am I?", "future", 14, "Think of time."),
+        (PuzzleType.SEQUENCE, "Rune Stones", "Three rune stones glow dimly.",
+         ["rune_sun", "rune_moon", "rune_star"], 15, "The ceiling mural shows the order."),
+    ],
+    "temple": [
+        (PuzzleType.RIDDLE, "Sacred Guardian", "A divine statue guards the sanctum.",
+         "What is given freely but cannot be bought?", "love", 13, "Think of the heart."),
+        (PuzzleType.LEVER, "Altar Mechanism", "A hidden lever behind the altar.",
+         None, 12, "The altar can be moved."),
+        (PuzzleType.LOCKED_DOOR, "Blessed Gate", "A gate protected by divine wards.",
+         "Holy Key", 14, "A blessed key would open it."),
     ],
 }
 
@@ -459,6 +520,187 @@ def _generate_secrets_for_location(
         secrets.append(secret)
 
     return secrets
+
+
+def _generate_puzzles_for_location(
+    category: str,
+    distance: int = 0,
+    z_level: int = 0,
+    available_directions: Optional[list[str]] = None,
+) -> tuple[list, list[str], list[tuple[str, str]]]:
+    """Generate 0-2 puzzles for a location.
+
+    Args:
+        category: Location category (dungeon, cave, etc.)
+        distance: Distance from entry (affects chance and difficulty)
+        z_level: Z-level of location (negative = deeper)
+        available_directions: Directions that can be blocked
+
+    Returns:
+        Tuple of (puzzles, blocked_directions, keys_to_place):
+        - puzzles: List of Puzzle objects
+        - blocked_directions: List of directions blocked by puzzles
+        - keys_to_place: List of (key_name, category) for locked doors
+    """
+    from cli_rpg.models.puzzle import Puzzle, PuzzleType
+
+    if category not in PUZZLE_CATEGORIES:
+        return ([], [], [])
+
+    templates = PUZZLE_TEMPLATES.get(category, [])
+    if not templates:
+        return ([], [], [])
+
+    # No puzzles at entry (distance=0)
+    if distance == 0:
+        return ([], [], [])
+
+    # 50% chance of 1 puzzle, 25% chance of 2 puzzles, 25% chance of none
+    roll = random.random()
+    if roll < 0.25:
+        num_puzzles = 0
+    elif roll < 0.75:
+        num_puzzles = 1
+    else:
+        num_puzzles = 2
+
+    if num_puzzles == 0:
+        return ([], [], [])
+
+    # Use available directions if provided, else default
+    directions = list(available_directions) if available_directions else ["north", "south", "east", "west"]
+    if not directions:
+        return ([], [], [])
+
+    selected = random.sample(templates, min(num_puzzles, len(templates)))
+    puzzles = []
+    blocked = []
+    keys_to_place = []
+
+    for template in selected:
+        puzzle_type = template[0]
+        # Pick a direction to block
+        if not directions:
+            break
+        target_dir = random.choice(directions)
+        directions.remove(target_dir)
+
+        # Scale hint threshold with distance and depth
+        base_threshold = template[-2]
+        threshold = base_threshold + min(distance, 3) + abs(z_level)
+        hint_text = template[-1]
+
+        if puzzle_type == PuzzleType.LOCKED_DOOR:
+            # (type, name, desc, required_key, threshold, hint)
+            puzzle = Puzzle(
+                puzzle_type=puzzle_type,
+                name=template[1],
+                description=template[2],
+                required_key=template[3],
+                target_direction=target_dir,
+                hint_threshold=threshold,
+                hint_text=hint_text,
+            )
+            keys_to_place.append((template[3], category))
+        elif puzzle_type == PuzzleType.LEVER or puzzle_type == PuzzleType.PRESSURE_PLATE:
+            # (type, name, desc, None, threshold, hint)
+            puzzle = Puzzle(
+                puzzle_type=puzzle_type,
+                name=template[1],
+                description=template[2],
+                target_direction=target_dir,
+                hint_threshold=threshold,
+                hint_text=hint_text,
+            )
+        elif puzzle_type == PuzzleType.RIDDLE:
+            # (type, name, desc, riddle_text, riddle_answer, threshold, hint)
+            puzzle = Puzzle(
+                puzzle_type=puzzle_type,
+                name=template[1],
+                description=template[2],
+                riddle_text=template[3],
+                riddle_answer=template[4],
+                target_direction=target_dir,
+                hint_threshold=threshold,
+                hint_text=hint_text,
+            )
+        elif puzzle_type == PuzzleType.SEQUENCE:
+            # (type, name, desc, sequence_ids, threshold, hint)
+            puzzle = Puzzle(
+                puzzle_type=puzzle_type,
+                name=template[1],
+                description=template[2],
+                sequence_ids=list(template[3]),  # Copy the list
+                target_direction=target_dir,
+                hint_threshold=threshold,
+                hint_text=hint_text,
+            )
+        else:
+            continue
+
+        puzzles.append(puzzle)
+        blocked.append(target_dir)
+
+    return (puzzles, blocked, keys_to_place)
+
+
+def _place_keys_in_earlier_rooms(
+    placed_locations: dict,
+    keys_to_place: list[tuple[str, str, int]],
+) -> None:
+    """Place keys in rooms before their corresponding locked doors.
+
+    Args:
+        placed_locations: Dict of {name: {location, relative_coords, is_entry}}
+        keys_to_place: List of (key_name, category, door_distance) tuples
+    """
+    for key_name, category, door_distance in keys_to_place:
+        # Find valid rooms (distance < door_distance, not entry)
+        candidates = []
+        for name, data in placed_locations.items():
+            if data.get("is_entry", False):
+                continue
+            loc = data.get("location")
+            if loc is None:
+                continue
+            rel = data.get("relative_coords", (0, 0, 0))
+            if len(rel) == 2:
+                dist = abs(rel[0]) + abs(rel[1])
+            else:
+                dist = abs(rel[0]) + abs(rel[1])
+            if dist < door_distance:
+                candidates.append((name, dist, loc))
+
+        if not candidates:
+            # Fall back to entry room
+            for name, data in placed_locations.items():
+                if data.get("is_entry", False):
+                    loc = data.get("location")
+                    if loc is not None:
+                        candidates.append((name, 0, loc))
+                    break
+
+        if candidates:
+            # Pick room closest to door distance (more interesting placement)
+            candidates.sort(key=lambda x: -x[1])
+            _, _, room = candidates[0]
+
+            # Create key item and add to room treasures
+            key_item = {
+                "name": key_name,
+                "description": f"A key that might open something in the {category}.",
+                "item_type": "misc",
+            }
+            # Add as a findable item (not locked chest)
+            room.treasures.append({
+                "name": f"Hidden {key_name}",
+                "description": f"A {key_name.lower()} lies on the ground.",
+                "locked": False,
+                "difficulty": 0,
+                "opened": False,
+                "items": [key_item],
+                "requires_key": None,
+            })
 
 
 def _create_shop_from_ai_inventory(shop_inventory: list[dict], shop_name: str) -> Optional[Shop]:
@@ -794,6 +1036,7 @@ def generate_subgrid_for_location(
     # Place locations in SubGrid
     first_location = True
     placed_locations = {}
+    all_keys_to_place = []  # Track keys for locked door puzzles
 
     for loc_data in area_data:
         # Support both 2D and 3D relative coordinates
@@ -849,6 +1092,16 @@ def generate_subgrid_for_location(
             secrets = _generate_secrets_for_location(loc_category or "dungeon", distance, rel_z)
             new_loc.hidden_secrets.extend(secrets)
 
+            # Add puzzles to non-entry rooms (Issue #23)
+            puzzles, blocked, keys = _generate_puzzles_for_location(
+                loc_category or "dungeon", distance, rel_z
+            )
+            new_loc.puzzles.extend(puzzles)
+            new_loc.blocked_directions.extend(blocked)
+            # Track keys with door distance for placement
+            for key_name, key_cat in keys:
+                all_keys_to_place.append((key_name, key_cat, distance))
+
         sub_grid.add_location(new_loc, rel_x, rel_y, rel_z)
         placed_locations[loc_data["name"]] = {
             "location": new_loc,
@@ -868,6 +1121,10 @@ def generate_subgrid_for_location(
     # Place treasures in non-entry, non-boss rooms
     if placed_locations:
         _place_treasures(placed_locations, location.category or "dungeon")
+
+    # Place keys for locked door puzzles in earlier rooms (Issue #23)
+    if all_keys_to_place:
+        _place_keys_in_earlier_rooms(placed_locations, all_keys_to_place)
 
     return sub_grid
 
@@ -1442,6 +1699,7 @@ def expand_area(
     opposite = get_opposite_direction(direction)
     entry_name = None
     placed_locations = {}
+    all_keys_to_place = []  # Track keys for locked door puzzles
 
     # First pass: create Location objects and calculate absolute coordinates
     for loc_data in area_data:
@@ -1519,6 +1777,16 @@ def expand_area(
             distance = abs(rel_x) + abs(rel_y)
             secrets = _generate_secrets_for_location(loc_category or "dungeon", distance, rel_z)
             new_loc.hidden_secrets.extend(secrets)
+
+            # Add puzzles to non-entry rooms (Issue #23)
+            puzzles, blocked, keys = _generate_puzzles_for_location(
+                loc_category or "dungeon", distance, rel_z
+            )
+            new_loc.puzzles.extend(puzzles)
+            new_loc.blocked_directions.extend(blocked)
+            # Track keys with door distance for placement
+            for key_name, key_cat in keys:
+                all_keys_to_place.append((key_name, key_cat, distance))
 
         placed_locations[loc_data["name"]] = {
             "location": new_loc,
@@ -1621,6 +1889,10 @@ def expand_area(
 
         # Place treasures in non-entry, non-boss rooms
         _place_treasures(placed_locations, entry_category or "dungeon")
+
+        # Place keys for locked door puzzles in earlier rooms (Issue #23)
+        if all_keys_to_place:
+            _place_keys_in_earlier_rooms(placed_locations, all_keys_to_place)
 
         # Attach sub_grid to entry
         entry_loc.sub_grid = sub_grid
