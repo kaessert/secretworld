@@ -1212,6 +1212,12 @@ def handle_exploration_command(game_state: GameState, command: str, args: list[s
         if game_state.game_time.is_night() and not npc.available_at_night:
             return (True, f"\n{npc.name} has gone home for the night.")
 
+        # Check faction-based access (hostile factions, required reputation)
+        from cli_rpg.faction_content import check_npc_access, get_faction_greeting_modifier
+        allowed, block_message = check_npc_access(npc, game_state.factions)
+        if not allowed:
+            return (True, f"\n{block_message}")
+
         # Store current NPC for accept command context
         game_state.current_npc = npc
 
@@ -1257,7 +1263,13 @@ def handle_exploration_command(game_state: GameState, command: str, args: list[s
         output = ""
         if npc.ascii_art:
             output = f"\n{npc.ascii_art}\n"
-        greeting = npc.get_greeting(choices=game_state.choices)
+
+        # Check for faction-based greeting modifier
+        faction_greeting = get_faction_greeting_modifier(npc, game_state.factions)
+        if faction_greeting:
+            greeting = faction_greeting
+        else:
+            greeting = npc.get_greeting(choices=game_state.choices)
         dialogue_text = f'"{greeting}"'
         output += f"\n{colors.npc(npc.name)}: {colors.dialogue(dialogue_text)}"
 

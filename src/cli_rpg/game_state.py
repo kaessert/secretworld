@@ -907,6 +907,14 @@ class GameState:
             else:
                 return (False, "There are no locations to enter here.")
 
+        # Check faction-based access before entry
+        from cli_rpg.faction_content import check_location_access
+        target_location = sub_grid_location if sub_grid_location is not None else self.world.get(matched_location)
+        if target_location is not None:
+            allowed, block_message = check_location_access(target_location, self.factions)
+            if not allowed:
+                return (False, block_message)
+
         # Handle sub_grid entry
         if sub_grid_location is not None:
             self.in_sub_location = True

@@ -73,6 +73,7 @@ src/cli_rpg/
 ├── cleric.py            # Cleric class abilities (bless, smite commands)
 ├── faction_combat.py    # Faction reputation changes from combat outcomes
 ├── faction_shop.py      # Faction-based shop price modifiers
+├── faction_content.py   # Faction-gated NPC/location access based on reputation
 └── models/
     ├── character.py     # Player character model
     ├── dread.py         # Dread meter for psychological horror

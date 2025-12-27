@@ -290,6 +290,12 @@ Merchants can be found throughout the world. Interact with them to buy and sell 
 
 Faction modifiers stack multiplicatively with CHA modifiers.
 
+**Faction-Gated Content**: Some NPCs and locations require a minimum reputation with their affiliated faction:
+- NPCs from hostile factions refuse to speak with you
+- NPCs with high reputation requirements won't interact until you prove yourself
+- Certain exclusive locations are only accessible at higher reputation levels
+- Faction-friendly NPCs provide warmer greetings and better service
+
 ### Social Skills
 
 Use social skills to influence NPCs during conversations:

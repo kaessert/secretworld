@@ -47,6 +47,7 @@ class NPC:
     haggleable: bool = True  # Whether merchant allows haggling
     haggle_cooldown: int = 0  # Turns remaining before haggling allowed again
     faction: Optional[str] = None  # Faction affiliation (e.g., "Merchant Guild")
+    required_reputation: Optional[int] = None  # Min faction rep to interact (1-100)
 
     def __post_init__(self):
         """Validate NPC attributes."""
@@ -146,6 +147,7 @@ class NPC:
             "haggleable": self.haggleable,
             "haggle_cooldown": self.haggle_cooldown,
             "faction": self.faction,
+            "required_reputation": self.required_reputation,
         }
         # Only include ascii_art if it's not empty
         if self.ascii_art:
@@ -188,4 +190,5 @@ class NPC:
             haggleable=data.get("haggleable", True),  # Default True for backward compat
             haggle_cooldown=data.get("haggle_cooldown", 0),  # Default 0 for backward compat
             faction=data.get("faction"),  # None for backward compat
+            required_reputation=data.get("required_reputation"),  # None for backward compat
         )

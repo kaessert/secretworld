@@ -54,6 +54,8 @@ class Location:
     sub_grid: Optional["SubGrid"] = None  # Interior grid for landmarks (overworld only)
     terrain: Optional[str] = None  # WFC terrain type (forest, plains, etc.)
     is_named: bool = False  # True for story-important POIs, False for terrain filler
+    required_faction: Optional[str] = None  # Faction required for entry
+    required_reputation: Optional[int] = None  # Min faction rep for entry (1-100)
 
     def __post_init__(self) -> None:
         """Validate location attributes after initialization."""
@@ -380,6 +382,10 @@ class Location:
             data["terrain"] = self.terrain
         if self.is_named:
             data["is_named"] = self.is_named
+        if self.required_faction is not None:
+            data["required_faction"] = self.required_faction
+        if self.required_reputation is not None:
+            data["required_reputation"] = self.required_reputation
         return data
     
     @classmethod
@@ -436,6 +442,9 @@ class Location:
         terrain = data.get("terrain")
         # Parse is_named if present (backward compatibility)
         is_named = data.get("is_named", False)
+        # Parse faction requirement fields (backward compatibility)
+        required_faction = data.get("required_faction")
+        required_reputation = data.get("required_reputation")
         # Note: Legacy 'connections' field is ignored if present (backward compatibility)
         return cls(
             name=data["name"],
@@ -459,6 +468,8 @@ class Location:
             sub_grid=sub_grid,
             terrain=terrain,
             is_named=is_named,
+            required_faction=required_faction,
+            required_reputation=required_reputation,
         )
     
     def __str__(self) -> str:

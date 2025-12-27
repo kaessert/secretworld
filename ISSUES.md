@@ -572,9 +572,7 @@ Players want a more sophisticated map system with hierarchical locations.
 - Merchant Guild shop price modifiers
 - Quest-based reputation changes (faction-affiliated quests reward/penalize reputation on completion)
 - Reputation requirements for quest acceptance
-
-**Remaining**:
-- Faction-based content unlocks
+- Faction-gated content: NPCs and locations can require minimum reputation to access (`faction_content.py`)
 
 ---
 

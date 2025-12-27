@@ -1,93 +1,49 @@
-# Implementation Summary: Multi-Stage Quest Objectives
+# Implementation Summary: Faction-Gated Content
 
 ## What Was Implemented
 
-### New QuestStage Dataclass (`src/cli_rpg/models/quest.py`)
-Added a new `QuestStage` dataclass that represents a single stage within a multi-stage quest:
+The faction-gated content system was already partially implemented. This session fixed test issues in the integration test file to make all tests pass.
 
-- **Fields:**
-  - `name: str` - Stage title (e.g., "Find the Witness")
-  - `description: str` - Stage-specific flavor text
-  - `objective_type: ObjectiveType` - Type of objective (KILL, TALK, EXPLORE, etc.)
-  - `target: str` - Target name
-  - `target_count: int = 1` - How many to complete
-  - `current_count: int = 0` - Progress tracking
+### Core Module (`src/cli_rpg/faction_content.py`)
+Already implemented with:
+- `check_npc_access(npc, factions)` - Checks if player can interact with an NPC based on faction standing
+- `check_location_access(location, factions)` - Checks if player can enter a location based on faction standing
+- `filter_visible_npcs(npcs, factions)` - Filters NPCs visible to player based on faction standing
+- `get_faction_greeting_modifier(npc, factions)` - Returns appropriate greeting based on faction standing
 
-- **Methods:**
-  - `is_complete` property - Returns True when current_count >= target_count
-  - `progress()` - Increments count and returns whether stage is complete
-  - `to_dict()` / `from_dict()` - Serialization support
+### Model Changes (Already in place)
+- `NPC` model: `required_reputation` field (Optional[int])
+- `Location` model: `required_faction` and `required_reputation` fields
 
-- **Validation:**
-  - Name and target cannot be empty (ValueError raised)
-  - target_count must be >= 1
-  - current_count must be >= 0
-  - Names/targets are trimmed of whitespace
+### Integration (Already in place)
+- `main.py`: `handle_exploration_command` uses faction gating for `talk` command
+- `game_state.py`: `enter()` method uses faction gating for location access
 
-### Quest Class Extensions (`src/cli_rpg/models/quest.py`)
-Added new fields and methods to the existing Quest dataclass:
+## Changes Made This Session
 
-- **New Fields:**
-  - `stages: List[QuestStage] = []` - Ordered list of stages
-  - `current_stage: int = 0` - Index of active stage (0-based)
+### Fixed: `tests/test_faction_content_integration.py`
 
-- **New Methods:**
-  - `get_active_stage()` - Returns current stage or None if no stages/past all stages
-  - `advance_stage()` - Moves to next stage, returns True if quest is complete
-  - `get_active_objective()` - Returns (objective_type, target, target_count, current_count) for the active objective (uses stage if exists, otherwise root quest fields)
+1. **Fixed GameState initialization** - Changed from using `current_character` keyword (which doesn't exist) to proper constructor signature with `character`, `world`, and `starting_location`
 
-- **Updated Serialization:**
-  - `to_dict()` now includes `stages` and `current_stage`
-  - `from_dict()` now deserializes stages with backward compatibility
+2. **Fixed command invocation** - Changed from non-existent `process_command` to actual `handle_exploration_command(game_state, command, args)`
 
-### Character Progress Recording (`src/cli_rpg/models/character.py`)
-Updated all record_* methods to support staged quests:
+3. **Fixed SubGrid method calls** - Changed from `sub_grid.add(location)` to `sub_grid.add_location(location, x, y, z)`
 
-- **New Helper Method:**
-  - `_check_stage_progress()` - Checks if an action progresses/completes a stage
-
-- **Updated Methods:**
-  - `record_kill()` - Checks stages before branches/main objective
-  - `record_talk()` - Same pattern
-  - `record_explore()` - Same pattern
-  - `record_collection()` - Same pattern
-  - `record_use()` - Same pattern
-
-- **Behavior:**
-  - Staged quests are checked first
-  - Stage completion triggers advancement to next stage
-  - Final stage completion marks quest as READY_TO_TURN_IN
-  - Progress messages include quest name and stage counts
-  - Completion messages include "Stage complete" and "Next:" hints
-
-## Files Modified
-
-1. `src/cli_rpg/models/quest.py` - Added QuestStage class, extended Quest with stages support
-2. `src/cli_rpg/models/character.py` - Added stage progress checking to record_* methods
-3. `tests/test_quest_stages.py` - New test file with 50 comprehensive tests
-4. `tests/test_quest.py` - Updated serialization test to include new fields
+4. **Fixed Location coordinates** - Removed explicit `coordinates` from Location objects that are added via `add_location()` since the method sets coordinates automatically
 
 ## Test Results
 
-- All 50 new quest stage tests pass
-- All 4006 tests in the full test suite pass
-- Backward compatibility maintained (quests without stages work exactly as before)
-
-## Key Design Decisions
-
-1. **Empty stages = legacy behavior**: When `stages` is empty, the quest uses root fields (objective_type, target, etc.) exactly as before, maintaining full backward compatibility.
-
-2. **Stages checked first**: In all record_* methods, staged quest logic runs before branch/main objective logic and uses `continue` to skip further processing.
-
-3. **Stage-level progress tracking**: Each stage has its own current_count/target_count, independent of the quest's root fields.
-
-4. **Clear progress messages**: Stage completions generate separate messages for stage completion and next stage hints.
+All tests pass:
+- `test_faction_content.py`: 29 unit tests
+- `test_faction_content_integration.py`: 8 integration tests
+- Full test suite: 4043 tests pass
 
 ## E2E Tests Should Validate
 
-1. Creating a multi-stage quest and accepting it
-2. Completing each stage in order
-3. Verifying stage progress messages appear correctly
-4. Confirming quest becomes READY_TO_TURN_IN after final stage
-5. Save/load with staged quests preserves stage progress
-6. Quest journal display with stage information
+1. Player with low faction reputation cannot talk to NPCs with high `required_reputation`
+2. Player with sufficient faction reputation can talk to NPCs
+3. Hostile faction NPCs refuse to interact with the player
+4. Friendly faction NPCs show warm greetings
+5. Player cannot enter locations that require higher faction standing
+6. Player can enter locations when faction requirements are met
+7. Locations without faction requirements are always accessible
