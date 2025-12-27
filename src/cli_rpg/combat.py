@@ -2750,7 +2750,7 @@ def spawn_enemies(
 
     enemies = []
     for _ in range(count):
-        enemy = spawn_enemy(location_name, level, location_category, distance)
+        enemy = spawn_enemy(location_name, level, location_category, distance=distance)
         enemies.append(enemy)
 
     return enemies
