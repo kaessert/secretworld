@@ -166,6 +166,26 @@ class TestRestOutputWhenAlreadyFull:
         assert "already full" in msg.lower()
 
 
+class TestRestTirednessThreshold:
+    """Tests for rest command tiredness threshold (must be >= 30 to sleep)."""
+
+    # Spec: Cannot sleep when tiredness < 30 (too alert)
+    def test_rest_blocked_when_tiredness_below_30(self, game_state):
+        """Spec: Cannot rest when tiredness < 30 (too alert to sleep)."""
+        gs = game_state
+        char = gs.current_character
+        # Set tiredness to 20 (below 30 threshold)
+        char.tiredness.current = 20
+        # Reduce stamina so we're not at full (otherwise blocked for other reasons)
+        char.stamina = 1
+
+        cont, msg = handle_exploration_command(gs, "rest", [])
+
+        # Rest should still work for stamina, but tiredness should be unchanged
+        # since can_sleep() returns False when tiredness < 30
+        assert char.tiredness.current == 20
+
+
 class TestHelpIncludesRest:
     """Test that help text includes rest command."""
 

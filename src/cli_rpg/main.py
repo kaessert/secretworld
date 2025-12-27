@@ -2378,11 +2378,11 @@ def handle_exploration_command(game_state: GameState, command: str, args: list[s
         at_full_health = char.health >= char.max_health
         at_full_stamina = char.stamina >= char.max_stamina
         no_dread = char.dread_meter.dread == 0
-        no_tiredness = char.tiredness.current == 0
+        can_sleep_for_tiredness = char.tiredness.can_sleep()  # True when tiredness >= 30
         # Save pre-rest tiredness for dream check (dreams occur based on how tired you were)
         pre_rest_tiredness = char.tiredness.current
 
-        if at_full_health and at_full_stamina and no_dread and no_tiredness:
+        if at_full_health and at_full_stamina and no_dread and not can_sleep_for_tiredness:
             return (True, "\nYou're already at full health, stamina, and feeling calm and rested!")
 
         messages = []
@@ -2415,8 +2415,8 @@ def handle_exploration_command(game_state: GameState, command: str, args: list[s
             if dread_reduced > 0:
                 messages.append(f"The peaceful rest eases your mind (Dread -{dread_reduced}%).")
 
-        # Reduce tiredness based on sleep quality
-        if not no_tiredness:
+        # Reduce tiredness based on sleep quality (only if tired enough to sleep: >= 30)
+        if can_sleep_for_tiredness:
             quality = char.tiredness.sleep_quality()
             if quality == "deep":
                 tiredness_reduction = 80

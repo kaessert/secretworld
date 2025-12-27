@@ -3,23 +3,20 @@
 ---
 
 ### Rest Command Tiredness Threshold Mismatch
-**Status**: ACTIVE - Documentation/Implementation Discrepancy
+**Status**: COMPLETED ✓
 **Priority**: LOW
 **Date Added**: 2025-12-27
+**Completed**: 2025-12-27
 
 #### Description
-The README documentation states "Sleep is only available when tiredness reaches 30+" but the actual implementation allows rest at any tiredness level above 0%.
+The README documentation states "Sleep is only available when tiredness reaches 30+" but the actual implementation allowed rest at any tiredness level above 0%.
 
-#### Resolution Options
-**Option A - Fix Documentation**: Update README.md to accurately describe rest behavior:
-- "Rest is available when health/stamina need recovery, dread needs reducing, or tiredness is above 0%"
+#### Resolution
+**Option B - Fix Implementation**: Updated `main.py` to use `Tiredness.can_sleep()` method which enforces the 30% threshold.
 
-**Option B - Fix Implementation**: Enforce the documented 30% threshold in `game_state.py`:
-- Only allow rest when tiredness >= 30 (or other conditions like low HP/stamina/dread)
-
-#### Related Files
-- `README.md` - Line 109: Claims "Sleep is only available when tiredness reaches 30+"
-- `src/cli_rpg/game_state.py` - Contains `rest()` method implementation
+**Changes**:
+- `src/cli_rpg/main.py`: Changed `no_tiredness = char.tiredness.current == 0` to `can_sleep_for_tiredness = char.tiredness.can_sleep()` and updated condition logic
+- `tests/test_rest_command.py`: Added `TestRestTirednessThreshold` test class to verify threshold enforcement
 
 ---
 

@@ -1,68 +1,65 @@
-# Issue 25: Dynamic Interior Events - Cave-In Implementation
+# Fix Rest Command Tiredness Threshold
 
-## Spec
+## Issue
+The rest command allows resting when tiredness > 0, but the documented behavior (README, model docstring, `can_sleep()` method, and tests) all specify that rest should require tiredness >= 30.
 
-Implement **cave-in events** that temporarily block passages in SubGrid locations (dungeons, caves, temples, ruins). Cave-ins:
-- Spawn randomly during SubGrid movement (similar to overworld world events)
-- Block a direction for a limited time (hours) until cleared
-- Can be cleared by waiting or manually (future: digging tools)
-- Use existing `blocked_directions` infrastructure from Issue 23
-- Persist in save files via SubGrid serialization
+## Decision
+**Option B (Fix Implementation)**: The `Tiredness.can_sleep()` method exists and is already tested. The implementation simply needs to use it.
 
-## Files to Create
+## Changes
 
-### `src/cli_rpg/interior_events.py`
-New module for interior-specific events (cave-ins, future: monster migrations, spreading hazards)
-- `InteriorEvent` dataclass: `event_id`, `event_type`, `location_coords`, `blocked_direction`, `start_hour`, `duration_hours`, `is_active`
-- `CAVE_IN_SPAWN_CHANCE = 0.05` (5% per move, matches world event spawn rate)
-- `CAVE_IN_DURATION_RANGE = (4, 12)` hours
-- `CAVE_IN_CATEGORIES = {"dungeon", "cave", "ruins", "temple"}` - locations where cave-ins can occur
-- `check_for_cave_in(game_state, sub_grid) -> Optional[str]` - spawn cave-in on movement
-- `progress_interior_events(game_state, sub_grid, hours=1) -> list[str]` - clear expired cave-ins
-- `clear_cave_in(sub_grid, coords, direction) -> bool` - remove cave-in from blocked_directions
+### 1. Update `src/cli_rpg/main.py` (rest command logic)
 
-### `tests/test_interior_events.py`
-Test file with:
-- `TestInteriorEventModel`: event creation, serialization
-- `TestCaveInSpawning`: spawn chance, valid categories, blocked direction updates
-- `TestCaveInClearing`: time-based expiry, manual clearing
-- `TestCaveInIntegration`: movement blocked, cleared after time, message display
+**Location**: Lines 2381-2385 in `handle_exploration_command`
 
-## Files to Modify
+**Current code**:
+```python
+no_tiredness = char.tiredness.current == 0
 
-### `src/cli_rpg/world_grid.py`
-Add to SubGrid:
-- `interior_events: List[InteriorEvent] = field(default_factory=list)`
-- Update `to_dict()` and `from_dict()` for serialization (backward compatible)
+if at_full_health and at_full_stamina and no_dread and no_tiredness:
+    return (True, "\nYou're already at full health, stamina, and feeling calm and rested!")
+```
 
-### `src/cli_rpg/game_state.py`
-In `_move_in_sub_grid()`:
-1. After movement succeeds, call `check_for_cave_in()` (5% chance)
-2. Before time advance, call `progress_interior_events()` to clear expired cave-ins
-3. Display cave-in messages if any
+**New code**:
+```python
+can_sleep_for_tiredness = char.tiredness.can_sleep()  # True when tiredness >= 30
 
-### `src/cli_rpg/models/location.py`
-No changes needed - `blocked_directions` already exists and is serialized.
+if at_full_health and at_full_stamina and no_dread and not can_sleep_for_tiredness:
+    return (True, "\nYou're already at full health, stamina, and feeling calm and rested!")
+```
 
-## Implementation Steps
+**Also update the tiredness reduction block** (around line 2418-2431):
+```python
+# Reduce tiredness based on sleep quality
+if can_sleep_for_tiredness:
+    quality = char.tiredness.sleep_quality()
+    # ... rest of logic unchanged
+```
 
-1. **Create InteriorEvent model and core functions** in `interior_events.py`:
-   - Define `InteriorEvent` dataclass with serialization
-   - Implement `check_for_cave_in()` - picks random available direction from current location, adds to `blocked_directions`, creates event
-   - Implement `progress_interior_events()` - checks each event, removes from `blocked_directions` when expired
-   - Implement `clear_cave_in()` for manual clearing
+### 2. Add test in `tests/test_rest_command.py`
 
-2. **Write tests** in `test_interior_events.py`:
-   - Test event model creation and serialization
-   - Test spawn logic (correct categories, direction selection)
-   - Test expiry logic (event clears after duration)
-   - Test integration with Location.blocked_directions
+Add a new test to verify the 30% threshold:
+```python
+def test_rest_blocked_when_tiredness_below_30(self, game_state):
+    """Spec: Cannot rest when tiredness < 30 (too alert to sleep)."""
+    gs = game_state
+    char = gs.current_character
+    # Set tiredness to 20 (below 30 threshold)
+    char.tiredness.current = 20
+    # Reduce stamina so we're not at full
+    char.stamina = 1
 
-3. **Extend SubGrid serialization** in `world_grid.py`:
-   - Add `interior_events` field with backward-compatible deserialization
+    cont, msg = handle_exploration_command(gs, "rest", [])
 
-4. **Integrate with game loop** in `game_state.py`:
-   - Hook `check_for_cave_in()` into `_move_in_sub_grid()` after successful move
-   - Hook `progress_interior_events()` to clear expired events when time advances
+    # Tiredness should be unchanged since can't sleep
+    assert char.tiredness.current == 20
+```
 
-5. **Run tests**: `pytest tests/test_interior_events.py -v && pytest`
+### 3. Update ISSUES.md
+
+Mark the issue as resolved.
+
+## Test Plan
+1. Run `pytest tests/test_rest_command.py -v` to verify new test passes
+2. Run `pytest tests/test_tiredness.py -v` to ensure existing tiredness tests still pass
+3. Run full test suite `pytest` to ensure no regressions
