@@ -1,115 +1,218 @@
-# Map Display - Terrain Symbols for Unnamed Locations
+# Plan: Natural Terrain Transition Validation
+
+## Summary
+Add terrain transition validation to prevent abrupt biome jumps (e.g., forest directly adjacent to desert) by extending the existing `BIOME_GROUPS` and `INCOMPATIBLE_GROUPS` system with a public API for checking transition naturalness.
+
+## Scope
+**MEDIUM task** - Adding a validation function and enhancing the existing biome compatibility system.
 
 ## Spec
 
-Show terrain-specific symbols for unnamed locations (`is_named=False`) on the map, while preserving letter identifiers only for named locations (`is_named=True`). This makes the sparse world design visible to players.
+The existing `world_tiles.py` already has:
+- `BIOME_GROUPS` dict mapping terrain types to biome categories (temperate, arid, alpine, aquatic, neutral)
+- `INCOMPATIBLE_GROUPS` set of conflicting biome pairs (temperate<->arid)
+- `get_distance_penalty()` function used during WFC collapse
 
-**Current behavior**: All locations show letters (A, B, C...) regardless of type
-**Target behavior**:
-- Unnamed terrain tiles: Show terrain symbol (`.` for plains, `T` for forest, etc.)
-- Named locations: Show letter identifier (A, B, C...) + category icon in legend
+**New additions:**
+1. `NATURAL_TRANSITIONS` dict - defines which terrain types can naturally transition to each other
+2. `is_natural_transition(from_terrain, to_terrain)` function - public API for checking transition validity
+3. `get_transition_warning(from_terrain, to_terrain)` function - returns warning message for unnatural transitions
 
-### Terrain Symbols (ASCII-safe)
-| Terrain | Symbol | Passable |
-|---------|--------|----------|
-| forest | `T` | Yes |
-| plains | `.` | Yes |
-| hills | `n` | Yes |
-| desert | `:` | Yes |
-| swamp | `%` | Yes |
-| beach | `,` | Yes |
-| foothills | `^` | Yes |
-| mountain | `M` | Yes |
-| water | `~` | No |
+## Files to Modify
 
-## Tests
+| File | Changes |
+|------|---------|
+| `src/cli_rpg/world_tiles.py` | Add `NATURAL_TRANSITIONS`, `is_natural_transition()`, `get_transition_warning()` |
+| `tests/test_terrain_transitions.py` | NEW - Test all transition validation logic |
 
-### File: `tests/test_terrain_map_symbols.py`
+## Implementation Steps
 
-1. `test_terrain_map_symbols_constant_exists` - Verify `TERRAIN_MAP_SYMBOLS` dict exists in world_tiles.py with all 9 terrain types
-2. `test_get_terrain_symbol_returns_correct_symbol` - Test `get_terrain_symbol()` function returns expected symbol for each terrain
-3. `test_get_terrain_symbol_unknown_terrain_returns_default` - Unknown terrain returns `.` (plains default)
-4. `test_unnamed_location_shows_terrain_symbol_on_map` - Map grid shows `T` for unnamed forest, not letter
-5. `test_named_location_shows_letter_on_map` - Map grid shows letter (A, B...) for named locations
-6. `test_legend_excludes_unnamed_locations` - Legend lists only named locations, not terrain descriptions
-7. `test_legend_includes_terrain_symbol_key` - Legend explains terrain symbols (`T = forest`, etc.)
-8. `test_mixed_named_unnamed_locations` - Grid correctly distinguishes named (letters) vs unnamed (terrain symbols)
-9. `test_water_symbol_consistent` - Water terrain uses existing `~` symbol (already implemented)
-
-## Implementation
-
-### 1. Add terrain symbols to `world_tiles.py`
+### 1. Add `NATURAL_TRANSITIONS` dict to `world_tiles.py`
+Location: After `INCOMPATIBLE_GROUPS` (~line 149)
 
 ```python
-# ASCII-safe terrain map symbols
-TERRAIN_MAP_SYMBOLS: Dict[str, str] = {
-    "forest": "T",
-    "plains": ".",
-    "hills": "n",
-    "desert": ":",
-    "swamp": "%",
-    "beach": ",",
-    "foothills": "^",
-    "mountain": "M",
-    "water": "~",
+# Natural terrain transitions - which terrains flow naturally into each other
+# Based on geographic realism: forests border plains, not deserts
+# Key = terrain type, Value = set of terrains it can naturally border
+NATURAL_TRANSITIONS: Dict[str, Set[str]] = {
+    "forest": {"forest", "plains", "hills", "swamp", "foothills"},  # Temperate transitions
+    "plains": {"plains", "forest", "hills", "desert", "beach", "foothills"},  # Universal connector
+    "hills": {"hills", "forest", "plains", "mountain", "foothills", "desert"},  # Elevation transitions
+    "mountain": {"mountain", "hills", "foothills"},  # Alpine only
+    "foothills": {"foothills", "hills", "mountain", "plains", "forest"},  # Bridge terrain
+    "desert": {"desert", "plains", "hills", "beach"},  # Arid transitions
+    "swamp": {"swamp", "forest", "water", "plains"},  # Wetland transitions
+    "water": {"water", "beach", "swamp"},  # Aquatic transitions
+    "beach": {"beach", "water", "plains", "forest", "desert"},  # Coastal transitions
 }
+```
 
-def get_terrain_symbol(terrain: str) -> str:
-    """Get ASCII map symbol for a terrain type.
+Note: This differs from `ADJACENCY_RULES` which is more permissive for WFC flexibility. `NATURAL_TRANSITIONS` represents what "feels right" geographically.
+
+### 2. Add `is_natural_transition()` function
+Location: After `get_distance_penalty()` (~line 175)
+
+```python
+def is_natural_transition(from_terrain: str, to_terrain: str) -> bool:
+    """Check if transitioning between two terrain types feels natural.
+
+    Uses NATURAL_TRANSITIONS to determine if terrain A can naturally
+    border terrain B. Symmetric - if A->B is natural, B->A is also natural.
 
     Args:
-        terrain: Terrain type name (e.g., "forest", "water")
+        from_terrain: Source terrain type
+        to_terrain: Target terrain type
 
     Returns:
-        Single-character ASCII symbol for map display
+        True if the transition is natural, False if jarring
     """
-    return TERRAIN_MAP_SYMBOLS.get(terrain, ".")
+    # Same terrain is always natural
+    if from_terrain == to_terrain:
+        return True
+
+    # Check if to_terrain is in from_terrain's natural neighbors
+    natural_neighbors = NATURAL_TRANSITIONS.get(from_terrain, set())
+    if to_terrain in natural_neighbors:
+        return True
+
+    # Check reverse (symmetric transitions)
+    reverse_neighbors = NATURAL_TRANSITIONS.get(to_terrain, set())
+    return from_terrain in reverse_neighbors
 ```
 
-### 2. Modify `map_renderer.py` - `render_map()` function
-
-**Lines ~127-151**: Change symbol assignment logic to:
-1. Check `location.is_named` before assigning letter symbol
-2. For `is_named=False`: Use `get_terrain_symbol(location.terrain)`
-3. For `is_named=True`: Use existing letter assignment (A, B, C...)
-
-**Lines ~153-169**: Update legend building:
-1. Only add named locations (`is_named=True`) to legend entries
-2. Add terrain symbol key at end of legend (after location entries)
-
-### 3. Key code changes
+### 3. Add `get_transition_warning()` function
+Location: After `is_natural_transition()`
 
 ```python
-# In render_map(), when building coord_to_marker:
-for name, location in locations_with_coords:
-    coords = location.coordinates
-    if name == current_location:
-        coord_to_marker[coords] = "@"
-    elif location.is_named:
-        # Named locations get letter symbols
-        reachable_names.add(name)
-    else:
-        # Unnamed locations get terrain symbols
-        terrain = location.terrain or "plains"
-        coord_to_marker[coords] = get_terrain_symbol(terrain)
+def get_transition_warning(from_terrain: str, to_terrain: str) -> Optional[str]:
+    """Get a warning message for unnatural terrain transitions.
 
-# Only assign letters to named locations
-sorted_names = sorted(name for name in reachable_names
-                      if name != current_location)
-location_symbols = {name: SYMBOLS[i] for i, name in enumerate(sorted_names)
-                    if i < len(SYMBOLS)}
+    Args:
+        from_terrain: Source terrain type
+        to_terrain: Target terrain type
 
-# In legend building - only include named locations
-for name, location in locations_with_coords:
-    if not location.is_named:
-        continue  # Skip unnamed terrain
-    # ... existing legend logic ...
+    Returns:
+        Warning message string if transition is unnatural, None if natural
+    """
+    if is_natural_transition(from_terrain, to_terrain):
+        return None
 
-# Add terrain symbol key to legend
-lines.append("")
-lines.append("Terrain: T=forest .=plains n=hills :=desert %=swamp ,=beach ^=foothills M=mountain")
+    return f"Unnatural terrain transition: {from_terrain} -> {to_terrain}"
 ```
 
-### Files to Modify
-- `src/cli_rpg/world_tiles.py`: Add `TERRAIN_MAP_SYMBOLS` constant and `get_terrain_symbol()` function
-- `src/cli_rpg/map_renderer.py`: Update symbol assignment and legend logic in `render_map()`
+### 4. Create `tests/test_terrain_transitions.py`
+
+```python
+"""Tests for terrain transition validation."""
+
+import pytest
+from cli_rpg.world_tiles import (
+    NATURAL_TRANSITIONS,
+    is_natural_transition,
+    get_transition_warning,
+    TerrainType,
+)
+
+
+class TestNaturalTransitionsDict:
+    """Tests for NATURAL_TRANSITIONS data structure."""
+
+    def test_all_terrain_types_have_entries(self):
+        """Every TerrainType has an entry in NATURAL_TRANSITIONS."""
+        for terrain in TerrainType:
+            assert terrain.value in NATURAL_TRANSITIONS
+
+    def test_self_transitions_allowed(self):
+        """Every terrain can transition to itself."""
+        for terrain in TerrainType:
+            assert terrain.value in NATURAL_TRANSITIONS[terrain.value]
+
+    def test_transitions_are_symmetric(self):
+        """If A->B is natural, B->A should also be natural."""
+        for terrain, neighbors in NATURAL_TRANSITIONS.items():
+            for neighbor in neighbors:
+                assert terrain in NATURAL_TRANSITIONS.get(neighbor, set()), \
+                    f"{terrain}->{neighbor} allowed but {neighbor}->{terrain} not"
+
+
+class TestIsNaturalTransition:
+    """Tests for is_natural_transition() function."""
+
+    def test_same_terrain_always_natural(self):
+        """Transitioning to same terrain is always natural."""
+        for terrain in TerrainType:
+            assert is_natural_transition(terrain.value, terrain.value)
+
+    def test_forest_to_plains_natural(self):
+        """Forest borders plains naturally."""
+        assert is_natural_transition("forest", "plains")
+        assert is_natural_transition("plains", "forest")
+
+    def test_forest_to_desert_unnatural(self):
+        """Forest directly adjacent to desert is jarring."""
+        assert not is_natural_transition("forest", "desert")
+        assert not is_natural_transition("desert", "forest")
+
+    def test_mountain_to_beach_unnatural(self):
+        """Mountains don't border beaches."""
+        assert not is_natural_transition("mountain", "beach")
+
+    def test_swamp_to_desert_unnatural(self):
+        """Wetlands don't border arid terrain."""
+        assert not is_natural_transition("swamp", "desert")
+
+    def test_plains_bridges_forest_to_desert(self):
+        """Plains can connect otherwise incompatible biomes."""
+        assert is_natural_transition("forest", "plains")
+        assert is_natural_transition("plains", "desert")
+
+    def test_foothills_bridges_plains_to_mountain(self):
+        """Foothills provide natural elevation transition."""
+        assert is_natural_transition("plains", "foothills")
+        assert is_natural_transition("foothills", "mountain")
+
+    def test_unknown_terrain_returns_false(self):
+        """Unknown terrain types return False (safe default)."""
+        assert not is_natural_transition("lava", "forest")
+        assert not is_natural_transition("forest", "void")
+
+
+class TestGetTransitionWarning:
+    """Tests for get_transition_warning() function."""
+
+    def test_natural_transition_returns_none(self):
+        """No warning for natural transitions."""
+        assert get_transition_warning("forest", "plains") is None
+        assert get_transition_warning("hills", "mountain") is None
+
+    def test_unnatural_transition_returns_message(self):
+        """Warning message for unnatural transitions."""
+        warning = get_transition_warning("forest", "desert")
+        assert warning is not None
+        assert "forest" in warning
+        assert "desert" in warning
+
+    def test_same_terrain_no_warning(self):
+        """No warning when transitioning to same terrain."""
+        assert get_transition_warning("forest", "forest") is None
+```
+
+## Verification
+
+Run tests:
+```bash
+pytest tests/test_terrain_transitions.py -v
+```
+
+Expected: All tests pass, validating that:
+1. `NATURAL_TRANSITIONS` covers all terrain types
+2. `is_natural_transition()` correctly identifies jarring transitions
+3. `get_transition_warning()` provides useful feedback
+
+## Future Use
+
+This validation API can be used by:
+1. **Map renderer** - Show warnings when displaying the map
+2. **WFC chunk generation** - Add stronger penalties for unnatural transitions
+3. **Debug tools** - Validate generated worlds for coherence issues
+4. **Region planning** - Ensure region themes don't create jarring borders

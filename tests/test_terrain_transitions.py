@@ -236,3 +236,100 @@ class TestTransitionZoneWidth:
                 f"Too many swamp-desert violations: {violations}/{chunks_with_both} "
                 f"({violation_rate:.1%}) had distance < 3 tiles"
             )
+
+
+class TestNaturalTransitionsDict:
+    """Tests for NATURAL_TRANSITIONS data structure."""
+
+    def test_all_terrain_types_have_entries(self):
+        """Every TerrainType has an entry in NATURAL_TRANSITIONS."""
+        from cli_rpg.world_tiles import NATURAL_TRANSITIONS
+        for terrain in TerrainType:
+            assert terrain.value in NATURAL_TRANSITIONS
+
+    def test_self_transitions_allowed(self):
+        """Every terrain can transition to itself."""
+        from cli_rpg.world_tiles import NATURAL_TRANSITIONS
+        for terrain in TerrainType:
+            assert terrain.value in NATURAL_TRANSITIONS[terrain.value]
+
+    def test_transitions_are_symmetric(self):
+        """If A->B is natural, B->A should also be natural."""
+        from cli_rpg.world_tiles import NATURAL_TRANSITIONS
+        for terrain, neighbors in NATURAL_TRANSITIONS.items():
+            for neighbor in neighbors:
+                assert terrain in NATURAL_TRANSITIONS.get(neighbor, set()), \
+                    f"{terrain}->{neighbor} allowed but {neighbor}->{terrain} not"
+
+
+class TestIsNaturalTransition:
+    """Tests for is_natural_transition() function."""
+
+    def test_same_terrain_always_natural(self):
+        """Transitioning to same terrain is always natural."""
+        from cli_rpg.world_tiles import is_natural_transition
+        for terrain in TerrainType:
+            assert is_natural_transition(terrain.value, terrain.value)
+
+    def test_forest_to_plains_natural(self):
+        """Forest borders plains naturally."""
+        from cli_rpg.world_tiles import is_natural_transition
+        assert is_natural_transition("forest", "plains")
+        assert is_natural_transition("plains", "forest")
+
+    def test_forest_to_desert_unnatural(self):
+        """Forest directly adjacent to desert is jarring."""
+        from cli_rpg.world_tiles import is_natural_transition
+        assert not is_natural_transition("forest", "desert")
+        assert not is_natural_transition("desert", "forest")
+
+    def test_mountain_to_beach_unnatural(self):
+        """Mountains don't border beaches."""
+        from cli_rpg.world_tiles import is_natural_transition
+        assert not is_natural_transition("mountain", "beach")
+
+    def test_swamp_to_desert_unnatural(self):
+        """Wetlands don't border arid terrain."""
+        from cli_rpg.world_tiles import is_natural_transition
+        assert not is_natural_transition("swamp", "desert")
+
+    def test_plains_bridges_forest_to_desert(self):
+        """Plains can connect otherwise incompatible biomes."""
+        from cli_rpg.world_tiles import is_natural_transition
+        assert is_natural_transition("forest", "plains")
+        assert is_natural_transition("plains", "desert")
+
+    def test_foothills_bridges_plains_to_mountain(self):
+        """Foothills provide natural elevation transition."""
+        from cli_rpg.world_tiles import is_natural_transition
+        assert is_natural_transition("plains", "foothills")
+        assert is_natural_transition("foothills", "mountain")
+
+    def test_unknown_terrain_returns_false(self):
+        """Unknown terrain types return False (safe default)."""
+        from cli_rpg.world_tiles import is_natural_transition
+        assert not is_natural_transition("lava", "forest")
+        assert not is_natural_transition("forest", "void")
+
+
+class TestGetTransitionWarning:
+    """Tests for get_transition_warning() function."""
+
+    def test_natural_transition_returns_none(self):
+        """No warning for natural transitions."""
+        from cli_rpg.world_tiles import get_transition_warning
+        assert get_transition_warning("forest", "plains") is None
+        assert get_transition_warning("hills", "mountain") is None
+
+    def test_unnatural_transition_returns_message(self):
+        """Warning message for unnatural transitions."""
+        from cli_rpg.world_tiles import get_transition_warning
+        warning = get_transition_warning("forest", "desert")
+        assert warning is not None
+        assert "forest" in warning
+        assert "desert" in warning
+
+    def test_same_terrain_no_warning(self):
+        """No warning when transitioning to same terrain."""
+        from cli_rpg.world_tiles import get_transition_warning
+        assert get_transition_warning("forest", "forest") is None

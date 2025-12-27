@@ -148,6 +148,23 @@ INCOMPATIBLE_GROUPS: Set[Tuple[str, str]] = {
     ("arid", "temperate"),  # symmetric
 }
 
+# Natural terrain transitions - which terrains flow naturally into each other
+# Based on geographic realism: forests border plains, not deserts
+# Key = terrain type, Value = set of terrains it can naturally border
+# Note: This differs from ADJACENCY_RULES which is more permissive for WFC flexibility.
+# NATURAL_TRANSITIONS represents what "feels right" geographically.
+NATURAL_TRANSITIONS: Dict[str, Set[str]] = {
+    "forest": {"forest", "plains", "hills", "swamp", "foothills", "beach"},  # Temperate transitions
+    "plains": {"plains", "forest", "hills", "desert", "beach", "foothills", "swamp"},  # Universal connector
+    "hills": {"hills", "forest", "plains", "mountain", "foothills", "desert"},  # Elevation transitions
+    "mountain": {"mountain", "hills", "foothills"},  # Alpine only
+    "foothills": {"foothills", "hills", "mountain", "plains", "forest"},  # Bridge terrain
+    "desert": {"desert", "plains", "hills", "beach"},  # Arid transitions
+    "swamp": {"swamp", "forest", "water", "plains"},  # Wetland transitions
+    "water": {"water", "beach", "swamp"},  # Aquatic transitions
+    "beach": {"beach", "water", "plains", "forest", "desert"},  # Coastal transitions
+}
+
 
 def get_distance_penalty(terrain: str, nearby_terrains: Set[str]) -> float:
     """Calculate weight penalty based on nearby incompatible biomes.
@@ -172,6 +189,49 @@ def get_distance_penalty(terrain: str, nearby_terrains: Set[str]) -> float:
             return 0.01  # 99% weight reduction (very strong penalty)
 
     return 1.0
+
+
+def is_natural_transition(from_terrain: str, to_terrain: str) -> bool:
+    """Check if transitioning between two terrain types feels natural.
+
+    Uses NATURAL_TRANSITIONS to determine if terrain A can naturally
+    border terrain B. Symmetric - if A->B is natural, B->A is also natural.
+
+    Args:
+        from_terrain: Source terrain type
+        to_terrain: Target terrain type
+
+    Returns:
+        True if the transition is natural, False if jarring
+    """
+    # Same terrain is always natural
+    if from_terrain == to_terrain:
+        return True
+
+    # Check if to_terrain is in from_terrain's natural neighbors
+    natural_neighbors = NATURAL_TRANSITIONS.get(from_terrain, set())
+    if to_terrain in natural_neighbors:
+        return True
+
+    # Check reverse (symmetric transitions)
+    reverse_neighbors = NATURAL_TRANSITIONS.get(to_terrain, set())
+    return from_terrain in reverse_neighbors
+
+
+def get_transition_warning(from_terrain: str, to_terrain: str) -> Optional[str]:
+    """Get a warning message for unnatural terrain transitions.
+
+    Args:
+        from_terrain: Source terrain type
+        to_terrain: Target terrain type
+
+    Returns:
+        Warning message string if transition is unnatural, None if natural
+    """
+    if is_natural_transition(from_terrain, to_terrain):
+        return None
+
+    return f"Unnatural terrain transition: {from_terrain} -> {to_terrain}"
 
 
 # Region terrain biases for coherent mega-biomes
