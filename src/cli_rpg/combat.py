@@ -2022,7 +2022,7 @@ class CombatEncounter:
         # Display pending combo notification
         if self.pending_combo:
             combo_name = self.pending_combo.replace("_", " ").title()
-            lines.append(f"{colors.heal('COMBO AVAILABLE')}: {combo_name}!")
+            lines.append(f"{colors.heal('COMBO AVAILABLE')}: {combo_name}! (Type '{self.pending_combo}' to use)")
 
         # Display companion bonus if any
         companion_bonus = self._get_companion_bonus()
