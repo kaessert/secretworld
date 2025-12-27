@@ -52,6 +52,43 @@ Named locations on the overworld (dungeons, caves, towns, ruins, etc.) can now b
 
 ---
 
+### Shadow of Dread Victory Does Not Reset Dread
+**Status**: ACTIVE
+**Priority**: CRITICAL - BLOCKER
+**Date Added**: 2025-12-27
+
+Defeating the Shadow of Dread (which spawns at 100% dread) should reset the dread meter to 0, but currently it does not.
+
+#### The Problem
+
+When dread reaches 100%, a Shadow of Dread attacks the player. If the player defeats it:
+- **Expected**: Dread resets to 0% (the player has conquered their fear)
+- **Actual**: Dread remains at 100%, immediately spawning another Shadow
+
+This creates an unwinnable loop where the player keeps fighting Shadows forever.
+
+#### Thematic Justification
+
+Defeating the manifestation of your fear should provide relief:
+- Victory over the Shadow = conquering inner demons
+- Dread reset rewards bravery
+- Creates a satisfying gameplay loop (build dread → face Shadow → relief)
+
+#### Implementation
+
+**File to Modify**: `src/cli_rpg/combat.py` or `src/cli_rpg/shadow_creature.py`
+
+In the combat victory handler, check if defeated enemy was Shadow of Dread:
+```python
+if enemy.name == "Shadow of Dread" or enemy.is_shadow_creature:
+    game_state.character.dread.reset()  # or set to 0
+    output("The shadow dissipates. Your mind feels clear once more.")
+```
+
+**Alternative**: Reduce dread by 50% instead of full reset if full reset feels too generous.
+
+---
+
 ### Rest Command Tiredness Threshold Mismatch
 **Status**: ACTIVE - Documentation/Implementation Discrepancy
 **Priority**: LOW
@@ -86,12 +123,43 @@ The README documentation states "Sleep is only available when tiredness reaches 
 
 ---
 
-### Map Visibility Radius
-**Status**: ✅ COMPLETE (2025-12-27)
+### Map Visibility Radius - NOT WORKING
+**Status**: ACTIVE - BUG
 **Priority**: CRITICAL - BLOCKER
 **Date Added**: 2025-12-27
 
-The map command now automatically reveals nearby terrain within the player's visibility radius, not just tiles physically visited.
+**BUG**: Despite implementation being marked complete, map still only shows visited tiles, not tiles within visibility radius.
+
+#### Evidence
+
+After walking north 4 tiles, map shows:
+```
+│  3                    @                │
+│  2                    .                │
+│  1                    .                │
+│  0                    .                │
+│ -1                    .                │
+```
+
+**Expected**: Should show terrain in surrounding 2-3 tile radius based on current terrain type.
+**Actual**: Only shows the exact path walked (vertical line of visited tiles).
+
+#### Root Cause Investigation
+
+The implementation exists but is not being called or rendered:
+1. `update_visibility()` may not be called on movement
+2. `seen_tiles` may not be passed to map renderer
+3. Map renderer may not be rendering seen-but-not-visited tiles differently
+4. Visibility calculation may be returning empty set
+
+#### Verification Steps
+
+1. Check if `update_visibility()` is called in `move()` and `_move_in_sub_grid()`
+2. Check if `seen_tiles` is passed to `render_map()`
+3. Check if map renderer distinguishes visited vs seen tiles
+4. Add debug logging to trace visibility calculation
+
+#### Previous Implementation (needs debugging)
 
 #### Implementation Complete
 
@@ -1455,26 +1523,39 @@ Transform the dungeon/interior experience from functional to immersive. The SubG
 
 **Labels:** `enhancement` `AI` `gameplay` `P1`
 
+**Status:** ✅ COMPLETE (2025-12-27)
+
 **Problem**: `_generate_area_layout()` uses a simple branching pattern for all areas. No dungeon-specific layouts exist. All AI-generated interiors feel structurally identical regardless of category.
 
-**Current State:**
-- `_generate_area_layout()` in `ai_service.py` creates simple branching
-- Fixed coordinates relative to entry point
-- No category-specific layout algorithms
-- No secret passages or alternative routes
+**Implementation:**
+- Added `LayoutType` enum with 4 layout types: `LINEAR`, `BRANCHING`, `HUB`, `MAZE`
+- Added `CATEGORY_LAYOUTS` dict mapping location categories to appropriate layouts:
+  - `cave`, `mine` → LINEAR (corridor-style progression)
+  - `temple`, `monastery`, `shrine` → HUB (central room with 4 cardinal spokes)
+  - `dungeon` → MAZE (multiple paths with dead ends)
+  - Everything else → BRANCHING (default perpendicular branch algorithm)
+- Implemented 4 layout generator functions:
+  - `_generate_linear_layout()`: Straight corridor extending from entry
+  - `_generate_hub_layout()`: Central room at (0,0) with 4 cardinal spokes
+  - `_generate_maze_layout()`: Random walk with backtracking for dead ends
+  - `_generate_branching_layout()`: Original perpendicular branch algorithm
+- Added `_generate_secret_passage()`: 10-20% probability per layout, connects non-adjacent rooms (Manhattan distance >= 2)
+- Added `secret_passages: List[dict]` field to SubGrid with serialization support
+- 3D layout support via `_generate_area_layout_3d()` which passes category to 2D layout
 
 **Acceptance Criteria:**
-- [ ] **Linear** layout for caves/mines (progression-focused)
-- [ ] **Branching** layout for forests/ruins (exploration-focused)
-- [ ] **Circular/Hub** layout for temples (central hub with spokes)
-- [ ] **Maze** layout for large dungeons (multiple paths, dead ends)
-- [ ] Secret passages connecting non-adjacent rooms
-- [ ] Layout type selected based on location category
+- [x] **Linear** layout for caves/mines (progression-focused)
+- [x] **Branching** layout for forests/ruins (exploration-focused)
+- [x] **Circular/Hub** layout for temples (central hub with spokes)
+- [x] **Maze** layout for large dungeons (multiple paths, dead ends)
+- [x] Secret passages connecting non-adjacent rooms
+- [x] Layout type selected based on location category
 
-**Related Files:**
-- `src/cli_rpg/ai_service.py` - New layout algorithms
-- `src/cli_rpg/ai_world.py` - Layout selection logic
-- `src/cli_rpg/world_grid.py` - Secret passage support in SubGrid
+**Tests:** 35 tests in `tests/test_procedural_layouts.py`
+
+**Files Modified:**
+- `src/cli_rpg/ai_service.py` - LayoutType enum, CATEGORY_LAYOUTS, 4 layout generators, secret passage generator
+- `src/cli_rpg/world_grid.py` - secret_passages field on SubGrid with serialization
 
 ---
 
@@ -1683,9 +1764,9 @@ Transform the dungeon/interior experience from functional to immersive. The SubG
 - Filled the biggest content gap in AI-generated areas
 - Wired passive secret detection into movement methods
 
-**Phase 2 - Dungeon Structure (P1)** - Issues 19-20
+**Phase 2 - Dungeon Structure (P1)** - Issues 19-20 ✅ COMPLETE
 - ✅ Multi-level dungeon generation using z-axis (Issue 19 COMPLETE)
-- Category-specific procedural layouts (Issue 20 pending)
+- ✅ Category-specific procedural layouts (Issue 20 COMPLETE)
 - Makes dungeons feel distinct and designed
 
 **Phase 3 - Thematic Variety (P2)** - Issues 21-22

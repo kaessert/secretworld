@@ -4,6 +4,7 @@ Uses heuristic-based decision making to play the game via JSON mode.
 Supports sophisticated exploration including dungeons, sub-locations,
 and quest-driven behavior.
 """
+import os
 import queue
 import random
 import subprocess
@@ -566,18 +567,31 @@ class GameSession:
 
     def _reader_worker(self) -> None:
         """Background thread that reads stdout lines into a queue."""
+        import select
+
         try:
+            buffer = ""
             while not self._stop_reader:
-                line = self.process.stdout.readline()
-                if not line:  # EOF
-                    break
-                self._output_queue.put(line)
-        except (ValueError, OSError):
+                # Use select with timeout to check for data
+                rlist, _, _ = select.select([self._stdout_fd], [], [], 0.1)
+                if self._stdout_fd in rlist:
+                    try:
+                        data = os.read(self._stdout_fd, 4096)
+                        if not data:  # EOF
+                            break
+                        buffer += data.decode("utf-8", errors="replace")
+                        # Split into lines
+                        while "\n" in buffer:
+                            line, buffer = buffer.split("\n", 1)
+                            self._output_queue.put(line + "\n")
+                    except (OSError, ValueError):
+                        break
+        except Exception:
             pass  # Process closed
 
     def start(self) -> None:
         """Start the game subprocess and reader thread."""
-        import os
+        import pty
 
         # Force unbuffered I/O in child process
         env = os.environ.copy()
@@ -590,15 +604,25 @@ class GameSession:
             "--skip-character-creation",
             f"--seed={self.seed}"
         ]
+
+        # Use PTY to force line buffering (works better on Unix)
+        master_fd, slave_fd = pty.openpty()
+
         self.process = subprocess.Popen(
             cmd,
             stdin=subprocess.PIPE,
-            stdout=subprocess.PIPE,
+            stdout=slave_fd,
             stderr=subprocess.PIPE,
-            text=True,
-            bufsize=0,  # Unbuffered
+            text=True,  # Text mode for stdin
+            bufsize=1,  # Line buffered
             env=env,
         )
+
+        # Close slave fd in parent
+        os.close(slave_fd)
+
+        # Store master fd for reading
+        self._stdout_fd = master_fd
 
         # Start reader thread
         self._stop_reader = False
@@ -801,13 +825,13 @@ class GameSession:
 
         try:
             # Wait for game to initialize and capture initial output
-            # The game emits session_info, state, narrative, actions immediately
-            time.sleep(0.3)
-            initial_output = self._read_output(wait_time=1.0, min_lines=3)
+            # The game takes time to start - especially for world generation
+            time.sleep(2.0)
+            initial_output = self._read_output(wait_time=2.0, min_lines=1)
             if self.verbose:
                 print(f"[SESSION] Initial output: {len(initial_output)} lines")
                 for line in initial_output[:5]:
-                    print(f"[SESSION]   {line[:100]}...")
+                    print(f"[SESSION]   {line[:100].strip()}...")
             self._process_messages(initial_output)
 
             # Send look command to refresh state

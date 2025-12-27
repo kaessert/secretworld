@@ -2,7 +2,9 @@
 
 import json
 import hashlib
+import random
 import time
+from enum import Enum, auto
 from typing import Any, Callable, Optional, TYPE_CHECKING
 
 if TYPE_CHECKING:  # pragma: no cover
@@ -37,6 +39,31 @@ VALID_LOCATION_CATEGORIES: set[str] = {
     "town", "dungeon", "wilderness", "settlement",
     "ruins", "cave", "forest", "mountain", "village"
 }
+
+
+class LayoutType(Enum):
+    """Layout types for procedural dungeon/area generation."""
+
+    LINEAR = auto()      # Corridor-style progression (caves, mines)
+    BRANCHING = auto()   # Current default behavior (forests, ruins)
+    HUB = auto()         # Central room with spokes (temples, shrines)
+    MAZE = auto()        # Multiple paths with dead ends (dungeons)
+
+
+# Category to layout type mapping
+CATEGORY_LAYOUTS: dict[str, LayoutType] = {
+    # Linear (progression-focused)
+    "cave": LayoutType.LINEAR,
+    "mine": LayoutType.LINEAR,
+    # Hub (central with spokes)
+    "temple": LayoutType.HUB,
+    "monastery": LayoutType.HUB,
+    "shrine": LayoutType.HUB,
+    # Maze (exploration-focused)
+    "dungeon": LayoutType.MAZE,
+    # Everything else uses BRANCHING (forest, ruins, wilderness, etc.)
+}
+
 
 logger = logging.getLogger(__name__)
 
@@ -2925,17 +2952,156 @@ Note: Use "EXISTING_WORLD" as placeholder for the connection back to the source 
 
         return area_locations
 
-    def _generate_area_layout(self, size: int, entry_direction: str) -> list[tuple[int, int]]:
+    def _generate_area_layout(
+        self,
+        size: int,
+        entry_direction: str,
+        category: Optional[str] = None
+    ) -> list[tuple[int, int]]:
         """Generate relative coordinates for area locations.
 
-        Creates a layout with entry at (0, 0) and expands outward.
+        Dispatches to category-specific layout generator.
+
+        Args:
+            size: Number of locations to generate
+            entry_direction: Direction player entered from
+            category: Location category for layout selection
+
+        Returns:
+            List of (x, y) coordinate tuples, with entry at (0, 0)
+        """
+        layout_type = (
+            CATEGORY_LAYOUTS.get(category.lower(), LayoutType.BRANCHING)
+            if category
+            else LayoutType.BRANCHING
+        )
+
+        if layout_type == LayoutType.LINEAR:
+            return self._generate_linear_layout(size, entry_direction)
+        elif layout_type == LayoutType.HUB:
+            return self._generate_hub_layout(size, entry_direction)
+        elif layout_type == LayoutType.MAZE:
+            return self._generate_maze_layout(size, entry_direction)
+        else:
+            return self._generate_branching_layout(size, entry_direction)
+
+    def _generate_linear_layout(
+        self, size: int, entry_direction: str
+    ) -> list[tuple[int, int]]:
+        """Generate linear corridor layout for caves/mines.
+
+        Creates a straight line of rooms extending away from entry.
+        Entry at (0,0), extending in opposite direction from entry.
 
         Args:
             size: Number of locations to generate
             entry_direction: Direction player entered from
 
         Returns:
-            List of (x, y) coordinate tuples, with entry at (0, 0)
+            List of (x, y) coordinate tuples in a straight line
+        """
+        opposite_map = {
+            "north": (0, -1),
+            "south": (0, 1),
+            "east": (-1, 0),
+            "west": (1, 0),
+        }
+        direction = opposite_map.get(entry_direction, (0, 1))
+
+        coords = [(0, 0)]
+        for i in range(1, size):
+            coords.append((direction[0] * i, direction[1] * i))
+        return coords
+
+    def _generate_hub_layout(
+        self, size: int, entry_direction: str
+    ) -> list[tuple[int, int]]:
+        """Generate hub layout for temples/shrines.
+
+        Central room at (0,0) with 4 spokes in cardinal directions.
+        Distributes rooms evenly across spokes, extending outward.
+
+        Args:
+            size: Number of locations to generate
+            entry_direction: Direction player entered from
+
+        Returns:
+            List of (x, y) coordinate tuples with central hub and spokes
+        """
+        coords = [(0, 0)]  # Central hub
+
+        if size <= 1:
+            return coords
+
+        # Four spokes: N, S, E, W
+        spokes = [(0, 1), (0, -1), (1, 0), (-1, 0)]
+        rooms_per_spoke = (size - 1) // 4
+        extra = (size - 1) % 4
+
+        for i, (dx, dy) in enumerate(spokes):
+            spoke_rooms = rooms_per_spoke + (1 if i < extra else 0)
+            for dist in range(1, spoke_rooms + 1):
+                coords.append((dx * dist, dy * dist))
+                if len(coords) >= size:
+                    return coords
+
+        return coords
+
+    def _generate_maze_layout(
+        self, size: int, entry_direction: str
+    ) -> list[tuple[int, int]]:
+        """Generate maze layout for dungeons.
+
+        Uses random walk with backtracking to create exploration-focused layout.
+        Creates multiple branches, dead ends, and optional loops.
+
+        Args:
+            size: Number of locations to generate
+            entry_direction: Direction player entered from
+
+        Returns:
+            List of (x, y) coordinate tuples forming a maze pattern
+        """
+        coords = [(0, 0)]
+        coord_set = {(0, 0)}
+        stack = [(0, 0)]  # For backtracking
+        directions = [(0, 1), (0, -1), (1, 0), (-1, 0)]
+
+        while len(coords) < size and stack:
+            current = stack[-1]
+
+            # Find unvisited neighbors
+            neighbors = []
+            for dx, dy in directions:
+                neighbor = (current[0] + dx, current[1] + dy)
+                if neighbor not in coord_set:
+                    neighbors.append(neighbor)
+
+            if neighbors:
+                # Random walk to a neighbor
+                next_coord = random.choice(neighbors)
+                coords.append(next_coord)
+                coord_set.add(next_coord)
+                stack.append(next_coord)
+            else:
+                # Dead end - backtrack
+                stack.pop()
+
+        return coords
+
+    def _generate_branching_layout(
+        self, size: int, entry_direction: str
+    ) -> list[tuple[int, int]]:
+        """Generate branching layout - perpendicular branches from primary direction.
+
+        This is the original/default layout algorithm used for forests, ruins, etc.
+
+        Args:
+            size: Number of locations to generate
+            entry_direction: Direction player entered from
+
+        Returns:
+            List of (x, y) coordinate tuples in a branching pattern
         """
         # Start with entry point at origin
         coords = [(0, 0)]
@@ -2992,6 +3158,41 @@ Note: Use "EXISTING_WORLD" as placeholder for the connection back to the source 
 
         return coords
 
+    def _generate_secret_passage(
+        self,
+        coords: list[tuple[int, int]],
+        probability: float = 0.15
+    ) -> Optional[dict]:
+        """Potentially generate a secret passage connecting non-adjacent rooms.
+
+        Args:
+            coords: List of room coordinates
+            probability: Chance to generate a passage (0.0 to 1.0)
+
+        Returns:
+            Dict with from_coord, to_coord, is_secret_passage or None
+        """
+        if random.random() > probability or len(coords) < 3:
+            return None
+
+        # Find pairs of non-adjacent coords (Manhattan distance >= 2)
+        valid_pairs = []
+        for i, c1 in enumerate(coords):
+            for c2 in coords[i + 1:]:
+                dist = abs(c1[0] - c2[0]) + abs(c1[1] - c2[1])
+                if dist >= 2:
+                    valid_pairs.append((c1, c2))
+
+        if not valid_pairs:
+            return None
+
+        from_coord, to_coord = random.choice(valid_pairs)
+        return {
+            "from_coord": from_coord,
+            "to_coord": to_coord,
+            "is_secret_passage": True,
+        }
+
     def _generate_area_layout_3d(
         self,
         size: int,
@@ -3020,7 +3221,7 @@ Note: Use "EXISTING_WORLD" as placeholder for the connection back to the source 
 
         # If single-level (min_z == max_z == 0), use 2D layout with z=0
         if min_z == max_z == 0:
-            coords_2d = self._generate_area_layout(size, entry_direction)
+            coords_2d = self._generate_area_layout(size, entry_direction, category)
             return [(x, y, 0) for x, y in coords_2d]
 
         # Multi-level layout

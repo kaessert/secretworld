@@ -112,12 +112,14 @@ class SubGrid:
         _by_name: Name-based lookup for convenience
         bounds: Tuple of (min_x, max_x, min_y, max_y, min_z, max_z) defining grid limits
         parent_name: Name of the parent location for exit navigation
+        secret_passages: List of secret passages connecting non-adjacent rooms
     """
 
     _grid: Dict[Tuple[int, int, int], Location] = field(default_factory=dict)
     _by_name: Dict[str, Location] = field(default_factory=dict)
     bounds: Tuple[int, int, int, int, int, int] = (-2, 2, -2, 2, 0, 0)  # min_x, max_x, min_y, max_y, min_z, max_z
     parent_name: str = ""
+    secret_passages: List[dict] = field(default_factory=list)
 
     def add_location(self, location: Location, x: int, y: int, z: int = 0) -> None:
         """Add a location within bounds.
@@ -200,7 +202,7 @@ class SubGrid:
         """Serialize the sub-grid to a dictionary.
 
         Returns:
-            Dictionary representation with locations, bounds, and parent_name
+            Dictionary representation with locations, bounds, parent_name, and secret_passages
         """
         locations = []
         for location in self._by_name.values():
@@ -210,6 +212,7 @@ class SubGrid:
             "locations": locations,
             "bounds": list(self.bounds),
             "parent_name": self.parent_name,
+            "secret_passages": self.secret_passages,
         }
 
     @classmethod
@@ -230,6 +233,7 @@ class SubGrid:
             raw_bounds = list(raw_bounds) + [0, 0]
         grid.bounds = tuple(raw_bounds)
         grid.parent_name = data.get("parent_name", "")
+        grid.secret_passages = data.get("secret_passages", [])
 
         for loc_data in data.get("locations", []):
             location = Location.from_dict(loc_data)

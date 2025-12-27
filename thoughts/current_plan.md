@@ -1,159 +1,312 @@
-# Issue 19: Multi-Level Dungeon Generation
+# Issue 20: Procedural Dungeon Layouts
 
 ## Spec
 
-Generate dungeon/cave/ruins SubGrids across multiple z-levels (not just flat 2D) using the existing z-axis infrastructure. Entry at z=0, descending to min_z defined in `SUBGRID_BOUNDS`. Deeper levels have increased danger and better loot. Boss placed at lowest level.
+Add category-specific layout algorithms to `_generate_area_layout()` and `_generate_area_layout_3d()` so AI-generated interiors feel structurally distinct. Currently all areas use a simple branching pattern regardless of category.
 
-**In Scope:**
-- Extend `_generate_area_layout()` to return 3D coordinates `(x, y, z)` for multi-level categories
-- Place stairs/ladders connecting levels with appropriate descriptions
-- Scale treasure difficulty and secret thresholds by depth (z)
-- Place boss at lowest z-level (not just furthest Manhattan distance)
-- Add level indicator to map command (already exists: "Level {player_z}")
+**Layout Types by Category:**
+| Layout | Categories | Structure |
+|--------|------------|-----------|
+| Linear | cave, mine | Corridor progression: entry -> room -> corridor -> room (size rooms in a line) |
+| Branching | forest, ruins, wilderness | Current default - entry point with perpendicular branches |
+| Hub | temple, monastery, shrine | Central hub at (0,0) with 4 spokes (N/S/E/W) radiating outward |
+| Maze | dungeon | Grid-based with multiple paths, dead ends, loops |
 
-**Out of Scope (future work):**
-- Vertical shortcuts via hidden passages (Issue 20)
-- Category-specific procedural layouts (Issue 20)
+**Secret Passages:**
+- 10-20% chance per layout to add 1 secret passage
+- Connects non-adjacent rooms (Manhattan distance >= 2)
+- Marked with `is_secret_passage=True` on Location exit
 
-## Tests (tests/test_multi_level_generation.py)
+## Tests (tests/test_procedural_layouts.py)
 
-### Unit Tests
+### Unit Tests - Layout Generators
 
-1. `test_generate_area_layout_3d_returns_z_coords_for_dungeon` - Layout for "dungeon" category returns 3-tuple coords with z from 0 to min_z
-2. `test_generate_area_layout_3d_returns_z_coords_for_cave` - Layout for "cave" category returns 3-tuple coords
-3. `test_generate_area_layout_3d_single_level_for_town` - Layout for "town" (min_z=max_z=0) returns 2D coords only
-4. `test_generate_area_layout_3d_entry_at_z0` - First coordinate is always (0, 0, 0)
-5. `test_generate_area_layout_3d_stairs_connect_levels` - Adjacent z-levels share (x, y) coordinate for stair connection
+1. `test_linear_layout_produces_corridor_shape` - Linear layout for cave produces coords in a line (all same x OR all same y)
+2. `test_linear_layout_entry_at_origin` - Entry point is (0,0)
+3. `test_linear_layout_respects_size` - Returns requested number of coords
+
+4. `test_hub_layout_has_central_room` - Hub layout has entry at (0,0)
+5. `test_hub_layout_four_spokes` - Hub layout creates rooms extending in cardinal directions
+6. `test_hub_layout_respects_size` - Returns requested number of coords
+
+7. `test_maze_layout_has_multiple_branches` - Maze layout has coords with multiple neighbors
+8. `test_maze_layout_has_dead_ends` - Maze layout includes dead-end coords (1 neighbor only)
+9. `test_maze_layout_respects_size` - Returns requested number of coords
+
+10. `test_branching_layout_unchanged` - Existing branching behavior preserved for forest/ruins
+
+### Unit Tests - Category Selection
+
+11. `test_layout_selection_cave_uses_linear` - "cave" category triggers linear layout
+12. `test_layout_selection_temple_uses_hub` - "temple" category triggers hub layout
+13. `test_layout_selection_dungeon_uses_maze` - "dungeon" category triggers maze layout
+14. `test_layout_selection_forest_uses_branching` - "forest" category uses branching (default)
+15. `test_layout_selection_unknown_uses_branching` - Unknown category falls back to branching
+
+### Unit Tests - Secret Passages
+
+16. `test_secret_passage_connects_non_adjacent` - Secret passage connects rooms >= 2 Manhattan distance apart
+17. `test_secret_passage_returns_valid_structure` - Secret passage has from_coord, to_coord, is_secret_passage fields
 
 ### Integration Tests
 
-6. `test_expand_area_dungeon_uses_3d_layout` - `expand_area()` for dungeon places locations at multiple z-levels
-7. `test_expand_area_places_stairs_locations` - Stair/ladder locations created between z-levels
-8. `test_generate_subgrid_for_location_uses_3d` - `generate_subgrid_for_location()` creates multi-level SubGrid for dungeon
-9. `test_boss_placed_at_lowest_z_level` - Boss room is at min_z, not just furthest x/y distance
-10. `test_treasure_difficulty_scales_with_depth` - Treasures at z=-2 have higher difficulty than z=0
-11. `test_secrets_threshold_scales_with_depth` - Secrets at lower z have higher thresholds
-12. `test_map_shows_level_indicator_for_multilevel` - Map command shows "Level -1" etc. (existing functionality, verify)
+18. `test_generate_subgrid_uses_category_layout` - `generate_subgrid_for_location()` selects layout by category
+19. `test_3d_layout_applies_category_patterns` - `_generate_area_layout_3d()` respects category on each z-level
 
 ## Implementation Steps
 
-### 1. Extend `_generate_area_layout()` to support 3D (ai_service.py)
+### 1. Add layout type constants and category mapping (ai_service.py)
 
 **File:** `src/cli_rpg/ai_service.py`
 
-Add new method `_generate_area_layout_3d()`:
+Add at module level (near other constants):
 ```python
-def _generate_area_layout_3d(
+from enum import Enum, auto
+
+class LayoutType(Enum):
+    LINEAR = auto()      # Corridor-style progression
+    BRANCHING = auto()   # Current default behavior
+    HUB = auto()         # Central room with spokes
+    MAZE = auto()        # Multiple paths with dead ends
+
+CATEGORY_LAYOUTS: dict[str, LayoutType] = {
+    # Linear (progression-focused)
+    "cave": LayoutType.LINEAR,
+    "mine": LayoutType.LINEAR,
+    # Hub (central with spokes)
+    "temple": LayoutType.HUB,
+    "monastery": LayoutType.HUB,
+    "shrine": LayoutType.HUB,
+    # Maze (exploration-focused)
+    "dungeon": LayoutType.MAZE,
+    # Everything else uses BRANCHING (forest, ruins, wilderness, etc.)
+}
+```
+
+### 2. Rename existing layout logic to `_generate_branching_layout()` (ai_service.py)
+
+**File:** `src/cli_rpg/ai_service.py`
+
+Extract the current `_generate_area_layout()` body into `_generate_branching_layout()`:
+```python
+def _generate_branching_layout(self, size: int, entry_direction: str) -> list[tuple[int, int]]:
+    """Generate branching layout - perpendicular branches from primary direction.
+
+    This is the original/default layout algorithm.
+    """
+    # ... existing implementation (lines 2940-2993)
+```
+
+### 3. Add `_generate_linear_layout()` method (ai_service.py)
+
+**File:** `src/cli_rpg/ai_service.py`
+
+```python
+def _generate_linear_layout(self, size: int, entry_direction: str) -> list[tuple[int, int]]:
+    """Generate linear corridor layout for caves/mines.
+
+    Creates a straight line of rooms extending away from entry.
+    Entry at (0,0), extending in opposite direction from entry.
+
+    Example (entering from south, size=5):
+    (0,0) -> (0,1) -> (0,2) -> (0,3) -> (0,4)
+    """
+    opposite_map = {
+        "north": (0, 1), "south": (0, -1),
+        "east": (1, 0), "west": (-1, 0),
+    }
+    direction = opposite_map.get(entry_direction, (0, 1))
+
+    coords = [(0, 0)]
+    for i in range(1, size):
+        coords.append((direction[0] * i, direction[1] * i))
+    return coords
+```
+
+### 4. Add `_generate_hub_layout()` method (ai_service.py)
+
+**File:** `src/cli_rpg/ai_service.py`
+
+```python
+def _generate_hub_layout(self, size: int, entry_direction: str) -> list[tuple[int, int]]:
+    """Generate hub layout for temples/shrines.
+
+    Central room at (0,0) with 4 spokes in cardinal directions.
+    Distributes rooms evenly across spokes, extending outward.
+
+    Example (size=9):
+           (0,2)
+             |
+    (-2,0)-(-1,0)-(0,0)-(1,0)-(2,0)
+             |
+           (0,-1)
+           (0,-2)
+    """
+    coords = [(0, 0)]  # Central hub
+
+    # Four spokes: N, S, E, W
+    spokes = [(0, 1), (0, -1), (1, 0), (-1, 0)]
+    rooms_per_spoke = (size - 1) // 4
+    extra = (size - 1) % 4
+
+    for i, (dx, dy) in enumerate(spokes):
+        spoke_rooms = rooms_per_spoke + (1 if i < extra else 0)
+        for dist in range(1, spoke_rooms + 1):
+            coords.append((dx * dist, dy * dist))
+            if len(coords) >= size:
+                return coords
+
+    return coords
+```
+
+### 5. Add `_generate_maze_layout()` method (ai_service.py)
+
+**File:** `src/cli_rpg/ai_service.py`
+
+```python
+def _generate_maze_layout(self, size: int, entry_direction: str) -> list[tuple[int, int]]:
+    """Generate maze layout for dungeons.
+
+    Uses random walk with backtracking to create exploration-focused layout.
+    Creates multiple branches, dead ends, and optional loops.
+    """
+    import random
+
+    coords = [(0, 0)]
+    coord_set = {(0, 0)}
+    stack = [(0, 0)]  # For backtracking
+    directions = [(0, 1), (0, -1), (1, 0), (-1, 0)]
+
+    while len(coords) < size and stack:
+        current = stack[-1]
+
+        # Find unvisited neighbors
+        neighbors = []
+        for dx, dy in directions:
+            neighbor = (current[0] + dx, current[1] + dy)
+            if neighbor not in coord_set:
+                neighbors.append(neighbor)
+
+        if neighbors:
+            # Random walk to a neighbor
+            next_coord = random.choice(neighbors)
+            coords.append(next_coord)
+            coord_set.add(next_coord)
+            stack.append(next_coord)
+        else:
+            # Dead end - backtrack
+            stack.pop()
+
+    return coords
+```
+
+### 6. Modify `_generate_area_layout()` to dispatch by category (ai_service.py)
+
+**File:** `src/cli_rpg/ai_service.py`
+
+Update signature and add dispatch:
+```python
+def _generate_area_layout(
     self,
     size: int,
     entry_direction: str,
     category: Optional[str] = None
-) -> list[tuple[int, int, int]]:
-    """Generate 3D coordinates for multi-level areas.
+) -> list[tuple[int, int]]:
+    """Generate relative coordinates for area locations.
 
-    For categories with z-depth (dungeon, cave, ruins), generates
-    coords descending from z=0 to min_z with stairs connecting levels.
+    Dispatches to category-specific layout generator.
+    """
+    layout_type = CATEGORY_LAYOUTS.get(category.lower(), LayoutType.BRANCHING) if category else LayoutType.BRANCHING
 
-    Args:
-        size: Number of locations to generate
-        entry_direction: Direction player entered from
-        category: Location category (dungeon, cave, etc.)
+    if layout_type == LayoutType.LINEAR:
+        return self._generate_linear_layout(size, entry_direction)
+    elif layout_type == LayoutType.HUB:
+        return self._generate_hub_layout(size, entry_direction)
+    elif layout_type == LayoutType.MAZE:
+        return self._generate_maze_layout(size, entry_direction)
+    else:
+        return self._generate_branching_layout(size, entry_direction)
+```
+
+### 7. Update `_generate_area_layout_3d()` to pass category to 2D fallback (ai_service.py)
+
+**File:** `src/cli_rpg/ai_service.py`
+
+At line ~3023, update single-level fallback:
+```python
+if min_z == max_z == 0:
+    coords_2d = self._generate_area_layout(size, entry_direction, category)  # Pass category
+    return [(x, y, 0) for x, y in coords_2d]
+```
+
+### 8. Add `_generate_secret_passage()` helper (ai_service.py)
+
+**File:** `src/cli_rpg/ai_service.py`
+
+```python
+def _generate_secret_passage(
+    self,
+    coords: list[tuple[int, int]],
+    probability: float = 0.15
+) -> Optional[dict]:
+    """Potentially generate a secret passage connecting non-adjacent rooms.
 
     Returns:
-        List of (x, y, z) coordinate tuples
+        Dict with from_coord, to_coord, is_secret_passage or None
     """
+    import random
+
+    if random.random() > probability or len(coords) < 4:
+        return None
+
+    # Find pairs of non-adjacent coords (Manhattan distance >= 2)
+    valid_pairs = []
+    for i, c1 in enumerate(coords):
+        for c2 in coords[i+1:]:
+            dist = abs(c1[0] - c2[0]) + abs(c1[1] - c2[1])
+            if dist >= 2:
+                valid_pairs.append((c1, c2))
+
+    if not valid_pairs:
+        return None
+
+    from_coord, to_coord = random.choice(valid_pairs)
+    return {
+        "from_coord": from_coord,
+        "to_coord": to_coord,
+        "is_secret_passage": True,
+    }
 ```
 
-Logic:
-- Get z bounds from `get_subgrid_bounds(category)`
-- If `min_z == max_z == 0`, delegate to existing 2D `_generate_area_layout()`
-- For multi-level: distribute locations across z-levels
-- Each level transition shares an (x, y) coord (stair placement)
-- Entry always at (0, 0, 0)
-
-### 2. Add stair location generation helper (ai_world.py)
+### 9. Update callers to pass category (ai_world.py)
 
 **File:** `src/cli_rpg/ai_world.py`
 
-Add `_create_stair_location()`:
+In `generate_area_with_context()` (~line 2860 in ai_service.py), pass category to layout:
 ```python
-def _create_stair_location(
-    from_z: int,
-    to_z: int,
-    category: str,
-    coords: tuple[int, int, int]
-) -> dict:
-    """Create a stair/ladder location connecting two z-levels."""
+# Get category from context or first location hint
+category = region_context.location_type_hint if region_context else None
+coords = self._generate_area_layout(size, entry_direction, category)
 ```
 
-Stair templates by category:
-- dungeon: "Stone Stairway", "Spiral Stairs", "Crumbling Steps"
-- cave: "Rope Ladder", "Natural Shaft", "Narrow Passage Down"
-- ruins: "Ancient Stairs", "Collapsed Stairwell"
+### 10. Store secret passages on SubGrid (world_grid.py)
 
-### 3. Modify `expand_area()` to use 3D layout (ai_world.py)
+**File:** `src/cli_rpg/world_grid.py`
 
-**File:** `src/cli_rpg/ai_world.py`
-
-In `expand_area()`:
-- Get category from first location or category_hint
-- Call `ai_service._generate_area_layout_3d()` instead of `_generate_area_layout()`
-- Handle 3-tuple coords when placing in SubGrid
-- Existing `sub_grid.add_location(loc, rel_x, rel_y, rel_z)` already supports z
-
-### 4. Modify `generate_subgrid_for_location()` to use 3D layout (ai_world.py)
-
-**File:** `src/cli_rpg/ai_world.py`
-
-Similar changes to `generate_subgrid_for_location()`:
-- Call 3D layout generator for multi-level categories
-- Handle z-coordinate when placing locations
-
-### 5. Update boss placement for z-depth (ai_world.py)
-
-**File:** `src/cli_rpg/ai_world.py`
-
-Modify `_find_furthest_room()`:
+Add field to SubGrid:
 ```python
-def _find_furthest_room(placed_locations: dict, prefer_lowest_z: bool = True) -> Optional[str]:
-    """Find room for boss placement.
-
-    For multi-level dungeons, prioritizes lowest z-level.
-    Among locations at lowest z, picks furthest by Manhattan distance.
-    """
+@dataclass
+class SubGrid:
+    ...
+    secret_passages: list[dict] = field(default_factory=list)
 ```
 
-### 6. Scale treasure/secret difficulty by z-depth (ai_world.py)
-
-**File:** `src/cli_rpg/ai_world.py`
-
-Modify `_create_treasure_chest()`:
-```python
-def _create_treasure_chest(category: str, distance: int, z_level: int = 0) -> dict:
-    # difficulty = distance + abs(z_level) + random(0,1)
-```
-
-Modify `_generate_secrets_for_location()`:
-```python
-def _generate_secrets_for_location(category: str, distance: int = 0, z_level: int = 0) -> list[dict]:
-    # threshold += abs(z_level) for deeper secrets
-```
-
-### 7. Update placed_locations tracking for z (ai_world.py)
-
-In `expand_area()` and `generate_subgrid_for_location()`:
-```python
-placed_locations[name] = {
-    "location": new_loc,
-    "relative_coords": (rel_x, rel_y, rel_z),  # 3-tuple
-    "is_entry": is_entry,
-}
-```
+Secret passages integrate with existing secrets system - when a "hidden door" secret is discovered via `search`, it can reveal a secret passage to a non-adjacent room.
 
 ## Summary of File Changes
 
 | File | Changes |
 |------|---------|
-| `src/cli_rpg/ai_service.py` | Add `_generate_area_layout_3d()` method |
-| `src/cli_rpg/ai_world.py` | Add `_create_stair_location()`, update `expand_area()`, `generate_subgrid_for_location()`, `_find_furthest_room()`, `_create_treasure_chest()`, `_generate_secrets_for_location()` |
-| `tests/test_multi_level_generation.py` | NEW - 12 tests covering all acceptance criteria |
+| `src/cli_rpg/ai_service.py` | Add `LayoutType` enum, `CATEGORY_LAYOUTS` dict, `_generate_linear_layout()`, `_generate_hub_layout()`, `_generate_maze_layout()`, `_generate_secret_passage()`. Rename existing logic to `_generate_branching_layout()`. Update `_generate_area_layout()` signature and dispatch. |
+| `src/cli_rpg/world_grid.py` | Add `secret_passages` field to SubGrid |
+| `tests/test_procedural_layouts.py` | NEW - 19 tests covering layouts, category selection, and secret passages |
