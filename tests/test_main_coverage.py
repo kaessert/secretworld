@@ -285,7 +285,9 @@ class TestCombatDeathPaths:
         game_state.current_combat = CombatEncounter(character, enemy)
         game_state.current_combat.is_active = True
 
-        _, result = handle_combat_command(game_state, "use", ["Weak", "Potion"])
+        # Patch random to prevent player dodge (5% base chance with 1 DEX)
+        with patch('cli_rpg.combat.random.random', return_value=0.50):
+            _, result = handle_combat_command(game_state, "use", ["Weak", "Potion"])
 
         assert not character.is_alive()
         assert "game over" in result.lower()
