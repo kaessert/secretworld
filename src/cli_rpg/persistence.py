@@ -2,11 +2,27 @@
 import json
 from datetime import datetime
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 from cli_rpg.models.character import Character
 
 if TYPE_CHECKING:
     from cli_rpg.game_state import GameState
+
+
+def _format_timestamp(ts: str) -> str:
+    """Convert YYYYMMDD_HHMMSS to human-readable format.
+
+    Args:
+        ts: Timestamp string in format YYYYMMDD_HHMMSS
+
+    Returns:
+        Human-readable timestamp like "Dec 25, 2024 03:45 PM"
+    """
+    try:
+        dt = datetime.strptime(ts, "%Y%m%d_%H%M%S")
+        return dt.strftime("%b %d, %Y %I:%M %p")
+    except ValueError:
+        return ts
 
 
 def _sanitize_filename(name: str) -> str:
@@ -126,33 +142,36 @@ def load_character(filepath: str) -> Character:
         raise ValueError(f"Invalid character data: {e}")
 
 
-def list_saves(save_dir: str = "saves") -> list[dict[str, str]]:
+def list_saves(save_dir: str = "saves") -> list[dict[str, Any]]:
     """List all available character saves.
-    
+
     Args:
         save_dir: Directory containing save files (default: "saves")
-        
+
     Returns:
-        List of dicts with keys: name, filepath, timestamp
+        List of dicts with keys: name, filepath, timestamp, display_time, is_autosave
         Sorted by timestamp (most recent first)
     """
     save_path = Path(save_dir)
-    
+
     # Return empty list if directory doesn't exist
     if not save_path.exists():
         return []
-    
+
     # Find all JSON files
     json_files = list(save_path.glob("*.json"))
-    
+
     saves = []
     for json_file in json_files:
         filename = json_file.stem  # Filename without extension
-        
+
+        # Detect autosave by filename prefix
+        is_autosave = filename.startswith("autosave_")
+
         # Parse filename to extract character name and timestamp
         # Expected format: {name}_{timestamp}
         parts = filename.rsplit('_', 2)  # Split from right, max 2 splits
-        
+
         if len(parts) >= 3:
             # Last two parts are date and time
             character_name = '_'.join(parts[:-2])
@@ -161,16 +180,23 @@ def list_saves(save_dir: str = "saves") -> list[dict[str, str]]:
             # Fallback if filename doesn't match expected format
             character_name = filename
             timestamp = "unknown"
-        
+
+        # Fallback timestamp from file mtime if unknown
+        if timestamp == "unknown":
+            mtime = json_file.stat().st_mtime
+            timestamp = datetime.fromtimestamp(mtime).strftime("%Y%m%d_%H%M%S")
+
         saves.append({
             'name': character_name,
             'filepath': str(json_file),
-            'timestamp': timestamp
+            'timestamp': timestamp,
+            'display_time': _format_timestamp(timestamp),
+            'is_autosave': is_autosave,
         })
-    
+
     # Sort by timestamp (most recent first)
     saves.sort(key=lambda x: x['timestamp'], reverse=True)
-    
+
     return saves
 
 

@@ -528,7 +528,8 @@ class TestPersistenceFallbackFilename:
     def test_list_saves_handles_non_standard_filename(self, tmp_path):
         """Test that non-standard filenames are handled gracefully.
 
-        Spec: Lines 162-163 - Fallback filename format parsing.
+        Spec: Lines 180-187 - Fallback filename format parsing with mtime fallback.
+        When filename doesn't contain parseable timestamp, use file mtime instead.
         """
         from cli_rpg.persistence import list_saves
         from cli_rpg.models.character import Character
@@ -547,7 +548,10 @@ class TestPersistenceFallbackFilename:
 
         assert len(saves) == 1
         assert saves[0]['name'] == 'simple_save'
-        assert saves[0]['timestamp'] == 'unknown'
+        # Timestamp should now be derived from file mtime, not "unknown"
+        assert saves[0]['timestamp'] != 'unknown'
+        assert len(saves[0]['timestamp']) == 15  # YYYYMMDD_HHMMSS format
+        assert '_' in saves[0]['timestamp']
 
 
 class TestPersistenceDeleteSaveFileNotFound:

@@ -6,6 +6,7 @@ testing the complete flow of saving and loading both character-only and game sta
 
 import json
 import pytest
+from io import StringIO
 from unittest.mock import Mock, patch
 
 from cli_rpg.main import select_and_load_character, main
@@ -354,4 +355,172 @@ class TestBackwardCompatibilityFlow:
         
         assert character is not None
         assert character.name == "OldHero"
+        assert game_state is None
+
+
+class TestLoadScreenDisplay:
+    """Tests for improved load screen display - grouping, limits, timestamps.
+
+    Spec: Load character screen should:
+    1. Group autosaves separately after manual saves
+    2. Limit manual saves to 15 most recent with hint about more
+    3. Display human-readable timestamps instead of raw format
+    """
+
+    def test_display_groups_autosaves_separately(self, tmp_path, sample_character, capsys):
+        """Autosaves shown in collapsed section after manual saves.
+
+        Spec: Autosaves are displayed after manual saves, collapsed to single entry.
+        """
+        # Create saves: 2 manual, 2 autosaves
+        saves = [
+            {'name': 'Hero', 'filepath': str(tmp_path / 'Hero_20241225_120000.json'),
+             'timestamp': '20241225_120000', 'display_time': 'Dec 25, 2024 12:00 PM',
+             'is_autosave': False},
+            {'name': 'Hero', 'filepath': str(tmp_path / 'Hero_20241224_120000.json'),
+             'timestamp': '20241224_120000', 'display_time': 'Dec 24, 2024 12:00 PM',
+             'is_autosave': False},
+            {'name': 'autosave_Hero', 'filepath': str(tmp_path / 'autosave_Hero_20241225_150000.json'),
+             'timestamp': '20241225_150000', 'display_time': 'Dec 25, 2024 03:00 PM',
+             'is_autosave': True},
+            {'name': 'autosave_Hero', 'filepath': str(tmp_path / 'autosave_Hero_20241224_150000.json'),
+             'timestamp': '20241224_150000', 'display_time': 'Dec 24, 2024 03:00 PM',
+             'is_autosave': True},
+        ]
+
+        # Cancel to just see the output
+        with patch('builtins.input', return_value='4'):
+            with patch('cli_rpg.main.list_saves', return_value=saves):
+                select_and_load_character()
+
+        captured = capsys.readouterr()
+        output = captured.out
+
+        # Manual saves should appear first
+        assert 'Saved Games:' in output
+        # Autosave should be marked distinctly
+        assert '[Autosave]' in output
+        # Should show count of older autosaves
+        assert '1 older autosave' in output
+
+    def test_display_limits_manual_saves(self, tmp_path, sample_character, capsys):
+        """Only 15 most recent manual saves shown with 'more available' hint.
+
+        Spec: Display at most 15 manual saves with hint showing how many more exist.
+        """
+        # Create 20 manual saves
+        saves = []
+        for i in range(20):
+            day = 20 - i  # Most recent first
+            saves.append({
+                'name': f'Hero_{i}',
+                'filepath': str(tmp_path / f'Hero_{i}_202412{day:02d}_120000.json'),
+                'timestamp': f'202412{day:02d}_120000',
+                'display_time': f'Dec {day}, 2024 12:00 PM',
+                'is_autosave': False,
+            })
+
+        # Cancel to just see the output
+        with patch('builtins.input', return_value='16'):
+            with patch('cli_rpg.main.list_saves', return_value=saves):
+                select_and_load_character()
+
+        captured = capsys.readouterr()
+        output = captured.out
+
+        # Should only show 15 saves (indexed 1-15)
+        assert '15.' in output
+        assert '16.' not in output or 'Cancel' in output  # 16 is cancel button
+        # Should show hint about hidden saves
+        assert '5 older saves' in output
+
+    def test_display_shows_readable_timestamps(self, tmp_path, sample_character, capsys):
+        """Timestamps displayed as 'Dec 25, 2024 3:45 PM' not '20241225_154500'.
+
+        Spec: Timestamps should be human-readable in the display.
+        """
+        saves = [
+            {'name': 'Hero', 'filepath': str(tmp_path / 'Hero_20241225_154530.json'),
+             'timestamp': '20241225_154530', 'display_time': 'Dec 25, 2024 03:45 PM',
+             'is_autosave': False},
+        ]
+
+        # Cancel to just see the output
+        with patch('builtins.input', return_value='2'):
+            with patch('cli_rpg.main.list_saves', return_value=saves):
+                select_and_load_character()
+
+        captured = capsys.readouterr()
+        output = captured.out
+
+        # Should show human-readable timestamp
+        assert 'Dec 25, 2024' in output
+        # Should NOT show raw timestamp format
+        assert '20241225_154530' not in output
+
+    def test_display_autosave_count_message(self, tmp_path, sample_character, capsys):
+        """When multiple autosaves exist, show count of older ones.
+
+        Spec: If more than one autosave exists, show '(X older autosaves available)'.
+        """
+        # Create 5 autosaves
+        saves = []
+        for i in range(5):
+            day = 25 - i
+            saves.append({
+                'name': f'autosave_Hero',
+                'filepath': str(tmp_path / f'autosave_Hero_202412{day:02d}_120000.json'),
+                'timestamp': f'202412{day:02d}_120000',
+                'display_time': f'Dec {day}, 2024 12:00 PM',
+                'is_autosave': True,
+            })
+
+        # Cancel to just see the output
+        with patch('builtins.input', return_value='2'):
+            with patch('cli_rpg.main.list_saves', return_value=saves):
+                select_and_load_character()
+
+        captured = capsys.readouterr()
+        output = captured.out
+
+        # Should show count of older autosaves (5 - 1 = 4)
+        assert '4 older autosaves' in output
+
+    def test_loads_selected_autosave(self, tmp_path, sample_character):
+        """Selecting autosave entry loads the most recent autosave.
+
+        Spec: When user selects the autosave option, load the most recent autosave.
+        """
+        # Create a valid autosave file
+        save_file = tmp_path / 'autosave_Hero_20241225_120000.json'
+        save_file.write_text(json.dumps(sample_character.to_dict()))
+
+        saves = [
+            {'name': 'autosave_Hero', 'filepath': str(save_file),
+             'timestamp': '20241225_120000', 'display_time': 'Dec 25, 2024 12:00 PM',
+             'is_autosave': True},
+        ]
+
+        # Select option 1 (the autosave)
+        with patch('builtins.input', return_value='1'):
+            with patch('cli_rpg.main.list_saves', return_value=saves):
+                character, game_state = select_and_load_character()
+
+        # Should load character from autosave
+        assert character is not None
+        assert character.name == "TestHero"
+
+    def test_no_saves_message(self, capsys):
+        """When no saves exist, show appropriate message.
+
+        Spec: If no saves exist, show 'No saved characters found' message.
+        """
+        with patch('cli_rpg.main.list_saves', return_value=[]):
+            character, game_state = select_and_load_character()
+
+        captured = capsys.readouterr()
+        output = captured.out
+
+        assert 'No saved characters found' in output
+        assert character is None
         assert game_state is None

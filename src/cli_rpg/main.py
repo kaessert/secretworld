@@ -125,49 +125,85 @@ def prompt_save_character(character: Character) -> None:
 
 def select_and_load_character() -> tuple[Optional[Character], Optional[GameState]]:
     """Display save selection menu and load chosen character or game state.
-    
+
     Returns:
         Tuple of (Character, GameState) where:
         - (character, None) for character-only saves (backward compatibility)
         - (None, game_state) for full game state saves
         - (None, None) if cancelled/failed
     """
-    saves = list_saves()
-    
-    if not saves:
+    all_saves = list_saves()
+
+    if not all_saves:
         print("\n⚠ No saved characters found.")
         print("  Create a new character first!")
         return (None, None)
-    
+
+    # Separate manual saves and autosaves
+    manual_saves = [s for s in all_saves if not s.get('is_autosave')]
+    autosaves = [s for s in all_saves if s.get('is_autosave')]
+
+    # Limit display of manual saves
+    MANUAL_LIMIT = 15
+    displayed_manual = manual_saves[:MANUAL_LIMIT]
+    hidden_manual = len(manual_saves) - len(displayed_manual)
+
     print("\n" + "=" * 50)
     print("LOAD CHARACTER")
     print("=" * 50)
-    print("\nAvailable saved characters:")
-    
-    for idx, save in enumerate(saves, start=1):
-        print(f"{idx}. {save['name']} (saved: {save['timestamp']})")
-    
-    print(f"{len(saves) + 1}. Cancel")
+
+    # Build selection list (for mapping user choice to save)
+    selectable: list[dict] = []
+    idx = 1
+
+    # Display manual saves
+    if displayed_manual:
+        print("\nSaved Games:")
+        for save in displayed_manual:
+            display_time = save.get('display_time', save['timestamp'])
+            print(f"  {idx}. {save['name']} ({display_time})")
+            selectable.append(save)
+            idx += 1
+        if hidden_manual > 0:
+            print(f"      ... and {hidden_manual} older saves")
+
+    # Display autosave summary + option
+    if autosaves:
+        latest = autosaves[0]
+        display_time = latest.get('display_time', latest['timestamp'])
+        # Clean up autosave name for display
+        display_name = latest['name']
+        if display_name.startswith('autosave_'):
+            display_name = display_name[9:]  # Remove 'autosave_' prefix
+        print(f"\n  {idx}. [Autosave] {display_name} ({display_time})")
+        if len(autosaves) > 1:
+            older_count = len(autosaves) - 1
+            plural = "s" if older_count > 1 else ""
+            print(f"      ({older_count} older autosave{plural} available)")
+        selectable.append(latest)
+        idx += 1
+
+    print(f"\n  {idx}. Cancel")
     print("=" * 50)
-    
+
     try:
         choice = input("Select character to load: ").strip()
         choice_num = int(choice)
-        
-        if choice_num == len(saves) + 1:
+
+        if choice_num == idx:
             print("\nLoad cancelled.")
             return (None, None)
-        
-        if 1 <= choice_num <= len(saves):
-            selected_save = saves[choice_num - 1]
-            
+
+        if 1 <= choice_num <= len(selectable):
+            selected_save = selectable[choice_num - 1]
+
             # Detect save type
             try:
                 save_type = detect_save_type(selected_save['filepath'])
             except ValueError as e:
                 print(f"\n✗ Corrupted save file: {e}")
                 return (None, None)
-            
+
             # Load based on save type
             if save_type == "game_state":
                 # Load complete game state
@@ -194,7 +230,7 @@ def select_and_load_character() -> tuple[Optional[Character], Optional[GameState
         else:
             print("\n✗ Invalid selection.")
             return (None, None)
-            
+
     except ValueError:
         print("\n✗ Invalid input. Please enter a number.")
         return (None, None)

@@ -798,14 +798,12 @@ Issues discovered during WFC mode playtesting (WFC is now enabled by default; up
    - Shop display shows one price but error message shows different price
    - Shop displays: "Iron Sword - 100 gold", Error says: "99 gold needed"
 
-4. **Load character screen is overwhelming**
-   - Shows 140+ entries including all autosaves with "(saved: unknown)" timestamps
-   - Autosave entries flood the list, making manual saves hard to find
-   - **Suggestions**:
-     - Collapse autosaves into single expandable entry
-     - Show only recent 10-20 characters by default
-     - Add pagination or search
-     - Fix "(saved: unknown)" to show actual timestamps
+4. ~~**Load character screen is overwhelming**~~ ✅ RESOLVED (2025-12-27)
+   - Fixed: Load screen now groups autosaves into a single collapsed entry
+   - Fixed: Manual saves limited to 15 most recent with "... and X older saves" hint
+   - Fixed: "(saved: unknown)" replaced with human-readable timestamps via file mtime fallback
+   - Fixed: `autosave_` prefix stripped from display names for cleaner presentation
+   - **Files modified**: `persistence.py` (timestamp formatting, mtime fallback), `main.py` (display logic)
 
 5. ~~**Can enter any sub-location instead of designated entry point**~~ ✅ RESOLVED (2025-12-27)
    - Fixed: Location descriptions now show only the entry point (location with `is_exit_point=True`)

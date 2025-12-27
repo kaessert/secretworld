@@ -352,9 +352,111 @@ class TestListSaves:
         assert len(saves) == 1
 
 
+class TestListSavesEnhancements:
+    """Tests for enhanced list_saves functionality - autosave detection, mtime fallback, display_time."""
+
+    def test_list_saves_identifies_autosaves(self, temp_save_dir):
+        """Autosave files should be marked with is_autosave=True.
+
+        Spec: list_saves identifies autosave files by filename prefix and sets is_autosave flag.
+        """
+        import time
+
+        # Create regular save
+        char = Character(name="Hero", strength=10, dexterity=10, intelligence=10)
+        save_character(char, temp_save_dir)
+
+        # Create autosave (must have autosave_ prefix)
+        save_path = Path(temp_save_dir)
+        save_path.mkdir(parents=True, exist_ok=True)
+        time.sleep(0.1)
+        autosave_file = save_path / "autosave_Hero_20241225_120000.json"
+        autosave_file.write_text(json.dumps(char.to_dict()))
+
+        saves = list_saves(temp_save_dir)
+
+        # Find the autosave and regular save
+        autosave = next((s for s in saves if 'autosave' in s['filepath']), None)
+        regular = next((s for s in saves if 'autosave' not in s['filepath']), None)
+
+        assert autosave is not None, "Should find autosave file"
+        assert regular is not None, "Should find regular save file"
+        assert autosave['is_autosave'] is True
+        assert regular['is_autosave'] is False
+
+    def test_list_saves_parses_timestamp_from_file_mtime(self, temp_save_dir):
+        """When filename timestamp is 'unknown', use file mtime.
+
+        Spec: For files without parseable timestamp in filename, use file mtime as fallback.
+        """
+        from datetime import datetime
+
+        # Create a file with non-standard filename (no timestamp)
+        save_path = Path(temp_save_dir)
+        save_path.mkdir(parents=True, exist_ok=True)
+
+        char = Character(name="Hero", strength=10, dexterity=10, intelligence=10)
+        weird_file = save_path / "weird_save.json"
+        weird_file.write_text(json.dumps(char.to_dict()))
+
+        saves = list_saves(temp_save_dir)
+
+        assert len(saves) == 1
+        save = saves[0]
+
+        # Timestamp should NOT be "unknown" - should be derived from mtime
+        assert save['timestamp'] != "unknown"
+        # Should be in expected format YYYYMMDD_HHMMSS
+        assert len(save['timestamp']) == 15  # e.g., "20241225_120000"
+        assert '_' in save['timestamp']
+
+    def test_list_saves_formats_display_time(self, temp_save_dir):
+        """Saves should include human-readable display_time field.
+
+        Spec: Each save entry includes display_time with format like "Dec 25, 2024 03:45 PM".
+        """
+        char = Character(name="Hero", strength=10, dexterity=10, intelligence=10)
+        save_character(char, temp_save_dir)
+
+        saves = list_saves(temp_save_dir)
+
+        assert len(saves) == 1
+        save = saves[0]
+
+        # Should have display_time key
+        assert 'display_time' in save
+        # Should be human-readable (contains month abbreviation and year)
+        display = save['display_time']
+        assert any(month in display for month in ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+                                                   'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'])
+        assert '20' in display  # Year starts with 20
+
+    def test_list_saves_formats_display_time_correctly(self, temp_save_dir):
+        """Verify display_time format is exactly as specified.
+
+        Spec: Display time should be in format "Mon DD, YYYY HH:MM AM/PM".
+        """
+        # Create save with known timestamp
+        save_path = Path(temp_save_dir)
+        save_path.mkdir(parents=True, exist_ok=True)
+
+        char = Character(name="Hero", strength=10, dexterity=10, intelligence=10)
+        # Create file with explicit timestamp
+        save_file = save_path / "Hero_20241225_154530.json"
+        save_file.write_text(json.dumps(char.to_dict()))
+
+        saves = list_saves(temp_save_dir)
+
+        assert len(saves) == 1
+        save = saves[0]
+
+        # Should be "Dec 25, 2024 03:45 PM"
+        assert save['display_time'] == "Dec 25, 2024 03:45 PM"
+
+
 class TestDeleteSave:
     """Tests for delete_save function."""
-    
+
     def test_delete_save_success(self, sample_character, temp_save_dir):
         """Test: Returns True and removes file."""
         # Test spec: delete_save removes the file and returns True on success
