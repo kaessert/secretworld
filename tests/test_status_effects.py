@@ -277,12 +277,16 @@ class TestCombatStatusEffects:
 
     def test_enemy_with_poison_can_apply_poison(self, character, poison_enemy):
         """Spec: Enemies can apply poison to the player (20% chance on attack)."""
+        from unittest.mock import patch
+
         combat = CombatEncounter(player=character, enemy=poison_enemy)
         combat.start()
 
-        # Enemy attacks - with 100% poison chance, should always apply
         initial_effects = len(character.status_effects)
-        combat.enemy_turn()
+
+        # Mock random to prevent dodge and ensure poison applies
+        with patch('cli_rpg.combat.random.random', return_value=0.50):
+            combat.enemy_turn()
 
         # Character should now have poison
         assert len(character.status_effects) == initial_effects + 1
