@@ -673,92 +673,33 @@ Players want a more sophisticated map system with hierarchical locations.
 
 ---
 
-### Tiredness stat for realistic sleep/rest mechanics
-**Status**: PROPOSED
+### ✅ RESOLVED: Tiredness stat for realistic sleep/rest mechanics
+**Status**: RESOLVED
 **Date Added**: 2025-12-26
+**Date Resolved**: 2025-12-27
 
-**Problem**: Falling asleep during rest is currently random, which feels arbitrary and unrealistic.
+**Problem**: Falling asleep during rest was random, which felt arbitrary and unrealistic.
 
-**Proposed Feature**: Add a **Tiredness** stat that determines when the player falls asleep.
+**Resolution**: The Tiredness stat system is now fully implemented. Tiredness (0-100) tracks player fatigue and determines when the player can fall asleep.
 
-#### Tiredness Mechanic Design
+**Implementation Summary**:
+- ✅ Tiredness model (`src/cli_rpg/models/tiredness.py`) with range 0-100, threshold warnings, sleep quality calculation
+- ✅ Character integration: `tiredness` attribute, attack/perception penalties at 80+
+- ✅ GameState integration: movement increases tiredness by 3 per move
+- ✅ Combat integration: tiredness increases by 5 base + 1 per combat turn on victory
+- ✅ Rest/Camp integration: reduces tiredness based on sleep quality (light: 25, normal: 50, deep: 80)
+- ✅ Dream integration: dreams blocked when tiredness < 30, dream chance modified by tiredness level
+- ✅ Full serialization support with backward compatibility
+- ✅ 31 tests covering all tiredness functionality
 
-**Stat Properties**:
-- Range: 0-100 (0 = fully rested, 100 = exhausted)
-- Display: Could show in status bar like stamina/dread
-
-**Tiredness Increases From**:
-- Traveling between locations (+2-5 per move)
-- Combat (+5-10 per fight, more for longer fights)
-- Time passing (+1 per game hour)
-- Using abilities/spells (+1-3 per use)
-- Carrying heavy load (+1 per move if encumbered)
-
-**Tiredness Decreases From**:
-- Resting at inn/safe location (-50 to -100)
-- Camping (-30 to -50)
-- Quick rest command (-10 to -20)
-- Consuming food/drink items (-5 to -15)
-
-**Sleep/Dream Connection**:
-- Tiredness < 30: Cannot fall asleep, no dreams
-- Tiredness 30-60: May fall asleep (low chance), light dreams
-- Tiredness 60-80: Will fall asleep, normal dreams
-- Tiredness > 80: Deep sleep guaranteed, vivid/prophetic dreams more likely
-- Tiredness 100: Forced rest - character collapses, vulnerability period
-
-**Gameplay Effects of High Tiredness**:
-- Combat penalties (slower reactions, reduced accuracy)
-- Reduced perception (miss secrets, ambushed more easily)
-- Dialogue options limited (too tired to negotiate)
-- Movement speed reduced
-
-**Implementation**:
-
-```python
-# In models/character.py or new models/tiredness.py
-@dataclass
-class Tiredness:
-    current: int = 0  # 0-100
-
-    def increase(self, amount: int) -> Optional[str]:
-        """Increase tiredness, return warning if getting exhausted."""
-        self.current = min(100, self.current + amount)
-        if self.current >= 80:
-            return "You're exhausted and need rest soon."
-        elif self.current >= 60:
-            return "You're feeling tired."
-        return None
-
-    def decrease(self, amount: int) -> None:
-        self.current = max(0, self.current - amount)
-
-    def can_sleep(self) -> bool:
-        return self.current >= 30
-
-    def sleep_quality(self) -> str:
-        if self.current >= 80:
-            return "deep"  # Vivid dreams, full recovery
-        elif self.current >= 60:
-            return "normal"
-        else:
-            return "light"  # Restless, partial recovery
-```
-
-**Files to Create/Modify**:
-- `src/cli_rpg/models/tiredness.py`: NEW - Tiredness model
-- `src/cli_rpg/models/character.py`: Add tiredness field
-- `src/cli_rpg/game_state.py`: Track tiredness changes on actions
-- `src/cli_rpg/dreams.py`: Use tiredness instead of random chance
-- `src/cli_rpg/combat.py`: Apply tiredness penalties
-- `src/cli_rpg/main.py`: Display tiredness in status, handle collapse
-
-**Benefits**:
-- More realistic and immersive
-- Player agency - manage tiredness strategically
-- Dreams feel earned, not random
-- Adds resource management depth
-- Natural pacing mechanism (can't grind indefinitely)
+**Tiredness Effects**:
+- **Movement**: +3 tiredness per move
+- **Combat**: +5 base + 1 per turn on victory
+- **Warnings**: "Feeling tired" at 60, "Exhausted" at 80, "Completely exhausted" at 100
+- **Sleep Availability**: Cannot sleep when tiredness < 30
+- **Sleep Quality**: Light (<60), Normal (60-79), Deep (80+)
+- **Attack Penalty**: -10% damage at 80+ tiredness
+- **Perception Penalty**: -10% perception at 80+ tiredness
 
 ---
 

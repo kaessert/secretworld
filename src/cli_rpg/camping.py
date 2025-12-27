@@ -357,6 +357,8 @@ def execute_camp(game_state: "GameState") -> Tuple[bool, str]:
     # Check if already at full health and no dread
     at_full = character.health >= character.max_health
     no_dread = character.dread_meter.dread == 0
+    # Save pre-camp tiredness for dream check (dreams occur based on how tired you were)
+    pre_camp_tiredness = character.tiredness.current
 
     if at_full and no_dread:
         return (False, "You're already well-rested. No need to camp.")
@@ -391,6 +393,18 @@ def execute_camp(game_state: "GameState") -> Tuple[bool, str]:
         if dread_reduced > 0:
             messages.append(f"Dread -{dread_reduced}%.")
 
+    # Reduce tiredness (camping provides moderate recovery)
+    # 40 base + 10 with campfire = 50 tiredness reduction
+    tiredness_reduction = 40
+    if has_campfire:
+        tiredness_reduction += 10  # Campfire bonus
+    if character.tiredness.current > 0:
+        old_tiredness = character.tiredness.current
+        character.tiredness.decrease(tiredness_reduction)
+        tiredness_reduced = old_tiredness - character.tiredness.current
+        if tiredness_reduced > 0:
+            messages.append(f"Tiredness -{tiredness_reduced}%.")
+
     # Cook raw meat if campfire present
     if has_campfire:
         cook_msg = _cook_raw_meat(game_state)
@@ -411,7 +425,8 @@ def execute_camp(game_state: "GameState") -> Tuple[bool, str]:
                 character.dread_meter.reduce_dread(visitor["dread_reduction"])
                 messages.append(f"Their stories calm your nerves. (Dread -{visitor['dread_reduction']}%)")
 
-    # Check for dream (uses CAMP_DREAM_CHANCE = 15%, with cooldown)
+    # Check for dream (uses tiredness-based chance with CAMP_DREAM_CHANCE as fallback)
+    # Use pre-camp tiredness - dreams are based on how tired you were when going to sleep
     result_message = "\n".join(messages)
     dream = maybe_trigger_dream(
         dread=character.dread_meter.dread,
@@ -419,7 +434,8 @@ def execute_camp(game_state: "GameState") -> Tuple[bool, str]:
         theme=getattr(game_state, 'theme', 'fantasy'),
         ai_service=getattr(game_state, 'ai_service', None),
         location_name=game_state.current_location,
-        dream_chance=CAMP_DREAM_CHANCE,
+        tiredness=pre_camp_tiredness,
+        dream_chance=CAMP_DREAM_CHANCE,  # Override when tiredness is low
         last_dream_hour=game_state.last_dream_hour,
         current_hour=game_state.game_time.total_hours,
     )

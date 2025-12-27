@@ -2284,14 +2284,17 @@ def handle_exploration_command(game_state: GameState, command: str, args: list[s
         # Remove flags from args for any future processing
         args = [a for a in args if a not in ("--quick", "-q")]
 
-        # Check if already at full health, stamina, and dread
+        # Check if already at full health, stamina, dread, and tiredness
         char = game_state.current_character
         at_full_health = char.health >= char.max_health
         at_full_stamina = char.stamina >= char.max_stamina
         no_dread = char.dread_meter.dread == 0
+        no_tiredness = char.tiredness.current == 0
+        # Save pre-rest tiredness for dream check (dreams occur based on how tired you were)
+        pre_rest_tiredness = char.tiredness.current
 
-        if at_full_health and at_full_stamina and no_dread:
-            return (True, "\nYou're already at full health, stamina, and feeling calm!")
+        if at_full_health and at_full_stamina and no_dread and no_tiredness:
+            return (True, "\nYou're already at full health, stamina, and feeling calm and rested!")
 
         messages = []
 
@@ -2323,6 +2326,21 @@ def handle_exploration_command(game_state: GameState, command: str, args: list[s
             if dread_reduced > 0:
                 messages.append(f"The peaceful rest eases your mind (Dread -{dread_reduced}%).")
 
+        # Reduce tiredness based on sleep quality
+        if not no_tiredness:
+            quality = char.tiredness.sleep_quality()
+            if quality == "deep":
+                tiredness_reduction = 80
+            elif quality == "normal":
+                tiredness_reduction = 50
+            else:  # light
+                tiredness_reduction = 25
+            old_tiredness = char.tiredness.current
+            char.tiredness.decrease(tiredness_reduction)
+            actual_reduction = old_tiredness - char.tiredness.current
+            if actual_reduction > 0:
+                messages.append(f"Tiredness -{actual_reduction}% ({quality} rest).")
+
         # Advance time by 4 hours for rest
         game_state.game_time.advance(4)
 
@@ -2330,15 +2348,15 @@ def handle_exploration_command(game_state: GameState, command: str, args: list[s
         result_message = "\n" + " ".join(messages)
 
         # Check for dream during rest (skip if --quick flag)
+        # Use pre-rest tiredness - dreams are based on how tired you were when going to sleep
         if not skip_dream:
-            from cli_rpg.dreams import DREAM_CHANCE
             dream = maybe_trigger_dream(
                 dread=char.dread_meter.dread,
                 choices=getattr(game_state, 'choices', None),
                 theme=getattr(game_state, 'theme', 'fantasy'),
                 ai_service=getattr(game_state, 'ai_service', None),
                 location_name=game_state.current_location,
-                dream_chance=DREAM_CHANCE,
+                tiredness=pre_rest_tiredness,
                 last_dream_hour=game_state.last_dream_hour,
                 current_hour=game_state.game_time.total_hours,
             )

@@ -681,6 +681,11 @@ class GameState:
         if dread_message:
             message += f"\n{dread_message}"
 
+        # Increase tiredness from travel (3 points per move)
+        tiredness_msg = self.current_character.tiredness.increase(3)
+        if tiredness_msg:
+            message += f"\n{tiredness_msg}"
+
         # Check for shadow creature attack at 100% dread
         shadow_message = check_and_trigger_shadow_attack(self)
         if shadow_message:

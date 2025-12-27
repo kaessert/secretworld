@@ -1977,6 +1977,12 @@ class CombatEncounter:
                 )
                 messages.extend(rep_messages)
 
+            # Increase tiredness from combat (5 base + 1 per turn)
+            tiredness_increase = 5 + self.turn_count
+            tiredness_msg = self.player.tiredness.increase(tiredness_increase)
+            if tiredness_msg:
+                messages.append(tiredness_msg)
+
             return "\n".join(messages)
         else:
             if len(self.enemies) == 1:

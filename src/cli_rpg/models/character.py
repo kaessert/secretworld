@@ -7,6 +7,7 @@ from cli_rpg import colors
 from cli_rpg.sound_effects import sound_level_up
 
 from cli_rpg.models.dread import DreadMeter
+from cli_rpg.models.tiredness import Tiredness
 from cli_rpg.models.weapon_proficiency import WeaponType, WeaponProficiency
 
 
@@ -114,6 +115,7 @@ class Character:
     status_effects: List["StatusEffect"] = field(default_factory=list)
     look_counts: Dict[str, int] = field(default_factory=dict)
     dread_meter: DreadMeter = field(default_factory=DreadMeter)
+    tiredness: Tiredness = field(default_factory=Tiredness)
     light_remaining: int = 0
     mana: int = field(init=False)
     max_mana: int = field(init=False)
@@ -316,13 +318,15 @@ class Character:
         """Get total attack power including equipped weapon bonus and buffs/debuffs.
 
         Returns:
-            Strength plus weapon damage bonus, modified by attack buffs/debuffs and dread
+            Strength plus weapon damage bonus, modified by attack buffs/debuffs, dread, and tiredness
         """
         base_attack = self.strength + self.inventory.get_damage_bonus()
         modifier = self._get_stat_modifier("buff_attack", "debuff_attack")
         # Apply dread penalty (0.9 at 75%+ dread)
         dread_penalty = self.dread_meter.get_penalty()
-        return int(base_attack * modifier * dread_penalty)
+        # Apply tiredness penalty (0.9 at 80%+ tiredness)
+        tiredness_penalty = self.tiredness.get_attack_penalty()
+        return int(base_attack * modifier * dread_penalty * tiredness_penalty)
 
     def get_defense(self) -> int:
         """Get total defense including equipped armor bonus and buffs/debuffs.
@@ -1255,6 +1259,7 @@ class Character:
             "status_effects": [effect.to_dict() for effect in self.status_effects],
             "look_counts": self.look_counts,
             "dread_meter": self.dread_meter.to_dict(),
+            "tiredness": self.tiredness.to_dict(),
             "light_remaining": self.light_remaining,
             "weapon_proficiencies": [
                 prof.to_dict() for prof in self.weapon_proficiencies.values()
@@ -1390,6 +1395,11 @@ class Character:
             character.dread_meter = DreadMeter.from_dict(data["dread_meter"])
         else:
             character.dread_meter = DreadMeter()
+        # Restore tiredness (with backward compatibility, defaults to 0)
+        if "tiredness" in data:
+            character.tiredness = Tiredness.from_dict(data["tiredness"])
+        else:
+            character.tiredness = Tiredness()
         # Restore light_remaining (with backward compatibility, defaults to 0)
         character.light_remaining = data.get("light_remaining", 0)
         # Restore weapon proficiencies (with backward compatibility, defaults to empty)

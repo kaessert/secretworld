@@ -1,64 +1,82 @@
-# Multi-Level Dungeon Navigation Implementation Summary
+# Tiredness Stat Implementation Summary
 
 ## What Was Implemented
 
-Multi-level dungeon navigation with z-coordinate support for SubGrid locations, enabling vertical movement (`up`/`down` commands) in dungeons, towers, and other interior spaces.
+The Tiredness stat system was already mostly implemented. This task completed the remaining integration for **combat tiredness increases**.
 
-### Features Implemented
+### Changes Made
 
-1. **3D Coordinates in SubGrid**: SubGrid locations now support (x, y, z) coordinates, where z represents vertical levels:
-   - z=0: Ground floor
-   - z>0: Upper floors (towers, etc.)
-   - z<0: Below ground (dungeons, basements)
+#### 1. Combat Tiredness Integration (`src/cli_rpg/combat.py`)
+- Added tiredness increase at the end of combat (victory only)
+- Formula: `5 base + 1 per turn` of combat
+- Tiredness warning messages are included in combat result if thresholds are crossed
 
-2. **6-Tuple Bounds**: `SUBGRID_BOUNDS` now uses 6-tuple format `(min_x, max_x, min_y, max_y, min_z, max_z)`:
-   - Dungeons go down (`min_z=-2, max_z=0`)
-   - Towers go up (`min_z=0, max_z=3`)
-   - Taverns have upstairs (`min_z=0, max_z=1`)
-   - Most single-level structures have `min_z=max_z=0`
+```python
+# In CombatEncounter.end_combat() after victory
+tiredness_increase = 5 + self.turn_count
+tiredness_msg = self.player.tiredness.increase(tiredness_increase)
+if tiredness_msg:
+    messages.append(tiredness_msg)
+```
 
-3. **New Direction Offsets**: Added `SUBGRID_DIRECTION_OFFSETS` with 3D offsets including:
-   - `up`: (0, 0, 1)
-   - `down`: (0, 0, -1)
-
-4. **Location.get_z() Helper**: Returns z-coordinate or 0 for 2D/null coordinates
-
-5. **GameState Movement Updates**:
-   - `_move_in_sub_grid()` now handles up/down movement with 3D offsets
-   - `move()` blocks up/down on overworld with helpful message
-
-6. **Backward Compatibility**:
-   - 2D coordinates remain 2D (no auto-upgrade)
-   - 4-tuple bounds auto-upgrade to 6-tuple with z=0
-
-## Files Modified
-
-| File | Changes |
-|------|---------|
-| `src/cli_rpg/world_grid.py` | Already had 3D support - `SUBGRID_DIRECTION_OFFSETS`, 6-tuple bounds, SubGrid 3D methods |
-| `src/cli_rpg/models/location.py` | Already had z-coordinate support - `get_z()` helper, flexible coordinate serialization |
-| `src/cli_rpg/game_state.py` | Already had vertical movement - `_move_in_sub_grid()` with z-axis, overworld up/down guard |
-| `tests/test_vertical_navigation.py` | Already complete - 37 tests covering all vertical navigation scenarios |
-| `tests/test_ai_world_generation.py` | Updated 2 tests to expect 3D coordinates (x, y, 0) in SubGrid |
-| `tests/test_ai_world_subgrid.py` | Updated 1 test to expect 6-tuple bounds |
+#### 2. New Test (`tests/test_tiredness.py`)
+- Added `TestCombatTiredness` test class
+- Test: `test_combat_victory_increases_tiredness` - verifies combat increases tiredness by 5 base + turn count
 
 ## Test Results
 
-- **37 new tests** in `tests/test_vertical_navigation.py` - ALL PASSED
-- **3 existing tests** updated for 3D coordinate format - ALL PASSED
-- **Full test suite**: 3849 tests passed
+All 31 tiredness tests pass:
+- 7 Tiredness model tests (defaults, clamping, thresholds)
+- 3 Sleepability tests (can_sleep at various levels)
+- 3 Sleep quality tests (light/normal/deep)
+- 4 Penalty tests (attack and perception penalties at 80+)
+- 4 Serialization tests (to_dict/from_dict)
+- 1 Display test (get_display format)
+- 5 Character integration tests (attribute, serialization, attack penalty)
+- 1 GameState integration test (movement increases tiredness)
+- 1 Combat integration test (NEW - combat increases tiredness)
+- 3 Dream integration tests (blocking, tiredness-based chance)
 
-## Key Design Decisions
+Full test suite: **3880 tests passed**
 
-1. **Overworld stays 2D**: Z-axis only applies to SubGrid (interior locations), not the infinite WFC overworld
-2. **Ground level is z=0**: Intuitive convention where 0 is the base level
-3. **Different bounds per category**: Dungeons go down, towers go up - matches player expectations
-4. **Helpful error messages**: "You can only go up or down inside buildings and dungeons" when trying vertical movement on overworld
+## Pre-existing Implementations (Already in Codebase)
 
-## E2E Tests Should Validate
+These were already implemented before this task:
 
-1. Enter a dungeon, move down multiple levels, and exit
-2. Enter a tower, move up multiple levels, and exit
-3. Attempt `go up`/`go down` on overworld - should fail with helpful message
-4. Navigate a multi-level structure (basement + ground + upper floor)
-5. Save/load game while in a multi-level SubGrid location
+1. **Tiredness Model** (`src/cli_rpg/models/tiredness.py`)
+   - Range 0-100 with clamping
+   - Threshold warnings at 60/80/100
+   - Sleep availability (can_sleep at 30+)
+   - Sleep quality (light/normal/deep)
+   - Attack and perception penalties at 80+
+   - Visual display bar
+   - Serialization support
+
+2. **Character Integration** (`src/cli_rpg/models/character.py`)
+   - `tiredness` attribute on Character
+   - Attack power includes tiredness penalty
+   - Serialization in to_dict/from_dict with backward compatibility
+
+3. **GameState Integration** (`src/cli_rpg/game_state.py`)
+   - Movement increases tiredness by 3 per move
+
+4. **Rest/Camp Integration** (`src/cli_rpg/main.py`, `src/cli_rpg/camping.py`)
+   - Rest reduces tiredness based on sleep quality (25/50/80)
+   - Camp reduces tiredness (40 base + 10 with campfire)
+
+5. **Dream Integration** (`src/cli_rpg/dreams.py`)
+   - Dreams blocked when tiredness < 30
+   - Dream chance modified by tiredness level
+   - Deep sleep (80+) = 40% dream chance
+   - Normal sleep (60-79) = 20% dream chance
+   - Light sleep (<60) = 5% dream chance
+
+## E2E Validation Points
+
+1. Travel multiple times to build tiredness (3 per move)
+2. Verify tiredness warnings at 60, 80, 100 thresholds
+3. Combat should increase tiredness (visible at end of battle)
+4. Rest command should reduce tiredness based on quality
+5. Camp command should reduce tiredness
+6. Attack power should be reduced by 10% at 80+ tiredness
+7. Dreams should only trigger when tiredness >= 30

@@ -76,6 +76,7 @@ src/cli_rpg/
 └── models/
     ├── character.py     # Player character model
     ├── dread.py         # Dread meter for psychological horror
+    ├── tiredness.py     # Tiredness meter for fatigue and sleep mechanics
     ├── enemy.py         # Enemy/monster model
     ├── game_time.py     # Day/night cycle and time tracking
     ├── item.py          # Item definitions

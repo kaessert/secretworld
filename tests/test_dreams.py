@@ -255,10 +255,11 @@ class TestDreamIntegration:
 
         char = self._create_test_character()
         char.health = char.max_health // 2  # Ensure rest does something
+        char.tiredness.increase(85)  # Tiredness >= 80 for deep sleep (40% dream chance)
         world = self._create_test_world()
         gs = GameState(char, world)
 
-        # Force dream to trigger
+        # Force dream to trigger (0.1 < 0.4 deep sleep dream chance)
         with patch("cli_rpg.dreams.random.random", return_value=0.1):
             success, message = handle_exploration_command(gs, "rest", [])
 

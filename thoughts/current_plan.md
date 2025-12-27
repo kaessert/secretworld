@@ -1,170 +1,266 @@
-# Multi-Level Dungeon Navigation (Z-Coordinate Support)
+# Tiredness Stat for Realistic Sleep/Rest Mechanics
 
 ## Spec
 
-Add vertical navigation (`up`/`down` commands) to SubGrid locations, enabling multi-level dungeons with z-coordinate support. The z-axis represents vertical levels (0 = ground floor, positive = upper floors, negative = basement/depths).
+Add a **Tiredness** stat (0-100) that tracks player fatigue, replacing random sleep/dream triggers with behavior-driven mechanics. High tiredness causes gameplay penalties; rest reduces tiredness based on sleep quality.
 
-**Constraints:**
-- Z-coordinate only applies to SubGrid (interior locations), NOT overworld
-- Overworld remains 2D (x, y) - no changes to ChunkManager/WFC
-- Backward compatible: existing 2D saves auto-upgrade to z=0
+**Core Mechanics:**
+- Range: 0-100 (0 = fully rested, 100 = exhausted)
+- Tiredness < 30: Cannot sleep (too alert), no dreams
+- Tiredness 30-60: May sleep (low chance), light rest
+- Tiredness 60-80: Normal sleep, standard recovery
+- Tiredness 80+: Deep sleep guaranteed, vivid dreams more likely
+- Tiredness 100: Forced collapse (vulnerability)
+
+**Gameplay Effects at High Tiredness (80+):**
+- -10% attack power (mirrors dread penalty pattern)
+- -10% perception (miss secrets more often)
+- Movement warning messages at 60+/80+/100
 
 ## Tests First
 
-### `tests/test_vertical_navigation.py` (new file)
+### `tests/test_tiredness.py` (new file)
 
 ```python
-# Location model tests
-- test_location_coordinates_can_have_z_component  # (x, y, z) tuple support
-- test_location_coordinates_default_to_2d  # backward compat: (x, y) stays (x, y)
-- test_location_serialization_includes_z  # to_dict includes 3rd element
-- test_location_deserialization_upgrades_2d_to_3d  # from_dict adds z=0 if missing
+# Tiredness model tests
+- test_tiredness_defaults_to_zero
+- test_tiredness_increase_clamps_at_100
+- test_tiredness_decrease_clamps_at_zero
+- test_tiredness_increase_returns_warning_at_60
+- test_tiredness_increase_returns_warning_at_80
+- test_tiredness_increase_returns_exhausted_warning_at_100
+- test_can_sleep_false_below_30
+- test_can_sleep_true_at_30
+- test_can_sleep_true_at_100
+- test_sleep_quality_light_below_60
+- test_sleep_quality_normal_60_to_79
+- test_sleep_quality_deep_80_plus
+- test_get_attack_penalty_none_below_80
+- test_get_attack_penalty_0_9_at_80_plus
+- test_to_dict_serialization
+- test_from_dict_deserialization
 
-# Direction offset tests
-- test_direction_up_offset_is_0_0_1
-- test_direction_down_offset_is_0_0_minus1
-- test_opposite_of_up_is_down
-- test_opposite_of_down_is_up
+# Character integration tests
+- test_character_has_tiredness_attribute
+- test_character_to_dict_includes_tiredness
+- test_character_from_dict_restores_tiredness
+- test_character_from_dict_defaults_tiredness_zero  # backward compat
+- test_character_get_attack_power_applies_tiredness_penalty
 
-# SubGrid 3D tests
-- test_subgrid_bounds_include_z_axis  # (min_x, max_x, min_y, max_y, min_z, max_z)
-- test_subgrid_add_location_with_z_coordinate
-- test_subgrid_get_by_coordinates_with_z
-- test_subgrid_is_within_bounds_checks_z
-- test_subgrid_serialization_preserves_z_bounds
-- test_subgrid_deserialization_upgrades_4tuple_to_6tuple
+# GameState integration tests
+- test_move_increases_tiredness
+- test_combat_increases_tiredness
+- test_ability_use_increases_tiredness
+- test_rest_decreases_tiredness_based_on_quality
+- test_camp_decreases_tiredness_more_than_rest
+- test_consumable_food_decreases_tiredness
 
-# Movement tests
-- test_move_up_in_subgrid_increases_z
-- test_move_down_in_subgrid_decreases_z
-- test_move_up_blocked_at_max_z
-- test_move_down_blocked_at_min_z
-- test_up_direction_only_works_in_subgrid  # blocked on overworld
-- test_down_direction_only_works_in_subgrid
-
-# Command parsing tests
-- test_go_up_command_calls_move_up
-- test_go_down_command_calls_move_down
+# Dream integration tests
+- test_dream_blocked_when_tiredness_below_30
+- test_dream_chance_modified_by_tiredness
+- test_deep_sleep_increases_vivid_dream_chance
 ```
 
 ## Implementation Steps
 
-### Step 1: Extend coordinate types in `world_grid.py`
+### Step 1: Create `src/cli_rpg/models/tiredness.py`
 
 ```python
-# Add 3D direction offsets for SubGrid navigation
-SUBGRID_DIRECTION_OFFSETS: Dict[str, Tuple[int, int, int]] = {
-    "north": (0, 1, 0),
-    "south": (0, -1, 0),
-    "east": (1, 0, 0),
-    "west": (-1, 0, 0),
-    "up": (0, 0, 1),
-    "down": (0, 0, -1),
+from dataclasses import dataclass
+from typing import Optional
+from cli_rpg import colors
+
+TIREDNESS_THRESHOLDS = {
+    60: "You're feeling tired...",
+    80: "You're exhausted and should rest soon.",
+    100: "You can barely keep your eyes open!",
 }
 
-# Add to OPPOSITE_DIRECTIONS
-OPPOSITE_DIRECTIONS["up"] = "down"
-OPPOSITE_DIRECTIONS["down"] = "up"
+@dataclass
+class Tiredness:
+    """Tracks player fatigue level (0-100)."""
+
+    current: int = 0
+
+    def increase(self, amount: int) -> Optional[str]:
+        """Increase tiredness, return warning if threshold crossed."""
+        old = self.current
+        self.current = min(100, self.current + amount)
+        for threshold, message in sorted(TIREDNESS_THRESHOLDS.items()):
+            if old < threshold <= self.current:
+                return message
+        return None
+
+    def decrease(self, amount: int) -> None:
+        """Decrease tiredness (clamped to 0)."""
+        self.current = max(0, self.current - amount)
+
+    def can_sleep(self) -> bool:
+        """Check if tired enough to sleep (30+)."""
+        return self.current >= 30
+
+    def sleep_quality(self) -> str:
+        """Get sleep quality based on tiredness."""
+        if self.current >= 80:
+            return "deep"
+        elif self.current >= 60:
+            return "normal"
+        return "light"
+
+    def get_attack_penalty(self) -> float:
+        """Get attack modifier (1.0 normal, 0.9 at 80+ tiredness)."""
+        return 0.9 if self.current >= 80 else 1.0
+
+    def get_perception_penalty(self) -> float:
+        """Get perception modifier (1.0 normal, 0.9 at 80+ tiredness)."""
+        return 0.9 if self.current >= 80 else 1.0
+
+    def get_display(self) -> str:
+        """Get visual bar representation."""
+        bar_width = 16
+        filled = round(bar_width * self.current / 100)
+        empty = bar_width - filled
+        bar = "█" * filled + "░" * empty
+        if self.current >= 80:
+            colored_bar = colors.damage(bar)
+        elif self.current >= 60:
+            colored_bar = colors.gold(bar)
+        else:
+            colored_bar = bar
+        return f"TIREDNESS: {colored_bar} {self.current}%"
+
+    def to_dict(self) -> dict:
+        return {"current": self.current}
+
+    @classmethod
+    def from_dict(cls, data: dict) -> "Tiredness":
+        return cls(current=data.get("current", 0))
 ```
 
-### Step 2: Update `SUBGRID_BOUNDS` in `world_grid.py`
+### Step 2: Integrate into `Character` model
 
-Change from 4-tuple to 6-tuple format: `(min_x, max_x, min_y, max_y, min_z, max_z)`
+In `src/cli_rpg/models/character.py`:
 
+1. Import `Tiredness` from `cli_rpg.models.tiredness`
+2. Add field: `tiredness: Tiredness = field(default_factory=Tiredness)`
+3. Update `get_attack_power()` to apply tiredness penalty:
+   ```python
+   return int(base_attack * modifier * dread_penalty * self.tiredness.get_attack_penalty())
+   ```
+4. Add method `get_effective_perception()`:
+   ```python
+   def get_effective_perception(self) -> int:
+       return int(self.perception * self.tiredness.get_perception_penalty())
+   ```
+5. Update `to_dict()`: add `"tiredness": self.tiredness.to_dict()`
+6. Update `from_dict()`: restore tiredness with backward compat
+
+### Step 3: Add tiredness increases in `GameState`
+
+In `src/cli_rpg/game_state.py`:
+
+1. In `move()` method after successful move:
+   ```python
+   tiredness_msg = self.current_character.tiredness.increase(3)
+   if tiredness_msg:
+       message += f"\n{tiredness_msg}"
+   ```
+
+2. In combat start (when `current_combat` is created):
+   ```python
+   # Combat exhaustion (added at end of combat in combat.py)
+   ```
+
+### Step 4: Add tiredness increases in `combat.py`
+
+In `CombatEncounter.execute_player_action()` or victory/flee:
 ```python
-SUBGRID_BOUNDS: Dict[str, Tuple[int, int, int, int, int, int]] = {
-    "house": (-1, 1, -1, 1, 0, 0),      # single level
-    "shop": (-1, 1, -1, 1, 0, 0),
-    "cave": (-1, 1, -1, 1, -1, 0),      # goes down
-    "dungeon": (-3, 3, -3, 3, -2, 0),   # multi-level down
-    "tower": (-1, 1, -1, 1, 0, 3),      # multi-level up
-    "temple": (-3, 3, -3, 3, -1, 1),    # basement + main + upper
-    "city": (-8, 8, -8, 8, 0, 0),
-    "town": (-5, 5, -5, 5, 0, 0),
-    "village": (-5, 5, -5, 5, 0, 0),
-    "tavern": (-2, 2, -2, 2, 0, 1),     # main floor + upstairs
-    "ruins": (-2, 2, -2, 2, -1, 0),     # basement
-    "settlement": (-2, 2, -2, 2, 0, 0),
-    "forest": (-3, 3, -3, 3, 0, 0),
-    "wilderness": (-3, 3, -3, 3, 0, 0),
-    "default": (-2, 2, -2, 2, 0, 0),
-}
-
-def get_subgrid_bounds(category: Optional[str]) -> Tuple[int, int, int, int, int, int]:
-    """Get SubGrid bounds for a location category (returns 6-tuple with z)."""
+# After combat ends (victory or flee)
+tiredness_increase = 5 + (rounds * 1)  # 5 base + 1 per round
+player.tiredness.increase(tiredness_increase)
 ```
 
-### Step 3: Update `SubGrid` class in `world_grid.py`
+### Step 5: Update `dreams.py` to use tiredness
 
-- Change `_grid: Dict[Tuple[int, int], Location]` → `Dict[Tuple[int, int, int], Location]`
-- Change `bounds: Tuple[int, int, int, int]` → `Tuple[int, int, int, int, int, int]`
-- Update `add_location(location, x, y, z=0)`
-- Update `get_by_coordinates(x, y, z=0)`
-- Update `is_within_bounds(x, y, z=0)`
-- Update `to_dict()` / `from_dict()` with backward compat for 4-tuple bounds
-
-### Step 4: Update `Location.coordinates` in `models/location.py`
-
-Use Union type for 2D or 3D coordinates:
-- `coordinates: Optional[Union[Tuple[int, int], Tuple[int, int, int]]] = None`
-- Helper: `get_z() -> int` returns z or 0 if 2D tuple
-- Update `to_dict()`: serialize 2 or 3 elements based on length
-- Update `from_dict()`: keep as-is (don't upgrade 2D to 3D automatically)
-
-### Step 5: Update `_move_in_sub_grid()` in `game_state.py`
+Replace random dream chance with tiredness-based system:
 
 ```python
-def _move_in_sub_grid(self, direction: str) -> tuple[bool, str]:
-    from cli_rpg.world_grid import SUBGRID_DIRECTION_OFFSETS
+def maybe_trigger_dream(
+    ...
+    tiredness: Optional[int] = None,  # NEW parameter
+    ...
+) -> Optional[str]:
+    # Block dreams if not tired enough
+    if tiredness is not None and tiredness < 30:
+        return None
 
-    if direction not in {"north", "south", "east", "west", "up", "down"}:
-        return (False, "Invalid direction. Use: north, south, east, west, up, or down.")
+    # Adjust dream chance based on tiredness
+    if tiredness is not None:
+        if tiredness >= 80:
+            chance = 0.40  # Deep sleep: 40% dream chance
+        elif tiredness >= 60:
+            chance = 0.20  # Normal sleep: 20%
+        else:
+            chance = 0.05  # Light sleep: 5%
+    else:
+        chance = dream_chance if dream_chance is not None else DREAM_CHANCE
 
-    dx, dy, dz = SUBGRID_DIRECTION_OFFSETS[direction]
-    x, y = current.coordinates[:2]
-    z = current.coordinates[2] if len(current.coordinates) > 2 else 0
-    target_coords = (x + dx, y + dy, z + dz)
-
-    if not self.current_sub_grid.is_within_bounds(*target_coords):
-        if dz != 0:
-            return (False, "There's no way to go that direction.")
-        return (False, "You've reached the edge of this area.")
-
-    destination = self.current_sub_grid.get_by_coordinates(*target_coords)
     # ... rest of existing logic
 ```
 
-### Step 6: Update `move()` in `game_state.py`
+### Step 6: Update rest/camp recovery
 
-Add guard for up/down on overworld:
+In `main.py` rest handler:
 ```python
-def move(self, direction: str) -> tuple[bool, str]:
-    # Handle sub-grid movement (includes up/down)
-    if self.in_sub_location and self.current_sub_grid is not None:
-        return self._move_in_sub_grid(direction)
+# Calculate tiredness reduction based on sleep quality
+quality = char.tiredness.sleep_quality()
+if quality == "deep":
+    tiredness_reduction = 80
+elif quality == "normal":
+    tiredness_reduction = 50
+else:  # light
+    tiredness_reduction = 25
 
-    # Overworld only allows 2D movement
-    if direction in ("up", "down"):
-        return (False, "You can only go up or down inside buildings and dungeons.")
-
-    # ... existing overworld logic
+char.tiredness.decrease(tiredness_reduction)
+messages.append(f"Tiredness reduced by {tiredness_reduction}%.")
 ```
 
-### Step 7: Update command parsing in `main.py`
-
-Update help text in go command:
+In `camping.py` camp handler:
 ```python
-elif command == "go":
-    if not args:
-        return (True, "\nGo where? Specify a direction (north, south, east, west, up, down)")
+# Camping provides moderate tiredness reduction
+tiredness_reduction = 40
+if has_campfire:
+    tiredness_reduction += 10  # Campfire bonus
+char.tiredness.decrease(tiredness_reduction)
+```
+
+### Step 7: Add tiredness to status display
+
+In `Character.__str__()` or status command:
+```python
+# Add tiredness bar to status output
+tiredness_display = self.tiredness.get_display()
+```
+
+### Step 8: Optional - Food items reduce tiredness
+
+In `Character.use_item()` for consumables:
+```python
+# Check for stamina_restore items reducing tiredness
+if item.stamina_restore > 0:
+    tiredness_reduction = item.stamina_restore // 3
+    self.tiredness.decrease(tiredness_reduction)
 ```
 
 ## Files Modified
 
 | File | Changes |
 |------|---------|
-| `src/cli_rpg/world_grid.py` | SUBGRID_DIRECTION_OFFSETS, 6-tuple bounds, SubGrid 3D support |
-| `src/cli_rpg/models/location.py` | 3-tuple coordinates support, get_z() helper, serialization |
-| `src/cli_rpg/game_state.py` | `_move_in_sub_grid()` z-movement, `move()` up/down guard |
-| `src/cli_rpg/main.py` | Update go command help text |
-| `tests/test_vertical_navigation.py` | New test file (~22 tests) |
+| `src/cli_rpg/models/tiredness.py` | NEW - Tiredness model |
+| `src/cli_rpg/models/character.py` | Add tiredness field, integrate into attack/perception |
+| `src/cli_rpg/game_state.py` | Increase tiredness on move |
+| `src/cli_rpg/combat.py` | Increase tiredness after combat |
+| `src/cli_rpg/dreams.py` | Use tiredness for dream triggers |
+| `src/cli_rpg/main.py` | Rest tiredness reduction, status display |
+| `src/cli_rpg/camping.py` | Camp tiredness reduction |
+| `tests/test_tiredness.py` | NEW - ~25 tests |

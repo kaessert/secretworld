@@ -62,6 +62,23 @@ NIGHTMARES = [
 ]
 
 
+def get_tiredness_dream_chance(tiredness: int) -> float:
+    """Get dream chance based on tiredness level.
+
+    Args:
+        tiredness: Current tiredness level (0-100)
+
+    Returns:
+        Dream chance as a float (0.0 to 1.0)
+    """
+    if tiredness >= 80:
+        return 0.40  # Deep sleep: 40% dream chance
+    elif tiredness >= 60:
+        return 0.20  # Normal sleep: 20%
+    else:
+        return 0.05  # Light sleep: 5%
+
+
 def maybe_trigger_dream(
     dread: int = 0,
     choices: Optional[list[dict]] = None,
@@ -71,6 +88,7 @@ def maybe_trigger_dream(
     dream_chance: Optional[float] = None,
     last_dream_hour: Optional[int] = None,
     current_hour: Optional[int] = None,
+    tiredness: Optional[int] = None,
 ) -> Optional[str]:
     """Potentially trigger a dream during rest.
 
@@ -83,12 +101,23 @@ def maybe_trigger_dream(
         dream_chance: Override for dream chance (default: DREAM_CHANCE)
         last_dream_hour: Hour of last dream (for cooldown check)
         current_hour: Current game hour (for cooldown check)
+        tiredness: Current tiredness level (0-100). If provided, blocks dreams
+                   when tiredness < 30 and modifies dream chance based on level.
 
     Returns:
         Formatted dream text if triggered, None otherwise
     """
-    # Use provided dream_chance or default
-    chance = dream_chance if dream_chance is not None else DREAM_CHANCE
+    # Block dreams if not tired enough
+    if tiredness is not None and tiredness < 30:
+        return None
+
+    # Determine dream chance based on tiredness or use provided/default
+    if tiredness is not None and dream_chance is None:
+        chance = get_tiredness_dream_chance(tiredness)
+    elif dream_chance is not None:
+        chance = dream_chance
+    else:
+        chance = DREAM_CHANCE
 
     # Check cooldown: require 12+ hours since last dream
     if last_dream_hour is not None and current_hour is not None:
