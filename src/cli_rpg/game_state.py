@@ -910,6 +910,42 @@ class GameState:
 
         self.current_location = destination.name
 
+        # Mark destination as visited and check for exploration bonus
+        exploration_bonus_message = None
+        if destination.coordinates is not None:
+            coords = destination.coordinates
+            if len(coords) == 3:
+                x, y, z = coords
+            else:
+                x, y = coords
+                z = 0
+
+            # Check if this will complete exploration (before marking visited)
+            was_fully_explored = self.current_sub_grid.is_fully_explored()
+
+            self.current_sub_grid.mark_visited(x, y, z)
+
+            # Award bonus if just completed exploration
+            if (
+                not was_fully_explored
+                and self.current_sub_grid.is_fully_explored()
+                and not self.current_sub_grid.exploration_bonus_awarded
+            ):
+                # Calculate bonus: XP = 50 * total_rooms, Gold = 25 * total_rooms
+                _, total_rooms, _ = self.current_sub_grid.get_exploration_stats()
+                xp_bonus = 50 * total_rooms
+                gold_bonus = 25 * total_rooms
+
+                self.current_character.gain_xp(xp_bonus)
+                self.current_character.gold += gold_bonus
+                self.current_sub_grid.exploration_bonus_awarded = True
+
+                exploration_bonus_message = (
+                    f"\n{colors.heal('★ FULLY EXPLORED! ★')} "
+                    f"You've discovered every room in {self.current_sub_grid.parent_name}! "
+                    f"+{xp_bonus} XP, +{gold_bonus} gold"
+                )
+
         # Advance time by 1 hour for movement inside buildings
         self.game_time.advance(1)
 
@@ -937,6 +973,10 @@ class GameState:
         secret_message = self._check_and_report_passive_secrets(destination)
         if secret_message:
             message += f"\n{secret_message}"
+
+        # Add exploration bonus message if awarded
+        if exploration_bonus_message:
+            message += exploration_bonus_message
 
         return (True, message)
 
@@ -1053,6 +1093,13 @@ class GameState:
             self.in_sub_location = True
             self.current_sub_grid = current.sub_grid
             self.current_location = matched_location
+            # Mark entry room as visited
+            if sub_grid_location.coordinates is not None:
+                coords = sub_grid_location.coordinates
+                if len(coords) == 3:
+                    self.current_sub_grid.mark_visited(*coords)
+                else:
+                    self.current_sub_grid.mark_visited(coords[0], coords[1], 0)
         else:
             # Traditional sub-location entry (in world dict)
             self.current_location = matched_location

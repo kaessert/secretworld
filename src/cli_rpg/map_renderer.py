@@ -278,6 +278,7 @@ def _render_sub_grid_map(sub_grid: "SubGrid", current_location: str) -> str:
 
     This renders a 2D slice of the 3D SubGrid at the player's current z-level.
     Multi-level navigation (up/down) is indicated in the legend.
+    Shows exploration progress (visited/total rooms and percentage).
 
     Args:
         sub_grid: The SubGrid to render
@@ -293,6 +294,9 @@ def _render_sub_grid_map(sub_grid: "SubGrid", current_location: str) -> str:
     else:
         bound_min_x, bound_max_x, bound_min_y, bound_max_y = sub_grid.bounds
         bound_min_z, bound_max_z = 0, 0
+
+    # Get exploration stats
+    visited_count, total_rooms, percentage = sub_grid.get_exploration_stats()
 
     # Get current location for positioning
     current_loc = sub_grid.get_by_name(current_location)
@@ -417,8 +421,16 @@ def _render_sub_grid_map(sub_grid: "SubGrid", current_location: str) -> str:
         level_info = f", Level {player_z}"
     else:
         level_info = ""
+
+    # Build exploration status line
+    if percentage >= 100:
+        exploration_line = f"Explored: {visited_count}/{total_rooms} rooms (100% - Complete!)"
+    else:
+        exploration_line = f"Explored: {visited_count}/{total_rooms} rooms ({percentage:.0f}%)"
+
     lines = [
         f"=== INTERIOR MAP === (Inside: {sub_grid.parent_name}{level_info})",
+        exploration_line,
         top_border,
         "│" + pad_to_width(header, content_width) + "│",
     ]

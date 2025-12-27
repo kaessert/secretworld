@@ -368,23 +368,32 @@ Create storyline system with branching quests and investigations.
 ---
 
 ### Issue 24: Exploration Progress Tracking
-**Status**: PENDING
+**Status**: COMPLETED ✓
 **Priority**: P2
+**Completed**: 2025-12-27
 
-**Problem**: No tracking of dungeon completion exists. No reward for thorough exploration.
+**Implementation:**
+- `src/cli_rpg/world_grid.py` - Added to SubGrid class:
+  - `visited_rooms: set` - Stores (x, y, z) coordinate tuples of visited rooms
+  - `exploration_bonus_awarded: bool` - Prevents bonus from being awarded multiple times
+  - `mark_visited(x, y, z)` method - Adds a room coordinate to the visited set
+  - `get_exploration_stats()` method - Returns (visited_count, total_rooms, percentage)
+  - `is_fully_explored()` method - Returns True when all rooms have been visited
+  - Full serialization with backward compatibility
+- `src/cli_rpg/game_state.py` - Movement tracking:
+  - `enter()` marks entry room as visited when entering SubGrid
+  - `_move_in_sub_grid()` marks destination room as visited after each move
+  - Awards XP (50 × rooms) and gold (25 × rooms) bonus on full exploration
+  - Displays "★ FULLY EXPLORED! ★" message with rewards
+- `src/cli_rpg/map_renderer.py` - Displays "Explored: X/Y rooms (Z%)" in SubGrid map header
+- 15 new tests in `tests/test_exploration_tracking.py`
 
 **Acceptance Criteria:**
-- [ ] Track visited rooms in SubGrid (persisted in save)
-- [ ] "Fully explored" bonus (XP + gold) when all rooms visited
-- [ ] Discovery milestones: first secret, all treasures, boss defeated
-- [ ] Exploration percentage visible in `map` command
-- [ ] Visited rooms marked differently on map
-
-**Related Files:**
-- `src/cli_rpg/models/location.py`
-- `src/cli_rpg/world_grid.py`
-- `src/cli_rpg/game_state.py`
-- `src/cli_rpg/map_renderer.py`
+- [x] Track visited rooms in SubGrid (persisted in save)
+- [x] "Fully explored" bonus (XP + gold) when all rooms visited
+- [ ] Discovery milestones: first secret, all treasures, boss defeated (deferred to future enhancement)
+- [x] Exploration percentage visible in `map` command
+- [ ] Visited rooms marked differently on map (deferred - current map already shows visited vs seen tiles)
 
 ---
 
@@ -461,7 +470,7 @@ Create storyline system with branching quests and investigations.
 
 **Phase 4 - Non-Combat Depth (P2)** - Issues 23-24
 - ✓ Puzzle mechanics (Issue 23 complete)
-- Exploration progress tracking
+- ✓ Exploration progress tracking (Issue 24 complete)
 
 **Phase 5 - Dynamic Polish (P3)** - Issues 25-27
 - Interior events

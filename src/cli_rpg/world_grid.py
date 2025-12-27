@@ -123,6 +123,8 @@ class SubGrid:
         bounds: Tuple of (min_x, max_x, min_y, max_y, min_z, max_z) defining grid limits
         parent_name: Name of the parent location for exit navigation
         secret_passages: List of secret passages connecting non-adjacent rooms
+        visited_rooms: Set of (x, y, z) coordinates that have been visited
+        exploration_bonus_awarded: Whether the exploration completion bonus was given
     """
 
     _grid: Dict[Tuple[int, int, int], Location] = field(default_factory=dict)
@@ -131,6 +133,8 @@ class SubGrid:
     parent_name: str = ""
     secret_passages: List[dict] = field(default_factory=list)
     districts: List["District"] = field(default_factory=list)
+    visited_rooms: set = field(default_factory=set)
+    exploration_bonus_awarded: bool = False
 
     def add_location(self, location: Location, x: int, y: int, z: int = 0) -> None:
         """Add a location within bounds.
@@ -209,6 +213,44 @@ class SubGrid:
             min_z, max_z = 0, 0
         return min_x <= x <= max_x and min_y <= y <= max_y and min_z <= z <= max_z
 
+    def mark_visited(self, x: int, y: int, z: int = 0) -> None:
+        """Mark a room as visited.
+
+        Args:
+            x: X coordinate
+            y: Y coordinate
+            z: Z coordinate (default 0)
+        """
+        self.visited_rooms.add((x, y, z))
+
+    def get_exploration_stats(self) -> tuple:
+        """Get exploration statistics.
+
+        Returns:
+            Tuple of (visited_count, total_rooms, percentage) where:
+            - visited_count: Number of rooms visited
+            - total_rooms: Total number of rooms in the SubGrid
+            - percentage: Percentage of rooms visited (0-100)
+        """
+        total_rooms = len(self._grid)
+        if total_rooms == 0:
+            return (0, 0, 100.0)
+
+        visited_count = len(self.visited_rooms)
+        percentage = (visited_count / total_rooms) * 100.0
+        return (visited_count, total_rooms, percentage)
+
+    def is_fully_explored(self) -> bool:
+        """Check if all rooms have been visited.
+
+        Returns:
+            True if all rooms visited (or grid is empty), False otherwise
+        """
+        total_rooms = len(self._grid)
+        if total_rooms == 0:
+            return True
+        return len(self.visited_rooms) >= total_rooms
+
     def to_dict(self) -> dict:
         """Serialize the sub-grid to a dictionary.
 
@@ -225,6 +267,8 @@ class SubGrid:
             "parent_name": self.parent_name,
             "secret_passages": self.secret_passages,
             "districts": [d.to_dict() for d in self.districts],
+            "visited_rooms": [list(coords) for coords in self.visited_rooms],
+            "exploration_bonus_awarded": self.exploration_bonus_awarded,
         }
 
     @classmethod
@@ -250,6 +294,9 @@ class SubGrid:
         grid.parent_name = data.get("parent_name", "")
         grid.secret_passages = data.get("secret_passages", [])
         grid.districts = [District.from_dict(d) for d in data.get("districts", [])]
+        # Restore visited_rooms (default to empty for backward compat)
+        grid.visited_rooms = {tuple(coords) for coords in data.get("visited_rooms", [])}
+        grid.exploration_bonus_awarded = data.get("exploration_bonus_awarded", False)
 
         for loc_data in data.get("locations", []):
             location = Location.from_dict(loc_data)
