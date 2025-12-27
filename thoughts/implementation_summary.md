@@ -1,66 +1,81 @@
-# Implementation Summary: Enforce Natural Terrain Transitions in WFC Generation
+# Implementation Summary: Location Clustering for POI Generation
 
 ## What Was Implemented
 
-Enhanced `get_distance_penalty()` in `world_tiles.py` to use `NATURAL_TRANSITIONS` for checking unnatural terrain adjacencies instead of the hardcoded `JARRING_TERRAIN_PAIRS` set.
+Implemented spatial clustering of similar location types when generating named locations (POIs). When generating a new named location, the system now checks for nearby named locations and biases toward generating similar location types, creating more geographically coherent clusters.
 
-### Changes Made
+## Features Added
 
-| File | Changes |
-|------|---------|
-| `src/cli_rpg/world_tiles.py` | Updated `get_distance_penalty()` to check `NATURAL_TRANSITIONS` |
-| `tests/test_terrain_transitions.py` | Adjusted statistical test threshold from 45% to 50% |
-| `tests/test_wfc_integration.py` | Changed seed from 42 to 1 (passable terrain at test positions) |
-| `tests/test_npc_persistence_navigation.py` | Changed seed from 42 to 1 |
+### 1. Clustering Constants (`src/cli_rpg/world_tiles.py`)
 
-### Technical Details
+- **`LOCATION_CLUSTER_GROUPS`**: Maps location categories to cluster groups:
+  - `settlements`: village, town, city, settlement
+  - `dungeons`: dungeon, cave, ruins
+  - `wilderness_pois`: forest, wilderness, grove
+  - `sacred`: temple, shrine, monastery
+  - `commerce`: shop, tavern, inn, merchant_camp
 
-1. **Updated `get_distance_penalty()` (lines 179-216)**:
-   - Now uses `NATURAL_TRANSITIONS` dict to determine unnatural adjacencies
-   - Checks both forward (`terrain → nearby`) and reverse (`nearby → terrain`) transitions
-   - Two-tier penalty system preserved:
-     - **Severe (0.01x)**: Biome group conflicts (e.g., temperate near arid)
-     - **Moderate (0.3x)**: Unnatural direct adjacency (e.g., mountain near beach)
+- **`CLUSTER_RADIUS`**: Set to 10 tiles (Manhattan distance) - locations within this radius are considered for clustering
 
-2. **Coverage expanded from 3 to 19 unnatural terrain pairs**:
-   - Previous `JARRING_TERRAIN_PAIRS`: `{mountain, beach}`, `{mountain, swamp}`, `{water, desert}`
-   - Now all pairs not in `NATURAL_TRANSITIONS` receive the 0.3x penalty
+- **`CLUSTER_PROBABILITY`**: Set to 0.6 (60%) - probability that clustering will occur when nearby similar locations exist
 
-3. **Test seed adjustments**:
-   - Changed from seed 42 to seed 1 in WFC-related tests
-   - Seed 42 now produces water (impassable) at positions like (0,1) and (1,0)
-   - Seed 1 produces passable terrain at these positions
+### 2. Clustering Helper Function (`src/cli_rpg/world_tiles.py`)
 
-### Design Decision
+Added `get_cluster_category_bias(world, target_coords, radius, rng)`:
+- Scans for named locations within radius
+- Returns a category from the most common nearby cluster group
+- Respects `CLUSTER_PROBABILITY` for randomness
+- Returns `None` if no clustering should occur
 
-The `JARRING_TERRAIN_PAIRS` constant is now dead code but was left in place as documentation. It could be removed in a future cleanup if desired.
+### 3. Category Hint in Fallback Generation (`src/cli_rpg/world.py`)
+
+Modified `generate_fallback_location()` to accept `category_hint` parameter:
+- For named locations, `category_hint` overrides terrain-based category
+- For unnamed locations (terrain filler), `category_hint` is ignored
+
+### 4. AI Generation Integration (`src/cli_rpg/ai_world.py`)
+
+Modified `expand_area()` to accept `category_hint` parameter:
+- Added category-specific sub-theme hints for AI generation
+- Maps categories like "village", "dungeon", "temple" to thematic prompts
+
+### 5. Game State Integration (`src/cli_rpg/game_state.py`)
+
+Updated `move()` method:
+- Calls `get_cluster_category_bias()` before generating named locations
+- Passes `category_hint` to both `expand_area()` and `generate_fallback_location()`
+
+## Files Modified
+
+1. `src/cli_rpg/world_tiles.py` - Added clustering constants and helper function
+2. `src/cli_rpg/world.py` - Added `category_hint` parameter to `generate_fallback_location()`
+3. `src/cli_rpg/game_state.py` - Integrated clustering into `move()` method
+4. `src/cli_rpg/ai_world.py` - Added `category_hint` parameter to `expand_area()`
+
+## New Test File
+
+Created `tests/test_location_clustering.py` with 16 tests covering:
+- Clustering constant definitions
+- `get_cluster_category_bias()` function behavior
+- `generate_fallback_location()` with category hints
 
 ## Test Results
 
-All 4169 tests pass:
-- `tests/test_terrain_transitions.py`: 30 passed
-- `tests/test_wfc_integration.py`: 13 passed
-- `tests/test_npc_persistence_navigation.py`: 6 passed
-- Full suite: 4169 passed in ~111 seconds
+- All 16 new tests pass
+- Full test suite (4185 tests) passes with no regressions
 
-## Verification
+## How It Works
 
-The implementation correctly applies penalties:
-```
-get_distance_penalty("mountain", {"beach"}) == 0.3    # ✓ unnatural adjacency
-get_distance_penalty("forest", {"mountain"}) == 0.3   # ✓ NEW - was 1.0 before
-get_distance_penalty("mountain", {"plains"}) == 0.3   # ✓ NEW - was 1.0 before
-get_distance_penalty("forest", {"desert"}) == 0.01    # ✓ biome conflict (more severe)
-get_distance_penalty("forest", {"plains"}) == 1.0     # ✓ natural, no penalty
-get_distance_penalty("mountain", {"foothills"}) == 1.0 # ✓ natural, no penalty
-```
+1. When player moves and triggers named location generation
+2. `get_cluster_category_bias()` scans for nearby named locations
+3. If similar locations exist nearby and probability check passes (60%)
+4. Returns a category from the same cluster group
+5. Category hint is passed to location generation
+6. New location is generated with biased category
 
 ## E2E Validation
 
-To verify the implementation is working correctly, you can:
-
-1. Start the game and explore - observe smoother biome gradients
-2. Use the `worldmap` command to see terrain distribution
-3. Note that mountains won't appear directly next to beaches, forests won't border deserts directly, etc.
-
-The 0.3x penalty is moderate enough to allow occasional edge cases while strongly discouraging unnatural transitions during WFC terrain generation.
+- When exploring near villages, new POIs have ~60% chance to be settlements
+- When exploring near dungeons/caves/ruins, new POIs cluster as dungeons
+- When no nearby named locations exist, generation proceeds normally
+- Unnamed terrain filler locations are unaffected

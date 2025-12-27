@@ -1,148 +1,141 @@
-# Plan: Enforce Natural Terrain Transitions in WFC Generation
+# Implementation Plan: Cluster Similar Locations Together
 
-## Summary
-Integrate `NATURAL_TRANSITIONS` into WFC collapse to actively penalize unnatural terrain transitions (e.g., forest→desert) during generation, creating smoother biome gradients.
+## Spec Summary
+When generating named locations (POIs), cluster similar location types together spatially. This means that settlements should spawn near other settlements, dungeon entrances near other dungeons, etc., rather than being scattered randomly.
 
-## Scope
-**MEDIUM task** - Enhancing existing WFC distance penalty system to use `NATURAL_TRANSITIONS` data.
+## Design Approach
 
-## Background
+**Core Idea**: When `should_generate_named_location()` returns True and we're about to generate a named location, bias the **location category** selection based on nearby existing named locations of similar types.
 
-The codebase already has:
-- `NATURAL_TRANSITIONS` dict defining which terrains can naturally border each other
-- `is_natural_transition()` function for checking transition validity
-- `get_distance_penalty()` function using `BIOME_GROUPS` and `INCOMPATIBLE_GROUPS`
-- Both `wfc.py` and `wfc_chunks.py` use `get_distance_penalty()` during collapse
+### Location Category Groupings
+Similar location types that should cluster together:
 
-**Gap**: The distance penalty only considers biome group incompatibility (temperate vs arid), not the more granular `NATURAL_TRANSITIONS` data. For example:
-- `get_distance_penalty("mountain", {"beach"})` returns 1.0 (no penalty) because both are in compatible groups (alpine/aquatic aren't in `INCOMPATIBLE_GROUPS`)
-- But `is_natural_transition("mountain", "beach")` returns False because mountains don't naturally border beaches
+| Cluster Group | Location Categories |
+|--------------|---------------------|
+| Settlements | village, town, city, settlement |
+| Dungeons | dungeon, cave, ruins |
+| Wilderness POIs | forest, wilderness, grove |
+| Sacred Sites | temple, shrine, monastery |
+| Commerce | shop, tavern, inn, merchant_camp |
 
-## Spec
+### Implementation Strategy
 
-Enhance `get_distance_penalty()` to also check `NATURAL_TRANSITIONS`:
-1. If terrain's group conflicts with nearby groups → 0.01x penalty (existing behavior)
-2. If terrain is NOT in `NATURAL_TRANSITIONS` of ANY nearby terrain → apply moderate penalty (0.3x)
-3. Otherwise → no penalty (1.0x)
-
-This creates a two-tier penalty system:
-- **Severe (0.01x)**: Biome group conflicts (forest near desert)
-- **Moderate (0.3x)**: Unnatural direct adjacency (mountain next to beach)
-
-## Files to Modify
-
-| File | Changes |
-|------|---------|
-| `src/cli_rpg/world_tiles.py` | Update `get_distance_penalty()` to check `NATURAL_TRANSITIONS` |
-| `tests/test_terrain_transitions.py` | Add tests for enhanced penalty calculation |
+1. **Track named location positions**: Use existing `world` dictionary which has coordinates
+2. **Detect nearby similar locations**: When generating a new named location, check for existing named locations within a radius and their categories
+3. **Bias category selection**: If there are nearby named locations, weight towards generating the same category
+4. **Apply in fallback generation**: Modify `generate_fallback_location()` to accept optional category bias
+5. **Apply in AI generation**: Pass category hint to expand_area when clustering applies
 
 ## Implementation Steps
 
-### 1. Update `get_distance_penalty()` in `world_tiles.py`
-
-Location: Lines 169-191
-
-Current implementation only checks `INCOMPATIBLE_GROUPS`. Enhance to also check `NATURAL_TRANSITIONS`:
+### 1. Define clustering constants in `world_tiles.py`
 
 ```python
-def get_distance_penalty(terrain: str, nearby_terrains: Set[str]) -> float:
-    """Calculate weight penalty based on nearby incompatible biomes.
+# Location category clustering groups
+LOCATION_CLUSTER_GROUPS: Dict[str, str] = {
+    # Settlements
+    "village": "settlements",
+    "town": "settlements",
+    "city": "settlements",
+    "settlement": "settlements",
+    # Dungeons
+    "dungeon": "dungeons",
+    "cave": "dungeons",
+    "ruins": "dungeons",
+    # Wilderness POIs
+    "forest": "wilderness_pois",
+    "wilderness": "wilderness_pois",
+    "grove": "wilderness_pois",
+    # Sacred
+    "temple": "sacred",
+    "shrine": "sacred",
+    "monastery": "sacred",
+    # Commerce
+    "shop": "commerce",
+    "tavern": "commerce",
+    "inn": "commerce",
+}
 
-    When collapsing a WFC cell, this function determines if the terrain type
-    should receive a weight penalty based on incompatible biomes nearby.
+# Cluster radius in world tiles
+CLUSTER_RADIUS = 10
 
-    Two levels of penalty:
-    - Severe (0.01): Biome group incompatibility (temperate near arid)
-    - Moderate (0.3): Unnatural direct adjacency (mountain near beach)
+# Probability of clustering (vs generating any random type)
+CLUSTER_PROBABILITY = 0.6
+```
+
+### 2. Add clustering helper function in `world_tiles.py`
+
+```python
+def get_cluster_category_bias(
+    world: Dict[str, Location],
+    target_coords: Tuple[int, int],
+    radius: int = CLUSTER_RADIUS,
+    rng: Optional[random.Random] = None,
+) -> Optional[str]:
+    """Determine if new location should cluster with nearby similar locations.
+
+    Scans for named locations within radius and returns a category bias
+    if clustering should occur.
 
     Args:
-        terrain: The terrain type being considered for collapse
-        nearby_terrains: Set of terrain types within penalty radius
+        world: World dictionary with locations
+        target_coords: Coordinates for new location
+        radius: Search radius for nearby named locations
+        rng: Optional RNG for determinism
 
     Returns:
-        Multiplier (1.0 = no penalty, 0.3 = moderate penalty, 0.01 = severe penalty)
+        Category string to bias towards, or None if no clustering
     """
-    terrain_group = BIOME_GROUPS.get(terrain)
-    if terrain_group == "neutral":
-        return 1.0  # Neutral terrain is never penalized
-
-    # Check for biome group incompatibility (severe penalty)
-    for nearby in nearby_terrains:
-        nearby_group = BIOME_GROUPS.get(nearby)
-        if (terrain_group, nearby_group) in INCOMPATIBLE_GROUPS:
-            return 0.01  # 99% weight reduction (very strong penalty)
-
-    # Check for unnatural adjacency (moderate penalty)
-    terrain_natural = NATURAL_TRANSITIONS.get(terrain, set())
-    for nearby in nearby_terrains:
-        # If terrain can't naturally border this nearby terrain
-        if nearby not in terrain_natural:
-            # Also check reverse (symmetric check)
-            nearby_natural = NATURAL_TRANSITIONS.get(nearby, set())
-            if terrain not in nearby_natural:
-                return 0.3  # 70% weight reduction (moderate penalty)
-
-    return 1.0
 ```
 
-### 2. Add tests in `tests/test_terrain_transitions.py`
+### 3. Integrate into `game_state.py` move() method
 
-Add new test class after `TestTransitionWeightPenalty`:
+In the section where `generate_named = True`:
+- Before calling `generate_fallback_location()` or `expand_area()`, call `get_cluster_category_bias()`
+- Pass the bias as a hint to the generation functions
 
-```python
-class TestNaturalTransitionPenalty:
-    """Tests for NATURAL_TRANSITIONS integration in get_distance_penalty()."""
+### 4. Modify `generate_fallback_location()` in `world.py`
 
-    def test_mountain_near_beach_gets_moderate_penalty(self):
-        """Mountains near beaches get 0.3x penalty (unnatural adjacency)."""
-        assert get_distance_penalty("mountain", {"beach"}) == 0.3
-        assert get_distance_penalty("beach", {"mountain"}) == 0.3
+Add optional `category_hint` parameter:
+- If provided and matches a terrain template, prefer that template
+- Ensures fallback generation respects clustering
 
-    def test_mountain_near_swamp_gets_moderate_penalty(self):
-        """Mountains near swamps get 0.3x penalty."""
-        assert get_distance_penalty("mountain", {"swamp"}) == 0.3
+### 5. Modify AI prompt/expand_area in `ai_world.py`
 
-    def test_water_near_desert_gets_moderate_penalty(self):
-        """Water near desert gets 0.3x penalty."""
-        assert get_distance_penalty("water", {"desert"}) == 0.3
+Add optional `category_hint` parameter to `expand_area()`:
+- Include hint in AI prompt to guide location category generation
 
-    def test_natural_transition_no_penalty(self):
-        """Natural transitions get no penalty."""
-        # Forest near plains is natural
-        assert get_distance_penalty("forest", {"plains"}) == 1.0
-        # Mountain near foothills is natural
-        assert get_distance_penalty("mountain", {"foothills"}) == 1.0
-        # Beach near water is natural
-        assert get_distance_penalty("beach", {"water"}) == 1.0
+## Test Plan
 
-    def test_biome_conflict_trumps_natural_check(self):
-        """Biome group conflicts still return 0.01 (more severe than 0.3)."""
-        # Forest near desert is both unnatural AND group-incompatible
-        assert get_distance_penalty("forest", {"desert"}) == 0.01
+### Unit Tests (in `tests/test_location_clustering.py`)
 
-    def test_mixed_nearby_returns_worst_penalty(self):
-        """When multiple nearby terrains, return worst applicable penalty."""
-        # Forest near plains (natural) and desert (incompatible group)
-        assert get_distance_penalty("forest", {"plains", "desert"}) == 0.01
-        # Mountain near foothills (natural) and beach (unnatural but not incompatible)
-        assert get_distance_penalty("mountain", {"foothills", "beach"}) == 0.3
-```
+1. **test_cluster_groups_defined**: Verify LOCATION_CLUSTER_GROUPS contains expected mappings
+2. **test_get_cluster_category_bias_no_nearby**: Returns None when no named locations nearby
+3. **test_get_cluster_category_bias_finds_nearby**: Returns category when similar location within radius
+4. **test_get_cluster_category_bias_respects_probability**: Clustering happens ~60% of time
+5. **test_get_cluster_category_bias_radius_boundary**: Location at exactly radius edge counts
+6. **test_get_cluster_category_bias_outside_radius**: Location beyond radius ignored
+7. **test_generate_fallback_respects_category_hint**: Verify fallback uses hint when provided
+8. **test_cluster_groups_cover_common_categories**: Verify all common categories are mapped
 
-## Verification
+### Integration Tests
 
-Run tests:
-```bash
-pytest tests/test_terrain_transitions.py -v
-```
+9. **test_move_applies_clustering_bias**: Verify move() passes bias to generation
+10. **test_clustering_persists_patterns**: Verify multiple moves create clustered patterns
 
-Expected: All tests pass, including new tests for natural transition penalties.
+## Files to Modify
 
-## Impact
+1. `src/cli_rpg/world_tiles.py` - Add constants and `get_cluster_category_bias()`
+2. `src/cli_rpg/world.py` - Add `category_hint` param to `generate_fallback_location()`
+3. `src/cli_rpg/game_state.py` - Call clustering logic before named location generation
+4. `src/cli_rpg/ai_world.py` - Add `category_hint` to `expand_area()` (optional enhancement)
+5. `tests/test_location_clustering.py` - New test file
 
-After this change:
-- Mountains won't appear directly next to beaches (0.3x penalty → rare but not impossible)
-- Swamps won't border water directly (0.3x penalty)
-- Natural gradients will be enforced: forest → plains → desert instead of forest → desert
-- Biome group conflicts remain severely penalized (0.01x)
+## Implementation Order
 
-The 0.3x penalty is moderate enough to allow occasional edge cases while strongly discouraging them.
+1. Add constants and `get_cluster_category_bias()` to `world_tiles.py`
+2. Write unit tests for the new function
+3. Add `category_hint` to `generate_fallback_location()`
+4. Integrate into `game_state.py` move() method
+5. Write integration tests
+6. (Optional) Add to AI prompt in `expand_area()`

@@ -767,7 +767,8 @@ def expand_area(
     size: int = 5,
     world_context: Optional[WorldContext] = None,
     region_context: Optional[RegionContext] = None,
-    terrain_type: Optional[str] = None
+    terrain_type: Optional[str] = None,
+    category_hint: Optional[str] = None,
 ) -> dict[str, Location]:
     """Expand world by generating an entire thematic area (4-7 locations).
 
@@ -789,6 +790,7 @@ def expand_area(
                        doesn't support layered contexts - contexts are passed
                        through to expand_world fallback)
         terrain_type: Optional terrain type (e.g., "desert", "forest") for coherent generation
+        category_hint: Optional category hint from clustering (e.g., "village", "dungeon")
 
     Returns:
         Updated world dictionary (same object, modified in place)
@@ -807,14 +809,31 @@ def expand_area(
             f"{', '.join(sorted(Location.VALID_DIRECTIONS))}"
         )
 
-    # Generate area sub-theme hint based on source location
-    # This could be enhanced with more sophisticated theme selection
-    sub_theme_hints = [
-        "mystical forest", "ancient ruins", "haunted grounds",
-        "mountain pass", "coastal region", "underground cavern",
-        "enchanted garden", "abandoned settlement", "wild frontier"
-    ]
+    # Generate area sub-theme hint based on source location and category_hint
+    # Category hint from clustering biases toward similar location types
     import random
+
+    # Category-specific sub-theme hints for clustering
+    category_sub_themes = {
+        "village": ["farming village", "fishing hamlet", "market town", "rural settlement"],
+        "town": ["trading post", "crossroads town", "fortified settlement", "merchant hub"],
+        "city": ["great city", "ancient metropolis", "walled city", "capital district"],
+        "dungeon": ["dark dungeon", "underground complex", "ancient crypt", "forgotten prison"],
+        "cave": ["deep cavern", "underground network", "crystal cave", "beast lair"],
+        "ruins": ["ancient ruins", "fallen temple", "forgotten citadel", "crumbling fortress"],
+        "temple": ["sacred temple", "divine sanctuary", "holy shrine", "pilgrimage site"],
+        "shrine": ["forest shrine", "roadside shrine", "spirit altar", "sacred grove"],
+        "monastery": ["mountain monastery", "secluded abbey", "order's sanctuary", "hermit refuge"],
+    }
+
+    if category_hint and category_hint in category_sub_themes:
+        sub_theme_hints = category_sub_themes[category_hint]
+    else:
+        sub_theme_hints = [
+            "mystical forest", "ancient ruins", "haunted grounds",
+            "mountain pass", "coastal region", "underground cavern",
+            "enchanted garden", "abandoned settlement", "wild frontier"
+        ]
     sub_theme = random.choice(sub_theme_hints)
 
     # Generate the area

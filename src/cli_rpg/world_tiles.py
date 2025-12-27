@@ -1,11 +1,13 @@
 """Tile definitions and adjacency rules for Wave Function Collapse world generation."""
 
+import random as random_module
 from dataclasses import dataclass, field
 from enum import Enum
 from typing import Dict, Set, List, Optional, Tuple, TYPE_CHECKING
 
 if TYPE_CHECKING:
     from cli_rpg.wfc_chunks import ChunkManager
+    from cli_rpg.models.location import Location
 
 
 # Region planning constants
@@ -687,3 +689,120 @@ def get_unexplored_region_directions(
             unexplored_directions.append(direction)
 
     return unexplored_directions
+
+
+# ============================================================================
+# Location Clustering for POI Generation
+# ============================================================================
+
+# Location category clustering groups - similar location types that should
+# spawn near each other for geographic coherence
+LOCATION_CLUSTER_GROUPS: Dict[str, str] = {
+    # Settlements - towns, villages, cities cluster together
+    "village": "settlements",
+    "town": "settlements",
+    "city": "settlements",
+    "settlement": "settlements",
+    # Dungeons - caves, ruins, dungeons form dangerous regions
+    "dungeon": "dungeons",
+    "cave": "dungeons",
+    "ruins": "dungeons",
+    # Wilderness POIs - natural landmarks
+    "forest": "wilderness_pois",
+    "wilderness": "wilderness_pois",
+    "grove": "wilderness_pois",
+    # Sacred sites - temples, shrines, monasteries
+    "temple": "sacred",
+    "shrine": "sacred",
+    "monastery": "sacred",
+    # Commerce - shops, inns, taverns
+    "shop": "commerce",
+    "tavern": "commerce",
+    "inn": "commerce",
+    "merchant_camp": "commerce",
+}
+
+# Cluster radius in world tiles (Manhattan distance)
+CLUSTER_RADIUS: int = 10
+
+# Probability of clustering (vs generating any random type)
+CLUSTER_PROBABILITY: float = 0.6
+
+
+def get_cluster_category_bias(
+    world: Dict[str, "Location"],
+    target_coords: Tuple[int, int],
+    radius: int = CLUSTER_RADIUS,
+    rng: Optional[random_module.Random] = None,
+) -> Optional[str]:
+    """Determine if new location should cluster with nearby similar locations.
+
+    Scans for named locations within radius and returns a category bias
+    if clustering should occur. When multiple cluster groups are nearby,
+    picks from the most common group.
+
+    Args:
+        world: World dictionary with locations
+        target_coords: Coordinates for new location
+        radius: Search radius for nearby named locations (Manhattan distance)
+        rng: Optional RNG for determinism
+
+    Returns:
+        Category string to bias towards, or None if no clustering
+    """
+    if rng is None:
+        rng = random_module.Random()
+
+    # Find all named locations within radius
+    nearby_categories: List[str] = []
+
+    for location in world.values():
+        # Skip unnamed locations (terrain filler)
+        if not location.is_named:
+            continue
+
+        # Skip locations without coordinates
+        if location.coordinates is None:
+            continue
+
+        # Calculate Manhattan distance
+        dx = abs(target_coords[0] - location.coordinates[0])
+        dy = abs(target_coords[1] - location.coordinates[1])
+        distance = dx + dy
+
+        # Include if within radius
+        if distance <= radius:
+            category = location.category
+            if category is not None:
+                nearby_categories.append(category)
+
+    # No nearby named locations = no clustering
+    if not nearby_categories:
+        return None
+
+    # Check if clustering should happen (probability check)
+    if rng.random() >= CLUSTER_PROBABILITY:
+        return None
+
+    # Count cluster groups
+    cluster_counts: Dict[str, int] = {}
+    for category in nearby_categories:
+        group = LOCATION_CLUSTER_GROUPS.get(category)
+        if group is not None:
+            cluster_counts[group] = cluster_counts.get(group, 0) + 1
+
+    # No recognized cluster groups
+    if not cluster_counts:
+        return None
+
+    # Find the most common cluster group
+    most_common_group = max(cluster_counts.keys(), key=lambda g: cluster_counts[g])
+
+    # Get all categories that belong to this group
+    group_categories = [
+        cat for cat, grp in LOCATION_CLUSTER_GROUPS.items()
+        if grp == most_common_group
+    ]
+
+    # Return a random category from this group
+    return rng.choice(group_categories)

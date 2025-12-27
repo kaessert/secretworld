@@ -54,11 +54,12 @@ except ImportError:
 # Import fallback generation
 from cli_rpg.world import generate_fallback_location
 
-# Import named location trigger logic
+# Import named location trigger logic and clustering
 from cli_rpg.world_tiles import (
     should_generate_named_location,
     get_unnamed_location_template,
     TERRAIN_TO_CATEGORY,
+    get_cluster_category_bias,
 )
 
 logger = logging.getLogger(__name__)
@@ -585,6 +586,9 @@ class GameState:
                     return (False, "The path is blocked by an impassable barrier.")
             else:
                 # Generate named location via AI or fallback
+                # First, check if we should cluster with nearby locations
+                category_hint = get_cluster_category_bias(self.world, target_coords)
+
                 ai_succeeded = False
                 if self.ai_service is not None and AI_AVAILABLE and expand_area is not None:
                     try:
@@ -606,6 +610,7 @@ class GameState:
                             world_context=world_ctx,
                             region_context=region_ctx,
                             terrain_type=terrain,
+                            category_hint=category_hint,  # Pass clustering hint
                         )
                         # Find the newly generated location
                         target_location = self._get_location_by_coordinates(target_coords)
@@ -634,6 +639,7 @@ class GameState:
                             terrain=terrain,
                             chunk_manager=self.chunk_manager,
                             is_named=True,  # Mark as named POI
+                            category_hint=category_hint,  # Pass clustering hint
                         )
                         # Add to world
                         self.world[new_location.name] = new_location

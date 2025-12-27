@@ -352,6 +352,66 @@ Issues discovered through comprehensive map system playtesting in non-interactiv
 
 ---
 
+### Pre-generated Test World
+**Status**: PLANNED
+**Date Added**: 2025-12-27
+
+Create a pre-generated world with AI content (locations, NPCs, quests, items) that can be loaded for testing without requiring live AI service.
+
+#### The Problem
+
+Currently, meaningful playtesting requires the AI service:
+- Quests are only generated when AI is available
+- NPCs have empty `offered_quests` lists without AI
+- Shop inventories and NPC dialogue rely on AI generation
+- This makes automated testing and rapid iteration difficult
+
+#### Proposed Solution
+
+Pre-generate a "test world seed" with full AI content, then serialize it for replay:
+
+1. **Generation Script**: `scripts/generate_test_world.py`
+   - Run with AI service enabled
+   - Generate a rich world with multiple regions
+   - Populate NPCs with quests, shops with inventories
+   - Create quest chains and faction conflicts
+   - Save entire world state to JSON/pickle
+
+2. **Loading Mechanism**: `--load-world <path>` flag
+   - Load pre-generated world state
+   - Skip all AI calls, use cached content
+   - Deterministic gameplay for testing
+
+3. **Test World Contents** (minimum):
+   - 3-5 regions with distinct themes
+   - 10+ named locations with NPCs
+   - 20+ quests (kill, collect, talk, explore types)
+   - Quest chains with prerequisites
+   - Faction-affiliated content
+   - Shop inventories with varied items
+   - Hidden secrets and lore
+
+#### Benefits
+
+- **Automated testing**: Run test suites without AI costs
+- **Reproducible bugs**: Same world state for debugging
+- **Rapid iteration**: No waiting for AI generation
+- **Demo mode**: Showcase game without API keys
+- **CI/CD**: Run full integration tests in pipelines
+
+#### Implementation
+
+**Files to Create**:
+- `scripts/generate_test_world.py` - Generation script
+- `data/test_worlds/default.json` - Pre-generated world
+
+**Files to Modify**:
+- `src/cli_rpg/main.py` - Add `--load-world` flag
+- `src/cli_rpg/game_state.py` - Add world loading from file
+- `src/cli_rpg/persistence.py` - Extend to save/load full world state
+
+---
+
 ### World Generation Immersion & Coherence Improvements
 **Status**: ACTIVE
 **Date Added**: 2025-12-26
@@ -462,7 +522,7 @@ Result: Locations feel random, not part of a cohesive world.
 
 **Phase 3: Lower Priority (Polish)**
 
-5. **Strategic World Expansion**
+5. **Strategic World Expansion** ✅ COMPLETE (2025-12-27)
    - [x] Place frontier exits strategically (toward unexplored regions)
      - ✅ Added `get_unexplored_region_directions()` in `world_tiles.py`
      - ✅ Added `get_prioritized_frontier_exits()` in `WorldGrid`
@@ -471,7 +531,11 @@ Result: Locations feel random, not part of a cohesive world.
    - [x] Ensure terrain transitions feel natural (forest → plains → desert, not forest → desert)
      - ✅ Implemented via `TerrainTransitions` in `world_tiles.py` with `get_transition_weights()`
      - ✅ Comprehensive test suite in `tests/test_terrain_transitions.py`
-   - [ ] Cluster similar locations together
+   - [x] Cluster similar locations together
+     - ✅ Added `LOCATION_CLUSTER_GROUPS` mapping categories to cluster groups (settlements, dungeons, wilderness_pois, sacred, commerce)
+     - ✅ Added `get_cluster_category_bias()` helper in `world_tiles.py`
+     - ✅ Integrated clustering into `move()` via `category_hint` parameter
+     - ✅ 16 new tests in `tests/test_location_clustering.py`
 
 6. **Configurable SubGrid Bounds** ✅ COMPLETE (2025-12-27)
    - [x] Support linear dungeons (1x10 corridors)
@@ -498,4 +562,574 @@ Result: Locations feel random, not part of a cohesive world.
 - **WorldGrid** (`world_grid.py`) - Clean coordinate-based placement with automatic bidirectional connections
 - **SubGrid Architecture** - Bounded interiors for dungeons/buildings separate from overworld
 - **Multi-provider AI** (`ai_service.py`) - Supports OpenAI, Anthropic, Ollama with graceful fallback
+
+---
+
+### AI Content Generation Enhancement
+**Status**: PLANNED
+**Date Added**: 2025-12-27
+
+Transform the AI content generation system to create bigger, more coherent, and more immersive content through expanded layer system, progress feedback, and content scale improvements.
+
+#### Current Architecture (4 Layers)
+- Layer 1: WorldContext (theme_essence, naming_style, tone)
+- Layer 2: RegionContext (theme, danger_level, landmarks)
+- Layer 3: Location generation
+- Layer 4: NPC generation
+
+#### Target Architecture (6 Layers + Unified Context)
+
+---
+
+### Issue 1: Expand WorldContext (Layer 1)
+**Status**: PENDING
+**Priority**: HIGH
+
+Add lore and faction fields to WorldContext for richer world generation.
+
+**New Fields**:
+- `creation_myth: str` - World origin story
+- `major_conflicts: list[str]` - 2-3 world-defining conflicts
+- `legendary_artifacts: list[str]` - World-famous items
+- `prophecies: list[str]` - Active prophecies
+- `major_factions: list[str]` - 3-5 world powers
+- `faction_tensions: dict[str, list[str]]` - Faction rivalries
+- `economic_era: str` - stable, recession, boom, war_economy
+
+**Files to Modify**:
+- `src/cli_rpg/models/world_context.py`
+
+---
+
+### Issue 2: Expand RegionContext (Layer 2)
+**Status**: PENDING
+**Priority**: HIGH
+
+Add economy and history fields to RegionContext.
+
+**Economy Fields**:
+- `primary_resources: list[str]` - ["iron", "timber"]
+- `scarce_resources: list[str]` - ["gold", "spices"]
+- `trade_goods: list[str]` - Exported items
+- `price_modifier: float` - Regional price adjustment
+
+**History Fields**:
+- `founding_story: str`
+- `historical_events: list[str]`
+- `ruined_civilizations: list[str]`
+- `legendary_locations: list[str]`
+
+**Atmosphere Fields**:
+- `common_creatures: list[str]`
+- `weather_tendency: str`
+- `ambient_sounds: list[str]`
+
+**Files to Modify**:
+- `src/cli_rpg/models/region_context.py`
+
+---
+
+### Issue 3: SettlementContext (Layer 5)
+**Status**: PENDING
+**Priority**: HIGH
+
+Create new SettlementContext for character networks, politics, and trade.
+
+**Model**:
+```python
+@dataclass
+class SettlementContext:
+    settlement_name: str
+    location_coordinates: tuple[int, int]
+    # Character Networks
+    notable_families: list[str]
+    npc_relationships: list[NPCRelationship]
+    # Economic Connections
+    trade_routes: list[TradeRoute]
+    local_guilds: list[str]
+    market_specialty: Optional[str]
+    # Political Structure
+    government_type: str  # council, monarchy, theocracy
+    political_figures: list[PoliticalFigure]
+    current_tensions: list[str]
+    # Social Atmosphere
+    population_size: str
+    prosperity_level: str
+    social_issues: list[str]
+```
+
+**Files to Create**:
+- `src/cli_rpg/models/settlement_context.py`
+
+---
+
+### Issue 4: LoreContext (Layer 6)
+**Status**: PENDING
+**Priority**: HIGH
+
+Create new LoreContext for historical events, legendary items, and ancient civilizations.
+
+**Model**:
+```python
+@dataclass
+class LoreContext:
+    region_name: str
+    historical_events: list[HistoricalEvent]
+    legendary_items: list[LegendaryItem]
+    legendary_places: list[LegendaryPlace]
+    prophecies: list[Prophecy]
+    ancient_civilizations: list[AncientCivilization]
+    creation_myths: list[str]
+    deities: list[str]
+```
+
+**Files to Create**:
+- `src/cli_rpg/models/lore_context.py`
+
+---
+
+### Issue 5: Unified GenerationContext
+**Status**: PENDING
+**Priority**: HIGH
+
+Create GenerationContext aggregator that combines all layers for prompt generation.
+
+**Model**:
+```python
+@dataclass
+class GenerationContext:
+    world: WorldContext           # Layer 1
+    region: Optional[RegionContext]  # Layer 2
+    settlement: Optional[SettlementContext]  # Layer 5
+    world_lore: Optional[LoreContext]  # Layer 6
+    region_lore: Optional[LoreContext]
+
+    def to_prompt_context(self) -> dict:
+        """Convert all layers to prompt-ready dict."""
+```
+
+**AI Service Integration**:
+- `generate_enemy_with_context(context, location, level)` - Use region creatures
+- `generate_item_with_context(context, location, level)` - Use region resources
+- `generate_quest` - Validate difficulty against `danger_level`
+- `generate_settlement_context()` - Layer 5 generation
+- `generate_lore_context()` - Layer 6 generation
+
+**Files to Create**:
+- `src/cli_rpg/models/generation_context.py`
+
+**Files to Modify**:
+- `src/cli_rpg/ai_service.py`
+- `src/cli_rpg/game_state.py` - Add `get_generation_context()`
+
+---
+
+### Issue 6: Progress Feedback System
+**Status**: PENDING
+**Priority**: MEDIUM
+
+Add visual progress bars and thematic loading messages during AI generation.
+
+**ProgressManager**:
+```python
+from rich.progress import Progress, SpinnerColumn, TextColumn, BarColumn
+
+class ProgressManager:
+    _instance = None
+    console: Console
+    stats: list[GenerationStats]
+    _enabled: bool = True
+
+@contextmanager
+def generation_progress(description, terrain=None, show_bar=False):
+    """Context manager for progress display."""
+```
+
+**Thematic Loading Messages**:
+```python
+LOADING_MESSAGES = {
+    "forest": ["The ancient trees part to reveal...", "Pushing through dense undergrowth..."],
+    "mountain": ["Scaling the rocky heights...", "The mists clear above the peaks..."],
+    "swamp": ["Wading through murky waters...", "The fog slowly lifts..."],
+    "default": ["Exploring uncharted territory...", "The path unfolds before you..."],
+}
+```
+
+**Dependencies**:
+```toml
+dependencies = [
+    "rich>=13.0.0",  # Progress bars and console formatting
+]
+```
+
+**Files to Create**:
+- `src/cli_rpg/progress.py`
+
+**Files to Modify**:
+- `pyproject.toml` - Add rich dependency
+
+---
+
+### Issue 7: LLM Streaming Support
+**Status**: PENDING
+**Priority**: MEDIUM
+
+Add streaming support to AIService for live text display during generation.
+
+**Implementation**:
+```python
+def _call_llm_streaming(self, prompt: str) -> Generator[str, None, None]:
+    """Yield text chunks as they arrive from API."""
+
+def generate_location_streaming(self, on_chunk: Callable[[str], None]) -> dict:
+    """Generate with live text streaming."""
+```
+
+**Files to Modify**:
+- `src/cli_rpg/ai_service.py`
+
+---
+
+### Issue 8: Background Generation Queue
+**Status**: PENDING
+**Priority**: MEDIUM
+
+Pre-generate adjacent regions in background to eliminate blocking during movement.
+
+**BackgroundGenerator**:
+```python
+class BackgroundGenerator:
+    queue: PriorityQueue[GenerationTask]
+    _cache: dict[tuple[int, int], Any]
+
+    def enqueue_adjacent_regions(self, coords, terrain_hints):
+        """Queue generation of adjacent regions with priority."""
+
+    def _worker(self):
+        """Background thread processing queue."""
+```
+
+**Integration**:
+```python
+# In game_state.py move method:
+with generation_progress("Generating area...", terrain=terrain, show_bar=True) as update:
+    update(10)  # Starting
+    world_ctx = self.get_or_create_world_context()
+    update(30)
+    region_ctx = self.get_or_create_region_context(coords, terrain)
+    update(50)
+    expand_area(...)
+    update(100)
+
+# Queue adjacent regions for background generation
+bg_gen.enqueue_adjacent_regions(target_coords, terrain_hints)
+```
+
+**Files to Create**:
+- `src/cli_rpg/background_gen.py`
+
+**Files to Modify**:
+- `src/cli_rpg/game_state.py`
+- `src/cli_rpg/main.py` - Initialize background system
+
+---
+
+### Issue 9: Mega-Settlements with Districts
+**Status**: PENDING
+**Priority**: HIGH
+
+Expand SubGrid bounds for larger cities and add district system.
+
+**Expanded Bounds**:
+```python
+SUBGRID_BOUNDS = {
+    "city": (-12, 12, -12, 12, 0, 0),      # 25x25 = 625 tiles
+    "metropolis": (-20, 20, -20, 20, 0, 0), # 41x41 tiles
+}
+```
+
+**District Model**:
+```python
+class DistrictType(Enum):
+    MARKET = "market"
+    RESIDENTIAL = "residential"
+    NOBLE = "noble"
+    TEMPLE = "temple"
+    SLUMS = "slums"
+    DOCKS = "docks"
+
+@dataclass
+class District:
+    name: str
+    district_type: DistrictType
+    coordinates_min: tuple[int, int]
+    coordinates_max: tuple[int, int]
+    prosperity_level: int  # 1-5
+    dominant_faction: Optional[str]
+    services: list[str]
+```
+
+**Batch Generation Strategy**:
+1. Single AI call for settlement skeleton (districts, theme)
+2. One AI call per district for room layouts
+3. Batch NPC generation per district
+
+**Files to Create**:
+- `src/cli_rpg/models/district.py`
+- `src/cli_rpg/settlement_generator.py`
+
+**Files to Modify**:
+- `src/cli_rpg/world_grid.py` - Expand bounds
+
+---
+
+### Issue 10: NPC Relationship Networks
+**Status**: PENDING
+**Priority**: HIGH
+
+Create relationship system for interconnected NPCs.
+
+**Relationship Model**:
+```python
+class RelationshipType(Enum):
+    SPOUSE, PARENT, CHILD, SIBLING  # Family
+    MASTER, APPRENTICE, EMPLOYER    # Professional
+    RIVAL, FRIEND, ENEMY            # Social
+    ROMANTIC_INTEREST               # Romance
+
+@dataclass
+class NPCRelationship:
+    npc_a_id: str
+    npc_b_id: str
+    relationship_type: RelationshipType
+    strength: int  # 1-100
+    is_secret: bool
+```
+
+**Enhanced NPC Fields**:
+- `npc_id: str` - Unique identifier
+- `relationships: list[str]` - Relationship IDs
+- `trust_level: int` - Player trust (1-100)
+- `memory: list[dict]` - Interaction history
+- `backstory: Optional[str]`
+- `secrets: list[str]`
+
+**Files to Create**:
+- `src/cli_rpg/models/npc_relationship.py`
+
+**Files to Modify**:
+- `src/cli_rpg/models/npc.py`
+
+---
+
+### Issue 11: NPC Network Manager
+**Status**: PENDING
+**Priority**: MEDIUM
+
+Create manager for NPC networks and family generation.
+
+**NPCNetwork**:
+```python
+@dataclass
+class NPCNetwork:
+    npcs: dict[str, NPC]
+    relationships: list[NPCRelationship]
+    family_trees: dict[str, list[str]]
+
+    def get_npc_relationships(self, npc_id) -> list[tuple[NPC, RelationshipType]]
+    def generate_family(self, family_name, settlement, size) -> list[NPC]
+```
+
+**Files to Create**:
+- `src/cli_rpg/models/npc_network.py`
+
+---
+
+### Issue 12: World State Evolution
+**Status**: PENDING
+**Priority**: HIGH
+
+Track persistent world changes from quest outcomes and player actions.
+
+**WorldStateManager**:
+```python
+class WorldChangeType(Enum):
+    NPC_DEATH, NPC_MOVED
+    LOCATION_DESTROYED, LOCATION_CHANGED
+    FACTION_CONTROL, SHOP_INVENTORY_CHANGE
+
+@dataclass
+class WorldStateChange:
+    change_type: WorldChangeType
+    affected_location: Optional[str]
+    affected_npc: Optional[str]
+    caused_by_quest: Optional[str]
+    description: str
+
+@dataclass
+class WorldStateManager:
+    changes: list[WorldStateChange]
+    dead_npcs: set[str]
+    faction_territories: dict[str, str]
+
+    def apply_npc_death(self, npc, cause) -> list[str]:
+        """Handle death with consequences."""
+
+    def apply_quest_outcome(self, quest, outcome) -> list[WorldStateChange]
+```
+
+**Files to Create**:
+- `src/cli_rpg/models/world_state.py`
+
+**Files to Modify**:
+- `src/cli_rpg/game_state.py` - Integrate WorldStateManager
+
+---
+
+### Issue 13: NPC Character Arcs
+**Status**: PENDING
+**Priority**: MEDIUM
+
+Add character arc progression for NPCs based on player interactions.
+
+**NPCArc**:
+```python
+class ArcType(Enum):
+    REDEMPTION, CORRUPTION, GROWTH
+    TRAGEDY, ROMANCE, VENGEANCE
+
+@dataclass
+class ArcStage:
+    stage_id: str
+    trigger: ArcTrigger
+    new_dialogue: str
+    trust_change: int
+    unlocks: list[str]
+
+@dataclass
+class NPCArc:
+    npc_id: str
+    arc_type: ArcType
+    current_stage: int
+    stages: list[ArcStage]
+```
+
+**Files to Create**:
+- `src/cli_rpg/models/npc_arc.py`
+
+---
+
+### Issue 14: Living Economy System
+**Status**: PENDING
+**Priority**: MEDIUM
+
+Create dynamic economy with supply/demand and trade routes.
+
+**Economy Models**:
+```python
+@dataclass
+class MarketConditions:
+    global_modifiers: dict[str, float]
+    local_scarcity: dict[str, float]
+    trade_routes: list[TradeRoute]
+
+@dataclass
+class TradeRoute:
+    origin: str
+    destination: str
+    goods: list[str]
+    status: str  # active, disrupted, destroyed
+
+class EconomySimulator:
+    def simulate_hour(self, game_state) -> list[str]:
+        """Update supply/demand, process trade routes."""
+
+    def apply_player_action(self, action, item, quantity):
+        """Track player market impact."""
+```
+
+**Files to Create**:
+- `src/cli_rpg/models/economy.py`
+
+**Files to Modify**:
+- `src/cli_rpg/models/shop.py` - Use economy modifiers
+
+---
+
+### Issue 15: Interconnected Quest Networks
+**Status**: PENDING
+**Priority**: MEDIUM
+
+Create storyline system with branching quests and investigations.
+
+**Quest Network Models**:
+```python
+@dataclass
+class Storyline:
+    storyline_id: str
+    quest_ids: list[str]
+    branches: dict[str, list[str]]  # Choice -> quest branches
+
+@dataclass
+class Investigation:
+    clues_found: list[Clue]
+    locations_involved: list[str]
+    solution: str
+
+@dataclass
+class FactionConflict:
+    faction_a: str
+    faction_b: str
+    current_phase: int
+    player_involvement: Optional[str]
+```
+
+**Files to Create**:
+- `src/cli_rpg/models/quest_network.py`
+
+---
+
+### AI Content Generation Implementation Phases
+
+**Phase 1: Core Context Layers**
+1. Expand WorldContext with lore/faction fields (Issue 1)
+2. Expand RegionContext with economy/history fields (Issue 2)
+3. Create GenerationContext aggregator (Issue 5)
+4. Add `get_generation_context()` to GameState
+
+**Phase 2: New Layer Models**
+5. Create SettlementContext model - Layer 5 (Issue 3)
+6. Create LoreContext model - Layer 6 (Issue 4)
+7. Add generation methods to AIService
+8. Integrate with existing generation flow
+
+**Phase 3: Progress Feedback**
+9. Add rich dependency (Issue 6)
+10. Create progress.py with ProgressManager
+11. Add streaming support to AIService (Issue 7)
+12. Create background_gen.py with BackgroundGenerator (Issue 8)
+
+**Phase 4: Settlement Scale**
+13. Expand SUBGRID_BOUNDS for cities (Issue 9)
+14. Create District and Settlement models
+15. Create SettlementGenerator with batch AI calls
+16. Integrate with expand_area()
+
+**Phase 5: NPC Networks**
+17. Create NPCRelationship model (Issue 10)
+18. Extend NPC with relationship fields
+19. Create NPCNetwork manager (Issue 11)
+20. Update dialogue generation for cross-references
+
+**Phase 6: World Evolution**
+21. Create WorldStateManager (Issue 12)
+22. Integrate with quest completion
+23. Add NPC death consequences
+24. Update location descriptions from state
+
+**Phase 7: Economy & Quests**
+25. Create MarketConditions, TradeRoute, EconomySimulator (Issue 14)
+26. Create Storyline, Investigation, FactionConflict (Issue 15)
+27. Integrate economy with shops
+28. Create quest network generation
 
