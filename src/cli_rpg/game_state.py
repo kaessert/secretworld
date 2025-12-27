@@ -640,6 +640,9 @@ class GameState:
         except IOError:
             pass  # Silent failure - don't interrupt gameplay
 
+        # Pre-generate adjacent region contexts if near boundary
+        self._pregenerate_adjacent_regions(target_coords)
+
         # Reset look count for previous location (fresh start on return)
         self.current_character.reset_look_count(previous_location)
 
@@ -1007,6 +1010,40 @@ class GameState:
             return f"{dread_message}\n{light_message}"
         return dread_message or light_message
 
+    def _pregenerate_adjacent_regions(self, coords: tuple[int, int]) -> None:
+        """Pre-generate region contexts for regions near the given coordinates.
+
+        Called after movement to pre-cache region contexts before the player
+        reaches the boundary, ensuring smooth gameplay.
+
+        Args:
+            coords: Current world coordinates to check for proximity
+        """
+        from cli_rpg.world_tiles import check_region_boundary_proximity, REGION_SIZE
+
+        # Get terrain hint from chunk_manager if available
+        terrain_hint = "wilderness"
+        if self.chunk_manager is not None:
+            terrain_hint = self.chunk_manager.get_tile_at(*coords)
+
+        # Check for adjacent regions within proximity threshold
+        adjacent_regions = check_region_boundary_proximity(*coords)
+
+        for region_coords in adjacent_regions:
+            # Skip if already cached
+            if region_coords in self.region_contexts:
+                continue
+
+            # Generate context for this region using center coordinates
+            center_x = region_coords[0] * REGION_SIZE + REGION_SIZE // 2
+            center_y = region_coords[1] * REGION_SIZE + REGION_SIZE // 2
+
+            try:
+                self.get_or_create_region_context((center_x, center_y), terrain_hint)
+                logger.debug(f"Pre-generated region context for {region_coords}")
+            except Exception as e:
+                logger.warning(f"Failed to pre-generate region {region_coords}: {e}")
+
     def record_choice(
         self,
         choice_type: str,
@@ -1086,19 +1123,33 @@ class GameState:
     ) -> RegionContext:
         """Get cached region context or generate/create default.
 
+        Region contexts are cached by region coordinates (16x16 tile regions),
+        not by individual world coordinates.
+
         Args:
-            coords: Center coordinates of the region as (x, y) tuple
+            coords: World coordinates as (x, y) tuple - will be converted to region coords
             terrain_hint: Terrain type hint for the region (e.g., "mountains", "swamp")
 
         Returns:
-            RegionContext for the specified coordinates
+            RegionContext for the region containing the specified coordinates
         """
+        from cli_rpg.world_tiles import get_region_coords, REGION_SIZE
+
+        # Convert world coords to region coords
+        region_x, region_y = get_region_coords(*coords)
+        region_key = (region_x, region_y)
+
         # Return cached if available
-        if coords in self.region_contexts:
-            return self.region_contexts[coords]
+        if region_key in self.region_contexts:
+            return self.region_contexts[region_key]
 
         # Need world context first
         world_context = self.get_or_create_world_context()
+
+        # Use center of region as representative coordinates for AI generation
+        center_x = region_x * REGION_SIZE + REGION_SIZE // 2
+        center_y = region_y * REGION_SIZE + REGION_SIZE // 2
+        center_coords = (center_x, center_y)
 
         # Try AI generation if available
         if self.ai_service is not None:
@@ -1106,19 +1157,19 @@ class GameState:
                 region_context = self.ai_service.generate_region_context(
                     theme=self.theme,
                     world_context=world_context,
-                    coordinates=coords,
+                    coordinates=center_coords,
                     terrain_hint=terrain_hint
                 )
-                self.region_contexts[coords] = region_context
+                self.region_contexts[region_key] = region_context
                 return region_context
             except Exception as e:
                 logger.warning(f"AI region context generation failed: {e}")
                 # Fall through to default
 
         # Create default context
-        region_name = f"Region {coords[0]},{coords[1]}"
-        region_context = RegionContext.default(region_name, coords)
-        self.region_contexts[coords] = region_context
+        region_name = f"Region {region_x},{region_y}"
+        region_context = RegionContext.default(region_name, center_coords)
+        self.region_contexts[region_key] = region_context
         return region_context
 
     def to_dict(self) -> dict:

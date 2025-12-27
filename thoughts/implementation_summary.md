@@ -1,42 +1,75 @@
-# Implementation Summary: Remove NPCs from Unnamed Overworld Locations
+# Region Planning System Implementation Summary
 
 ## What Was Implemented
 
-Unnamed locations (`is_named=False`) now skip NPC generation. NPCs belong only in named sub-locations (villages, dungeons) - "you don't find shopkeepers standing in random forests."
+### Core Functions (in `src/cli_rpg/world_tiles.py`)
 
-### Files Modified
+1. **`get_region_coords(world_x, world_y) -> tuple[int, int]`**
+   - Converts world coordinates to region coordinates using floor division
+   - Handles negative coordinates correctly (Python's floor division)
+   - Region size is 16x16 tiles (`REGION_SIZE = 16`)
 
-1. **`src/cli_rpg/ai_world.py`**
-   - **`expand_world()` (lines 459-471)**: Added conditional check for `is_named` field before generating NPCs. If `is_named=False`, sets `location_data["npcs"] = []` and skips the `generate_npcs_for_location()` call.
-   - **`expand_area()` (lines 686-691)**: Added conditional check for `is_named` field before populating NPCs from `loc_data`. Unnamed locations in areas now have empty NPC lists.
+2. **`check_region_boundary_proximity(world_x, world_y) -> list[tuple[int, int]]`**
+   - Detects when player is within 2 tiles (`REGION_BOUNDARY_PROXIMITY = 2`) of region boundaries
+   - Returns list of adjacent region coords that should be pre-generated
+   - Checks all 4 cardinal directions plus 4 diagonal corners
 
-2. **`tests/test_unnamed_no_npcs.py`** (NEW)
-   - 7 tests covering the spec:
-     - `test_unnamed_location_from_template_has_no_npcs`: Verifies Location model creates unnamed locations with empty NPCs
-     - `test_named_location_can_have_npcs`: Verifies named locations can still have NPCs
-     - `test_expand_world_unnamed_skips_npcs`: Verifies `expand_world` skips NPC generation for unnamed locations
-     - `test_expand_world_named_generates_npcs`: Verifies `expand_world` generates NPCs for named locations
-     - `test_expand_world_defaults_to_named_when_not_specified`: Verifies backward compatibility (default `is_named=True`)
-     - `test_expand_area_unnamed_skips_npcs`: Verifies `expand_area` skips NPC population for unnamed sub-locations
-     - `test_expand_area_defaults_named_for_npcs`: Verifies backward compatibility for areas
+### GameState Updates (in `src/cli_rpg/game_state.py`)
 
-### Design Decisions
+3. **`get_or_create_region_context()` refactored**
+   - Now converts world coordinates to region coordinates before caching
+   - Multiple world coords in same region return the same cached context
+   - Uses region center as representative coordinates for AI generation
 
-1. **Backward Compatibility**: Both functions default `is_named` to `True` when the field is missing (`location_data.get("is_named", True)`). This ensures existing AI responses without the field continue to generate NPCs.
+4. **`_pregenerate_adjacent_regions(coords)` helper method**
+   - Called after successful movement
+   - Detects nearby region boundaries and pre-generates contexts
+   - Silently handles failures to avoid interrupting gameplay
 
-2. **SubGrid Architecture**: The `expand_area` tests correctly handle the fact that sub-locations are stored in the entry location's SubGrid, not directly in the world dict.
+5. **Pre-generation trigger in `move()` method**
+   - Added call to `_pregenerate_adjacent_regions(target_coords)` after autosave
+   - Ensures smooth gameplay by caching context before player reaches boundary
 
 ## Test Results
 
-```
-tests/test_unnamed_no_npcs.py: 7 passed
-Full test suite: 3687 passed in 103.02s
+All 12 new tests pass:
+- `test_get_region_coords_returns_floor_division`
+- `test_get_region_coords_handles_negative`
+- `test_check_region_boundary_proximity_center`
+- `test_check_region_boundary_proximity_near_edge`
+- `test_check_region_boundary_proximity_corner`
+- `test_check_region_boundary_proximity_western_edge`
+- `test_check_region_boundary_proximity_on_boundary`
+- `test_region_context_lookup_by_world_coords`
+- `test_different_regions_get_different_contexts`
+- `test_pregenerate_adjacent_regions_caches_contexts`
+- `test_region_context_persists_across_save_load`
+- `test_move_triggers_pregeneration_near_boundary`
+
+Existing tests updated:
+- `test_caches_by_coords` → `test_caches_by_region_coords` (updated assertions for region-based caching)
+- `test_returns_default_without_ai` (updated expected coordinates to region center)
+
+## Files Modified
+
+| File | Changes |
+|------|---------|
+| `src/cli_rpg/world_tiles.py` | Added `REGION_SIZE`, `REGION_BOUNDARY_PROXIMITY`, `get_region_coords()`, `check_region_boundary_proximity()` |
+| `src/cli_rpg/game_state.py` | Refactored `get_or_create_region_context()` to use region coords, added `_pregenerate_adjacent_regions()`, added pre-generation trigger in `move()` |
+| `tests/test_region_planning.py` | NEW - 12 tests for region planning system |
+| `tests/test_game_state_context.py` | Updated 2 tests to reflect new region-based caching behavior |
+
+## Verification
+
+```bash
+pytest tests/test_region_planning.py -v  # 12 passed
+pytest tests/test_game_state_context.py -v  # 11 passed
+pytest tests/ -v  # 3699 passed
 ```
 
-## E2E Validation
+## E2E Tests Should Validate
 
-To validate in gameplay:
-1. Navigate to an unnamed location (e.g., "Dense Forest (0,1)")
-2. Use `look` command - should show no NPCs
-3. Navigate to a named location (e.g., a village)
-4. Use `look` command - should show NPCs normally
+1. Moving near region boundaries (e.g., from (13,8) to (14,8)) should pre-generate adjacent region contexts
+2. Multiple world coordinates in the same region should return the same cached RegionContext
+3. Save/load should preserve region contexts with region coordinates as keys
+4. Negative coordinates should work correctly (e.g., moving west from origin)

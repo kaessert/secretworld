@@ -8,6 +8,84 @@ if TYPE_CHECKING:
     from cli_rpg.wfc_chunks import ChunkManager
 
 
+# Region planning constants
+REGION_SIZE = 16  # 16x16 tiles per region
+REGION_BOUNDARY_PROXIMITY = 2  # Pre-generate when within 2 tiles of boundary
+
+
+def get_region_coords(world_x: int, world_y: int) -> tuple[int, int]:
+    """Convert world coordinates to region coordinates.
+
+    Uses floor division to handle negative coordinates correctly.
+
+    Args:
+        world_x: World x coordinate
+        world_y: World y coordinate
+
+    Returns:
+        Tuple of (region_x, region_y) coordinates
+    """
+    return (world_x // REGION_SIZE, world_y // REGION_SIZE)
+
+
+def check_region_boundary_proximity(
+    world_x: int, world_y: int
+) -> list[tuple[int, int]]:
+    """Return adjacent region coords if player is within REGION_BOUNDARY_PROXIMITY of boundary.
+
+    Checks all 4 cardinal directions plus diagonals to detect when player is
+    approaching region boundaries.
+
+    Args:
+        world_x: World x coordinate
+        world_y: World y coordinate
+
+    Returns:
+        List of adjacent region coordinate tuples that should be pre-generated
+    """
+    current_region = get_region_coords(world_x, world_y)
+    adjacent_regions: list[tuple[int, int]] = []
+
+    # Calculate position within current region (0 to REGION_SIZE-1)
+    local_x = world_x % REGION_SIZE
+    local_y = world_y % REGION_SIZE
+
+    # Handle negative coordinates - Python's modulo always returns positive
+    # but we need to account for being in negative regions
+    if world_x < 0 and local_x != 0:
+        local_x = REGION_SIZE + (world_x % REGION_SIZE)
+    if world_y < 0 and local_y != 0:
+        local_y = REGION_SIZE + (world_y % REGION_SIZE)
+
+    # Check proximity to each edge
+    near_east = local_x >= REGION_SIZE - REGION_BOUNDARY_PROXIMITY
+    near_west = local_x < REGION_BOUNDARY_PROXIMITY
+    near_north = local_y >= REGION_SIZE - REGION_BOUNDARY_PROXIMITY
+    near_south = local_y < REGION_BOUNDARY_PROXIMITY
+
+    # Add adjacent regions based on proximity
+    if near_east:
+        adjacent_regions.append((current_region[0] + 1, current_region[1]))
+    if near_west:
+        adjacent_regions.append((current_region[0] - 1, current_region[1]))
+    if near_north:
+        adjacent_regions.append((current_region[0], current_region[1] + 1))
+    if near_south:
+        adjacent_regions.append((current_region[0], current_region[1] - 1))
+
+    # Add diagonal corners if near both edges
+    if near_east and near_north:
+        adjacent_regions.append((current_region[0] + 1, current_region[1] + 1))
+    if near_east and near_south:
+        adjacent_regions.append((current_region[0] + 1, current_region[1] - 1))
+    if near_west and near_north:
+        adjacent_regions.append((current_region[0] - 1, current_region[1] + 1))
+    if near_west and near_south:
+        adjacent_regions.append((current_region[0] - 1, current_region[1] - 1))
+
+    return adjacent_regions
+
+
 class TerrainType(Enum):
     """Terrain types for WFC generation."""
     FOREST = "forest"

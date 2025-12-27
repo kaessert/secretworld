@@ -1322,15 +1322,17 @@ Result: Locations feel random, not part of a cohesive world.
 
 **Phase 2: Medium Priority (New features)**
 
-2. **Region Planning System**
-   - [ ] Divide world into ~16x16 tile regions
-   - [ ] Pre-generate `RegionContext` when player approaches region boundary
-   - [ ] All locations in region share theme, danger level, naming style
-   - [ ] Add region-based lookup: `get_region_context(x, y)` → `RegionContext`
+2. **Region Planning System** ✅ COMPLETE (2025-12-27)
+   - [x] Divide world into ~16x16 tile regions (`REGION_SIZE = 16` in `world_tiles.py`)
+   - [x] Pre-generate `RegionContext` when player approaches region boundary (`_pregenerate_adjacent_regions()` in `game_state.py`)
+   - [x] All locations in region share theme, danger level, naming style (via `get_or_create_region_context()`)
+   - [x] Add region-based lookup: `get_region_coords(x, y)` → region coordinates in `world_tiles.py`
+   - [x] Boundary proximity detection: `check_region_boundary_proximity()` detects when player is within 2 tiles of region boundaries
 
-   **Files to modify**:
-   - `src/cli_rpg/game_state.py`: Add region management
-   - `src/cli_rpg/ai_world.py`: Use region context during expansion
+   **Files modified**:
+   - `src/cli_rpg/world_tiles.py`: Added `REGION_SIZE`, `REGION_BOUNDARY_PROXIMITY`, `get_region_coords()`, `check_region_boundary_proximity()`
+   - `src/cli_rpg/game_state.py`: Refactored `get_or_create_region_context()` to use region coords, added `_pregenerate_adjacent_regions()`, added pre-generation trigger in `move()`
+   - `tests/test_region_planning.py`: NEW - 12 tests for region planning system
 
 3. **Enhanced NPC Generation**
    - [ ] Request 3-5 NPCs per location with roles (merchant, quest giver, guard, traveler)

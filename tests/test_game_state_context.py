@@ -154,8 +154,12 @@ class TestGetOrCreateWorldContext:
 class TestGetOrCreateRegionContext:
     """Test get_or_create_region_context method."""
 
-    def test_caches_by_coords(self, basic_character, basic_world, mock_ai_service):
-        """Test region contexts cached by coordinate tuple."""
+    def test_caches_by_region_coords(self, basic_character, basic_world, mock_ai_service):
+        """Test region contexts cached by region coordinates (16x16 regions).
+
+        World coords (0,0) and (1,1) both fall in region (0,0).
+        World coords (16,0) falls in region (1,0) - a different region.
+        """
         game_state = GameState(
             character=basic_character,
             world=basic_world,
@@ -164,16 +168,19 @@ class TestGetOrCreateRegionContext:
             theme="fantasy",
         )
 
-        # First call for (0, 0)
+        # First call for (0, 0) - region (0, 0)
         context1 = game_state.get_or_create_region_context((0, 0))
-        # Second call for same coords - should use cache
+        # Second call for same region coords - should use cache
         context2 = game_state.get_or_create_region_context((0, 0))
-        # Different coords - should generate new
+        # Different world coords but SAME region - should still use cache
         context3 = game_state.get_or_create_region_context((1, 1))
+        # Different region (1, 0) - should generate new
+        context4 = game_state.get_or_create_region_context((16, 0))
 
         assert context1 is context2
-        assert context1 is not context3
-        # Should have called generate twice (once per unique coord)
+        assert context1 is context3  # Same region (0, 0)
+        assert context1 is not context4  # Different region (1, 0)
+        # Should have called generate twice (once per unique region)
         assert mock_ai_service.generate_region_context.call_count == 2
 
     def test_returns_default_without_ai(self, basic_character, basic_world):
@@ -189,7 +196,8 @@ class TestGetOrCreateRegionContext:
         context = game_state.get_or_create_region_context((5, 5), "mountains")
 
         assert isinstance(context, RegionContext)
-        assert context.coordinates == (5, 5)
+        # Context uses center of region (8, 8) for region (0, 0)
+        assert context.coordinates == (8, 8)
         assert context.generated_at is None  # Default context
 
     def test_uses_terrain_hint(self, basic_character, basic_world, mock_ai_service):
