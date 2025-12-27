@@ -21,6 +21,45 @@ OPPOSITE_DIRECTIONS: Dict[str, str] = {
     "west": "east",
 }
 
+# SubGrid size configuration by location category
+# Format: (min_x, max_x, min_y, max_y)
+SUBGRID_BOUNDS: Dict[str, Tuple[int, int, int, int]] = {
+    # Tiny (3x3) - Small structures
+    "house": (-1, 1, -1, 1),
+    "shop": (-1, 1, -1, 1),
+    "cave": (-1, 1, -1, 1),
+    # Small (5x5) - Medium structures
+    "tavern": (-2, 2, -2, 2),
+    "ruins": (-2, 2, -2, 2),
+    "settlement": (-2, 2, -2, 2),
+    # Medium (7x7) - Standard interiors
+    "dungeon": (-3, 3, -3, 3),
+    "forest": (-3, 3, -3, 3),
+    "temple": (-3, 3, -3, 3),
+    "wilderness": (-3, 3, -3, 3),
+    # Large (11x11) - Towns
+    "town": (-5, 5, -5, 5),
+    "village": (-5, 5, -5, 5),
+    # Huge (17x17) - Cities
+    "city": (-8, 8, -8, 8),
+    # Default fallback
+    "default": (-2, 2, -2, 2),
+}
+
+
+def get_subgrid_bounds(category: Optional[str]) -> Tuple[int, int, int, int]:
+    """Get SubGrid bounds for a location category.
+
+    Args:
+        category: Location category (town, dungeon, etc.) or None
+
+    Returns:
+        Tuple of (min_x, max_x, min_y, max_y)
+    """
+    if category is None:
+        return SUBGRID_BOUNDS["default"]
+    return SUBGRID_BOUNDS.get(category.lower(), SUBGRID_BOUNDS["default"])
+
 
 @dataclass
 class SubGrid:

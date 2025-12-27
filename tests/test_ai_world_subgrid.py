@@ -390,24 +390,25 @@ class TestExpandAreaSubGrid:
         assert entry.sub_grid is None
 
     def test_expand_area_subgrid_bounds(self, mock_ai_service, basic_world):
-        """SubGrid should have bounds (-3, 3, -3, 3) for 7x7 areas.
+        """SubGrid bounds should be determined by entry location category.
 
-        Spec: SubGrid bounds: (-3, 3, -3, 3)
+        Spec: SubGrid bounds vary by category via get_subgrid_bounds()
+        - dungeon category maps to (-3, 3, -3, 3) for 7x7 areas
         """
         mock_ai_service.generate_area.return_value = [
             {
-                "name": "Temple Gate",
-                "description": "The entrance to an ancient temple.",
+                "name": "Dark Dungeon",
+                "description": "The entrance to a dark dungeon.",
                 "relative_coords": [0, 0],
-                "connections": {"south": "EXISTING_WORLD", "north": "Temple Hall"},
-                "category": "ruins"
+                "connections": {"south": "EXISTING_WORLD", "north": "Dungeon Hall"},
+                "category": "dungeon"
             },
             {
-                "name": "Temple Hall",
-                "description": "The main hall of the temple.",
+                "name": "Dungeon Hall",
+                "description": "The main hall of the dungeon.",
                 "relative_coords": [0, 1],
-                "connections": {"south": "Temple Gate"},
-                "category": "ruins"
+                "connections": {"south": "Dark Dungeon"},
+                "category": "dungeon"
             }
         ]
 
@@ -420,8 +421,9 @@ class TestExpandAreaSubGrid:
             target_coords=(0, 1)
         )
 
-        entry = basic_world["Temple Gate"]
+        entry = basic_world["Dark Dungeon"]
         assert entry.sub_grid is not None
+        # dungeon category gets 7x7 bounds
         assert entry.sub_grid.bounds == (-3, 3, -3, 3)
 
     def test_expand_area_subgrid_parent_name(self, mock_ai_service, basic_world):

@@ -9,7 +9,7 @@ from cli_rpg.models.shop import Shop, ShopItem
 from cli_rpg.models.item import Item, ItemType
 from cli_rpg.models.world_context import WorldContext
 from cli_rpg.models.region_context import RegionContext
-from cli_rpg.world_grid import WorldGrid, SubGrid, DIRECTION_OFFSETS
+from cli_rpg.world_grid import WorldGrid, SubGrid, DIRECTION_OFFSETS, get_subgrid_bounds
 from cli_rpg.location_art import get_fallback_location_ascii_art
 
 
@@ -711,8 +711,10 @@ def expand_area(
     if entry_name is not None and len(placed_locations) > 1:
         entry_loc = placed_locations[entry_name]["location"]
 
-        # Create SubGrid for interior (7x7 area)
-        sub_grid = SubGrid(bounds=(-3, 3, -3, 3), parent_name=entry_name)
+        # Get appropriate bounds based on entry location category
+        entry_category = entry_loc.category
+        bounds = get_subgrid_bounds(entry_category)
+        sub_grid = SubGrid(bounds=bounds, parent_name=entry_name)
 
         # Add sub-locations to SubGrid (not to world)
         first_subloc = True
