@@ -852,6 +852,57 @@ class Agent:
                 count += 1
         return count
 
+    def to_checkpoint_dict(self) -> dict:
+        """Serialize agent state to dictionary for checkpointing.
+
+        Returns:
+            Dictionary with all serializable agent state.
+        """
+        return {
+            "current_goal": self.current_goal.name,
+            "visited_coordinates": list(self.visited_coordinates),
+            "current_coords": self.current_coords,
+            "direction_history": list(self.direction_history),
+            "talked_this_location": list(self.talked_this_location),
+            "sub_location_moves": self.sub_location_moves,
+            "exploration_depth": self.exploration_depth,
+            "failed_enter_attempts": self.failed_enter_attempts,
+            "last_command": self.last_command,
+            "stuck_counter": self.stuck_counter,
+            "last_location": self.last_location,
+            "needs_look": self.needs_look,
+            "consecutive_same_dir": self.consecutive_same_dir,
+            "last_direction": self.last_direction,
+        }
+
+    def restore_from_checkpoint(self, data: dict) -> None:
+        """Restore agent state from checkpoint dictionary.
+
+        Args:
+            data: Dictionary containing serialized agent state.
+        """
+        # Restore goal
+        goal_name = data.get("current_goal", "EXPLORE_OVERWORLD")
+        self.current_goal = AgentGoal[goal_name]
+
+        # Restore exploration state
+        visited = data.get("visited_coordinates", [])
+        self.visited_coordinates = {tuple(coord) for coord in visited}
+        self.current_coords = tuple(data.get("current_coords", (0, 0)))
+        self.direction_history = list(data.get("direction_history", []))
+        self.talked_this_location = set(data.get("talked_this_location", []))
+        self.sub_location_moves = data.get("sub_location_moves", 0)
+
+        # Restore additional state
+        self.exploration_depth = data.get("exploration_depth", 0)
+        self.failed_enter_attempts = data.get("failed_enter_attempts", 0)
+        self.last_command = data.get("last_command", "")
+        self.stuck_counter = data.get("stuck_counter", 0)
+        self.last_location = data.get("last_location", "")
+        self.needs_look = data.get("needs_look", True)
+        self.consecutive_same_dir = data.get("consecutive_same_dir", 0)
+        self.last_direction = data.get("last_direction", "")
+
 
 @dataclass
 class GameSession:
@@ -867,6 +918,9 @@ class GameSession:
     verbose: bool = False
     show_game_output: bool = False  # -vv mode: show full game output
     action_delay: float = 0.0  # delay between actions in seconds
+    enable_checkpoints: bool = True  # Whether to create checkpoints
+    session_manager: Optional["SessionManager"] = None  # Checkpoint manager
+    session_id: Optional[str] = None  # Current session ID
 
     process: Optional[subprocess.Popen] = field(default=None, init=False)
     state: AgentState = field(default_factory=AgentState, init=False)
@@ -876,9 +930,14 @@ class GameSession:
     _output_queue: queue.Queue = field(default_factory=queue.Queue, init=False)
     _reader_thread: Optional[threading.Thread] = field(default=None, init=False)
     _stop_reader: bool = field(default=False, init=False)
+    _prev_state: Optional[AgentState] = field(default=None, init=False)  # For trigger detection
 
     def __post_init__(self):
         self.agent = Agent(verbose=self.verbose)
+        # Import here to avoid circular imports
+        if self.enable_checkpoints and self.session_manager is None:
+            from scripts.agent_persistence import SessionManager
+            self.session_manager = SessionManager()
 
     def _reader_worker(self) -> None:
         """Background thread that reads stdout lines into a queue."""
@@ -1129,12 +1188,161 @@ class GameSession:
                 if new_quests:
                     self.stats.quests_accepted += len(new_quests)
 
+    def _check_triggers(self, prev_state: AgentState) -> Optional["CheckpointTrigger"]:
+        """Check if a checkpoint trigger occurred.
+
+        Args:
+            prev_state: State before the last command.
+
+        Returns:
+            CheckpointTrigger if triggered, None otherwise.
+        """
+        if not self.enable_checkpoints:
+            return None
+
+        from scripts.checkpoint_triggers import detect_trigger
+        return detect_trigger(prev_state, self.state, self.stats.commands_issued)
+
+    def _create_checkpoint(self, trigger: "CheckpointTrigger") -> None:
+        """Create a checkpoint for the current state.
+
+        Args:
+            trigger: The trigger type that caused this checkpoint.
+        """
+        if not self.enable_checkpoints or self.session_manager is None:
+            return
+
+        from datetime import datetime
+        from scripts.agent_checkpoint import AgentCheckpoint
+
+        # Get agent state
+        agent_data = self.agent.to_checkpoint_dict()
+
+        # Create checkpoint
+        checkpoint = AgentCheckpoint(
+            current_goal=agent_data["current_goal"],
+            visited_coordinates=agent_data["visited_coordinates"],
+            current_coords=agent_data["current_coords"],
+            direction_history=agent_data["direction_history"],
+            talked_this_location=agent_data["talked_this_location"],
+            sub_location_moves=agent_data["sub_location_moves"],
+            stats=self.stats.to_dict(),
+            checkpoint_type=trigger.name.lower(),
+            game_save_path="",  # Game save path would be set if using game saves
+            seed=self.seed,
+            timestamp=datetime.now().isoformat(),
+            command_index=self.stats.commands_issued,
+        )
+
+        # Save checkpoint
+        if self.session_id:
+            checkpoint_id = self.session_manager.save_checkpoint(
+                checkpoint, trigger, self.session_id
+            )
+            if self.verbose:
+                print(f"[SESSION] Checkpoint created: {checkpoint_id} ({trigger.name})")
+
+    def _update_crash_recovery(self) -> None:
+        """Update crash recovery checkpoint."""
+        if not self.enable_checkpoints or self.session_manager is None:
+            return
+        if not self.session_id:
+            return
+
+        from datetime import datetime
+        from scripts.agent_checkpoint import AgentCheckpoint
+        from scripts.checkpoint_triggers import CheckpointTrigger
+
+        agent_data = self.agent.to_checkpoint_dict()
+
+        checkpoint = AgentCheckpoint(
+            current_goal=agent_data["current_goal"],
+            visited_coordinates=agent_data["visited_coordinates"],
+            current_coords=agent_data["current_coords"],
+            direction_history=agent_data["direction_history"],
+            talked_this_location=agent_data["talked_this_location"],
+            sub_location_moves=agent_data["sub_location_moves"],
+            stats=self.stats.to_dict(),
+            checkpoint_type="crash_recovery",
+            game_save_path="",
+            seed=self.seed,
+            timestamp=datetime.now().isoformat(),
+            command_index=self.stats.commands_issued,
+        )
+
+        self.session_manager.update_crash_recovery(checkpoint, self.session_id)
+
+    @classmethod
+    def from_checkpoint(
+        cls,
+        checkpoint_id: str,
+        session_manager: Optional["SessionManager"] = None,
+        **kwargs,
+    ) -> "GameSession":
+        """Create a GameSession from a checkpoint.
+
+        Args:
+            checkpoint_id: ID of checkpoint to restore from.
+            session_manager: SessionManager to use.
+            **kwargs: Additional GameSession arguments.
+
+        Returns:
+            Restored GameSession.
+        """
+        if session_manager is None:
+            from scripts.agent_persistence import SessionManager
+            session_manager = SessionManager()
+
+        # Load checkpoint
+        checkpoint = session_manager.load_checkpoint(checkpoint_id)
+
+        # Create session with checkpoint's seed
+        session = cls(
+            seed=checkpoint.seed,
+            session_manager=session_manager,
+            **kwargs,
+        )
+
+        # Restore agent state
+        session.agent.restore_from_checkpoint({
+            "current_goal": checkpoint.current_goal,
+            "visited_coordinates": checkpoint.visited_coordinates,
+            "current_coords": checkpoint.current_coords,
+            "direction_history": checkpoint.direction_history,
+            "talked_this_location": checkpoint.talked_this_location,
+            "sub_location_moves": checkpoint.sub_location_moves,
+        })
+
+        # Restore stats (partial - some are derived)
+        if "commands_issued" in checkpoint.stats:
+            session.stats.commands_issued = checkpoint.stats["commands_issued"]
+        if "locations_visited" in checkpoint.stats:
+            session.stats.locations_visited = set(checkpoint.stats["locations_visited"])
+
+        return session
+
+    def _load_game_save(self, save_path: str) -> None:
+        """Load a game save file (placeholder for future implementation).
+
+        Args:
+            save_path: Path to game save file.
+        """
+        # This would be implemented to load game state from a save file
+        # For now, it's a placeholder
+        pass
+
     def run(self) -> SessionStats:
         """Run the game session until max commands or timeout.
 
         Returns:
             Session statistics
         """
+        # Create session for checkpointing if enabled
+        if self.enable_checkpoints and self.session_manager and not self.session_id:
+            self.session_id = self.session_manager.create_session(self.seed)
+            if self.verbose:
+                print(f"[SESSION] Created checkpoint session: {self.session_id}")
+
         self.start()
         start_time = time.time()
 
@@ -1184,6 +1392,10 @@ class GameSession:
             elif self.verbose:
                 print(f"[SESSION] Ready: location={self.state.location}, exits={self.state.exits}")
 
+            # Initialize previous state for trigger detection
+            import copy
+            self._prev_state = copy.deepcopy(self.state)
+
             # Main loop
             while self.stats.commands_issued < self.max_commands:
                 # Check timeout (skip if infinite)
@@ -1216,6 +1428,18 @@ class GameSession:
                 wait = 0.5 if command.startswith("go ") else 0.2
                 response_lines = self._read_output(wait_time=wait, min_lines=1)
                 self._process_messages(response_lines)
+
+                # Check for checkpoint triggers
+                if self.enable_checkpoints and self._prev_state:
+                    trigger = self._check_triggers(self._prev_state)
+                    if trigger:
+                        self._create_checkpoint(trigger)
+                    # Update previous state
+                    self._prev_state = copy.deepcopy(self.state)
+
+                # Periodically update crash recovery
+                if self.enable_checkpoints and self.stats.commands_issued % 10 == 0:
+                    self._update_crash_recovery()
 
                 # Periodically refresh full state
                 if self.stats.commands_issued % 20 == 0:

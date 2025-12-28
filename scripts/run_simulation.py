@@ -91,6 +91,29 @@ Examples:
         action="store_true",
         help="Require real AI generation (fails if no API key found)"
     )
+    parser.add_argument(
+        "--recover",
+        action="store_true",
+        help="Resume from last crash recovery checkpoint"
+    )
+    parser.add_argument(
+        "--from-checkpoint",
+        type=str,
+        default=None,
+        metavar="ID",
+        help="Resume from specific checkpoint ID"
+    )
+    parser.add_argument(
+        "--no-checkpoints",
+        action="store_true",
+        help="Disable automatic checkpointing"
+    )
+    parser.add_argument(
+        "--checkpoints-dir",
+        type=str,
+        default="simulation_saves",
+        help="Directory for checkpoint storage (default: simulation_saves)"
+    )
 
     args = parser.parse_args()
 
@@ -104,33 +127,80 @@ Examples:
             return 1
         print(f"AI Provider: {os.getenv('AI_PROVIDER', 'auto-detect')}")
 
-    # Use random seed if not specified
-    seed = args.seed if args.seed is not None else random.randint(0, 2**31 - 1)
+    # Import checkpoint modules if needed
+    from scripts.agent_persistence import SessionManager
 
-    # Handle unlimited mode
-    max_commands = float('inf') if args.unlimited else args.max_commands
-    timeout = float('inf') if args.unlimited else args.timeout
+    # Initialize session manager
+    session_manager = SessionManager(base_dir=args.checkpoints_dir)
+
+    # Handle checkpoint recovery
+    if args.recover:
+        latest_session = session_manager.get_latest_session()
+        if not latest_session:
+            print("Error: No previous session found for recovery")
+            return 1
+        recovery = session_manager.get_crash_recovery(latest_session)
+        if not recovery:
+            print(f"Error: No crash recovery checkpoint found in session {latest_session}")
+            return 1
+        print(f"Recovering from crash checkpoint (command {recovery.command_index})")
+        session = GameSession.from_checkpoint(
+            "crash_recovery",
+            session_manager=session_manager,
+            max_commands=float('inf') if args.unlimited else args.max_commands,
+            timeout=float('inf') if args.unlimited else args.timeout,
+            verbose=args.verbose >= 1,
+            show_game_output=args.verbose >= 2,
+            action_delay=args.delay,
+            enable_checkpoints=not args.no_checkpoints,
+        )
+        seed = recovery.seed
+    elif args.from_checkpoint:
+        print(f"Resuming from checkpoint: {args.from_checkpoint}")
+        session = GameSession.from_checkpoint(
+            args.from_checkpoint,
+            session_manager=session_manager,
+            max_commands=float('inf') if args.unlimited else args.max_commands,
+            timeout=float('inf') if args.unlimited else args.timeout,
+            verbose=args.verbose >= 1,
+            show_game_output=args.verbose >= 2,
+            action_delay=args.delay,
+            enable_checkpoints=not args.no_checkpoints,
+        )
+        seed = session.seed
+    else:
+        # Use random seed if not specified
+        seed = args.seed if args.seed is not None else random.randint(0, 2**31 - 1)
+
+        # Handle unlimited mode
+        max_commands = float('inf') if args.unlimited else args.max_commands
+        timeout = float('inf') if args.unlimited else args.timeout
+
+        # Create new session
+        session = GameSession(
+            seed=seed,
+            max_commands=max_commands,
+            timeout=timeout,
+            verbose=args.verbose >= 1,
+            show_game_output=args.verbose >= 2,
+            action_delay=args.delay,
+            enable_checkpoints=not args.no_checkpoints,
+            session_manager=session_manager if not args.no_checkpoints else None,
+        )
 
     if args.unlimited:
         print(f"Starting simulation with seed={seed}, unlimited mode (Ctrl+C to stop)")
     else:
         print(f"Starting simulation with seed={seed}, max_commands={args.max_commands}")
 
+    if not args.no_checkpoints:
+        print(f"Checkpoints enabled (saving to {args.checkpoints_dir}/)")
+
     if args.delay > 0:
         print(f"Action delay: {args.delay}s")
     print("-" * 60)
 
     start_time = time.time()
-
-    # Create and run session
-    session = GameSession(
-        seed=seed,
-        max_commands=max_commands,
-        timeout=timeout,
-        verbose=args.verbose >= 1,
-        show_game_output=args.verbose >= 2,
-        action_delay=args.delay,
-    )
 
     try:
         stats = session.run()

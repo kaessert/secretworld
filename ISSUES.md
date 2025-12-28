@@ -387,13 +387,13 @@ python -m scripts.run_validation --report-format=html --output=report.html
 
 #### Implementation Phases
 
-**Phase 1: Save/Load Infrastructure (HIGH)**
-1. Create `scripts/agent_checkpoint.py` with AgentCheckpoint dataclass
-2. Create `scripts/agent_persistence.py` with SessionManager
-3. Create `scripts/checkpoint_triggers.py` with trigger detection
-4. Add checkpoint methods to Agent class
-5. Integrate into GameSession
-6. Add CLI flags to run_simulation.py
+**Phase 1: Save/Load Infrastructure (HIGH)** ✅ COMPLETE
+1. ✅ Create `scripts/agent_checkpoint.py` with AgentCheckpoint dataclass
+2. ✅ Create `scripts/agent_persistence.py` with SessionManager
+3. ✅ Create `scripts/checkpoint_triggers.py` with trigger detection
+4. ✅ Add checkpoint methods to Agent class (`to_checkpoint_dict()`, `restore_from_checkpoint()`)
+5. ✅ Integrate into GameSession (`_check_triggers()`, `_create_checkpoint()`, `from_checkpoint()`)
+6. ✅ Add CLI flags to run_simulation.py (`--recover`, `--from-checkpoint`, `--no-checkpoints`, `--checkpoints-dir`)
 
 **Phase 2: Human-Like Agent Core (HIGH)**
 1. Create `scripts/agent/` package
@@ -420,11 +420,11 @@ python -m scripts.run_validation --report-format=html --output=report.html
 ---
 
 #### Acceptance Criteria
-- [ ] Can interrupt simulation, resume from checkpoint, get identical results
-- [ ] Observable behavioral differences between personalities and classes
-- [ ] Track which features are exercised, identify coverage gaps
-- [ ] Detect feature regressions automatically with clear reports
-- [ ] Validate AI-generated content meets quality standards
+- [x] Can interrupt simulation, resume from checkpoint, get identical results (Phase 1 - COMPLETE)
+- [ ] Observable behavioral differences between personalities and classes (Phase 2)
+- [ ] Track which features are exercised, identify coverage gaps (Phase 3)
+- [ ] Detect feature regressions automatically with clear reports (Phase 3)
+- [ ] Validate AI-generated content meets quality standards (Phase 4)
 
 #### Related Files
 - `scripts/ai_agent.py` - Core agent to extend
