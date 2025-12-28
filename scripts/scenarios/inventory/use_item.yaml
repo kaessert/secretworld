@@ -1,18 +1,20 @@
 # Use item scenario - tests consumable item usage
-# Validates that the player can use items from inventory
+# Validates that consumable items (Health Potions) can be used from inventory
+# Demo mode starts with 2 Health Potions
 scenario:
   name: "Use Item"
-  description: "Test use command for consumable items"
+  description: "Test use command for consumable items with state verification"
   seed: 42006
   config:
-    max_commands: 20
-    timeout: 60
+    max_commands: 25
+    timeout: 90
+    demo_mode: true
 
   setup:
     - "dump_state"  # Get initial state
 
   steps:
-    # Step 1: Check inventory
+    # Step 1: Check initial inventory to see consumables
     - command: "inventory"
       assertions:
         - type: COMMAND_VALID
@@ -20,24 +22,30 @@ scenario:
           value: true
           message: "inventory command should work"
 
-    # Step 2: Get detailed state
+    # Step 2: Get initial state with health and inventory
     - command: "dump_state"
       wait_for: "inventory"
       assertions:
         - type: CONTENT_PRESENT
-          field: "location"
+          field: "inventory"
           value: true
-          message: "Location should be present"
+          message: "Inventory should be present"
+        - type: STATE_RANGE
+          field: "health"
+          value:
+            min: 1
+            max: 200
+          message: "Health should be in valid range"
 
-    # Step 3: Try using an item (may not have items yet)
-    - command: "use"
+    # Step 3: Use Health Potion (character is at full health in demo)
+    - command: "use Health Potion"
       assertions:
         - type: COMMAND_VALID
           field: ""
           value: true
-          message: "use command should be recognized"
+          message: "use Health Potion command should be recognized"
 
-    # Step 4: Check state after use attempt
+    # Step 4: Check state after using potion
     - command: "dump_state"
       assertions:
         - type: STATE_RANGE
@@ -45,4 +53,46 @@ scenario:
           value:
             min: 1
             max: 200
-          message: "Health should be in valid range"
+          message: "Health should still be in valid range after using potion"
+
+    # Step 5: Verify inventory is updated
+    - command: "inventory"
+      assertions:
+        - type: COMMAND_VALID
+          field: ""
+          value: true
+          message: "inventory command should still work"
+
+    # Step 6: Check detailed inventory state
+    - command: "dump_state"
+      assertions:
+        - type: CONTENT_PRESENT
+          field: "inventory"
+          value: true
+          message: "Inventory should still exist"
+
+    # Step 7: Use Torch (a misc item with light duration)
+    - command: "use Torch"
+      assertions:
+        - type: COMMAND_VALID
+          field: ""
+          value: true
+          message: "use Torch command should be recognized"
+
+    # Step 8: Verify state after using torch
+    - command: "dump_state"
+      assertions:
+        - type: STATE_RANGE
+          field: "health"
+          value:
+            min: 1
+            max: 200
+          message: "Health should remain valid after using torch"
+
+    # Step 9: Final inventory check
+    - command: "inventory"
+      assertions:
+        - type: COMMAND_VALID
+          field: ""
+          value: true
+          message: "Final inventory check should succeed"

@@ -47,7 +47,7 @@ scripts/
     ├── character_creation/ # Character creation scenarios (warrior, mage, rogue, ranger, cleric creation)
     ├── movement/        # Navigation scenarios (basic_navigation.yaml, subgrid_entry_exit.yaml, vertical_navigation.yaml)
     ├── combat/          # Combat scenarios (basic_attack.yaml, flee_combat.yaml, warrior_bash.yaml, mage_spells.yaml, rogue_stealth.yaml, cleric_abilities.yaml, demo_combat.yaml)
-    ├── inventory/       # Inventory scenarios (equip_unequip.yaml, use_item.yaml)
+    ├── inventory/       # Inventory scenarios (equip_unequip.yaml, use_item.yaml, drop_item.yaml, equip_armor.yaml, armor_restrictions.yaml, holy_symbol.yaml)
     ├── npc/             # NPC interaction scenarios (talk_dialogue.yaml, shop_browse.yaml, quest_accept.yaml)
     ├── exploration/     # Exploration scenarios (look_map.yaml)
     ├── rest/            # Rest scenarios (basic_rest.yaml)

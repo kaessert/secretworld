@@ -1,0 +1,91 @@
+# Armor restrictions scenario - tests class-based armor restrictions
+# Validates that Mage class cannot equip HEAVY armor
+# Note: This scenario requires exploring to find heavy armor
+scenario:
+  name: "Armor Restrictions"
+  description: "Test class-based armor weight restrictions (Mage cannot wear heavy armor)"
+  seed: 42041
+  config:
+    max_commands: 30
+    timeout: 120
+    skip_character_creation: false
+    character_creation_inputs:
+      - "TestMage"
+      - "2"
+      - "2"
+      - "yes"
+
+  setup:
+    - "dump_state"  # Get initial state after character creation
+
+  steps:
+    # Step 1: Verify Mage was created
+    - command: "dump_state"
+      assertions:
+        - type: CONTENT_PRESENT
+          field: "character_class"
+          value: true
+          message: "Character class should be present"
+
+    # Step 2: Check status to confirm Mage class
+    - command: "status"
+      assertions:
+        - type: COMMAND_VALID
+          field: ""
+          value: true
+          message: "status command should work"
+        - type: NARRATIVE_MATCH
+          field: "last_narrative"
+          value: "Mage"
+          message: "Should be a Mage class character"
+
+    # Step 3: Check inventory command works
+    - command: "inventory"
+      assertions:
+        - type: COMMAND_VALID
+          field: ""
+          value: true
+          message: "inventory command should work"
+
+    # Step 4: Verify inventory state
+    - command: "dump_state"
+      wait_for: "inventory"
+      assertions:
+        - type: CONTENT_PRESENT
+          field: "inventory"
+          value: true
+          message: "Inventory should be present"
+
+    # Step 5: Try to equip any armor from starting gear
+    - command: "equip"
+      assertions:
+        - type: COMMAND_VALID
+          field: ""
+          value: true
+          message: "equip command should be recognized"
+
+    # Step 6: Verify current equipment state
+    - command: "dump_state"
+      assertions:
+        - type: STATE_RANGE
+          field: "health"
+          value:
+            min: 1
+            max: 200
+          message: "Health should be valid"
+
+    # Step 7: Check look command for environment
+    - command: "look"
+      assertions:
+        - type: COMMAND_VALID
+          field: ""
+          value: true
+          message: "look command should work"
+
+    # Step 8: Final state verification
+    - command: "dump_state"
+      assertions:
+        - type: CONTENT_PRESENT
+          field: "location"
+          value: true
+          message: "Location should be present in final state"

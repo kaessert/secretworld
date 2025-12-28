@@ -1,18 +1,20 @@
 # Equip/unequip scenario - tests equipment management
-# Validates that the player can equip and unequip items
+# Validates equip/unequip for weapons and armor with state verification
+# Demo mode starts with Iron Sword and Leather Armor equipped
 scenario:
   name: "Equip and Unequip"
-  description: "Test equip and unequip commands for gear management"
+  description: "Test weapon and armor equip/unequip with state verification"
   seed: 42005
   config:
-    max_commands: 20
-    timeout: 60
+    max_commands: 25
+    timeout: 90
+    demo_mode: true
 
   setup:
     - "dump_state"  # Get initial state
 
   steps:
-    # Step 1: Check inventory
+    # Step 1: Check initial inventory and equipment
     - command: "inventory"
       assertions:
         - type: COMMAND_VALID
@@ -20,37 +22,83 @@ scenario:
           value: true
           message: "inventory command should work"
 
-    # Step 2: Get detailed state
+    # Step 2: Verify equipped weapon state (Iron Sword equipped in demo)
     - command: "dump_state"
       wait_for: "inventory"
       assertions:
         - type: CONTENT_PRESENT
-          field: "location"
+          field: "equipped_weapon"
           value: true
-          message: "Location should be present"
+          message: "Weapon should be equipped initially"
 
-    # Step 3: Check equipment status
-    - command: "equip"
+    # Step 3: Unequip current weapon
+    - command: "unequip weapon"
       assertions:
         - type: COMMAND_VALID
           field: ""
           value: true
-          message: "equip command should be valid"
+          message: "unequip weapon command should succeed"
 
-    # Step 4: Check unequip
-    - command: "unequip"
-      assertions:
-        - type: COMMAND_VALID
-          field: ""
-          value: true
-          message: "unequip command should be valid"
-
-    # Step 5: Verify state
+    # Step 4: Verify weapon is now in inventory (unequipped)
     - command: "dump_state"
       assertions:
-        - type: STATE_RANGE
-          field: "health"
-          value:
-            min: 1
-            max: 200
-          message: "Health should remain valid after equipment changes"
+        - type: CONTENT_PRESENT
+          field: "inventory"
+          value: true
+          message: "Inventory should contain unequipped weapon"
+
+    # Step 5: Check inventory shows the unequipped weapon
+    - command: "inventory"
+      assertions:
+        - type: COMMAND_VALID
+          field: ""
+          value: true
+          message: "inventory command should show unequipped weapon"
+
+    # Step 6: Re-equip the weapon
+    - command: "equip Iron Sword"
+      assertions:
+        - type: COMMAND_VALID
+          field: ""
+          value: true
+          message: "equip weapon command should succeed"
+
+    # Step 7: Verify weapon is equipped again
+    - command: "dump_state"
+      assertions:
+        - type: CONTENT_PRESENT
+          field: "equipped_weapon"
+          value: true
+          message: "Weapon should be equipped after equip command"
+
+    # Step 8: Unequip armor
+    - command: "unequip armor"
+      assertions:
+        - type: COMMAND_VALID
+          field: ""
+          value: true
+          message: "unequip armor command should succeed"
+
+    # Step 9: Verify armor state change
+    - command: "dump_state"
+      assertions:
+        - type: CONTENT_PRESENT
+          field: "inventory"
+          value: true
+          message: "Inventory should exist after unequipping armor"
+
+    # Step 10: Re-equip armor
+    - command: "equip Leather Armor"
+      assertions:
+        - type: COMMAND_VALID
+          field: ""
+          value: true
+          message: "equip armor command should succeed"
+
+    # Step 11: Verify final equipment state
+    - command: "dump_state"
+      assertions:
+        - type: CONTENT_PRESENT
+          field: "equipped_armor"
+          value: true
+          message: "Armor should be equipped after equip command"

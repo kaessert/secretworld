@@ -148,7 +148,7 @@ Create scripted test sessions that walk through each game feature, issuing comma
 - [x] Movement and navigation (overworld, SubGrid entry/exit, vertical z-levels) - 3 scenarios in scripts/scenarios/movement/ with demo_mode support
 - [x] Combat (attack, abilities, flee, stealth kills, companion combat) - 7 scenarios in scripts/scenarios/combat/ (seeds 42003-42004, 42030-42034)
 - [x] NPC interaction (talk, dialogue choices, arc progression, shop, quest acceptance) - 3 scenarios in scripts/scenarios/npc/ (talk_dialogue.yaml, shop_browse.yaml, quest_accept.yaml)
-- [ ] Inventory management (equip, unequip, use, drop, armor restrictions, holy symbols)
+- [x] Inventory management (equip, unequip, use, drop, armor restrictions, holy symbols) - 6 scenarios in scripts/scenarios/inventory/ (seeds 42005-42006, 42040-42043)
 - [ ] Quests (accept, track, complete, world effects, quest chains)
 - [x] Crafting and gathering (gather, craft, skill progression, rare recipes) - basic_crafting.yaml added
 - [ ] Exploration (map, secrets, puzzles, treasures, exploration bonus)

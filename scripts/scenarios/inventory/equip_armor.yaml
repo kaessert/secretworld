@@ -1,0 +1,82 @@
+# Equip armor scenario - tests armor equipment management
+# Validates equip/unequip for armor with detailed state verification
+# Demo mode starts with Leather Armor equipped
+scenario:
+  name: "Equip Armor"
+  description: "Test armor equip and unequip with state verification"
+  seed: 42040
+  config:
+    max_commands: 20
+    timeout: 60
+    demo_mode: true
+
+  setup:
+    - "dump_state"  # Get initial state
+
+  steps:
+    # Step 1: Check initial inventory and equipment
+    - command: "inventory"
+      assertions:
+        - type: COMMAND_VALID
+          field: ""
+          value: true
+          message: "inventory command should work"
+
+    # Step 2: Verify equipped armor state (Leather Armor equipped in demo)
+    - command: "dump_state"
+      wait_for: "inventory"
+      assertions:
+        - type: CONTENT_PRESENT
+          field: "equipped_armor"
+          value: true
+          message: "Armor should be equipped initially"
+
+    # Step 3: Unequip current armor
+    - command: "unequip armor"
+      assertions:
+        - type: COMMAND_VALID
+          field: ""
+          value: true
+          message: "unequip armor command should succeed"
+
+    # Step 4: Verify armor is now in inventory (unequipped)
+    - command: "inventory"
+      assertions:
+        - type: COMMAND_VALID
+          field: ""
+          value: true
+          message: "inventory should show unequipped armor"
+
+    # Step 5: Check state after unequip
+    - command: "dump_state"
+      assertions:
+        - type: CONTENT_PRESENT
+          field: "inventory"
+          value: true
+          message: "Inventory should contain unequipped armor"
+
+    # Step 6: Re-equip the armor
+    - command: "equip Leather Armor"
+      assertions:
+        - type: COMMAND_VALID
+          field: ""
+          value: true
+          message: "equip armor command should succeed"
+
+    # Step 7: Verify armor is equipped again
+    - command: "dump_state"
+      assertions:
+        - type: CONTENT_PRESENT
+          field: "equipped_armor"
+          value: true
+          message: "Armor should be equipped after equip command"
+
+    # Step 8: Verify defense is valid
+    - command: "dump_state"
+      assertions:
+        - type: STATE_RANGE
+          field: "health"
+          value:
+            min: 1
+            max: 200
+          message: "Health should remain valid after equipment changes"

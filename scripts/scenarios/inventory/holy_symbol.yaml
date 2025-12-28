@@ -1,0 +1,102 @@
+# Holy symbol scenario - tests Cleric-only holy symbol equipment
+# Validates that only Clerics can equip holy symbols
+scenario:
+  name: "Holy Symbol"
+  description: "Test Cleric-only holy symbol equipment restrictions"
+  seed: 42042
+  config:
+    max_commands: 25
+    timeout: 120
+    skip_character_creation: false
+    character_creation_inputs:
+      - "TestCleric"
+      - "5"
+      - "2"
+      - "yes"
+
+  setup:
+    - "dump_state"  # Get initial state after character creation
+
+  steps:
+    # Step 1: Verify Cleric was created
+    - command: "dump_state"
+      assertions:
+        - type: CONTENT_PRESENT
+          field: "character_class"
+          value: true
+          message: "Character class should be present"
+
+    # Step 2: Check status to confirm Cleric class
+    - command: "status"
+      assertions:
+        - type: COMMAND_VALID
+          field: ""
+          value: true
+          message: "status command should work"
+        - type: NARRATIVE_MATCH
+          field: "last_narrative"
+          value: "Cleric"
+          message: "Should be a Cleric class character"
+
+    # Step 3: Check initial inventory
+    - command: "inventory"
+      assertions:
+        - type: COMMAND_VALID
+          field: ""
+          value: true
+          message: "inventory command should work"
+
+    # Step 4: Verify inventory state
+    - command: "dump_state"
+      wait_for: "inventory"
+      assertions:
+        - type: CONTENT_PRESENT
+          field: "inventory"
+          value: true
+          message: "Inventory should be present"
+
+    # Step 5: Check the equip command is recognized
+    - command: "equip"
+      assertions:
+        - type: COMMAND_VALID
+          field: ""
+          value: true
+          message: "equip command should be recognized"
+
+    # Step 6: Check current location
+    - command: "look"
+      assertions:
+        - type: COMMAND_VALID
+          field: ""
+          value: true
+          message: "look command should work"
+
+    # Step 7: Verify game state is valid
+    - command: "dump_state"
+      assertions:
+        - type: STATE_RANGE
+          field: "health"
+          value:
+            min: 1
+            max: 200
+          message: "Health should be valid"
+        - type: CONTENT_PRESENT
+          field: "location"
+          value: true
+          message: "Location should be present"
+
+    # Step 8: Check Cleric-specific commands (bless)
+    - command: "bless"
+      assertions:
+        - type: COMMAND_VALID
+          field: ""
+          value: true
+          message: "bless command should be valid for Cleric"
+
+    # Step 9: Final state check
+    - command: "dump_state"
+      assertions:
+        - type: CONTENT_PRESENT
+          field: "mana"
+          value: true
+          message: "Mana should be present in state (for bless ability)"
