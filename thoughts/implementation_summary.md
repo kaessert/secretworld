@@ -1,63 +1,36 @@
-# ContentCache Implementation Summary
+# Implementation Summary: Fix test_ai_json_parse_error_uses_fallback
 
 ## What Was Implemented
 
-Created `src/cli_rpg/content_cache.py` - a standalone cache for procedural content that uses deterministic keys derived from world seed + spatial coordinates.
+Fixed serialization failures in `tests/test_ai_failure_fallback.py` by patching the autosave function in three test methods.
 
-### Files Created
+## Changes Made
 
-1. **`src/cli_rpg/content_cache.py`** - Main implementation
-   - `ContentType` enum: ROOM, NPC, QUEST, ITEM
-   - `ContentCache` dataclass with:
-     - `get(content_type, coords)` - retrieve cached content
-     - `set(content_type, coords, data)` - store content
-     - `_make_key(content_type, coords)` - generate deterministic key
-     - `save_to_disk()` - persist to JSON file
-     - `load_from_disk()` - load from JSON file
-     - `clear()` - clear all cached data
+**File: `tests/test_ai_failure_fallback.py`**
 
-2. **`tests/test_content_cache.py`** - Comprehensive test suite (11 tests)
-   - `TestDeterministicKeys`: Verifies key generation is deterministic
-   - `TestCacheOperations`: Verifies get/set/clear behavior
-   - `TestDiskPersistence`: Verifies save/load round-trip
+Added `@patch("cli_rpg.game_state.autosave")` decorator to three test methods:
+- `test_ai_json_parse_error_uses_fallback`
+- `test_ai_service_error_uses_fallback`
+- `test_ai_generation_error_uses_fallback`
 
-### Key Design Decisions
+Each method signature was updated to include `mock_autosave` parameter.
 
-- **Key format**: `"{content_type}:{x}:{y}:{z}"` - seed is per-file, not per-key
-- **File location**: `{cache_dir}/content_seed_{seed}.json`
-- **No TTL**: Content is deterministic and permanent
-- **Explicit save**: Call `save_to_disk()` on GameState cleanup or save
+## Root Cause
 
-### Differences from AIService Cache
+The tests were using Mock objects for `ai_service`, but when `gs.move()` was called, it triggered autosave which attempted to JSON serialize the GameState. The Mock objects from `generate_world_context().to_dict()` could not be serialized, causing the tests to fail.
 
-| Feature | AIService._cache | ContentCache |
-|---------|-----------------|--------------|
-| Key source | Prompt hash (MD5) | Seed + coords + type |
-| Stability | Varies with prompt changes | Deterministic across runs |
-| Purpose | Reduce API calls | Reproducible worlds |
+## Solution Pattern
+
+This follows the same pattern used in other test files (e.g., `test_layered_context_integration.py`, `test_terrain_movement.py`) where autosave is patched to prevent serialization during tests that use mocked AI services.
 
 ## Test Results
 
 ```
-11 passed in 0.08s
+tests/test_ai_failure_fallback.py::TestAIFailureFallback::test_ai_json_parse_error_uses_fallback PASSED
+tests/test_ai_failure_fallback.py::TestAIFailureFallback::test_ai_service_error_uses_fallback PASSED
+tests/test_ai_failure_fallback.py::TestAIFailureFallback::test_ai_generation_error_uses_fallback PASSED
+tests/test_ai_failure_fallback.py::TestAIFailureFallback::test_fallback_failure_shows_friendly_message PASSED
+tests/test_ai_failure_fallback.py::TestAIFailureFallback::test_error_logged_but_not_shown PASSED
 ```
 
-All tests pass:
-- `test_deterministic_key_from_seed_and_coords`
-- `test_different_seeds_different_keys`
-- `test_content_types_isolated`
-- `test_3d_coords_in_key`
-- `test_get_returns_none_when_not_cached`
-- `test_set_then_get_returns_data`
-- `test_clear_removes_all_data`
-- `test_disk_persistence_round_trip`
-- `test_load_creates_empty_cache_when_file_missing`
-- `test_cache_dir_created_if_missing`
-- `test_different_seeds_different_files`
-
-## E2E Validation
-
-This is a self-contained module with no external dependencies. E2E tests should validate:
-- Integration with ContentLayer for cache lookups/writes
-- Cache persistence across game sessions
-- Reproducible content generation with same seed
+All 5 tests pass.

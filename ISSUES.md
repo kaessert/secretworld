@@ -46,7 +46,7 @@ Refactor to use **procedural generation for world structure** while keeping **AI
 - ✓ `src/cli_rpg/location_noise.py` - Simplex noise for location density (CREATED 2025-12-28)
 - ✓ `src/cli_rpg/content_layer.py` - Mediator between procedural and AI (CREATED 2025-12-28)
 - ✓ `src/cli_rpg/content_cache.py` - Deterministic content caching (CREATED 2025-12-28)
-- `src/cli_rpg/fallback_content.py` - Expanded template fallbacks
+- ✓ `src/cli_rpg/fallback_content.py` - Centralized FallbackContentProvider with deterministic templates (CREATED 2025-12-28)
 - `src/cli_rpg/models/content_request.py` - Request/response schemas
 
 #### Files to Modify
@@ -76,7 +76,7 @@ Refactor to use **procedural generation for world structure** while keeping **AI
 **Phase 4: Content Layer**
 11. ✓ Create ContentLayer mediator class (COMPLETED 2025-12-28)
 12. Create ContentCache with deterministic keying
-13. Create FallbackContentProvider with expanded templates
+13. ✓ Create FallbackContentProvider with expanded templates (COMPLETED 2025-12-28)
 14. Add new AIService methods for content generation
 
 **Phase 5: Integration**

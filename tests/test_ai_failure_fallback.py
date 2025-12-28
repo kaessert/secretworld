@@ -40,7 +40,10 @@ class TestAIFailureFallback:
     generate_fallback_location() without showing technical errors.
     """
 
-    def test_ai_json_parse_error_uses_fallback(self, character, world_with_coords):
+    @patch("cli_rpg.game_state.autosave")
+    def test_ai_json_parse_error_uses_fallback(
+        self, mock_autosave, character, world_with_coords
+    ):
         """AI JSON parse errors should silently use fallback location.
 
         Spec: Silent fallback on ANY AI failure.
@@ -64,7 +67,10 @@ class TestAIFailureFallback:
         assert "Failed to parse" not in message
         assert gs.current_location != "Town"
 
-    def test_ai_service_error_uses_fallback(self, character, world_with_coords):
+    @patch("cli_rpg.game_state.autosave")
+    def test_ai_service_error_uses_fallback(
+        self, mock_autosave, character, world_with_coords
+    ):
         """AIServiceError should silently use fallback location.
 
         Spec: Silent fallback on ANY AI failure.
@@ -84,7 +90,10 @@ class TestAIFailureFallback:
         assert success is True
         assert "API timeout" not in message
 
-    def test_ai_generation_error_uses_fallback(self, character, world_with_coords):
+    @patch("cli_rpg.game_state.autosave")
+    def test_ai_generation_error_uses_fallback(
+        self, mock_autosave, character, world_with_coords
+    ):
         """AIGenerationError should silently use fallback location.
 
         Spec: Silent fallback on ANY AI failure.
