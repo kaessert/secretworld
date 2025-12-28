@@ -38,11 +38,10 @@ class TestLayeredContextInMove:
         gs.world_context = WorldContext.default("fantasy")
         return gs
 
-    @patch("cli_rpg.game_state.should_generate_named_location", return_value=True)
     @patch("cli_rpg.game_state.autosave")
     @patch("cli_rpg.game_state.expand_area")
     def test_move_passes_world_context_to_expand_area(
-        self, mock_expand_area, mock_autosave, mock_should_gen, game_state_with_ai
+        self, mock_expand_area, mock_autosave, game_state_with_ai
     ):
         """Verify move() passes world_context when generating new location.
 
@@ -52,6 +51,12 @@ class TestLayeredContextInMove:
         gs = game_state_with_ai
         # Pre-create world context
         gs.world_context = WorldContext.default("fantasy")
+
+        # Mock noise manager to return True (named location)
+        mock_noise_manager = MagicMock()
+        mock_noise_manager.should_spawn_location.return_value = True
+        mock_noise_manager.world_seed = 42
+        gs.location_noise_manager = mock_noise_manager
 
         # Mock expand_area to create a location (otherwise move fails)
         new_loc = Location(name="New", description="Test", coordinates=(0, 1))
@@ -69,11 +74,10 @@ class TestLayeredContextInMove:
         assert "world_context" in kwargs
         assert kwargs["world_context"] is not None
 
-    @patch("cli_rpg.game_state.should_generate_named_location", return_value=True)
     @patch("cli_rpg.game_state.autosave")
     @patch("cli_rpg.game_state.expand_area")
     def test_move_passes_region_context_to_expand_area(
-        self, mock_expand_area, mock_autosave, mock_should_gen, game_state_with_ai
+        self, mock_expand_area, mock_autosave, game_state_with_ai
     ):
         """Verify move() passes region_context when generating new location.
 
@@ -81,6 +85,12 @@ class TestLayeredContextInMove:
         it must pass the region_context parameter for layered context generation.
         """
         gs = game_state_with_ai
+
+        # Mock noise manager to return True (named location)
+        mock_noise_manager = MagicMock()
+        mock_noise_manager.should_spawn_location.return_value = True
+        mock_noise_manager.world_seed = 42
+        gs.location_noise_manager = mock_noise_manager
 
         new_loc = Location(name="New", description="Test", coordinates=(0, 1))
 
@@ -96,11 +106,10 @@ class TestLayeredContextInMove:
         assert "region_context" in kwargs
         assert kwargs["region_context"] is not None
 
-    @patch("cli_rpg.game_state.should_generate_named_location", return_value=True)
     @patch("cli_rpg.game_state.autosave")
     @patch("cli_rpg.game_state.expand_area")
     def test_move_creates_world_context_if_missing(
-        self, mock_expand_area, mock_autosave, mock_should_gen, game_state_with_ai
+        self, mock_expand_area, mock_autosave, game_state_with_ai
     ):
         """Verify move() creates world_context lazily if not present.
 
@@ -112,6 +121,12 @@ class TestLayeredContextInMove:
         gs.world_context = None
         # Mock the AI service to return a proper WorldContext
         gs.ai_service.generate_world_context.return_value = WorldContext.default("fantasy")
+
+        # Mock noise manager to return True (named location)
+        mock_noise_manager = MagicMock()
+        mock_noise_manager.should_spawn_location.return_value = True
+        mock_noise_manager.world_seed = 42
+        gs.location_noise_manager = mock_noise_manager
 
         new_loc = Location(name="New", description="Test", coordinates=(0, 1))
 
@@ -128,11 +143,10 @@ class TestLayeredContextInMove:
         assert kwargs["world_context"] is not None
         assert isinstance(kwargs["world_context"], WorldContext)
 
-    @patch("cli_rpg.game_state.should_generate_named_location", return_value=True)
     @patch("cli_rpg.game_state.autosave")
     @patch("cli_rpg.game_state.expand_area")
     def test_move_creates_region_context_for_target_coords(
-        self, mock_expand_area, mock_autosave, mock_should_gen, game_state_with_ai
+        self, mock_expand_area, mock_autosave, game_state_with_ai
     ):
         """Verify move() creates region_context for target coordinates.
 
@@ -144,6 +158,12 @@ class TestLayeredContextInMove:
         gs.ai_service.generate_region_context.return_value = RegionContext.default(
             "Test Region", (0, 1)
         )
+
+        # Mock noise manager to return True (named location)
+        mock_noise_manager = MagicMock()
+        mock_noise_manager.should_spawn_location.return_value = True
+        mock_noise_manager.world_seed = 42
+        gs.location_noise_manager = mock_noise_manager
 
         new_loc = Location(name="New", description="Test", coordinates=(0, 1))
 

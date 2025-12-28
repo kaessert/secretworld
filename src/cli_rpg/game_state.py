@@ -45,6 +45,7 @@ from cli_rpg.world_events import (
     get_location_event_warning,
 )
 from cli_rpg.secrets import check_passive_detection
+from cli_rpg.location_noise import LocationNoiseManager
 
 # Import AI components (with optional support)
 try:
@@ -62,7 +63,6 @@ from cli_rpg.world import generate_fallback_location
 
 # Import named location trigger logic and clustering
 from cli_rpg.world_tiles import (
-    should_generate_named_location,
     get_unnamed_location_template,
     TERRAIN_TO_CATEGORY,
     get_cluster_category_bias,
@@ -318,6 +318,10 @@ class GameState:
         self.background_gen_queue: Optional["BackgroundGenerationQueue"] = None
         # Economy system for dynamic supply/demand pricing
         self.economy_state = EconomyState()
+        # Location noise manager for deterministic location density
+        # Uses world seed from chunk_manager if available, otherwise random
+        world_seed = chunk_manager.seed if chunk_manager else random.randint(0, 2**31)
+        self.location_noise_manager = LocationNoiseManager(world_seed=world_seed)
 
     @property
     def is_in_conversation(self) -> bool:
@@ -656,8 +660,10 @@ class GameState:
                 terrain = self.chunk_manager.get_tile_at(*target_coords)
 
             # Determine if this should be a named location (POI) or unnamed (terrain filler)
-            generate_named = should_generate_named_location(
-                self.tiles_since_named,
+            # Uses noise-based location density for natural clustering
+            generate_named = self.location_noise_manager.should_spawn_location(
+                target_coords[0],
+                target_coords[1],
                 terrain or "plains"
             )
 
@@ -1994,6 +2000,7 @@ class GameState:
             "seen_tiles": list(self.seen_tiles),
             "world_state_manager": self.world_state_manager.to_dict(),
             "economy_state": self.economy_state.to_dict(),
+            "location_noise_seed": self.location_noise_manager.world_seed,
         }
         # Include chunk_manager if present (WFC terrain)
         if self.chunk_manager is not None:
@@ -2128,11 +2135,25 @@ class GameState:
         )
 
         # Restore chunk_manager if present (WFC terrain)
+        # Must restore before location_noise_manager for fallback seed logic
         if "chunk_manager" in data:
             from cli_rpg.wfc_chunks import ChunkManager
             from cli_rpg.world_tiles import DEFAULT_TILE_REGISTRY
             game_state.chunk_manager = ChunkManager.from_dict(
                 data["chunk_manager"], DEFAULT_TILE_REGISTRY
+            )
+
+        # Restore location_noise_manager (for backward compatibility, check multiple sources)
+        noise_seed = data.get("location_noise_seed")
+        if noise_seed is not None:
+            game_state.location_noise_manager = LocationNoiseManager(world_seed=noise_seed)
+        elif game_state.chunk_manager is not None:
+            game_state.location_noise_manager = LocationNoiseManager(
+                world_seed=game_state.chunk_manager.seed
+            )
+        else:
+            game_state.location_noise_manager = LocationNoiseManager(
+                world_seed=random.randint(0, 2**31)
             )
 
         # Restore world_context if present (Layer 1)

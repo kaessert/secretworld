@@ -705,8 +705,11 @@ class TestGameStateCoordinateBasedMovement:
         monkeypatch.setattr("cli_rpg.game_state.expand_area", mock_expand_area)
         # Ensure AI_AVAILABLE is True so AI path is attempted
         monkeypatch.setattr("cli_rpg.game_state.AI_AVAILABLE", True)
-        # Force should_generate_named_location to return True to trigger AI path
-        monkeypatch.setattr("cli_rpg.game_state.should_generate_named_location", lambda *args, **kwargs: True)
+        # Mock noise manager to force named location generation (triggers AI path)
+        mock_noise_manager = MagicMock()
+        mock_noise_manager.should_spawn_location.return_value = True
+        mock_noise_manager.world_seed = 42
+        game_state.location_noise_manager = mock_noise_manager
 
         # Move west - AI will fail, should use fallback and inform player
         success, message = game_state.move("west")
@@ -1209,3 +1212,151 @@ class TestEnterExitCommands:
         assert "Available:" in message
         assert "Tavern" in message
         assert "Market" in message
+
+
+class TestLocationNoiseManagerIntegration:
+    """Tests for LocationNoiseManager integration into GameState.
+
+    Spec: GameState should use LocationNoiseManager for deterministic,
+    noise-based location spawn decisions instead of probabilistic
+    should_generate_named_location().
+    """
+
+    def test_game_state_has_location_noise_manager(self):
+        """GameState should initialize a LocationNoiseManager on creation.
+
+        Spec: GameState.__init__ should create a location_noise_manager attribute.
+        """
+        from cli_rpg.location_noise import LocationNoiseManager
+
+        character = Character("Hero", strength=10, dexterity=10, intelligence=10)
+        world = {
+            "Start": Location("Start", "A starting location", coordinates=(0, 0)),
+        }
+
+        game_state = GameState(character, world, "Start")
+
+        assert hasattr(game_state, "location_noise_manager")
+        assert isinstance(game_state.location_noise_manager, LocationNoiseManager)
+
+    def test_location_noise_uses_chunk_manager_seed_when_available(self):
+        """LocationNoiseManager should use chunk_manager.seed when available.
+
+        Spec: When GameState has a chunk_manager, the location_noise_manager
+        should use the same seed for consistent world generation.
+        """
+        from unittest.mock import MagicMock
+
+        character = Character("Hero", strength=10, dexterity=10, intelligence=10)
+        world = {
+            "Start": Location("Start", "A starting location", coordinates=(0, 0)),
+        }
+
+        # Create mock chunk_manager with a specific seed
+        mock_chunk_manager = MagicMock()
+        mock_chunk_manager.seed = 12345
+
+        game_state = GameState(
+            character, world, "Start", chunk_manager=mock_chunk_manager
+        )
+
+        assert game_state.location_noise_manager.world_seed == 12345
+
+    def test_serialization_preserves_location_noise_seed(self):
+        """Serialization should preserve location_noise_seed for deterministic saves.
+
+        Spec: to_dict() should include location_noise_seed, and from_dict()
+        should restore a LocationNoiseManager with that seed.
+        """
+        from cli_rpg.location_noise import LocationNoiseManager
+
+        character = Character("Hero", strength=10, dexterity=10, intelligence=10)
+        world = {
+            "Start": Location("Start", "A starting location", coordinates=(0, 0)),
+        }
+
+        game_state = GameState(character, world, "Start")
+        original_seed = game_state.location_noise_manager.world_seed
+
+        # Serialize
+        data = game_state.to_dict()
+        assert "location_noise_seed" in data
+        assert data["location_noise_seed"] == original_seed
+
+        # Deserialize
+        restored = GameState.from_dict(data)
+        assert hasattr(restored, "location_noise_manager")
+        assert isinstance(restored.location_noise_manager, LocationNoiseManager)
+        assert restored.location_noise_manager.world_seed == original_seed
+
+    def test_move_uses_noise_based_location_spawn(self, monkeypatch):
+        """Movement should use LocationNoiseManager for spawn decisions.
+
+        Spec: When generating a new location during move(), GameState should
+        call location_noise_manager.should_spawn_location() instead of
+        should_generate_named_location().
+        """
+        from unittest.mock import MagicMock, patch
+
+        # Disable autosave for this test
+        monkeypatch.setattr("cli_rpg.game_state.autosave", lambda gs: None)
+
+        character = Character("Hero", strength=10, dexterity=10, intelligence=10)
+        world = {
+            "Start": Location("Start", "A starting location", coordinates=(0, 0)),
+        }
+
+        game_state = GameState(character, world, "Start")
+
+        # Mock the noise manager to track calls
+        mock_noise_manager = MagicMock()
+        mock_noise_manager.should_spawn_location.return_value = True
+        mock_noise_manager.world_seed = 42
+        game_state.location_noise_manager = mock_noise_manager
+
+        # Move to a new location (no existing location at (0, 1))
+        success, message = game_state.move("north")
+
+        # Verify noise manager was called
+        mock_noise_manager.should_spawn_location.assert_called()
+        # Check it was called with correct coordinates and terrain
+        call_args = mock_noise_manager.should_spawn_location.call_args
+        assert call_args[0][0] == 0  # x coordinate
+        assert call_args[0][1] == 1  # y coordinate
+        # terrain is passed as third argument
+
+    def test_deterministic_location_generation_with_same_seed(self, monkeypatch):
+        """Same world seed should produce same location spawn decisions.
+
+        Spec: Two GameStates with same noise seed should make identical
+        spawn decisions at any given coordinates.
+        """
+        # Disable autosave for this test
+        monkeypatch.setattr("cli_rpg.game_state.autosave", lambda gs: None)
+
+        character1 = Character("Hero", strength=10, dexterity=10, intelligence=10)
+        character2 = Character("Hero", strength=10, dexterity=10, intelligence=10)
+        world1 = {"Start": Location("Start", "A starting location", coordinates=(0, 0))}
+        world2 = {"Start": Location("Start", "A starting location", coordinates=(0, 0))}
+
+        game_state1 = GameState(character1, world1, "Start")
+        game_state2 = GameState(character2, world2, "Start")
+
+        # Set same seed for both
+        game_state1.location_noise_manager = (
+            game_state1.location_noise_manager.__class__(world_seed=42)
+        )
+        game_state2.location_noise_manager = (
+            game_state2.location_noise_manager.__class__(world_seed=42)
+        )
+
+        # Check that spawn decisions are identical
+        for x in range(-5, 5):
+            for y in range(-5, 5):
+                result1 = game_state1.location_noise_manager.should_spawn_location(
+                    x, y, "plains"
+                )
+                result2 = game_state2.location_noise_manager.should_spawn_location(
+                    x, y, "plains"
+                )
+                assert result1 == result2, f"Spawn decision differs at ({x}, {y})"

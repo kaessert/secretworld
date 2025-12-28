@@ -59,19 +59,23 @@ class TestTilesSinceNamedCounter:
         mock_cm.get_tile_at.return_value = "plains"
         gs.chunk_manager = mock_cm
 
-        # Mock should_generate_named_location to return False (unnamed)
-        with patch("cli_rpg.game_state.should_generate_named_location", return_value=False):
-            with patch("cli_rpg.game_state.autosave"):
-                # Move north - should create unnamed location and increment counter
-                success, _ = gs.move("north")
-                assert success is True
-                assert gs.tiles_since_named == 1
+        # Mock noise manager to return False (unnamed location)
+        mock_noise_manager = MagicMock()
+        mock_noise_manager.should_spawn_location.return_value = False
+        mock_noise_manager.world_seed = 42
+        gs.location_noise_manager = mock_noise_manager
 
-                # Move again (need to ensure terrain is passable)
-                mock_cm.get_tile_at.return_value = "forest"
-                success, _ = gs.move("north")
-                assert success is True
-                assert gs.tiles_since_named == 2
+        with patch("cli_rpg.game_state.autosave"):
+            # Move north - should create unnamed location and increment counter
+            success, _ = gs.move("north")
+            assert success is True
+            assert gs.tiles_since_named == 1
+
+            # Move again (need to ensure terrain is passable)
+            mock_cm.get_tile_at.return_value = "forest"
+            success, _ = gs.move("north")
+            assert success is True
+            assert gs.tiles_since_named == 2
 
     def test_tiles_since_named_resets_on_named_location(self):
         """tiles_since_named resets to 0 when generating a named location."""
@@ -94,13 +98,17 @@ class TestTilesSinceNamedCounter:
         mock_cm.get_tile_at.return_value = "plains"
         gs.chunk_manager = mock_cm
 
-        # Mock should_generate_named_location to return True (named location)
-        with patch("cli_rpg.game_state.should_generate_named_location", return_value=True):
-            with patch("cli_rpg.game_state.autosave"):
-                success, _ = gs.move("north")
-                assert success is True
-                # Counter should reset to 0 after named location
-                assert gs.tiles_since_named == 0
+        # Mock noise manager to return True (named location)
+        mock_noise_manager = MagicMock()
+        mock_noise_manager.should_spawn_location.return_value = True
+        mock_noise_manager.world_seed = 42
+        gs.location_noise_manager = mock_noise_manager
+
+        with patch("cli_rpg.game_state.autosave"):
+            success, _ = gs.move("north")
+            assert success is True
+            # Counter should reset to 0 after named location
+            assert gs.tiles_since_named == 0
 
     def test_tiles_since_named_persists_save_load(self):
         """tiles_since_named survives to_dict/from_dict round-trip."""
@@ -150,7 +158,7 @@ class TestTemplateUsageForUnnamed:
     """Tests that unnamed locations use templates without AI."""
 
     def test_unnamed_location_uses_template(self):
-        """When should_generate_named_location returns False, template is used."""
+        """When noise manager returns False, template is used for unnamed location."""
         # Spec: If FALSE → use get_unnamed_location_template(terrain) for instant generation
         character = make_character()
         start = Location(
@@ -175,16 +183,21 @@ class TestTemplateUsageForUnnamed:
             ai_called = True
             raise Exception("AI should not be called for unnamed locations")
 
-        with patch("cli_rpg.game_state.should_generate_named_location", return_value=False):
-            with patch("cli_rpg.game_state.expand_area", mock_expand_area):
-                with patch("cli_rpg.game_state.autosave"):
-                    success, _ = gs.move("north")
-                    assert success is True
-                    assert not ai_called
+        # Mock noise manager to return False (unnamed location)
+        mock_noise_manager = MagicMock()
+        mock_noise_manager.should_spawn_location.return_value = False
+        mock_noise_manager.world_seed = 42
+        gs.location_noise_manager = mock_noise_manager
 
-                    # New location should be unnamed
-                    new_loc = gs.get_current_location()
-                    assert new_loc.is_named is False
+        with patch("cli_rpg.game_state.expand_area", mock_expand_area):
+            with patch("cli_rpg.game_state.autosave"):
+                success, _ = gs.move("north")
+                assert success is True
+                assert not ai_called
+
+                # New location should be unnamed
+                new_loc = gs.get_current_location()
+                assert new_loc.is_named is False
 
     def test_unnamed_location_has_correct_terrain(self):
         """Unnamed locations have correct terrain type."""
@@ -203,20 +216,25 @@ class TestTemplateUsageForUnnamed:
         mock_cm.get_tile_at.return_value = "mountain"
         gs.chunk_manager = mock_cm
 
-        with patch("cli_rpg.game_state.should_generate_named_location", return_value=False):
-            with patch("cli_rpg.game_state.autosave"):
-                success, _ = gs.move("north")
-                assert success is True
+        # Mock noise manager to return False (unnamed location)
+        mock_noise_manager = MagicMock()
+        mock_noise_manager.should_spawn_location.return_value = False
+        mock_noise_manager.world_seed = 42
+        gs.location_noise_manager = mock_noise_manager
 
-                new_loc = gs.get_current_location()
-                assert new_loc.terrain == "mountain"
+        with patch("cli_rpg.game_state.autosave"):
+            success, _ = gs.move("north")
+            assert success is True
+
+            new_loc = gs.get_current_location()
+            assert new_loc.terrain == "mountain"
 
 
 class TestAIUsageForNamed:
     """Tests that named locations trigger AI generation."""
 
     def test_named_location_triggers_ai_or_fallback(self):
-        """When should_generate_named_location returns True, AI is attempted."""
+        """When noise manager returns True, AI or fallback generates named location."""
         # Spec: If TRUE → generate named location via AI (current behavior)
         character = make_character()
         start = Location(
@@ -233,20 +251,25 @@ class TestAIUsageForNamed:
         mock_cm.get_tile_at.return_value = "plains"
         gs.chunk_manager = mock_cm
 
-        # When should_generate_named returns True, the existing AI/fallback path runs
+        # Mock noise manager to return True (named location)
+        mock_noise_manager = MagicMock()
+        mock_noise_manager.should_spawn_location.return_value = True
+        mock_noise_manager.world_seed = 42
+        gs.location_noise_manager = mock_noise_manager
+
+        # When noise manager returns True, the existing AI/fallback path runs
         # AI is not available in tests, so fallback is used
         # But for named locations, the fallback should now set is_named=True
-        with patch("cli_rpg.game_state.should_generate_named_location", return_value=True):
-            with patch("cli_rpg.game_state.autosave"):
-                success, _ = gs.move("north")
-                assert success is True
+        with patch("cli_rpg.game_state.autosave"):
+            success, _ = gs.move("north")
+            assert success is True
 
-                # Counter should reset
-                assert gs.tiles_since_named == 0
+            # Counter should reset
+            assert gs.tiles_since_named == 0
 
-                new_loc = gs.get_current_location()
-                # Named location should have is_named=True
-                assert new_loc.is_named is True
+            new_loc = gs.get_current_location()
+            # Named location should have is_named=True
+            assert new_loc.is_named is True
 
     def test_named_location_counter_resets_after_ai_fallback(self):
         """Counter resets whether AI succeeds or fallback is used."""
@@ -266,12 +289,17 @@ class TestAIUsageForNamed:
         mock_cm.get_tile_at.return_value = "forest"
         gs.chunk_manager = mock_cm
 
-        with patch("cli_rpg.game_state.should_generate_named_location", return_value=True):
-            with patch("cli_rpg.game_state.autosave"):
-                success, _ = gs.move("north")
-                assert success is True
-                # Counter reset regardless of AI or fallback
-                assert gs.tiles_since_named == 0
+        # Mock noise manager to return True (named location)
+        mock_noise_manager = MagicMock()
+        mock_noise_manager.should_spawn_location.return_value = True
+        mock_noise_manager.world_seed = 42
+        gs.location_noise_manager = mock_noise_manager
+
+        with patch("cli_rpg.game_state.autosave"):
+            success, _ = gs.move("north")
+            assert success is True
+            # Counter reset regardless of AI or fallback
+            assert gs.tiles_since_named == 0
 
 
 class TestMoveToExistingLocation:
