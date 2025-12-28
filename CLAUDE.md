@@ -100,6 +100,7 @@ src/cli_rpg/
 ├── fallback_content.py  # FallbackContentProvider: centralized deterministic fallback templates for rooms, NPCs, items, quests
 ├── test_world.py        # Demo mode fixture loading (load_test_world, create_demo_game_state)
 └── models/
+    ├── content_request.py # Typed request/response schemas for content generation (RoomContentRequest, NPCContentRequest, etc.)
     ├── character.py     # Player character model
     ├── district.py      # District model for mega-settlements (DistrictType enum, bounds, atmosphere)
     ├── dread.py         # Dread meter for psychological horror

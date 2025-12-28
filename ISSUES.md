@@ -47,7 +47,7 @@ Refactor to use **procedural generation for world structure** while keeping **AI
 - ✓ `src/cli_rpg/content_layer.py` - Mediator between procedural and AI (CREATED 2025-12-28)
 - ✓ `src/cli_rpg/content_cache.py` - Deterministic content caching (CREATED 2025-12-28)
 - ✓ `src/cli_rpg/fallback_content.py` - Centralized FallbackContentProvider with deterministic templates (CREATED 2025-12-28)
-- `src/cli_rpg/models/content_request.py` - Request/response schemas
+- ✓ `src/cli_rpg/models/content_request.py` - Request/response schemas (CREATED 2025-12-28)
 
 #### Files to Modify
 - `src/cli_rpg/ai_world.py` - Use procedural layout + content layer
@@ -57,10 +57,10 @@ Refactor to use **procedural generation for world structure** while keeping **AI
 
 #### Implementation Phases
 
-**Phase 1: Core Infrastructure**
+**Phase 1: Core Infrastructure** ✓ COMPLETE
 1. ✓ Create `procedural_interiors.py` with RoomType enum and RoomTemplate dataclass (COMPLETED 2025-12-28)
 2. ✓ Create `location_noise.py` with pure-Python simplex noise (COMPLETED 2025-12-28)
-3. Create content request/response models
+3. ✓ Create content request/response models (COMPLETED 2025-12-28)
 
 **Phase 2: Procedural Generators**
 4. ✓ Implement BSPGenerator (dungeons, temples, ruins, tombs, crypts, monasteries, shrines) (COMPLETED 2025-12-28)
