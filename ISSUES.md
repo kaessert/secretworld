@@ -400,7 +400,7 @@ python -m scripts.run_validation --report-format=html --output=report.html
 2. ✅ Implement personality.py with 5 presets (PersonalityType enum, PersonalityTraits dataclass, serialization)
 3. ✅ Implement memory.py with failure tracking (FailureRecord, NPCMemory, LocationMemory, AgentMemory)
 4. ✅ Implement class_behaviors.py for all 5 classes (CharacterClassName enum, ClassBehaviorConfig, ClassBehavior Protocol, 5 behavior classes with combat/exploration strategies, 47 tests)
-5. Extend AgentState with environmental fields
+5. ✅ Extend AgentState with environmental fields (`time_of_day`, `hour`, `season`, `weather`, `tiredness`) and helper methods (`is_night()`, `is_tired()`, `is_exhausted()`, `is_bad_weather()`, `should_rest()`)
 6. Refactor Agent to HumanLikeAgent
 
 **Phase 3: Validation Framework (MEDIUM)**

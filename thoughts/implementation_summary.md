@@ -1,67 +1,53 @@
-# Implementation Summary: class_behaviors.py
+# Implementation Summary: AgentState Environmental Fields
 
 ## What Was Implemented
 
-Created `scripts/agent/class_behaviors.py` with class-specific combat and exploration strategies for all 5 character classes (Warrior, Mage, Rogue, Ranger, Cleric) to make the AI agent behave differently based on character class.
+Added environmental awareness fields and helper methods to `AgentState` in `scripts/state_parser.py`:
 
-### Files Created/Modified
+### New Fields (lines 87-91)
+- `time_of_day: str = "day"` - "day" or "night" derived from hour
+- `hour: int = 6` - Current hour 0-23
+- `season: str = "spring"` - "spring", "summer", "autumn", "winter"
+- `weather: str = "clear"` - "clear", "rain", "storm", "fog"
+- `tiredness: int = 0` - Current tiredness level 0-100
 
-1. **`scripts/agent/class_behaviors.py`** (new - 347 lines)
-   - `CharacterClassName` enum - mirrors game's CharacterClass (WARRIOR, MAGE, ROGUE, RANGER, CLERIC)
-   - `ClassBehaviorConfig` dataclass - thresholds and cooldowns with `to_dict`/`from_dict` serialization
-   - `ClassBehavior` Protocol - defines interface with `get_combat_command`, `get_exploration_command`, `should_flee`
-   - 5 concrete behavior classes:
-     - `WarriorBehavior` - bash, stance switching (aggressive/berserker), 15% flee threshold
-     - `MageBehavior` - fireball/ice_bolt, self-heal, mana conservation, 25% flee threshold
-     - `RogueBehavior` - hide/sneak attack cycle, dungeon secret searching (30% chance), 20% flee
-     - `RangerBehavior` - companion summoning, tracking, feeding wounded companion, wilderness comfort
-     - `ClericBehavior` - smite undead, bless at combat start, heal, holy symbol equipped
-   - `BEHAVIOR_REGISTRY` dict - maps CharacterClassName to behavior instances
-   - `get_class_behavior()` helper function
+### New Helper Methods (lines 178-218)
+- `is_night() -> bool` - True if hour 18-23 or 0-5 (night hours)
+- `is_tired() -> bool` - True if tiredness >= 60 (should consider rest)
+- `is_exhausted() -> bool` - True if tiredness >= 80 (attack/perception penalty)
+- `is_bad_weather() -> bool` - True if weather is "storm" or "fog"
+- `should_rest() -> bool` - Composite: is_tired() AND not in_combat AND "rest" in commands
 
-2. **`scripts/agent/__init__.py`** (updated)
-   - Added exports for all new classes and functions
+### Parsing Logic in update_state() (lines 319-362)
+- Parses `character.tiredness.current` for tiredness value
+- Parses `game_time.hour` and `game_time.total_hours` to derive:
+  - `hour` (direct from JSON)
+  - `time_of_day` ("night" for 18-5, "day" for 6-17)
+  - `season` (spring days 1-30, summer 31-60, autumn 61-90, winter 91-120)
+- Parses `weather.condition` for weather value
 
-3. **`tests/test_agent_class_behaviors.py`** (new - 47 tests)
-   - Tests for CharacterClassName enum
-   - Tests for ClassBehaviorConfig dataclass
-   - Tests for registry and get_class_behavior
-   - Tests for each behavior class (Warrior, Mage, Rogue, Ranger, Cleric)
-   - Serialization tests for ClassBehaviorConfig
-
-### Class Behavior Details
-
-| Class   | Combat                              | Exploration              | Flee Threshold |
-|---------|-------------------------------------|--------------------------|----------------|
-| Warrior | bash, stance aggressive/berserker   | Direct approach          | 15% (brave)    |
-| Mage    | fireball/ice_bolt, self-heal        | Conserve mana            | 25% (fragile)  |
-| Rogue   | sneak attacks, hide                 | Search secrets (30%)     | 20%            |
-| Ranger  | companion fights alongside          | summon, track, feed      | 20% (15% wild) |
-| Cleric  | smite undead, bless, heal           | Equip holy symbol        | 20%            |
+## Files Modified
+- `scripts/state_parser.py` - Added fields, methods, and parsing logic
+- `tests/test_ai_agent.py` - Added `TestEnvironmentalAwareness` class with 12 tests
 
 ## Test Results
+All 43 tests in test_ai_agent.py pass, including:
+- 12 new environmental awareness tests covering:
+  - Field parsing from dump_state (game_time, weather, tiredness)
+  - Helper method thresholds (is_night, is_tired, is_exhausted)
+  - Weather condition checks (is_bad_weather)
+  - Composite rest check (should_rest)
+  - Season derivation from total_hours
 
-```
-============================= test session starts ==============================
-tests/test_agent_class_behaviors.py ... 47 passed in 0.15s
-tests/test_agent_*.py ... 116 passed in 0.25s
-```
+## Design Decisions
+1. Season derivation mirrors `GameTime.get_season()` logic exactly (120-day year, 30 days per season)
+2. Night hours match `GameTime.is_night()` (18-5 inclusive)
+3. Tiredness thresholds (60/80) align with game's Tiredness model penalties
+4. Weather check focuses on storm/fog as "bad" since these affect visibility and dread
 
-All tests pass including:
-- 47 new class behavior tests
-- 69 existing agent tests (personality, memory, checkpoint)
-
-## Technical Notes
-
-- Uses Protocol for duck-typing (class behaviors don't need to inherit from a base class)
-- Each behavior class maintains internal state (e.g., `_is_hidden` for Rogue, `_mana_percent` for Mage)
-- Behaviors return `None` to signal "use default attack" - caller handles fallback
-- Mage's `_mana_percent` is set externally (could be parsed from game state in future)
-- Random elements for variety (Mage spell choice, Rogue search probability, Ranger track probability)
-
-## E2E Test Validation
-
-The class behaviors integrate with the AI agent system and can be validated by:
-1. Running simulation with different character classes
-2. Verifying class-specific commands are issued in combat/exploration
-3. Checking flee behavior matches class thresholds
+## E2E Validation
+The agent can now use these fields to make smarter decisions:
+- `is_night()` - Be cautious of undead (+50% spawn rate at night)
+- `is_tired()` / `is_exhausted()` - Prioritize rest to avoid penalties
+- `is_bad_weather()` - Account for visibility issues and extra dread
+- `should_rest()` - Composite check for safe rest opportunities

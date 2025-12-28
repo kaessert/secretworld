@@ -83,6 +83,12 @@ class AgentState:
     commands: list[str] = field(default_factory=list)
     inventory: list[str] = field(default_factory=list)
     dread: int = 0
+    # Environmental awareness fields
+    time_of_day: str = "day"
+    hour: int = 6
+    season: str = "spring"
+    weather: str = "clear"
+    tiredness: int = 0
     quests: list[str] = field(default_factory=list)
     quest_details: list[QuestInfo] = field(default_factory=list)
     in_sub_location: bool = False
@@ -168,6 +174,48 @@ class AgentState:
         """Check if there are exits leading to unvisited locations."""
         # This is a heuristic - we don't know for sure without checking
         return len(self.exits) > 0
+
+    def is_night(self) -> bool:
+        """Check if it's currently night time (18:00-5:59).
+
+        Returns:
+            True if night (hour 18-23 or 0-5), False otherwise
+        """
+        return self.hour >= 18 or self.hour < 6
+
+    def is_tired(self) -> bool:
+        """Check if tiredness level indicates need for rest (60+).
+
+        Returns:
+            True if tiredness >= 60
+        """
+        return self.tiredness >= 60
+
+    def is_exhausted(self) -> bool:
+        """Check if tiredness level causes penalties (80+).
+
+        Returns:
+            True if tiredness >= 80 (attack/perception penalty active)
+        """
+        return self.tiredness >= 80
+
+    def is_bad_weather(self) -> bool:
+        """Check for storm or fog conditions that affect gameplay.
+
+        Returns:
+            True if weather is 'storm' or 'fog'
+        """
+        return self.weather in ("storm", "fog")
+
+    def should_rest(self) -> bool:
+        """Check if agent should consider resting.
+
+        Composite check: tired AND not in combat AND rest command available.
+
+        Returns:
+            True if conditions favor resting
+        """
+        return self.is_tired() and not self.in_combat and "rest" in self.commands
 
 
 def parse_line(line: str) -> Optional[dict[str, Any]]:
@@ -268,6 +316,10 @@ def update_state(state: AgentState, message: dict[str, Any]) -> None:
             if "dread_meter" in char:
                 state.dread = char["dread_meter"].get("dread", 0)
 
+            # Extract tiredness
+            if "tiredness" in char:
+                state.tiredness = char["tiredness"].get("current", 0)
+
             # Extract quests with full details
             if "quests" in char:
                 state.quests = []
@@ -286,6 +338,28 @@ def update_state(state: AgentState, message: dict[str, Any]) -> None:
                             status=status,
                         )
                         state.quest_details.append(quest_info)
+
+        # Extract game time and derive time_of_day/season
+        if "game_time" in message:
+            game_time = message["game_time"]
+            state.hour = game_time.get("hour", 6)
+            # Derive time_of_day from hour (matches GameTime.get_period())
+            state.time_of_day = "night" if (state.hour >= 18 or state.hour < 6) else "day"
+            # Derive season from total_hours (matches GameTime.get_season())
+            total_hours = game_time.get("total_hours", 0)
+            day = (total_hours // 24 % 120) + 1
+            if day <= 30:
+                state.season = "spring"
+            elif day <= 60:
+                state.season = "summer"
+            elif day <= 90:
+                state.season = "autumn"
+            else:
+                state.season = "winter"
+
+        # Extract weather
+        if "weather" in message:
+            state.weather = message["weather"].get("condition", "clear")
 
         if "current_location" in message:
             state.location = message["current_location"]

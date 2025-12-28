@@ -435,3 +435,201 @@ class TestVerboseMode:
         captured = capsys.readouterr()
         assert "[AGENT]" in captured.out
         assert "Fleeing" in captured.out
+
+
+class TestEnvironmentalAwareness:
+    """Test environmental awareness fields and helper methods.
+
+    Spec from plan:
+    - Fields: time_of_day, hour, season, weather, tiredness
+    - Helper methods: is_night, is_tired, is_exhausted, is_bad_weather, should_rest
+    """
+
+    # Spec: Field parsing from dump_state - test_update_state_parses_game_time
+    def test_update_state_parses_game_time(self):
+        """update_state parses hour, time_of_day, season from game_time."""
+        state = AgentState()
+        message = {
+            "type": "dump_state",
+            "game_time": {
+                "hour": 14,
+                "total_hours": 696,  # Day 30 = still spring (696/24=29, +1=30)
+            },
+            "character": {},
+        }
+        update_state(state, message)
+
+        assert state.hour == 14
+        assert state.time_of_day == "day"
+        assert state.season == "spring"
+
+    # Spec: Field parsing from dump_state - test_update_state_parses_weather
+    def test_update_state_parses_weather(self):
+        """update_state parses weather condition."""
+        state = AgentState()
+        message = {
+            "type": "dump_state",
+            "weather": {"condition": "storm"},
+            "character": {},
+        }
+        update_state(state, message)
+
+        assert state.weather == "storm"
+
+    # Spec: Field parsing from dump_state - test_update_state_parses_tiredness
+    def test_update_state_parses_tiredness(self):
+        """update_state parses tiredness from character."""
+        state = AgentState()
+        message = {
+            "type": "dump_state",
+            "character": {
+                "tiredness": {"current": 75},
+            },
+        }
+        update_state(state, message)
+
+        assert state.tiredness == 75
+
+    # Spec: Helper method - test_is_night_true_at_night_hours (hour 18-23, 0-5)
+    def test_is_night_true_at_night_hours(self):
+        """is_night returns True for night hours (18-23, 0-5)."""
+        # Night starts at 18:00
+        state = AgentState(hour=18)
+        assert state.is_night() is True
+
+        state = AgentState(hour=23)
+        assert state.is_night() is True
+
+        state = AgentState(hour=0)
+        assert state.is_night() is True
+
+        state = AgentState(hour=5)
+        assert state.is_night() is True
+
+    # Spec: Helper method - test_is_night_false_at_day_hours (hour 6-17)
+    def test_is_night_false_at_day_hours(self):
+        """is_night returns False for day hours (6-17)."""
+        state = AgentState(hour=6)
+        assert state.is_night() is False
+
+        state = AgentState(hour=12)
+        assert state.is_night() is False
+
+        state = AgentState(hour=17)
+        assert state.is_night() is False
+
+    # Spec: Helper method - test_is_tired_threshold (tiredness >= 60)
+    def test_is_tired_threshold(self):
+        """is_tired returns True for tiredness >= 60."""
+        state = AgentState(tiredness=59)
+        assert state.is_tired() is False
+
+        state = AgentState(tiredness=60)
+        assert state.is_tired() is True
+
+        state = AgentState(tiredness=80)
+        assert state.is_tired() is True
+
+    # Spec: Helper method - test_is_exhausted_threshold (tiredness >= 80)
+    def test_is_exhausted_threshold(self):
+        """is_exhausted returns True for tiredness >= 80."""
+        state = AgentState(tiredness=79)
+        assert state.is_exhausted() is False
+
+        state = AgentState(tiredness=80)
+        assert state.is_exhausted() is True
+
+        state = AgentState(tiredness=100)
+        assert state.is_exhausted() is True
+
+    # Spec: Helper method - test_is_bad_weather_storm_fog
+    def test_is_bad_weather_storm_fog(self):
+        """is_bad_weather returns True for storm and fog."""
+        state = AgentState(weather="storm")
+        assert state.is_bad_weather() is True
+
+        state = AgentState(weather="fog")
+        assert state.is_bad_weather() is True
+
+    # Spec: Helper method - test_is_bad_weather_clear_rain
+    def test_is_bad_weather_clear_rain(self):
+        """is_bad_weather returns False for clear and rain."""
+        state = AgentState(weather="clear")
+        assert state.is_bad_weather() is False
+
+        state = AgentState(weather="rain")
+        assert state.is_bad_weather() is False
+
+    # Spec: Helper method - test_should_rest_composite
+    def test_should_rest_composite(self):
+        """should_rest combines tiredness + not in combat + rest command."""
+        # Should rest when tired, not in combat, and rest is available
+        state = AgentState(tiredness=60, in_combat=False, commands=["rest", "look"])
+        assert state.should_rest() is True
+
+        # Not tired enough
+        state = AgentState(tiredness=59, in_combat=False, commands=["rest", "look"])
+        assert state.should_rest() is False
+
+        # In combat
+        state = AgentState(tiredness=70, in_combat=True, commands=["rest", "attack"])
+        assert state.should_rest() is False
+
+        # Rest not available
+        state = AgentState(tiredness=70, in_combat=False, commands=["look", "go"])
+        assert state.should_rest() is False
+
+    # Spec: Season derivation - test_season_from_total_hours
+    def test_season_from_total_hours(self):
+        """Season derived from total_hours: spring days 1-30, summer 31-60, etc."""
+        state = AgentState()
+
+        # Spring: Days 1-30 (hours 0-719)
+        message = {"type": "dump_state", "game_time": {"hour": 12, "total_hours": 0}, "character": {}}
+        update_state(state, message)
+        assert state.season == "spring"
+
+        message = {"type": "dump_state", "game_time": {"hour": 12, "total_hours": 696}, "character": {}}  # Day 29
+        update_state(state, message)
+        assert state.season == "spring"
+
+        # Summer: Days 31-60 (hours 720-1439)
+        message = {"type": "dump_state", "game_time": {"hour": 12, "total_hours": 720}, "character": {}}  # Day 31
+        update_state(state, message)
+        assert state.season == "summer"
+
+        message = {"type": "dump_state", "game_time": {"hour": 12, "total_hours": 1416}, "character": {}}  # Day 60
+        update_state(state, message)
+        assert state.season == "summer"
+
+        # Autumn: Days 61-90 (hours 1440-2159)
+        message = {"type": "dump_state", "game_time": {"hour": 12, "total_hours": 1440}, "character": {}}  # Day 61
+        update_state(state, message)
+        assert state.season == "autumn"
+
+        # Winter: Days 91-120 (hours 2160-2879)
+        message = {"type": "dump_state", "game_time": {"hour": 12, "total_hours": 2160}, "character": {}}  # Day 91
+        update_state(state, message)
+        assert state.season == "winter"
+
+    def test_time_of_day_derived_from_hour(self):
+        """time_of_day is 'night' for hours 18-5, 'day' for 6-17."""
+        state = AgentState()
+
+        # Night hours
+        message = {"type": "dump_state", "game_time": {"hour": 22, "total_hours": 0}, "character": {}}
+        update_state(state, message)
+        assert state.time_of_day == "night"
+
+        message = {"type": "dump_state", "game_time": {"hour": 3, "total_hours": 0}, "character": {}}
+        update_state(state, message)
+        assert state.time_of_day == "night"
+
+        # Day hours
+        message = {"type": "dump_state", "game_time": {"hour": 6, "total_hours": 0}, "character": {}}
+        update_state(state, message)
+        assert state.time_of_day == "day"
+
+        message = {"type": "dump_state", "game_time": {"hour": 14, "total_hours": 0}, "character": {}}
+        update_state(state, message)
+        assert state.time_of_day == "day"
