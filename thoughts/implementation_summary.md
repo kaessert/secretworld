@@ -1,32 +1,36 @@
-# Implementation Summary: Fix Flaky `test_maze_layout_has_dead_ends` Test
+# Implementation Summary: Fix Maze Layout Tests
 
 ## Date: 2025-12-28
 
 ## Overview
 
-Fixed a flaky test in `tests/test_procedural_layouts.py::TestMazeLayout::test_maze_layout_has_dead_ends` by modifying the `_generate_maze_layout()` method to guarantee at least one dead end in maze layouts.
+Fixed two flaky tests in `tests/test_procedural_layouts.py` by modifying the `_generate_maze_layout()` method to properly respect size constraints while ensuring dead ends exist.
 
 ## Files Modified
 
 ### Core Implementation
 
-1. **`src/cli_rpg/ai_service.py`** - Added post-processing step to `_generate_maze_layout()` (lines 3426-3444)
+1. **`src/cli_rpg/ai_service.py`** - Modified dead-end fix logic in `_generate_maze_layout()` (lines 3433-3461)
 
 ## Change Details
 
-Added a post-processing step after the main maze generation loop that:
-1. Counts the number of dead ends (nodes with exactly 1 neighbor)
-2. If zero dead ends exist and the layout has 3+ nodes, extends the layout by adding one more cell from any node that has an unvisited neighbor
+### The Problem
+The original code would unconditionally add a dead-end coordinate when none existed, causing the returned list to exceed the requested size (e.g., returning 11 coords when 10 were requested).
 
-This guarantees at least one dead end in any maze layout with 3+ nodes.
+### The Fix
+Modified the dead-end fix logic to handle two cases:
+1. **When under size limit** (`len(coords) < size`): Add a dead end as before (room to add)
+2. **When at size limit** (`len(coords) >= size`): Replace the last coordinate with a dead end instead of adding one
+
+Added a final `return coords[:size]` as a safety guarantee to never exceed the requested size.
 
 ## Root Cause
 
-The random walk with backtracking algorithm could produce compact clusters where all nodes have 2+ neighbors with certain random seeds, resulting in zero dead ends and causing the test to fail intermittently.
+The random walk with backtracking algorithm could produce compact clusters where all nodes have 2+ neighbors. The original fix for this (adding a dead end) didn't account for the size constraint, causing `test_maze_layout_respects_size` to fail intermittently.
 
 ## Test Results
 
-- **Specific test**: Ran `test_maze_layout_has_dead_ends` 50 times consecutively - all passed (0 failures)
+- **Specific tests**: Ran `test_maze_layout_has_dead_ends` and `test_maze_layout_respects_size` 30+ times consecutively - all passed (0 failures)
 - **Full test file**: All 35 tests in `tests/test_procedural_layouts.py` pass
 
 ## E2E Validation

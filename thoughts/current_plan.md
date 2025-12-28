@@ -1,62 +1,55 @@
-# Plan: Fix Flaky `test_maze_layout_has_dead_ends` Test
+# Fix Maze Layout Tests
 
 ## Problem
-The test `tests/test_procedural_layouts.py::TestMazeLayout::test_maze_layout_has_dead_ends` is flaky. Running it 20 times shows it fails intermittently because the maze layout algorithm doesn't guarantee topological dead ends (nodes with exactly 1 neighbor).
+Two failing tests in `tests/test_procedural_layouts.py`:
+1. `test_maze_layout_has_dead_ends` - finds 0 dead ends (expects ≥1)
+2. `test_maze_layout_respects_size` - returns 11 coords when 10 requested
 
 ## Root Cause
-The `_generate_maze_layout()` method in `ai_service.py` (lines 3386-3426) uses a random walk with backtracking. However, with certain random seeds, the algorithm can produce compact clusters where all nodes have 2+ neighbors, resulting in zero dead ends.
+In `src/cli_rpg/ai_service.py` lines 3433-3444, the dead-end fix logic adds an extra coord WITHOUT checking if we've already reached the size limit, causing the size to exceed the requested amount.
 
----
+## Implementation
 
-## Fix Strategy
-Modify `_generate_maze_layout()` to guarantee at least one dead end by ensuring the final node added is always a dead end (only one neighbor).
+### Fix `_generate_maze_layout()` at line 3433
 
----
-
-## Implementation Steps
-
-### 1. Modify `src/cli_rpg/ai_service.py` `_generate_maze_layout()` method
-
-After the main loop, add a post-processing step:
-- Count dead ends in the generated coords
-- If zero dead ends exist and size > 2, extend a random leaf node with a new dead-end cell
-- Alternative: Track which nodes are "leaves" during generation and avoid filling them in
-
-**Simpler approach**: After generation, if no dead ends exist, add one more cell extending from any node that has room for an unvisited neighbor. This guarantees at least one dead end.
+Change the dead-end fix to respect size constraints:
 
 ```python
-# After the while loop, ensure at least one dead end
-dead_ends = sum(1 for x, y in coords
-                if sum(1 for dx, dy in directions
-                       if (x+dx, y+dy) in coord_set) == 1)
-
 if dead_ends == 0 and len(coords) >= 3:
-    # Find a cell with an unvisited neighbor and extend
-    for x, y in coords:
-        for dx, dy in directions:
-            neighbor = (x + dx, y + dy)
-            if neighbor not in coord_set:
-                coords.append(neighbor)
-                coord_set.add(neighbor)
-                break
-        else:
-            continue
-        break
+    if len(coords) < size:
+        # Room to add a dead end
+        for x, y in coords:
+            for dx, dy in directions:
+                neighbor = (x + dx, y + dy)
+                if neighbor not in coord_set:
+                    coords.append(neighbor)
+                    coord_set.add(neighbor)
+                    break
+            else:
+                continue
+            break
+    elif len(coords) > 3:
+        # At size limit - replace last coord with a dead end
+        removed = coords.pop()
+        coord_set.remove(removed)
+        for x, y in coords:
+            for dx, dy in directions:
+                neighbor = (x + dx, y + dy)
+                if neighbor not in coord_set:
+                    coords.append(neighbor)
+                    coord_set.add(neighbor)
+                    break
+            else:
+                continue
+            break
+
+return coords[:size]  # Guarantee exact size
 ```
 
----
-
-## Tests
-
-No new tests needed. The existing test `test_maze_layout_has_dead_ends` should pass consistently after the fix.
-
-### Verification
-Run the test 50+ times to confirm no flakiness:
+### Verify
 ```bash
-pytest tests/test_procedural_layouts.py::TestMazeLayout::test_maze_layout_has_dead_ends -v --count=50
+pytest tests/test_procedural_layouts.py::TestMazeLayout -v
 ```
 
----
-
-## Files to Modify
-- `src/cli_rpg/ai_service.py` - Fix `_generate_maze_layout()` (around line 3426)
+## File to Modify
+- `src/cli_rpg/ai_service.py` - lines 3433-3446

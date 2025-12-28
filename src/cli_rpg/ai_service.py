@@ -3431,19 +3431,34 @@ The category field in your JSON response MUST be "{required_category}"."""
         )
 
         if dead_ends == 0 and len(coords) >= 3:
-            # Find a cell with an unvisited neighbor and extend to create a dead end
-            for x, y in coords:
-                for dx, dy in directions:
-                    neighbor = (x + dx, y + dy)
-                    if neighbor not in coord_set:
-                        coords.append(neighbor)
-                        coord_set.add(neighbor)
-                        break
-                else:
-                    continue
-                break
+            if len(coords) < size:
+                # Room to add a dead end
+                for x, y in coords:
+                    for dx, dy in directions:
+                        neighbor = (x + dx, y + dy)
+                        if neighbor not in coord_set:
+                            coords.append(neighbor)
+                            coord_set.add(neighbor)
+                            break
+                    else:
+                        continue
+                    break
+            elif len(coords) > 3:
+                # At size limit - replace last coord with a dead end
+                removed = coords.pop()
+                coord_set.remove(removed)
+                for x, y in coords:
+                    for dx, dy in directions:
+                        neighbor = (x + dx, y + dy)
+                        if neighbor not in coord_set:
+                            coords.append(neighbor)
+                            coord_set.add(neighbor)
+                            break
+                    else:
+                        continue
+                    break
 
-        return coords
+        return coords[:size]
 
     def _generate_branching_layout(
         self, size: int, entry_direction: str
