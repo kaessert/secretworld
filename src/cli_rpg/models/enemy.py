@@ -101,6 +101,7 @@ class Enemy:
     faction_affiliation: Optional[str] = None  # Faction this enemy belongs to (for reputation effects)
     special_attacks: List[SpecialAttack] = field(default_factory=list)  # Special attacks for bosses
     telegraphed_attack: Optional[str] = None  # Name of special attack telegraphed for next turn
+    perception: int = 5  # Perception stat for stealth detection (baseline awareness)
 
     def __post_init__(self):
         """Validate enemy attributes."""
@@ -258,6 +259,7 @@ class Enemy:
             "faction_affiliation": self.faction_affiliation,
             "special_attacks": [a.to_dict() for a in self.special_attacks],
             "telegraphed_attack": self.telegraphed_attack,
+            "perception": self.perception,
         }
     
     @staticmethod
@@ -318,4 +320,5 @@ class Enemy:
             faction_affiliation=data.get("faction_affiliation"),
             special_attacks=special_attacks,
             telegraphed_attack=data.get("telegraphed_attack"),
+            perception=data.get("perception", 5),
         )

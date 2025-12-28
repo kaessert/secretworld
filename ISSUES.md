@@ -280,9 +280,9 @@ quest = Quest(
 **Implemented**:
 - `sneak` command for Rogues (combat stealth, exploration encounter avoidance)
 - `hide` command in combat
+- Enemies with perception stats (default: 5, for stealth detection mechanics)
 
 **Remaining**:
-- Enemies with perception stats
 - Stealth kills bonus XP
 
 ---

@@ -1,3 +1,44 @@
+# Add Perception Stat to Enemy Model - Implementation Summary
+
+## Date: 2025-12-28
+
+## What Was Implemented
+
+Added a `perception` stat field to the Enemy model for stealth detection mechanics.
+
+### Files Modified
+
+1. **`src/cli_rpg/models/enemy.py`**
+   - Added `perception: int = 5` field to Enemy dataclass (line 104)
+   - Added `"perception": self.perception` to `to_dict()` serialization (line 262)
+   - Added `perception=data.get("perception", 5)` to `from_dict()` deserialization (line 323)
+
+2. **`tests/test_enemy.py`**
+   - Updated `test_to_dict_serializes_enemy` to include perception in expected output
+   - Added `assert restored.perception == original.perception` to `test_serialization_roundtrip`
+   - Added new `TestEnemyPerception` test class with 4 tests:
+     - `test_default_perception_is_five`: Verifies default value is 5
+     - `test_custom_perception_value`: Verifies custom perception can be set
+     - `test_perception_serialization_roundtrip`: Verifies perception survives save/load
+     - `test_from_dict_uses_default_perception_for_legacy_data`: Verifies backward compatibility
+
+## Test Results
+
+- **Enemy tests**: 20 passed
+- **Full test suite**: 5357 passed, 4 skipped, 1 warning
+
+## Design Decisions
+
+- Default perception value is 5 (baseline awareness) as per spec
+- `from_dict()` uses default of 5 for backward compatibility with existing save files that don't have the perception field
+- Perception field is added at the end of the dataclass to avoid breaking existing positional argument usage
+
+## E2E Validation
+
+The basic Enemy model functionality should be validated via existing gameplay that creates and serializes enemies. Any save/load functionality will automatically include perception in new saves and handle legacy saves gracefully.
+
+---
+
 # Rare Crafting Recipes as Rewards - Implementation Summary
 
 ## Date: 2025-12-28

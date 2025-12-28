@@ -234,6 +234,7 @@ class TestEnemySerialization:
             "faction_affiliation": None,
             "special_attacks": [],
             "telegraphed_attack": None,
+            "perception": 5,
         }
 
     def test_from_dict_deserializes_enemy(self):
@@ -273,3 +274,64 @@ class TestEnemySerialization:
         assert restored.attack_power == original.attack_power
         assert restored.defense == original.defense
         assert restored.xp_reward == original.xp_reward
+        assert restored.perception == original.perception
+
+
+class TestEnemyPerception:
+    """Test perception stat for stealth detection."""
+
+    def test_default_perception_is_five(self):
+        """Spec: Default perception should be 5 (baseline awareness)."""
+        enemy = Enemy(
+            name="Goblin",
+            health=30,
+            max_health=30,
+            attack_power=5,
+            defense=2,
+            xp_reward=25
+        )
+        assert enemy.perception == 5
+
+    def test_custom_perception_value(self):
+        """Spec: Enemy perception can be set to custom value."""
+        enemy = Enemy(
+            name="Scout",
+            health=25,
+            max_health=25,
+            attack_power=4,
+            defense=1,
+            xp_reward=30,
+            perception=8  # High perception scout
+        )
+        assert enemy.perception == 8
+
+    def test_perception_serialization_roundtrip(self):
+        """Spec: Perception should survive serialization roundtrip."""
+        original = Enemy(
+            name="Sentry",
+            health=40,
+            max_health=40,
+            attack_power=6,
+            defense=3,
+            xp_reward=35,
+            perception=10
+        )
+        data = original.to_dict()
+        assert data["perception"] == 10
+
+        restored = Enemy.from_dict(data)
+        assert restored.perception == 10
+
+    def test_from_dict_uses_default_perception_for_legacy_data(self):
+        """Spec: from_dict should default to perception=5 for legacy save data."""
+        # Simulate legacy save data without perception field
+        legacy_data = {
+            "name": "Skeleton",
+            "health": 20,
+            "max_health": 20,
+            "attack_power": 4,
+            "defense": 2,
+            "xp_reward": 20,
+        }
+        enemy = Enemy.from_dict(legacy_data)
+        assert enemy.perception == 5  # Should use default
