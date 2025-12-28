@@ -251,6 +251,7 @@ class TestAgentDecisions:
     def test_agent_rests_when_dread_high(self):
         """Agent rests when HP < 50% and dread > 60%."""
         agent = Agent()
+        agent.needs_look = False  # Bypass initial look requirement to test decision logic
         # Agent needs HP < 50% to enter healing decision path where dread is checked
         state = AgentState(
             health=49,
@@ -265,6 +266,7 @@ class TestAgentDecisions:
     def test_agent_rests_when_hp_low_out_of_combat(self):
         """Agent rests when HP < 50% outside combat."""
         agent = Agent()
+        agent.needs_look = False  # Bypass initial look requirement to test decision logic
         state = AgentState(
             health=40,
             max_health=100,
@@ -279,6 +281,7 @@ class TestAgentDecisions:
     def test_agent_explores_when_healthy(self):
         """Agent moves to exit when healthy and not in combat."""
         agent = Agent()
+        agent.needs_look = False  # Bypass initial look requirement to test decision logic
         state = AgentState(
             health=100,
             max_health=100,
@@ -292,6 +295,7 @@ class TestAgentDecisions:
     def test_agent_talks_to_npc_when_no_exits(self):
         """Agent talks to NPC when present but no exits available."""
         agent = Agent()
+        agent.needs_look = False  # Bypass initial look requirement to test decision logic
         state = AgentState(
             health=100,
             max_health=100,
@@ -308,6 +312,7 @@ class TestAgentDecisions:
         """Agent uses complete command when ready-to-turn-in quest and complete available."""
         from scripts.state_parser import QuestInfo
         agent = Agent()
+        agent.needs_look = False  # Bypass initial look requirement to test decision logic
         # Mark NPC as already talked to so agent uses "complete" instead of "talk"
         agent.talked_this_location.add("Quest Giver")
         state = AgentState(

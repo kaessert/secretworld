@@ -151,8 +151,9 @@ class Agent:
         Returns:
             True if in combat
         """
-        # Direct state check
+        # Direct state check - primary source of truth
         if state.in_combat:
+            self.in_combat_override = True
             return True
 
         # Check narrative for combat indicators
@@ -160,16 +161,26 @@ class Agent:
             self.in_combat_override = True
             return True
 
+        # Check if enemy exists (combat message sets this)
+        if state.enemy and state.enemy_health > 0:
+            self.in_combat_override = True
+            return True
+
+        # Check last narrative for "Can't do that during combat"
+        if "can't do that during combat" in state.last_narrative.lower():
+            self.in_combat_override = True
+            return True
+
         # Check if commands indicate combat (only combat commands available)
         combat_only_commands = {"attack", "defend", "flee", "block", "parry"}
         if state.commands:
             available = set(state.commands)
-            if combat_only_commands & available and "go" not in " ".join(state.commands):
+            if combat_only_commands & available and "enter" not in state.commands:
                 self.in_combat_override = True
                 return True
 
-        # Reset override if we clearly aren't in combat
-        if state.exits or "go" in " ".join(state.commands):
+        # Reset override only if we have clear non-combat indicators
+        if state.exits and not state.enemy:
             self.in_combat_override = False
 
         return self.in_combat_override
@@ -311,11 +322,28 @@ class Agent:
             "you escaped",
             "combat ends",
             "victory",
+            "enemy fell",
+            "you won",
         ]
         if any(indicator in narrative_lower for indicator in combat_ended_indicators):
             self.in_combat_override = False
+            # Clear enemy state
+            state.enemy = ""
+            state.enemy_health = 0
+            state.in_combat = False
             if self.verbose:
                 print("[AGENT] Combat ended, returning to exploration")
+            self.needs_look = True
+            self.last_command = "look"
+            return "look"
+
+        # Also check if enemy health is 0 (we won)
+        if state.enemy_health <= 0 and state.enemy:
+            self.in_combat_override = False
+            state.enemy = ""
+            state.in_combat = False
+            if self.verbose:
+                print("[AGENT] Enemy defeated, returning to exploration")
             self.needs_look = True
             self.last_command = "look"
             return "look"
@@ -666,10 +694,17 @@ class Agent:
         """
         hp_pct = state.health_percent
 
-        # Say bye if in conversation (has "bye" available but no other conversation indicators)
-        if "bye" in state.commands:
+        # Detect if we're in a conversation and need to say bye
+        # Check narrative for conversation indicators since "bye" isn't in commands
+        in_conversation = (
+            "type 'bye' to leave" in state.last_narrative.lower() or
+            "(continue chatting" in state.last_narrative.lower() or
+            "how do you respond?" in state.last_narrative.lower() or
+            self.last_command.startswith("talk ")
+        )
+        if in_conversation and self.last_command != "bye":
             if self.verbose:
-                print("[AGENT] Saying bye")
+                print("[AGENT] Saying bye to leave conversation")
             self.last_command = "bye"
             return "bye"
 
@@ -1157,7 +1192,9 @@ class GameSession:
                 self._send_command(command)
 
                 # Wait for and process response
-                response_lines = self._read_output(wait_time=0.15)
+                # Use longer wait for movement commands to allow world generation
+                wait = 0.5 if command.startswith("go ") else 0.2
+                response_lines = self._read_output(wait_time=wait, min_lines=1)
                 self._process_messages(response_lines)
 
                 # Periodically refresh full state
