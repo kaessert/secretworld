@@ -1,75 +1,38 @@
-# Terrain Immutability Implementation Summary
+# Implementation Summary
 
-## What Was Implemented
+## Task: Documentation Cleanup - Clarify Named Location Enterability Issue
 
-### 1. Added `_synced` Flag to ChunkManager
-**File:** `src/cli_rpg/wfc_chunks.py`
+### What Was Done
 
-- Added `_synced: bool = False` attribute to the ChunkManager dataclass
-- Flag is set to `True` at the end of `sync_with_locations()`
-- This tracks whether initial world setup is complete
+Updated `ISSUES.md` to mark the "All Named Locations Should Be Enterable" issue (lines 41-68) as **COMPLETED (Clarified as Working as Designed)**.
 
-### 2. Added Defensive Warning in `set_tile_at()`
-**File:** `src/cli_rpg/wfc_chunks.py`
+### Changes Made
 
-- Modified `set_tile_at()` to log a warning if called after `_synced` is True
-- Uses `logging.getLogger(__name__)` for proper logging integration
-- Warning message: "Terrain modification at (x, y) after sync - this may violate terrain immutability contract"
+**File Modified**: `ISSUES.md`
 
-### 3. Added `assert_terrain_unchanged()` Helper Method
-**File:** `src/cli_rpg/wfc_chunks.py`
+1. Changed status from `OPEN` to `COMPLETED ✓ (Clarified as Working as Designed)`
+2. Added `Completed: 2025-12-28` date
+3. Replaced the "Problem" section with a "Resolution" section explaining:
+   - Category-based enterability is intentional by design
+   - Named locations with enterable categories (18 types) CAN be entered
+   - Named locations with non-enterable categories (forest, wilderness, etc.) CANNOT be entered because they're open terrain
+4. Added "What Was Actually Fixed" section referencing the related bug fix at lines 1444-1467
+5. Added "Verification" section with the existing test code showing this is tested behavior
+6. Updated "Related Files" to reference the actual bug fix issue
 
-- New method to validate terrain at a coordinate matches expected value
-- Raises `AssertionError` with detailed message if terrain doesn't match
-- Can be used in tests and optionally at runtime with `__debug__`
+### Rationale
 
-### 4. Updated Serialization for `_synced` Flag
-**File:** `src/cli_rpg/wfc_chunks.py`
+The analysis in `thoughts/current_plan.md` correctly identified that:
 
-- `to_dict()` now includes `"synced": self._synced`
-- `from_dict()` now restores `_synced` with `data.get("synced", False)`
-- Ensures immutability state persists across save/load
+1. The current behavior is intentional - not all named locations should be enterable
+2. Some named locations represent open terrain (forests, passes, clearings) that have no interior
+3. The actual bug (missing categories in validation) was already fixed in a separate issue
+4. Making ALL named locations enterable would be confusing ("You enter the open grassland... into a corridor?")
 
-## Files Modified
-- `src/cli_rpg/wfc_chunks.py` - Added `_synced` flag, warning, helper method, serialization
+### Test Verification
 
-## Files Created
-- `tests/test_terrain_immutability.py` - 14 new tests for terrain immutability
+No new tests needed - this is documentation cleanup only. The existing test at `tests/test_enterable_sublocations.py:485-510` (`test_enter_fails_for_non_enterable`) already verifies the intended behavior.
 
-## Test Results
+### E2E Validation
 
-### New Tests (14 tests)
-All pass in 0.25s:
-- `test_synced_flag_initially_false` - Verifies `_synced` starts False
-- `test_synced_flag_true_after_sync` - Verifies `_synced` becomes True after sync
-- `test_set_tile_at_before_sync_no_warning` - No warning before sync
-- `test_set_tile_at_after_sync_logs_warning` - Warning logged after sync
-- `test_terrain_matches_chunk_on_location_sync` - Location terrain syncs correctly
-- `test_location_terrain_matches_chunk_terrain` - Consistency verification
-- `test_terrain_unchanged_after_repeated_access` - Access doesn't modify terrain
-- `test_cached_chunk_terrain_immutable` - Cached chunks stay unchanged
-- `test_terrain_unchanged_after_movement_simulation` - Player movement safe
-- `test_synced_flag_serialized` - `_synced` included in `to_dict()`
-- `test_synced_flag_deserialized` - `_synced` restored from `from_dict()`
-- `test_unsynced_flag_deserialized` - Unsynced state preserved
-- `test_assert_terrain_unchanged_passes_when_matching` - Helper passes
-- `test_assert_terrain_unchanged_raises_when_different` - Helper raises
-
-### Existing Tests
-- All 5612 tests pass
-- No regressions
-
-## Design Decisions
-
-1. **Warning instead of Error**: The `set_tile_at()` method logs a warning rather than raising an exception to avoid breaking existing code that might legitimately need to modify terrain (e.g., future features). The warning provides visibility into potential issues.
-
-2. **`_synced` Flag Serialization**: The flag is persisted to ensure that loaded save games maintain the immutability contract from the point where they were saved.
-
-3. **Default `_synced=False` on Deserialization**: Older save files without the `synced` key will default to `False`, which is safe - they just won't have the defensive warning enabled.
-
-## E2E Validation
-
-The following scenarios should validate terrain immutability in E2E tests:
-1. Generate a world and move around - terrain at visited coordinates should remain consistent
-2. Save and load a game - terrain should be identical after reload
-3. If any code path logs a "terrain modification after sync" warning during gameplay, that indicates a potential bug to investigate
+N/A - documentation change only.
