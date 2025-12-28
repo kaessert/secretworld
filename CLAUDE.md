@@ -54,6 +54,7 @@ src/cli_rpg/
 ├── ai_config.py         # AI service configuration
 ├── location_art.py      # Fallback ASCII art templates for locations
 ├── npc_art.py           # Fallback ASCII art templates for NPCs
+├── location_noise.py    # Simplex noise for location spawn density and clustering
 ├── progress.py          # Progress indicators for AI generation (spinner, thematic messages)
 ├── background_gen.py    # Background generation queue for pre-generating adjacent locations
 ├── config.py            # General configuration

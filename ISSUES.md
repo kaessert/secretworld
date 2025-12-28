@@ -43,7 +43,7 @@ Refactor to use **procedural generation for world structure** while keeping **AI
 
 #### New Files Required
 - ✓ `src/cli_rpg/procedural_interiors.py` - RoomType, RoomTemplate, GeneratorProtocol, CATEGORY_GENERATORS (CREATED 2025-12-28)
-- `src/cli_rpg/location_noise.py` - Simplex noise for location density
+- ✓ `src/cli_rpg/location_noise.py` - Simplex noise for location density (CREATED 2025-12-28)
 - `src/cli_rpg/content_layer.py` - Mediator between procedural and AI
 - `src/cli_rpg/content_cache.py` - Deterministic content caching
 - `src/cli_rpg/fallback_content.py` - Expanded template fallbacks
@@ -59,7 +59,7 @@ Refactor to use **procedural generation for world structure** while keeping **AI
 
 **Phase 1: Core Infrastructure**
 1. ✓ Create `procedural_interiors.py` with RoomType enum and RoomTemplate dataclass (COMPLETED 2025-12-28)
-2. Create `location_noise.py` with pure-Python simplex noise
+2. ✓ Create `location_noise.py` with pure-Python simplex noise (COMPLETED 2025-12-28)
 3. Create content request/response models
 
 **Phase 2: Procedural Generators**

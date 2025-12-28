@@ -1,64 +1,78 @@
-# Implementation Summary: Procedural Interiors Foundation
+# Implementation Summary: location_noise.py
 
 ## What Was Implemented
 
-### New Files Created
+Created `src/cli_rpg/location_noise.py` with two classes:
 
-1. **`src/cli_rpg/procedural_interiors.py`** - Foundational data structures for procedural interior generation:
-   - `RoomType` enum with 6 room classifications:
-     - `ENTRY` - Entry/exit points connecting to overworld
-     - `CORRIDOR` - Connecting passages between rooms
-     - `CHAMBER` - Standard rooms for exploration
-     - `BOSS_ROOM` - Boss encounter locations
-     - `TREASURE` - Treasure rooms with valuable loot
-     - `PUZZLE` - Puzzle rooms with interactive challenges
+### SimplexNoise Class
+- Pure-Python 2D simplex noise generator (no external dependencies)
+- Uses Ken Perlin's simplex noise algorithm
+- Seeded permutation tables for deterministic, reproducible noise patterns
+- Standard 12-direction gradient vectors on unit circle
+- `noise2d(x, y)` returns values in [-1, 1]
 
-   - `RoomTemplate` dataclass with fields:
-     - `coords: tuple[int, int, int]` - 3D position (supports multi-level dungeons/towers)
-     - `room_type: RoomType` - Classification
-     - `connections: list[str]` - Connected directions
-     - `is_entry: bool = False` - Entry point flag
-     - `suggested_hazards: list[str] = field(default_factory=list)` - Hazard hints
+### LocationNoiseManager Class
+- Multi-octave noise (3 octaves, persistence 0.5, lacunarity 2.0)
+- `get_location_density(x, y)` returns density in [0, 1]
+- `should_spawn_location(x, y, terrain)` determines if location should spawn
+- Integrates with terrain modifiers from `NAMED_LOCATION_CONFIG` in `world_tiles.py`
+- Fully deterministic: same world_seed + coordinates = same result
 
-   - `GeneratorProtocol` - Abstract interface for generators (placeholder for Step 2)
+## Files Created/Modified
 
-   - `CATEGORY_GENERATORS` mapping - All 19 ENTERABLE_CATEGORIES mapped to generator types:
-     - Adventure locations → BSPGenerator, CellularAutomataGenerator, TowerGenerator
-     - Settlements → GridSettlementGenerator
-     - Commercial buildings → SingleRoomGenerator
-
-   - `generate_interior_layout()` factory function - Currently returns fallback layout (deterministic)
-
-2. **`tests/test_procedural_interiors.py`** - Comprehensive test suite:
-   - `TestRoomType` - 7 tests verifying all enum values and count
-   - `TestRoomTemplate` - 5 tests verifying dataclass creation and defaults
-   - `TestCategoryGenerators` - 3 tests verifying complete category coverage
-   - `TestGenerateInteriorLayout` - 5 tests verifying factory function behavior
+| File | Action |
+|------|--------|
+| `src/cli_rpg/location_noise.py` | Created (new module) |
+| `tests/test_location_noise.py` | Created (12 tests) |
 
 ## Test Results
 
-```
-20 passed in 0.09s
-```
+All 12 tests passing:
+- 5 SimplexNoise tests (range, determinism, seed variation, position variation, smoothness)
+- 7 LocationNoiseManager tests (density range, determinism, spatial variation, spawn density correlation, terrain modifiers, spawn determinism, clustering)
 
-All tests pass:
-- RoomType enum has exactly 6 members
-- RoomTemplate supports 3D coordinates and optional fields with proper defaults
-- All ENTERABLE_CATEGORIES have generator mappings
-- generate_interior_layout returns deterministic results (same seed → same output)
-- Factory function works with all enterable categories
+Full test suite: **5064 passed, 4 skipped** (no regressions)
 
 ## Technical Details
 
-- **Determinism**: Uses `random.Random(seed)` for reproducible generation
-- **3D Support**: Coordinates use `(x, y, z)` tuples for multi-level interiors
-- **Fallback Layout**: Current implementation generates simple entry + random chambers
-- **Protocol Pattern**: `GeneratorProtocol` defines interface for future generators
+### Simplex Noise Algorithm
+1. Skew input coordinates to simplex space using F2 = 0.5 * (sqrt(3) - 1)
+2. Determine which simplex triangle contains the point
+3. Calculate contributions from 3 triangle corners
+4. Each corner: dot product of gradient and offset, attenuated by distance^4
+5. Sum contributions, scale by 70.0 to normalize to [-1, 1]
 
-## Next Steps (Phase 1 Step 2)
+### Multi-Octave Combination
+```python
+for octave in range(3):
+    density += noise.noise2d(x * frequency, y * frequency) * amplitude
+    amplitude *= 0.5   # persistence
+    frequency *= 2.0   # lacunarity
+```
 
-The actual generator implementations (BSPGenerator, CellularAutomataGenerator, etc.) will be implemented in Step 2, replacing the fallback layout generation.
+### Spawn Probability
+```python
+spawn_probability = density * BASE_SPAWN_PROBABILITY / terrain_modifier
+```
+Where `terrain_modifier` comes from `NAMED_LOCATION_CONFIG["terrain_modifiers"]`.
 
 ## E2E Validation
 
-No E2E tests needed for this foundational step as it doesn't modify existing behavior. The module is standalone and will be integrated in Phase 1 Step 5.
+To validate the noise-based location spawning works correctly in-game:
+1. Run the game with a fixed seed
+2. Walk in multiple directions and observe named location spawn patterns
+3. Verify locations cluster naturally (not uniform distribution)
+4. Verify mountain/swamp terrain has more POIs than plains
+
+## Integration Notes
+
+The module is ready for integration into `game_state.py`. To use:
+```python
+from cli_rpg.location_noise import LocationNoiseManager
+
+# In GameState.__init__ or similar
+self.location_noise = LocationNoiseManager(world_seed)
+
+# Replace should_generate_named_location() call with:
+generate_named = self.location_noise.should_spawn_location(x, y, terrain)
+```
