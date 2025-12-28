@@ -1,73 +1,31 @@
-# Implementation Summary: Phase 5 Step 17 - Update Fallback Paths
+# Implementation Summary: ISSUES.md Completion Updates
 
-## What Was Implemented
+## Date: 2025-12-28
 
-Updated `ai_world.py` to use centralized `FallbackContentProvider` instead of scattered inline fallback templates for consistent deterministic fallback behavior.
+## What was implemented
+Updated ISSUES.md to mark completed items for the Procedural World Generation feature:
 
 ### Changes Made
 
-#### 1. Added `get_treasure_content()` method to `FallbackContentProvider`
-- **File**: `src/cli_rpg/fallback_content.py`
-- Added new treasure template constants:
-  - `TREASURE_CHEST_NAMES`: Category-specific chest names (dungeon, cave, ruins, temple, forest, default)
-  - `TREASURE_CHEST_DESCRIPTIONS`: Category-specific chest descriptions
-  - `TREASURE_LOOT_TABLES`: Category-specific loot items with stats
-- Implemented `get_treasure_content(category, distance, z_level)` method that:
-  - Returns deterministic chest name, description, difficulty, and items
-  - Scales difficulty with distance from entry and z-level depth
-  - Uses seeded RNG for reproducibility
+1. **Status Update (Line 6-7)**:
+   - Changed `**Status**: PLANNED` → `**Status**: COMPLETED ✓`
+   - Changed `**Priority**: CRITICAL BLOCKER` → `**Priority**: -`
 
-#### 2. Updated `_generate_fallback_interior()` to use `FallbackContentProvider`
-- **File**: `src/cli_rpg/ai_world.py`
-- Now creates a `FallbackContentProvider` with seed derived from location coordinates
-- Uses `provider.get_room_content()` for room names/descriptions
-- Preserves structural layout logic (room coordinates) but uses centralized content
+2. **Phase 4 Header (Line 76)**:
+   - Added `✓ COMPLETE` to "Phase 4: Content Layer" header
+   - Marked item 12 (ContentCache) as completed: `12. ✓ Create ContentCache with deterministic keying (COMPLETED 2025-12-28)`
 
-#### 3. Updated `_create_treasure_chest()` to use `FallbackContentProvider`
-- **File**: `src/cli_rpg/ai_world.py`
-- Now creates a `FallbackContentProvider` with seed from category + distance + z_level
-- Uses `provider.get_treasure_content()` for all content generation
-- Simplified function from 35 lines to 15 lines
-
-#### 4. Removed duplicated constants from `ai_world.py`
-- Removed `TREASURE_LOOT_TABLES` (now in fallback_content.py)
-- Removed `TREASURE_CHEST_NAMES` (now in fallback_content.py)
-
-#### 5. Updated test imports
-- **File**: `tests/test_ai_world_treasure.py`
-- Updated imports to use `TREASURE_LOOT_TABLES` and `TREASURE_CHEST_NAMES` from `fallback_content.py`
-
-#### 6. Added tests for `get_treasure_content()` method
-- **File**: `tests/test_fallback_content.py`
-- Added `TestGetTreasureContent` class with 8 test cases:
-  - Returns treasure data with correct schema
-  - Deterministic with same seed
-  - Different seeds produce different output
-  - Difficulty scales with distance
-  - Difficulty scales with z-level
-  - Items have required fields
-  - Category-specific content
-  - Default category fallback
+3. **Phase 6 Header and Items (Lines 87-90)**:
+   - Added `✓ COMPLETE` to "Phase 6: Testing" header
+   - Marked all three items as completed:
+     - `18. ✓ Unit tests for each generator algorithm (COMPLETED 2025-12-28: 41 tests in test_procedural_interiors.py)`
+     - `19. ✓ Tests for noise determinism (COMPLETED 2025-12-28: 12 tests in test_location_noise.py)`
+     - `20. ✓ Integration tests for full pipeline (COMPLETED 2025-12-28: 8 tests in test_content_layer.py, 11 tests in test_content_cache.py)`
 
 ## Files Modified
-- `src/cli_rpg/fallback_content.py` - Added treasure templates and `get_treasure_content()` method
-- `src/cli_rpg/ai_world.py` - Updated fallback functions, removed duplicated constants, added imports
-- `tests/test_fallback_content.py` - Added tests for `get_treasure_content()`
-- `tests/test_ai_world_treasure.py` - Fixed imports
+- `ISSUES.md` - 3 edits to mark completed items
 
-## Test Results
-- All 5213 tests pass (4 skipped, 1 warning)
-- 94 tests specifically related to the changed files all pass
-- No regressions
-
-## Success Criteria Verification
-1. ✅ All 5213 existing tests continue to pass
-2. ✅ `_generate_fallback_interior()` uses `FallbackContentProvider` for content
-3. ✅ `_create_treasure_chest()` uses `FallbackContentProvider` for content
-4. ✅ Same seed produces identical fallback content (determinism verified by tests)
-5. ✅ No duplicated template constants between modules
-
-## E2E Tests Should Validate
-- Entering dungeons/caves generates rooms with themed content
-- Treasure chests in dungeons have category-appropriate loot
-- Fallback content is deterministic across game sessions with same world seed
+## Verification
+- This is a documentation-only change
+- No tests required
+- The underlying implementations referenced (ContentCache, procedural_interiors tests, location_noise tests, content_layer tests, content_cache tests) were verified to exist and pass in the original plan verification step
