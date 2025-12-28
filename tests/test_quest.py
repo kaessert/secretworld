@@ -449,6 +449,7 @@ class TestSerialization:
             "accepted_at": None,
             "stages": [],
             "current_stage": 0,
+            "world_effects": [],
         }
 
     def test_from_dict(self):

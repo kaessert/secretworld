@@ -1,55 +1,70 @@
-# Fix Maze Layout Tests
+# Implement World State Changes from Quest Completion
 
-## Problem
-Two failing tests in `tests/test_procedural_layouts.py`:
-1. `test_maze_layout_has_dead_ends` - finds 0 dead ends (expects ≥1)
-2. `test_maze_layout_respects_size` - returns 11 coords when 10 requested
+## Overview
+Connect quest completion to WorldStateManager to record permanent world changes (e.g., cleared dungeons, defeated bosses, transformed locations).
 
-## Root Cause
-In `src/cli_rpg/ai_service.py` lines 3433-3444, the dead-end fix logic adds an extra coord WITHOUT checking if we've already reached the size limit, causing the size to exceed the requested amount.
+## Key Files
+- `src/cli_rpg/models/quest.py` - Add `world_effects` field
+- `src/cli_rpg/models/world_state.py` - Add `record_quest_world_effect()` helper
+- `src/cli_rpg/main.py` - Apply world effects on quest completion (~line 1820)
+- `tests/test_quest_world_effects.py` - New test file
 
-## Implementation
+## Implementation Steps
 
-### Fix `_generate_maze_layout()` at line 3433
-
-Change the dead-end fix to respect size constraints:
-
+### 1. Add WorldEffect dataclass to quest model
+In `src/cli_rpg/models/quest.py`:
 ```python
-if dead_ends == 0 and len(coords) >= 3:
-    if len(coords) < size:
-        # Room to add a dead end
-        for x, y in coords:
-            for dx, dy in directions:
-                neighbor = (x + dx, y + dy)
-                if neighbor not in coord_set:
-                    coords.append(neighbor)
-                    coord_set.add(neighbor)
-                    break
-            else:
-                continue
-            break
-    elif len(coords) > 3:
-        # At size limit - replace last coord with a dead end
-        removed = coords.pop()
-        coord_set.remove(removed)
-        for x, y in coords:
-            for dx, dy in directions:
-                neighbor = (x + dx, y + dy)
-                if neighbor not in coord_set:
-                    coords.append(neighbor)
-                    coord_set.add(neighbor)
-                    break
-            else:
-                continue
-            break
-
-return coords[:size]  # Guarantee exact size
+@dataclass
+class WorldEffect:
+    """Effect on world state when quest completes."""
+    effect_type: str  # "area_cleared", "location_transformed", "npc_moved", etc.
+    target: str       # Location/NPC name
+    description: str  # Human-readable description
+    metadata: dict = field(default_factory=dict)  # Extra data (new_category, etc.)
 ```
 
-### Verify
+Add to Quest dataclass:
+```python
+world_effects: List["WorldEffect"] = field(default_factory=list)
+```
+
+Add serialization in `to_dict()` and `from_dict()`.
+
+### 2. Add convenience method to WorldStateManager
+In `src/cli_rpg/models/world_state.py`:
+```python
+def record_quest_world_effect(
+    self,
+    effect: "WorldEffect",  # From quest model
+    quest_name: str,
+    timestamp: int,
+) -> Optional[str]:
+    """Record a world effect from quest completion."""
+```
+
+### 3. Apply effects on quest completion
+In `src/cli_rpg/main.py` after line 1820 (`matching_quest.status = QuestStatus.COMPLETED`):
+```python
+# Apply world effects from quest completion
+for effect in matching_quest.world_effects:
+    game_state.world_state_manager.record_quest_world_effect(
+        effect=effect,
+        quest_name=matching_quest.name,
+        timestamp=game_state.game_time.total_hours,
+    )
+```
+
+### 4. Write tests
+New file `tests/test_quest_world_effects.py`:
+- Test WorldEffect dataclass creation and validation
+- Test serialization round-trip
+- Test quest completion applies world effects
+- Test world_state_manager records QUEST_WORLD_EFFECT changes
+- Test is_area_cleared() after quest completion
+
+## Verification
 ```bash
-pytest tests/test_procedural_layouts.py::TestMazeLayout -v
+pytest tests/test_quest_world_effects.py -v
+pytest tests/test_world_state.py -v
+pytest tests/test_quest.py -v
 ```
-
-## File to Modify
-- `src/cli_rpg/ai_service.py` - lines 3433-3446

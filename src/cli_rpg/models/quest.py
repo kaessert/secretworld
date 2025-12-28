@@ -37,6 +37,48 @@ class QuestDifficulty(Enum):
 
 
 @dataclass
+class WorldEffect:
+    """Effect on world state when quest completes.
+
+    Attributes:
+        effect_type: Type of effect (area_cleared, location_transformed, npc_moved, etc.)
+        target: Location/NPC name affected
+        description: Human-readable description of the effect
+        metadata: Extra data (new_category, etc.)
+    """
+
+    effect_type: str
+    target: str
+    description: str
+    metadata: dict = field(default_factory=dict)
+
+    def __post_init__(self) -> None:
+        """Validate effect attributes."""
+        if not self.target or not self.target.strip():
+            raise ValueError("target cannot be empty")
+        self.target = self.target.strip()
+
+    def to_dict(self) -> dict:
+        """Serialize the effect to a dictionary."""
+        return {
+            "effect_type": self.effect_type,
+            "target": self.target,
+            "description": self.description,
+            "metadata": self.metadata,
+        }
+
+    @classmethod
+    def from_dict(cls, data: dict) -> "WorldEffect":
+        """Create an effect from a dictionary."""
+        return cls(
+            effect_type=data["effect_type"],
+            target=data["target"],
+            description=data["description"],
+            metadata=data.get("metadata", {}),
+        )
+
+
+@dataclass
 class QuestBranch:
     """Alternative completion path for a quest.
 
@@ -254,6 +296,8 @@ class Quest:
     # Multi-stage quest fields
     stages: List["QuestStage"] = field(default_factory=list)
     current_stage: int = field(default=0)
+    # World effects applied when quest completes
+    world_effects: List["WorldEffect"] = field(default_factory=list)
 
     def __post_init__(self) -> None:
         """Validate quest attributes after initialization."""
@@ -438,6 +482,7 @@ class Quest:
             "accepted_at": self.accepted_at,
             "stages": [s.to_dict() for s in self.stages],
             "current_stage": self.current_stage,
+            "world_effects": [e.to_dict() for e in self.world_effects],
         }
 
     @classmethod
@@ -461,6 +506,10 @@ class Quest:
         # Deserialize stages
         stages_data = data.get("stages", [])
         stages = [QuestStage.from_dict(s) for s in stages_data]
+
+        # Deserialize world effects
+        effects_data = data.get("world_effects", [])
+        world_effects = [WorldEffect.from_dict(e) for e in effects_data]
 
         return cls(
             name=data["name"],
@@ -491,6 +540,7 @@ class Quest:
             accepted_at=data.get("accepted_at"),
             stages=stages,
             current_stage=data.get("current_stage", 0),
+            world_effects=world_effects,
         )
 
     def get_branches_display(self) -> List[dict]:

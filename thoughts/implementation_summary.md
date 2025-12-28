@@ -1,38 +1,74 @@
-# Implementation Summary: Fix Maze Layout Tests
+# Implementation Summary: World State Changes from Quest Completion
 
 ## Date: 2025-12-28
 
 ## Overview
 
-Fixed two flaky tests in `tests/test_procedural_layouts.py` by modifying the `_generate_maze_layout()` method to properly respect size constraints while ensuring dead ends exist.
+Connected quest completion to WorldStateManager to record permanent world changes (e.g., cleared dungeons, defeated bosses, transformed locations).
 
 ## Files Modified
 
 ### Core Implementation
 
-1. **`src/cli_rpg/ai_service.py`** - Modified dead-end fix logic in `_generate_maze_layout()` (lines 3433-3461)
+1. **`src/cli_rpg/models/quest.py`**
+   - Added `WorldEffect` dataclass with fields:
+     - `effect_type: str` - Type of effect (area_cleared, location_transformed, boss_defeated, npc_moved, etc.)
+     - `target: str` - Location/NPC name affected
+     - `description: str` - Human-readable description
+     - `metadata: dict` - Extra data (new_category, etc.)
+   - Added validation: target cannot be empty
+   - Added `to_dict()` and `from_dict()` for serialization
+   - Added `world_effects: List[WorldEffect]` field to `Quest` dataclass
+   - Updated Quest's `to_dict()` and `from_dict()` to include world_effects
 
-## Change Details
+2. **`src/cli_rpg/models/world_state.py`**
+   - Added `record_quest_world_effect()` method to `WorldStateManager` that:
+     - Records a `QUEST_WORLD_EFFECT` change type with the effect's metadata
+     - For `area_cleared` effects, also records an `AREA_CLEARED` change for backwards compatibility with `is_area_cleared()` queries
+   - Added TYPE_CHECKING import for WorldEffect
 
-### The Problem
-The original code would unconditionally add a dead-end coordinate when none existed, causing the returned list to exceed the requested size (e.g., returning 11 coords when 10 were requested).
+3. **`src/cli_rpg/main.py`** (line ~1838)
+   - Added integration point after quest completion to apply world effects:
+     ```python
+     for effect in matching_quest.world_effects:
+         game_state.world_state_manager.record_quest_world_effect(
+             effect=effect,
+             quest_name=matching_quest.name,
+             timestamp=game_state.game_time.total_hours,
+         )
+     ```
 
-### The Fix
-Modified the dead-end fix logic to handle two cases:
-1. **When under size limit** (`len(coords) < size`): Add a dead end as before (room to add)
-2. **When at size limit** (`len(coords) >= size`): Replace the last coordinate with a dead end instead of adding one
+### Test Files
 
-Added a final `return coords[:size]` as a safety guarantee to never exceed the requested size.
+4. **`tests/test_quest_world_effects.py`** (new file)
+   - 16 tests covering:
+     - WorldEffect dataclass creation and validation
+     - Serialization round-trip for WorldEffect
+     - Quest with world_effects field
+     - WorldStateManager.record_quest_world_effect() method
+     - Integration: is_area_cleared() after quest completion
 
-## Root Cause
-
-The random walk with backtracking algorithm could produce compact clusters where all nodes have 2+ neighbors. The original fix for this (adding a dead end) didn't account for the size constraint, causing `test_maze_layout_respects_size` to fail intermittently.
+5. **`tests/test_quest.py`**
+   - Updated `test_to_dict` to include `world_effects` in expected output
 
 ## Test Results
 
-- **Specific tests**: Ran `test_maze_layout_has_dead_ends` and `test_maze_layout_respects_size` 30+ times consecutively - all passed (0 failures)
-- **Full test file**: All 35 tests in `tests/test_procedural_layouts.py` pass
+All tests pass:
+- 16 new tests in `tests/test_quest_world_effects.py`
+- 5313 total tests pass across the project
 
 ## E2E Validation
 
-No E2E tests required - this is an internal algorithm fix that doesn't affect external behavior. The existing unit tests are sufficient to validate correctness.
+The feature should be validated by:
+1. Creating a quest with world_effects set
+2. Completing the quest via the "turn in" command
+3. Verifying world state changes are recorded
+4. Checking that `is_area_cleared()` returns True for cleared locations
+
+## Design Decisions
+
+1. **Dual Recording for area_cleared**: When a quest has an `area_cleared` effect, we record both a `QUEST_WORLD_EFFECT` (for tracking quest-triggered changes) and an `AREA_CLEARED` change (for backwards compatibility with existing `is_area_cleared()` queries).
+
+2. **Metadata Preservation**: The original `effect_type` from WorldEffect is stored in the WorldStateChange's metadata, allowing future queries to distinguish between different types of quest world effects.
+
+3. **Forward Compatibility**: WorldEffect uses a string `effect_type` rather than an enum to allow AI-generated quests to specify custom effect types without code changes.

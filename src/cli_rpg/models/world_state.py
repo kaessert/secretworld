@@ -7,7 +7,10 @@ combat victories, and player actions.
 
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Optional
+from typing import TYPE_CHECKING, Optional
+
+if TYPE_CHECKING:
+    from cli_rpg.models.quest import WorldEffect
 
 
 class WorldStateChangeType(Enum):
@@ -204,6 +207,52 @@ class WorldStateManager:
             metadata={},
         )
         return self.record_change(change)
+
+    def record_quest_world_effect(
+        self,
+        effect: "WorldEffect",
+        quest_name: str,
+        timestamp: int,
+    ) -> Optional[str]:
+        """Record a world effect from quest completion.
+
+        This method bridges quest WorldEffect objects to WorldStateChange records.
+        For area_cleared effects, it also records an AREA_CLEARED change for
+        backwards compatibility with is_area_cleared() queries.
+
+        Args:
+            effect: The WorldEffect from the completed quest
+            quest_name: Name of the quest that caused this effect
+            timestamp: Game hour when the quest was completed
+
+        Returns:
+            Optional message describing the change
+        """
+        # Build metadata that includes the original effect type and any effect metadata
+        metadata = {"effect_type": effect.effect_type}
+        metadata.update(effect.metadata)
+
+        # Record the main quest world effect
+        change = WorldStateChange(
+            change_type=WorldStateChangeType.QUEST_WORLD_EFFECT,
+            target=effect.target,
+            description=effect.description,
+            timestamp=timestamp,
+            caused_by=quest_name,
+            metadata=metadata,
+        )
+        result = self.record_change(change)
+
+        # For area_cleared effects, also record an AREA_CLEARED change
+        # so is_area_cleared() works correctly
+        if effect.effect_type == "area_cleared":
+            self.record_area_cleared(
+                location=effect.target,
+                caused_by=quest_name,
+                timestamp=timestamp,
+            )
+
+        return result
 
     def get_changes_for_location(self, location: str) -> list[WorldStateChange]:
         """Get all changes that affect a specific location.

@@ -207,10 +207,56 @@ Issues discovered through comprehensive map system playtesting in non-interactiv
 - NPCs reference player's combat kill history ("aggressive" reputation if 10+ kills)
 - Player choices tracked in `game_state.choices` list
 - Dialogue choices that affect NPC relationships (Friendly +3, Neutral +1, Aggressive -2 arc points)
+- World state changes based on completed quests (via `WorldEffect` - see Quest World Effects below)
 
 **Remaining**:
 - Branching quest paths
-- World state changes based on completed quests
+
+---
+
+### Quest World Effects
+**Status**: COMPLETED ✓
+**Priority**: MEDIUM
+**Date Completed**: 2025-12-28
+
+**Problem**: Quest completion had no lasting impact on the world state. Players couldn't clear dungeons, transform locations, or trigger permanent world changes through quests.
+
+**Implementation**:
+- `src/cli_rpg/models/quest.py` - Added `WorldEffect` dataclass:
+  - `effect_type: str` - Type of effect (area_cleared, location_transformed, boss_defeated, npc_moved, etc.)
+  - `target: str` - Location/NPC name affected
+  - `description: str` - Human-readable description
+  - `metadata: dict` - Extra data (new_category, etc.)
+  - Validation: target cannot be empty
+  - Full serialization with `to_dict()` and `from_dict()`
+- `src/cli_rpg/models/quest.py` - Added `world_effects: List[WorldEffect]` field to `Quest` dataclass
+- `src/cli_rpg/models/world_state.py` - Added `record_quest_world_effect()` method to `WorldStateManager`:
+  - Records `QUEST_WORLD_EFFECT` change type with effect metadata
+  - For `area_cleared` effects, also records `AREA_CLEARED` for backwards compatibility with `is_area_cleared()` queries
+- `src/cli_rpg/main.py` - Integration in quest completion flow (applies world effects when quest is turned in)
+- 16 new tests in `tests/test_quest_world_effects.py`
+
+**Design Decisions**:
+- **Dual Recording for area_cleared**: Both `QUEST_WORLD_EFFECT` and `AREA_CLEARED` are recorded for backwards compatibility
+- **Metadata Preservation**: Original `effect_type` stored in WorldStateChange metadata for query flexibility
+- **Forward Compatibility**: String-based `effect_type` allows AI-generated quests to specify custom effects without code changes
+
+**Usage Example**:
+```python
+quest = Quest(
+    name="Clear the Dungeon",
+    world_effects=[
+        WorldEffect(
+            effect_type="area_cleared",
+            target="Dark Dungeon",
+            description="The dungeon has been purged of evil",
+            metadata={}
+        )
+    ]
+)
+# When quest is completed via "complete <quest>" command,
+# world_state_manager.record_quest_world_effect() is called for each effect
+```
 
 ---
 

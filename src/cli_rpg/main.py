@@ -1835,6 +1835,14 @@ def handle_exploration_command(game_state: GameState, command: str, args: list[s
         else:
             game_state.record_quest_outcome(quest=matching_quest, method="main")
 
+        # Apply world effects from quest completion
+        for effect in matching_quest.world_effects:
+            game_state.world_state_manager.record_quest_world_effect(
+                effect=effect,
+                quest_name=matching_quest.name,
+                timestamp=game_state.game_time.total_hours,
+            )
+
         autosave(game_state)
         sound_quest_complete()
 

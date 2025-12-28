@@ -118,7 +118,7 @@ src/cli_rpg/
     ├── npc_relationship.py # NPC relationship types and trust levels
     ├── npc_network.py   # NPC network manager for family generation and network queries
     ├── npc_arc.py       # NPC character arc progression (stages, interactions, serialization)
-    ├── quest.py         # Quest system with objectives and progress tracking
+    ├── quest.py         # Quest system with objectives, progress tracking, and world effects (WorldEffect dataclass for permanent world changes on completion)
     ├── quest_network.py # QuestNetworkManager for interconnected quest storylines
     ├── quest_outcome.py # Quest completion outcomes for NPC memory/reactions
     ├── shop.py          # Shop system
@@ -134,7 +134,7 @@ src/cli_rpg/
     ├── settlement_context.py # Settlement-level context for layered AI generation (Layer 5)
     ├── lore_context.py  # Lore context for historical events, legends (Layer 6)
     ├── generation_context.py # Unified context aggregator for AI prompt generation
-    └── world_state.py   # World state tracking for permanent changes (boss defeats, NPC deaths, etc.)
+    └── world_state.py   # World state tracking for permanent changes (boss defeats, NPC deaths, quest world effects, area cleared, etc.)
 ```
 
 ## Key Architectural Patterns
