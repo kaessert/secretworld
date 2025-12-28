@@ -178,12 +178,13 @@ The README documentation states "Sleep is only available when tiredness reaches 
 ---
 
 ### Map System Bugs (Discovered via Playtesting)
-**Status**: ACTIVE
+**Status**: COMPLETED ✓
 **Date Discovered**: 2025-12-26
+**Completed**: 2025-12-28
 
 Issues discovered through comprehensive map system playtesting in non-interactive mode.
 
-**Note**: Map command issues inside SubGrid locations are resolved.
+**Resolution**: Map command issues inside SubGrid locations are resolved.
 
 ---
 
@@ -258,7 +259,8 @@ quest = Quest(
 ---
 
 ### Character classes with unique playstyles
-**Status**: ACTIVE (Core System Complete)
+**Status**: COMPLETED ✓
+**Date Completed**: 2025-12-28
 
 **Implemented**:
 - 5 classes: Warrior, Mage, Rogue, Ranger, Cleric with stat bonuses
