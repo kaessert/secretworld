@@ -1,69 +1,64 @@
-# Implementation Summary: SubGrid Navigation Fix
+# Implementation Summary: Procedural Interiors Foundation
 
-## Status: COMPLETE
+## What Was Implemented
 
-All 83 tests in `test_game_state.py` and `test_subgrid_navigation.py` pass.
+### New Files Created
 
-## What Was Fixed
+1. **`src/cli_rpg/procedural_interiors.py`** - Foundational data structures for procedural interior generation:
+   - `RoomType` enum with 6 room classifications:
+     - `ENTRY` - Entry/exit points connecting to overworld
+     - `CORRIDOR` - Connecting passages between rooms
+     - `CHAMBER` - Standard rooms for exploration
+     - `BOSS_ROOM` - Boss encounter locations
+     - `TREASURE` - Treasure rooms with valuable loot
+     - `PUZZLE` - Puzzle rooms with interactive challenges
 
-Fixed the `enter()` method in `src/cli_rpg/game_state.py` (lines 1216-1224) that was incorrectly rejecting entry into locations with existing SubGrid content.
+   - `RoomTemplate` dataclass with fields:
+     - `coords: tuple[int, int, int]` - 3D position (supports multi-level dungeons/towers)
+     - `room_type: RoomType` - Classification
+     - `connections: list[str]` - Connected directions
+     - `is_entry: bool = False` - Entry point flag
+     - `suggested_hazards: list[str] = field(default_factory=list)` - Hazard hints
 
-## The Problem
+   - `GeneratorProtocol` - Abstract interface for generators (placeholder for Step 2)
 
-Commit `b008bb2` introduced an overly strict check that only allowed entry if `is_enterable_category(current.category)` returned `True`. This broke navigation for locations that already had:
-1. A `sub_grid` set (pre-generated SubGrid)
-2. `sub_locations` in world dict (legacy format)
-3. Missing `category` field but having enterable content
+   - `CATEGORY_GENERATORS` mapping - All 19 ENTERABLE_CATEGORIES mapped to generator types:
+     - Adventure locations → BSPGenerator, CellularAutomataGenerator, TowerGenerator
+     - Settlements → GridSettlementGenerator
+     - Commercial buildings → SingleRoomGenerator
 
-## The Solution
+   - `generate_interior_layout()` factory function - Currently returns fallback layout (deterministic)
 
-Changed the logic to check BOTH conditions:
-- `can_generate_subgrid`: Whether the category supports on-demand SubGrid generation
-- `has_existing_content`: Whether the location already has a `sub_grid` or `sub_locations`
-
-Entry is only blocked when NEITHER condition is true.
-
-## Code Changes
-
-**File**: `src/cli_rpg/game_state.py`
-
-**Before**:
-```python
-can_enter = is_enterable_category(current.category)
-if not can_enter:
-    return (False, "There's nothing to enter here. This is open wilderness.")
-# Only generate SubGrid if no legacy sub_locations exist
-if current.sub_grid is None and not current.sub_locations:
-```
-
-**After**:
-```python
-can_generate_subgrid = is_enterable_category(current.category)
-has_existing_content = current.sub_grid is not None or bool(current.sub_locations)
-
-if not can_generate_subgrid and not has_existing_content:
-    return (False, "There's nothing to enter here. This is open wilderness.")
-# Only generate SubGrid if no legacy sub_locations exist
-if not has_existing_content:
-```
+2. **`tests/test_procedural_interiors.py`** - Comprehensive test suite:
+   - `TestRoomType` - 7 tests verifying all enum values and count
+   - `TestRoomTemplate` - 5 tests verifying dataclass creation and defaults
+   - `TestCategoryGenerators` - 3 tests verifying complete category coverage
+   - `TestGenerateInteriorLayout` - 5 tests verifying factory function behavior
 
 ## Test Results
 
-All 83 tests pass:
-- `tests/test_game_state.py`: 62 tests passed
-- `tests/test_subgrid_navigation.py`: 21 tests passed
-
-## Verification
-
-```bash
-pytest tests/test_game_state.py tests/test_subgrid_navigation.py -v
-# Result: 83 passed in 0.17s
 ```
+20 passed in 0.09s
+```
+
+All tests pass:
+- RoomType enum has exactly 6 members
+- RoomTemplate supports 3D coordinates and optional fields with proper defaults
+- All ENTERABLE_CATEGORIES have generator mappings
+- generate_interior_layout returns deterministic results (same seed → same output)
+- Factory function works with all enterable categories
+
+## Technical Details
+
+- **Determinism**: Uses `random.Random(seed)` for reproducible generation
+- **3D Support**: Coordinates use `(x, y, z)` tuples for multi-level interiors
+- **Fallback Layout**: Current implementation generates simple entry + random chambers
+- **Protocol Pattern**: `GeneratorProtocol` defines interface for future generators
+
+## Next Steps (Phase 1 Step 2)
+
+The actual generator implementations (BSPGenerator, CellularAutomataGenerator, etc.) will be implemented in Step 2, replacing the fallback layout generation.
 
 ## E2E Validation
 
-The fix ensures:
-1. Locations with pre-existing SubGrids can be entered
-2. Locations with legacy sub_locations can be entered
-3. Enterable categories still trigger on-demand SubGrid generation
-4. Non-enterable locations without content are still correctly blocked
+No E2E tests needed for this foundational step as it doesn't modify existing behavior. The module is standalone and will be integrated in Phase 1 Step 5.
