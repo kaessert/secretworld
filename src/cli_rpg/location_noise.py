@@ -148,7 +148,7 @@ class LocationNoiseManager:
     SCALE = 0.05       # Base scale for coordinate input
 
     # Base spawn probability at density 0.5 (matches current base_interval behavior)
-    BASE_SPAWN_PROBABILITY = 0.15
+    BASE_SPAWN_PROBABILITY = 0.20  # ~33% more named locations
 
     def __init__(self, world_seed: int):
         """Initialize location noise manager.

@@ -56,10 +56,10 @@ Exits: None  <-- BUG: Should show exits
 ---
 
 ### Increase Named Location Density and Enterability
-**Status**: PARTIALLY COMPLETE
+**Status**: COMPLETE
 **Priority**: HIGH
 **Date Added**: 2025-12-28
-**Date Updated**: 2025-12-28
+**Date Completed**: 2025-12-28
 
 #### Problem
 The world feels empty and exploration is unrewarding. Players walk too many tiles without encountering cities, dungeons, or other interesting named locations. When they do find named locations, many cannot be entered.
@@ -102,19 +102,18 @@ All new categories use 3x3 single-level bounds and SingleRoomGenerator.
 - `src/cli_rpg/fallback_content.py` - Room and treasure templates
 - `tests/test_named_locations_enterable.py` - 20 new tests
 
-#### Remaining Work
+#### Implementation Summary
 
-**1. Reduce Tiles Between Enterables (DONE):**
+**1. Reduce Tiles Between Enterables:**
 ```python
 # world_tiles.py
 MAX_TILES_WITHOUT_ENTERABLE = 15  # Reduced from 25 for more density
 ```
 
-**2. Increase Base Spawn Rates (NOT YET DONE):**
+**2. Increase Base Spawn Rates:**
 ```python
-# location_noise.py - Increase density thresholds
-LOCATION_DENSITY_THRESHOLD = 0.3  # Was 0.4, lower = more locations
-CITY_DENSITY_THRESHOLD = 0.5      # Was 0.6, lower = more cities
+# location_noise.py
+BASE_SPAWN_PROBABILITY = 0.20  # Was 0.15, ~33% more named locations
 ```
 
 #### Acceptance Criteria

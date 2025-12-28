@@ -1,26 +1,29 @@
-# Plan: Reduce MAX_TILES_WITHOUT_ENTERABLE from 25 to 15
+# Plan: Increase Base Spawn Rates
 
-## Task
-Complete the "Increase Named Location Density" issue by reducing `MAX_TILES_WITHOUT_ENTERABLE` from 25 to 15 in `world_tiles.py`.
+**Task**: Complete the "Increase Named Location Density and Enterability" issue by raising base spawn probability.
 
 ## Change
-**File:** `src/cli_rpg/world_tiles.py` (line 924)
+
+In `src/cli_rpg/location_noise.py` (line 151), increase `BASE_SPAWN_PROBABILITY`:
 
 ```python
 # Before
-MAX_TILES_WITHOUT_ENTERABLE = 25
+BASE_SPAWN_PROBABILITY = 0.15
 
 # After
-MAX_TILES_WITHOUT_ENTERABLE = 15
+BASE_SPAWN_PROBABILITY = 0.20  # ~33% more named locations
 ```
 
-## Tests
-Existing tests should continue to pass - this config change affects gameplay density, not test logic.
+**Note**: The ISSUES.md mentions `LOCATION_DENSITY_THRESHOLD` and `CITY_DENSITY_THRESHOLD` constants, but these don't exist in the code. The actual spawn rate is controlled by `BASE_SPAWN_PROBABILITY`.
+
+## Verification
 
 ```bash
-pytest tests/test_named_locations_enterable.py -v
-pytest tests/test_world_tiles.py -v
+pytest tests/test_location_noise.py -v
 ```
 
+Existing tests verify relative behavior (density/terrain effects), not absolute rates.
+
 ## Update ISSUES.md
-Mark "Reduce Tiles Between Enterables" as complete in the "Increase Named Location Density" issue.
+
+Mark "Increase Base Spawn Rates" as complete and close the issue.
