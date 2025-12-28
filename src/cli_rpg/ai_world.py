@@ -12,6 +12,7 @@ from cli_rpg.models.world_context import WorldContext
 from cli_rpg.models.region_context import RegionContext
 from cli_rpg.models.quest import Quest, ObjectiveType
 from cli_rpg.world_grid import WorldGrid, SubGrid, DIRECTION_OFFSETS, get_subgrid_bounds
+from cli_rpg.world_tiles import ENTERABLE_CATEGORIES
 from cli_rpg.location_art import get_fallback_location_ascii_art
 
 
@@ -1711,7 +1712,8 @@ def expand_area(
         )
 
     # Validate and enforce required category on entry location
-    if category_hint:
+    # Only force if category_hint is an enterable category (dungeon, cave, ruins, etc.)
+    if category_hint and category_hint.lower() in ENTERABLE_CATEGORIES:
         for loc_data in area_data:
             rel_coords = loc_data.get("relative_coords", [0, 0])
             # Entry location is at [0, 0] (or [0, 0, 0] for 3D)
