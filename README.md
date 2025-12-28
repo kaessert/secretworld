@@ -462,10 +462,20 @@ NPCs remember your interactions and develop relationships over time:
    - When you cross a stage threshold, you'll see a message: "[NPC name]'s demeanor toward you has changed."
    - Type "bye" to exit the conversation without making a choice
 
-3. **Relationship Benefits** (planned for future):
-   - Shop price modifiers based on relationship
-   - Access to special dialogue and quests
-   - NPC-specific perks at high relationship levels
+3. **Relationship Benefits**:
+   - **Shop price modifiers**: Merchants adjust prices based on your relationship:
+     | Arc Stage    | Buy Price | Sell Price | Notes                      |
+     |--------------|-----------|------------|----------------------------|
+     | ENEMY        | REFUSED   | REFUSED    | Trade blocked entirely     |
+     | HOSTILE      | +20%      | -20%       | Hostile merchants charge more |
+     | WARY         | +10%      | -10%       | Suspicious NPCs slightly worse |
+     | STRANGER     | +0%       | +0%        | Default, neutral prices    |
+     | ACQUAINTANCE | -5%       | +5%        | Building rapport           |
+     | TRUSTED      | -10%      | +10%       | Good prices for friends    |
+     | DEVOTED      | -15%      | +15%       | Best prices for loyal customers |
+   - Arc modifiers stack with CHA, faction, economy, persuade, and haggle modifiers
+   - Access to special dialogue and quests (planned)
+   - NPC-specific perks at high relationship levels (planned)
 
 ### NPC Quests
 

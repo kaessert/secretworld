@@ -1495,11 +1495,17 @@ def handle_exploration_command(game_state: GameState, command: str, args: list[s
             get_merchant_guild_faction,
             get_faction_price_message,
         )
+        from cli_rpg.npc_arc_shop import get_arc_price_modifiers, get_arc_price_message
         faction_buy_mod, faction_sell_mod, trade_refused = get_faction_price_modifiers(
             game_state.factions
         )
         if trade_refused:
             return (True, "\nThe merchants eye you with hostility and refuse to serve you.")
+        # Check NPC arc-based trade refusal
+        npc_arc = game_state.current_npc.arc if game_state.current_npc else None
+        arc_buy_mod, arc_sell_mod, arc_refused = get_arc_price_modifiers(npc_arc)
+        if arc_refused:
+            return (True, "\nThis merchant refuses to trade with you due to your past actions.")
         shop = game_state.current_shop
         lines = [f"\n=== {shop.name} ===", f"Your gold: {game_state.current_character.gold}", ""]
         # Add reputation status message if not neutral
@@ -1508,6 +1514,12 @@ def handle_exploration_command(game_state: GameState, command: str, args: list[s
             rep_message = get_faction_price_message(merchant_guild.get_reputation_level())
             if rep_message:
                 lines.append(rep_message)
+                lines.append("")
+        # Add NPC arc status message if not stranger
+        if npc_arc is not None:
+            arc_message = get_arc_price_message(npc_arc.get_stage())
+            if arc_message:
+                lines.append(arc_message)
                 lines.append("")
         # Calculate price modifiers for display (same as buy command)
         from cli_rpg.social_skills import get_cha_price_modifier
@@ -1524,6 +1536,9 @@ def handle_exploration_command(game_state: GameState, command: str, args: list[s
             display_price = int(display_price * economy_mod)
             if faction_buy_mod is not None:
                 display_price = int(display_price * faction_buy_mod)
+            # Apply NPC arc modifier
+            if arc_buy_mod is not None:
+                display_price = int(display_price * arc_buy_mod)
             if game_state.current_npc and game_state.current_npc.persuaded:
                 display_price = int(display_price * 0.8)
             if game_state.haggle_bonus > 0:
@@ -1536,11 +1551,17 @@ def handle_exploration_command(game_state: GameState, command: str, args: list[s
             return (True, "\nYou're not at a shop. Talk to a merchant first.")
         # Check faction reputation before allowing purchase
         from cli_rpg.faction_shop import get_faction_price_modifiers
+        from cli_rpg.npc_arc_shop import get_arc_price_modifiers
         faction_buy_mod, faction_sell_mod, trade_refused = get_faction_price_modifiers(
             game_state.factions
         )
         if trade_refused:
             return (True, "\nThe merchants refuse to trade with you due to your poor reputation.")
+        # Check NPC arc-based trade refusal
+        npc_arc = game_state.current_npc.arc if game_state.current_npc else None
+        arc_buy_mod, arc_sell_mod, arc_refused = get_arc_price_modifiers(npc_arc)
+        if arc_refused:
+            return (True, "\nThis merchant refuses to trade with you due to your past actions.")
         if not args:
             return (True, "\nBuy what? Specify an item name.")
         item_name = " ".join(args)
@@ -1571,6 +1592,9 @@ def handle_exploration_command(game_state: GameState, command: str, args: list[s
         # Apply faction reputation modifier
         if faction_buy_mod is not None:
             final_price = int(final_price * faction_buy_mod)
+        # Apply NPC arc modifier
+        if arc_buy_mod is not None:
+            final_price = int(final_price * arc_buy_mod)
         # Apply 20% persuade discount if NPC was persuaded
         if game_state.current_npc and game_state.current_npc.persuaded:
             final_price = int(final_price * 0.8)
@@ -1609,11 +1633,17 @@ def handle_exploration_command(game_state: GameState, command: str, args: list[s
             return (True, "\nYou're not at a shop. Talk to a merchant first.")
         # Check faction reputation before allowing sale
         from cli_rpg.faction_shop import get_faction_price_modifiers
+        from cli_rpg.npc_arc_shop import get_arc_price_modifiers
         faction_buy_mod, faction_sell_mod, trade_refused = get_faction_price_modifiers(
             game_state.factions
         )
         if trade_refused:
             return (True, "\nThe merchants refuse to trade with you due to your poor reputation.")
+        # Check NPC arc-based trade refusal
+        npc_arc = game_state.current_npc.arc if game_state.current_npc else None
+        arc_buy_mod, arc_sell_mod, arc_refused = get_arc_price_modifiers(npc_arc)
+        if arc_refused:
+            return (True, "\nThis merchant refuses to trade with you due to your past actions.")
         if not args:
             return (True, "\nSell what? Specify an item name.")
         item_name = " ".join(args)
@@ -1650,6 +1680,9 @@ def handle_exploration_command(game_state: GameState, command: str, args: list[s
         # Apply faction reputation modifier
         if faction_sell_mod is not None:
             sell_price = int(sell_price * faction_sell_mod)
+        # Apply NPC arc modifier
+        if arc_sell_mod is not None:
+            sell_price = int(sell_price * arc_sell_mod)
         # Apply haggle bonus if active
         if game_state.haggle_bonus > 0:
             sell_price = int(sell_price * (1 + game_state.haggle_bonus))
