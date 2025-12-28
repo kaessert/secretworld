@@ -1835,6 +1835,19 @@ def handle_exploration_command(game_state: GameState, command: str, args: list[s
                     f"You need higher reputation with {matching_quest.faction_affiliation}.",
                 )
 
+        # Check NPC arc stage requirement
+        if matching_quest.required_arc_stage:
+            from cli_rpg.npc_arc_quests import check_arc_stage_requirement
+
+            allowed, reason = check_arc_stage_requirement(
+                npc.arc, matching_quest.required_arc_stage
+            )
+            if not allowed:
+                return (
+                    True,
+                    f"\n{npc.name} doesn't trust you enough to offer this quest. ({reason})",
+                )
+
         # Check prerequisite quests
         if matching_quest.prerequisite_quests:
             completed_names = [
@@ -1865,6 +1878,7 @@ def handle_exploration_command(game_state: GameState, command: str, args: list[s
             faction_reward=matching_quest.faction_reward,
             faction_penalty=matching_quest.faction_penalty,
             required_reputation=matching_quest.required_reputation,
+            required_arc_stage=matching_quest.required_arc_stage,
             chain_id=matching_quest.chain_id,
             chain_position=matching_quest.chain_position,
             prerequisite_quests=matching_quest.prerequisite_quests.copy(),

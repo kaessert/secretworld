@@ -474,7 +474,7 @@ NPCs remember your interactions and develop relationships over time:
      | TRUSTED      | -10%      | +10%       | Good prices for friends    |
      | DEVOTED      | -15%      | +15%       | Best prices for loyal customers |
    - Arc modifiers stack with CHA, faction, economy, persuade, and haggle modifiers
-   - Access to special dialogue and quests (planned)
+   - **Quest prerequisites**: Some quests require a minimum relationship stage before the NPC will offer them (e.g., a quest requiring TRUSTED stage won't be available until you've built enough rapport)
    - NPC-specific perks at high relationship levels (planned)
 
 ### NPC Quests

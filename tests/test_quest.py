@@ -437,6 +437,7 @@ class TestSerialization:
             "faction_reward": 0,
             "faction_penalty": 0,
             "required_reputation": None,
+            "required_arc_stage": None,
             "chain_id": None,
             "chain_position": 0,
             "prerequisite_quests": [],

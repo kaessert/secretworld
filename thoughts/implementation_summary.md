@@ -1,63 +1,61 @@
-# Implementation Summary: NPC Arc Shop Price Modifiers
+# Implementation Summary: Quest Prerequisites Based on NPC Arc Stage
 
 ## Date: 2025-12-28
 
 ## What Was Implemented
 
-This feature adds shop price modifiers based on NPC arc (relationship) stage. Merchants with arc relationships now offer better or worse prices based on how the player has treated them.
+This feature adds the ability to gate quest availability based on the player's relationship (arc stage) with an NPC. Quests can now require a minimum trust level before they become available.
 
-### Price Modifier Table (per spec)
+### Files Modified/Created
 
-| Arc Stage     | Buy Modifier | Sell Modifier | Effect                          |
-|---------------|--------------|---------------|---------------------------------|
-| ENEMY         | REFUSED      | REFUSED       | Trade blocked entirely          |
-| HOSTILE       | +20%         | -20%          | Hostile NPCs charge more        |
-| WARY          | +10%         | -10%          | Suspicious NPCs slightly worse  |
-| STRANGER      | +0%          | +0%           | Default, neutral                |
-| ACQUAINTANCE  | -5%          | +5%           | Building rapport, slight bonus  |
-| TRUSTED       | -10%         | +10%          | Real trust, good prices         |
-| DEVOTED       | -15%         | +15%          | Best prices for loyal customers |
+1. **`src/cli_rpg/models/quest.py`**
+   - Added `required_arc_stage: Optional[str] = field(default=None)` field to Quest dataclass (line 282)
+   - Updated `to_dict()` to serialize the new field (line 474)
+   - Updated `from_dict()` to deserialize with None default for backward compatibility (line 533)
 
-These modifiers **stack** with existing modifiers (CHA, faction, economy, persuade, haggle).
+2. **`src/cli_rpg/npc_arc_quests.py`** (new file)
+   - `ARC_STAGE_ORDER`: List defining stage hierarchy (enemy → hostile → wary → stranger → acquaintance → trusted → devoted)
+   - `get_arc_stage_index(stage_name: str) -> int`: Gets numerical index for stage comparison (case-insensitive, defaults to stranger for unknown)
+   - `check_arc_stage_requirement(arc, required) -> Tuple[bool, Optional[str]]`: Validates if NPC's arc meets quest requirement
 
-## Files Created/Modified
+3. **`src/cli_rpg/main.py`** (lines 1838-1849)
+   - Added arc stage validation check in accept command handler
+   - Placed after faction reputation check and before prerequisite quests check
+   - Returns rejection message if insufficient: "{npc.name} doesn't trust you enough to offer this quest. ({reason})"
 
-### New File: `src/cli_rpg/npc_arc_shop.py`
-- `ARC_PRICE_MODIFIERS`: Dict mapping NPCArcStage to (buy_mod, sell_mod) tuples
-- `ARC_PRICE_MESSAGES`: Dict mapping NPCArcStage to display messages
-- `get_arc_price_modifiers(arc)`: Returns (buy_mod, sell_mod, trade_refused) tuple
-- `get_arc_price_message(stage)`: Returns display message for price effects
-
-### New File: `tests/test_npc_arc_shop.py`
-- 14 unit tests covering all arc stages and edge cases
-- Tests verify modifier values, trade refusal for ENEMY, and message content
-
-### Modified: `src/cli_rpg/main.py`
-- **shop command** (~line 1498): Added arc modifier check, trade refusal for ENEMY stage, arc message display, and arc-adjusted displayed prices
-- **buy command** (~line 1554): Added arc modifier check, trade refusal, and arc price modifier applied to final_price
-- **sell command** (~line 1636): Added arc modifier check, trade refusal, and arc price modifier applied to sell_price
+4. **`tests/test_quest_arc_requirements.py`** (new file)
+   - 19 comprehensive tests covering:
+     - Helper function tests (stage order, index lookup, case insensitivity)
+     - Requirement checking tests (no requirement, exact match, higher/lower stages)
+     - Quest model serialization tests (to_dict, from_dict, default values)
+     - Integration tests for accept command (rejection, acceptance, no requirement, NPC without arc)
 
 ## Test Results
 
-```
-tests/test_npc_arc_shop.py: 14 passed
-Full test suite: 5512 passed, 4 skipped, 1 warning
-```
+All 19 tests pass:
+- TestNpcArcQuestsHelper: 4 tests
+- TestCheckArcStageRequirement: 7 tests
+- TestQuestModelArcRequirement: 4 tests
+- TestAcceptCommandArcRequirement: 4 tests
 
-## Integration Points
+Additionally, 84 related tests in test_quest.py and test_npc_arc.py continue to pass, confirming no regressions.
 
-The arc modifiers integrate naturally with the existing price calculation chain:
-1. Base price (CHA modifier)
-2. Economy modifier (supply/demand, location, world events)
-3. Faction modifier (Merchant Guild reputation)
-4. **NPC Arc modifier** (NEW - based on relationship with specific merchant)
-5. Persuade discount (if NPC was persuaded)
-6. Haggle bonus (if haggle was successful)
+## Technical Design Decisions
 
-## E2E Test Suggestions
+1. **Stage ordering**: Used list index for comparison rather than enum values to allow flexible comparison (e.g., trusted >= acquaintance)
+2. **NPCs without arc**: Treated as STRANGER (index 3) to maintain backward compatibility
+3. **Unknown stages**: Default to STRANGER level as safe fallback
+4. **Case insensitivity**: Stage names compared case-insensitively for user convenience
 
-To validate end-to-end:
-1. Start a game, find a merchant NPC, check shop prices at STRANGER stage
-2. Improve relationship via dialogue/quests to TRUSTED, verify ~10% discount
-3. Attack/antagonize merchant to ENEMY stage, verify trade is refused
-4. Verify arc messages appear in shop display at non-STRANGER stages
+## Backward Compatibility
+
+- `required_arc_stage` defaults to `None` (no requirement)
+- NPCs without arc initialized are treated as STRANGER stage
+- Existing quests and saves unaffected (`from_dict` handles missing field with None default)
+
+## E2E Test Validation
+
+E2E tests should validate:
+1. Creating a quest with `required_arc_stage` set
+2. Attempting to accept that quest with insufficient NPC relationship
+3. Building relationship through interactions and accepting the quest once threshold is met

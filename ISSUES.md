@@ -549,11 +549,9 @@ Created NPC character arc system for tracking relationship progression based on 
 - Arc-based warm greetings for ACQUAINTANCE, TRUSTED, and DEVOTED NPCs
 - **Dialogue Choices (2025-12-28)**: Players choose dialogue tone (Friendly +3, Neutral +1, Aggressive -2 arc points) with NPC reactions
 
-**Future Integration Points (Not Yet Implemented)**:
-- Quest prerequisites based on arc stage
-
 **Completed Integration (2025-12-28)**:
 - ✓ Shop price modifiers based on arc (see `npc_arc_shop.py`)
+- ✓ Quest prerequisites based on arc stage (see `npc_arc_quests.py`) - Quests can require minimum NPC relationship before becoming available
 
 ---
 

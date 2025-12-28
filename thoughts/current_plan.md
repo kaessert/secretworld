@@ -1,99 +1,60 @@
-# Plan: Shop Price Modifiers Based on NPC Arc Stage
+# Implementation Plan: Quest Prerequisites Based on NPC Arc Stage
 
-## Spec
+## Summary
+Add `required_arc_stage` field to Quest model allowing quests to require minimum NPC relationship levels before they can be accepted.
 
-Merchant NPCs with arc relationships should offer better/worse prices based on their arc stage with the player:
+## Files to Modify
 
-| Arc Stage     | Buy Price | Sell Price | Notes                           |
-|---------------|-----------|------------|---------------------------------|
-| ENEMY         | REFUSED   | REFUSED    | No trading allowed              |
-| HOSTILE       | +20%      | -20%       | Active hostility                |
-| WARY          | +10%      | -10%       | Suspicious of player            |
-| STRANGER      | +0%       | +0%        | Default, no modifier            |
-| ACQUAINTANCE  | -5%       | +5%        | Building trust                  |
-| TRUSTED       | -10%      | +10%       | Real trust established          |
-| DEVOTED       | -15%      | +15%       | Unbreakable bond, best prices   |
+### 1. `src/cli_rpg/models/quest.py`
+- Add `required_arc_stage: Optional[str] = None` field to Quest dataclass (after `required_reputation`)
+- Update `to_dict()` to serialize new field
+- Update `from_dict()` to deserialize new field with None default
 
-This stacks with existing modifiers (CHA, faction, economy, persuade, haggle).
+### 2. `src/cli_rpg/npc_arc_quests.py` (new file)
+- Create helper functions for arc stage requirements:
+  - `ARC_STAGE_ORDER`: List defining stage hierarchy for comparison
+  - `get_arc_stage_index(stage_name: str) -> int`: Get numerical index for stage
+  - `check_arc_stage_requirement(arc: Optional[NPCArc], required: Optional[str]) -> Tuple[bool, Optional[str]]`: Check if arc meets requirement, return (allowed, rejection_reason)
 
-## Implementation
+### 3. `src/cli_rpg/main.py` (~line 1838)
+- In accept command handler, after faction reputation check (line ~1836) and before prerequisite quests check (line ~1838):
+- Import `check_arc_stage_requirement` from `npc_arc_quests`
+- Add arc stage validation check
+- Return rejection message if insufficient: `"{npc.name} doesn't trust you enough to offer this quest. (Requires: {stage})"`
 
-### 1. Create `src/cli_rpg/npc_arc_shop.py`
-
-```python
-"""NPC arc effects on shop prices."""
-from typing import Optional, Tuple
-from cli_rpg.models.npc_arc import NPCArc, NPCArcStage
-
-# Price modifiers by arc stage (buy_modifier, sell_modifier)
-ARC_PRICE_MODIFIERS: dict[NPCArcStage, Tuple[Optional[float], Optional[float]]] = {
-    NPCArcStage.ENEMY: (None, None),  # Trade refused
-    NPCArcStage.HOSTILE: (1.20, 0.80),
-    NPCArcStage.WARY: (1.10, 0.90),
-    NPCArcStage.STRANGER: (1.0, 1.0),
-    NPCArcStage.ACQUAINTANCE: (0.95, 1.05),
-    NPCArcStage.TRUSTED: (0.90, 1.10),
-    NPCArcStage.DEVOTED: (0.85, 1.15),
-}
-
-def get_arc_price_modifiers(arc: Optional[NPCArc]) -> Tuple[Optional[float], Optional[float], bool]:
-    """Get buy/sell price modifiers based on NPC arc stage."""
-    if arc is None:
-        return (1.0, 1.0, False)
-    stage = arc.get_stage()
-    buy_mod, sell_mod = ARC_PRICE_MODIFIERS[stage]
-    if stage == NPCArcStage.ENEMY:
-        return (None, None, True)
-    return (buy_mod, sell_mod, False)
-
-def get_arc_price_message(stage: NPCArcStage) -> str:
-    """Get display message for arc-based price effects."""
-    # Return appropriate messages for each stage
+## Stage Ordering (for comparison)
 ```
-
-### 2. Update `src/cli_rpg/main.py`
-
-In the `buy` command (around line 1571-1573):
-- After faction modifier, add arc modifier:
-```python
-from cli_rpg.npc_arc_shop import get_arc_price_modifiers
-if game_state.current_npc and game_state.current_npc.arc:
-    arc_buy_mod, arc_sell_mod, arc_refused = get_arc_price_modifiers(
-        game_state.current_npc.arc
-    )
-    if arc_refused:
-        return (True, "\nThis merchant refuses to trade with you due to your past actions.")
-    if arc_buy_mod is not None:
-        final_price = int(final_price * arc_buy_mod)
+ENEMY < HOSTILE < WARY < STRANGER < ACQUAINTANCE < TRUSTED < DEVOTED
 ```
+NPCs without arc initialized are treated as STRANGER (index 3).
 
-In the `sell` command (around line 1651-1652):
-- Add similar arc modifier after faction modifier
+## Tests: `tests/test_quest_arc_requirements.py`
 
-In the `shop` command (around line 1519-1532):
-- Add arc price message display and adjust displayed prices
+1. `test_quest_no_arc_requirement_always_available` - None required_arc_stage passes
+2. `test_quest_requires_stranger_accepts_stranger` - Stranger arc passes stranger requirement
+3. `test_quest_requires_trusted_rejects_stranger` - Stranger arc fails trusted requirement
+4. `test_quest_requires_trusted_accepts_trusted` - Trusted arc passes trusted requirement
+5. `test_quest_requires_acquaintance_accepts_higher` - Trusted passes acquaintance requirement
+6. `test_quest_requires_devoted_rejects_trusted` - Trusted arc fails devoted requirement
+7. `test_npc_no_arc_treated_as_stranger` - None arc treated as STRANGER
+8. `test_quest_serialization_with_required_arc_stage` - to_dict includes field
+9. `test_quest_deserialization_with_required_arc_stage` - from_dict parses field
+10. `test_quest_deserialization_without_required_arc_stage` - from_dict defaults None
+11. `test_accept_command_rejects_insufficient_arc` - Integration test for main.py
+12. `test_accept_command_accepts_sufficient_arc` - Integration test for main.py
 
-### 3. Create `tests/test_npc_arc_shop.py`
+## Implementation Order
 
-Test cases:
-1. `test_arc_price_modifiers_enemy_refuses_trade`
-2. `test_arc_price_modifiers_hostile_premium`
-3. `test_arc_price_modifiers_stranger_neutral`
-4. `test_arc_price_modifiers_trusted_discount`
-5. `test_arc_price_modifiers_devoted_best_discount`
-6. `test_arc_price_modifiers_none_arc_neutral`
-7. `test_buy_command_arc_modifier_applied`
-8. `test_sell_command_arc_modifier_applied`
-9. `test_shop_display_arc_adjusted_prices`
-10. `test_arc_modifier_stacks_with_faction`
+1. Add `required_arc_stage` field to Quest model with serialization
+2. Create `npc_arc_quests.py` with stage comparison helper
+3. Write unit tests for Quest model changes and helper functions
+4. Integrate arc check into main.py accept command handler
+5. Write integration tests for accept command
+6. Run full test suite
+7. Update ISSUES.md Issue 13 to mark quest prerequisites complete
 
-## Steps
+## Backward Compatibility
 
-1. Create `src/cli_rpg/npc_arc_shop.py` with modifier logic
-2. Write tests in `tests/test_npc_arc_shop.py`
-3. Run tests (expect failures)
-4. Update `main.py` buy command to apply arc modifier
-5. Update `main.py` sell command to apply arc modifier
-6. Update `main.py` shop command to display arc-adjusted prices
-7. Run tests until passing
-8. Run full test suite: `pytest`
+- `required_arc_stage` defaults to `None` (no requirement)
+- NPCs without arc initialized are treated as STRANGER stage
+- Existing quests and saves unaffected (from_dict handles missing field)

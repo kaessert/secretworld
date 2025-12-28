@@ -279,6 +279,7 @@ class Quest:
     faction_reward: int = field(default=0)
     faction_penalty: int = field(default=0)
     required_reputation: Optional[int] = field(default=None)
+    required_arc_stage: Optional[str] = field(default=None)  # NPC arc stage required to accept
     # Quest chain fields for narrative arcs
     chain_id: Optional[str] = field(default=None)  # Groups related quests (e.g., "goblin_war")
     chain_position: int = field(default=0)  # Order in chain (0 = standalone, 1 = first, etc.)
@@ -470,6 +471,7 @@ class Quest:
             "faction_reward": self.faction_reward,
             "faction_penalty": self.faction_penalty,
             "required_reputation": self.required_reputation,
+            "required_arc_stage": self.required_arc_stage,
             "chain_id": self.chain_id,
             "chain_position": self.chain_position,
             "prerequisite_quests": self.prerequisite_quests,
@@ -528,6 +530,7 @@ class Quest:
             faction_reward=data.get("faction_reward", 0),
             faction_penalty=data.get("faction_penalty", 0),
             required_reputation=data.get("required_reputation"),
+            required_arc_stage=data.get("required_arc_stage"),
             chain_id=data.get("chain_id"),
             chain_position=data.get("chain_position", 0),
             prerequisite_quests=data.get("prerequisite_quests", []),

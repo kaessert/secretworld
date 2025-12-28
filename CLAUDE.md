@@ -91,6 +91,7 @@ src/cli_rpg/
 ├── faction_shop.py      # Faction-based shop price modifiers
 ├── faction_content.py   # Faction-gated NPC/location access based on reputation
 ├── npc_arc_shop.py      # NPC arc-based shop price modifiers (relationship pricing)
+├── npc_arc_quests.py    # NPC arc-based quest prerequisites (relationship gating)
 ├── settlement_generator.py # District generation for mega-settlements (cities, metropolises, capitals)
 ├── puzzles.py           # Dungeon puzzle interaction logic (unlock, pull, step, answer, activate)
 ├── interior_events.py   # Dynamic interior events (cave-ins, monster migrations, rival adventurers) for SubGrid locations
