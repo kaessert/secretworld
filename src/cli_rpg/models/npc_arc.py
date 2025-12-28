@@ -29,6 +29,7 @@ class InteractionType(Enum):
     DEFENDED = "defended"  # +15-25 for defending in combat
     ATTACKED = "attacked"  # -30-50 for attacking
     GIFTED = "gifted"  # +5-15 for giving gifts
+    DIALOGUE_CHOICE = "dialogue_choice"  # +3/-2 based on dialogue tone choice
 
 
 @dataclass

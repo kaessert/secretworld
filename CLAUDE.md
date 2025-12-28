@@ -70,6 +70,7 @@ src/cli_rpg/
 ├── companion_banter.py  # Context-aware companion travel comments
 ├── companion_reactions.py # Companion reactions to player combat choices
 ├── companion_quests.py  # Companion personal quest system
+├── dialogue_choices.py  # Dialogue tone selection affecting NPC arc progression
 ├── random_encounters.py # Random travel encounters (merchants, wanderers, hostiles)
 ├── encounter_tables.py  # Location-specific encounter rates, enemy pools, merchant items
 ├── world_events.py      # Living world events (plagues, caravans, invasions)

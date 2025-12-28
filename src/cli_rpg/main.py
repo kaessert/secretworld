@@ -338,7 +338,28 @@ def handle_conversation_input(game_state: GameState, user_input: str) -> tuple[b
         npc_name = npc.name
         game_state.current_npc = None
         game_state.current_shop = None
+        game_state.pending_dialogue_choice = False  # Clear pending choice on exit
         return (True, f"\nYou say goodbye to {npc_name}.")
+
+    # Handle pending dialogue choice (1/2/3 or friendly/neutral/aggressive)
+    if game_state.pending_dialogue_choice:
+        from cli_rpg.dialogue_choices import parse_dialogue_input, apply_dialogue_choice
+        from cli_rpg import colors
+
+        choice_index = parse_dialogue_input(user_input)
+        if choice_index is not None:
+            # Apply the dialogue choice to NPC arc
+            feedback = apply_dialogue_choice(
+                npc, choice_index, game_state.game_time.total_hours
+            )
+            game_state.pending_dialogue_choice = False
+            output = f"\n{feedback}"
+            output += "\n\n(Continue chatting or type 'bye' to leave)"
+            return (True, output)
+        else:
+            # Invalid input - remind player of options
+            from cli_rpg.dialogue_choices import format_dialogue_choices
+            return (True, f"\n{format_dialogue_choices()}")
 
     # Generate AI response if available
     if game_state.ai_service:
@@ -1290,24 +1311,11 @@ def handle_exploration_command(game_state: GameState, command: str, args: list[s
         if talk_messages:
             output += "\n\n" + "\n".join(talk_messages)
 
-        # Record arc interaction for relationship progression
-        from cli_rpg.models.npc_arc import NPCArc, InteractionType
-        import random as _random  # Avoid shadowing with local scope
+        # Show dialogue choices for relationship progression
+        from cli_rpg.dialogue_choices import format_dialogue_choices
 
-        # Initialize NPC arc if not present
-        if npc.arc is None:
-            npc.arc = NPCArc()
-
-        # Record TALKED interaction (+1 to +3 points)
-        points_delta = _random.randint(1, 3)
-        stage_change_msg = npc.arc.record_interaction(
-            interaction_type=InteractionType.TALKED,
-            points_delta=points_delta,
-            description=f"Conversation at {game_state.current_location}",
-            timestamp=game_state.game_time.total_hours,
-        )
-        if stage_change_msg:
-            output += f"\n\n{colors.warning(stage_change_msg)}"
+        output += "\n\n" + format_dialogue_choices()
+        game_state.pending_dialogue_choice = True
 
         # Talking to NPCs reduces dread by 5
         if game_state.current_character.dread_meter.dread > 0:

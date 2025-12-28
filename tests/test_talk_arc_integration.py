@@ -1,8 +1,10 @@
-"""Tests for NPC arc integration with the talk command.
+"""Tests for NPC arc integration with the talk command and dialogue choices.
 
 Spec: Integrate NPC character arcs into the talk command so dialogue interactions
-record TALKED interactions and modify arc points (1-3 per conversation). This enables
-relationship progression over time, with visual feedback when arc stage changes.
+present dialogue choices that modify arc points (Friendly +3, Neutral +1, Aggressive -2).
+This enables relationship progression over time, with visual feedback when arc stage changes.
+
+Updated: Now tests the dialogue choice system instead of automatic random +1-3 points.
 """
 
 import pytest
@@ -63,90 +65,136 @@ def game_state_with_npc(basic_npc):
     return gs
 
 
-class TestTalkInitializesNPCArc:
-    """Test: NPCs without arc get one created on first talk."""
+class TestTalkShowsDialogueChoices:
+    """Test: Talk command shows dialogue choice prompt."""
 
-    def test_talk_initializes_npc_arc_if_none(self, game_state_with_npc, basic_npc):
-        """Talking to an NPC without an arc should initialize one."""
+    def test_talk_shows_dialogue_choices(self, game_state_with_npc, basic_npc):
+        """Talking to an NPC should display dialogue choice options."""
         from cli_rpg.main import handle_exploration_command
+
+        _, output = handle_exploration_command(game_state_with_npc, "talk", ["Test", "Merchant"])
+
+        # Should show dialogue choice options
+        assert "[1]" in output
+        assert "[2]" in output
+        assert "[3]" in output
+        assert "Friendly" in output
+        assert "Neutral" in output
+        assert "Aggressive" in output
+
+    def test_talk_sets_pending_dialogue_choice(self, game_state_with_npc, basic_npc):
+        """Talking to an NPC should set pending_dialogue_choice flag."""
+        from cli_rpg.main import handle_exploration_command
+
+        handle_exploration_command(game_state_with_npc, "talk", ["Test", "Merchant"])
+
+        assert game_state_with_npc.pending_dialogue_choice is True
+
+
+class TestDialogueChoiceInitializesNPCArc:
+    """Test: NPCs without arc get one created when dialogue choice is made."""
+
+    def test_dialogue_choice_initializes_npc_arc_if_none(self, game_state_with_npc, basic_npc):
+        """Making a dialogue choice should initialize NPC arc if none exists."""
+        from cli_rpg.main import handle_exploration_command, handle_conversation_input
 
         # NPC starts with no arc
         assert basic_npc.arc is None
 
         # Talk to the NPC
-        with patch("random.randint", return_value=2):  # Fix random for predictability
-            handle_exploration_command(game_state_with_npc, "talk", ["Test", "Merchant"])
+        handle_exploration_command(game_state_with_npc, "talk", ["Test", "Merchant"])
+
+        # Make a dialogue choice (Friendly = 1)
+        handle_conversation_input(game_state_with_npc, "1")
 
         # NPC should now have an arc
         assert basic_npc.arc is not None
         assert isinstance(basic_npc.arc, NPCArc)
 
 
-class TestTalkRecordsInteraction:
-    """Test: Talking adds TALKED interaction to arc history."""
+class TestDialogueChoiceRecordsInteraction:
+    """Test: Dialogue choice adds DIALOGUE_CHOICE interaction to arc history."""
 
-    def test_talk_records_talked_interaction(self, game_state_with_npc, basic_npc):
-        """Talking should record a TALKED interaction."""
-        from cli_rpg.main import handle_exploration_command
+    def test_dialogue_choice_records_interaction(self, game_state_with_npc, basic_npc):
+        """Making a dialogue choice should record a DIALOGUE_CHOICE interaction."""
+        from cli_rpg.main import handle_exploration_command, handle_conversation_input
 
-        with patch("random.randint", return_value=2):
-            handle_exploration_command(game_state_with_npc, "talk", ["Test", "Merchant"])
+        handle_exploration_command(game_state_with_npc, "talk", ["Test", "Merchant"])
+        handle_conversation_input(game_state_with_npc, "1")
 
         # Arc should have one interaction
         assert len(basic_npc.arc.interactions) == 1
-        assert basic_npc.arc.interactions[0].interaction_type == InteractionType.TALKED
+        assert basic_npc.arc.interactions[0].interaction_type == InteractionType.DIALOGUE_CHOICE
 
 
-class TestTalkAddsArcPoints:
-    """Test: Talking increases arc_points by 1-3."""
+class TestDialogueChoiceAddsArcPoints:
+    """Test: Dialogue choices add correct arc points."""
 
-    def test_talk_adds_arc_points_minimum(self, game_state_with_npc, basic_npc):
-        """Talking should add at least 1 arc point."""
-        from cli_rpg.main import handle_exploration_command
+    def test_friendly_choice_adds_3_points(self, game_state_with_npc, basic_npc):
+        """Friendly dialogue choice should add 3 arc points."""
+        from cli_rpg.main import handle_exploration_command, handle_conversation_input
 
-        with patch("random.randint", return_value=1):
-            handle_exploration_command(game_state_with_npc, "talk", ["Test", "Merchant"])
+        handle_exploration_command(game_state_with_npc, "talk", ["Test", "Merchant"])
+        handle_conversation_input(game_state_with_npc, "1")  # Friendly
+
+        assert basic_npc.arc.arc_points == 3
+
+    def test_neutral_choice_adds_1_point(self, game_state_with_npc, basic_npc):
+        """Neutral dialogue choice should add 1 arc point."""
+        from cli_rpg.main import handle_exploration_command, handle_conversation_input
+
+        handle_exploration_command(game_state_with_npc, "talk", ["Test", "Merchant"])
+        handle_conversation_input(game_state_with_npc, "2")  # Neutral
 
         assert basic_npc.arc.arc_points == 1
 
-    def test_talk_adds_arc_points_maximum(self, game_state_with_npc, basic_npc):
-        """Talking should add at most 3 arc points."""
-        from cli_rpg.main import handle_exploration_command
+    def test_aggressive_choice_subtracts_2_points(self, game_state_with_npc, basic_npc):
+        """Aggressive dialogue choice should subtract 2 arc points."""
+        from cli_rpg.main import handle_exploration_command, handle_conversation_input
 
-        with patch("random.randint", return_value=3):
-            handle_exploration_command(game_state_with_npc, "talk", ["Test", "Merchant"])
+        handle_exploration_command(game_state_with_npc, "talk", ["Test", "Merchant"])
+        handle_conversation_input(game_state_with_npc, "3")  # Aggressive
+
+        assert basic_npc.arc.arc_points == -2
+
+    def test_word_input_friendly(self, game_state_with_npc, basic_npc):
+        """Word input 'friendly' should work same as '1'."""
+        from cli_rpg.main import handle_exploration_command, handle_conversation_input
+
+        handle_exploration_command(game_state_with_npc, "talk", ["Test", "Merchant"])
+        handle_conversation_input(game_state_with_npc, "friendly")
 
         assert basic_npc.arc.arc_points == 3
 
 
-class TestTalkUsesGameTimeTimestamp:
+class TestDialogueChoiceUsesGameTimeTimestamp:
     """Test: Interaction timestamp is game_state.game_time.total_hours."""
 
-    def test_talk_uses_game_time_timestamp(self, game_state_with_npc, basic_npc):
+    def test_dialogue_choice_uses_game_time_timestamp(self, game_state_with_npc, basic_npc):
         """Interaction should use game time for timestamp."""
-        from cli_rpg.main import handle_exploration_command
+        from cli_rpg.main import handle_exploration_command, handle_conversation_input
 
         # Set a specific game time
         game_state_with_npc.game_time.total_hours = 42
 
-        with patch("random.randint", return_value=2):
-            handle_exploration_command(game_state_with_npc, "talk", ["Test", "Merchant"])
+        handle_exploration_command(game_state_with_npc, "talk", ["Test", "Merchant"])
+        handle_conversation_input(game_state_with_npc, "1")
 
         assert basic_npc.arc.interactions[0].timestamp == 42
 
 
-class TestTalkDisplaysStageChangeMessage:
+class TestDialogueChoiceDisplaysStageChangeMessage:
     """Test: When arc crosses threshold, output includes stage change message."""
 
-    def test_talk_displays_stage_change_message(self, game_state_with_npc, basic_npc):
+    def test_dialogue_choice_displays_stage_change_message(self, game_state_with_npc, basic_npc):
         """Stage change should be displayed when crossing threshold."""
-        from cli_rpg.main import handle_exploration_command
+        from cli_rpg.main import handle_exploration_command, handle_conversation_input
 
         # Pre-set arc to just below ACQUAINTANCE threshold (25)
         basic_npc.arc = NPCArc(arc_points=24)
 
-        with patch("random.randint", return_value=2):  # Will push to 26, crossing threshold
-            _, output = handle_exploration_command(game_state_with_npc, "talk", ["Test", "Merchant"])
+        handle_exploration_command(game_state_with_npc, "talk", ["Test", "Merchant"])
+        _, output = handle_conversation_input(game_state_with_npc, "1")  # +3 -> 27
 
         # Should mention stage change
         assert "Relationship changed" in output
@@ -158,22 +206,73 @@ class TestArcPersistsAcrossMultipleTalks:
     """Test: Repeated talks accumulate points."""
 
     def test_arc_persists_across_multiple_talks(self, game_state_with_npc, basic_npc):
-        """Multiple talks should accumulate arc points."""
-        from cli_rpg.main import handle_exploration_command
+        """Multiple talks should accumulate arc points based on choices."""
+        from cli_rpg.main import handle_exploration_command, handle_conversation_input
 
-        # Talk multiple times with fixed random value
-        with patch("random.randint", return_value=2):
-            handle_exploration_command(game_state_with_npc, "talk", ["Test", "Merchant"])
-            # Exit conversation first
-            game_state_with_npc.current_npc = None
-            handle_exploration_command(game_state_with_npc, "talk", ["Test", "Merchant"])
-            game_state_with_npc.current_npc = None
-            handle_exploration_command(game_state_with_npc, "talk", ["Test", "Merchant"])
+        # Talk and choose friendly (3 times)
+        handle_exploration_command(game_state_with_npc, "talk", ["Test", "Merchant"])
+        handle_conversation_input(game_state_with_npc, "1")  # +3
+        game_state_with_npc.current_npc = None
+        game_state_with_npc.pending_dialogue_choice = False
 
-        # Should have accumulated 6 points (2 + 2 + 2)
-        assert basic_npc.arc.arc_points == 6
+        handle_exploration_command(game_state_with_npc, "talk", ["Test", "Merchant"])
+        handle_conversation_input(game_state_with_npc, "1")  # +3
+        game_state_with_npc.current_npc = None
+        game_state_with_npc.pending_dialogue_choice = False
+
+        handle_exploration_command(game_state_with_npc, "talk", ["Test", "Merchant"])
+        handle_conversation_input(game_state_with_npc, "1")  # +3
+
+        # Should have accumulated 9 points (3 + 3 + 3)
+        assert basic_npc.arc.arc_points == 9
         # Should have 3 interactions recorded
         assert len(basic_npc.arc.interactions) == 3
+
+
+class TestDialogueChoiceClearsPendingState:
+    """Test: Making a choice clears pending_dialogue_choice flag."""
+
+    def test_choice_clears_pending_state(self, game_state_with_npc, basic_npc):
+        """Making a dialogue choice should clear pending flag."""
+        from cli_rpg.main import handle_exploration_command, handle_conversation_input
+
+        handle_exploration_command(game_state_with_npc, "talk", ["Test", "Merchant"])
+        assert game_state_with_npc.pending_dialogue_choice is True
+
+        handle_conversation_input(game_state_with_npc, "1")
+        assert game_state_with_npc.pending_dialogue_choice is False
+
+
+class TestInvalidDialogueInputRepromptsChoices:
+    """Test: Invalid input re-displays dialogue choices."""
+
+    def test_invalid_input_reprompts(self, game_state_with_npc, basic_npc):
+        """Invalid dialogue input should show choices again."""
+        from cli_rpg.main import handle_exploration_command, handle_conversation_input
+
+        handle_exploration_command(game_state_with_npc, "talk", ["Test", "Merchant"])
+        _, output = handle_conversation_input(game_state_with_npc, "hello")  # Invalid
+
+        # Should show choices again
+        assert "[1]" in output
+        assert "[2]" in output
+        assert "[3]" in output
+        # Should still be pending
+        assert game_state_with_npc.pending_dialogue_choice is True
+
+
+class TestExitClearsPendingChoice:
+    """Test: Exiting conversation clears pending dialogue choice."""
+
+    def test_bye_clears_pending_choice(self, game_state_with_npc, basic_npc):
+        """Saying 'bye' should clear pending dialogue choice."""
+        from cli_rpg.main import handle_exploration_command, handle_conversation_input
+
+        handle_exploration_command(game_state_with_npc, "talk", ["Test", "Merchant"])
+        assert game_state_with_npc.pending_dialogue_choice is True
+
+        handle_conversation_input(game_state_with_npc, "bye")
+        assert game_state_with_npc.pending_dialogue_choice is False
 
 
 class TestArcStageAffectsGreeting:

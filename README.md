@@ -96,7 +96,7 @@ python -m cli_rpg.main
 - `equip <item name>` (e) - Equip a weapon or armor from your inventory
 - `unequip weapon|armor` - Unequip from the specified slot and return to inventory
 - `use <item name>` (u) - Use a consumable item (e.g., health potion)
-- `talk [npc]` (t) - Talk to an NPC (opens shop if merchant, shows quests if quest-giver, or enter extended conversation). If only one NPC is present, starts conversation automatically. If multiple NPCs are present, lists available NPCs. Each conversation builds your relationship with the NPC (see NPC Relationships below).
+- `talk [npc]` (t) - Talk to an NPC (opens shop if merchant, shows quests if quest-giver, or enter extended conversation). If only one NPC is present, starts conversation automatically. If multiple NPCs are present, lists available NPCs. Each conversation presents dialogue choices that affect your relationship with the NPC (see NPC Relationships below).
 - `accept <quest>` - Accept a quest from the NPC you're talking to
 - `shop` - View the current merchant's inventory and prices
 - `buy <item>` - Purchase an item from the current shop
@@ -393,10 +393,18 @@ NPCs remember your interactions and develop relationships over time:
    - **TRUSTED** (50+ points): "Good to see you again! What can I do for you today?"
    - **DEVOTED** (75+ points): "Ah, my dear friend! It's always a pleasure to see you."
 
-2. **Building Relationships**:
-   - Each conversation with an NPC adds 1-3 arc points
+2. **Dialogue Choices**: When talking to NPCs, you'll be prompted to choose your tone:
+   ```
+   How do you respond?
+     [1] Friendly - Respond warmly and helpfully (+3 arc points)
+     [2] Neutral - Keep things polite but businesslike (+1 arc point)
+     [3] Aggressive - Be blunt or threatening (-2 arc points)
+   ```
+   - Enter 1/2/3 or type "friendly", "neutral", or "aggressive" (case insensitive)
+   - The NPC will react based on your choice (e.g., "Elara smiles at your kindness.")
    - Arc points accumulate across sessions (saved with game state)
    - When you cross a stage threshold, you'll see a message: "[NPC name]'s demeanor toward you has changed."
+   - Type "bye" to exit the conversation without making a choice
 
 3. **Relationship Benefits** (planned for future):
    - Shop price modifiers based on relationship

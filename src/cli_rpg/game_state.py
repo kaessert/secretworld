@@ -322,6 +322,8 @@ class GameState:
         # Uses world seed from chunk_manager if available, otherwise random
         world_seed = chunk_manager.world_seed if chunk_manager else random.randint(0, 2**31)
         self.location_noise_manager = LocationNoiseManager(world_seed=world_seed)
+        # Pending dialogue choice: True when waiting for player to select tone (1/2/3)
+        self.pending_dialogue_choice: bool = False
 
     @property
     def is_in_conversation(self) -> bool:
