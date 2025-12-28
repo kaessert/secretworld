@@ -60,6 +60,22 @@ CLASS_BONUSES: Dict["CharacterClass", Dict[str, int]] = {
     },
 }
 
+# Spec: CLASS_ARMOR_RESTRICTIONS maps each class to allowed armor weights
+# Mage: LIGHT only, Rogue/Ranger/Cleric: LIGHT/MEDIUM, Warrior: all weights
+# Import at runtime to avoid circular imports
+def _get_armor_weight_class():
+    from cli_rpg.models.item import ArmorWeight
+    return ArmorWeight
+
+
+CLASS_ARMOR_RESTRICTIONS: Dict["CharacterClass", list] = {
+    CharacterClass.MAGE: ["LIGHT"],
+    CharacterClass.ROGUE: ["LIGHT", "MEDIUM"],
+    CharacterClass.WARRIOR: ["LIGHT", "MEDIUM", "HEAVY"],
+    CharacterClass.RANGER: ["LIGHT", "MEDIUM"],
+    CharacterClass.CLERIC: ["LIGHT", "MEDIUM"],
+}
+
 if TYPE_CHECKING:
     from cli_rpg.models.item import Item
     from cli_rpg.models.inventory import Inventory
@@ -391,6 +407,64 @@ class Character:
         if self.stance == FightingStance.BALANCED:
             return 0.05
         return 0.0
+
+    def can_equip_armor(self, armor: "Item") -> bool:
+        """Check if character class can equip armor of given weight.
+
+        Spec: Mage can only equip LIGHT, Rogue/Ranger/Cleric can equip LIGHT/MEDIUM,
+        Warrior can equip all weights. Characters without class can equip any armor.
+        Armor without weight (backward compat) is treated as LIGHT.
+
+        Args:
+            armor: Armor item to check
+
+        Returns:
+            True if armor can be equipped, False otherwise
+        """
+        from cli_rpg.models.item import ItemType, ArmorWeight
+
+        # Non-armor items always allowed (weapon check is separate)
+        if armor.item_type != ItemType.ARMOR:
+            return True
+
+        # No class restriction - can equip any armor (backward compat)
+        if self.character_class is None:
+            return True
+
+        # Armor without weight (old saves) treated as LIGHT - always allowed
+        if armor.armor_weight is None:
+            return True
+
+        # Check class restrictions
+        allowed_weights = CLASS_ARMOR_RESTRICTIONS.get(self.character_class, [])
+        return armor.armor_weight.name in allowed_weights
+
+    def equip_armor_with_validation(self, armor: "Item") -> Tuple[bool, str]:
+        """Attempt to equip armor with class-based validation.
+
+        Args:
+            armor: Armor item to equip
+
+        Returns:
+            Tuple of (success, message) - success is False if armor is too heavy
+        """
+        from cli_rpg.models.item import ItemType
+
+        if armor.item_type != ItemType.ARMOR:
+            return (False, f"{armor.name} is not armor.")
+
+        if not self.can_equip_armor(armor):
+            class_name = self.character_class.value if self.character_class else "your class"
+            weight_name = armor.armor_weight.value if armor.armor_weight else "unknown"
+            return (
+                False,
+                f"Cannot equip {armor.name} - {weight_name} armor is too heavy for {class_name}.",
+            )
+
+        success = self.inventory.equip(armor)
+        if success:
+            return (True, f"You equipped {armor.name}.")
+        return (False, f"Failed to equip {armor.name}.")
 
     def equip_item(self, item: "Item") -> bool:
         """Equip an item from inventory.

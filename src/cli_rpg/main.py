@@ -1165,6 +1165,13 @@ def handle_exploration_command(game_state: GameState, command: str, args: list[s
             if inv.equipped_armor and inv.equipped_armor.name.lower() == item_name_lower:
                 return (True, f"\n{inv.equipped_armor.name} is already equipped.")
             return (True, f"\nYou don't have '{item_name}' in your inventory.")
+
+        # Check armor class restrictions before equipping
+        if item.item_type == ItemType.ARMOR:
+            success, message = game_state.current_character.equip_armor_with_validation(item)
+            return (True, f"\n{message}")
+
+        # For weapons and other equippable items, use standard equip
         success = game_state.current_character.inventory.equip(item)
         if success:
             return (True, f"\nYou equipped {item.name}.")

@@ -103,14 +103,14 @@ src/cli_rpg/
 ├── test_world.py        # Demo mode fixture loading (load_test_world, create_demo_game_state)
 └── models/
     ├── content_request.py # Typed request/response schemas for content generation (RoomContentRequest, NPCContentRequest, etc.)
-    ├── character.py     # Player character model
+    ├── character.py     # Player character model, CLASS_ARMOR_RESTRICTIONS, unlocked_recipes
     ├── district.py      # District model for mega-settlements (DistrictType enum, bounds, atmosphere)
     ├── dread.py         # Dread meter for psychological horror
     ├── economy.py       # Economy state (supply/demand, location bonuses, event disruption)
     ├── tiredness.py     # Tiredness meter for fatigue and sleep mechanics
-    ├── enemy.py         # Enemy/monster model
+    ├── enemy.py         # Enemy/monster model with perception stat for stealth detection
     ├── game_time.py     # Day/night cycle and time tracking
-    ├── item.py          # Item definitions
+    ├── item.py          # Item definitions, ArmorWeight enum (LIGHT, MEDIUM, HEAVY)
     ├── inventory.py     # Inventory management
     ├── location.py      # Location with coordinates and NPCs (movement via coordinate adjacency), puzzles, blocked_directions, hazards
     ├── npc.py           # Non-player character model with relationship support

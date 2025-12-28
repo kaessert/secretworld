@@ -766,29 +766,29 @@ ITEM_TEMPLATES: dict[str, dict[str, list[dict]]] = {
     },
     "armor": {
         "dungeon": [
-            {"name": "Dungeon Guard Armor", "description": "Worn by ancient guardians.", "defense_bonus": 3},
-            {"name": "Shadow Cloak", "description": "Helps blend into darkness.", "defense_bonus": 2},
-            {"name": "Iron Shield", "description": "Dented but sturdy.", "defense_bonus": 2},
+            {"name": "Dungeon Guard Armor", "description": "Worn by ancient guardians.", "defense_bonus": 3, "armor_weight": "heavy"},
+            {"name": "Shadow Cloak", "description": "Helps blend into darkness.", "defense_bonus": 2, "armor_weight": "light"},
+            {"name": "Iron Shield", "description": "Dented but sturdy.", "defense_bonus": 2, "armor_weight": "medium"},
         ],
         "cave": [
-            {"name": "Crystal Armor", "description": "Made from cave crystals.", "defense_bonus": 4},
-            {"name": "Stone Shield", "description": "Heavy but protective.", "defense_bonus": 3},
-            {"name": "Miner's Helm", "description": "Protects from falling rocks.", "defense_bonus": 1},
+            {"name": "Crystal Armor", "description": "Made from cave crystals.", "defense_bonus": 4, "armor_weight": "heavy"},
+            {"name": "Stone Shield", "description": "Heavy but protective.", "defense_bonus": 3, "armor_weight": "heavy"},
+            {"name": "Miner's Helm", "description": "Protects from falling rocks.", "defense_bonus": 1, "armor_weight": "light"},
         ],
         "ruins": [
-            {"name": "Ancient Armor", "description": "Armor from a lost civilization.", "defense_bonus": 4},
-            {"name": "Gilded Shield", "description": "Decorated but functional.", "defense_bonus": 3},
-            {"name": "Relic Helm", "description": "An artifact of protection.", "defense_bonus": 2},
+            {"name": "Ancient Armor", "description": "Armor from a lost civilization.", "defense_bonus": 4, "armor_weight": "heavy"},
+            {"name": "Gilded Shield", "description": "Decorated but functional.", "defense_bonus": 3, "armor_weight": "medium"},
+            {"name": "Relic Helm", "description": "An artifact of protection.", "defense_bonus": 2, "armor_weight": "light"},
         ],
         "temple": [
-            {"name": "Blessed Robes", "description": "Infused with divine protection.", "defense_bonus": 3},
-            {"name": "Sacred Shield", "description": "Bears holy symbols.", "defense_bonus": 4},
-            {"name": "Temple Guard Armor", "description": "Worn by the faithful.", "defense_bonus": 3},
+            {"name": "Blessed Robes", "description": "Infused with divine protection.", "defense_bonus": 3, "armor_weight": "light"},
+            {"name": "Sacred Shield", "description": "Bears holy symbols.", "defense_bonus": 4, "armor_weight": "medium"},
+            {"name": "Temple Guard Armor", "description": "Worn by the faithful.", "defense_bonus": 3, "armor_weight": "medium"},
         ],
         "default": [
-            {"name": "Leather Armor", "description": "Basic but reliable protection.", "defense_bonus": 2},
-            {"name": "Chain Mail", "description": "Interlocking metal rings.", "defense_bonus": 3},
-            {"name": "Steel Shield", "description": "A warrior's defense.", "defense_bonus": 2},
+            {"name": "Leather Armor", "description": "Basic but reliable protection.", "defense_bonus": 2, "armor_weight": "light"},
+            {"name": "Chain Mail", "description": "Interlocking metal rings.", "defense_bonus": 3, "armor_weight": "medium"},
+            {"name": "Steel Shield", "description": "A warrior's defense.", "defense_bonus": 2, "armor_weight": "medium"},
         ],
     },
     "consumable": {
@@ -913,13 +913,13 @@ TREASURE_LOOT_TABLES: dict[str, list[dict]] = {
     ],
     "ruins": [
         {"name": "Ancient Tome", "item_type": "misc"},
-        {"name": "Gilded Amulet", "item_type": "armor", "defense_bonus": 2},
+        {"name": "Gilded Amulet", "item_type": "armor", "defense_bonus": 2, "armor_weight": "light"},
         {"name": "Relic Dust", "item_type": "consumable", "mana_restore": 20},
     ],
     "temple": [
         {"name": "Holy Water", "item_type": "consumable", "heal_amount": 30},
         {"name": "Sacred Relic", "item_type": "misc"},
-        {"name": "Blessed Medallion", "item_type": "armor", "defense_bonus": 3},
+        {"name": "Blessed Medallion", "item_type": "armor", "defense_bonus": 3, "armor_weight": "light"},
     ],
     "forest": [
         {"name": "Forest Gem", "item_type": "misc"},

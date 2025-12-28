@@ -16,6 +16,17 @@ class ItemType(Enum):
     RESOURCE = "resource"
 
 
+class ArmorWeight(Enum):
+    """Armor weight categories for class restrictions.
+
+    Spec: Mage can only equip LIGHT, Rogue/Ranger/Cleric can equip LIGHT/MEDIUM,
+    Warrior can equip all weights (only class for HEAVY).
+    """
+    LIGHT = "light"
+    MEDIUM = "medium"
+    HEAVY = "heavy"
+
+
 @dataclass
 class Item:
     """Represents an item in the RPG.
@@ -45,6 +56,7 @@ class Item:
     light_duration: int = 0
     is_cure: bool = False  # True for items that can cure plagues/events
     weapon_type: Optional["WeaponType"] = None  # Weapon proficiency type for weapons
+    armor_weight: Optional[ArmorWeight] = None  # Armor weight for class restrictions
 
     def __post_init__(self):
         """Validate item attributes."""
@@ -97,6 +109,9 @@ class Item:
         # Only include weapon_type if set
         if self.weapon_type is not None:
             data["weapon_type"] = self.weapon_type.value
+        # Only include armor_weight if set
+        if self.armor_weight is not None:
+            data["armor_weight"] = self.armor_weight.value
         return data
 
     @classmethod
@@ -115,6 +130,11 @@ class Item:
             from cli_rpg.models.weapon_proficiency import WeaponType
             weapon_type = WeaponType(data["weapon_type"])
 
+        # Handle armor_weight (backward compatible - defaults to None)
+        armor_weight = None
+        if "armor_weight" in data:
+            armor_weight = ArmorWeight(data["armor_weight"])
+
         return cls(
             name=data["name"],
             description=data["description"],
@@ -127,6 +147,7 @@ class Item:
             light_duration=data.get("light_duration", 0),
             is_cure=data.get("is_cure", False),
             weapon_type=weapon_type,
+            armor_weight=armor_weight,
         )
 
     def __str__(self) -> str:
@@ -136,6 +157,11 @@ class Item:
             Formatted string with item details
         """
         type_str = self.item_type.value.capitalize()
+
+        # Show armor weight for armor items
+        if self.item_type == ItemType.ARMOR and self.armor_weight is not None:
+            type_str = f"{self.armor_weight.value.capitalize()} {type_str}"
+
         stat_parts = []
 
         if self.damage_bonus > 0:

@@ -315,6 +315,15 @@ Defeated enemies have a chance to drop loot. Items include:
 
 Your inventory has a capacity of 20 items. Use `inventory` to view your items, `equip <item>` to equip weapons/armor, `unequip weapon|armor` to remove equipment, and `use <item>` for consumables. Equipped items apply their bonuses automatically during combat.
 
+**Armor Weight Restrictions**: Armor comes in three weight categories (Light, Medium, Heavy), and each class has restrictions on what armor they can wear:
+- **Warrior**: Can wear all armor types (Light, Medium, Heavy)
+- **Rogue**: Light and Medium armor only
+- **Ranger**: Light and Medium armor only
+- **Cleric**: Light and Medium armor only
+- **Mage**: Light armor only
+
+Armor with no specified weight (legacy items) is treated as Light and can be worn by any class.
+
 ### Crafting
 
 Gather resources in the wilderness and craft useful items:

@@ -1,3 +1,63 @@
+# Armor Class Restrictions - Implementation Summary
+
+## Date: 2025-12-28
+
+## What Was Implemented
+
+Added armor weight categories to differentiate class equipment choices, with class-based restrictions on what armor each class can wear.
+
+### 1. ArmorWeight Enum (`src/cli_rpg/models/item.py`)
+- Added new `ArmorWeight` enum with values: `LIGHT`, `MEDIUM`, `HEAVY`
+- Added optional `armor_weight: Optional[ArmorWeight] = None` field to `Item` dataclass
+- Updated `to_dict()` to serialize armor_weight (only when set)
+- Updated `from_dict()` to deserialize armor_weight (defaults to None for backward compatibility)
+- Updated `__str__()` to display weight category for armor items (e.g., "Plate Armor [Heavy Armor]")
+
+### 2. Class Armor Restrictions (`src/cli_rpg/models/character.py`)
+- Added `CLASS_ARMOR_RESTRICTIONS` dict mapping each `CharacterClass` to allowed armor weight names:
+  - **Mage**: LIGHT only
+  - **Rogue**: LIGHT and MEDIUM
+  - **Warrior**: LIGHT, MEDIUM, and HEAVY (only class that can use heavy armor)
+  - **Ranger**: LIGHT and MEDIUM
+  - **Cleric**: LIGHT and MEDIUM
+- Added `can_equip_armor(armor: Item) -> bool` method that validates weight restrictions
+- Added `equip_armor_with_validation(armor: Item) -> Tuple[bool, str]` method that returns success/failure with descriptive message
+
+### 3. Main.py Equip Command Update (`src/cli_rpg/main.py`)
+- Updated equip command handler to call `equip_armor_with_validation()` for armor items
+- Provides descriptive error message when armor is too heavy for class (e.g., "Cannot equip Plate Armor - heavy armor is too heavy for Mage.")
+
+### 4. Fallback Content Updates (`src/cli_rpg/fallback_content.py`)
+- Added `armor_weight` field to all armor item templates:
+  - **Light**: Shadow Cloak, Miner's Helm, Relic Helm, Blessed Robes, Leather Armor, Gilded Amulet, Blessed Medallion
+  - **Medium**: Iron Shield, Gilded Shield, Sacred Shield, Temple Guard Armor, Chain Mail, Steel Shield
+  - **Heavy**: Dungeon Guard Armor, Crystal Armor, Stone Shield, Ancient Armor
+
+### Backward Compatibility
+- Existing armor items without weight field default to `None`
+- Armor with `None` weight is treated as LIGHT and can be equipped by any class
+- Characters without a class (None) can equip any armor regardless of weight
+
+## Files Modified
+1. `src/cli_rpg/models/item.py` - ArmorWeight enum, armor_weight field
+2. `src/cli_rpg/models/character.py` - CLASS_ARMOR_RESTRICTIONS, can_equip_armor(), equip_armor_with_validation()
+3. `src/cli_rpg/main.py` - Updated equip command
+4. `src/cli_rpg/fallback_content.py` - Added armor_weight to armor templates
+
+## Files Created
+1. `tests/test_armor_restrictions.py` - Test suite for armor class restrictions (19 tests)
+
+## Test Results
+- 19 new tests added in `tests/test_armor_restrictions.py`
+- All 5378 tests pass (including 120 item/character/inventory tests)
+
+## E2E Validation Suggestions
+- Create a Mage character, acquire heavy armor (e.g., Dungeon Guard Armor), and verify equip command is rejected with appropriate message
+- Create a Warrior character and verify they can equip all armor types
+- Load an old save file and verify backward compatibility - existing armor still equips correctly
+
+---
+
 # Stealth Kills Bonus XP - Implementation Summary
 
 ## Date: 2025-12-28

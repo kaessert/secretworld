@@ -265,10 +265,9 @@ quest = Quest(
 **Implemented**:
 - 5 classes: Warrior, Mage, Rogue, Ranger, Cleric with stat bonuses
 - Class-specific abilities: bash, fireball, ice_bolt, heal, sneak, pick, track, bless, smite
+- Armor weight restrictions by class (Warrior: all, Rogue/Ranger/Cleric: Light+Medium, Mage: Light only)
 
 **Remaining (Future)**:
-- Heavy armor for Warrior
-- Armor restrictions for Mage
 - Animal companion for Ranger
 - Holy symbols for Cleric
 

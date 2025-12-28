@@ -1,77 +1,77 @@
-# Implementation Plan: Stealth Kills Bonus XP
+# Implementation Plan: Armor Class Restrictions
 
 ## Spec
-Award bonus XP when player kills an enemy with a backstab (attack from stealth). Bonus: 25% of enemy's base XP reward per stealth kill.
 
-## Files to Modify
-- `src/cli_rpg/combat.py` - Track stealth kills, apply bonus in `end_combat()`
-- `tests/test_sneak.py` - Add test for stealth kill XP bonus
+Add armor weight categories to differentiate class equipment choices:
+- **ArmorWeight enum**: `LIGHT`, `MEDIUM`, `HEAVY`
+- **Class restrictions**:
+  - Mage: Can only equip `LIGHT` armor
+  - Rogue: Can only equip `LIGHT` or `MEDIUM` armor
+  - Warrior: Can equip all armor weights (only class for `HEAVY`)
+  - Ranger: Can only equip `LIGHT` or `MEDIUM` armor
+  - Cleric: Can only equip `LIGHT` or `MEDIUM` armor
+- **Backward compatibility**: Existing armor items (no weight) default to `LIGHT`
 
 ## Implementation Steps
 
-### 1. Add test for stealth kill XP bonus
-**File:** `tests/test_sneak.py`
+### 1. Add ArmorWeight enum to Item model
+**File:** `src/cli_rpg/models/item.py`
+- Add `ArmorWeight` enum with `LIGHT`, `MEDIUM`, `HEAVY` values
+- Add optional `armor_weight: Optional[ArmorWeight] = None` field to `Item` dataclass
+- Update `to_dict()` to serialize armor_weight
+- Update `from_dict()` to deserialize armor_weight (default `None` for backward compat)
+- Update `__str__()` to display weight for armor items
 
-Add new test class after existing tests:
+### 2. Add class armor restrictions to Character model
+**File:** `src/cli_rpg/models/character.py`
+- Add `CLASS_ARMOR_RESTRICTIONS` dict mapping `CharacterClass` to allowed `ArmorWeight` list
+- Add `can_equip_armor(armor: Item) -> bool` method that checks weight restrictions
+- Modify `equip_item()` to check `can_equip_armor()` before delegating to inventory
+
+### 3. Update Inventory.equip() to accept class-based validation
+**File:** `src/cli_rpg/models/inventory.py`
+- Add optional `character_class` parameter to `equip()` method
+- When provided, validate armor weight against class restrictions
+- Return descriptive error information for UI feedback
+
+### 4. Update main.py equip command
+**File:** `src/cli_rpg/main.py`
+- Update equip command handler to pass character class to equip validation
+- Add descriptive error message when armor is too heavy for class
+
+### 5. Update fallback content with armor weights
+**File:** `src/cli_rpg/fallback_content.py`
+- Update armor item templates to include `armor_weight` field
+- Light armor: Robes, cloaks, leather
+- Medium armor: Chainmail, scale
+- Heavy armor: Plate, full plate
+
+## Test Plan
+
+### Test file: `tests/test_armor_restrictions.py`
+
 ```python
-class TestSneakKillBonusXP:
-    """Spec: Killing enemy with backstab grants 25% bonus XP."""
+class TestArmorWeightEnum:
+    def test_armor_weight_has_three_values()
+    def test_armor_weight_values()
 
-    def test_stealth_kill_grants_bonus_xp(self):
-        """Spec: Backstab kill grants 25% bonus XP on combat end."""
-        # Create Rogue with high STR to one-shot enemy
-        # Use enemy with xp_reward=100 for easy math
-        # Sneak -> attack -> verify combat.stealth_kills == 1
-        # Call end_combat(victory=True)
-        # Assert "Stealth bonus" in message
-        # Assert player got 125 XP (100 base + 25 bonus)
+class TestItemArmorWeight:
+    def test_item_armor_defaults_to_none()
+    def test_item_armor_with_weight()
+    def test_item_serialization_with_weight()
+    def test_item_serialization_without_weight_backward_compat()
 
-    def test_no_bonus_for_normal_kills(self):
-        """Spec: Normal kills don't grant stealth bonus XP."""
-        # Kill without stealth
-        # Assert combat.stealth_kills == 0
-        # Assert no "Stealth bonus" message
-        # Assert player got exactly 100 XP
-```
+class TestCharacterArmorRestrictions:
+    def test_mage_can_equip_light_armor()
+    def test_mage_cannot_equip_medium_armor()
+    def test_mage_cannot_equip_heavy_armor()
+    def test_warrior_can_equip_all_armor()
+    def test_rogue_can_equip_light_and_medium()
+    def test_ranger_can_equip_light_and_medium()
+    def test_cleric_can_equip_light_and_medium()
+    def test_no_class_can_equip_any_armor()  # backward compat
+    def test_armor_without_weight_can_be_equipped()  # backward compat
 
-### 2. Add stealth_kills counter to CombatEncounter.__init__()
-**File:** `src/cli_rpg/combat.py`, line ~403 (after combo system state)
-
-```python
-# Stealth kill tracking for bonus XP
-self.stealth_kills = 0
-```
-
-### 3. Track stealth kills in player_attack()
-**File:** `src/cli_rpg/combat.py`, lines 749-750
-
-Modify enemy death check to increment counter:
-```python
-if not enemy.is_alive():
-    if is_backstab:
-        self.stealth_kills += 1
-    message += f"\n{colors.enemy(enemy.name)} has been defeated!"
-```
-
-### 4. Apply stealth kill bonus XP in end_combat()
-**File:** `src/cli_rpg/combat.py`, lines 1958-1961
-
-After calculating total_xp, add bonus before calling gain_xp:
-```python
-# Sum XP from all enemies
-total_xp = sum(e.xp_reward for e in self.enemies)
-
-# Add stealth kill bonus (25% per stealth kill)
-stealth_bonus = 0
-if self.stealth_kills > 0:
-    stealth_bonus = int(total_xp * 0.25 * self.stealth_kills / len(self.enemies))
-    messages.append(f"Stealth bonus: +{stealth_bonus} XP!")
-
-xp_messages = self.player.gain_xp(total_xp + stealth_bonus)
-```
-
-## Verification
-```bash
-pytest tests/test_sneak.py::TestSneakKillBonusXP -v
-pytest tests/test_sneak.py -v
+class TestEquipCommand:
+    def test_equip_restricted_armor_shows_error_message()
 ```
