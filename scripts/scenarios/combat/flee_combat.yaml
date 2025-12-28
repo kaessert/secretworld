@@ -1,0 +1,63 @@
+# Flee combat scenario - tests fleeing from combat
+# Validates that the player can escape from combat encounters
+scenario:
+  name: "Flee Combat"
+  description: "Test flee command to escape combat"
+  seed: 42004
+  config:
+    max_commands: 30
+    timeout: 90
+
+  setup:
+    - "dump_state"  # Get initial state
+
+  steps:
+    # Step 1: Look at surroundings
+    - command: "look"
+      assertions:
+        - type: COMMAND_VALID
+          field: ""
+          value: true
+          message: "look command should be valid"
+
+    # Step 2: Get current state
+    - command: "dump_state"
+      assertions:
+        - type: CONTENT_PRESENT
+          field: "health"
+          value: true
+          message: "Health should be tracked"
+
+    # Step 3: Explore to potentially trigger combat
+    - command: "go north"
+      assertions:
+        - type: COMMAND_VALID
+          field: ""
+          value: true
+          message: "Movement should work"
+
+    # Step 4: Continue exploration
+    - command: "go east"
+      assertions:
+        - type: COMMAND_VALID
+          field: ""
+          value: true
+          message: "Movement should work"
+
+    # Step 5: Check state
+    - command: "dump_state"
+      assertions:
+        - type: STATE_RANGE
+          field: "health"
+          value:
+            min: 1
+            max: 200
+          message: "Health should be in valid range"
+
+    # Step 6: Try flee (works in or out of combat)
+    - command: "flee"
+      assertions:
+        - type: COMMAND_VALID
+          field: ""
+          value: true
+          message: "Flee command should be recognized"

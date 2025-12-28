@@ -1,0 +1,55 @@
+# Shop browse scenario - tests shop interaction
+# Validates that the player can browse shop inventory
+scenario:
+  name: "Shop Browse"
+  description: "Test shop and browse commands"
+  seed: 42008
+  config:
+    max_commands: 30
+    timeout: 90
+
+  setup:
+    - "dump_state"  # Get initial state
+
+  steps:
+    # Step 1: Look at surroundings
+    - command: "look"
+      assertions:
+        - type: COMMAND_VALID
+          field: ""
+          value: true
+          message: "look command should be valid"
+
+    # Step 2: Get current state
+    - command: "dump_state"
+      assertions:
+        - type: CONTENT_PRESENT
+          field: "gold"
+          value: true
+          message: "Gold should be tracked"
+
+    # Step 3: Check for shop
+    - command: "shop"
+      assertions:
+        - type: COMMAND_VALID
+          field: ""
+          value: true
+          message: "shop command should be recognized"
+
+    # Step 4: Try browse
+    - command: "browse"
+      assertions:
+        - type: COMMAND_VALID
+          field: ""
+          value: true
+          message: "browse command should be recognized"
+
+    # Step 5: Verify state after shop interaction
+    - command: "dump_state"
+      assertions:
+        - type: STATE_RANGE
+          field: "gold"
+          value:
+            min: 0
+            max: 999999
+          message: "Gold should be in valid range"

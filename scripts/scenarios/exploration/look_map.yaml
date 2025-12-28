@@ -1,0 +1,66 @@
+# Look and map scenario - tests exploration commands
+# Validates that the player can observe surroundings and view the map
+scenario:
+  name: "Look and Map"
+  description: "Test look and map commands for exploration"
+  seed: 42009
+  config:
+    max_commands: 20
+    timeout: 60
+
+  setup:
+    - "dump_state"  # Get initial state
+
+  steps:
+    # Step 1: Look at current location
+    - command: "look"
+      assertions:
+        - type: COMMAND_VALID
+          field: ""
+          value: true
+          message: "look command should be valid"
+        - type: CONTENT_PRESENT
+          field: "location"
+          value: true
+          message: "Location should be displayed"
+
+    # Step 2: View the map
+    - command: "map"
+      assertions:
+        - type: COMMAND_VALID
+          field: ""
+          value: true
+          message: "map command should be valid"
+
+    # Step 3: Get state with exits
+    - command: "dump_state"
+      wait_for: "exits"
+      assertions:
+        - type: CONTENT_PRESENT
+          field: "exits"
+          value: true
+          message: "Exits should be available"
+
+    # Step 4: Move and look again
+    - command: "go north"
+      assertions:
+        - type: COMMAND_VALID
+          field: ""
+          value: true
+          message: "go north should work"
+
+    # Step 5: Look at new location
+    - command: "look"
+      assertions:
+        - type: COMMAND_VALID
+          field: ""
+          value: true
+          message: "look should work at new location"
+
+    # Step 6: View updated map
+    - command: "map"
+      assertions:
+        - type: COMMAND_VALID
+          field: ""
+          value: true
+          message: "map should show explored area"

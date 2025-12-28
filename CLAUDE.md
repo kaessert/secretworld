@@ -35,11 +35,19 @@ scripts/
 │   ├── personality.py   # PersonalityType enum, PersonalityTraits dataclass with 5 presets
 │   ├── memory.py        # AgentMemory, FailureRecord, NPCMemory, LocationMemory for learning from failures
 │   └── class_behaviors.py # CharacterClassName enum, ClassBehaviorConfig, 5 behavior classes (Warrior, Mage, Rogue, Ranger, Cleric) with class-specific combat/exploration strategies
-└── validation/
-    ├── __init__.py      # Package exports for validation framework
-    ├── assertions.py    # AssertionType enum (8 types), Assertion/AssertionResult dataclasses, AssertionChecker for state validation
-    ├── coverage.py      # FeatureCategory enum (14 categories), FeatureEvent, CoverageStats, FeatureCoverage tracker for playtest coverage analysis
-    └── scenarios.py     # YAML scenario format: Scenario/ScenarioStep dataclasses, ScenarioRunner for automated playthrough validation
+├── validation/
+│   ├── __init__.py      # Package exports for validation framework
+│   ├── assertions.py    # AssertionType enum (8 types), Assertion/AssertionResult dataclasses, AssertionChecker for state validation
+│   ├── coverage.py      # FeatureCategory enum (14 categories), FeatureEvent, CoverageStats, FeatureCoverage tracker for playtest coverage analysis
+│   └── scenarios.py     # YAML scenario format: Scenario/ScenarioStep dataclasses, ScenarioRunner for automated playthrough validation
+└── scenarios/           # YAML validation scenarios for core game features
+    ├── __init__.py
+    ├── movement/        # Navigation scenarios (basic_navigation.yaml, subgrid_entry_exit.yaml)
+    ├── combat/          # Combat scenarios (basic_attack.yaml, flee_combat.yaml)
+    ├── inventory/       # Inventory scenarios (equip_unequip.yaml, use_item.yaml)
+    ├── npc/             # NPC interaction scenarios (talk_dialogue.yaml, shop_browse.yaml)
+    ├── exploration/     # Exploration scenarios (look_map.yaml)
+    └── rest/            # Rest scenarios (basic_rest.yaml)
 
 tests/e2e/
 ├── __init__.py          # E2E test package

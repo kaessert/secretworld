@@ -408,7 +408,7 @@ python -m scripts.run_validation --report-format=html --output=report.html
 2. ✅ Implement assertion types and checking (8 assertion types: STATE_EQUALS, STATE_CONTAINS, STATE_RANGE, NARRATIVE_MATCH, COMMAND_VALID, COMMAND_EFFECT, CONTENT_PRESENT, CONTENT_QUALITY placeholder)
 3. ✅ Implement FeatureCoverage tracker (14 categories, 50 features, FeatureEvent/CoverageStats dataclasses, record/get_coverage_by_category/get_uncovered_features/get_coverage_percentage methods, full serialization)
 4. ✅ Create YAML scenario format and runner (ScenarioRunner with run/run_scenario methods, Scenario/ScenarioStep/StepResult/ScenarioResult dataclasses, wait_for support, 17 tests)
-5. Create initial scenarios for core features
+5. ✅ Create initial scenarios for core features (10 YAML scenarios in scripts/scenarios/: movement, combat, inventory, NPC, exploration, rest; seeds 42001-42010; validated by tests/test_scenario_files.py)
 
 **Phase 4: Advanced Features (LOW)**
 1. Decision timing variability
@@ -423,13 +423,16 @@ python -m scripts.run_validation --report-format=html --output=report.html
 - [x] Can interrupt simulation, resume from checkpoint, get identical results (Phase 1 - COMPLETE)
 - [x] Observable behavioral differences between personalities and classes (Phase 2 - COMPLETE)
 - [x] Track which features are exercised, identify coverage gaps (Phase 3 - FeatureCoverage tracker COMPLETE)
-- [ ] Detect feature regressions automatically with clear reports (Phase 3)
+- [x] Initial YAML scenarios for core features created and validated (Phase 3 Step 5 - 10 scenarios COMPLETE)
+- [ ] Detect feature regressions automatically with clear reports (Phase 4)
 - [ ] Validate AI-generated content meets quality standards (Phase 4)
 
 #### Related Files
 - `scripts/ai_agent.py` - Core agent to extend
 - `scripts/state_parser.py` - AgentState to extend
 - `scripts/run_simulation.py` - CLI to extend
+- `scripts/scenarios/` - YAML validation scenarios (10 files organized by feature)
+- `tests/test_scenario_files.py` - Scenario validation tests
 - `src/cli_rpg/persistence.py` - Game save/load to integrate
 
 #### Full Plan

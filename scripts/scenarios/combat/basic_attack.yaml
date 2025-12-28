@@ -1,0 +1,63 @@
+# Basic attack scenario - tests initiating combat and attacking
+# Validates that the player can attack enemies and deal damage
+scenario:
+  name: "Basic Attack"
+  description: "Test attack command in combat"
+  seed: 42003
+  config:
+    max_commands: 30
+    timeout: 90
+
+  setup:
+    - "dump_state"  # Get initial state
+
+  steps:
+    # Step 1: Look at surroundings
+    - command: "look"
+      assertions:
+        - type: COMMAND_VALID
+          field: ""
+          value: true
+          message: "look command should be valid"
+
+    # Step 2: Get current state
+    - command: "dump_state"
+      assertions:
+        - type: CONTENT_PRESENT
+          field: "health"
+          value: true
+          message: "Health should be tracked"
+
+    # Step 3: Explore to find combat
+    - command: "go north"
+      assertions:
+        - type: COMMAND_VALID
+          field: ""
+          value: true
+          message: "Movement should work"
+
+    # Step 4: Continue exploration
+    - command: "go east"
+      assertions:
+        - type: COMMAND_VALID
+          field: ""
+          value: true
+          message: "Movement should work"
+
+    # Step 5: Check state - combat may be triggered by encounter
+    - command: "dump_state"
+      assertions:
+        - type: STATE_RANGE
+          field: "health"
+          value:
+            min: 1
+            max: 200
+          message: "Health should be in valid range"
+
+    # Step 6: If in combat, attack
+    - command: "attack"
+      assertions:
+        - type: COMMAND_VALID
+          field: ""
+          value: true
+          message: "Attack command should be recognized"

@@ -1,0 +1,63 @@
+# Talk dialogue scenario - tests NPC interaction
+# Validates that the player can talk to NPCs
+scenario:
+  name: "Talk to NPC"
+  description: "Test talk command for NPC dialogue"
+  seed: 42007
+  config:
+    max_commands: 30
+    timeout: 90
+
+  setup:
+    - "dump_state"  # Get initial state
+
+  steps:
+    # Step 1: Look at surroundings
+    - command: "look"
+      assertions:
+        - type: COMMAND_VALID
+          field: ""
+          value: true
+          message: "look command should be valid"
+
+    # Step 2: Get current state with NPCs
+    - command: "dump_state"
+      assertions:
+        - type: CONTENT_PRESENT
+          field: "location"
+          value: true
+          message: "Location should be present"
+
+    # Step 3: Explore to find NPCs
+    - command: "go north"
+      assertions:
+        - type: COMMAND_VALID
+          field: ""
+          value: true
+          message: "Movement should work"
+
+    # Step 4: Look for NPCs
+    - command: "look"
+      assertions:
+        - type: COMMAND_VALID
+          field: ""
+          value: true
+          message: "look command should be valid"
+
+    # Step 5: Try talk command
+    - command: "talk"
+      assertions:
+        - type: COMMAND_VALID
+          field: ""
+          value: true
+          message: "talk command should be recognized"
+
+    # Step 6: Verify state after interaction
+    - command: "dump_state"
+      assertions:
+        - type: STATE_RANGE
+          field: "health"
+          value:
+            min: 1
+            max: 200
+          message: "Health should remain valid"

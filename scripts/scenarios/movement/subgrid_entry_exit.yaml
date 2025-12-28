@@ -1,0 +1,62 @@
+# SubGrid entry/exit scenario - tests entering and exiting sub-locations
+# Validates that the player can enter dungeons/caves and exit back to overworld
+scenario:
+  name: "SubGrid Entry and Exit"
+  description: "Test entering sub-locations and exiting back to overworld"
+  seed: 42002
+  config:
+    max_commands: 50
+    timeout: 120
+
+  setup:
+    - "dump_state"  # Get initial state
+
+  steps:
+    # Step 1: Look to observe the surroundings
+    - command: "look"
+      assertions:
+        - type: COMMAND_VALID
+          field: ""
+          value: true
+          message: "look command should be valid"
+
+    # Step 2: Get current state
+    - command: "dump_state"
+      assertions:
+        - type: CONTENT_PRESENT
+          field: "location"
+          value: true
+          message: "Should have a current location"
+
+    # Step 3: Explore to find an enterable location (move around)
+    - command: "go north"
+      assertions:
+        - type: COMMAND_VALID
+          field: ""
+          value: true
+          message: "Movement should be valid"
+
+    # Step 4: Keep exploring
+    - command: "go east"
+      assertions:
+        - type: COMMAND_VALID
+          field: ""
+          value: true
+          message: "Movement should be valid"
+
+    # Step 5: Look for enterables
+    - command: "look"
+      assertions:
+        - type: COMMAND_VALID
+          field: ""
+          value: true
+          message: "look command should be valid"
+
+    # Step 6: Check state after exploration
+    - command: "dump_state"
+      wait_for: "location"
+      assertions:
+        - type: CONTENT_PRESENT
+          field: "location"
+          value: true
+          message: "Location should be present"

@@ -1,0 +1,58 @@
+# Basic navigation scenario - tests look and directional movement
+# Validates that the player can observe their surroundings and move between locations
+scenario:
+  name: "Basic Navigation"
+  description: "Test basic look and movement commands"
+  seed: 42001
+  config:
+    max_commands: 20
+    timeout: 60
+
+  setup:
+    - "dump_state"  # Get initial state
+
+  steps:
+    # Step 1: Look at current location
+    - command: "look"
+      assertions:
+        - type: COMMAND_VALID
+          field: ""
+          value: true
+          message: "look command should be valid"
+        - type: CONTENT_PRESENT
+          field: "location"
+          value: true
+          message: "Location should be present after look"
+
+    # Step 2: Check available exits
+    - command: "dump_state"
+      wait_for: "exits"
+      assertions:
+        - type: CONTENT_PRESENT
+          field: "exits"
+          value: true
+          message: "Exits should be available"
+
+    # Step 3: Move in a direction (north)
+    - command: "go north"
+      assertions:
+        - type: COMMAND_VALID
+          field: ""
+          value: true
+          message: "go north command should be valid"
+
+    # Step 4: Look at new location
+    - command: "look"
+      assertions:
+        - type: COMMAND_VALID
+          field: ""
+          value: true
+          message: "look command should be valid in new location"
+
+    # Step 5: Return south
+    - command: "go south"
+      assertions:
+        - type: COMMAND_VALID
+          field: ""
+          value: true
+          message: "go south command should return to start"
