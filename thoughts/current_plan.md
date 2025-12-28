@@ -1,32 +1,28 @@
-# Implementation Plan: BSPGenerator for Dungeons, Temples, and Ruins
+# Implementation Plan: CellularAutomataGenerator for Caves and Mines
 
 ## Spec
 
-Implement `BSPGenerator` class in `procedural_interiors.py` using Binary Space Partitioning algorithm to generate procedural interior layouts for dungeons, temples, ruins, tombs, crypts, monasteries, and shrines (all categories mapped to `"BSPGenerator"` in `CATEGORY_GENERATORS`).
+Implement `CellularAutomataGenerator` class in `procedural_interiors.py` using cellular automata algorithm to generate organic, cave-like interior layouts for caves and mines (categories mapped to `"CellularAutomataGenerator"` in `CATEGORY_GENERATORS`).
 
 ### Requirements
-1. **BSP Tree Structure**: Recursively divide space into partitions until minimum room size reached
-2. **Room Generation**: Create rooms within leaf partitions
-3. **Connection Generation**: Connect sibling partitions with corridors
-4. **3D Support**: Handle multi-level dungeons (z-axis from bounds)
-5. **Room Type Assignment**: Place ENTRY, CORRIDOR, CHAMBER, BOSS_ROOM, TREASURE, PUZZLE appropriately
+1. **Cellular Automata Algorithm**: Use 4-5 rule (cell becomes solid if ≥5 neighbors are solid) to generate organic cave shapes
+2. **Initial Noise**: Start with random noise (45-55% fill) then apply automata rules 4-5 iterations
+3. **Flood Fill Connectivity**: Ensure all traversable cells connect to entry point
+4. **3D Support**: Handle multi-level caves (z-axis from bounds)
+5. **Room Type Assignment**: ENTRY at top level, BOSS_ROOM at deepest dead-end, TREASURE/PUZZLE at isolated areas
 6. **Deterministic**: Same seed produces identical layouts
 7. **Bounds-Aware**: Respect 6-tuple bounds `(min_x, max_x, min_y, max_y, min_z, max_z)`
+8. **Organic Connections**: Directions based on actual traversable neighbors (not BSP corridors)
 
 ### Public Interface
 ```python
-class BSPNode:
-    """Node in BSP tree representing a rectangular partition."""
-    x: int
-    y: int
-    width: int
-    height: int
-    left: Optional["BSPNode"]
-    right: Optional["BSPNode"]
-    room: Optional[tuple[int, int, int, int]]  # (x, y, w, h) if leaf with room
+class CellularAutomataGenerator:
+    """Cellular automata generator for cave/mine layouts."""
 
-class BSPGenerator:
-    """Binary Space Partitioning generator for dungeon layouts."""
+    INITIAL_FILL_PROBABILITY = 0.45  # 45% initial solid cells
+    AUTOMATA_ITERATIONS = 4          # Number of smoothing passes
+    BIRTH_THRESHOLD = 5              # Become solid if ≥5 neighbors solid
+    DEATH_THRESHOLD = 4              # Stay solid if ≥4 neighbors solid
 
     def __init__(self, bounds: tuple[int, int, int, int, int, int], seed: int):
         """Initialize with SubGrid bounds and random seed."""
@@ -36,114 +32,170 @@ class BSPGenerator:
 ```
 
 ### Algorithm Steps
-1. Create root node spanning (min_x to max_x, min_y to max_y) for z=max_z (entry level)
-2. Recursively split nodes (horizontal/vertical) until min_size reached
-3. Generate rooms in leaf nodes (smaller than partition, with margin)
-4. Connect sibling rooms with corridors
-5. For multi-level (min_z < max_z): repeat for each z-level, add stairs connecting levels
-6. Assign room types: entry at (0,0,max_z), boss at lowest z furthest from entry, treasure/puzzle at dead ends
+1. Create 2D grid for each z-level, initialize with random noise (45% solid)
+2. Apply cellular automata rules 4 iterations:
+   - Count 8 neighbors (including diagonals) for each cell
+   - Cell becomes solid if ≥5 neighbors are solid
+   - Cell becomes open if <4 neighbors are solid
+3. Identify largest connected region via flood fill from center
+4. Discard disconnected regions (fill them as solid)
+5. Convert remaining open cells to RoomTemplates with coordinate-based connections
+6. For multi-level: add stair connections between levels
+7. Assign room types based on distance from entry and dead-end status
 
 ---
 
 ## Tests First (TDD)
 
-Create `tests/test_bsp_generator.py`:
+Create `tests/test_cellular_automata_generator.py`:
 
-### BSPNode Tests
-1. `test_bsp_node_creation` - Node stores x, y, width, height correctly
-2. `test_bsp_node_split_horizontal` - Horizontal split creates two children
-3. `test_bsp_node_split_vertical` - Vertical split creates two children
-4. `test_bsp_node_is_leaf` - Leaf detection (no children)
+### Core Algorithm Tests
+1. `test_generator_returns_room_templates` - generate() returns list[RoomTemplate]
+2. `test_generator_has_entry_room` - Layout has exactly one ENTRY room with is_entry=True
+3. `test_entry_room_at_top_level` - Entry room z-coord equals max_z from bounds
+4. `test_generator_deterministic` - Same seed produces identical output
+5. `test_generator_different_seeds_differ` - Different seeds produce different layouts
+6. `test_rooms_within_bounds` - All room coords within specified bounds
 
-### BSPGenerator Tests
-5. `test_generator_returns_room_templates` - generate() returns list[RoomTemplate]
-6. `test_generator_has_entry_room` - Layout has exactly one ENTRY room with is_entry=True
-7. `test_entry_room_at_top_level` - Entry room z-coord equals max_z from bounds
-8. `test_generator_deterministic` - Same seed produces identical output
-9. `test_generator_different_seeds_differ` - Different seeds produce different layouts
-10. `test_rooms_within_bounds` - All room coords within specified bounds
+### Cave-Specific Tests
+7. `test_all_rooms_connected` - All rooms reachable from entry (flood fill works)
+8. `test_organic_layout_not_rectangular` - Layout has irregular shape (not grid-aligned)
+9. `test_connections_based_on_adjacency` - Connections reflect actual adjacent rooms
+10. `test_dead_ends_exist` - Caves have dead-end rooms (1 connection)
+
+### Multi-Level Tests
 11. `test_multi_level_generates_stairs` - Multi-level bounds produce "up"/"down" connections
-12. `test_boss_room_at_lowest_level` - BOSS_ROOM placed at min_z
-13. `test_connections_are_valid_directions` - All connections are valid (north/south/east/west/up/down)
-14. `test_rooms_are_connected` - All rooms reachable from entry via connections
+12. `test_boss_room_at_deepest_level` - BOSS_ROOM placed at min_z
+
+### Room Type Tests
+13. `test_treasure_rooms_at_dead_ends` - TREASURE rooms have 1-2 connections
+14. `test_connections_are_valid_directions` - All connections are valid (n/s/e/w/up/down)
 
 ### Integration Tests
-15. `test_generate_interior_layout_uses_bsp` - Factory function uses BSPGenerator for "dungeon"
-16. `test_category_dungeon_produces_valid_layout` - Dungeon category works end-to-end
-17. `test_category_temple_produces_valid_layout` - Temple category works end-to-end
+15. `test_generate_interior_layout_uses_cellular` - Factory uses CellularAutomataGenerator for "cave"
+16. `test_category_cave_produces_valid_layout` - Cave category works end-to-end
+17. `test_category_mine_produces_valid_layout` - Mine category works end-to-end
 
 ---
 
 ## Implementation Steps
 
 ### Step 1: Create test file
-- File: `tests/test_bsp_generator.py`
+- File: `tests/test_cellular_automata_generator.py`
 - Import from `cli_rpg.procedural_interiors`
 - Write all 17 tests (expect failures initially)
 
-### Step 2: Implement BSPNode dataclass
+### Step 2: Implement CellularAutomataGenerator class
 - File: `src/cli_rpg/procedural_interiors.py`
-- Add `BSPNode` dataclass with x, y, width, height, left, right, room
-- Add `split()` method for horizontal/vertical partitioning
-- Add `is_leaf` property
-- Run tests 1-4, verify passing
+- Add `CellularAutomataGenerator` class implementing `GeneratorProtocol`
+- Implement `_initialize_grid()` - random noise generation
+- Implement `_apply_automata()` - cellular automata smoothing
+- Implement `_flood_fill()` - connectivity check and region isolation
+- Implement `_grid_to_rooms()` - convert grid cells to RoomTemplates
+- Implement `_add_connections()` - direction-based connections from adjacency
 
-### Step 3: Implement BSPGenerator class
+### Step 3: Handle multi-level caves
+- Implement `_generate_level()` - single z-level generation
+- Implement `_connect_levels()` - stair placement between z-levels
+- Handle z-axis iteration (max_z down to min_z)
+
+### Step 4: Room type assignment
+- Implement `_assign_room_types()`:
+  - ENTRY at center of max_z level
+  - BOSS_ROOM at min_z, furthest from entry
+  - TREASURE/PUZZLE at dead ends (30%/20% probability)
+  - CORRIDOR for 3+ connections
+  - CHAMBER for rest
+
+### Step 5: Integrate with generate_interior_layout
 - File: `src/cli_rpg/procedural_interiors.py`
-- Add `BSPGenerator` class implementing `GeneratorProtocol`
-- Implement `_build_tree()` - recursive BSP partitioning
-- Implement `_generate_rooms()` - place rooms in leaf nodes
-- Implement `_connect_rooms()` - corridor generation between siblings
-- Run tests 5-14, verify passing
+- Update `generate_interior_layout()` to instantiate `CellularAutomataGenerator` when `CATEGORY_GENERATORS[category] == "CellularAutomataGenerator"`
 
-### Step 4: Integrate with generate_interior_layout
-- File: `src/cli_rpg/procedural_interiors.py`
-- Update `generate_interior_layout()` to instantiate and call `BSPGenerator` when `CATEGORY_GENERATORS[category] == "BSPGenerator"`
-- Run tests 15-17, verify passing
-
-### Step 5: Run full test suite
-- `pytest tests/test_bsp_generator.py -v`
-- `pytest` (ensure no regressions in 5064+ tests)
+### Step 6: Run full test suite
+- `pytest tests/test_cellular_automata_generator.py -v`
+- `pytest` (ensure no regressions in 5081+ tests)
 
 ---
 
 ## Key Implementation Details
 
-### BSP Split Logic
+### Cellular Automata Core
 ```python
-def split(self, rng: random.Random, min_size: int = 4) -> bool:
-    if self.left or self.right:
-        return False  # Already split
-    if self.width < min_size * 2 and self.height < min_size * 2:
-        return False  # Too small to split
+def _apply_automata(self, grid: list[list[bool]], iterations: int) -> list[list[bool]]:
+    """Apply cellular automata rules to smooth the grid."""
+    for _ in range(iterations):
+        new_grid = [[False] * len(grid[0]) for _ in range(len(grid))]
+        for y in range(len(grid)):
+            for x in range(len(grid[0])):
+                neighbors = self._count_neighbors(grid, x, y)
+                if grid[y][x]:  # Currently solid
+                    new_grid[y][x] = neighbors >= self.DEATH_THRESHOLD
+                else:  # Currently open
+                    new_grid[y][x] = neighbors >= self.BIRTH_THRESHOLD
+        grid = new_grid
+    return grid
 
-    # Choose split direction
-    if self.width > self.height * 1.25:
-        horizontal = False  # Split vertically
-    elif self.height > self.width * 1.25:
-        horizontal = True   # Split horizontally
-    else:
-        horizontal = rng.random() < 0.5
+def _count_neighbors(self, grid: list[list[bool]], x: int, y: int) -> int:
+    """Count solid neighbors (8-directional including diagonals)."""
+    count = 0
+    for dy in [-1, 0, 1]:
+        for dx in [-1, 0, 1]:
+            if dx == 0 and dy == 0:
+                continue
+            nx, ny = x + dx, y + dy
+            if 0 <= nx < len(grid[0]) and 0 <= ny < len(grid):
+                if grid[ny][nx]:
+                    count += 1
+            else:
+                count += 1  # Out of bounds counts as solid
+    return count
+```
 
-    # Calculate split position (40-60% of dimension)
-    max_dim = self.height if horizontal else self.width
-    split_pos = rng.randint(int(max_dim * 0.4), int(max_dim * 0.6))
+### Flood Fill for Connectivity
+```python
+def _flood_fill(self, grid: list[list[bool]], start_x: int, start_y: int) -> set[tuple[int, int]]:
+    """Find all connected open cells from start position."""
+    if grid[start_y][start_x]:
+        return set()  # Start is solid
 
-    # Create children
-    if horizontal:
-        self.left = BSPNode(self.x, self.y, self.width, split_pos)
-        self.right = BSPNode(self.x, self.y + split_pos, self.width, self.height - split_pos)
-    else:
-        self.left = BSPNode(self.x, self.y, split_pos, self.height)
-        self.right = BSPNode(self.x + split_pos, self.y, self.width - split_pos, self.height)
+    connected = set()
+    stack = [(start_x, start_y)]
 
-    return True
+    while stack:
+        x, y = stack.pop()
+        if (x, y) in connected:
+            continue
+        if x < 0 or x >= len(grid[0]) or y < 0 or y >= len(grid):
+            continue
+        if grid[y][x]:  # Solid cell
+            continue
+
+        connected.add((x, y))
+        stack.extend([(x+1, y), (x-1, y), (x, y+1), (x, y-1)])
+
+    return connected
+```
+
+### Connection Directions
+```python
+def _add_connections(self, rooms: list[RoomTemplate]) -> None:
+    """Add directional connections based on adjacency."""
+    coord_to_room = {r.coords: r for r in rooms}
+
+    for room in rooms:
+        x, y, z = room.coords
+        # Check each cardinal direction
+        for direction, (dx, dy, dz) in DIRECTION_OFFSETS.items():
+            neighbor_coord = (x + dx, y + dy, z + dz)
+            if neighbor_coord in coord_to_room:
+                if direction not in room.connections:
+                    room.connections.append(direction)
 ```
 
 ### Room Type Assignment
-- ENTRY: (0, 0, max_z) - entry point
+- ENTRY: Center of max_z level (closest to (0, 0, max_z))
 - BOSS_ROOM: Furthest from entry at min_z level
-- TREASURE: Dead-end rooms (1 connection) with 30% probability
-- PUZZLE: Dead-end rooms with 20% probability
-- CORRIDOR: Rooms connecting two or more other rooms
-- CHAMBER: All other rooms (default)
+- TREASURE: 30% of dead ends (1 connection)
+- PUZZLE: 20% of dead ends
+- CORRIDOR: 3+ connections
+- CHAMBER: Default

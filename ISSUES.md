@@ -64,7 +64,7 @@ Refactor to use **procedural generation for world structure** while keeping **AI
 
 **Phase 2: Procedural Generators**
 4. ✓ Implement BSPGenerator (dungeons, temples, ruins, tombs, crypts, monasteries, shrines) (COMPLETED 2025-12-28)
-5. Implement CellularAutomataGenerator (caves, mines)
+5. ✓ Implement CellularAutomataGenerator (caves, mines) (COMPLETED 2025-12-28)
 6. Implement GridSettlementGenerator (towns, cities)
 7. Implement TowerGenerator (towers)
 

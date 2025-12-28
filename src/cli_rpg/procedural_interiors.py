@@ -156,6 +156,340 @@ class BSPNode:
         return True
 
 
+# Direction offsets for 3D navigation
+DIRECTION_OFFSETS: dict[str, tuple[int, int, int]] = {
+    "north": (0, 1, 0),
+    "south": (0, -1, 0),
+    "east": (1, 0, 0),
+    "west": (-1, 0, 0),
+    "up": (0, 0, 1),
+    "down": (0, 0, -1),
+}
+
+# Opposite directions for bidirectional connections
+OPPOSITE_DIRECTION: dict[str, str] = {
+    "north": "south",
+    "south": "north",
+    "east": "west",
+    "west": "east",
+    "up": "down",
+    "down": "up",
+}
+
+
+class CellularAutomataGenerator:
+    """Cellular automata generator for cave/mine layouts.
+
+    Uses the 4-5 rule (cell becomes solid if ≥5 neighbors are solid)
+    to generate organic, cave-like interior layouts.
+    """
+
+    INITIAL_FILL_PROBABILITY = 0.45  # 45% initial solid cells
+    AUTOMATA_ITERATIONS = 4  # Number of smoothing passes
+    BIRTH_THRESHOLD = 5  # Become solid if ≥5 neighbors solid
+    DEATH_THRESHOLD = 4  # Stay solid if ≥4 neighbors solid
+
+    def __init__(self, bounds: tuple[int, int, int, int, int, int], seed: int):
+        """Initialize with SubGrid bounds and random seed.
+
+        Args:
+            bounds: 6-tuple (min_x, max_x, min_y, max_y, min_z, max_z).
+            seed: Random seed for deterministic generation.
+        """
+        self.bounds = bounds
+        self.seed = seed
+        self.rng = random.Random(seed)
+        self.min_x, self.max_x, self.min_y, self.max_y, self.min_z, self.max_z = bounds
+        self.width = self.max_x - self.min_x + 1
+        self.height = self.max_y - self.min_y + 1
+
+    def generate(self) -> list[RoomTemplate]:
+        """Generate layout returning list of RoomTemplate blueprints."""
+        all_rooms: list[RoomTemplate] = []
+        coord_to_room: dict[tuple[int, int, int], RoomTemplate] = {}
+
+        # Generate each z-level
+        for z in range(self.max_z, self.min_z - 1, -1):
+            level_rooms = self._generate_level(z)
+            for room in level_rooms:
+                all_rooms.append(room)
+                coord_to_room[room.coords] = room
+
+        # Handle case of no rooms generated - ensure at least entry room
+        if not all_rooms:
+            center_x = (self.min_x + self.max_x) // 2
+            center_y = (self.min_y + self.max_y) // 2
+            entry_room = RoomTemplate(
+                coords=(center_x, center_y, self.max_z),
+                room_type=RoomType.ENTRY,
+                connections=[],
+                is_entry=True,
+            )
+            all_rooms.append(entry_room)
+            coord_to_room[entry_room.coords] = entry_room
+
+        # Add connections based on adjacency
+        self._add_connections(all_rooms, coord_to_room)
+
+        # Connect levels with stairs
+        if self.min_z < self.max_z:
+            self._connect_levels(all_rooms, coord_to_room)
+
+        # Assign room types
+        self._assign_room_types(all_rooms)
+
+        return all_rooms
+
+    def _generate_level(self, z: int) -> list[RoomTemplate]:
+        """Generate rooms for a single z-level using cellular automata."""
+        # Initialize grid with random noise
+        grid = self._initialize_grid()
+
+        # Apply cellular automata rules
+        grid = self._apply_automata(grid, self.AUTOMATA_ITERATIONS)
+
+        # Find largest connected region
+        center_x = self.width // 2
+        center_y = self.height // 2
+
+        # Find a starting open cell near center
+        start = self._find_open_cell_near(grid, center_x, center_y)
+        if start is None:
+            # No open cells - create one at center
+            grid[center_y][center_x] = False
+            start = (center_x, center_y)
+
+        # Flood fill to find connected region
+        connected = self._flood_fill(grid, start[0], start[1])
+
+        # Convert connected cells to rooms
+        rooms: list[RoomTemplate] = []
+        for gx, gy in connected:
+            # Convert grid coords to world coords
+            world_x = self.min_x + gx
+            world_y = self.min_y + gy
+            rooms.append(
+                RoomTemplate(
+                    coords=(world_x, world_y, z),
+                    room_type=RoomType.CHAMBER,
+                    connections=[],
+                    is_entry=False,
+                )
+            )
+
+        return rooms
+
+    def _initialize_grid(self) -> list[list[bool]]:
+        """Initialize grid with random noise. True = solid/wall."""
+        grid: list[list[bool]] = []
+        for y in range(self.height):
+            row: list[bool] = []
+            for x in range(self.width):
+                # Border cells are always solid
+                if x == 0 or x == self.width - 1 or y == 0 or y == self.height - 1:
+                    row.append(True)
+                else:
+                    row.append(self.rng.random() < self.INITIAL_FILL_PROBABILITY)
+            grid.append(row)
+        return grid
+
+    def _apply_automata(
+        self, grid: list[list[bool]], iterations: int
+    ) -> list[list[bool]]:
+        """Apply cellular automata rules to smooth the grid."""
+        for _ in range(iterations):
+            new_grid: list[list[bool]] = [
+                [False] * self.width for _ in range(self.height)
+            ]
+            for y in range(self.height):
+                for x in range(self.width):
+                    neighbors = self._count_neighbors(grid, x, y)
+                    if grid[y][x]:  # Currently solid
+                        new_grid[y][x] = neighbors >= self.DEATH_THRESHOLD
+                    else:  # Currently open
+                        new_grid[y][x] = neighbors >= self.BIRTH_THRESHOLD
+            grid = new_grid
+        return grid
+
+    def _count_neighbors(self, grid: list[list[bool]], x: int, y: int) -> int:
+        """Count solid neighbors (8-directional including diagonals)."""
+        count = 0
+        for dy in [-1, 0, 1]:
+            for dx in [-1, 0, 1]:
+                if dx == 0 and dy == 0:
+                    continue
+                nx, ny = x + dx, y + dy
+                if 0 <= nx < self.width and 0 <= ny < self.height:
+                    if grid[ny][nx]:
+                        count += 1
+                else:
+                    count += 1  # Out of bounds counts as solid
+        return count
+
+    def _find_open_cell_near(
+        self, grid: list[list[bool]], cx: int, cy: int
+    ) -> Optional[tuple[int, int]]:
+        """Find an open cell near the given center coordinates."""
+        # Spiral outward from center to find an open cell
+        for radius in range(max(self.width, self.height)):
+            for dy in range(-radius, radius + 1):
+                for dx in range(-radius, radius + 1):
+                    if abs(dx) == radius or abs(dy) == radius:
+                        nx, ny = cx + dx, cy + dy
+                        if 0 <= nx < self.width and 0 <= ny < self.height:
+                            if not grid[ny][nx]:
+                                return (nx, ny)
+        return None
+
+    def _flood_fill(
+        self, grid: list[list[bool]], start_x: int, start_y: int
+    ) -> set[tuple[int, int]]:
+        """Find all connected open cells from start position."""
+        if grid[start_y][start_x]:
+            return set()  # Start is solid
+
+        connected: set[tuple[int, int]] = set()
+        stack = [(start_x, start_y)]
+
+        while stack:
+            x, y = stack.pop()
+            if (x, y) in connected:
+                continue
+            if x < 0 or x >= self.width or y < 0 or y >= self.height:
+                continue
+            if grid[y][x]:  # Solid cell
+                continue
+
+            connected.add((x, y))
+            # Only cardinal directions for room connectivity
+            stack.extend([(x + 1, y), (x - 1, y), (x, y + 1), (x, y - 1)])
+
+        return connected
+
+    def _add_connections(
+        self,
+        rooms: list[RoomTemplate],
+        coord_to_room: dict[tuple[int, int, int], RoomTemplate],
+    ) -> None:
+        """Add directional connections based on adjacency."""
+        for room in rooms:
+            x, y, z = room.coords
+            # Check each cardinal direction (horizontal only - vertical done separately)
+            for direction in ["north", "south", "east", "west"]:
+                dx, dy, dz = DIRECTION_OFFSETS[direction]
+                neighbor_coord = (x + dx, y + dy, z + dz)
+                if neighbor_coord in coord_to_room:
+                    if direction not in room.connections:
+                        room.connections.append(direction)
+
+    def _connect_levels(
+        self,
+        rooms: list[RoomTemplate],
+        coord_to_room: dict[tuple[int, int, int], RoomTemplate],
+    ) -> None:
+        """Add up/down connections between adjacent z-levels."""
+        # Group rooms by z-level
+        by_level: dict[int, list[RoomTemplate]] = {}
+        for room in rooms:
+            z = room.coords[2]
+            if z not in by_level:
+                by_level[z] = []
+            by_level[z].append(room)
+
+        # For each pair of adjacent levels, add stair connections
+        z_levels = sorted(by_level.keys(), reverse=True)
+        for i in range(len(z_levels) - 1):
+            upper_z = z_levels[i]
+            lower_z = z_levels[i + 1]
+
+            upper_rooms = by_level[upper_z]
+            lower_rooms = by_level[lower_z]
+
+            if not upper_rooms or not lower_rooms:
+                continue
+
+            # Find the best pair to connect (closest to each other)
+            best_pair: Optional[tuple[RoomTemplate, RoomTemplate]] = None
+            best_dist = float("inf")
+
+            for ur in upper_rooms:
+                for lr in lower_rooms:
+                    dist = abs(ur.coords[0] - lr.coords[0]) + abs(
+                        ur.coords[1] - lr.coords[1]
+                    )
+                    if dist < best_dist:
+                        best_dist = dist
+                        best_pair = (ur, lr)
+
+            if best_pair:
+                upper_room, lower_room = best_pair
+                if "down" not in upper_room.connections:
+                    upper_room.connections.append("down")
+                if "up" not in lower_room.connections:
+                    lower_room.connections.append("up")
+
+    def _assign_room_types(self, rooms: list[RoomTemplate]) -> None:
+        """Assign special room types (entry, boss, treasure, puzzle)."""
+        if not rooms:
+            return
+
+        # Find entry room: at max_z level, closest to center
+        center_x = (self.min_x + self.max_x) // 2
+        center_y = (self.min_y + self.max_y) // 2
+
+        top_level_rooms = [r for r in rooms if r.coords[2] == self.max_z]
+        entry_room: Optional[RoomTemplate] = None
+
+        if top_level_rooms:
+            entry_room = min(
+                top_level_rooms,
+                key=lambda r: abs(r.coords[0] - center_x) + abs(r.coords[1] - center_y),
+            )
+            entry_room.room_type = RoomType.ENTRY
+            entry_room.is_entry = True
+
+        # Find boss room: at min_z level, furthest from entry
+        bottom_level_rooms = [r for r in rooms if r.coords[2] == self.min_z]
+        if bottom_level_rooms and self.min_z < self.max_z:
+            entry_coords = (
+                entry_room.coords if entry_room else (center_x, center_y, self.max_z)
+            )
+            boss_room = max(
+                bottom_level_rooms,
+                key=lambda r: abs(r.coords[0] - entry_coords[0])
+                + abs(r.coords[1] - entry_coords[1]),
+            )
+            boss_room.room_type = RoomType.BOSS_ROOM
+        elif bottom_level_rooms and self.min_z == self.max_z:
+            # Single level: place boss furthest from entry
+            if entry_room:
+                entry_coords = entry_room.coords
+                candidates = [r for r in rooms if r != entry_room]
+                if candidates:
+                    boss_room = max(
+                        candidates,
+                        key=lambda r: abs(r.coords[0] - entry_coords[0])
+                        + abs(r.coords[1] - entry_coords[1]),
+                    )
+                    boss_room.room_type = RoomType.BOSS_ROOM
+
+        # Assign treasure and puzzle rooms to dead ends (1 connection)
+        for room in rooms:
+            if room.room_type in (RoomType.ENTRY, RoomType.BOSS_ROOM):
+                continue
+            if len(room.connections) == 1:
+                roll = self.rng.random()
+                if roll < 0.3:
+                    room.room_type = RoomType.TREASURE
+                elif roll < 0.5:
+                    room.room_type = RoomType.PUZZLE
+
+        # Rooms with 3+ connections become corridors
+        for room in rooms:
+            if room.room_type == RoomType.CHAMBER and len(room.connections) >= 3:
+                room.room_type = RoomType.CORRIDOR
+
+
 class BSPGenerator:
     """Binary Space Partitioning generator for dungeon layouts.
 
@@ -538,6 +872,11 @@ def generate_interior_layout(
     # Use BSPGenerator for dungeon-type locations
     if generator_type == "BSPGenerator":
         generator = BSPGenerator(bounds=bounds, seed=seed)
+        return generator.generate()
+
+    # Use CellularAutomataGenerator for cave-type locations
+    if generator_type == "CellularAutomataGenerator":
+        generator = CellularAutomataGenerator(bounds=bounds, seed=seed)
         return generator.generate()
 
     # Fallback for other generator types (not yet implemented)

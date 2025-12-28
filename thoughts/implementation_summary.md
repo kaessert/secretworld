@@ -1,71 +1,79 @@
-# Implementation Summary: BSPGenerator for Dungeons, Temples, and Ruins
+# Implementation Summary: CellularAutomataGenerator for Caves and Mines
 
 ## What Was Implemented
 
-### New Classes
+### New Class: `CellularAutomataGenerator`
 
-1. **BSPNode** (dataclass in `src/cli_rpg/procedural_interiors.py`)
-   - Binary Space Partitioning tree node for recursive space division
-   - Properties: `x`, `y`, `width`, `height`, `left`, `right`, `room`
-   - `is_leaf` property for detecting terminal nodes
-   - `split()` method for horizontal/vertical partitioning with configurable min_size
+A procedural layout generator using cellular automata algorithm for organic, cave-like interior layouts. Located in `src/cli_rpg/procedural_interiors.py`.
 
-2. **BSPGenerator** (class in `src/cli_rpg/procedural_interiors.py`)
-   - Generates procedural dungeon layouts using BSP algorithm
-   - Supports multi-level dungeons (z-axis traversal)
-   - Implements `GeneratorProtocol` interface
-   - Key methods:
-     - `generate()` - Main entry point returning list of RoomTemplate
-     - `_generate_level()` - Per-level BSP tree and room generation
-     - `_split_recursively()` - Recursive BSP partitioning
-     - `_create_room_in_partition()` - Room placement within partitions
-     - `_connect_siblings()` - Horizontal corridor connections
-     - `_add_vertical_connections()` - Stair connections between levels
-     - `_assign_room_types()` - Special room placement (entry, boss, treasure, puzzle)
+**Key Features:**
+- **Cellular Automata Algorithm**: Uses the 4-5 rule (cell becomes solid if ≥5 neighbors are solid) to generate organic cave shapes
+- **Initial Noise**: Starts with 45% solid fill, then applies automata rules for 4 iterations
+- **Flood Fill Connectivity**: Ensures all traversable cells connect to entry point
+- **3D Support**: Handles multi-level caves with z-axis navigation (up/down stairs)
+- **Room Type Assignment**: ENTRY at top level, BOSS_ROOM at deepest level, TREASURE/PUZZLE at dead ends
+- **Deterministic**: Same seed produces identical layouts
+- **Bounds-Aware**: Respects 6-tuple bounds `(min_x, max_x, min_y, max_y, min_z, max_z)`
 
-### Modified Functions
+**Public Interface:**
+```python
+class CellularAutomataGenerator:
+    INITIAL_FILL_PROBABILITY = 0.45
+    AUTOMATA_ITERATIONS = 4
+    BIRTH_THRESHOLD = 5
+    DEATH_THRESHOLD = 4
 
-- **`generate_interior_layout()`** - Updated to use BSPGenerator when `CATEGORY_GENERATORS[category] == "BSPGenerator"`
-- Added **`_generate_fallback_layout()`** - Fallback for unimplemented generators
+    def __init__(self, bounds: tuple[int, int, int, int, int, int], seed: int): ...
+    def generate(self) -> list[RoomTemplate]: ...
+```
 
-### Features
+### Updated Factory Function
 
-- **Deterministic generation**: Same seed produces identical layouts
-- **Multi-level support**: Z-axis navigation with up/down connections
-- **Room type assignment**:
-  - ENTRY at top level (max_z), closest to center
-  - BOSS_ROOM at bottom level (min_z), furthest from entry
-  - TREASURE/PUZZLE at dead-end rooms (30%/20% probability)
-  - CORRIDOR for rooms with 3+ connections
-- **Bounds-aware**: Respects 6-tuple bounds `(min_x, max_x, min_y, max_y, min_z, max_z)`
-- **Small bounds handling**: Works with bounds as small as 3x3
+The `generate_interior_layout()` factory now uses `CellularAutomataGenerator` for "cave" and "mine" categories:
 
-### Categories Using BSPGenerator
+```python
+if generator_type == "CellularAutomataGenerator":
+    generator = CellularAutomataGenerator(bounds=bounds, seed=seed)
+    return generator.generate()
+```
 
-- dungeon, ruins, temple, tomb, crypt, monastery, shrine
+### Helper Constants Added
 
-## Test Results
-
-- 17 new tests in `tests/test_bsp_generator.py` - ALL PASSING
-- 20 existing tests in `tests/test_procedural_interiors.py` - ALL PASSING
-- Full test suite: 5081 passed, 4 skipped
+Added to `procedural_interiors.py`:
+- `DIRECTION_OFFSETS`: Maps direction strings to 3D coordinate offsets
+- `OPPOSITE_DIRECTION`: Maps directions to their opposites
 
 ## Files Modified
 
-1. `src/cli_rpg/procedural_interiors.py` - Added BSPNode, BSPGenerator, updated generate_interior_layout
-2. `tests/test_bsp_generator.py` - New test file (17 tests)
+1. **`src/cli_rpg/procedural_interiors.py`**
+   - Added `CellularAutomataGenerator` class (~310 lines)
+   - Added `DIRECTION_OFFSETS` and `OPPOSITE_DIRECTION` constants
+   - Updated `generate_interior_layout()` to use new generator
 
-## Technical Decisions
+2. **`tests/test_cellular_automata_generator.py`** (NEW)
+   - 21 tests covering core algorithm, cave layouts, multi-level support, room types, and integration
 
-1. **Room placement**: Rooms are smaller than partitions with margin, providing natural corridors
-2. **Connection strategy**: Uses Manhattan distance to find closest rooms for connections
-3. **Small bounds handling**: For partitions ≤4 units, uses entire partition as room
-4. **Split direction**: Prefers splitting the longer dimension (1.25x ratio threshold)
+## Test Results
+
+- **New Tests**: 21 tests in `test_cellular_automata_generator.py` - All passing
+- **Related Tests**: 55 tests in procedural modules - All passing
+- **Full Suite**: 5102 tests passed, 4 skipped, no regressions
+
+## Algorithm Details
+
+1. **Grid Initialization**: Create 2D grid with random noise (45% solid), borders always solid
+2. **Cellular Automata Smoothing**: 4 iterations of the 4-5 rule (8-neighbor count)
+3. **Flood Fill**: Find largest connected region starting from center
+4. **Room Creation**: Convert connected cells to RoomTemplates with world coordinates
+5. **Connection Building**: Add cardinal direction connections based on adjacency
+6. **Level Linking**: Add up/down stair connections between z-levels
+7. **Room Type Assignment**: Entry at center of max_z, Boss at min_z, Treasure/Puzzle at dead ends
 
 ## E2E Validation
 
-The implementation should be validated for:
-- Dungeons generating proper multi-room layouts
-- Vertical navigation (up/down) working between levels
-- Entry points connecting correctly to overworld
-- Boss rooms appearing at lowest level
+The implementation should be validated with the following scenarios:
+- Entering a cave location generates an organic layout
+- Entering a mine location generates similar organic layout
+- Multi-level caves have stair connections between levels
+- All rooms are reachable from the entry point
+- Cave layouts are visibly irregular (not rectangular grids)
