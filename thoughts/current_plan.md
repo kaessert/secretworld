@@ -1,356 +1,40 @@
-# Implementation Plan: GameState Integration for QuestNetworkManager
+# Weather Penetration: Rain Sounds Near Cave Entrance
 
 ## Summary
-Integrate the existing standalone `QuestNetworkManager` into `GameState` to enable quest chain progression tracking, dependency-based quest availability, and unlock queries during gameplay.
+Add weather-aware ambient sounds near SubGrid entrance rooms (exit_points). When it's raining or storming outside, players hear muffled weather sounds near the entrance.
 
 ## Spec
-
-The `QuestNetworkManager` (in `models/quest_network.py`) is already fully implemented with:
-- Quest registration and case-insensitive lookup
-- Chain progression tracking (`get_chain_quests`, `get_chain_progression`, `get_next_in_chain`)
-- Dependency queries (`get_available_quests`, `get_unlocked_quests`)
-- Storyline queries (`get_prerequisites_of`, `get_unlocks_of`, `find_path`)
-- Serialization (`to_dict`, `from_dict`)
-
-Integration requires:
-1. Add `quest_network: QuestNetworkManager` field to `GameState`
-2. Auto-populate network when quests are accepted
-3. Serialize/deserialize with game saves
-4. Expose network queries for NPC quest offerings
-
-## Tests (in `tests/test_quest_network_integration.py`)
-
-```python
-"""Tests for QuestNetworkManager integration with GameState."""
-
-import pytest
-from cli_rpg.game_state import GameState
-from cli_rpg.models.character import Character, CharacterClass
-from cli_rpg.models.quest import Quest, QuestStatus, ObjectiveType
-from cli_rpg.models.quest_network import QuestNetworkManager
-from cli_rpg.models.location import Location
-
-
-@pytest.fixture
-def basic_game_state():
-    """Create a minimal GameState for testing."""
-    character = Character(
-        name="Tester",
-        character_class=CharacterClass.WARRIOR,
-        strength=14,
-        dexterity=10,
-        intelligence=8,
-    )
-    world = {
-        "Town Square": Location(
-            name="Town Square",
-            description="A central plaza.",
-            coordinates=(0, 0),
-        )
-    }
-    return GameState(character, world, starting_location="Town Square")
-
-
-class TestQuestNetworkIntegration:
-    """Tests for GameState.quest_network integration."""
-
-    # Spec: GameState has quest_network attribute
-    def test_game_state_has_quest_network(self, basic_game_state):
-        """GameState should have a quest_network attribute."""
-        assert hasattr(basic_game_state, "quest_network")
-        assert isinstance(basic_game_state.quest_network, QuestNetworkManager)
-
-    # Spec: Quest network is empty initially
-    def test_quest_network_initially_empty(self, basic_game_state):
-        """Quest network should start empty."""
-        assert basic_game_state.quest_network.get_all_quests() == []
-
-    # Spec: register_quest adds to network
-    def test_register_quest_adds_to_network(self, basic_game_state):
-        """register_quest should add quest to network."""
-        quest = Quest(
-            name="Kill Goblins",
-            description="Defeat 5 goblins.",
-            objective_type=ObjectiveType.KILL,
-            target="goblin",
-        )
-        basic_game_state.register_quest(quest)
-
-        assert basic_game_state.quest_network.get_quest("Kill Goblins") is quest
-
-    # Spec: get_available_quests returns quests with met prerequisites
-    def test_get_available_quests(self, basic_game_state):
-        """get_available_quests should filter by completed prerequisites."""
-        quest1 = Quest(
-            name="First Quest",
-            description="The beginning.",
-            objective_type=ObjectiveType.KILL,
-            target="rat",
-        )
-        quest2 = Quest(
-            name="Second Quest",
-            description="Requires first.",
-            objective_type=ObjectiveType.KILL,
-            target="goblin",
-            prerequisite_quests=["First Quest"],
-        )
-        basic_game_state.register_quest(quest1)
-        basic_game_state.register_quest(quest2)
-
-        # No quests completed - only quest1 available
-        available = basic_game_state.get_available_quests()
-        assert quest1 in available
-        assert quest2 not in available
-
-        # Complete first quest
-        quest1.status = QuestStatus.COMPLETED
-
-        # Now both should be available
-        available = basic_game_state.get_available_quests()
-        assert quest1 in available
-        assert quest2 in available
-
-    # Spec: get_completed_quest_names returns list of completed quest names
-    def test_get_completed_quest_names(self, basic_game_state):
-        """get_completed_quest_names should return names of completed quests."""
-        quest1 = Quest(
-            name="First Quest",
-            description="The beginning.",
-            objective_type=ObjectiveType.KILL,
-            target="rat",
-            status=QuestStatus.COMPLETED,
-        )
-        quest2 = Quest(
-            name="Second Quest",
-            description="Still active.",
-            objective_type=ObjectiveType.KILL,
-            target="goblin",
-            status=QuestStatus.ACTIVE,
-        )
-        basic_game_state.current_character.quests.extend([quest1, quest2])
-
-        completed = basic_game_state.get_completed_quest_names()
-        assert "First Quest" in completed
-        assert "Second Quest" not in completed
-
-
-class TestQuestNetworkSerialization:
-    """Tests for quest_network serialization with GameState."""
-
-    def test_quest_network_serialized(self, basic_game_state):
-        """Quest network should be included in to_dict."""
-        quest = Quest(
-            name="Kill Goblins",
-            description="Defeat 5 goblins.",
-            objective_type=ObjectiveType.KILL,
-            target="goblin",
-            chain_id="goblin_war",
-            chain_position=1,
-        )
-        basic_game_state.register_quest(quest)
-
-        data = basic_game_state.to_dict()
-        assert "quest_network" in data
-        assert len(data["quest_network"]["quests"]) == 1
-
-    def test_quest_network_deserialized(self, basic_game_state):
-        """Quest network should be restored from from_dict."""
-        quest = Quest(
-            name="Kill Goblins",
-            description="Defeat 5 goblins.",
-            objective_type=ObjectiveType.KILL,
-            target="goblin",
-            chain_id="goblin_war",
-            chain_position=1,
-        )
-        basic_game_state.register_quest(quest)
-
-        data = basic_game_state.to_dict()
-        restored = GameState.from_dict(data)
-
-        restored_quest = restored.quest_network.get_quest("Kill Goblins")
-        assert restored_quest is not None
-        assert restored_quest.chain_id == "goblin_war"
-        assert restored_quest.chain_position == 1
-
-    def test_backward_compatibility_no_quest_network(self, basic_game_state):
-        """from_dict should handle saves without quest_network."""
-        data = basic_game_state.to_dict()
-        del data["quest_network"]  # Simulate old save
-
-        restored = GameState.from_dict(data)
-        assert isinstance(restored.quest_network, QuestNetworkManager)
-        assert restored.quest_network.get_all_quests() == []
-
-
-class TestChainProgression:
-    """Tests for quest chain progression queries."""
-
-    def test_get_chain_progression(self, basic_game_state):
-        """get_chain_progression should return (completed, total) for chain."""
-        q1 = Quest(
-            name="Chain Quest 1",
-            description="First.",
-            objective_type=ObjectiveType.KILL,
-            target="goblin",
-            chain_id="main",
-            chain_position=1,
-            status=QuestStatus.COMPLETED,
-        )
-        q2 = Quest(
-            name="Chain Quest 2",
-            description="Second.",
-            objective_type=ObjectiveType.KILL,
-            target="orc",
-            chain_id="main",
-            chain_position=2,
-            status=QuestStatus.ACTIVE,
-        )
-        basic_game_state.register_quest(q1)
-        basic_game_state.register_quest(q2)
-        basic_game_state.current_character.quests.extend([q1, q2])
-
-        completed, total = basic_game_state.get_chain_progression("main")
-        assert completed == 1
-        assert total == 2
-
-    def test_get_next_in_chain(self, basic_game_state):
-        """get_next_in_chain should return first incomplete quest."""
-        q1 = Quest(
-            name="Chain Quest 1",
-            description="First.",
-            objective_type=ObjectiveType.KILL,
-            target="goblin",
-            chain_id="main",
-            chain_position=1,
-            status=QuestStatus.COMPLETED,
-        )
-        q2 = Quest(
-            name="Chain Quest 2",
-            description="Second.",
-            objective_type=ObjectiveType.KILL,
-            target="orc",
-            chain_id="main",
-            chain_position=2,
-        )
-        basic_game_state.register_quest(q1)
-        basic_game_state.register_quest(q2)
-        basic_game_state.current_character.quests.append(q1)
-
-        next_quest = basic_game_state.get_next_in_chain("main")
-        assert next_quest.name == "Chain Quest 2"
-```
-
-## Implementation Steps
-
-### 1. Add `quest_network` to `GameState.__init__` (game_state.py ~line 330)
-
-```python
-from cli_rpg.models.quest_network import QuestNetworkManager
-
-# In __init__, after self.economy_state:
-self.quest_network = QuestNetworkManager()
-```
-
-### 2. Add helper methods to `GameState` (game_state.py ~line 1900)
-
-```python
-def register_quest(self, quest: "Quest") -> None:
-    """Register a quest in the quest network.
-
-    Adds the quest to the network for chain/dependency tracking.
-    Does not add to character.quests - use accept_quest for that.
-
-    Args:
-        quest: Quest to register
-    """
-    self.quest_network.add_quest(quest)
-
-def get_completed_quest_names(self) -> list[str]:
-    """Get names of all completed quests from character.
-
-    Returns:
-        List of completed quest names (for dependency checks)
-    """
-    from cli_rpg.models.quest import QuestStatus
-    return [
-        q.name for q in self.current_character.quests
-        if q.status == QuestStatus.COMPLETED
-    ]
-
-def get_available_quests(self) -> list["Quest"]:
-    """Get quests available based on completed prerequisites.
-
-    Returns:
-        List of Quest objects with satisfied prerequisites
-    """
-    completed = self.get_completed_quest_names()
-    return self.quest_network.get_available_quests(completed)
-
-def get_chain_progression(self, chain_id: str) -> tuple[int, int]:
-    """Get (completed, total) count for a quest chain.
-
-    Args:
-        chain_id: The chain identifier
-
-    Returns:
-        Tuple of (completed_count, total_count)
-    """
-    completed = self.get_completed_quest_names()
-    return self.quest_network.get_chain_progression(chain_id, completed)
-
-def get_next_in_chain(self, chain_id: str) -> Optional["Quest"]:
-    """Get the next incomplete quest in a chain.
-
-    Args:
-        chain_id: The chain identifier
-
-    Returns:
-        Next Quest in chain, or None if chain is complete
-    """
-    completed = self.get_completed_quest_names()
-    return self.quest_network.get_next_in_chain(chain_id, completed)
-```
-
-### 3. Update `to_dict()` (game_state.py ~line 2075)
-
-Add to the data dict:
-```python
-"quest_network": self.quest_network.to_dict(),
-```
-
-### 4. Update `from_dict()` (game_state.py ~line 2240)
-
-Add after economy_state restoration:
-```python
-# Restore quest_network (default to empty for backward compatibility)
-if "quest_network" in data:
-    game_state.quest_network = QuestNetworkManager.from_dict(data["quest_network"])
-```
-
-### 5. Add import at top of game_state.py
-
-```python
-from cli_rpg.models.quest_network import QuestNetworkManager
-```
-
-### 6. Add TYPE_CHECKING import for Quest
-
-```python
-if TYPE_CHECKING:
-    ...
-    from cli_rpg.models.quest import Quest
-```
-
-## Verification
-
-```bash
-# Run new integration tests
-pytest tests/test_quest_network_integration.py -v
-
-# Run existing quest network tests (should still pass)
-pytest tests/test_quest_network.py -v
-
-# Run full test suite
-pytest
-```
+- When inside a SubGrid at z=0 and at or adjacent to an `is_exit_point` room, check overworld weather
+- If weather is `rain` or `storm`, trigger weather penetration sounds instead of/in addition to normal ambient sounds
+- Sound intensity decreases with distance from exit (exit room = 30% chance, 1 room away = 15%, 2+ rooms = 0%)
+- Does not apply to deep underground (z < 0)
+
+## Files to Modify
+
+### 1. `src/cli_rpg/ambient_sounds.py`
+- Add `WEATHER_PENETRATION_SOUNDS` dict with rain/storm sound pools
+- Add `get_weather_penetration_sound(weather_condition: str, distance_from_exit: int) -> Optional[str]`
+- Modify `AmbientSoundService.get_ambient_sound()` to accept optional `weather_condition` and `distance_from_exit` params
+
+### 2. `src/cli_rpg/world_grid.py`
+- Add `get_distance_to_nearest_exit(coords: tuple) -> int` method to SubGrid using BFS
+
+### 3. `src/cli_rpg/game_state.py`
+- In `_move_in_sub_grid()`, calculate distance from nearest exit_point
+- Pass weather condition and exit distance to `ambient_sound_service.get_ambient_sound()`
+
+## Tests (`tests/test_weather_penetration.py`)
+1. `test_rain_sound_at_exit_point` - Rain sounds trigger at exit rooms
+2. `test_storm_sound_at_exit_point` - Storm sounds trigger at exit rooms
+3. `test_muffled_sound_one_room_away` - Lower chance 1 room from exit
+4. `test_no_weather_sound_deep_inside` - No weather sounds 2+ rooms from exit
+5. `test_no_weather_sound_underground` - No weather sounds at z < 0
+6. `test_no_weather_sound_clear_weather` - No penetration in clear weather
+7. `test_distance_calculation` - SubGrid exit distance calculation works
+
+## Implementation Order
+1. Add `get_distance_to_nearest_exit()` to SubGrid
+2. Add weather penetration sounds to `ambient_sounds.py`
+3. Integrate in `game_state.py` movement
+4. Write tests
+5. Update ISSUES.md to mark acceptance criteria complete

@@ -50,6 +50,7 @@ python -m cli_rpg.main
 - **Ambient Sounds**: When exploring dungeons, caves, ruins, and temples, ambient sounds create atmosphere:
   - Category-specific sounds: dripping water in caves, rattling chains in dungeons, howling wind in ruins
   - Depth-based sounds: deeper levels (z < 0) have increasingly ominous sounds
+  - Weather penetration: near entrance rooms (z=0), rain and storm sounds can be heard from outside (muffled at distance 1, clearer at exit)
   - 15% base chance per move, with +5% per depth level below surface
   - 3-move cooldown prevents sound spam
 - **Experience System**: Level up by defeating enemies

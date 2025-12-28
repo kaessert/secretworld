@@ -1166,9 +1166,23 @@ class GameState:
             display_whisper(whisper)
 
         # Check for ambient sound (SubGrid only)
+        # Calculate distance from nearest exit for weather penetration sounds
+        distance_from_exit = -1
+        if destination.coordinates is not None and dest_z == 0:
+            dest_coords = (
+                destination.coordinates[0],
+                destination.coordinates[1],
+                dest_z,
+            )
+            distance_from_exit = self.current_sub_grid.get_distance_to_nearest_exit(
+                dest_coords
+            )
+
         ambient = self.ambient_sound_service.get_ambient_sound(
             category=destination.category or "dungeon",
             depth=dest_z,
+            weather_condition=self.weather.condition,
+            distance_from_exit=distance_from_exit,
         )
         if ambient:
             print()  # Blank line for spacing before sound

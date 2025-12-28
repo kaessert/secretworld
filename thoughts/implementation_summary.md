@@ -1,55 +1,52 @@
-# Implementation Summary: QuestNetworkManager Integration with GameState
+# Implementation Summary: Weather Penetration Sounds
 
 ## What Was Implemented
 
-Integrated the standalone `QuestNetworkManager` into `GameState` to enable quest chain progression tracking, dependency-based quest availability, and unlock queries during gameplay.
+Added weather-aware ambient sounds near SubGrid entrance rooms. When it's raining or storming outside, players hear muffled weather sounds near the entrance at z=0 level.
 
 ### Files Modified
 
-1. **`src/cli_rpg/game_state.py`**
-   - Added import for `QuestNetworkManager` (line 26)
-   - Added `Quest` to `TYPE_CHECKING` imports (line 13)
-   - Added `quest_network = QuestNetworkManager()` field to `__init__` (line 329)
-   - Added 5 new helper methods (lines 1780-1837):
-     - `register_quest(quest)` - Register a quest in the network
-     - `get_completed_quest_names()` - Get names of completed quests from character
-     - `get_available_quests()` - Get quests with satisfied prerequisites
-     - `get_chain_progression(chain_id)` - Get (completed, total) for a chain
-     - `get_next_in_chain(chain_id)` - Get next incomplete quest in chain
-   - Added `quest_network` serialization in `to_dict()` (line 2139)
-   - Added `quest_network` deserialization in `from_dict()` (lines 2274-2276)
+1. **`src/cli_rpg/world_grid.py`**
+   - Added `SubGrid.get_distance_to_nearest_exit(coords)` method
+   - Calculates Manhattan distance from any (x, y, z) coordinate to the nearest `is_exit_point=True` location
+   - Returns -1 if no exit points exist
 
-2. **`tests/test_quest_network_integration.py`** (new file)
-   - 10 tests covering:
-     - GameState has quest_network attribute
-     - Quest network is initially empty
-     - register_quest adds to network
-     - get_available_quests filters by prerequisites
-     - get_completed_quest_names returns completed quest names
-     - Quest network serialization in to_dict
-     - Quest network deserialization from from_dict
-     - Backward compatibility for old saves without quest_network
-     - Chain progression queries
-     - get_next_in_chain returns first incomplete quest
+2. **`src/cli_rpg/ambient_sounds.py`**
+   - Added `WEATHER_PENETRATION_SOUNDS` dict with rain and storm sound pools (5-6 sounds each)
+   - Added `get_weather_penetration_sound(weather_condition, distance_from_exit)` function
+   - Updated `AmbientSoundService.get_ambient_sound()` to accept optional `weather_condition` and `distance_from_exit` parameters
+   - Weather penetration bypasses normal ambient sound roll but respects cooldown
 
-### Test Results
+3. **`src/cli_rpg/game_state.py`**
+   - Updated `_move_in_sub_grid()` to calculate distance from nearest exit
+   - Only calculates distance at z=0 level (ground floor)
+   - Passes weather condition and exit distance to ambient sound service
 
-- New integration tests: **10 passed**
-- Existing quest_network tests: **19 passed**
-- game_state tests: **67 passed**
-- persistence tests: **37 passed**
-- Full test suite: **5576 passed, 4 skipped**
+### Feature Behavior
 
-### Design Decisions
+- **At exit room (distance=0):** 30% chance of weather penetration sound
+- **1 room away (distance=1):** 15% chance of weather penetration sound
+- **2+ rooms away:** No weather sounds
+- **Underground (z < 0):** No weather sounds (too deep)
+- **Clear/Fog weather:** No penetration sounds (rain/storm only)
 
-1. **Backward Compatibility**: `from_dict()` gracefully handles old saves without `quest_network` by using the default empty `QuestNetworkManager` initialized in `__init__`.
+### New Tests
 
-2. **Separation of Concerns**: `get_completed_quest_names()` reads from `current_character.quests` (the canonical list of player quests), while the network tracks all registered quests for dependency resolution.
+Created `tests/test_weather_penetration.py` with 16 tests:
+- `TestWeatherPenetrationSounds`: 7 tests for sound pools and probability mechanics
+- `TestSubGridExitDistance`: 6 tests for distance calculation
+- `TestAmbientSoundServiceWeatherIntegration`: 3 tests for service integration
 
-3. **TYPE_CHECKING Import**: Used `TYPE_CHECKING` for `Quest` import to avoid circular dependencies since the method signatures reference `Quest` but don't need it at runtime.
+## Test Results
 
-### E2E Validation
+All tests pass:
+- 16 new weather penetration tests
+- 5592 total tests in the test suite (all passing)
 
-- Save/load roundtrip preserves quest network state
-- Quests registered before serialization are restored correctly after deserialization
-- Chain progression and prerequisite filtering work correctly across save/load cycles
+## E2E Validation
+
+The feature should be validated by:
+1. Entering a dungeon/cave with rain/storm weather
+2. Moving around rooms at z=0 level
+3. Verifying weather sounds appear near the exit and fade as you go deeper
+4. Verifying no weather sounds appear underground (z < 0)

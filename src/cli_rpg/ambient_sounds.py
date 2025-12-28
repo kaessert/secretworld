@@ -3,6 +3,9 @@
 This module provides atmospheric ambient sound descriptions that trigger
 during movement within SubGrid locations (dungeons, caves, ruins, temples).
 Sounds have depth-based intensity and category-specific pools.
+
+Weather penetration: When near an exit point (is_exit_point) at z=0,
+players may hear muffled weather sounds from outside during rain/storm.
 """
 
 import random
@@ -14,6 +17,11 @@ from cli_rpg import colors
 AMBIENT_SOUND_CHANCE = 0.15  # 15% base chance per move
 DEPTH_SOUND_CHANCE_BONUS = 0.05  # +5% per depth level
 SOUND_COOLDOWN_MOVES = 3  # Minimum moves between sounds
+
+# Weather penetration chance by distance from exit (z=0 only)
+WEATHER_PENETRATION_CHANCE_EXIT = 0.30  # 30% at exit room
+WEATHER_PENETRATION_CHANCE_NEAR = 0.15  # 15% one room away
+# 2+ rooms away: 0% (no weather sounds)
 
 # Sound pools by category (8-10 sounds each)
 CATEGORY_SOUNDS: dict[str, list[str]] = {
@@ -95,6 +103,63 @@ DEPTH_SOUNDS: dict[int, list[str]] = {
     ],
 }
 
+# Weather penetration sounds (muffled sounds from outside near exit)
+WEATHER_PENETRATION_SOUNDS: dict[str, list[str]] = {
+    "rain": [
+        "The distant patter of rain echoes from the entrance...",
+        "A damp breeze carries the smell of rain from outside...",
+        "Muffled raindrops drum against stone near the exit...",
+        "You hear the gentle rhythm of rainfall somewhere behind you...",
+        "Water trickles in from outside, pooling near the threshold...",
+    ],
+    "storm": [
+        "Thunder rumbles distantly through the entrance...",
+        "The howling wind echoes from the way you came in...",
+        "A flash of lightning briefly illuminates the passage to the exit...",
+        "The storm's fury is muffled but unmistakable from outside...",
+        "Rain hammers against the entrance, a wall of sound nearby...",
+        "Thunder shakes dust from the ceiling near the exit...",
+    ],
+}
+
+
+def get_weather_penetration_sound(
+    weather_condition: str, distance_from_exit: int
+) -> Optional[str]:
+    """Get a weather penetration sound based on weather and distance from exit.
+
+    Weather sounds are only audible near exit points at ground level (z=0).
+    Chance decreases with distance:
+    - At exit (distance=0): 30% chance
+    - 1 room away: 15% chance
+    - 2+ rooms away: 0% chance
+
+    Args:
+        weather_condition: Current weather ("rain", "storm", "clear", "fog")
+        distance_from_exit: Manhattan distance to nearest exit point
+
+    Returns:
+        Weather penetration sound text if triggered, None otherwise
+    """
+    # Only rain and storm have audible penetration
+    if weather_condition not in WEATHER_PENETRATION_SOUNDS:
+        return None
+
+    # Determine chance based on distance
+    if distance_from_exit == 0:
+        chance = WEATHER_PENETRATION_CHANCE_EXIT
+    elif distance_from_exit == 1:
+        chance = WEATHER_PENETRATION_CHANCE_NEAR
+    else:
+        # 2+ rooms away, no weather sounds
+        return None
+
+    # Roll for weather sound
+    if random.random() < chance:
+        return random.choice(WEATHER_PENETRATION_SOUNDS[weather_condition])
+
+    return None
+
 
 def format_ambient_sound(text: str) -> str:
     """Format an ambient sound with [Sound]: prefix and styling.
@@ -112,7 +177,7 @@ class AmbientSoundService:
     """Service for managing ambient sounds during SubGrid exploration.
 
     Tracks cooldown between sounds and handles trigger chance calculations
-    with depth-based scaling.
+    with depth-based scaling. Also handles weather penetration sounds near exits.
     """
 
     def __init__(self) -> None:
@@ -120,13 +185,24 @@ class AmbientSoundService:
         self.moves_since_last_sound = SOUND_COOLDOWN_MOVES  # Start ready to play
 
     def get_ambient_sound(
-        self, category: str, depth: int = 0
+        self,
+        category: str,
+        depth: int = 0,
+        weather_condition: Optional[str] = None,
+        distance_from_exit: int = -1,
     ) -> Optional[str]:
         """Get an ambient sound for the current location.
+
+        May return weather penetration sounds when near exit at z=0 with
+        rain/storm weather, otherwise returns category/depth sounds.
 
         Args:
             category: The location category (dungeon, cave, ruins, temple).
             depth: The current z-level (negative for underground).
+            weather_condition: Optional weather for penetration sounds
+                ("rain", "storm", "clear", "fog").
+            distance_from_exit: Manhattan distance to nearest exit point.
+                -1 if not inside a SubGrid or no exits exist.
 
         Returns:
             A sound string if triggered, None otherwise.
@@ -137,6 +213,16 @@ class AmbientSoundService:
         # Check cooldown
         if self.moves_since_last_sound <= SOUND_COOLDOWN_MOVES:
             return None
+
+        # Check for weather penetration first (only at z=0, near exit)
+        # Weather sounds bypass the normal ambient sound roll
+        if depth == 0 and weather_condition and distance_from_exit >= 0:
+            weather_sound = get_weather_penetration_sound(
+                weather_condition, distance_from_exit
+            )
+            if weather_sound:
+                self.moves_since_last_sound = 0
+                return weather_sound
 
         # Calculate effective chance with depth bonus
         # Deeper levels (more negative z) have higher chance

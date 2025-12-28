@@ -288,6 +288,40 @@ class SubGrid:
             return True
         return opened >= total
 
+    def get_distance_to_nearest_exit(self, coords: Tuple[int, int, int]) -> int:
+        """Calculate Manhattan distance to the nearest exit point.
+
+        Used for weather penetration sounds - sounds from outside are
+        louder near exit points and fade as you go deeper inside.
+
+        Args:
+            coords: Current (x, y, z) coordinates within the SubGrid
+
+        Returns:
+            Manhattan distance to nearest exit point, or -1 if no exits exist
+        """
+        # Find all exit points
+        exit_points: List[Tuple[int, int, int]] = []
+        for location in self._by_name.values():
+            if location.is_exit_point and location.coordinates is not None:
+                loc_coords = location.coordinates
+                if len(loc_coords) == 3:
+                    exit_points.append((loc_coords[0], loc_coords[1], loc_coords[2]))
+                else:
+                    exit_points.append((loc_coords[0], loc_coords[1], 0))
+
+        if not exit_points:
+            return -1
+
+        # Calculate Manhattan distance to each exit and return minimum
+        min_distance = float("inf")
+        for exit_x, exit_y, exit_z in exit_points:
+            distance = abs(coords[0] - exit_x) + abs(coords[1] - exit_y) + abs(coords[2] - exit_z)
+            if distance < min_distance:
+                min_distance = distance
+
+        return int(min_distance)
+
     def to_dict(self) -> dict:
         """Serialize the sub-grid to a dictionary.
 

@@ -895,7 +895,7 @@ Created QuestNetworkManager for managing interconnected quest storylines.
 - [x] **Ambient sounds**: Category-specific sounds (dripping water, rattling chains, distant screams) with depth-based ominous sounds
 - [x] **Progressive dread**: Deeper levels increase dread faster (up to 2x at z≤-3)
 - [x] **Environmental storytelling**: Corpses, bloodstains, journals (completed - see environmental_storytelling.py)
-- [ ] **Weather penetration**: Rain sounds near cave entrance (deferred - future enhancement)
+- [x] **Weather penetration**: Rain/storm sounds near cave entrance (30% at exit, 15% at distance 1, none deeper or underground)
 - [x] **Day/night effects**: Undead more active at night (+50% encounter rate, +20% attack, +10% health during 18:00-5:59)
 - [x] **Location-specific whispers**: Dungeon whispers differ from forest (8+ templates per category, new temple category)
 
