@@ -1,27 +1,9 @@
-# Plan: Add NPC Interaction Validation Scenario - Quest Accept
-
-## Summary
-Add a `quest_accept.yaml` scenario to validate NPC quest acceptance flow using demo mode. The existing NPC scenarios (`talk_dialogue.yaml`, `shop_browse.yaml`) only test basic command validity, not actual NPC interaction outcomes. This scenario will validate the complete quest acceptance flow using the pre-generated test world.
-
-## Spec
-The scenario should validate:
-1. Talk to a quest-giving NPC (Elder Theron in Peaceful Village)
-2. Accept a quest from that NPC
-3. Verify quest appears in character's quest list
-4. Verify state changes correctly after acceptance
-
-## Implementation Steps
-
-### 1. Create `scripts/scenarios/npc/quest_accept.yaml`
-Location: `scripts/scenarios/npc/quest_accept.yaml`
-
-```yaml
 # Quest acceptance scenario - tests accepting a quest from an NPC
 # Uses demo mode with pre-generated test world (Peaceful Village has Elder Theron with "Scout the Ruins" quest)
 scenario:
   name: "Quest Accept from NPC"
   description: "Test talking to NPC and accepting a quest in demo mode"
-  seed: 42009  # Unique seed for this scenario
+  seed: 42013  # Unique seed for this scenario
   config:
     max_commands: 30
     timeout: 90
@@ -90,30 +72,3 @@ scenario:
           field: ""
           value: "Scout the Ruins"
           message: "Quest list should show accepted quest"
-```
-
-### 2. Update test assertion in `tests/test_scenario_files.py`
-No changes required - the existing `test_npc_scenarios_exist` already expects >= 2 NPC scenarios and checks for `talk_dialogue.yaml` and `shop_browse.yaml`. Adding a third scenario will pass.
-
-### 3. Verify used seeds (avoid conflicts)
-Existing seeds in NPC scenarios:
-- `talk_dialogue.yaml`: 42007
-- `shop_browse.yaml`: 42008
-
-New seed: **42009** (next sequential, within valid range 42001-42999)
-
-## Test Plan
-1. Run `pytest tests/test_scenario_files.py -v` to verify:
-   - YAML parses without errors
-   - Scenario loads into dataclass
-   - Assertions have valid types
-   - Steps have commands
-   - Seed is unique and in range
-
-2. Optionally run the scenario manually:
-   ```bash
-   python -m scripts.run_simulation --scenario scripts/scenarios/npc/quest_accept.yaml
-   ```
-
-## Files to Create/Modify
-- **CREATE**: `scripts/scenarios/npc/quest_accept.yaml` - New quest acceptance scenario

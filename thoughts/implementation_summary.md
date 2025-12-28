@@ -1,84 +1,44 @@
-# Implementation Summary: Complete Combat Validation Scenarios
+# Implementation Summary: NPC Quest Accept Scenario
 
 ## What Was Implemented
 
-Added 5 new combat scenario YAML files to cover class-specific abilities and boss combat:
+Created a new YAML scenario file `scripts/scenarios/npc/quest_accept.yaml` to validate the complete NPC quest acceptance flow using demo mode.
 
-### New Files Created
+## Files Created
 
-1. **`scripts/scenarios/combat/warrior_bash.yaml`** (seed: 42030)
-   - Tests Warrior's `bash` stun ability
-   - Uses demo mode (Warrior character)
-   - Navigates to Spider Den boss location
-   - Validates bash command works for Warriors
+- **`scripts/scenarios/npc/quest_accept.yaml`** - New validation scenario with:
+  - Uses demo mode (`demo_mode: true`) with pre-generated test world
+  - Seed: 42013 (unique, verified against all other scenarios)
+  - 6 steps validating:
+    1. Starting location verification (Peaceful Village)
+    2. NPC presence validation
+    3. Talking to Elder Theron (quest giver)
+    4. Accepting the "Scout the Ruins" quest
+    5. Verifying quest appears in character's quest list via `dump_state`
+    6. Checking `quests` command shows the accepted quest
+  - Uses multiple assertion types: NARRATIVE_MATCH, CONTENT_PRESENT, COMMAND_VALID, STATE_CONTAINS
 
-2. **`scripts/scenarios/combat/mage_spells.yaml`** (seed: 42031)
-   - Tests Mage's `fireball` and `ice_bolt` abilities
-   - Uses character creation (class 2 = Mage)
-   - Validates spell commands and mana tracking
+## Test Verification
 
-3. **`scripts/scenarios/combat/rogue_stealth.yaml`** (seed: 42032)
-   - Tests Rogue's `sneak` ability and backstab mechanics
-   - Uses character creation (class 3 = Rogue)
-   - Validates sneak → attack sequence
+Ran `pytest tests/test_scenario_files.py -v` - all 105 tests passed:
+- YAML parses without errors
+- Scenario loads with dataclass
+- Assertions have valid types (COMMAND_VALID, NARRATIVE_MATCH, CONTENT_PRESENT, STATE_CONTAINS)
+- Steps have commands
+- Seed 42013 is unique across all scenarios
+- Seed is in expected range (42001-42999)
 
-4. **`scripts/scenarios/combat/cleric_abilities.yaml`** (seed: 42033)
-   - Tests Cleric's `bless` and `smite` divine abilities
-   - Uses character creation (class 5 = Cleric)
-   - Validates divine commands and mana tracking
+## Technical Details
 
-5. **`scripts/scenarios/combat/demo_combat.yaml`** (seed: 42034)
-   - Tests complete combat flow against Giant Spider boss
-   - Uses demo mode to navigate to known boss location
-   - Path: Peaceful Village → Dark Cave → enter → north → west to Spider Den
-   - Validates full combat with attack, bash, and health tracking
+- The scenario leverages the existing test world fixture (`tests/fixtures/test_world.json`) which contains:
+  - Elder Theron at Peaceful Village (coordinates [0,0])
+  - "Scout the Ruins" quest with status "available" offered by Elder Theron
+- Initial plan specified seed 42009, but this conflicted with `exploration/look_map.yaml`, so 42013 was used instead
 
-### Files Modified
+## E2E Validation
 
-1. **`tests/test_scenario_files.py`**
-   - Updated `test_combat_scenarios_exist()` to expect 7 scenarios
-   - Added assertions for all new scenario files
-
-2. **`ISSUES.md`** (line 149)
-   - Marked combat checkbox as complete: `[x]`
-   - Added note: `7 scenarios in scripts/scenarios/combat/ (seeds 42003-42004, 42030-42034)`
-
-## Test Results
-
-All 101 scenario file tests pass:
-- YAML parsing validation: All scenarios parse without errors
-- Scenario dataclass loading: All scenarios load correctly
-- Assertion type validation: All assertions use valid types
-- Seed uniqueness: No duplicate seeds across scenarios
-- Seed range: All seeds in expected range 42001-42999
-- Combat scenarios exist: 7 scenarios verified
-
-## Seed Allocation
-
-Combat scenarios now use seeds:
-- 42003: basic_attack.yaml
-- 42004: flee_combat.yaml
-- 42030: warrior_bash.yaml
-- 42031: mage_spells.yaml
-- 42032: rogue_stealth.yaml
-- 42033: cleric_abilities.yaml
-- 42034: demo_combat.yaml
-
-## E2E Test Considerations
-
-To validate these scenarios in actual gameplay, run:
+To fully validate the quest acceptance flow works at runtime, run:
 ```bash
-# Verify scenario files parse correctly
-pytest tests/test_scenario_files.py -v
-
-# Manual demo mode verification
-cli-rpg --demo
-# Then: go east → enter → go north → go west → bash
+python -m scripts.run_simulation --scenario scripts/scenarios/npc/quest_accept.yaml
 ```
-
-## Technical Notes
-
-- Demo mode uses pre-generated test world with a Warrior character at level 3
-- Spider Den at coordinates [-1, 1, 0] in Dark Cave SubGrid has Giant Spider boss
-- Class ability scenarios (mage, rogue, cleric) use character creation inputs instead of demo mode
-- All scenarios follow existing format with COMMAND_VALID, NARRATIVE_MATCH, STATE_RANGE, and CONTENT_PRESENT assertions
+This would test the actual game execution with the scenario steps.
