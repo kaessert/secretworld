@@ -1,3 +1,25 @@
+# Verification Complete (2025-12-28)
+
+## Status: No Action Required
+
+The implementation plan at `thoughts/current_plan.md` indicated that all tests are passing and no implementation work is needed. This was verified by running the test suite.
+
+### Verification Results
+
+- **5493 tests passed**
+- **4 tests skipped**
+- **1 warning** (Python deprecation warning for random seeding - unrelated to functionality)
+
+### Specific Test Verified
+
+The `test_boss_chamber_no_respawn_after_defeat` test that was previously flagged is **PASSING**.
+
+```
+tests/test_boss_chamber.py::TestBossChamberNoRespawn::test_boss_chamber_no_respawn_after_defeat PASSED
+```
+
+---
+
 # Discovery Milestones (Issue 24) - Implementation Summary
 
 ## Date: 2025-12-28
@@ -512,3 +534,190 @@ The feature should be validated by:
 2. **Metadata Preservation**: The original `effect_type` from WorldEffect is stored in the WorldStateChange's metadata, allowing future queries to distinguish between different types of quest world effects.
 
 3. **Forward Compatibility**: WorldEffect uses a string `effect_type` rather than an enum to allow AI-generated quests to specify custom effect types without code changes.
+
+---
+
+# Holy Symbols for Cleric Class - Implementation Summary
+
+## Date: 2025-12-28
+
+## What Was Implemented
+
+The Holy Symbol equipment feature for the Cleric class was **already substantially implemented** in the codebase. The implementation plan identified the remaining gaps and I completed them.
+
+### Already Existing (Found During Implementation)
+- `ItemType.HOLY_SYMBOL` enum value in `models/item.py`
+- `divine_power: int` attribute on `Item` dataclass with serialization
+- `equipped_holy_symbol` slot in `Inventory` with serialization
+- `can_equip_holy_symbol()` and `equip_holy_symbol_with_validation()` in `Character`
+- `get_divine_power()` method in `Character`
+- Divine power constants in `cleric.py`:
+  - `DIVINE_POWER_BLESS_BONUS = 0.01` (+1% attack modifier per point)
+  - `DIVINE_POWER_SMITE_BONUS = 1` (+1 damage per point)
+  - `DIVINE_POWER_STUN_BONUS = 0.01` (+1% stun chance per point)
+- Divine power application in `combat.py` (`player_bless()` and `player_smite()`)
+- Fallback holy symbol items in `fallback_content.py` with various divine_power values
+
+### New Implementation (Completed by This Task)
+**File: `src/cli_rpg/main.py`** - Updated equip/unequip commands:
+
+1. **Equip command enhancements**:
+   - Added check for already-equipped holy symbol (line 1198-1199)
+   - Added holy symbol validation with Cleric-only restriction (lines 1207-1210)
+
+2. **Unequip command enhancements**:
+   - Added `holy_symbol` as valid slot option (lines 1224, 1226)
+   - Added check for empty holy symbol slot (lines 1233-1234)
+   - Added display text formatting for holy symbol (line 1237)
+
+### Tests Added
+**File: `tests/test_holy_symbol.py`** - Added `TestEquipUnequipCommands` class (5 tests):
+1. `test_equip_command_handles_holy_symbol_for_cleric` - Verifies Clerics can equip via command
+2. `test_equip_command_blocks_holy_symbol_for_non_cleric` - Verifies non-Clerics are blocked
+3. `test_unequip_command_handles_holy_symbol` - Verifies `unequip holy_symbol` works
+4. `test_equip_already_equipped_holy_symbol_shows_message` - Verifies "already equipped" message
+5. `test_unequip_no_holy_symbol_shows_message` - Verifies "don't have" message when empty
+
+## Test Results
+
+All tests pass:
+- `tests/test_holy_symbol.py`: 26 tests passed
+- `tests/test_cleric.py`: 20 tests passed
+- `tests/test_main_inventory_commands.py`: 26 tests passed (no regressions)
+- Broader test run: 390 tests passed (inventory/equip/item/cleric/holy related)
+
+## Technical Details
+
+### Holy Symbol Stats
+Holy symbols provide `divine_power` stat that affects Cleric abilities:
+- **Bless**: Attack buff modifier = 0.25 + (divine_power * 0.01)
+  - Example: +5 divine power = 30% attack buff instead of 25%
+- **Smite**: Damage = (INT * multiplier) + (divine_power * 1)
+  - Example: +5 divine power = +5 flat damage
+- **Undead Stun**: Chance = 0.30 + (divine_power * 0.01)
+  - Example: +5 divine power = 35% stun chance instead of 30%
+
+### Sample Holy Symbols in Fallback Content
+- Temple Holy Symbol: divine_power 2
+- Blessed Talisman: divine_power 3
+- Divine Emblem: divine_power 4
+- Sacred Relic of Light: divine_power 5
+
+## E2E Validation
+
+The feature should validate:
+1. Create a Cleric character
+2. Find/obtain a holy symbol item
+3. Equip it using `equip <holy symbol name>`
+4. Verify divine power appears in inventory display
+5. Enter combat and use `bless` - verify enhanced buff modifier
+6. Use `smite` on enemy - verify enhanced damage
+7. Use `unequip holy_symbol` to remove
+8. Non-Cleric characters should fail to equip with helpful message
+
+---
+
+# Ranger Animal Companion - Implementation Summary
+
+## Date: 2025-12-28
+
+## What Was Implemented
+
+The Ranger Animal Companion system has been fully implemented with all features from the spec.
+
+### Files Created
+
+1. **`src/cli_rpg/models/animal_companion.py`**
+   - `AnimalType` enum: WOLF, HAWK, BEAR
+   - `AnimalCompanion` dataclass with all required fields
+   - Factory method `create()` for proper health calculation based on type
+   - Bond level progression using shared `BondLevel` from companion.py
+   - Flank bonus getter (Wolf: 15%, Hawk/Bear: 10%)
+   - Perception bonus getter (Hawk: +3, others: 0)
+   - Attack damage calculation (50% of Ranger strength)
+   - Health management (take_damage, heal, is_alive)
+   - Summon/dismiss toggle
+   - Status display with colored health/bond bars
+   - Full serialization (to_dict/from_dict)
+
+2. **`src/cli_rpg/ranger_companion.py`**
+   - `execute_companion_status()` - View companion status
+   - `execute_summon()` - Call dismissed companion (10 stamina cost)
+   - `execute_dismiss()` - Send companion away
+   - `execute_feed()` - Feed consumable to heal and increase bond
+   - `execute_tame()` - Tame wild animal (Ranger-only, one-time)
+   - `get_companion_flank_bonus()` - Combat bonus getter
+   - `get_companion_perception_bonus()` - Perception bonus getter
+   - `companion_attack()` - Calculate companion attack damage
+   - `get_track_companion_bonus()` - +15% track bonus when present
+
+3. **`tests/test_animal_companion.py`**
+   - 71 comprehensive tests covering all features
+
+### Files Modified
+
+1. **`src/cli_rpg/models/character.py`**
+   - Added `animal_companion: Optional[AnimalCompanion] = None` field
+   - Updated `to_dict()` to serialize animal_companion
+   - Updated `from_dict()` with backward compatibility
+
+2. **`src/cli_rpg/combat.py`**
+   - Integrated flank bonus from animal companion in `_get_companion_bonus()`
+   - Added `_animal_companion_attack()` method
+   - Companion attacks after player attack in `player_attack()`
+
+3. **`src/cli_rpg/ranger.py`**
+   - Integrated +15% track bonus from `get_track_companion_bonus()`
+
+4. **`src/cli_rpg/secrets.py`**
+   - Added hawk +3 PER bonus in `check_passive_detection()`
+   - Added hawk bonus in `perform_active_search()`
+
+5. **`src/cli_rpg/game_state.py`**
+   - Registered commands: `companion`, `summon`, `feed`, `tame`
+
+6. **`src/cli_rpg/main.py`**
+   - Added command handlers for all companion commands
+   - Integrated dismiss for both animal and humanoid companions
+
+7. **`src/cli_rpg/completer.py`**
+   - Tab completion for `feed` (inventory items)
+   - Tab completion for `tame` (animal types)
+
+### Core Mechanics Implemented
+
+- **Ranger-Only**: Only Rangers can have animal companions
+- **One Companion**: Rangers bond with a single animal for life
+- **Bond Level**: Uses existing BondLevel enum (STRANGER → DEVOTED)
+- **Combat Assistance**:
+  - Flank Bonus: +10% (default), +15% (Wolf)
+  - Companion Attack: 50% of Ranger strength as secondary attack
+- **Out-of-Combat Perks**:
+  - Track Bonus: +15% when companion present
+  - Perception Bonus: +3 PER for Hawk type
+
+### Animal Types
+
+| Type | Flank Bonus | PER Bonus | Health Multiplier |
+|------|-------------|-----------|-------------------|
+| Wolf | +15% | 0 | 1.0x (30 HP) |
+| Hawk | +10% | +3 | 0.5x (15 HP) |
+| Bear | +10% | 0 | 2.0x (60 HP) |
+
+## Test Results
+
+- All 71 animal companion tests pass
+- Full test suite: 5467 passed, 4 skipped, 0 failures
+- No regressions introduced
+
+## E2E Validation
+
+The following should be validated with E2E tests:
+1. Ranger can tame an animal with `tame wolf/hawk/bear`
+2. `companion` command shows status
+3. `summon`/`dismiss` toggle companion presence
+4. `feed <consumable>` heals and increases bond
+5. Companion attacks enemies during combat
+6. Flank bonus applies in combat damage
+7. Track command gets +15% bonus with companion present
+8. Hawk provides +3 PER for secret detection
