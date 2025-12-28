@@ -331,16 +331,15 @@ def test_move_triggers_coordinate_based_ai_expansion(test_character, coord_world
         world["Northern Area"] = new_loc
 
     with patch("cli_rpg.game_state.expand_area", side_effect=mock_expand_area) as mock_expand:
-        # Force should_generate_named_location to return True to trigger AI path
-        with patch("cli_rpg.game_state.should_generate_named_location", return_value=True):
-            game = GameState(
-                character=test_character,
-                world=coord_world,
-                starting_location="Town",
-                ai_service=mock_ai_service,
-                theme="fantasy",
-            )
-
+        game = GameState(
+            character=test_character,
+            world=coord_world,
+            starting_location="Town",
+            ai_service=mock_ai_service,
+            theme="fantasy",
+        )
+        # Force named location path by mocking should_spawn_location
+        with patch.object(game.location_noise_manager, 'should_spawn_location', return_value=True):
             success, msg = game.move("north")
 
             assert success is True

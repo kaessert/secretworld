@@ -4,6 +4,7 @@ Tests layout generators (linear, branching, hub, maze), category-based selection
 and secret passage generation.
 """
 
+import random
 import pytest
 from unittest.mock import patch, MagicMock
 
@@ -287,11 +288,18 @@ class TestAreaLayoutDispatch:
 
     def test_generate_area_layout_dispatches_to_maze(self, ai_service):
         """_generate_area_layout with dungeon should use maze layout."""
-        coords = ai_service._generate_area_layout(
-            size=15,
-            entry_direction="south",
-            category="dungeon"
-        )
+        # Save random state to avoid interference from other tests
+        old_state = random.getstate()
+        try:
+            random.seed(42)  # Use a fixed seed for deterministic maze generation
+            coords = ai_service._generate_area_layout(
+                size=15,
+                entry_direction="south",
+                category="dungeon"
+            )
+        finally:
+            # Restore random state to avoid affecting other tests
+            random.setstate(old_state)
 
         # Maze should have variation (not a straight line or simple spoke)
         coord_set = set(coords)

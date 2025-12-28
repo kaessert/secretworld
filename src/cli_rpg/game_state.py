@@ -320,7 +320,7 @@ class GameState:
         self.economy_state = EconomyState()
         # Location noise manager for deterministic location density
         # Uses world seed from chunk_manager if available, otherwise random
-        world_seed = chunk_manager.seed if chunk_manager else random.randint(0, 2**31)
+        world_seed = chunk_manager.world_seed if chunk_manager else random.randint(0, 2**31)
         self.location_noise_manager = LocationNoiseManager(world_seed=world_seed)
 
     @property
@@ -2149,7 +2149,7 @@ class GameState:
             game_state.location_noise_manager = LocationNoiseManager(world_seed=noise_seed)
         elif game_state.chunk_manager is not None:
             game_state.location_noise_manager = LocationNoiseManager(
-                world_seed=game_state.chunk_manager.seed
+                world_seed=game_state.chunk_manager.world_seed
             )
         else:
             game_state.location_noise_manager = LocationNoiseManager(

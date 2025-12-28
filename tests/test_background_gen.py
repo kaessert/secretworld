@@ -292,7 +292,7 @@ class TestBackgroundGenIntegration:
 
             # Move north - force named location generation and skip autosave
             with patch('cli_rpg.game_state.autosave'), \
-                 patch('cli_rpg.game_state.should_generate_named_location', return_value=True):
+                 patch.object(gs.location_noise_manager, 'should_spawn_location', return_value=True):
                 success, message = gs.move("north")
 
             assert success is True

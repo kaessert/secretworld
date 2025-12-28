@@ -1254,7 +1254,7 @@ class TestLocationNoiseManagerIntegration:
 
         # Create mock chunk_manager with a specific seed
         mock_chunk_manager = MagicMock()
-        mock_chunk_manager.seed = 12345
+        mock_chunk_manager.world_seed = 12345
 
         game_state = GameState(
             character, world, "Start", chunk_manager=mock_chunk_manager

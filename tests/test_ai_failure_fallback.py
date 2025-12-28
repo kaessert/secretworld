@@ -119,8 +119,8 @@ class TestAIFailureFallback:
             ai_service=mock_ai
         )
 
-        # Force named location path (otherwise template generation is used)
-        with patch('cli_rpg.game_state.should_generate_named_location', return_value=True):
+        # Force named location path by mocking should_spawn_location
+        with patch.object(gs.location_noise_manager, 'should_spawn_location', return_value=True):
             with patch('cli_rpg.game_state.generate_fallback_location') as mock_fallback:
                 mock_fallback.side_effect = Exception("Fallback also failed")
 
@@ -154,8 +154,8 @@ class TestAIFailureFallback:
             ai_service=mock_ai
         )
 
-        # Force named location path (otherwise template generation is used, skipping AI)
-        with patch('cli_rpg.game_state.should_generate_named_location', return_value=True):
+        # Force named location path by mocking should_spawn_location
+        with patch.object(gs.location_noise_manager, 'should_spawn_location', return_value=True):
             with caplog.at_level(logging.WARNING):
                 success, message = gs.move("south")
 

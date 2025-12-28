@@ -55,18 +55,25 @@ class TestWeatherModel:
         """transition() can change weather when probability triggers."""
         weather = Weather(condition="clear")
 
+        # Save the random state before seeding
+        old_state = random.getstate()
+
         # Force a change by using a fixed random seed that triggers transition
         random.seed(0)  # This seed will produce consistent results
 
         # Call transition many times to increase chance of change
         changed = False
-        for _ in range(100):
-            weather.condition = "clear"  # Reset
-            result = weather.transition()
-            if result is not None:
-                changed = True
-                assert result in Weather.WEATHER_STATES
-                break
+        try:
+            for _ in range(100):
+                weather.condition = "clear"  # Reset
+                result = weather.transition()
+                if result is not None:
+                    changed = True
+                    assert result in Weather.WEATHER_STATES
+                    break
+        finally:
+            # Restore the random state to avoid affecting other tests
+            random.setstate(old_state)
 
         # With 10% chance per call and 100 calls, should have changed
         assert changed, "Weather should have changed at least once in 100 attempts"
