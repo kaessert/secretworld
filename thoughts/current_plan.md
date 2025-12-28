@@ -1,49 +1,95 @@
-# Fix 66 Failing Tests - Implementation Plan
+# ContentLayer Mediator Implementation Plan
 
-## Root Cause Analysis
+## Spec
 
-**Primary Issue (64 tests):** `AttributeError: 'ChunkManager' object has no attribute 'seed'`
+Create `src/cli_rpg/content_layer.py` - a mediator class that bridges procedural layout generators (`RoomTemplate` from `procedural_interiors.py`) with AI content generation (`ai_service.py`), producing fully populated `SubGrid` instances with deterministic spatial structure and AI-generated thematic content.
 
-The `ChunkManager` dataclass in `wfc_chunks.py` uses `world_seed` as its attribute name (line 35), but `game_state.py` accesses it as `.seed` in two locations:
-- Line 323: `world_seed = chunk_manager.seed if chunk_manager else random.randint(0, 2**31)`
-- Line 2152: `world_seed=game_state.chunk_manager.seed`
+### Interface
+```python
+class ContentLayer:
+    def populate_subgrid(
+        self,
+        room_templates: list[RoomTemplate],
+        parent_location: Location,
+        ai_service: Optional[AIService],
+        generation_context: Optional[GenerationContext],
+        seed: int
+    ) -> SubGrid
+```
 
-**Secondary Issues (2 tests):**
-1. `test_weather_affects_dread_rain` - Expects dread=7, got dread=10 (likely unrelated calculation issue)
-2. `test_maze_layout_has_dead_ends` - Non-deterministic layout generation (0 dead ends found)
+### Responsibilities
+1. Transform `RoomTemplate` → `Location` for each room
+2. Generate AI content (name, description) based on room type and spatial context
+3. Apply procedural augmentation (treasures, puzzles, secrets, hazards)
+4. Handle AI fallback gracefully when service unavailable
+5. Ensure determinism via seed parameter
+
+---
+
+## Tests First
+
+**File:** `tests/test_content_layer.py`
+
+### Test Cases
+1. `test_content_layer_transforms_templates_to_locations` - Verifies RoomTemplate list → SubGrid with matching coordinates
+2. `test_content_layer_entry_room_is_exit_point` - Entry template → Location with `is_exit_point=True`
+3. `test_content_layer_boss_room_gets_boss_enemy` - BOSS_ROOM template → Location with `boss_enemy` set
+4. `test_content_layer_treasure_room_gets_treasures` - TREASURE template → Location with treasures list
+5. `test_content_layer_hazards_from_template` - `suggested_hazards` → Location `hazards`
+6. `test_content_layer_deterministic_with_seed` - Same seed → same output
+7. `test_content_layer_fallback_without_ai` - AI unavailable → fallback names/descriptions by room type
+8. `test_content_layer_ai_content_used_when_available` - Mock AI → Location has AI-generated content
+
+---
 
 ## Implementation Steps
 
-### Step 1: Fix ChunkManager attribute access (Primary Fix)
+### Step 1: Create test file
+**File:** `tests/test_content_layer.py`
+- Import RoomTemplate, RoomType, Location, SubGrid
+- Create fixtures for sample room templates
+- Write 8 test cases (initially failing)
 
-**File:** `src/cli_rpg/game_state.py`
+### Step 2: Create ContentLayer class skeleton
+**File:** `src/cli_rpg/content_layer.py`
+- Define ContentLayer class
+- Define `populate_subgrid()` method signature
+- Add room type → fallback content mapping dict
 
-**Change 1 - Line 323:**
-```python
-# FROM:
-world_seed = chunk_manager.seed if chunk_manager else random.randint(0, 2**31)
-# TO:
-world_seed = chunk_manager.world_seed if chunk_manager else random.randint(0, 2**31)
-```
+### Step 3: Implement template → location transformation
+- Iterate room_templates
+- Create Location with coordinates from template
+- Set `is_exit_point` from `is_entry`
+- Set `hazards` from `suggested_hazards`
 
-**Change 2 - Line 2152:**
-```python
-# FROM:
-world_seed=game_state.chunk_manager.seed
-# TO:
-world_seed=game_state.chunk_manager.world_seed
-```
+### Step 4: Implement room type handling
+- BOSS_ROOM → set `boss_enemy` based on parent category
+- TREASURE → add treasures via `_place_treasures()` pattern
+- PUZZLE → add puzzles via `_generate_puzzles_for_location()` pattern
 
-### Step 2: Run tests to verify fix
+### Step 5: Implement AI content generation
+- Build prompt context from room template + generation context
+- Call `ai_service.generate_room_content()` (new method needed)
+- OR call existing `generate_location_with_context()` with room hints
 
-```bash
-pytest tests/test_wfc_integration.py tests/test_non_interactive.py tests/test_json_output.py -v
-```
+### Step 6: Implement fallback content
+- Fallback names: "Entrance Chamber", "Dark Corridor", "Ancient Chamber", "Boss Lair", "Treasure Vault", "Puzzle Room"
+- Fallback descriptions: Procedural based on room type + parent category
 
-### Step 3: Investigate remaining failures (if any)
+### Step 7: Wire into ai_world.py
+**File:** `src/cli_rpg/ai_world.py`
+- Import ContentLayer
+- In `generate_subgrid_for_location()`:
+  - Call `generate_interior_layout()` for room templates
+  - Call `ContentLayer.populate_subgrid()` to create SubGrid
+  - Replace current AI area generation flow
 
-After the primary fix, re-run full test suite to identify any remaining failures that may need separate fixes.
+---
 
-## Expected Outcome
+## Files Modified
 
-The attribute name fix should resolve ~64 of the 66 failing tests. The remaining 2 tests (weather dread calculation and maze dead-end detection) appear to be unrelated issues that may require separate investigation.
+| File | Change |
+|------|--------|
+| `tests/test_content_layer.py` | New - 8 test cases |
+| `src/cli_rpg/content_layer.py` | New - ContentLayer class |
+| `src/cli_rpg/ai_world.py` | Integrate ContentLayer in `generate_subgrid_for_location()` |

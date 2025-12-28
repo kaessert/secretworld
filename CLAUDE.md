@@ -95,6 +95,7 @@ src/cli_rpg/
 ├── environmental_storytelling.py # Environmental details (corpses, bloodstains, journals) for dungeon atmosphere
 ├── ambient_sounds.py    # Ambient sounds during SubGrid exploration (dripping water, distant screams, etc.)
 ├── procedural_interiors.py # RoomType enum, RoomTemplate dataclass, BSPNode/BSPGenerator for dungeon layouts, GeneratorProtocol, CATEGORY_GENERATORS for procedural interior layout
+├── content_layer.py     # ContentLayer mediator: bridges procedural RoomTemplates with AI/fallback content to produce populated SubGrids
 ├── test_world.py        # Demo mode fixture loading (load_test_world, create_demo_game_state)
 └── models/
     ├── character.py     # Player character model
