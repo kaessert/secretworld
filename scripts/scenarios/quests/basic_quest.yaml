@@ -1,0 +1,151 @@
+# Basic quest scenario - tests full quest lifecycle (accept, track, complete, turn-in)
+# Uses demo mode with pre-generated test world (Elder Theron has "Scout the Ruins" EXPLORE quest)
+# Quest: Scout the Ruins (target: Abandoned Ruins at [-1,0], reward: 30 gold)
+scenario:
+  name: "Basic Quest Full Flow"
+  description: "Test complete quest lifecycle: accept, track progress, complete objective, and turn in for rewards"
+  seed: 42050
+  config:
+    max_commands: 50
+    timeout: 150
+    demo_mode: true  # Use pre-generated test world
+
+  setup:
+    - "dump_state"  # Get initial state
+
+  steps:
+    # Step 1: Verify starting at Peaceful Village (quest giver location)
+    - command: "look"
+      assertions:
+        - type: NARRATIVE_MATCH
+          field: ""
+          value: "Peaceful Village"
+          message: "Should start at Peaceful Village in demo mode"
+
+    # Step 2: Get initial state to verify starting gold (100g in demo)
+    - command: "dump_state"
+      assertions:
+        - type: STATE_EQUALS
+          field: "gold"
+          value: 100
+          message: "Should start with 100 gold in demo mode"
+
+    # Step 3: Talk to Elder Theron (quest giver)
+    - command: "talk Elder Theron"
+      assertions:
+        - type: COMMAND_VALID
+          field: ""
+          value: true
+          message: "Talk to Elder Theron should be valid"
+        - type: NARRATIVE_MATCH
+          field: ""
+          value: "Theron"
+          message: "Should see Elder Theron's dialogue"
+
+    # Step 4: Accept the Scout the Ruins quest
+    - command: "accept Scout the Ruins"
+      assertions:
+        - type: COMMAND_VALID
+          field: ""
+          value: true
+          message: "Accept quest command should be valid"
+        - type: NARRATIVE_MATCH
+          field: ""
+          value: "Scout the Ruins"
+          message: "Quest acceptance should reference the quest name"
+
+    # Step 5: End conversation with Elder Theron to allow movement
+    - command: "bye"
+      assertions:
+        - type: COMMAND_VALID
+          field: ""
+          value: true
+          message: "Should be able to end conversation"
+
+    # Step 6: Check quests command shows the new quest
+    - command: "quests"
+      assertions:
+        - type: COMMAND_VALID
+          field: ""
+          value: true
+          message: "Quests command should work"
+        - type: NARRATIVE_MATCH
+          field: ""
+          value: "Scout the Ruins"
+          message: "Quest list should show accepted quest"
+
+    # Step 7: Navigate to Abandoned Ruins (west of Peaceful Village at [-1,0])
+    - command: "go west"
+      assertions:
+        - type: COMMAND_VALID
+          field: ""
+          value: true
+          message: "Movement west should work"
+
+    # Step 8: Verify arrival at Abandoned Ruins (triggers EXPLORE objective)
+    - command: "look"
+      assertions:
+        - type: NARRATIVE_MATCH
+          field: ""
+          value: "Abandoned Ruins"
+          message: "Should be at Abandoned Ruins after moving west"
+
+    # Step 9: Check quests command to see progress update (objective completed)
+    - command: "quests"
+      assertions:
+        - type: COMMAND_VALID
+          field: ""
+          value: true
+          message: "Quests command should work"
+        - type: NARRATIVE_MATCH
+          field: ""
+          value: "Scout the Ruins"
+          message: "Quest should still appear in list"
+
+    # Step 10: Return to Peaceful Village to turn in quest
+    - command: "go east"
+      assertions:
+        - type: COMMAND_VALID
+          field: ""
+          value: true
+          message: "Movement east should work"
+
+    # Step 11: Verify back at Peaceful Village
+    - command: "look"
+      assertions:
+        - type: NARRATIVE_MATCH
+          field: ""
+          value: "Peaceful Village"
+          message: "Should be back at Peaceful Village"
+
+    # Step 12: Talk to Elder Theron again for turn-in
+    - command: "talk Elder Theron"
+      assertions:
+        - type: COMMAND_VALID
+          field: ""
+          value: true
+          message: "Talk to Elder Theron should be valid"
+
+    # Step 13: Turn in the completed quest
+    - command: "complete Scout the Ruins"
+      assertions:
+        - type: COMMAND_VALID
+          field: ""
+          value: true
+          message: "Complete quest command should be valid"
+
+    # Step 14: End conversation after turn-in
+    - command: "bye"
+      assertions:
+        - type: COMMAND_VALID
+          field: ""
+          value: true
+          message: "Should be able to end conversation"
+
+    # Step 15: Verify quest completion and gold reward (was 100, +30 = 130)
+    - command: "dump_state"
+      assertions:
+        - type: STATE_EQUALS
+          field: "gold"
+          value: 130
+          message: "Should have received 30 gold reward (100 + 30 = 130)"
