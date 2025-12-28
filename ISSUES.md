@@ -200,7 +200,8 @@ Issues discovered through comprehensive map system playtesting in non-interactiv
 ---
 
 ### Meaningful choices and consequences
-**Status**: ACTIVE (Partial)
+**Status**: COMPLETED ✓
+**Date Completed**: 2025-12-28
 
 **Implemented**:
 - NPCs reference player's combat flee history ("cautious" reputation if 3+ flees)
@@ -208,9 +209,7 @@ Issues discovered through comprehensive map system playtesting in non-interactiv
 - Player choices tracked in `game_state.choices` list
 - Dialogue choices that affect NPC relationships (Friendly +3, Neutral +1, Aggressive -2 arc points)
 - World state changes based on completed quests (via `WorldEffect` - see Quest World Effects below)
-
-**Remaining**:
-- Branching quest paths
+- Branching quest paths with alternative completion methods and reward modifiers (see Procedural Quest Generation below)
 
 ---
 

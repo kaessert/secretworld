@@ -1676,7 +1676,7 @@ def handle_exploration_command(game_state: GameState, command: str, args: list[s
         if game_state.current_npc is None:
             return (True, "\nYou need to talk to an NPC first.")
 
-        from cli_rpg.models.quest import Quest, QuestStatus
+        from cli_rpg.models.quest import Quest, QuestBranch, QuestStatus, WorldEffect
 
         npc = game_state.current_npc
 
@@ -1750,6 +1750,7 @@ def handle_exploration_command(game_state: GameState, command: str, args: list[s
 
         # Clone quest and set status to ACTIVE, then add to character
         # Bug fix: Include gold_reward, xp_reward, item_rewards, and set quest_giver
+        # Clone alternative_branches and world_effects for branching quest support
         new_quest = Quest(
             name=matching_quest.name,
             description=matching_quest.description,
@@ -1770,6 +1771,30 @@ def handle_exploration_command(game_state: GameState, command: str, args: list[s
             chain_position=matching_quest.chain_position,
             prerequisite_quests=matching_quest.prerequisite_quests.copy(),
             unlocks_quests=matching_quest.unlocks_quests.copy(),
+            alternative_branches=[
+                QuestBranch(
+                    id=b.id,
+                    name=b.name,
+                    objective_type=b.objective_type,
+                    target=b.target,
+                    target_count=b.target_count,
+                    current_count=0,
+                    description=b.description,
+                    faction_effects=b.faction_effects.copy(),
+                    gold_modifier=b.gold_modifier,
+                    xp_modifier=b.xp_modifier,
+                )
+                for b in matching_quest.alternative_branches
+            ],
+            world_effects=[
+                WorldEffect(
+                    effect_type=e.effect_type,
+                    target=e.target,
+                    description=e.description,
+                    metadata=e.metadata.copy(),
+                )
+                for e in matching_quest.world_effects
+            ],
             difficulty=matching_quest.difficulty,
             recommended_level=matching_quest.recommended_level,
             time_limit_hours=matching_quest.time_limit_hours,
@@ -1997,6 +2022,14 @@ def handle_exploration_command(game_state: GameState, command: str, args: list[s
                     lines.append(f"Time Remaining: {remaining} hours")
                 else:
                     lines.append("Time Remaining: EXPIRED!")
+        # Show alternative branches if quest has them
+        if quest.alternative_branches:
+            lines.append("")
+            lines.append("Alternative Paths:")
+            for branch_info in quest.get_branches_display():
+                status = "✓" if branch_info["is_complete"] else " "
+                lines.append(f"  [{status}] {branch_info['name']}")
+                lines.append(f"      {branch_info['objective']} {branch_info['progress']}")
         return (True, "\n".join(lines))
 
     elif command == "bestiary":

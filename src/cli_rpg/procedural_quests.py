@@ -19,7 +19,7 @@ from dataclasses import dataclass, field
 from enum import Enum
 from typing import Optional
 
-from cli_rpg.models.quest import ObjectiveType, Quest, QuestDifficulty, QuestStatus
+from cli_rpg.models.quest import ObjectiveType, Quest, QuestBranch, QuestDifficulty, QuestStatus
 
 
 class QuestTemplateType(Enum):
@@ -65,6 +65,123 @@ class QuestTemplate:
     base_xp_reward: int
     category_tags: list[str] = field(default_factory=list)
     chain_position: int = 0
+
+
+@dataclass
+class BranchTemplate:
+    """Template for an alternative quest branch.
+
+    Defines the structural parameters for a quest branch that offers
+    an alternative way to complete a quest.
+
+    Attributes:
+        id: Unique identifier for this branch (e.g., "kill", "persuade", "betray").
+        objective_type: Type of objective to complete the branch.
+        gold_modifier: Multiplier on base gold reward (1.0 = 100%).
+        xp_modifier: Multiplier on base XP reward (1.0 = 100%).
+        faction_effects: Dict of faction name to reputation change.
+    """
+
+    id: str
+    objective_type: ObjectiveType
+    gold_modifier: float = 1.0
+    xp_modifier: float = 1.0
+    faction_effects: dict[str, int] = field(default_factory=dict)
+
+
+# =============================================================================
+# BRANCHING_QUEST_TEMPLATES: Template Type -> List of Branch Sets
+# Each branch set is a list of BranchTemplate objects that represent
+# alternative ways to complete a quest of that template type.
+# =============================================================================
+
+BRANCHING_QUEST_TEMPLATES: dict[QuestTemplateType, list[list[BranchTemplate]]] = {
+    QuestTemplateType.KILL_BOSS: [
+        # Set 1: Violence vs Diplomacy
+        [
+            BranchTemplate(
+                id="kill",
+                objective_type=ObjectiveType.KILL,
+                gold_modifier=1.0,
+                xp_modifier=1.0,
+            ),
+            BranchTemplate(
+                id="persuade",
+                objective_type=ObjectiveType.TALK,
+                gold_modifier=0.5,
+                xp_modifier=1.5,
+            ),
+        ],
+        # Set 2: Violence vs Betrayal
+        [
+            BranchTemplate(
+                id="kill",
+                objective_type=ObjectiveType.KILL,
+                gold_modifier=1.0,
+                xp_modifier=1.0,
+            ),
+            BranchTemplate(
+                id="betray",
+                objective_type=ObjectiveType.TALK,
+                gold_modifier=2.0,
+                xp_modifier=0.5,
+                faction_effects={"Outlaws": 10},
+            ),
+        ],
+    ],
+    QuestTemplateType.KILL_MOBS: [
+        # Set 1: Combat vs Luring away
+        [
+            BranchTemplate(
+                id="kill",
+                objective_type=ObjectiveType.KILL,
+                gold_modifier=1.0,
+                xp_modifier=1.0,
+            ),
+            BranchTemplate(
+                id="lure",
+                objective_type=ObjectiveType.USE,
+                gold_modifier=0.75,
+                xp_modifier=1.25,
+            ),
+        ],
+    ],
+    QuestTemplateType.COLLECT_ITEMS: [
+        # Set 1: Collect vs Buy
+        [
+            BranchTemplate(
+                id="collect",
+                objective_type=ObjectiveType.COLLECT,
+                gold_modifier=1.0,
+                xp_modifier=1.0,
+            ),
+            BranchTemplate(
+                id="buy",
+                objective_type=ObjectiveType.COLLECT,
+                gold_modifier=0.25,  # Spent money to buy them
+                xp_modifier=0.5,
+            ),
+        ],
+    ],
+    QuestTemplateType.TALK_NPC: [
+        # Set 1: Peaceful talk vs Intimidate
+        [
+            BranchTemplate(
+                id="talk",
+                objective_type=ObjectiveType.TALK,
+                gold_modifier=1.0,
+                xp_modifier=1.0,
+            ),
+            BranchTemplate(
+                id="intimidate",
+                objective_type=ObjectiveType.TALK,
+                gold_modifier=1.5,
+                xp_modifier=0.75,
+                faction_effects={"Militia": -5},
+            ),
+        ],
+    ],
+}
 
 
 # =============================================================================
@@ -719,3 +836,65 @@ def _generate_fallback_quest_content(
         description = description[:197] + "..."
 
     return {"name": name, "description": description, "target": target}
+
+
+def generate_branches_for_template(
+    template_type: QuestTemplateType,
+    target: str,
+    category: str,
+    seed: int,
+) -> list[QuestBranch]:
+    """Generate alternative quest branches for a template type.
+
+    Selects a branch set from BRANCHING_QUEST_TEMPLATES and creates
+    QuestBranch objects with names/descriptions from fallback content.
+
+    Args:
+        template_type: The quest template type (e.g., KILL_BOSS).
+        target: The main quest target name (e.g., "Dark Lord").
+        category: Location category for thematic content.
+        seed: Random seed for deterministic generation.
+
+    Returns:
+        List of QuestBranch objects, or empty list if no branches defined.
+    """
+    # Check if this template type has branching options
+    if template_type not in BRANCHING_QUEST_TEMPLATES:
+        return []
+
+    rng = random.Random(seed)
+
+    # Select a branch set deterministically
+    branch_sets = BRANCHING_QUEST_TEMPLATES[template_type]
+    selected_set = rng.choice(branch_sets)
+
+    # Import here to avoid circular imports
+    from cli_rpg.fallback_content import FallbackContentProvider
+
+    provider = FallbackContentProvider(seed=rng.randint(0, 2**31))
+
+    branches: list[QuestBranch] = []
+    for branch_template in selected_set:
+        # Get fallback content for this branch
+        content = provider.get_branch_content(
+            template_type=template_type.value,
+            branch_id=branch_template.id,
+            target=target,
+            category=category,
+        )
+
+        branch = QuestBranch(
+            id=branch_template.id,
+            name=content["name"],
+            objective_type=branch_template.objective_type,
+            target=target,
+            target_count=1,
+            current_count=0,
+            description=content["description"],
+            faction_effects=branch_template.faction_effects.copy(),
+            gold_modifier=branch_template.gold_modifier,
+            xp_modifier=branch_template.xp_modifier,
+        )
+        branches.append(branch)
+
+    return branches

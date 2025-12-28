@@ -934,6 +934,76 @@ TREASURE_LOOT_TABLES: dict[str, list[dict]] = {
 }
 
 
+# =============================================================================
+# Branch Name/Description Templates (by template_type x branch_id)
+# Used by procedural_quests.generate_branches_for_template()
+# =============================================================================
+
+BRANCH_NAME_TEMPLATES: dict[str, dict[str, str]] = {
+    "kill_boss": {
+        "kill": "Eliminate {target}",
+        "persuade": "Convince {target}",
+        "betray": "Join {target}",
+    },
+    "kill_mobs": {
+        "kill": "Exterminate {target}",
+        "lure": "Drive Away {target}",
+    },
+    "collect": {
+        "collect": "Gather {target}",
+        "buy": "Purchase {target}",
+    },
+    "talk": {
+        "talk": "Speak with {target}",
+        "intimidate": "Threaten {target}",
+    },
+    "explore": {
+        "explore": "Chart {target}",
+        "scout": "Survey {target}",
+    },
+    "escort": {
+        "escort": "Protect {target}",
+        "abandon": "Leave {target}",
+    },
+    "fetch": {
+        "fetch": "Retrieve {target}",
+        "substitute": "Replace {target}",
+    },
+}
+
+BRANCH_DESCRIPTION_TEMPLATES: dict[str, dict[str, str]] = {
+    "kill_boss": {
+        "kill": "Defeat {target} in combat to end the threat permanently.",
+        "persuade": "Use diplomacy to convince {target} to stand down.",
+        "betray": "Switch sides and join {target} for a greater reward.",
+    },
+    "kill_mobs": {
+        "kill": "Eliminate all {target} to clear the area.",
+        "lure": "Use bait or traps to drive {target} away without killing.",
+    },
+    "collect": {
+        "collect": "Gather the required {target} from the area.",
+        "buy": "Purchase {target} from merchants to save time.",
+    },
+    "talk": {
+        "talk": "Have a peaceful conversation with {target}.",
+        "intimidate": "Use threats to force {target} to comply.",
+    },
+    "explore": {
+        "explore": "Carefully explore and map {target}.",
+        "scout": "Quickly survey {target} from a distance.",
+    },
+    "escort": {
+        "escort": "Safely guide {target} to their destination.",
+        "abandon": "Leave {target} to their fate.",
+    },
+    "fetch": {
+        "fetch": "Find and bring back the real {target}.",
+        "substitute": "Provide a fake replacement for {target}.",
+    },
+}
+
+
 QUEST_TEMPLATES: dict[str, list[dict]] = {
     "dungeon": [
         {
@@ -1324,3 +1394,42 @@ class FallbackContentProvider:
             targets = type_pools.get("default", ["Target"])
 
         return self._rng.choice(targets)
+
+    def get_branch_content(
+        self, template_type: str, branch_id: str, target: str, category: str
+    ) -> dict:
+        """Generate branch name and description for a quest branch.
+
+        Uses BRANCH_NAME_TEMPLATES and BRANCH_DESCRIPTION_TEMPLATES to
+        create thematic content for quest branches.
+
+        Args:
+            template_type: The QuestTemplateType value string (e.g., "kill_boss").
+            branch_id: The branch identifier (e.g., "kill", "persuade").
+            target: The quest target name to substitute into templates.
+            category: The location category for context (not currently used).
+
+        Returns:
+            Dict with 'name' and 'description' keys.
+        """
+        # Get name template
+        name_templates = BRANCH_NAME_TEMPLATES.get(template_type, {})
+        name_template = name_templates.get(branch_id, f"{branch_id.capitalize()} {{target}}")
+        name = name_template.format(target=target)
+
+        # Ensure name fits QuestBranch constraints (reasonable length)
+        if len(name) > 30:
+            name = name[:27] + "..."
+
+        # Get description template
+        desc_templates = BRANCH_DESCRIPTION_TEMPLATES.get(template_type, {})
+        desc_template = desc_templates.get(
+            branch_id, f"Complete the {branch_id} objective involving {{target}}."
+        )
+        description = desc_template.format(target=target)
+
+        # Ensure description fits constraints
+        if len(description) > 200:
+            description = description[:197] + "..."
+
+        return {"name": name, "description": description}

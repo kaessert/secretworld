@@ -1,70 +1,144 @@
-# Implement World State Changes from Quest Completion
+# Branching Quest Paths Implementation Plan
 
 ## Overview
-Connect quest completion to WorldStateManager to record permanent world changes (e.g., cleared dungeons, defeated bosses, transformed locations).
+Complete the branching quest system by: (1) fixing quest accept to clone branches, (2) adding branch display in quest details, (3) integrating branch generation into procedural quests, and (4) adding branch templates for fallback content.
 
-## Key Files
-- `src/cli_rpg/models/quest.py` - Add `world_effects` field
-- `src/cli_rpg/models/world_state.py` - Add `record_quest_world_effect()` helper
-- `src/cli_rpg/main.py` - Apply world effects on quest completion (~line 1820)
-- `tests/test_quest_world_effects.py` - New test file
+## Current State
+- `QuestBranch` model exists with full serialization support
+- `Character.record_kill/record_talk` already check branches and set `completed_branch_id`
+- `Character.claim_quest_rewards` applies branch modifiers (gold_modifier, xp_modifier, faction_effects)
+- Tests exist in `tests/test_quest_branching.py` and pass
+
+## Gaps to Fill
+1. Quest accept doesn't copy `alternative_branches` or `world_effects`
+2. Quest details command doesn't show branch options
+3. Procedural quest system doesn't generate branches
+4. No fallback branch templates exist
 
 ## Implementation Steps
 
-### 1. Add WorldEffect dataclass to quest model
-In `src/cli_rpg/models/quest.py`:
+### 1. Fix Quest Accept to Clone Branches
+**File**: `src/cli_rpg/main.py` (lines 1753-1777)
+
+Add to quest clone:
+```python
+alternative_branches=[
+    QuestBranch(
+        id=b.id,
+        name=b.name,
+        objective_type=b.objective_type,
+        target=b.target,
+        target_count=b.target_count,
+        current_count=0,
+        description=b.description,
+        faction_effects=b.faction_effects.copy(),
+        gold_modifier=b.gold_modifier,
+        xp_modifier=b.xp_modifier,
+    )
+    for b in matching_quest.alternative_branches
+],
+world_effects=[
+    WorldEffect(
+        effect_type=e.effect_type,
+        target=e.target,
+        description=e.description,
+        metadata=e.metadata.copy(),
+    )
+    for e in matching_quest.world_effects
+],
+```
+
+### 2. Add Branch Display to Quest Details Command
+**File**: `src/cli_rpg/main.py` (after line 1990)
+
+After showing progress, add:
+```python
+# Show alternative branches if quest has them
+if quest.alternative_branches:
+    lines.append("")
+    lines.append("Alternative Paths:")
+    for branch_info in quest.get_branches_display():
+        status = "✓" if branch_info["is_complete"] else " "
+        lines.append(f"  [{status}] {branch_info['name']}")
+        lines.append(f"      {branch_info['objective']} {branch_info['progress']}")
+```
+
+### 3. Add Branch Templates to Procedural Quests
+**File**: `src/cli_rpg/procedural_quests.py`
+
+Add `BranchTemplate` dataclass:
 ```python
 @dataclass
-class WorldEffect:
-    """Effect on world state when quest completes."""
-    effect_type: str  # "area_cleared", "location_transformed", "npc_moved", etc.
-    target: str       # Location/NPC name
-    description: str  # Human-readable description
-    metadata: dict = field(default_factory=dict)  # Extra data (new_category, etc.)
+class BranchTemplate:
+    """Template for an alternative quest branch."""
+    id: str
+    objective_type: ObjectiveType
+    gold_modifier: float = 1.0
+    xp_modifier: float = 1.0
+    faction_effects: dict[str, int] = field(default_factory=dict)
 ```
 
-Add to Quest dataclass:
+Add `BRANCHING_QUEST_TEMPLATES` mapping template types to branch sets:
 ```python
-world_effects: List["WorldEffect"] = field(default_factory=list)
+BRANCHING_QUEST_TEMPLATES: dict[QuestTemplateType, list[list[BranchTemplate]]] = {
+    QuestTemplateType.KILL_BOSS: [
+        [
+            BranchTemplate(id="kill", objective_type=ObjectiveType.KILL),
+            BranchTemplate(id="persuade", objective_type=ObjectiveType.TALK,
+                          gold_modifier=0.5, xp_modifier=1.5),
+        ],
+    ],
+    # ... more types
+}
 ```
 
-Add serialization in `to_dict()` and `from_dict()`.
+Add `generate_branches_for_template()` function.
 
-### 2. Add convenience method to WorldStateManager
-In `src/cli_rpg/models/world_state.py`:
+### 4. Add Fallback Branch Content
+**File**: `src/cli_rpg/fallback_content.py`
+
+Add `BRANCH_NAME_TEMPLATES` and `BRANCH_DESCRIPTION_TEMPLATES`:
 ```python
-def record_quest_world_effect(
-    self,
-    effect: "WorldEffect",  # From quest model
-    quest_name: str,
-    timestamp: int,
-) -> Optional[str]:
-    """Record a world effect from quest completion."""
+BRANCH_NAME_TEMPLATES: dict[str, dict[str, str]] = {
+    "kill_boss": {
+        "kill": "Eliminate {target}",
+        "persuade": "Convince {target}",
+        "betray": "Join {target}",
+    },
+    # ... more template types
+}
 ```
 
-### 3. Apply effects on quest completion
-In `src/cli_rpg/main.py` after line 1820 (`matching_quest.status = QuestStatus.COMPLETED`):
-```python
-# Apply world effects from quest completion
-for effect in matching_quest.world_effects:
-    game_state.world_state_manager.record_quest_world_effect(
-        effect=effect,
-        quest_name=matching_quest.name,
-        timestamp=game_state.game_time.total_hours,
-    )
-```
+Add `FallbackContentProvider.get_branch_content()` method.
 
-### 4. Write tests
-New file `tests/test_quest_world_effects.py`:
-- Test WorldEffect dataclass creation and validation
-- Test serialization round-trip
-- Test quest completion applies world effects
-- Test world_state_manager records QUEST_WORLD_EFFECT changes
-- Test is_area_cleared() after quest completion
+### 5. Integrate into ContentLayer
+**File**: `src/cli_rpg/content_layer.py`
+
+Update `generate_quest_from_template()` to:
+1. Check if template type has branching options
+2. Generate branches with AI or fallback content
+3. Attach branches to created Quest
+
+### 6. Write Tests
+**File**: `tests/test_branching_quests_integration.py` (new)
+
+- Test quest accept clones branches correctly
+- Test quest details shows branch options
+- Test procedural quest generation creates branches
+- Test branch completion via record_kill/record_talk
+- Test branch rewards applied correctly
+
+## Key Files
+- `src/cli_rpg/main.py` - Quest accept and display fixes
+- `src/cli_rpg/procedural_quests.py` - Add BranchTemplate and generation
+- `src/cli_rpg/fallback_content.py` - Add branch content templates
+- `src/cli_rpg/content_layer.py` - Integrate branch generation
+- `tests/test_branching_quests_integration.py` - Integration tests
 
 ## Verification
 ```bash
-pytest tests/test_quest_world_effects.py -v
-pytest tests/test_world_state.py -v
+pytest tests/test_quest_branching.py -v
+pytest tests/test_branching_quests_integration.py -v
 pytest tests/test_quest.py -v
+pytest -k "branch" -v
 ```

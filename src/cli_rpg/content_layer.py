@@ -28,6 +28,7 @@ from cli_rpg.procedural_quests import (
     QuestTemplateType,
     scale_quest_difficulty,
     _generate_fallback_quest_content,
+    generate_branches_for_template,
 )
 
 if TYPE_CHECKING:
@@ -492,6 +493,14 @@ class ContentLayer:
             logger.debug("Failed to generate quest content from template")
             return None
 
+        # Generate alternative branches for this quest type
+        branches = generate_branches_for_template(
+            template_type=template.template_type,
+            target=content["target"],
+            category=category,
+            seed=rng.randint(0, 2**31),
+        )
+
         try:
             quest = Quest(
                 name=content["name"],
@@ -506,6 +515,7 @@ class ContentLayer:
                 quest_giver=npc_name if npc_name else None,
                 chain_position=template.chain_position,
                 status=QuestStatus.AVAILABLE,
+                alternative_branches=branches,
             )
             return quest
         except (ValueError, KeyError) as e:
