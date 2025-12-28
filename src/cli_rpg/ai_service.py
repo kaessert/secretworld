@@ -3423,6 +3423,26 @@ The category field in your JSON response MUST be "{required_category}"."""
                 # Dead end - backtrack
                 stack.pop()
 
+        # Ensure at least one dead end exists (node with exactly 1 neighbor)
+        dead_ends = sum(
+            1
+            for x, y in coords
+            if sum(1 for dx, dy in directions if (x + dx, y + dy) in coord_set) == 1
+        )
+
+        if dead_ends == 0 and len(coords) >= 3:
+            # Find a cell with an unvisited neighbor and extend to create a dead end
+            for x, y in coords:
+                for dx, dy in directions:
+                    neighbor = (x + dx, y + dy)
+                    if neighbor not in coord_set:
+                        coords.append(neighbor)
+                        coord_set.add(neighbor)
+                        break
+                else:
+                    continue
+                break
+
         return coords
 
     def _generate_branching_layout(

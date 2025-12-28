@@ -206,9 +206,9 @@ Issues discovered through comprehensive map system playtesting in non-interactiv
 - NPCs reference player's combat flee history ("cautious" reputation if 3+ flees)
 - NPCs reference player's combat kill history ("aggressive" reputation if 10+ kills)
 - Player choices tracked in `game_state.choices` list
+- Dialogue choices that affect NPC relationships (Friendly +3, Neutral +1, Aggressive -2 arc points)
 
 **Remaining**:
-- Dialogue choices that affect NPC relationships
 - Branching quest paths
 - World state changes based on completed quests
 
@@ -483,9 +483,9 @@ Created NPC character arc system for tracking relationship progression based on 
 - NPCs without arcs get one initialized on first talk
 - Stage change messages displayed when arc crosses thresholds
 - Arc-based warm greetings for ACQUAINTANCE, TRUSTED, and DEVOTED NPCs
+- **Dialogue Choices (2025-12-28)**: Players choose dialogue tone (Friendly +3, Neutral +1, Aggressive -2 arc points) with NPC reactions
 
 **Future Integration Points (Not Yet Implemented)**:
-- Dialogue selection based on arc stage
 - Shop price modifiers based on arc
 - Quest prerequisites based on arc stage
 
