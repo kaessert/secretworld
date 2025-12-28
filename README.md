@@ -96,7 +96,7 @@ python -m cli_rpg.main
 - `equip <item name>` (e) - Equip a weapon or armor from your inventory
 - `unequip weapon|armor` - Unequip from the specified slot and return to inventory
 - `use <item name>` (u) - Use a consumable item (e.g., health potion)
-- `talk [npc]` (t) - Talk to an NPC (opens shop if merchant, shows quests if quest-giver, or enter extended conversation). If only one NPC is present, starts conversation automatically. If multiple NPCs are present, lists available NPCs.
+- `talk [npc]` (t) - Talk to an NPC (opens shop if merchant, shows quests if quest-giver, or enter extended conversation). If only one NPC is present, starts conversation automatically. If multiple NPCs are present, lists available NPCs. Each conversation builds your relationship with the NPC (see NPC Relationships below).
 - `accept <quest>` - Accept a quest from the NPC you're talking to
 - `shop` - View the current merchant's inventory and prices
 - `buy <item>` - Purchase an item from the current shop
@@ -382,6 +382,26 @@ Use social skills to influence NPCs during conversations:
    - On critical success (roll ≤ 10% of success chance): 25% bonus
    - On critical failure (roll ≥ 95): Merchant refuses to haggle for 3 turns
    - Bonus is consumed after one transaction (buy or sell)
+
+### NPC Relationships
+
+NPCs remember your interactions and develop relationships over time:
+
+1. **Relationship Stages**: NPCs progress through relationship stages based on accumulated arc points:
+   - **STRANGER** (default): No special greeting
+   - **ACQUAINTANCE** (25+ points): "Oh, you again. What do you need?"
+   - **TRUSTED** (50+ points): "Good to see you again! What can I do for you today?"
+   - **DEVOTED** (75+ points): "Ah, my dear friend! It's always a pleasure to see you."
+
+2. **Building Relationships**:
+   - Each conversation with an NPC adds 1-3 arc points
+   - Arc points accumulate across sessions (saved with game state)
+   - When you cross a stage threshold, you'll see a message: "[NPC name]'s demeanor toward you has changed."
+
+3. **Relationship Benefits** (planned for future):
+   - Shop price modifiers based on relationship
+   - Access to special dialogue and quests
+   - NPC-specific perks at high relationship levels
 
 ### NPC Quests
 

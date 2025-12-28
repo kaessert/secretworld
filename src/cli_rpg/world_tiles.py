@@ -339,9 +339,9 @@ def get_biased_weights(region_theme: str) -> Dict[str, float]:
 
 # Categories that should have enterable SubGrids (on-demand generation)
 ENTERABLE_CATEGORIES: frozenset = frozenset({
-    "dungeon", "cave", "ruins", "temple",  # Adventure locations
-    "monastery", "shrine", "tomb",  # Sacred/ancient locations
-    "town", "village", "city", "settlement",  # Settlements
+    "dungeon", "cave", "ruins", "temple", "tomb", "mine", "crypt", "tower",  # Adventure locations
+    "monastery", "shrine",  # Sacred/ancient locations
+    "town", "village", "city", "settlement", "outpost", "camp",  # Settlements
     "tavern", "shop", "inn",  # Commercial buildings
 })
 
@@ -872,14 +872,14 @@ MAX_TILES_WITHOUT_ENTERABLE = 25
 # Enterable category pools by terrain for forced spawn
 # Each terrain type maps to a list of thematically appropriate enterable categories
 FORCED_ENTERABLE_BY_TERRAIN: Dict[str, List[str]] = {
-    "forest": ["ruins", "cave", "temple"],
-    "mountain": ["cave", "dungeon", "monastery"],
-    "plains": ["ruins", "dungeon", "temple"],
-    "desert": ["tomb", "ruins", "temple"],
-    "swamp": ["ruins", "cave", "shrine"],
-    "hills": ["cave", "ruins", "dungeon"],
-    "beach": ["cave", "ruins"],
-    "foothills": ["cave", "dungeon"],
+    "forest": ["ruins", "cave", "temple", "shrine"],
+    "mountain": ["cave", "dungeon", "monastery", "mine", "tower"],
+    "plains": ["ruins", "dungeon", "temple", "outpost"],
+    "desert": ["tomb", "ruins", "temple", "crypt"],
+    "swamp": ["ruins", "cave", "shrine", "crypt"],
+    "hills": ["cave", "ruins", "dungeon", "mine", "outpost"],
+    "beach": ["cave", "ruins", "outpost"],
+    "foothills": ["cave", "dungeon", "mine"],
 }
 
 

@@ -37,9 +37,18 @@ from cli_rpg.text_effects import effects_enabled
 GRID_DIRECTIONS: set[str] = {"north", "south", "east", "west"}
 
 # Valid categories for location types
+# Must include all ENTERABLE_CATEGORIES from world_tiles.py for enter command to work
 VALID_LOCATION_CATEGORIES: set[str] = {
-    "town", "dungeon", "wilderness", "settlement",
-    "ruins", "cave", "forest", "mountain", "village"
+    # Terrain-based categories
+    "wilderness", "forest", "mountain", "plains", "swamp", "hills",
+    # Adventure locations (enterable)
+    "dungeon", "cave", "ruins", "temple", "tomb", "mine", "crypt", "tower",
+    # Sacred/ancient locations (enterable)
+    "monastery", "shrine",
+    # Settlements (enterable)
+    "town", "village", "city", "settlement", "outpost", "camp",
+    # Commercial buildings (enterable)
+    "tavern", "shop", "inn",
 }
 
 

@@ -4,7 +4,7 @@ from dataclasses import dataclass, field
 from typing import List, Optional, TYPE_CHECKING
 
 from cli_rpg.models.npc_relationship import NPCRelationship, RelationshipType
-from cli_rpg.models.npc_arc import NPCArc
+from cli_rpg.models.npc_arc import NPCArc, NPCArcStage
 
 if TYPE_CHECKING:
     from cli_rpg.models.shop import Shop
@@ -62,6 +62,25 @@ class NPC:
         if not 1 <= len(self.description) <= 200:
             raise ValueError("Description must be 1-200 characters")
 
+    def get_arc_greeting_modifier(self) -> Optional[str]:
+        """Get greeting modifier based on arc stage.
+
+        Returns:
+            A warm greeting for high relationship stages (TRUSTED, DEVOTED, ACQUAINTANCE),
+            or None for STRANGER and negative stages which use default greeting.
+        """
+        if self.arc is None:
+            return None
+        stage = self.arc.get_stage()
+        if stage == NPCArcStage.DEVOTED:
+            return "Ah, my dear friend! It's always a pleasure to see you."
+        elif stage == NPCArcStage.TRUSTED:
+            return "Good to see you again! What can I do for you today?"
+        elif stage == NPCArcStage.ACQUAINTANCE:
+            return "Oh, you again. What do you need?"
+        # STRANGER and negative stages use default greeting
+        return None
+
     def get_greeting(
         self,
         choices: Optional[List[dict]] = None,
@@ -79,7 +98,12 @@ class NPC:
         or a random greeting from the greetings list if available,
         otherwise falls back to the dialogue field.
         """
-        # Check for quest-based greetings first (most recent outcomes take priority)
+        # Check arc-based greeting first (warmest greetings for high relationship)
+        arc_greeting = self.get_arc_greeting_modifier()
+        if arc_greeting:
+            return arc_greeting
+
+        # Check for quest-based greetings (most recent outcomes take priority)
         if quest_outcomes:
             # Find the most recent outcome where this NPC was the quest giver
             quest_giver_outcomes = [

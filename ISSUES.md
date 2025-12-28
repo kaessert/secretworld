@@ -2,6 +2,98 @@
 
 ---
 
+### Procedural World Generation with AI Content Layer
+**Status**: PLANNED
+**Priority**: CRITICAL BLOCKER
+**Date Added**: 2025-12-28
+
+#### Problem
+Current architecture mixes procedural and AI generation in ways that limit reproducibility and offline play. AI generates both structure (room layouts, location placement) and content (names, descriptions, NPCs), making worlds non-deterministic and requiring constant AI calls.
+
+#### Goal
+Refactor to use **procedural generation for world structure** while keeping **AI for content** (names, descriptions, NPC personas, quest narratives, ASCII art).
+
+#### Key Decisions
+- **Interiors**: Hybrid approach - different algorithms per category (BSP for dungeons, cellular automata for caves, grid for towns, vertical for towers)
+- **Location Spawning**: Noise-based density with natural clustering (simplex noise layers)
+- **AI Content**: Names, descriptions, full NPC personas, quest narratives, ASCII art, context layers
+- **Determinism**: Fully seeded for reproducibility (same seed = identical structure)
+
+#### Architecture
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                    PROCEDURAL LAYER                         │
+│  (Deterministic with world seed)                            │
+├─────────────────────────────────────────────────────────────┤
+│  Terrain (WFC)  │  Location Noise  │  Interior Generators   │
+│  wfc.py         │  location_noise  │  procedural_interiors  │
+│  wfc_chunks.py  │  .py             │  .py                   │
+└─────────────────────────────────────────────────────────────┘
+                              │
+                              ▼
+┌─────────────────────────────────────────────────────────────┐
+│                    CONTENT LAYER                            │
+│  (AI-generated, cached for determinism)                     │
+├─────────────────────────────────────────────────────────────┤
+│  ContentLayer   │  AIService      │  FallbackContent        │
+│  (mediator)     │  (LLM calls)    │  (templates)            │
+└─────────────────────────────────────────────────────────────┘
+```
+
+#### New Files Required
+- `src/cli_rpg/procedural_interiors.py` - BSP, cellular automata, grid, tower generators
+- `src/cli_rpg/location_noise.py` - Simplex noise for location density
+- `src/cli_rpg/content_layer.py` - Mediator between procedural and AI
+- `src/cli_rpg/content_cache.py` - Deterministic content caching
+- `src/cli_rpg/fallback_content.py` - Expanded template fallbacks
+- `src/cli_rpg/models/content_request.py` - Request/response schemas
+
+#### Files to Modify
+- `src/cli_rpg/ai_world.py` - Use procedural layout + content layer
+- `src/cli_rpg/ai_service.py` - Add content-focused generation methods
+- `src/cli_rpg/ai_config.py` - Add content prompts
+- `src/cli_rpg/game_state.py` - Use LocationNoiseManager
+
+#### Implementation Phases
+
+**Phase 1: Core Infrastructure**
+1. Create `procedural_interiors.py` with RoomType enum and RoomTemplate dataclass
+2. Create `location_noise.py` with pure-Python simplex noise
+3. Create content request/response models
+
+**Phase 2: Procedural Generators**
+4. Implement BSPGenerator (dungeons, temples, ruins)
+5. Implement CellularAutomataGenerator (caves, mines)
+6. Implement GridSettlementGenerator (towns, cities)
+7. Implement TowerGenerator (towers)
+
+**Phase 3: Location Noise System**
+8. Implement LocationNoiseManager with noise layers
+9. Integrate with GameState.move()
+10. Maintain terrain constraint validation
+
+**Phase 4: Content Layer**
+11. Create ContentLayer mediator class
+12. Create ContentCache with deterministic keying
+13. Create FallbackContentProvider with expanded templates
+14. Add new AIService methods for content generation
+
+**Phase 5: Integration**
+15. Modify `generate_subgrid_for_location()` to use procedural + ContentLayer
+16. Update NPC and quest generation flows
+17. Update fallback paths
+
+**Phase 6: Testing**
+18. Unit tests for each generator algorithm
+19. Tests for noise determinism
+20. Integration tests for full pipeline
+
+#### Detailed Plan
+Full implementation plan available at: `/Users/tkaesser/.claude/plans/rippling-percolating-biscuit.md`
+
+---
+
 ### Enterable Location Spawn Guarantees & E2E Tests
 **Status**: COMPLETED ✓
 **Priority**: CRITICAL
@@ -367,11 +459,16 @@ Created NPC character arc system for tracking relationship progression based on 
 - `src/cli_rpg/models/npc.py` - Added optional `arc` field with full serialization and backward compatibility
 - 37 tests in `tests/test_npc_arc.py`
 
+**Integrated with Talk Command (2025-12-28)**:
+- Talking to NPCs records a TALKED interaction and adds 1-3 arc points per conversation
+- NPCs without arcs get one initialized on first talk
+- Stage change messages displayed when arc crosses thresholds
+- Arc-based warm greetings for ACQUAINTANCE, TRUSTED, and DEVOTED NPCs
+
 **Future Integration Points (Not Yet Implemented)**:
 - Dialogue selection based on arc stage
 - Shop price modifiers based on arc
 - Quest prerequisites based on arc stage
-- Automatic arc updates from game commands
 
 ---
 

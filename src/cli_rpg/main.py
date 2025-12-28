@@ -1290,6 +1290,25 @@ def handle_exploration_command(game_state: GameState, command: str, args: list[s
         if talk_messages:
             output += "\n\n" + "\n".join(talk_messages)
 
+        # Record arc interaction for relationship progression
+        from cli_rpg.models.npc_arc import NPCArc, InteractionType
+        import random as _random  # Avoid shadowing with local scope
+
+        # Initialize NPC arc if not present
+        if npc.arc is None:
+            npc.arc = NPCArc()
+
+        # Record TALKED interaction (+1 to +3 points)
+        points_delta = _random.randint(1, 3)
+        stage_change_msg = npc.arc.record_interaction(
+            interaction_type=InteractionType.TALKED,
+            points_delta=points_delta,
+            description=f"Conversation at {game_state.current_location}",
+            timestamp=game_state.game_time.total_hours,
+        )
+        if stage_change_msg:
+            output += f"\n\n{colors.warning(stage_change_msg)}"
+
         # Talking to NPCs reduces dread by 5
         if game_state.current_character.dread_meter.dread > 0:
             game_state.current_character.dread_meter.reduce_dread(5)
