@@ -11,6 +11,11 @@ SMITE_DAMAGE_MULTIPLIER = 2.5  # INT * 2.5 base damage
 SMITE_UNDEAD_MULTIPLIER = 5.0  # INT * 5.0 vs undead (double damage)
 SMITE_UNDEAD_STUN_CHANCE = 0.30  # 30% chance to stun undead
 
+# Divine power bonus constants (from equipped holy symbol)
+DIVINE_POWER_BLESS_BONUS = 0.01  # +1% attack modifier per divine power point
+DIVINE_POWER_SMITE_BONUS = 1  # +1 damage per divine power point
+DIVINE_POWER_STUN_BONUS = 0.01  # +1% stun chance per divine power point
+
 # Undead type detection terms
 UNDEAD_TERMS = {
     "skeleton",

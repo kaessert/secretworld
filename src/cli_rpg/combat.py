@@ -1379,6 +1379,7 @@ class CombatEncounter:
             BLESS_MANA_COST,
             BLESS_DURATION,
             BLESS_ATTACK_MODIFIER,
+            DIVINE_POWER_BLESS_BONUS,
         )
 
         # Check if player is stunned
@@ -1397,13 +1398,17 @@ class CombatEncounter:
         # Record action for combo tracking
         self._record_action("cast")
 
+        # Calculate bless modifier with divine power bonus
+        divine_power = self.player.get_divine_power()
+        bless_modifier = BLESS_ATTACK_MODIFIER + (divine_power * DIVINE_POWER_BLESS_BONUS)
+
         # Create Blessed status effect
         blessed_effect = StatusEffect(
             name="Blessed",
             effect_type="buff_attack",
             damage_per_turn=0,
             duration=BLESS_DURATION,
-            stat_modifier=BLESS_ATTACK_MODIFIER,
+            stat_modifier=bless_modifier,
         )
 
         # Apply to player
@@ -1418,7 +1423,7 @@ class CombatEncounter:
                     effect_type="buff_attack",
                     damage_per_turn=0,
                     duration=BLESS_DURATION,
-                    stat_modifier=BLESS_ATTACK_MODIFIER,
+                    stat_modifier=bless_modifier,
                 )
                 companion.apply_status_effect(companion_blessed)
                 blessed_targets.append(companion.name)
@@ -1430,20 +1435,22 @@ class CombatEncounter:
                     effect_type="buff_attack",
                     damage_per_turn=0,
                     duration=BLESS_DURATION,
-                    stat_modifier=BLESS_ATTACK_MODIFIER,
+                    stat_modifier=bless_modifier,
                 )
                 companion.apply_status_effect(companion_blessed)
                 blessed_targets.append(companion.name)
 
+        # Format message with bonus info
+        bonus_pct = int(bless_modifier * 100)
         if len(blessed_targets) == 1:
             message = (
                 f"You invoke a {colors.heal('BLESSING')}! "
-                f"Your attacks are empowered (+25% damage for {BLESS_DURATION} turns)."
+                f"Your attacks are empowered (+{bonus_pct}% damage for {BLESS_DURATION} turns)."
             )
         else:
             message = (
                 f"You invoke a {colors.heal('BLESSING')} upon your party! "
-                f"All attacks are empowered (+25% damage for {BLESS_DURATION} turns)."
+                f"All attacks are empowered (+{bonus_pct}% damage for {BLESS_DURATION} turns)."
             )
 
         return False, message
@@ -1470,6 +1477,8 @@ class CombatEncounter:
             SMITE_DAMAGE_MULTIPLIER,
             SMITE_UNDEAD_MULTIPLIER,
             SMITE_UNDEAD_STUN_CHANCE,
+            DIVINE_POWER_SMITE_BONUS,
+            DIVINE_POWER_STUN_BONUS,
             is_undead,
         )
 
@@ -1499,11 +1508,17 @@ class CombatEncounter:
         # Check if target is undead
         target_is_undead = is_undead(enemy.name)
 
-        # Calculate damage: INT * 2.5 (or 5.0 vs undead)
+        # Get divine power bonus from equipped holy symbol
+        divine_power = self.player.get_divine_power()
+
+        # Calculate damage: INT * 2.5 (or 5.0 vs undead) + divine power bonus
         if target_is_undead:
             dmg = max(1, int(self.player.intelligence * SMITE_UNDEAD_MULTIPLIER))
         else:
             dmg = max(1, int(self.player.intelligence * SMITE_DAMAGE_MULTIPLIER))
+
+        # Add divine power bonus to damage
+        dmg += divine_power * DIVINE_POWER_SMITE_BONUS
 
         # Apply stance damage modifier
         stance_modifier = self.player.get_stance_damage_modifier()
@@ -1512,14 +1527,17 @@ class CombatEncounter:
         # Apply damage
         enemy.take_damage(dmg)
 
+        # Calculate stun chance with divine power bonus
+        stun_chance = SMITE_UNDEAD_STUN_CHANCE + (divine_power * DIVINE_POWER_STUN_BONUS)
+
         # Build message
         if target_is_undead:
             message = (
                 f"You unleash a {colors.heal('HOLY SMITE')} upon {colors.enemy(enemy.name)}! "
                 f"The undead creature takes {colors.damage(str(dmg))} holy damage!"
             )
-            # 30% chance to stun undead
-            if enemy.is_alive() and random.random() < SMITE_UNDEAD_STUN_CHANCE:
+            # Stun chance (30% base + divine power bonus) vs undead
+            if enemy.is_alive() and random.random() < stun_chance:
                 stun = StatusEffect(
                     name="Stun",
                     effect_type="stun",

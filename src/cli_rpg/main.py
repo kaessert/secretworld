@@ -1195,11 +1195,18 @@ def handle_exploration_command(game_state: GameState, command: str, args: list[s
                 return (True, f"\n{inv.equipped_weapon.name} is already equipped.")
             if inv.equipped_armor and inv.equipped_armor.name.lower() == item_name_lower:
                 return (True, f"\n{inv.equipped_armor.name} is already equipped.")
+            if inv.equipped_holy_symbol and inv.equipped_holy_symbol.name.lower() == item_name_lower:
+                return (True, f"\n{inv.equipped_holy_symbol.name} is already equipped.")
             return (True, f"\nYou don't have '{item_name}' in your inventory.")
 
         # Check armor class restrictions before equipping
         if item.item_type == ItemType.ARMOR:
             success, message = game_state.current_character.equip_armor_with_validation(item)
+            return (True, f"\n{message}")
+
+        # Check holy symbol restrictions (Cleric-only)
+        if item.item_type == ItemType.HOLY_SYMBOL:
+            success, message = game_state.current_character.equip_holy_symbol_with_validation(item)
             return (True, f"\n{message}")
 
         # For weapons and other equippable items, use standard equip
@@ -1214,18 +1221,21 @@ def handle_exploration_command(game_state: GameState, command: str, args: list[s
 
     elif command == "unequip":
         if not args:
-            return (True, "\nUnequip what? Specify 'weapon' or 'armor'.")
+            return (True, "\nUnequip what? Specify 'weapon', 'armor', or 'holy_symbol'.")
         slot = args[0].lower()
-        if slot not in ("weapon", "armor"):
-            return (True, "\nYou can only unequip 'weapon' or 'armor'.")
+        if slot not in ("weapon", "armor", "holy_symbol"):
+            return (True, "\nYou can only unequip 'weapon', 'armor', or 'holy_symbol'.")
         inv = game_state.current_character.inventory
         if slot == "weapon" and inv.equipped_weapon is None:
             return (True, "\nYou don't have a weapon equipped.")
         if slot == "armor" and inv.equipped_armor is None:
             return (True, "\nYou don't have armor equipped.")
+        if slot == "holy_symbol" and inv.equipped_holy_symbol is None:
+            return (True, "\nYou don't have a holy symbol equipped.")
         success = inv.unequip(slot)
         if success:
-            return (True, f"\nYou unequipped your {slot}.")
+            slot_display = "holy symbol" if slot == "holy_symbol" else slot
+            return (True, f"\nYou unequipped your {slot_display}.")
         else:
             return (True, "\nCan't unequip - inventory is full.")
 

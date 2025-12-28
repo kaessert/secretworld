@@ -468,6 +468,56 @@ class Character:
             return (True, f"You equipped {armor.name}.")
         return (False, f"Failed to equip {armor.name}.")
 
+    def can_equip_holy_symbol(self, item: "Item") -> bool:
+        """Check if character can equip a holy symbol.
+
+        Spec: Only Clerics can equip holy symbols.
+
+        Args:
+            item: Holy symbol item to check
+
+        Returns:
+            True if character is a Cleric, False otherwise
+        """
+        from cli_rpg.models.item import ItemType
+
+        if item.item_type != ItemType.HOLY_SYMBOL:
+            return False
+        return self.character_class == CharacterClass.CLERIC
+
+    def equip_holy_symbol_with_validation(self, item: "Item") -> Tuple[bool, str]:
+        """Attempt to equip a holy symbol with Cleric validation.
+
+        Args:
+            item: Holy symbol item to equip
+
+        Returns:
+            Tuple of (success, message) - success is False if not a Cleric
+        """
+        from cli_rpg.models.item import ItemType
+
+        if item.item_type != ItemType.HOLY_SYMBOL:
+            return (False, f"{item.name} is not a holy symbol.")
+
+        if not self.can_equip_holy_symbol(item):
+            return (
+                False,
+                f"Cannot equip {item.name} - only Clerics can wield holy symbols.",
+            )
+
+        success = self.inventory.equip(item)
+        if success:
+            return (True, f"You equipped {item.name}.")
+        return (False, f"Failed to equip {item.name}.")
+
+    def get_divine_power(self) -> int:
+        """Get total divine power from equipped holy symbol.
+
+        Returns:
+            Divine power value from equipped holy symbol, or 0 if none
+        """
+        return self.inventory.get_divine_power_bonus()
+
     def equip_item(self, item: "Item") -> bool:
         """Equip an item from inventory.
 

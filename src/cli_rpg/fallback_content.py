@@ -845,6 +845,28 @@ ITEM_TEMPLATES: dict[str, dict[str, list[dict]]] = {
             {"name": "Strange Trinket", "description": "May have value to someone."},
         ],
     },
+    "holy_symbol": {
+        "temple": [
+            {"name": "Sacred Relic of Light", "description": "A powerful holy symbol blessed by high priests.", "divine_power": 5},
+            {"name": "Divine Emblem", "description": "An emblem radiating divine energy.", "divine_power": 4},
+            {"name": "Blessed Talisman", "description": "A talisman infused with holy power.", "divine_power": 3},
+            {"name": "Temple Holy Symbol", "description": "A standard symbol of the faith.", "divine_power": 2},
+        ],
+        "ruins": [
+            {"name": "Ancient Holy Relic", "description": "A holy symbol from a forgotten age.", "divine_power": 4},
+            {"name": "Relic of the Old Faith", "description": "Bears symbols of an ancient religion.", "divine_power": 3},
+            {"name": "Crumbling Holy Icon", "description": "Old but still carries divine essence.", "divine_power": 2},
+        ],
+        "dungeon": [
+            {"name": "Recovered Holy Symbol", "description": "A holy symbol reclaimed from darkness.", "divine_power": 3},
+            {"name": "Guardian's Talisman", "description": "Once worn by a holy guardian.", "divine_power": 2},
+        ],
+        "default": [
+            {"name": "Simple Holy Symbol", "description": "A wooden holy symbol of humble origin.", "divine_power": 2},
+            {"name": "Blessed Pendant", "description": "A small pendant blessed by a cleric.", "divine_power": 1},
+            {"name": "Holy Talisman", "description": "A basic talisman of faith.", "divine_power": 2},
+        ],
+    },
 }
 
 
@@ -920,6 +942,8 @@ TREASURE_LOOT_TABLES: dict[str, list[dict]] = {
         {"name": "Holy Water", "item_type": "consumable", "heal_amount": 30},
         {"name": "Sacred Relic", "item_type": "misc"},
         {"name": "Blessed Medallion", "item_type": "armor", "defense_bonus": 3, "armor_weight": "light"},
+        {"name": "Temple Holy Symbol", "item_type": "holy_symbol", "divine_power": 2},
+        {"name": "Blessed Talisman", "item_type": "holy_symbol", "divine_power": 3},
     ],
     "forest": [
         {"name": "Forest Gem", "item_type": "misc"},

@@ -270,9 +270,22 @@ quest = Quest(
 - CLASS_ARMOR_RESTRICTIONS in `models/character.py` with `can_equip_armor()` and `equip_armor_with_validation()` methods
 - Fallback armor items have weight categories assigned
 
-**Remaining (Future)**:
-- Animal companion for Ranger
-- Holy symbols for Cleric
+**Holy Symbol Equipment (COMPLETED 2025-12-28)**:
+- `ItemType.HOLY_SYMBOL` with `divine_power: int` stat
+- Cleric-only equip restriction via `can_equip_holy_symbol()` and `equip_holy_symbol_with_validation()`
+- `equipped_holy_symbol` slot in Inventory
+- Divine power bonuses: Bless (+1% attack per point), Smite (+1 damage per point), Undead Stun (+1% chance per point)
+- Fallback holy symbol items in `fallback_content.py` with varying divine_power values (2-5)
+
+**Ranger Animal Companion (COMPLETED 2025-12-28)**:
+- `tame <wolf|hawk|bear>` command for Rangers to bond with an animal companion
+- `companion` command to view companion status with health/bond bars
+- `summon`/`dismiss` commands to toggle companion presence (summon costs 10 stamina)
+- `feed <consumable>` command to heal companion and increase bond
+- Combat integration: Flank bonus (+10-15%), companion attacks (50% of Ranger STR)
+- Hawk provides +3 PER for secret detection; Wolf provides +15% flank bonus
+- Track command gets +15% bonus when companion is present
+- Full serialization and backward compatibility
 
 ---
 

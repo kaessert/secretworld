@@ -14,6 +14,7 @@ class ItemType(Enum):
     CONSUMABLE = "consumable"
     MISC = "misc"
     RESOURCE = "resource"
+    HOLY_SYMBOL = "holy_symbol"
 
 
 class ArmorWeight(Enum):
@@ -57,6 +58,7 @@ class Item:
     is_cure: bool = False  # True for items that can cure plagues/events
     weapon_type: Optional["WeaponType"] = None  # Weapon proficiency type for weapons
     armor_weight: Optional[ArmorWeight] = None  # Armor weight for class restrictions
+    divine_power: int = 0  # Holy power for holy symbols (Cleric-only)
 
     def __post_init__(self):
         """Validate item attributes."""
@@ -87,6 +89,8 @@ class Item:
             raise ValueError("stamina_restore cannot be negative")
         if self.light_duration < 0:
             raise ValueError("light_duration cannot be negative")
+        if self.divine_power < 0:
+            raise ValueError("divine_power cannot be negative")
 
     def to_dict(self) -> Dict:
         """Serialize item to dictionary.
@@ -104,7 +108,8 @@ class Item:
             "mana_restore": self.mana_restore,
             "stamina_restore": self.stamina_restore,
             "light_duration": self.light_duration,
-            "is_cure": self.is_cure
+            "is_cure": self.is_cure,
+            "divine_power": self.divine_power,
         }
         # Only include weapon_type if set
         if self.weapon_type is not None:
@@ -148,6 +153,7 @@ class Item:
             is_cure=data.get("is_cure", False),
             weapon_type=weapon_type,
             armor_weight=armor_weight,
+            divine_power=data.get("divine_power", 0),
         )
 
     def __str__(self) -> str:
@@ -178,6 +184,8 @@ class Item:
             stat_parts.append(f"{self.light_duration} moves of light")
         if self.is_cure:
             stat_parts.append("cures plague")
+        if self.divine_power > 0:
+            stat_parts.append(f"+{self.divine_power} divine power")
 
         stats_str = f" ({', '.join(stat_parts)})" if stat_parts else ""
         return f"{self.name} [{type_str}]{stats_str}"

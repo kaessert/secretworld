@@ -111,8 +111,8 @@ src/cli_rpg/
     ├── tiredness.py     # Tiredness meter for fatigue and sleep mechanics
     ├── enemy.py         # Enemy/monster model with perception stat for stealth detection
     ├── game_time.py     # Day/night cycle and time tracking
-    ├── item.py          # Item definitions, ArmorWeight enum (LIGHT, MEDIUM, HEAVY)
-    ├── inventory.py     # Inventory management
+    ├── item.py          # Item definitions, ArmorWeight enum (LIGHT, MEDIUM, HEAVY), ItemType.HOLY_SYMBOL with divine_power stat
+    ├── inventory.py     # Inventory management, equipped_holy_symbol slot for Cleric
     ├── location.py      # Location with coordinates and NPCs (movement via coordinate adjacency), puzzles, blocked_directions, hazards
     ├── npc.py           # Non-player character model with relationship support
     ├── puzzle.py        # Puzzle model with types (LOCKED_DOOR, LEVER, PRESSURE_PLATE, RIDDLE, SEQUENCE)

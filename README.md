@@ -255,8 +255,8 @@ Status effects are cleared when combat ends.
 - `bash [target]` (ba) - **Warrior only**: Shield bash an enemy (costs 15 stamina). Deals 0.75x STR-based damage but stuns the target for 1 turn. Targeting works like `attack`.
 - `sneak` (sn) - **Rogue only**: Enter stealth mode for 1 turn (costs 10 stamina). Next attack deals 1.5x backstab damage. Higher DEX increases dodge chance while stealthed (DEX × 5%, capped at 75%). Stealth breaks if you take damage.
 - `hide` (hd) - Become hidden for 1 turn (costs 10 stamina). While hidden, enemies skip attacking you. The effect expires after the enemy turn.
-- `bless` (bs) - **Cleric only**: Bless your party (costs 20 mana). Grants "Blessed" status effect (+25% attack damage) for 3 turns to player and all companions.
-- `smite [target]` (sm) - **Cleric only**: Channel holy energy at an enemy (costs 15 mana). Deals INT × 2.5 damage (ignores defense), or INT × 5.0 damage against undead. 30% chance to stun undead for 1 turn. Targeting works like `attack`.
+- `bless` (bs) - **Cleric only**: Bless your party (costs 20 mana). Grants "Blessed" status effect (+25% attack damage) for 3 turns to player and all companions. Holy symbols increase the buff modifier (+1% per divine power).
+- `smite [target]` (sm) - **Cleric only**: Channel holy energy at an enemy (costs 15 mana). Deals INT × 2.5 damage (ignores defense), or INT × 5.0 damage against undead. 30% chance to stun undead for 1 turn. Holy symbols increase damage (+1 per divine power) and stun chance (+1% per divine power). Targeting works like `attack`.
 - `use <item>` (u) - Use a consumable item (e.g., health potion) - counts as your turn
 - `status` (s, stats) - View combat status (HP of you and all enemies, action history, pending combos)
 - `help` (h) - Display the full command reference
@@ -338,6 +338,14 @@ Your inventory has a capacity of 20 items. Use `inventory` to view your items, `
 - **Mage**: Light armor only
 
 Armor with no specified weight (legacy items) is treated as Light and can be worn by any class.
+
+**Holy Symbols (Cleric Only)**: Clerics can equip holy symbols to enhance their divine abilities:
+- Use `equip <holy symbol>` to equip a holy symbol (Cleric-only restriction)
+- Use `unequip holy_symbol` to unequip
+- Holy symbols provide `divine_power` stat bonuses:
+  - **Bless**: +1% attack buff modifier per divine power
+  - **Smite**: +1 damage per divine power
+  - **Undead Stun**: +1% stun chance per divine power
 
 ### Crafting
 

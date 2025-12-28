@@ -23,6 +23,7 @@ class Inventory:
     items: List[Item] = field(default_factory=list)
     equipped_weapon: Optional[Item] = None
     equipped_armor: Optional[Item] = None
+    equipped_holy_symbol: Optional[Item] = None
 
     def add_item(self, item: Item) -> bool:
         """Add an item to the inventory.
@@ -116,6 +117,16 @@ class Inventory:
             self.equipped_armor = item
             return True
 
+        elif item.item_type == ItemType.HOLY_SYMBOL:
+            # Unequip current holy symbol if any (return to inventory)
+            if self.equipped_holy_symbol is not None:
+                self.items.append(self.equipped_holy_symbol)
+
+            # Remove from inventory and equip
+            self.items.remove(item)
+            self.equipped_holy_symbol = item
+            return True
+
         # Can't equip consumables or misc items
         return False
 
@@ -148,6 +159,16 @@ class Inventory:
             self.equipped_armor = None
             return True
 
+        elif slot == "holy_symbol":
+            if self.equipped_holy_symbol is None:
+                return False
+            # Check if inventory has space
+            if self.is_full():
+                return False
+            self.items.append(self.equipped_holy_symbol)
+            self.equipped_holy_symbol = None
+            return True
+
         return False
 
     def get_damage_bonus(self) -> int:
@@ -168,6 +189,16 @@ class Inventory:
         """
         if self.equipped_armor is not None:
             return self.equipped_armor.defense_bonus
+        return 0
+
+    def get_divine_power_bonus(self) -> int:
+        """Get divine power bonus from equipped holy symbol.
+
+        Returns:
+            Divine power from equipped holy symbol, or 0 if none
+        """
+        if self.equipped_holy_symbol is not None:
+            return self.equipped_holy_symbol.divine_power
         return 0
 
     def find_item_by_name(self, name: str) -> Optional[Item]:
@@ -203,7 +234,10 @@ class Inventory:
             "capacity": self.capacity,
             "items": [item.to_dict() for item in self.items],
             "equipped_weapon": self.equipped_weapon.to_dict() if self.equipped_weapon else None,
-            "equipped_armor": self.equipped_armor.to_dict() if self.equipped_armor else None
+            "equipped_armor": self.equipped_armor.to_dict() if self.equipped_armor else None,
+            "equipped_holy_symbol": (
+                self.equipped_holy_symbol.to_dict() if self.equipped_holy_symbol else None
+            ),
         }
 
     @classmethod
@@ -219,17 +253,21 @@ class Inventory:
         items = [Item.from_dict(item_data) for item_data in data.get("items", [])]
         equipped_weapon = None
         equipped_armor = None
+        equipped_holy_symbol = None
 
         if data.get("equipped_weapon"):
             equipped_weapon = Item.from_dict(data["equipped_weapon"])
         if data.get("equipped_armor"):
             equipped_armor = Item.from_dict(data["equipped_armor"])
+        if data.get("equipped_holy_symbol"):
+            equipped_holy_symbol = Item.from_dict(data["equipped_holy_symbol"])
 
         return cls(
             capacity=data.get("capacity", cls.DEFAULT_CAPACITY),
             items=items,
             equipped_weapon=equipped_weapon,
-            equipped_armor=equipped_armor
+            equipped_armor=equipped_armor,
+            equipped_holy_symbol=equipped_holy_symbol,
         )
 
     def __str__(self) -> str:
@@ -244,6 +282,11 @@ class Inventory:
             lines.append(f"  [{colors.stat_header('Weapon')}] {colors.item(self.equipped_weapon.name)}")
         if self.equipped_armor:
             lines.append(f"  [{colors.stat_header('Armor')}] {colors.item(self.equipped_armor.name)}")
+        if self.equipped_holy_symbol:
+            lines.append(
+                f"  [{colors.stat_header('Holy Symbol')}] "
+                f"{colors.item(self.equipped_holy_symbol.name)}"
+            )
 
         if self.items:
             lines.append("  Items:")
