@@ -32,7 +32,11 @@ Context:
 Requirements:
 1. Create a unique location name (2-50 characters) appropriate for the terrain
 2. Write a vivid description (1-500 characters) that reflects the terrain and theme
-3. Include a category for the location type (one of: town, dungeon, wilderness, settlement, ruins, cave, forest, mountain, village)
+3. Include a category for the location type. Choose from:
+   - ENTERABLE locations (player can explore inside): dungeon, cave, ruins, temple, monastery, shrine, tomb, town, village, city, settlement
+   - NON-ENTERABLE locations (terrain only): wilderness, forest, mountain
+
+   IMPORTANT: For named locations with landmarks, prefer ENTERABLE categories (dungeon, cave, ruins, temple) approximately 30% of the time to ensure players have places to explore.
 4. Generate 0-2 NPCs appropriate for this location (optional)
    - Each NPC needs: name (2-30 chars), description (1-200 chars), dialogue (a greeting), role (villager, merchant, or quest_giver)
 
@@ -338,7 +342,11 @@ Region Context:
 Requirements:
 1. Create a unique location name (2-50 characters) that fits the region theme and terrain
 2. Write a vivid description (1-500 characters) that reflects the {terrain_type} terrain
-3. Assign a category (town, dungeon, wilderness, settlement, ruins, cave, forest, mountain, village)
+3. Assign a category for the location type. Choose from:
+   - ENTERABLE locations (player can explore inside): dungeon, cave, ruins, temple, monastery, shrine, tomb, town, village, city, settlement
+   - NON-ENTERABLE locations (terrain only): wilderness, forest, mountain
+
+   IMPORTANT: For named locations with landmarks, prefer ENTERABLE categories (dungeon, cave, ruins, temple) approximately 30% of the time to ensure players have places to explore.
 4. Ensure the location makes sense for {terrain_type} terrain (e.g., oasis for desert, clearing for forest)
 
 Respond with valid JSON in this exact format (no additional text):

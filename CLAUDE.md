@@ -15,6 +15,9 @@ pytest tests/test_<module>.py -v
 
 # With coverage
 pytest --cov=src/cli_rpg
+
+# E2E tests (requires API key in environment)
+pytest tests/e2e/ -v --e2e
 ```
 
 ## Project Structure
@@ -27,12 +30,17 @@ scripts/
 ├── run_simulation.py    # CLI entry point for running simulations
 └── generate_test_world.py # Regenerate test world fixture if models change
 
+tests/e2e/
+├── __init__.py          # E2E test package
+├── conftest.py          # E2E pytest configuration and fixtures
+└── test_enterable_locations.py # E2E tests for enterable location generation
+
 src/cli_rpg/
 ├── main.py              # Entry point
 ├── game_state.py        # Core game state management
 ├── world.py             # World generation and navigation
 ├── world_grid.py        # Grid-based spatial world system
-├── world_tiles.py       # Terrain tile definitions, adjacency rules, region planning, visibility radius, enterable categories
+├── world_tiles.py       # Terrain tile definitions, adjacency rules, region planning, visibility radius, enterable categories, forced enterable spawn after 25 tiles
 ├── wfc.py               # Wave Function Collapse terrain generation
 ├── wfc_chunks.py        # ChunkManager for infinite terrain via cached WFC chunks
 ├── map_renderer.py      # ASCII map display with visibility radius support

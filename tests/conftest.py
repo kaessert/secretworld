@@ -7,6 +7,16 @@ import tempfile
 from cli_rpg.test_world import create_demo_game_state
 
 
+def pytest_addoption(parser):
+    """Add custom command-line options for pytest."""
+    parser.addoption(
+        "--e2e",
+        action="store_true",
+        default=False,
+        help="Run E2E tests that require live AI services (OPENAI_API_KEY or ANTHROPIC_API_KEY)",
+    )
+
+
 @pytest.fixture(autouse=True)
 def disable_colors():
     """Disable colors during tests for consistent string comparisons.

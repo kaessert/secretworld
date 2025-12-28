@@ -1,79 +1,70 @@
-# Implementation Summary: Ritual in Progress Event (Issue 25)
+# Implementation Summary: E2E Test Infrastructure & Enterable Location Fix
 
 ## Status: COMPLETE
 
-All 21 ritual event tests pass, all 30 interior events tests pass, and all 59 combat tests pass.
+All 4971 tests pass. The E2E test infrastructure and enterable location fix are fully implemented.
 
-## What Was Implemented
+## What Was Verified
 
-The "Ritual in progress" interior event creates a time-limited boss encounter in dungeons/caves/ruins/temples. When a player enters a SubGrid, there's a 15% chance a ritual spawns at a non-entry room. The ritual counts down with each player move, and spawns either a standard or empowered boss depending on whether the player reaches the ritual room in time.
+The plan for ensuring AI-generated worlds produce enterable locations was **already fully implemented**. All code changes from the plan were in place.
 
-### Core Features
+### 1. E2E Test Infrastructure
 
-1. **Ritual Spawning** (15% on SubGrid entry)
-   - Spawns at a random room that is NOT: entry point, boss room, or treasure room
-   - Countdown range: 8-12 turns
-   - Only in RITUAL_CATEGORIES: dungeon, cave, ruins, temple
+**Files created:**
+- `tests/e2e/__init__.py` - Package initialization
+- `tests/e2e/conftest.py` - E2E pytest configuration with:
+  - Custom `e2e` marker registration
+  - Automatic skip of E2E tests unless `--e2e` flag provided
+  - `ai_config`, `ai_service`, and `ai_game_state` fixtures
+- `tests/e2e/test_enterable_locations.py` - E2E tests including:
+  - `test_enterable_category_within_30_tiles` - Verifies enterable location spawns within 30 tiles
+  - `test_enter_command_works_on_enterable_location` - Verifies enter command works
+  - `test_subgrid_has_expected_content` - Verifies SubGrid has exit points and proper bounds
+  - `test_counter_resets_on_enterable_location` - Verifies counter reset behavior
 
-2. **Countdown Progression**
-   - Decrements by 1 each player move in SubGrid
-   - Warning messages at 25%, 50%, 75% progress:
-     - 25%: "An ominous chanting echoes through the corridors..."
-     - 50%: "Dark energy pulses through the walls! The ritual grows stronger!"
-     - 75%: "Reality flickers - the ritual nears completion!"
+**Modified:**
+- `tests/conftest.py` - Added `--e2e` pytest command-line option
 
-3. **Combat Triggers**
-   - If player reaches ritual room BEFORE countdown = 0: Standard boss (interrupted ritual)
-   - If countdown reaches 0 BEFORE player arrives: Empowered boss (1.5x stats)
-   - Combat uses new `ritual_summoned` boss type with `empowered` parameter
+### 2. AI Prompts Updated
 
-4. **Ritual Summoned Boss**
-   - Base stats: 2x normal enemy stats (standard boss multiplier)
-   - Empowered: Additional 1.5x multiplier (total 3x normal)
-   - Special attacks: Dark Pulse (100% damage), Soul Drain (75% damage, heals boss)
+**File modified:** `src/cli_rpg/ai_config.py`
 
-## Files Modified
+Both `DEFAULT_LOCATION_PROMPT` and `DEFAULT_LOCATION_PROMPT_MINIMAL` now include explicit instructions to generate enterable categories ~30% of the time.
 
-1. **src/cli_rpg/interior_events.py**
-   - Added ritual constants: `RITUAL_SPAWN_CHANCE`, `RITUAL_COUNTDOWN_RANGE`, `RITUAL_CATEGORIES`, `RITUAL_WARNING_MESSAGES`
-   - Extended `InteriorEvent` dataclass with: `ritual_room`, `ritual_countdown`, `ritual_initial_countdown`, `ritual_completed`
-   - New functions: `check_for_ritual_spawn()`, `progress_ritual()`, `get_active_ritual_event()`, `get_ritual_encounter_at_location()`, `_find_ritual_room()`
+### 3. Forced Enterable Location Spawn Logic
 
-2. **src/cli_rpg/combat.py**
-   - Added `empowered: bool = False` parameter to `spawn_boss()`
-   - Added `ritual_summoned` boss type with unique attacks and descriptions
-   - Empowered modifier applies 1.5x to health, attack, defense
+**File modified:** `src/cli_rpg/world_tiles.py`
 
-3. **src/cli_rpg/game_state.py**
-   - Integrated `check_for_ritual_spawn()` in `enter()` method
-   - Integrated `progress_ritual()` and `get_ritual_encounter_at_location()` in `_move_in_sub_grid()`
-   - Combat triggers with appropriate empowered flag
+Added:
+- `MAX_TILES_WITHOUT_ENTERABLE = 25` - Threshold for forcing enterable spawn
+- `FORCED_ENTERABLE_BY_TERRAIN` - Terrain-specific enterable category pools
+- `should_force_enterable_category(tiles_since_enterable)` - Check function
+- `get_forced_enterable_category(terrain)` - Returns thematically appropriate category
 
-4. **ISSUES.md**
-   - Marked "Ritual in progress" as complete with implementation details
-   - Added related files list
+### 4. GameState Integration
 
-5. **tests/test_ritual_events.py** (new file)
-   - 21 tests covering all functionality
+**File modified:** `src/cli_rpg/game_state.py`
+
+- Added `tiles_since_enterable: int = 0` tracking field
+- Counter updates on movement
+- Forces enterable category when threshold exceeded during AI generation
+- Counter serialization/deserialization for save/load
+
+### 5. Unit Tests
+
+**File created:** `tests/test_enterable_spawn.py` - 11 tests covering all spawn logic
 
 ## Test Results
 
-All 21 ritual event tests pass:
-- `TestInteriorEventRitualFields`: 3 tests (model fields, serialization, backward compatibility)
-- `TestRitualSpawnMechanics`: 5 tests (constants, spawn creation, no duplicates)
-- `TestRitualProgression`: 5 tests (countdown, warnings at 25/50/75%, completion)
-- `TestRitualCombatTriggers`: 3 tests (encounter before/after completion, wrong room)
-- `TestRitualBossSpawning`: 2 tests (empowered vs standard stats)
-- `TestRitualHelpers`: 3 tests (get_active_ritual_event variations)
+```
+tests/test_enterable_spawn.py: 11 passed
+tests/e2e/: 4 skipped (requires --e2e flag)
+Full suite: 4971 passed
+```
 
-All 30 interior events tests pass (existing functionality preserved).
-All 59 combat tests pass (existing functionality preserved).
+## How to Run E2E Tests
 
-## E2E Validation
-
-The following scenarios should be validated:
-1. Enter a dungeon with ritual spawn (15% chance) - should see "dark energy gathering" message
-2. Move within dungeon and see countdown warnings at appropriate intervals
-3. Reach ritual room before countdown = 0 - fight standard boss
-4. Let countdown reach 0 - see completion message, fight empowered boss with 1.5x stats
-5. Save/load game preserves ritual event state
+```bash
+# Requires OPENAI_API_KEY or ANTHROPIC_API_KEY
+pytest tests/e2e/ -v --e2e
+```

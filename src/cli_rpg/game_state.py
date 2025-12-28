@@ -65,6 +65,9 @@ from cli_rpg.world_tiles import (
     get_unnamed_location_template,
     TERRAIN_TO_CATEGORY,
     get_cluster_category_bias,
+    should_force_enterable_category,
+    get_forced_enterable_category,
+    ENTERABLE_CATEGORIES,
 )
 
 logger = logging.getLogger(__name__)
@@ -299,6 +302,8 @@ class GameState:
         self.region_contexts: dict[tuple[int, int], RegionContext] = {}  # Layer 2: Region contexts by coords
         # Named location trigger counter (tracks tiles since last named POI)
         self.tiles_since_named: int = 0
+        # Enterable location trigger counter (tracks tiles since last enterable location)
+        self.tiles_since_enterable: int = 0
         # Dream cooldown tracking (hour of last dream, None if never dreamed)
         self.last_dream_hour: Optional[int] = None
         # Quest outcome history for NPC reactions
@@ -636,6 +641,11 @@ class GameState:
                 self.tiles_since_named = 0
             else:
                 self.tiles_since_named += 1
+            # Update tiles_since_enterable counter based on existing location
+            if target_location.category in ENTERABLE_CATEGORIES:
+                self.tiles_since_enterable = 0
+            else:
+                self.tiles_since_enterable += 1
         else:
             # No location at target - generate new location
             terrain = None
@@ -677,8 +687,16 @@ class GameState:
                     return (False, "The path is blocked by an impassable barrier.")
             else:
                 # Generate named location via AI or fallback
-                # First, check if we should cluster with nearby locations
-                category_hint = get_cluster_category_bias(self.world, target_coords)
+                # First, check if we need to force an enterable category
+                if should_force_enterable_category(self.tiles_since_enterable):
+                    category_hint = get_forced_enterable_category(terrain or "plains")
+                    logger.info(
+                        f"Forcing enterable category '{category_hint}' after "
+                        f"{self.tiles_since_enterable} tiles without enterable location"
+                    )
+                else:
+                    # Otherwise, check if we should cluster with nearby locations
+                    category_hint = get_cluster_category_bias(self.world, target_coords)
 
                 ai_succeeded = False
 
@@ -771,6 +789,13 @@ class GameState:
 
                 # Reset counter after generating named location
                 self.tiles_since_named = 0
+
+                # Update tiles_since_enterable counter based on generated location
+                generated_location = self._get_location_by_coordinates(target_coords)
+                if generated_location and generated_location.category in ENTERABLE_CATEGORIES:
+                    self.tiles_since_enterable = 0
+                else:
+                    self.tiles_since_enterable += 1
 
         # Advance time by 1 hour for movement (+1 hour in storm)
         travel_time = 1 + self.weather.get_travel_modifier()
@@ -1928,6 +1953,7 @@ class GameState:
             "gather_cooldown": self.gather_cooldown,
             "in_sub_location": self.in_sub_location,
             "tiles_since_named": self.tiles_since_named,
+            "tiles_since_enterable": self.tiles_since_enterable,
             "last_dream_hour": self.last_dream_hour,
             "quest_outcomes": [outcome.to_dict() for outcome in self.quest_outcomes],
             "seen_tiles": list(self.seen_tiles),
@@ -2040,6 +2066,9 @@ class GameState:
 
         # Restore tiles_since_named counter (default to 0 for backward compatibility)
         game_state.tiles_since_named = data.get("tiles_since_named", 0)
+
+        # Restore tiles_since_enterable counter (default to 0 for backward compatibility)
+        game_state.tiles_since_enterable = data.get("tiles_since_enterable", 0)
 
         # Restore last_dream_hour (default to None for backward compatibility)
         game_state.last_dream_hour = data.get("last_dream_hour")

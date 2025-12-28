@@ -340,6 +340,7 @@ def get_biased_weights(region_theme: str) -> Dict[str, float]:
 # Categories that should have enterable SubGrids (on-demand generation)
 ENTERABLE_CATEGORIES: frozenset = frozenset({
     "dungeon", "cave", "ruins", "temple",  # Adventure locations
+    "monastery", "shrine", "tomb",  # Sacred/ancient locations
     "town", "village", "city", "settlement",  # Settlements
     "tavern", "shop", "inn",  # Commercial buildings
 })
@@ -857,3 +858,59 @@ def get_cluster_category_bias(
 
     # Return a random category from this group
     return rng.choice(group_categories)
+
+
+# ============================================================================
+# Forced Enterable Location Spawn
+# ============================================================================
+
+# Maximum tiles between enterable locations (forces dungeon/cave spawn)
+# After this many tiles without an enterable location, the next named location
+# will be forced to have an enterable category
+MAX_TILES_WITHOUT_ENTERABLE = 25
+
+# Enterable category pools by terrain for forced spawn
+# Each terrain type maps to a list of thematically appropriate enterable categories
+FORCED_ENTERABLE_BY_TERRAIN: Dict[str, List[str]] = {
+    "forest": ["ruins", "cave", "temple"],
+    "mountain": ["cave", "dungeon", "monastery"],
+    "plains": ["ruins", "dungeon", "temple"],
+    "desert": ["tomb", "ruins", "temple"],
+    "swamp": ["ruins", "cave", "shrine"],
+    "hills": ["cave", "ruins", "dungeon"],
+    "beach": ["cave", "ruins"],
+    "foothills": ["cave", "dungeon"],
+}
+
+
+def should_force_enterable_category(tiles_since_enterable: int) -> bool:
+    """Check if an enterable location should be forced.
+
+    After MAX_TILES_WITHOUT_ENTERABLE tiles without an enterable location,
+    this function returns True to signal that the next named location
+    should be an enterable type (dungeon, cave, ruins, etc.).
+
+    Args:
+        tiles_since_enterable: Number of tiles since last enterable location
+
+    Returns:
+        True if an enterable category should be forced, False otherwise
+    """
+    return tiles_since_enterable >= MAX_TILES_WITHOUT_ENTERABLE
+
+
+def get_forced_enterable_category(terrain: str) -> str:
+    """Get a random enterable category appropriate for the terrain.
+
+    Selects a thematically appropriate enterable category based on the
+    current terrain type. Unknown terrains fall back to a default list.
+
+    Args:
+        terrain: Current terrain type (forest, mountain, etc.)
+
+    Returns:
+        Category string (dungeon, cave, ruins, etc.)
+    """
+    import random
+    categories = FORCED_ENTERABLE_BY_TERRAIN.get(terrain, ["dungeon", "cave", "ruins"])
+    return random.choice(categories)

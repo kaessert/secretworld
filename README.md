@@ -682,7 +682,12 @@ pytest tests/test_e2e_world_expansion.py -v
 
 # All tests with coverage
 pytest --cov=src/cli_rpg
+
+# E2E tests with live AI service (requires API key)
+pytest tests/e2e/ -v --e2e
 ```
+
+**E2E Tests**: End-to-end tests that exercise the full AI → SubGrid → Content pipeline. These tests require an `OPENAI_API_KEY` or `ANTHROPIC_API_KEY` environment variable and are skipped by default. Use the `--e2e` flag to run them.
 
 ### Project Structure
 ```
