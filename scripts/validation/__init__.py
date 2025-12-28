@@ -13,6 +13,13 @@ from .coverage import (
     FeatureEvent,
     FEATURE_DEFINITIONS,
 )
+from .regression import (
+    FailureDiff,
+    RegressionBaseline,
+    RegressionDetector,
+    RegressionReport,
+    ScenarioBaseline,
+)
 from .scenarios import (
     Scenario,
     ScenarioResult,
@@ -27,11 +34,16 @@ __all__ = [
     "AssertionResult",
     "AssertionType",
     "CoverageStats",
+    "FailureDiff",
     "FeatureCategory",
     "FeatureCoverage",
     "FeatureEvent",
     "FEATURE_DEFINITIONS",
+    "RegressionBaseline",
+    "RegressionDetector",
+    "RegressionReport",
     "Scenario",
+    "ScenarioBaseline",
     "ScenarioResult",
     "ScenarioRunner",
     "ScenarioStep",

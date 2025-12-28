@@ -410,11 +410,11 @@ python -m scripts.run_validation --report-format=html --output=report.html
 4. ✅ Create YAML scenario format and runner (ScenarioRunner with run/run_scenario methods, Scenario/ScenarioStep/StepResult/ScenarioResult dataclasses, wait_for support, 17 tests)
 5. ✅ Create initial scenarios for core features (11 YAML scenarios in scripts/scenarios/: movement (basic_navigation, subgrid_entry_exit, vertical_navigation), combat, inventory, NPC, exploration, rest; seeds 42001-42011; validated by tests/test_scenario_files.py)
 
-**Phase 4: Advanced Features (LOW)**
+**Phase 4: Advanced Features (LOW)** - IN PROGRESS
 1. Decision timing variability
 2. Social intelligence and dialogue choices
 3. Strategic planning for dungeons/quests
-4. Regression detection
+4. ✅ Regression detection (`scripts/validation/regression.py` with `RegressionDetector`, `RegressionBaseline`, `RegressionReport`, baseline comparison)
 5. AI content quality validation
 
 ---
@@ -424,7 +424,7 @@ python -m scripts.run_validation --report-format=html --output=report.html
 - [x] Observable behavioral differences between personalities and classes (Phase 2 - COMPLETE)
 - [x] Track which features are exercised, identify coverage gaps (Phase 3 - FeatureCoverage tracker COMPLETE)
 - [x] Initial YAML scenarios for core features created and validated (Phase 3 Step 5 - 11 scenarios COMPLETE)
-- [ ] Detect feature regressions automatically with clear reports (Phase 4)
+- [x] Detect feature regressions automatically with clear reports (Phase 4 - `RegressionDetector` COMPLETE)
 - [ ] Validate AI-generated content meets quality standards (Phase 4)
 
 #### Related Files
@@ -432,7 +432,10 @@ python -m scripts.run_validation --report-format=html --output=report.html
 - `scripts/state_parser.py` - AgentState to extend
 - `scripts/run_simulation.py` - CLI to extend
 - `scripts/scenarios/` - YAML validation scenarios (11 files organized by feature, including vertical_navigation.yaml)
+- `scripts/validation/regression.py` - Regression detection (RegressionDetector, baselines, comparison)
+- `scripts/baselines/` - Directory for storing baseline files
 - `tests/test_scenario_files.py` - Scenario validation tests
+- `tests/test_validation_regression.py` - Regression detection tests (16 tests)
 - `src/cli_rpg/persistence.py` - Game save/load to integrate
 
 #### Full Plan

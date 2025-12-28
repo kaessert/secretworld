@@ -1,52 +1,79 @@
-# Implementation Plan: Vertical Z-Level Navigation Scenario
+# Plan: Regression Detection for Automated Playtesting
 
-**Task**: Add a YAML scenario to test vertical z-level movement inside SubGrids (dungeons going down, towers going up).
+## Feature Spec
 
-## Spec
+Implement `scripts/validation/regression.py` to detect feature regressions by comparing test runs against baselines. The system will:
 
-This scenario validates that:
-1. Player cannot use `go up`/`go down` on the overworld (returns appropriate error)
-2. Player can enter a multi-level SubGrid location (dungeon/cave/tower)
-3. The `go down` and `go up` commands work for vertical navigation inside SubGrids
-4. Z-level changes are reflected in game state coordinates
+1. **Store baselines** - Save coverage/assertion results from "known good" runs
+2. **Compare runs** - Detect new failures, resolved issues, and coverage changes
+3. **Generate reports** - Produce clear regression reports in JSON/text format
 
-## Test File
+Key data structures:
+- `RegressionBaseline`: Dataclass storing pass rates, coverage stats, assertion results per scenario
+- `RegressionReport`: Dataclass with new failures, resolved issues, coverage deltas
+- `RegressionDetector`: Class to compare run results against baseline and generate reports
 
-**File**: `scripts/scenarios/movement/vertical_navigation.yaml`
-**Seed**: 42011 (next unique seed after 42001-42010)
+## Tests (tests/test_validation_regression.py)
+
+```python
+# Test cases to write FIRST:
+
+class TestRegressionBaseline:
+    def test_baseline_creation_from_scenario_results()
+    def test_baseline_serialization_roundtrip()
+    def test_baseline_merge_multiple_runs()
+
+class TestRegressionReport:
+    def test_report_identifies_new_failures()
+    def test_report_identifies_resolved_issues()
+    def test_report_tracks_coverage_delta()
+    def test_report_empty_when_no_changes()
+
+class TestRegressionDetector:
+    def test_detector_compare_identical_runs()
+    def test_detector_compare_with_new_failure()
+    def test_detector_compare_with_resolved_failure()
+    def test_detector_coverage_regression_detected()
+    def test_detector_coverage_improvement_detected()
+    def test_detector_load_save_baseline()
+```
 
 ## Implementation Steps
 
-### 1. Create the scenario file
-**File**: `scripts/scenarios/movement/vertical_navigation.yaml`
+1. **Create `scripts/validation/regression.py`**:
+   - `RegressionBaseline` dataclass with:
+     - `scenarios: dict[str, ScenarioBaseline]` (pass/fail, assertion results)
+     - `coverage: dict[str, float]` (percentage per category)
+     - `timestamp: float`
+     - `version: str`
+     - `to_dict()`/`from_dict()` for JSON serialization
+   - `RegressionReport` dataclass with:
+     - `new_failures: list[FailureDiff]` (scenario/assertion that newly failed)
+     - `resolved_issues: list[FailureDiff]` (previously failing, now passing)
+     - `coverage_delta: dict[str, float]` (category -> delta)
+     - `is_regression: bool` property (True if new_failures or coverage decreased)
+     - `to_text()` for human-readable report
+   - `RegressionDetector` class with:
+     - `create_baseline(results: list[ScenarioResult], coverage: FeatureCoverage) -> RegressionBaseline`
+     - `compare(baseline: RegressionBaseline, current: RegressionBaseline) -> RegressionReport`
+     - `save_baseline(baseline: RegressionBaseline, path: Path)`
+     - `load_baseline(path: Path) -> RegressionBaseline`
 
-Scenario structure:
-- Setup: `dump_state` to get initial state
-- Step 1: Try `go down` on overworld - assert NARRATIVE_MATCH for "can only go up or down inside buildings and dungeons"
-- Step 2: Try `go up` on overworld - assert same error
-- Step 3-7: Navigate to find an enterable location
-- Step 8: `look` to confirm location
-- Step 9: Check if location is enterable
-- Step 10: Enter the location (creates SubGrid)
-- Step 11: `look` inside SubGrid
-- Step 12: `dump_state` to verify SubGrid entry
+2. **Update `scripts/validation/__init__.py`**:
+   - Export: `RegressionBaseline`, `RegressionReport`, `RegressionDetector`
 
-### 2. Update test file
-**File**: `tests/test_scenario_files.py`
+3. **Create `scripts/baselines/` directory**:
+   - Add `.gitkeep` for empty directory tracking
 
-In `test_movement_scenarios_exist()` (~line 213), add assertion for `vertical_navigation.yaml`.
+4. **Create `tests/test_validation_regression.py`**:
+   - Implement all test cases listed above
+   - Use mock ScenarioResult/FeatureCoverage objects
 
-### 3. Run tests
-```bash
-pytest tests/test_scenario_files.py -v
-```
+## Files to Create/Modify
 
-## Files Changed
-- `scripts/scenarios/movement/vertical_navigation.yaml` (new)
-- `tests/test_scenario_files.py` (update assertion count)
-
-## Acceptance Criteria
-- Scenario file parses without errors
-- Seed 42011 is unique
-- Scenario validates overworld blocks vertical movement
-- Scenario enters a SubGrid location successfully
+| File | Action |
+|------|--------|
+| `scripts/validation/regression.py` | CREATE - Core regression detection logic |
+| `scripts/validation/__init__.py` | MODIFY - Add exports |
+| `scripts/baselines/.gitkeep` | CREATE - Directory for baseline storage |
+| `tests/test_validation_regression.py` | CREATE - Unit tests |

@@ -1,42 +1,63 @@
-# Implementation Summary: Vertical Z-Level Navigation Scenario
+# Implementation Summary: Regression Detection for Automated Playtesting
 
 ## What Was Implemented
 
-### New Files
-- `scripts/scenarios/movement/vertical_navigation.yaml` - New YAML scenario for testing vertical z-level navigation
+Implemented `scripts/validation/regression.py` - a regression detection system for comparing playtest runs against baselines.
 
-### Modified Files
-- `tests/test_scenario_files.py` - Updated `test_movement_scenarios_exist()` to:
-  - Increase expected minimum from 2 to 3 movement scenarios
-  - Add assertion for `vertical_navigation.yaml` file presence
+### New Files Created
 
-## Scenario Details
+1. **`scripts/validation/regression.py`** - Core regression detection module with:
+   - `ScenarioBaseline` dataclass - stores pass/fail status and assertion results for a single scenario
+   - `RegressionBaseline` dataclass - complete baseline for a test run with scenarios and coverage
+   - `FailureDiff` dataclass - represents a failure difference between runs
+   - `RegressionReport` dataclass - report of differences with `is_regression` property and `to_text()` method
+   - `RegressionDetector` class with methods:
+     - `create_baseline()` - creates baseline from ScenarioResult list and FeatureCoverage
+     - `compare()` - compares current run against baseline, returns RegressionReport
+     - `merge_baselines()` - merges multiple baselines (takes best coverage values)
+     - `save_baseline()`/`load_baseline()` - JSON persistence
 
-The vertical navigation scenario (seed: 42011) validates:
+2. **`tests/test_validation_regression.py`** - 16 unit tests covering:
+   - Baseline creation from scenario results
+   - JSON serialization/deserialization roundtrips
+   - Merging multiple baselines
+   - New failure detection
+   - Resolved issue tracking
+   - Coverage delta calculations
+   - Regression detection logic
+   - Text report formatting
 
-1. **Overworld vertical movement blocked**: Steps 1-2 test that `go down` and `go up` commands fail on the overworld with the error message "can only go up or down inside buildings and dungeons"
+3. **`scripts/baselines/.gitkeep`** - Directory for storing baseline files
 
-2. **Basic navigation**: Steps 3-12 provide exploration steps to test general movement and state tracking
+### Files Modified
 
-The scenario uses:
-- `NARRATIVE_MATCH` assertions to verify the error message when vertical movement is attempted on overworld
-- `COMMAND_VALID` assertions to verify horizontal movement works
-- `CONTENT_PRESENT` assertions to verify location state is tracked
+- **`scripts/validation/__init__.py`** - Added exports for new classes:
+  - `FailureDiff`, `RegressionBaseline`, `RegressionDetector`, `RegressionReport`, `ScenarioBaseline`
 
 ## Test Results
 
-All 54 tests in `test_scenario_files.py` pass:
-- YAML parsing: vertical_navigation.yaml parses correctly
-- Dataclass loading: Scenario loads into Scenario dataclass
-- Assertion types: All assertion types (NARRATIVE_MATCH, COMMAND_VALID, CONTENT_PRESENT) are valid
-- Steps have commands: All 12 steps have valid commands
-- Seeds are unique: Seed 42011 is unique across all scenarios
-- Seeds in range: 42011 is within expected range 42001-42999
-- Movement scenarios exist: Now detects 3 scenarios (basic_navigation, subgrid_entry_exit, vertical_navigation)
+All 57 validation tests pass (16 new + 41 existing):
+
+```
+tests/test_validation_assertions.py: 26 passed
+tests/test_validation_coverage.py: 15 passed
+tests/test_validation_regression.py: 16 passed
+```
+
+## Key Design Decisions
+
+1. **Regression Detection Logic**: A run is flagged as a regression if:
+   - Any previously passing scenario now fails (new failures)
+   - Any coverage category decreased from the baseline
+
+2. **Coverage Tracking**: Coverage is stored as percentages per category (from FeatureCategory enum) for easy comparison and delta calculation.
+
+3. **Baseline Merging**: When merging baselines, takes the best (highest) coverage value for each category and combines all scenarios (later baselines override earlier for same-named scenarios).
+
+4. **Python 3.9 Compatibility**: Used `Optional[List[str]]` instead of `list[str] | None` for type hints.
+
+5. **Error Message Extraction**: The `create_baseline()` method extracts error messages from `AssertionResult.error`, falling back to `assertion.message` or string representation.
 
 ## E2E Validation
 
-This scenario should validate:
-- Vertical movement commands (`go up`/`go down`) produce appropriate error messages on overworld
-- Horizontal navigation continues to work correctly
-- State tracking functions properly during exploration
+No E2E tests required - this is a utility module for analyzing playtest results. It integrates with existing `ScenarioResult` and `FeatureCoverage` classes.
