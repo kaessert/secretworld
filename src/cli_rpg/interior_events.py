@@ -74,6 +74,30 @@ RIVAL_WARNING_MESSAGES = {
     75: "You hear combat sounds in the distance - someone else is fighting!",
 }
 
+# Ritual event constants
+# Spawn chance: 15% on SubGrid entry (same as rivals)
+RITUAL_SPAWN_CHANCE = 0.15
+
+# Countdown range in turns
+RITUAL_COUNTDOWN_RANGE = (8, 12)
+
+# Location categories where rituals can occur (same as cave-ins)
+RITUAL_CATEGORIES = CAVE_IN_CATEGORIES
+
+# Warning messages at different progress percentages (inverted - based on time remaining)
+# Progress percentage = (initial - countdown) / initial * 100
+RITUAL_WARNING_MESSAGES = {
+    25: "An ominous chanting echoes through the corridors...",
+    50: "Dark energy pulses through the walls! The ritual grows stronger!",
+    75: "Reality flickers - the ritual nears completion!",
+}
+
+# Message when ritual completes
+RITUAL_COMPLETE_MESSAGE = "The ritual is complete! An empowered being has been summoned!"
+
+# Message when ritual is interrupted
+RITUAL_INTERRUPTED_MESSAGE = "You interrupt the ritual! The summoning is incomplete!"
+
 
 @dataclass
 class InteriorEvent:
@@ -109,6 +133,11 @@ class InteriorEvent:
     rival_progress: int = 0
     arrival_turns: int = 0
     rival_at_target: bool = False
+    # Ritual event fields
+    ritual_room: Optional[str] = None
+    ritual_countdown: int = 0
+    ritual_initial_countdown: int = 0  # Track initial for percentage calculations
+    ritual_completed: bool = False
 
     def is_expired(self, current_hour: int) -> bool:
         """Check if the event has expired based on current game time.
@@ -177,6 +206,15 @@ class InteriorEvent:
             result["arrival_turns"] = self.arrival_turns
         if self.rival_at_target:
             result["rival_at_target"] = self.rival_at_target
+        # Serialize ritual event fields
+        if self.ritual_room is not None:
+            result["ritual_room"] = self.ritual_room
+        if self.ritual_countdown != 0:
+            result["ritual_countdown"] = self.ritual_countdown
+        if self.ritual_initial_countdown != 0:
+            result["ritual_initial_countdown"] = self.ritual_initial_countdown
+        if self.ritual_completed:
+            result["ritual_completed"] = self.ritual_completed
         return result
 
     @classmethod
@@ -212,6 +250,11 @@ class InteriorEvent:
             rival_progress=data.get("rival_progress", 0),
             arrival_turns=data.get("arrival_turns", 0),
             rival_at_target=data.get("rival_at_target", False),
+            # Ritual event fields (with backward-compatible defaults)
+            ritual_room=data.get("ritual_room"),
+            ritual_countdown=data.get("ritual_countdown", 0),
+            ritual_initial_countdown=data.get("ritual_initial_countdown", 0),
+            ritual_completed=data.get("ritual_completed", False),
         )
 
 
@@ -883,5 +926,231 @@ def get_rival_encounter_at_location(
             event_coords = (event_coords[0], event_coords[1], 0)
         if loc_coords == event_coords:
             return rival_event
+
+    return None
+
+
+# -----------------------------------------------------------------------------
+# Ritual Event Functions
+# -----------------------------------------------------------------------------
+
+
+def _find_ritual_room(sub_grid: "SubGrid") -> Optional["Location"]:
+    """Find a suitable room for the ritual (not entry, not boss, not treasure).
+
+    Args:
+        sub_grid: The SubGrid to search
+
+    Returns:
+        Location for ritual, or None if no suitable room found
+    """
+    from cli_rpg.models.location import Location
+
+    candidates = []
+    for location in sub_grid._by_name.values():
+        # Skip entry points
+        if location.is_exit_point:
+            continue
+        # Skip boss rooms
+        if location.boss_enemy:
+            continue
+        # Skip treasure rooms
+        if location.treasures:
+            continue
+        candidates.append(location)
+
+    if not candidates:
+        # Fallback: use any non-entry room
+        for location in sub_grid._by_name.values():
+            if not location.is_exit_point:
+                candidates.append(location)
+
+    if not candidates:
+        return None
+
+    return random.choice(candidates)
+
+
+def check_for_ritual_spawn(
+    game_state: "GameState",
+    sub_grid: "SubGrid",
+) -> Optional[str]:
+    """Check if a ritual should spawn on SubGrid entry.
+
+    Spawns a ritual event at a room distant from entry.
+    Called once when player first enters a SubGrid.
+
+    Args:
+        game_state: Current game state
+        sub_grid: The SubGrid the player is entering
+
+    Returns:
+        Message describing the ritual spawn if one occurred, None otherwise
+    """
+    # Check if parent location category allows rituals
+    parent_location = game_state.world.get(sub_grid.parent_name)
+    if parent_location is None:
+        return None
+
+    parent_category = (parent_location.category or "").lower()
+    if parent_category not in RITUAL_CATEGORIES:
+        return None
+
+    # Check if ritual event already exists (don't spawn twice)
+    if get_active_ritual_event(sub_grid) is not None:
+        return None
+
+    # Roll for ritual spawn
+    if random.random() > RITUAL_SPAWN_CHANCE:
+        return None
+
+    # Find a suitable ritual room
+    ritual_room = _find_ritual_room(sub_grid)
+    if ritual_room is None:
+        return None
+
+    # Calculate countdown
+    min_countdown, max_countdown = RITUAL_COUNTDOWN_RANGE
+    countdown = random.randint(min_countdown, max_countdown)
+
+    # Get ritual room coordinates
+    ritual_coords = ritual_room.coordinates
+    if ritual_coords is None:
+        ritual_coords = (0, 0, 0)
+    elif len(ritual_coords) == 2:
+        ritual_coords = (ritual_coords[0], ritual_coords[1], 0)
+
+    # Create the ritual event
+    event_id = f"ritual_{random.randint(1000, 9999)}"
+    event = InteriorEvent(
+        event_id=event_id,
+        event_type="ritual",
+        location_coords=ritual_coords,
+        blocked_direction="",
+        start_hour=game_state.game_time.total_hours,
+        duration_hours=0,  # Not time-based
+        ritual_room=ritual_room.name,
+        ritual_countdown=countdown,
+        ritual_initial_countdown=countdown,
+        ritual_completed=False,
+    )
+
+    sub_grid.interior_events.append(event)
+
+    # Return spawn message
+    return colors.warning(
+        "You sense dark energy gathering in the depths... "
+        "A ritual is being performed somewhere within!"
+    )
+
+
+def progress_ritual(
+    game_state: "GameState",
+    sub_grid: "SubGrid",
+) -> Optional[str]:
+    """Advance ritual countdown by 1 turn.
+
+    Called after each player move in SubGrid. Returns warning message
+    based on progress percentage. If countdown reaches 0, marks ritual
+    as completed.
+
+    Args:
+        game_state: Current game state
+        sub_grid: The SubGrid containing the ritual event
+
+    Returns:
+        Warning or completion message if applicable, None otherwise
+    """
+    ritual_event = get_active_ritual_event(sub_grid)
+    if ritual_event is None:
+        return None
+
+    # Already completed, no more progress
+    if ritual_event.ritual_completed:
+        return None
+
+    # Decrement countdown
+    ritual_event.ritual_countdown -= 1
+
+    # Check for completion
+    if ritual_event.ritual_countdown <= 0:
+        ritual_event.ritual_countdown = 0
+        ritual_event.ritual_completed = True
+        return colors.damage(RITUAL_COMPLETE_MESSAGE)
+
+    # Check for warning message based on progress percentage
+    if ritual_event.ritual_initial_countdown > 0:
+        # Progress = how much countdown has decreased (inverted from countdown)
+        progress_pct = (
+            (ritual_event.ritual_initial_countdown - ritual_event.ritual_countdown)
+            / ritual_event.ritual_initial_countdown
+        ) * 100
+
+        # Previous progress (before this decrement)
+        prev_progress_pct = (
+            (ritual_event.ritual_initial_countdown - (ritual_event.ritual_countdown + 1))
+            / ritual_event.ritual_initial_countdown
+        ) * 100
+
+        for threshold in sorted(RITUAL_WARNING_MESSAGES.keys()):
+            # Trigger message when just crossing threshold
+            if prev_progress_pct < threshold <= progress_pct:
+                return colors.warning(RITUAL_WARNING_MESSAGES[threshold])
+
+    return None
+
+
+def get_active_ritual_event(sub_grid: "SubGrid") -> Optional[InteriorEvent]:
+    """Get the active ritual event, if any.
+
+    Args:
+        sub_grid: The SubGrid to check
+
+    Returns:
+        The active ritual event if one exists, None otherwise
+    """
+    for event in sub_grid.interior_events:
+        if event.is_active and event.event_type == "ritual":
+            return event
+    return None
+
+
+def get_ritual_encounter_at_location(
+    sub_grid: "SubGrid",
+    location: "Location",
+) -> Optional[tuple[InteriorEvent, bool]]:
+    """Check if player entered the ritual room.
+
+    Used to trigger combat when player enters the ritual room.
+    Returns the event and whether the boss should be empowered
+    (True if ritual completed, False if interrupted).
+
+    Args:
+        sub_grid: The SubGrid to check
+        location: The location to check for ritual
+
+    Returns:
+        Tuple of (event, is_empowered) if ritual room, None otherwise
+    """
+    ritual_event = get_active_ritual_event(sub_grid)
+    if ritual_event is None:
+        return None
+
+    # Check if this is the ritual room by name
+    if ritual_event.ritual_room == location.name:
+        is_empowered = ritual_event.ritual_completed
+        return (ritual_event, is_empowered)
+
+    # Also check by coordinates
+    if location.coordinates and ritual_event.location_coords:
+        loc_coords = location.coordinates
+        if len(loc_coords) == 2:
+            loc_coords = (loc_coords[0], loc_coords[1], 0)
+        event_coords = ritual_event.location_coords
+        if len(event_coords) == 2:
+            event_coords = (event_coords[0], event_coords[1], 0)
+        if tuple(loc_coords) == tuple(event_coords):
+            is_empowered = ritual_event.ritual_completed
+            return (ritual_event, is_empowered)
 
     return None

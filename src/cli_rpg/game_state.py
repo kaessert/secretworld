@@ -1052,6 +1052,8 @@ class GameState:
             check_for_cave_in,
             progress_rival_party,
             get_rival_encounter_at_location,
+            progress_ritual,
+            get_ritual_encounter_at_location,
         )
         event_messages = progress_interior_events(self, self.current_sub_grid)
         for msg in event_messages:
@@ -1099,6 +1101,42 @@ class GameState:
             # Mark rival event as inactive after combat starts
             rival_encounter.is_active = False
             message += f"\n\n{colors.enemy('The rival adventurers turn to face you!')}\n{self.current_combat.start()}"
+
+        # Progress ritual countdown (if one exists) - only if not already in combat
+        if not self.is_in_combat():
+            ritual_progress_message = progress_ritual(self, self.current_sub_grid)
+            if ritual_progress_message:
+                message += f"\n{ritual_progress_message}"
+
+            # Check for ritual encounter at destination (triggers combat)
+            ritual_encounter = get_ritual_encounter_at_location(
+                self.current_sub_grid, destination
+            )
+            if ritual_encounter:
+                ritual_event, is_empowered = ritual_encounter
+                # Spawn the ritual boss
+                boss = spawn_boss(
+                    location_name=destination.name,
+                    level=self.current_character.level,
+                    location_category=destination.category,
+                    boss_type="ritual_summoned",
+                    empowered=is_empowered,
+                )
+                self.current_combat = CombatEncounter(
+                    self.current_character,
+                    enemies=[boss],
+                    weather=self.weather,
+                    companions=self.companions,
+                    location_category=destination.category,
+                    game_state=self,
+                )
+                # Mark ritual event as inactive after combat starts
+                ritual_event.is_active = False
+
+                if is_empowered:
+                    message += f"\n\n{colors.damage('The ritual is complete! An empowered entity manifests!')}\n{self.current_combat.start()}"
+                else:
+                    message += f"\n\n{colors.warning('You interrupt the ritual! A weakened entity emerges!')}\n{self.current_combat.start()}"
 
         # Check for environmental hazards at destination
         from cli_rpg.hazards import check_hazards_on_entry
@@ -1237,10 +1275,15 @@ class GameState:
 
         # Check for rival adventurer spawn (15% chance on SubGrid entry)
         if sub_grid_location is not None and self.current_sub_grid is not None:
-            from cli_rpg.interior_events import check_for_rival_spawn
+            from cli_rpg.interior_events import check_for_rival_spawn, check_for_ritual_spawn
             rival_message = check_for_rival_spawn(self, self.current_sub_grid)
             if rival_message:
                 message += f"\n\n{rival_message}"
+
+            # Check for ritual spawn (15% chance on SubGrid entry, separate roll)
+            ritual_message = check_for_ritual_spawn(self, self.current_sub_grid)
+            if ritual_message:
+                message += f"\n\n{ritual_message}"
 
         # Get the actual location for secret and boss checks
         sub_location = sub_grid_location if sub_grid_location is not None else self.world[matched_location]

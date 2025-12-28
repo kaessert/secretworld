@@ -2378,12 +2378,14 @@ def spawn_boss(
     location_name: str,
     level: int,
     location_category: Optional[str] = None,
-    boss_type: Optional[str] = None
+    boss_type: Optional[str] = None,
+    empowered: bool = False,
 ) -> Enemy:
     """
     Spawn a boss enemy appropriate for the location and player level.
 
     Bosses have 2x base stats and 4x XP reward compared to normal enemies.
+    Empowered bosses (from completed rituals) have 1.5x additional stats.
 
     Args:
         location_name: Name of the location
@@ -2392,6 +2394,7 @@ def spawn_boss(
                           Valid: dungeon, ruins, cave, or default for unknown.
         boss_type: Optional specific boss type to spawn (e.g., "stone_sentinel").
                    When provided, overrides category-based selection.
+        empowered: If True, boss has 1.5x stats (from completed ritual).
 
     Returns:
         Enemy instance with is_boss=True
@@ -2525,6 +2528,64 @@ def spawn_boss(
             bleed_duration=3,
             freeze_chance=0.15,  # Icy water touch can freeze
             freeze_duration=2,
+            special_attacks=special_attacks,
+        )
+
+    if boss_type == "ritual_summoned":
+        # Ritual Summoned: dark entity summoned by ritual
+        # Scale stats: 2x base stats for bosses
+        base_health = (40 + level * 25) * 2
+        base_attack = (5 + level * 3) * 2
+        base_defense = (2 + level * 2) * 2
+        # 4x XP reward for bosses
+        base_xp = (30 + level * 20) * 4
+
+        # Apply empowered modifier (1.5x stats from completed ritual)
+        if empowered:
+            base_health = int(base_health * 1.5)
+            base_attack = int(base_attack * 1.5)
+            base_defense = int(base_defense * 1.5)
+            base_xp = int(base_xp * 1.5)  # Empowered bosses give more XP too
+
+        # Get boss ASCII art
+        ascii_art = get_boss_ascii_art("Ritual Summoned Entity")
+
+        # Special attacks for Ritual Summoned Entity
+        special_attacks = [
+            SpecialAttack(
+                name="Void Consumption",
+                damage_multiplier=1.8 if empowered else 1.5,
+                telegraph_message="The Ritual Entity's form distorts as it draws upon dark energies...",
+                hit_message="unleashes VOID CONSUMPTION",
+                effect_type="curse",
+                effect_duration=3 if empowered else 2,
+                effect_chance=0.9 if empowered else 0.6,
+            )
+        ]
+
+        boss_name = "Empowered Ritual Entity" if empowered else "Ritual Entity"
+        description = (
+            "A dark entity fully manifested from the completed ritual. "
+            "Its power is overwhelming, crackling with unstable dark energy."
+            if empowered else
+            "A dark entity partially summoned through interrupted ritual. "
+            "Though weakened, it remains a formidable foe."
+        )
+
+        return Enemy(
+            name=boss_name,
+            health=base_health,
+            max_health=base_health,
+            attack_power=base_attack,
+            defense=base_defense,
+            xp_reward=base_xp,
+            level=level,
+            ascii_art=ascii_art,
+            is_boss=True,
+            description=description,
+            attack_flavor="strikes with tendrils of shadow",
+            stun_chance=0.15 if empowered else 0.10,
+            stun_duration=1,
             special_attacks=special_attacks,
         )
 

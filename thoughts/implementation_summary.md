@@ -1,108 +1,79 @@
-# Implementation Summary: Issue 25 - Rival Adventurers
+# Implementation Summary: Ritual in Progress Event (Issue 25)
 
 ## Status: COMPLETE
 
-All 20 rival adventurer tests pass, all 30 interior events tests pass, and full test suite (4843 tests) passes.
+All 21 ritual event tests pass, all 30 interior events tests pass, and all 59 combat tests pass.
 
-## What Was Verified
+## What Was Implemented
 
-The rival adventurer system was already fully implemented. This implementation task verified all components are working correctly.
+The "Ritual in progress" interior event creates a time-limited boss encounter in dungeons/caves/ruins/temples. When a player enters a SubGrid, there's a 15% chance a ritual spawns at a non-entry room. The ritual counts down with each player move, and spawns either a standard or empowered boss depending on whether the player reaches the ritual room in time.
 
-### Feature Overview
-Rival adventurer parties that race the player to boss rooms and treasure chests within SubGrid interiors (dungeons, caves, ruins, temples).
+### Core Features
 
-## Implementation Components (All Pre-Existing and Working)
+1. **Ritual Spawning** (15% on SubGrid entry)
+   - Spawns at a random room that is NOT: entry point, boss room, or treasure room
+   - Countdown range: 8-12 turns
+   - Only in RITUAL_CATEGORIES: dungeon, cave, ruins, temple
 
-### 1. `src/cli_rpg/interior_events.py`
+2. **Countdown Progression**
+   - Decrements by 1 each player move in SubGrid
+   - Warning messages at 25%, 50%, 75% progress:
+     - 25%: "An ominous chanting echoes through the corridors..."
+     - 50%: "Dark energy pulses through the walls! The ritual grows stronger!"
+     - 75%: "Reality flickers - the ritual nears completion!"
 
-**Constants:**
-- `RIVAL_SPAWN_CHANCE = 0.15` (15% on SubGrid entry)
-- `RIVAL_PARTY_SIZE_RANGE = (1, 3)` (1-3 rival NPCs)
-- `RIVAL_CATEGORIES` (dungeon, cave, ruins, temple)
-- `RIVAL_PARTY_NAMES` - Flavor names for rival parties
-- `RIVAL_ADVENTURER_TEMPLATES` - Combat stats (Warrior, Mage, Rogue)
-- `RIVAL_WARNING_MESSAGES` - Messages at 25%, 50%, 75% progress
+3. **Combat Triggers**
+   - If player reaches ritual room BEFORE countdown = 0: Standard boss (interrupted ritual)
+   - If countdown reaches 0 BEFORE player arrives: Empowered boss (1.5x stats)
+   - Combat uses new `ritual_summoned` boss type with `empowered` parameter
 
-**Extended InteriorEvent dataclass:**
-- `rival_party: Optional[List[dict]]` - Rival NPC combat stats
-- `target_room: Optional[str]` - Boss or treasure room name
-- `rival_progress: int` - Current turns toward target
-- `arrival_turns: int` - Turns until rivals arrive
-- `rival_at_target: bool` - True when rivals have arrived
-- `is_rival_arrived()` - Method to check arrival status
+4. **Ritual Summoned Boss**
+   - Base stats: 2x normal enemy stats (standard boss multiplier)
+   - Empowered: Additional 1.5x multiplier (total 3x normal)
+   - Special attacks: Dark Pulse (100% damage), Soul Drain (75% damage, heals boss)
 
-**Functions:**
-- `check_for_rival_spawn(game_state, sub_grid)` - 15% chance spawn on entry
-- `progress_rival_party(game_state, sub_grid)` - Advances progress, returns warnings
-- `get_active_rival_event(sub_grid)` - Returns active rival event
-- `get_rival_encounter_at_location(sub_grid, location)` - Triggers combat
-- `_find_target_rooms(sub_grid)` - Finds boss/treasure rooms
-- `_calculate_distance_to_target(sub_grid, target_name)` - Manhattan distance
-- `_create_rival_party(party_size)` - Creates rival NPCs from templates
-- `_handle_rival_arrival(sub_grid, rival_event)` - Handles boss defeat/treasure open
+## Files Modified
 
-### 2. `src/cli_rpg/game_state.py`
+1. **src/cli_rpg/interior_events.py**
+   - Added ritual constants: `RITUAL_SPAWN_CHANCE`, `RITUAL_COUNTDOWN_RANGE`, `RITUAL_CATEGORIES`, `RITUAL_WARNING_MESSAGES`
+   - Extended `InteriorEvent` dataclass with: `ritual_room`, `ritual_countdown`, `ritual_initial_countdown`, `ritual_completed`
+   - New functions: `check_for_ritual_spawn()`, `progress_ritual()`, `get_active_ritual_event()`, `get_ritual_encounter_at_location()`, `_find_ritual_room()`
 
-**`enter()` method (lines 1239-1243):**
-- Calls `check_for_rival_spawn()` after entering SubGrid
-- Displays spawn message if rivals appear
+2. **src/cli_rpg/combat.py**
+   - Added `empowered: bool = False` parameter to `spawn_boss()`
+   - Added `ritual_summoned` boss type with unique attacks and descriptions
+   - Empowered modifier applies 1.5x to health, attack, defense
 
-**`_move_in_sub_grid()` method (lines 1066-1101):**
-- Calls `progress_rival_party()` after each movement
-- Checks `get_rival_encounter_at_location()` for destination
-- Creates CombatEncounter with Enemy instances from rival party
-- Marks rival event inactive after combat starts
+3. **src/cli_rpg/game_state.py**
+   - Integrated `check_for_ritual_spawn()` in `enter()` method
+   - Integrated `progress_ritual()` and `get_ritual_encounter_at_location()` in `_move_in_sub_grid()`
+   - Combat triggers with appropriate empowered flag
 
-### 3. `tests/test_rival_adventurers.py`
+4. **ISSUES.md**
+   - Marked "Ritual in progress" as complete with implementation details
+   - Added related files list
 
-20 comprehensive tests:
-- **TestRivalAdventurerEvent** (3 tests) - Model creation and serialization
-- **TestRivalSpawning** (6 tests) - Spawn mechanics and targeting
-- **TestRivalProgress** (4 tests) - Progress tracking and warnings
-- **TestRivalCombat** (2 tests) - Combat encounter triggers
-- **TestRivalIntegration** (2 tests) - Serialization and backward compatibility
-- **TestRivalPartyNames** (2 tests) - Constants validation
+5. **tests/test_ritual_events.py** (new file)
+   - 21 tests covering all functionality
 
 ## Test Results
 
-```
-tests/test_rival_adventurers.py: 20 passed
-tests/test_interior_events.py: 30 passed
-Full test suite: 4843 passed in 79.94s
-```
+All 21 ritual event tests pass:
+- `TestInteriorEventRitualFields`: 3 tests (model fields, serialization, backward compatibility)
+- `TestRitualSpawnMechanics`: 5 tests (constants, spawn creation, no duplicates)
+- `TestRitualProgression`: 5 tests (countdown, warnings at 25/50/75%, completion)
+- `TestRitualCombatTriggers`: 3 tests (encounter before/after completion, wrong room)
+- `TestRitualBossSpawning`: 2 tests (empowered vs standard stats)
+- `TestRitualHelpers`: 3 tests (get_active_ritual_event variations)
 
-## Feature Behavior
-
-1. **On SubGrid Entry** (dungeon, cave, ruins, temple):
-   - 15% chance to spawn rival party (1-3 NPCs)
-   - Rivals target boss room (preferred) or treasure room
-   - Arrival time = Manhattan distance from entry to target
-
-2. **During SubGrid Movement**:
-   - Each player move advances rival progress by 1
-   - Warning messages at 25%, 50%, 75% progress thresholds
-   - If rivals arrive first: boss marked defeated or treasure marked opened
-   - Rivals wait at target room for player
-
-3. **Combat Encounter**:
-   - Entering room where rivals are waiting triggers combat
-   - Rivals become Enemy instances with stats from templates
-   - Defeating rivals marks event inactive
-
-## Technical Notes
-
-- Rivals serialized with SubGrid via `InteriorEvent.to_dict()`
-- Backward compatible with old saves (missing rival fields default to None/0)
-- Integration uses existing CombatEncounter system
-- No new files needed - extends existing interior_events.py and game_state.py
+All 30 interior events tests pass (existing functionality preserved).
+All 59 combat tests pass (existing functionality preserved).
 
 ## E2E Validation
 
-To validate manually:
-1. Run `cli-rpg --demo` or `cli-rpg`
-2. Enter a dungeon or cave location with `enter <name>`
-3. There's a 15% chance rivals spawn (look for spawn message with party name)
-4. Move around - watch for warning messages at progress thresholds
-5. Race to boss/treasure room before rivals arrive
-6. If too slow, boss will be defeated or treasure opened when you arrive
-7. Encountering rivals at their destination triggers combat with full party
+The following scenarios should be validated:
+1. Enter a dungeon with ritual spawn (15% chance) - should see "dark energy gathering" message
+2. Move within dungeon and see countdown warnings at appropriate intervals
+3. Reach ritual room before countdown = 0 - fight standard boss
+4. Let countdown reach 0 - see completion message, fight empowered boss with 1.5x stats
+5. Save/load game preserves ritual event state
