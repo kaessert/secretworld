@@ -1,68 +1,66 @@
-# Implementation Summary: FeatureCoverage Tracker
+# Implementation Summary: YAML Scenario Format and Runner
 
 ## What Was Implemented
 
-### New File: `scripts/validation/coverage.py`
+The YAML Scenario Runner feature was already fully implemented before this task. All components were verified to be working correctly.
 
-Implemented a feature coverage tracking system for automated playtesting with:
+### Files Verified
 
-1. **FeatureCategory Enum** (14 categories):
-   - CHARACTER_CREATION, MOVEMENT, COMBAT, NPC_INTERACTION
-   - INVENTORY, QUESTS, CRAFTING, EXPLORATION
-   - REST_CAMPING, ECONOMY, ENVIRONMENTAL, RANGER_COMPANION
-   - SOCIAL_SKILLS, PERSISTENCE
+| File | Status |
+|------|--------|
+| `scripts/validation/scenarios.py` | Complete - 436 lines |
+| `scripts/validation/__init__.py` | Complete - exports all scenario classes |
+| `tests/test_scenario_runner.py` | Complete - 17 tests |
 
-2. **FEATURE_DEFINITIONS Constant**:
-   - Maps each category to specific feature identifiers
-   - Total of 50 features across all categories
-   - Examples: `combat.attack`, `movement.overworld`, `quests.accept`
+### Features Implemented
 
-3. **FeatureEvent Dataclass**:
-   - Records individual feature exercise events
-   - Fields: feature, category, timestamp, command, context
-   - Full serialization support (to_dict/from_dict)
+1. **Dataclasses** (in `scenarios.py`):
+   - `ScenarioStep`: command, assertions list, optional wait_for field
+   - `Scenario`: name, steps, description, seed, config, setup commands
+   - `StepResult`: step_index, command, assertion_results, output
+   - `ScenarioResult`: scenario_name, passed, steps_run, assertions stats, results, duration
 
-4. **CoverageStats Dataclass**:
-   - Statistics for a single category
-   - Fields: total, covered, events, features
+2. **ScenarioRunner Class**:
+   - `run(scenario_path: Path)` - Load and run scenario from YAML file
+   - `run_scenario(scenario: Scenario)` - Execute a scenario object
+   - `_execute_step()` - Execute single step with assertions
+   - `_wait_for_field()` - Wait for state field to be populated
+   - `_check_assertion()` - Check assertion against current state
 
-5. **FeatureCoverage Class**:
-   - `record()` - Record a feature being exercised
-   - `get_coverage_by_category()` - Stats per category
-   - `get_uncovered_features()` - Identify gaps
-   - `get_coverage_percentage()` - Overall coverage %
-   - `to_dict()`/`from_dict()` - Serialization
-
-### New File: `tests/test_validation_coverage.py`
-
-15 comprehensive tests covering:
-- Category enum completeness (14 categories)
-- FeatureEvent creation and serialization
-- Recording single and multiple events
-- Coverage calculation by category
-- Uncovered feature identification
-- Overall percentage calculation
-- Empty state handling
-- Full serialization roundtrip
-- Feature definitions completeness
-
-### Updated: `scripts/validation/__init__.py`
-
-Added exports for new classes:
-- FeatureCategory, FeatureEvent, CoverageStats
-- FeatureCoverage, FEATURE_DEFINITIONS
+3. **YAML Format Support**:
+   - Parses all 8 AssertionType values
+   - Supports 'value' key in YAML (maps to 'expected' in Assertion)
+   - Handles nested scenario wrapper structure
+   - Supports setup commands, config options, and fixed seeds
 
 ## Test Results
 
+All 17 tests passed:
+
 ```
-15 passed in 0.11s
+tests/test_scenario_runner.py::TestYAMLParsing::test_parse_minimal_scenario PASSED
+tests/test_scenario_runner.py::TestYAMLParsing::test_parse_full_scenario PASSED
+tests/test_scenario_runner.py::TestYAMLParsing::test_parse_step_with_assertions PASSED
+tests/test_scenario_runner.py::TestYAMLParsing::test_parse_assertion_types PASSED
+tests/test_scenario_runner.py::TestScenarioSerialization::test_scenario_to_dict_from_dict PASSED
+tests/test_scenario_runner.py::TestScenarioSerialization::test_step_to_dict_from_dict PASSED
+tests/test_scenario_runner.py::TestScenarioRunner::test_runner_executes_steps_in_order PASSED
+tests/test_scenario_runner.py::TestScenarioRunner::test_runner_checks_assertions PASSED
+tests/test_scenario_runner.py::TestScenarioRunner::test_runner_returns_result PASSED
+tests/test_scenario_runner.py::TestScenarioRunner::test_runner_handles_failed_assertion PASSED
+tests/test_scenario_runner.py::TestScenarioRunner::test_runner_respects_wait_for PASSED
+tests/test_scenario_runner.py::TestScenarioRunner::test_runner_with_setup_commands PASSED
+tests/test_scenario_runner.py::TestScenarioRunner::test_runner_uses_seed PASSED
+tests/test_scenario_runner.py::TestScenarioRunner::test_run_from_file PASSED
+tests/test_scenario_runner.py::TestResultDataclasses::test_step_result_creation PASSED
+tests/test_scenario_runner.py::TestResultDataclasses::test_scenario_result_all_passed PASSED
+tests/test_scenario_runner.py::TestResultDataclasses::test_scenario_result_some_failed PASSED
 ```
 
-All 41 validation tests (including 26 existing assertion tests) pass.
+## E2E Test Recommendations
 
-## E2E Validation
-
-The coverage tracker can be integrated with HumanLikeAgent to:
-1. Record feature events during simulation runs
-2. Generate coverage reports showing which features were tested
-3. Identify untested features for targeted playtest scenarios
+To validate the full integration, E2E tests should:
+1. Create a real YAML scenario file with game commands
+2. Run `ScenarioRunner.run()` against the actual game (with --demo mode)
+3. Verify state changes match expected assertions
+4. Test timeout and max_commands limits with real game session

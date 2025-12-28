@@ -403,11 +403,11 @@ python -m scripts.run_validation --report-format=html --output=report.html
 5. ✅ Extend AgentState with environmental fields (`time_of_day`, `hour`, `season`, `weather`, `tiredness`) and helper methods (`is_night()`, `is_tired()`, `is_exhausted()`, `is_bad_weather()`, `should_rest()`)
 6. ✅ Create HumanLikeAgent class (`scripts/human_like_agent.py`) integrating personality, class behaviors, and memory with observable behavioral differences (21 tests)
 
-**Phase 3: Validation Framework (MEDIUM)** - IN PROGRESS
+**Phase 3: Validation Framework (MEDIUM)** ✅ COMPLETE
 1. ✅ Create `scripts/validation/` package
 2. ✅ Implement assertion types and checking (8 assertion types: STATE_EQUALS, STATE_CONTAINS, STATE_RANGE, NARRATIVE_MATCH, COMMAND_VALID, COMMAND_EFFECT, CONTENT_PRESENT, CONTENT_QUALITY placeholder)
 3. ✅ Implement FeatureCoverage tracker (14 categories, 50 features, FeatureEvent/CoverageStats dataclasses, record/get_coverage_by_category/get_uncovered_features/get_coverage_percentage methods, full serialization)
-4. Create YAML scenario format and runner
+4. ✅ Create YAML scenario format and runner (ScenarioRunner with run/run_scenario methods, Scenario/ScenarioStep/StepResult/ScenarioResult dataclasses, wait_for support, 17 tests)
 5. Create initial scenarios for core features
 
 **Phase 4: Advanced Features (LOW)**

@@ -38,7 +38,8 @@ scripts/
 └── validation/
     ├── __init__.py      # Package exports for validation framework
     ├── assertions.py    # AssertionType enum (8 types), Assertion/AssertionResult dataclasses, AssertionChecker for state validation
-    └── coverage.py      # FeatureCategory enum (14 categories), FeatureEvent, CoverageStats, FeatureCoverage tracker for playtest coverage analysis
+    ├── coverage.py      # FeatureCategory enum (14 categories), FeatureEvent, CoverageStats, FeatureCoverage tracker for playtest coverage analysis
+    └── scenarios.py     # YAML scenario format: Scenario/ScenarioStep dataclasses, ScenarioRunner for automated playthrough validation
 
 tests/e2e/
 ├── __init__.py          # E2E test package

@@ -13,6 +13,13 @@ from .coverage import (
     FeatureEvent,
     FEATURE_DEFINITIONS,
 )
+from .scenarios import (
+    Scenario,
+    ScenarioResult,
+    ScenarioRunner,
+    ScenarioStep,
+    StepResult,
+)
 
 __all__ = [
     "Assertion",
@@ -24,4 +31,9 @@ __all__ = [
     "FeatureCoverage",
     "FeatureEvent",
     "FEATURE_DEFINITIONS",
+    "Scenario",
+    "ScenarioResult",
+    "ScenarioRunner",
+    "ScenarioStep",
+    "StepResult",
 ]

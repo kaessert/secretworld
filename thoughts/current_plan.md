@@ -1,107 +1,186 @@
-# FeatureCoverage Tracker Implementation Plan
-
-## Summary
-Implement `scripts/validation/coverage.py` - a tracker for which game features are exercised during playtesting, enabling coverage gap identification.
+# Implementation Plan: YAML Scenario Format and Runner
 
 ## Spec
 
-### FeatureCategory Enum
-Categories matching ISSUES.md "Features to Cover":
-- CHARACTER_CREATION (all 5 classes)
-- MOVEMENT (overworld, subgrid, vertical z-levels)
-- COMBAT (attack, abilities, flee, stealth, companions)
-- NPC_INTERACTION (dialogue, shops, quests, arc progression)
-- INVENTORY (equip, unequip, use, drop, restrictions)
-- QUESTS (accept, track, complete, world effects, chains)
-- CRAFTING (gather, craft, skill progression, recipes)
-- EXPLORATION (map, secrets, puzzles, treasures)
-- REST_CAMPING (rest, camp, forage, hunt, dreams)
-- ECONOMY (buy, sell, price modifiers, supply/demand)
-- ENVIRONMENTAL (hazards, interior events)
-- RANGER_COMPANION (tame, summon, feed, combat)
-- SOCIAL_SKILLS (persuade, intimidate, bribe)
-- PERSISTENCE (save, load)
+YAML scenario runner that executes scripted test sequences using the existing assertion framework.
 
-### FeatureEvent Dataclass
+### YAML Format
+```yaml
+scenario:
+  name: "Scenario Name"
+  description: "Optional description"
+  seed: 42  # Optional fixed seed
+  config:
+    max_commands: 100
+    timeout: 60
+  setup:  # Optional commands before steps
+    - "dump-state"
+  steps:
+    - command: "look"
+      wait_for: "location"  # Optional: wait for state field to be populated
+      assertions:
+        - type: STATE_EQUALS
+          field: "in_combat"
+          value: false
+        - type: CONTENT_PRESENT
+          field: "location"
+    - command: "go north"
+      assertions:
+        - type: COMMAND_VALID
+    - command: "attack"
+      wait_for: "in_combat"
+      assertions:
+        - type: STATE_EQUALS
+          field: "in_combat"
+          value: true
+```
+
+### ScenarioRunner API
 ```python
 @dataclass
-class FeatureEvent:
-    feature: str           # Feature identifier (e.g., "combat.attack")
-    category: FeatureCategory
-    timestamp: float       # time.time()
-    command: str           # Command that triggered this
-    context: dict          # Optional metadata
+class ScenarioResult:
+    scenario_name: str
+    passed: bool
+    steps_run: int
+    assertions_passed: int
+    assertions_failed: int
+    results: list[StepResult]
+    duration: float
+
+class ScenarioRunner:
+    def run(self, scenario_path: Path) -> ScenarioResult
+    def run_scenario(self, scenario: Scenario) -> ScenarioResult
 ```
 
-### FeatureCoverage Class
-```python
-class FeatureCoverage:
-    def __init__(self):
-        self.events: list[FeatureEvent]
-        self._feature_definitions: dict[FeatureCategory, set[str]]
+---
 
-    def record(self, feature: str, category: FeatureCategory, command: str, context: dict = None)
-    def get_coverage_by_category(self) -> dict[FeatureCategory, CoverageStats]
-    def get_uncovered_features(self) -> dict[FeatureCategory, set[str]]
-    def get_coverage_percentage(self) -> float
-    def to_dict(self) -> dict
-    @classmethod
-    def from_dict(cls, data: dict) -> "FeatureCoverage"
-```
+## Tests (tests/test_scenario_runner.py)
 
-### CoverageStats Dataclass
-```python
-@dataclass
-class CoverageStats:
-    total: int        # Total features in category
-    covered: int      # Features exercised
-    events: int       # Total events recorded
-    features: set[str]  # Which features were hit
-```
+### 1. YAML Parsing Tests
+- `test_parse_minimal_scenario` - name and one step only
+- `test_parse_full_scenario` - all optional fields (description, seed, config, setup)
+- `test_parse_step_with_assertions` - multiple assertion types per step
+- `test_parse_assertion_types` - all 8 AssertionType values from YAML
 
-### FEATURE_DEFINITIONS
-Constant mapping each category to its required features:
-```python
-FEATURE_DEFINITIONS = {
-    FeatureCategory.COMBAT: {
-        "combat.attack", "combat.ability", "combat.flee",
-        "combat.stealth_kill", "combat.companion_attack"
-    },
-    FeatureCategory.MOVEMENT: {
-        "movement.overworld", "movement.subgrid_entry",
-        "movement.subgrid_exit", "movement.vertical"
-    },
-    # ... etc
-}
-```
+### 2. Scenario Dataclass Tests
+- `test_scenario_to_dict_from_dict` - roundtrip serialization
+- `test_step_to_dict_from_dict` - step serialization
 
-## Tests (tests/test_validation_coverage.py)
+### 3. ScenarioRunner Integration Tests
+- `test_runner_executes_steps_in_order` - commands sent sequentially
+- `test_runner_checks_assertions` - assertions evaluated per step
+- `test_runner_returns_result` - ScenarioResult populated correctly
+- `test_runner_handles_failed_assertion` - continues/stops based on config
+- `test_runner_respects_wait_for` - waits for state field before assertions
 
-1. **test_feature_category_has_all_categories** - 14 categories defined
-2. **test_feature_event_creation** - All fields populated
-3. **test_feature_event_serialization** - to_dict/from_dict roundtrip
-4. **test_coverage_record_event** - Recording adds to events list
-5. **test_coverage_record_multiple_same_feature** - Multiple events same feature
-6. **test_coverage_by_category** - Stats per category
-7. **test_uncovered_features** - Returns unexercised features
-8. **test_coverage_percentage** - Total percentage calculation
-9. **test_coverage_empty** - 0% coverage when no events
-10. **test_coverage_serialization** - to_dict/from_dict roundtrip
-11. **test_feature_definitions_complete** - All categories have definitions
+---
 
 ## Implementation Steps
 
-1. Create `scripts/validation/coverage.py`:
-   - FeatureCategory enum (14 categories)
-   - FEATURE_DEFINITIONS constant
-   - FeatureEvent dataclass with serialization
-   - CoverageStats dataclass
-   - FeatureCoverage class with all methods
+### 1. Create `scripts/validation/scenarios.py`
 
-2. Create `tests/test_validation_coverage.py`:
-   - 11 tests covering spec
+```python
+# Dataclasses
+@dataclass
+class ScenarioStep:
+    command: str
+    assertions: list[Assertion] = field(default_factory=list)
+    wait_for: Optional[str] = None
 
-3. Update `scripts/validation/__init__.py`:
-   - Export FeatureCategory, FeatureEvent, FeatureCoverage, CoverageStats
+@dataclass
+class Scenario:
+    name: str
+    steps: list[ScenarioStep]
+    description: str = ""
+    seed: Optional[int] = None
+    config: dict = field(default_factory=dict)
+    setup: list[str] = field(default_factory=list)
 
-4. Run tests: `pytest tests/test_validation_coverage.py -v`
+    def to_dict() -> dict
+    @classmethod
+    def from_dict(data: dict) -> Scenario
+    @classmethod
+    def from_yaml(path: Path) -> Scenario
+
+@dataclass
+class StepResult:
+    step_index: int
+    command: str
+    assertion_results: list[AssertionResult]
+    output: str
+
+@dataclass
+class ScenarioResult:
+    scenario_name: str
+    passed: bool
+    steps_run: int
+    assertions_passed: int
+    assertions_failed: int
+    results: list[StepResult]
+    duration: float
+```
+
+### 2. Implement ScenarioRunner class
+
+```python
+class ScenarioRunner:
+    def __init__(self, verbose: bool = False):
+        self.verbose = verbose
+        self.checker = AssertionChecker()
+
+    def run(self, scenario_path: Path) -> ScenarioResult:
+        scenario = Scenario.from_yaml(scenario_path)
+        return self.run_scenario(scenario)
+
+    def run_scenario(self, scenario: Scenario) -> ScenarioResult:
+        # 1. Create GameSession with scenario.seed
+        # 2. Run setup commands
+        # 3. For each step:
+        #    a. Send command
+        #    b. Wait for output / wait_for condition
+        #    c. Check assertions against current state
+        #    d. Record StepResult
+        # 4. Return ScenarioResult
+```
+
+### 3. YAML parsing helper
+
+```python
+def _parse_assertion(data: dict) -> Assertion:
+    """Convert YAML assertion dict to Assertion dataclass."""
+    return Assertion(
+        type=AssertionType[data["type"]],
+        field=data.get("field", ""),
+        expected=data.get("value"),  # 'value' in YAML, 'expected' in Assertion
+        message=data.get("message", ""),
+    )
+```
+
+### 4. Update `scripts/validation/__init__.py`
+
+Export new classes:
+- `Scenario`, `ScenarioStep`, `StepResult`, `ScenarioResult`
+- `ScenarioRunner`
+
+### 5. Create tests file `tests/test_scenario_runner.py`
+
+Test all spec points as outlined above.
+
+---
+
+## File Changes Summary
+
+| File | Action |
+|------|--------|
+| `scripts/validation/scenarios.py` | CREATE - Scenario, ScenarioStep, ScenarioResult, StepResult, ScenarioRunner |
+| `scripts/validation/__init__.py` | EDIT - Add exports |
+| `tests/test_scenario_runner.py` | CREATE - Unit tests |
+
+---
+
+## Dependencies
+
+- `pyyaml` - for YAML parsing (check if already in requirements)
+- Existing: `scripts/validation/assertions.py` (AssertionType, Assertion, AssertionChecker)
+- Existing: `scripts/ai_agent.py` (GameSession for running game)
+- Existing: `scripts/state_parser.py` (AgentState for state tracking)
