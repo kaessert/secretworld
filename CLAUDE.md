@@ -94,7 +94,7 @@ src/cli_rpg/
 ├── hazards.py           # Environmental hazards system (poison gas, darkness, unstable ground, temperature, flooding)
 ├── environmental_storytelling.py # Environmental details (corpses, bloodstains, journals) for dungeon atmosphere
 ├── ambient_sounds.py    # Ambient sounds during SubGrid exploration (dripping water, distant screams, etc.)
-├── procedural_interiors.py # RoomType enum, RoomTemplate dataclass, GeneratorProtocol, CATEGORY_GENERATORS for procedural interior layout
+├── procedural_interiors.py # RoomType enum, RoomTemplate dataclass, BSPNode/BSPGenerator for dungeon layouts, GeneratorProtocol, CATEGORY_GENERATORS for procedural interior layout
 ├── test_world.py        # Demo mode fixture loading (load_test_world, create_demo_game_state)
 └── models/
     ├── character.py     # Player character model

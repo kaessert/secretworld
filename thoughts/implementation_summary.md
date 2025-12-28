@@ -1,78 +1,71 @@
-# Implementation Summary: location_noise.py
+# Implementation Summary: BSPGenerator for Dungeons, Temples, and Ruins
 
 ## What Was Implemented
 
-Created `src/cli_rpg/location_noise.py` with two classes:
+### New Classes
 
-### SimplexNoise Class
-- Pure-Python 2D simplex noise generator (no external dependencies)
-- Uses Ken Perlin's simplex noise algorithm
-- Seeded permutation tables for deterministic, reproducible noise patterns
-- Standard 12-direction gradient vectors on unit circle
-- `noise2d(x, y)` returns values in [-1, 1]
+1. **BSPNode** (dataclass in `src/cli_rpg/procedural_interiors.py`)
+   - Binary Space Partitioning tree node for recursive space division
+   - Properties: `x`, `y`, `width`, `height`, `left`, `right`, `room`
+   - `is_leaf` property for detecting terminal nodes
+   - `split()` method for horizontal/vertical partitioning with configurable min_size
 
-### LocationNoiseManager Class
-- Multi-octave noise (3 octaves, persistence 0.5, lacunarity 2.0)
-- `get_location_density(x, y)` returns density in [0, 1]
-- `should_spawn_location(x, y, terrain)` determines if location should spawn
-- Integrates with terrain modifiers from `NAMED_LOCATION_CONFIG` in `world_tiles.py`
-- Fully deterministic: same world_seed + coordinates = same result
+2. **BSPGenerator** (class in `src/cli_rpg/procedural_interiors.py`)
+   - Generates procedural dungeon layouts using BSP algorithm
+   - Supports multi-level dungeons (z-axis traversal)
+   - Implements `GeneratorProtocol` interface
+   - Key methods:
+     - `generate()` - Main entry point returning list of RoomTemplate
+     - `_generate_level()` - Per-level BSP tree and room generation
+     - `_split_recursively()` - Recursive BSP partitioning
+     - `_create_room_in_partition()` - Room placement within partitions
+     - `_connect_siblings()` - Horizontal corridor connections
+     - `_add_vertical_connections()` - Stair connections between levels
+     - `_assign_room_types()` - Special room placement (entry, boss, treasure, puzzle)
 
-## Files Created/Modified
+### Modified Functions
 
-| File | Action |
-|------|--------|
-| `src/cli_rpg/location_noise.py` | Created (new module) |
-| `tests/test_location_noise.py` | Created (12 tests) |
+- **`generate_interior_layout()`** - Updated to use BSPGenerator when `CATEGORY_GENERATORS[category] == "BSPGenerator"`
+- Added **`_generate_fallback_layout()`** - Fallback for unimplemented generators
+
+### Features
+
+- **Deterministic generation**: Same seed produces identical layouts
+- **Multi-level support**: Z-axis navigation with up/down connections
+- **Room type assignment**:
+  - ENTRY at top level (max_z), closest to center
+  - BOSS_ROOM at bottom level (min_z), furthest from entry
+  - TREASURE/PUZZLE at dead-end rooms (30%/20% probability)
+  - CORRIDOR for rooms with 3+ connections
+- **Bounds-aware**: Respects 6-tuple bounds `(min_x, max_x, min_y, max_y, min_z, max_z)`
+- **Small bounds handling**: Works with bounds as small as 3x3
+
+### Categories Using BSPGenerator
+
+- dungeon, ruins, temple, tomb, crypt, monastery, shrine
 
 ## Test Results
 
-All 12 tests passing:
-- 5 SimplexNoise tests (range, determinism, seed variation, position variation, smoothness)
-- 7 LocationNoiseManager tests (density range, determinism, spatial variation, spawn density correlation, terrain modifiers, spawn determinism, clustering)
+- 17 new tests in `tests/test_bsp_generator.py` - ALL PASSING
+- 20 existing tests in `tests/test_procedural_interiors.py` - ALL PASSING
+- Full test suite: 5081 passed, 4 skipped
 
-Full test suite: **5064 passed, 4 skipped** (no regressions)
+## Files Modified
 
-## Technical Details
+1. `src/cli_rpg/procedural_interiors.py` - Added BSPNode, BSPGenerator, updated generate_interior_layout
+2. `tests/test_bsp_generator.py` - New test file (17 tests)
 
-### Simplex Noise Algorithm
-1. Skew input coordinates to simplex space using F2 = 0.5 * (sqrt(3) - 1)
-2. Determine which simplex triangle contains the point
-3. Calculate contributions from 3 triangle corners
-4. Each corner: dot product of gradient and offset, attenuated by distance^4
-5. Sum contributions, scale by 70.0 to normalize to [-1, 1]
+## Technical Decisions
 
-### Multi-Octave Combination
-```python
-for octave in range(3):
-    density += noise.noise2d(x * frequency, y * frequency) * amplitude
-    amplitude *= 0.5   # persistence
-    frequency *= 2.0   # lacunarity
-```
-
-### Spawn Probability
-```python
-spawn_probability = density * BASE_SPAWN_PROBABILITY / terrain_modifier
-```
-Where `terrain_modifier` comes from `NAMED_LOCATION_CONFIG["terrain_modifiers"]`.
+1. **Room placement**: Rooms are smaller than partitions with margin, providing natural corridors
+2. **Connection strategy**: Uses Manhattan distance to find closest rooms for connections
+3. **Small bounds handling**: For partitions ≤4 units, uses entire partition as room
+4. **Split direction**: Prefers splitting the longer dimension (1.25x ratio threshold)
 
 ## E2E Validation
 
-To validate the noise-based location spawning works correctly in-game:
-1. Run the game with a fixed seed
-2. Walk in multiple directions and observe named location spawn patterns
-3. Verify locations cluster naturally (not uniform distribution)
-4. Verify mountain/swamp terrain has more POIs than plains
-
-## Integration Notes
-
-The module is ready for integration into `game_state.py`. To use:
-```python
-from cli_rpg.location_noise import LocationNoiseManager
-
-# In GameState.__init__ or similar
-self.location_noise = LocationNoiseManager(world_seed)
-
-# Replace should_generate_named_location() call with:
-generate_named = self.location_noise.should_spawn_location(x, y, terrain)
-```
+The implementation should be validated for:
+- Dungeons generating proper multi-room layouts
+- Vertical navigation (up/down) working between levels
+- Entry points connecting correctly to overworld
+- Boss rooms appearing at lowest level

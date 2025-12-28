@@ -1,19 +1,20 @@
 """Procedural interior generation for enterable locations.
 
 This module provides foundational data structures for procedural layout generation
-of interior locations (dungeons, caves, towns, etc.). The actual generators
-(BSP, cellular automata, etc.) will be implemented in Phase 1 Step 2.
+of interior locations (dungeons, caves, towns, etc.).
 
 Architecture:
 - RoomType: Classification of room purposes
 - RoomTemplate: Blueprint for a single room in a layout
+- BSPNode: Binary Space Partitioning tree node for dungeon generation
+- BSPGenerator: Generator using BSP algorithm for dungeons, temples, ruins
 - CATEGORY_GENERATORS: Maps location categories to generator types
 - generate_interior_layout: Factory function for generating layouts
 """
 
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Protocol
+from typing import Optional, Protocol
 import random
 
 
@@ -58,22 +59,433 @@ class RoomTemplate:
 
 
 class GeneratorProtocol(Protocol):
-    """Abstract interface for procedural layout generators.
+    """Abstract interface for procedural layout generators."""
 
-    Implementations (BSPGenerator, CellularAutomataGenerator, etc.)
-    will be added in Phase 1 Step 2.
-    """
-
-    def generate(self, seed: int) -> list[RoomTemplate]:
-        """Generate a layout from the given seed.
-
-        Args:
-            seed: Random seed for deterministic generation.
+    def generate(self) -> list[RoomTemplate]:
+        """Generate a layout.
 
         Returns:
             List of RoomTemplate blueprints for the layout.
         """
         ...
+
+
+@dataclass
+class BSPNode:
+    """Node in BSP tree representing a rectangular partition.
+
+    Used by BSPGenerator to recursively divide space for dungeon layouts.
+    """
+
+    x: int
+    y: int
+    width: int
+    height: int
+    left: Optional["BSPNode"] = None
+    right: Optional["BSPNode"] = None
+    room: Optional[tuple[int, int, int, int]] = None  # (x, y, w, h) if leaf with room
+
+    @property
+    def is_leaf(self) -> bool:
+        """Check if this node is a leaf (no children)."""
+        return self.left is None and self.right is None
+
+    def split(
+        self, rng: random.Random, horizontal: Optional[bool] = None, min_size: int = 4
+    ) -> bool:
+        """Split this node into two children.
+
+        Args:
+            rng: Random number generator for split position.
+            horizontal: If True, split horizontally. If None, auto-determine.
+            min_size: Minimum dimension for a partition.
+
+        Returns:
+            True if split was successful, False otherwise.
+        """
+        if self.left is not None or self.right is not None:
+            return False  # Already split
+
+        if self.width < min_size * 2 and self.height < min_size * 2:
+            return False  # Too small to split
+
+        # Determine split direction if not specified
+        if horizontal is None:
+            if self.width > self.height * 1.25:
+                horizontal = False  # Split vertically (wide partition)
+            elif self.height > self.width * 1.25:
+                horizontal = True  # Split horizontally (tall partition)
+            else:
+                horizontal = rng.random() < 0.5
+
+        # Check if we can split in chosen direction
+        if horizontal and self.height < min_size * 2:
+            horizontal = False
+        elif not horizontal and self.width < min_size * 2:
+            horizontal = True
+
+        # Calculate split position (40-60% of dimension)
+        if horizontal:
+            max_dim = self.height
+        else:
+            max_dim = self.width
+
+        if max_dim < min_size * 2:
+            return False
+
+        min_pos = max(min_size, int(max_dim * 0.4))
+        max_pos = min(max_dim - min_size, int(max_dim * 0.6))
+
+        if min_pos > max_pos:
+            min_pos = max_pos = max_dim // 2
+
+        split_pos = rng.randint(min_pos, max_pos)
+
+        # Create children
+        if horizontal:
+            self.left = BSPNode(self.x, self.y, self.width, split_pos)
+            self.right = BSPNode(
+                self.x, self.y + split_pos, self.width, self.height - split_pos
+            )
+        else:
+            self.left = BSPNode(self.x, self.y, split_pos, self.height)
+            self.right = BSPNode(
+                self.x + split_pos, self.y, self.width - split_pos, self.height
+            )
+
+        return True
+
+
+class BSPGenerator:
+    """Binary Space Partitioning generator for dungeon layouts.
+
+    Generates procedural interior layouts for dungeons, temples, ruins,
+    tombs, crypts, monasteries, and shrines using the BSP algorithm.
+    """
+
+    MIN_ROOM_SIZE = 3
+    MIN_PARTITION_SIZE = 4
+    MAX_SPLIT_DEPTH = 6
+
+    def __init__(self, bounds: tuple[int, int, int, int, int, int], seed: int):
+        """Initialize with SubGrid bounds and random seed.
+
+        Args:
+            bounds: 6-tuple (min_x, max_x, min_y, max_y, min_z, max_z).
+            seed: Random seed for deterministic generation.
+        """
+        self.bounds = bounds
+        self.seed = seed
+        self.rng = random.Random(seed)
+        self.min_x, self.max_x, self.min_y, self.max_y, self.min_z, self.max_z = bounds
+
+    def generate(self) -> list[RoomTemplate]:
+        """Generate layout returning list of RoomTemplate blueprints."""
+        rooms: list[RoomTemplate] = []
+
+        # Generate for each z-level
+        for z in range(self.max_z, self.min_z - 1, -1):
+            level_rooms = self._generate_level(z)
+            rooms.extend(level_rooms)
+
+        # Ensure rooms are connected between levels
+        self._add_vertical_connections(rooms)
+
+        # Assign special room types
+        self._assign_room_types(rooms)
+
+        return rooms
+
+    def _generate_level(self, z: int) -> list[RoomTemplate]:
+        """Generate rooms for a single z-level."""
+        width = self.max_x - self.min_x + 1
+        height = self.max_y - self.min_y + 1
+
+        # Create root node for this level
+        root = BSPNode(x=self.min_x, y=self.min_y, width=width, height=height)
+
+        # Build BSP tree
+        self._split_recursively(root, 0)
+
+        # Collect leaf nodes and create rooms
+        leaves = self._collect_leaves(root)
+
+        # Create rooms in leaves
+        rooms: list[RoomTemplate] = []
+        for leaf in leaves:
+            room_coords = self._create_room_in_partition(leaf, z)
+            if room_coords:
+                rooms.append(room_coords)
+
+        # Connect sibling rooms
+        self._connect_siblings(root, rooms, z)
+
+        return rooms
+
+    def _split_recursively(self, node: BSPNode, depth: int) -> None:
+        """Recursively split the BSP tree."""
+        if depth >= self.MAX_SPLIT_DEPTH:
+            return
+
+        if node.split(self.rng, min_size=self.MIN_PARTITION_SIZE):
+            if node.left:
+                self._split_recursively(node.left, depth + 1)
+            if node.right:
+                self._split_recursively(node.right, depth + 1)
+
+    def _collect_leaves(self, node: BSPNode) -> list[BSPNode]:
+        """Collect all leaf nodes from the BSP tree."""
+        if node.is_leaf:
+            return [node]
+        leaves = []
+        if node.left:
+            leaves.extend(self._collect_leaves(node.left))
+        if node.right:
+            leaves.extend(self._collect_leaves(node.right))
+        return leaves
+
+    def _create_room_in_partition(
+        self, node: BSPNode, z: int
+    ) -> Optional[RoomTemplate]:
+        """Create a room within a leaf partition."""
+        # For very small partitions (like 3x3), use the entire partition
+        if node.width <= self.MIN_ROOM_SIZE + 1 or node.height <= self.MIN_ROOM_SIZE + 1:
+            # Use the entire partition as a room
+            room_width = node.width
+            room_height = node.height
+            offset_x = 0
+            offset_y = 0
+        else:
+            # Room is smaller than partition with some margin
+            margin = 1
+            room_width = max(
+                self.MIN_ROOM_SIZE, node.width - margin * 2 - self.rng.randint(0, 2)
+            )
+            room_height = max(
+                self.MIN_ROOM_SIZE, node.height - margin * 2 - self.rng.randint(0, 2)
+            )
+
+            # Ensure room fits within partition
+            room_width = min(room_width, node.width - margin)
+            room_height = min(room_height, node.height - margin)
+
+            if room_width < 1 or room_height < 1:
+                return None
+
+            # Position room within partition (center with some offset)
+            max_offset_x = node.width - room_width - margin
+            max_offset_y = node.height - room_height - margin
+            offset_x = self.rng.randint(0, max(0, max_offset_x))
+            offset_y = self.rng.randint(0, max(0, max_offset_y))
+
+        room_x = node.x + offset_x
+        room_y = node.y + offset_y
+
+        # Store room info in node for connection generation
+        node.room = (room_x, room_y, room_width, room_height)
+
+        # Pick a point in the room for the RoomTemplate coords
+        center_x = room_x + room_width // 2
+        center_y = room_y + room_height // 2
+
+        # Clamp to bounds
+        center_x = max(self.min_x, min(self.max_x, center_x))
+        center_y = max(self.min_y, min(self.max_y, center_y))
+
+        return RoomTemplate(
+            coords=(center_x, center_y, z),
+            room_type=RoomType.CHAMBER,  # Will be reassigned later
+            connections=[],
+            is_entry=False,
+        )
+
+    def _connect_siblings(
+        self, node: BSPNode, rooms: list[RoomTemplate], z: int
+    ) -> None:
+        """Connect rooms in sibling partitions."""
+        if node.is_leaf:
+            return
+
+        # Recursively connect children first
+        if node.left:
+            self._connect_siblings(node.left, rooms, z)
+        if node.right:
+            self._connect_siblings(node.right, rooms, z)
+
+        # Connect rooms between left and right subtrees
+        if node.left and node.right:
+            left_rooms = self._get_rooms_in_subtree(node.left, rooms, z)
+            right_rooms = self._get_rooms_in_subtree(node.right, rooms, z)
+
+            if left_rooms and right_rooms:
+                # Find closest pair of rooms
+                best_pair = None
+                best_dist = float("inf")
+
+                for lr in left_rooms:
+                    for rr in right_rooms:
+                        dist = abs(lr.coords[0] - rr.coords[0]) + abs(
+                            lr.coords[1] - rr.coords[1]
+                        )
+                        if dist < best_dist:
+                            best_dist = dist
+                            best_pair = (lr, rr)
+
+                if best_pair:
+                    self._add_connection(best_pair[0], best_pair[1])
+
+    def _get_rooms_in_subtree(
+        self, node: BSPNode, rooms: list[RoomTemplate], z: int
+    ) -> list[RoomTemplate]:
+        """Get all rooms in a subtree."""
+        result = []
+        for room in rooms:
+            x, y, rz = room.coords
+            if rz == z and node.x <= x < node.x + node.width and node.y <= y < node.y + node.height:
+                result.append(room)
+        return result
+
+    def _add_connection(self, room1: RoomTemplate, room2: RoomTemplate) -> None:
+        """Add bidirectional connections between two rooms."""
+        x1, y1, z1 = room1.coords
+        x2, y2, z2 = room2.coords
+
+        if z1 != z2:
+            # Vertical connection
+            if z1 < z2:
+                if "up" not in room1.connections:
+                    room1.connections.append("up")
+                if "down" not in room2.connections:
+                    room2.connections.append("down")
+            else:
+                if "down" not in room1.connections:
+                    room1.connections.append("down")
+                if "up" not in room2.connections:
+                    room2.connections.append("up")
+        else:
+            # Horizontal connection - determine direction
+            dx = x2 - x1
+            dy = y2 - y1
+
+            if abs(dx) >= abs(dy):
+                # Primarily east-west
+                if dx > 0:
+                    if "east" not in room1.connections:
+                        room1.connections.append("east")
+                    if "west" not in room2.connections:
+                        room2.connections.append("west")
+                else:
+                    if "west" not in room1.connections:
+                        room1.connections.append("west")
+                    if "east" not in room2.connections:
+                        room2.connections.append("east")
+            else:
+                # Primarily north-south
+                if dy > 0:
+                    if "north" not in room1.connections:
+                        room1.connections.append("north")
+                    if "south" not in room2.connections:
+                        room2.connections.append("south")
+                else:
+                    if "south" not in room1.connections:
+                        room1.connections.append("south")
+                    if "north" not in room2.connections:
+                        room2.connections.append("north")
+
+    def _add_vertical_connections(self, rooms: list[RoomTemplate]) -> None:
+        """Add up/down connections between adjacent z-levels."""
+        # Group rooms by z-level
+        by_level: dict[int, list[RoomTemplate]] = {}
+        for room in rooms:
+            z = room.coords[2]
+            if z not in by_level:
+                by_level[z] = []
+            by_level[z].append(room)
+
+        # For each pair of adjacent levels, add stair connections
+        z_levels = sorted(by_level.keys(), reverse=True)
+        for i in range(len(z_levels) - 1):
+            upper_z = z_levels[i]
+            lower_z = z_levels[i + 1]
+
+            upper_rooms = by_level[upper_z]
+            lower_rooms = by_level[lower_z]
+
+            if upper_rooms and lower_rooms:
+                # Find closest pair between levels
+                best_pair = None
+                best_dist = float("inf")
+
+                for ur in upper_rooms:
+                    for lr in lower_rooms:
+                        dist = abs(ur.coords[0] - lr.coords[0]) + abs(
+                            ur.coords[1] - lr.coords[1]
+                        )
+                        if dist < best_dist:
+                            best_dist = dist
+                            best_pair = (ur, lr)
+
+                if best_pair:
+                    self._add_connection(best_pair[0], best_pair[1])
+
+    def _assign_room_types(self, rooms: list[RoomTemplate]) -> None:
+        """Assign special room types (entry, boss, treasure, puzzle)."""
+        if not rooms:
+            return
+
+        # Find entry room: at max_z level, closest to center
+        center_x = (self.min_x + self.max_x) // 2
+        center_y = (self.min_y + self.max_y) // 2
+
+        top_level_rooms = [r for r in rooms if r.coords[2] == self.max_z]
+        if top_level_rooms:
+            entry_room = min(
+                top_level_rooms,
+                key=lambda r: abs(r.coords[0] - center_x) + abs(r.coords[1] - center_y),
+            )
+            entry_room.room_type = RoomType.ENTRY
+            entry_room.is_entry = True
+
+        # Find boss room: at min_z level, furthest from entry
+        bottom_level_rooms = [r for r in rooms if r.coords[2] == self.min_z]
+        if bottom_level_rooms and self.min_z < self.max_z:
+            entry_coords = (
+                entry_room.coords if top_level_rooms else (center_x, center_y, self.max_z)
+            )
+            boss_room = max(
+                bottom_level_rooms,
+                key=lambda r: abs(r.coords[0] - entry_coords[0])
+                + abs(r.coords[1] - entry_coords[1]),
+            )
+            boss_room.room_type = RoomType.BOSS_ROOM
+        elif bottom_level_rooms and self.min_z == self.max_z:
+            # Single level: place boss furthest from entry
+            if top_level_rooms:
+                entry_coords = entry_room.coords
+                candidates = [r for r in rooms if r != entry_room]
+                if candidates:
+                    boss_room = max(
+                        candidates,
+                        key=lambda r: abs(r.coords[0] - entry_coords[0])
+                        + abs(r.coords[1] - entry_coords[1]),
+                    )
+                    boss_room.room_type = RoomType.BOSS_ROOM
+
+        # Assign treasure and puzzle rooms to dead ends (1 connection)
+        for room in rooms:
+            if room.room_type in (RoomType.ENTRY, RoomType.BOSS_ROOM):
+                continue
+            if len(room.connections) == 1:
+                roll = self.rng.random()
+                if roll < 0.3:
+                    room.room_type = RoomType.TREASURE
+                elif roll < 0.5:
+                    room.room_type = RoomType.PUZZLE
+
+        # Rooms with 3+ connections become corridors
+        for room in rooms:
+            if room.room_type == RoomType.CHAMBER and len(room.connections) >= 3:
+                room.room_type = RoomType.CORRIDOR
 
 
 # Maps location categories to generator types.
@@ -109,8 +521,8 @@ def generate_interior_layout(
 ) -> list[RoomTemplate]:
     """Generate a procedural interior layout for a location category.
 
-    This is the entry point for procedural generation. Currently returns
-    a fallback layout; actual generator implementations come in Phase 1 Step 2.
+    This is the entry point for procedural generation. Uses the appropriate
+    generator based on the category.
 
     Args:
         category: Location category (e.g., "dungeon", "cave", "town").
@@ -121,14 +533,22 @@ def generate_interior_layout(
     Returns:
         List of RoomTemplate blueprints for the layout.
     """
-    # Use deterministic random for reproducibility
-    rng = random.Random(seed)
+    generator_type = CATEGORY_GENERATORS.get(category, "BSPGenerator")
 
-    # Extract bounds
+    # Use BSPGenerator for dungeon-type locations
+    if generator_type == "BSPGenerator":
+        generator = BSPGenerator(bounds=bounds, seed=seed)
+        return generator.generate()
+
+    # Fallback for other generator types (not yet implemented)
+    return _generate_fallback_layout(bounds, seed)
+
+
+def _generate_fallback_layout(bounds: tuple, seed: int) -> list[RoomTemplate]:
+    """Generate a simple fallback layout for unimplemented generators."""
+    rng = random.Random(seed)
     min_x, max_x, min_y, max_y, min_z, max_z = bounds
 
-    # Fallback: Generate a simple layout
-    # This will be replaced by actual generator implementations in Step 2
     rooms: list[RoomTemplate] = []
 
     # Always create an entry room at the center of level 0
