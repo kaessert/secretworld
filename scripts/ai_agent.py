@@ -923,6 +923,7 @@ class GameSession:
     session_id: Optional[str] = None  # Current session ID
     personality: Optional[str] = None  # Personality type name (for HumanLikeAgent)
     character_class: Optional[str] = None  # Character class name (for HumanLikeAgent)
+    demo_mode: bool = False  # If True, use --demo flag for pre-generated test world
 
     process: Optional[subprocess.Popen] = field(default=None, init=False)
     state: AgentState = field(default_factory=AgentState, init=False)
@@ -1015,6 +1016,10 @@ class GameSession:
         # Add skip-character-creation flag if requested
         if skip_character_creation:
             cmd.append("--skip-character-creation")
+
+        # Add demo mode flag if requested (uses pre-generated test world)
+        if self.demo_mode:
+            cmd.append("--demo")
 
         # Use PTY to force line buffering (works better on Unix)
         master_fd, slave_fd = pty.openpty()

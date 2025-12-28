@@ -145,7 +145,7 @@ Create scripted test sessions that walk through each game feature, issuing comma
 
 #### Features to Cover
 - [x] Character creation (all 5 classes) - 5 scenarios in scripts/scenarios/character_creation/ (seeds 42020-42024)
-- [ ] Movement and navigation (overworld, SubGrid entry/exit, vertical z-levels)
+- [x] Movement and navigation (overworld, SubGrid entry/exit, vertical z-levels) - 3 scenarios in scripts/scenarios/movement/ with demo_mode support
 - [ ] Combat (attack, abilities, flee, stealth kills, companion combat)
 - [ ] NPC interaction (talk, dialogue choices, arc progression, shop, quest acceptance)
 - [ ] Inventory management (equip, unequip, use, drop, armor restrictions, holy symbols)
@@ -408,7 +408,7 @@ python -m scripts.run_validation --report-format=html --output=report.html
 2. ✅ Implement assertion types and checking (8 assertion types: STATE_EQUALS, STATE_CONTAINS, STATE_RANGE, NARRATIVE_MATCH, COMMAND_VALID, COMMAND_EFFECT, CONTENT_PRESENT, CONTENT_QUALITY placeholder)
 3. ✅ Implement FeatureCoverage tracker (14 categories, 50 features, FeatureEvent/CoverageStats dataclasses, record/get_coverage_by_category/get_uncovered_features/get_coverage_percentage methods, full serialization)
 4. ✅ Create YAML scenario format and runner (ScenarioRunner with run/run_scenario methods, Scenario/ScenarioStep/StepResult/ScenarioResult dataclasses, wait_for support, 17 tests)
-5. ✅ Create initial scenarios for core features (12 YAML scenarios in scripts/scenarios/: movement (basic_navigation, subgrid_entry_exit, vertical_navigation), combat, inventory, NPC, exploration, rest, crafting; seeds 42001-42012; validated by tests/test_scenario_files.py)
+5. ✅ Create initial scenarios for core features (17 YAML scenarios in scripts/scenarios/: character_creation (5), movement (3), combat (2), inventory (2), NPC (2), exploration (1), rest (1), crafting (1); validated by tests/test_scenario_files.py)
 
 **Phase 4: Advanced Features (LOW)** - IN PROGRESS
 1. Decision timing variability
@@ -423,7 +423,7 @@ python -m scripts.run_validation --report-format=html --output=report.html
 - [x] Can interrupt simulation, resume from checkpoint, get identical results (Phase 1 - COMPLETE)
 - [x] Observable behavioral differences between personalities and classes (Phase 2 - COMPLETE)
 - [x] Track which features are exercised, identify coverage gaps (Phase 3 - FeatureCoverage tracker COMPLETE)
-- [x] Initial YAML scenarios for core features created and validated (Phase 3 Step 5 - 11 scenarios COMPLETE)
+- [x] Initial YAML scenarios for core features created and validated (Phase 3 Step 5 - 17 scenarios COMPLETE)
 - [x] Detect feature regressions automatically with clear reports (Phase 4 - `RegressionDetector` COMPLETE)
 - [x] Validate AI-generated content meets quality standards (Phase 4 - `ContentQualityChecker` COMPLETE with 12 tests)
 
@@ -431,7 +431,7 @@ python -m scripts.run_validation --report-format=html --output=report.html
 - `scripts/ai_agent.py` - Core agent to extend
 - `scripts/state_parser.py` - AgentState to extend
 - `scripts/run_simulation.py` - CLI to extend
-- `scripts/scenarios/` - YAML validation scenarios (12 files organized by feature, including vertical_navigation.yaml and basic_crafting.yaml)
+- `scripts/scenarios/` - YAML validation scenarios (17 files organized by feature, including vertical_navigation.yaml and basic_crafting.yaml)
 - `scripts/validation/regression.py` - Regression detection (RegressionDetector, baselines, comparison)
 - `scripts/validation/ai_quality.py` - AI content quality validation (ContentQualityChecker, ContentType, QualityResult)
 - `scripts/baselines/` - Directory for storing baseline files

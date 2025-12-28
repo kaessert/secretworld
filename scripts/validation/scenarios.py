@@ -268,6 +268,11 @@ class ScenarioRunner:
         # Get character creation configuration
         skip_char_creation = scenario.config.get("skip_character_creation", True)
         creation_inputs = scenario.config.get("character_creation_inputs", [])
+        demo_mode = scenario.config.get("demo_mode", False)
+
+        # Update session demo_mode if specified in scenario config
+        if demo_mode:
+            session.demo_mode = True
 
         try:
             session.start(

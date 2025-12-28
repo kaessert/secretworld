@@ -373,7 +373,8 @@
             ],
             "category": "cave",
             "parent_location": "Dark Cave",
-            "is_exit_point": true
+            "is_exit_point": true,
+            "allowed_exits": ["north", "down"]
           },
           {
             "name": "Dark Passage",
@@ -385,7 +386,8 @@
               0
             ],
             "category": "cave",
-            "parent_location": "Dark Cave"
+            "parent_location": "Dark Cave",
+            "allowed_exits": ["south", "east", "west"]
           },
           {
             "name": "Spider Den",
@@ -405,7 +407,8 @@
                 "locked": false,
                 "opened": false
               }
-            ]
+            ],
+            "allowed_exits": ["east"]
           },
           {
             "name": "Hidden Alcove",
@@ -424,7 +427,21 @@
                 "locked": true,
                 "opened": false
               }
-            ]
+            ],
+            "allowed_exits": ["west"]
+          },
+          {
+            "name": "Deep Cavern",
+            "description": "A vast underground chamber. The air is cold and damp. Stalactites hang from the ceiling.",
+            "npcs": [],
+            "coordinates": [
+              0,
+              0,
+              -1
+            ],
+            "category": "cave",
+            "parent_location": "Dark Cave",
+            "allowed_exits": ["up"]
           }
         ],
         "bounds": [

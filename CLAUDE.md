@@ -45,7 +45,7 @@ scripts/
 └── scenarios/           # YAML validation scenarios for core game features
     ├── __init__.py
     ├── character_creation/ # Character creation scenarios (warrior, mage, rogue, ranger, cleric creation)
-    ├── movement/        # Navigation scenarios (basic_navigation.yaml, subgrid_entry_exit.yaml)
+    ├── movement/        # Navigation scenarios (basic_navigation.yaml, subgrid_entry_exit.yaml, vertical_navigation.yaml)
     ├── combat/          # Combat scenarios (basic_attack.yaml, flee_combat.yaml)
     ├── inventory/       # Inventory scenarios (equip_unequip.yaml, use_item.yaml)
     ├── npc/             # NPC interaction scenarios (talk_dialogue.yaml, shop_browse.yaml)

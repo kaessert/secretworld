@@ -1,87 +1,65 @@
-# Implementation Summary: Character Creation Validation Scenarios
+# Implementation Summary: Movement/Navigation Scenario Validation
 
 ## What Was Implemented
 
-Added validation scenarios for character creation with all 5 classes to complete the "Scripted Playthrough for Feature Validation" checklist item.
+### 1. Updated Test World Fixture (`tests/fixtures/test_world.json`)
+- Added `allowed_exits` field to all Dark Cave SubGrid locations to enable proper interior navigation
+- Added a new "Deep Cavern" location at z=-1 level for vertical navigation testing
+- Cave Entrance now has `allowed_exits: ["north", "down"]`
+- Deep Cavern at (0, 0, -1) has `allowed_exits: ["up"]` to connect back to Cave Entrance
 
-### Files Modified
+### 2. Added `demo_mode` Support to GameSession (`scripts/ai_agent.py`)
+- Added `demo_mode: bool = False` dataclass field to GameSession
+- Updated `start()` method to add `--demo` flag to CLI command when `demo_mode=True`
+- This allows scenarios to use the pre-generated test world for consistent testing
 
-1. **`scripts/ai_agent.py`** - Modified `GameSession.start()` method:
-   - Added `skip_character_creation: bool = True` parameter
-   - Added `creation_inputs: Optional[list[str]] = None` parameter
-   - Conditional `--skip-character-creation` flag based on parameter
-   - When character creation is enabled, sends creation inputs to stdin before main loop
+### 3. Added `demo_mode` Support to ScenarioRunner (`scripts/validation/scenarios.py`)
+- ScenarioRunner now reads `demo_mode: true` from scenario config
+- When enabled, sets `session.demo_mode = True` before starting the game session
 
-2. **`scripts/validation/scenarios.py`** - Modified `ScenarioRunner.run_scenario()` method:
-   - Reads `skip_character_creation` config option (defaults to True for backward compatibility)
-   - Reads `character_creation_inputs` config option
-   - Passes these to `session.start()` with appropriate parameters
-   - Longer startup wait time when character creation is enabled
+### 4. Enhanced `subgrid_entry_exit.yaml` Scenario
+- Added `demo_mode: true` config to use test world
+- Added steps to:
+  - Verify starting at Peaceful Village
+  - Move east to Dark Cave
+  - Enter the cave (SubGrid entry)
+  - Verify inside at Cave Entrance
+  - Exit back to overworld
+  - Verify back at Dark Cave on overworld
 
-3. **`tests/test_scenario_files.py`** - Extended scenario tests:
-   - Added "character_creation" to expected subdirectories
-   - Added `test_character_creation_scenarios_exist()` - verifies all 5 class scenarios
-   - Added `test_character_creation_scenarios_use_creation_config()` - verifies proper config
+### 5. Enhanced `vertical_navigation.yaml` Scenario
+- Added `demo_mode: true` config to use test world
+- Added steps to:
+  - Verify go down fails on overworld
+  - Verify go up fails on overworld
+  - Navigate to Dark Cave and enter
+  - Go down to Deep Cavern (z=-1)
+  - Verify at Deep Cavern
+  - Go up to return to Cave Entrance (z=0)
+  - Exit back to overworld
 
-### Files Created
+### 6. Updated ISSUES.md
+- Marked "Movement and navigation" checkbox as complete
+- Added note about 3 scenarios with demo_mode support
 
-1. **`scripts/scenarios/character_creation/__init__.py`** - Package init
-
-2. **`scripts/scenarios/character_creation/warrior_creation.yaml`** (seed: 42020)
-3. **`scripts/scenarios/character_creation/mage_creation.yaml`** (seed: 42021)
-4. **`scripts/scenarios/character_creation/rogue_creation.yaml`** (seed: 42022)
-5. **`scripts/scenarios/character_creation/ranger_creation.yaml`** (seed: 42023)
-6. **`scripts/scenarios/character_creation/cleric_creation.yaml`** (seed: 42024)
-
-Each scenario:
-- Uses `skip_character_creation: false`
-- Provides `character_creation_inputs` with name, class (1-5), method (2=random), and confirmation
-- Validates character class is present in state
-- Validates status command mentions the class name
+## Files Modified
+- `tests/fixtures/test_world.json` - Added z=-1 level, allowed_exits
+- `scripts/ai_agent.py` - Added demo_mode field and --demo flag support
+- `scripts/validation/scenarios.py` - Added demo_mode config handling
+- `scripts/scenarios/movement/subgrid_entry_exit.yaml` - Complete rewrite with real entry/exit tests
+- `scripts/scenarios/movement/vertical_navigation.yaml` - Complete rewrite with real vertical navigation tests
+- `ISSUES.md` - Marked checkbox complete
 
 ## Test Results
+- `pytest tests/test_scenario_files.py` - 81 passed
+- `pytest tests/test_scenario_runner.py` - 17 passed
+- `pytest tests/test_location.py` - 44 passed
+- Total: 142 tests passed, 0 failed
 
-All 81 tests in `test_scenario_files.py` pass:
-- YAML parsing tests for all 17 scenarios (including 5 new ones)
-- Scenario dataclass loading tests
-- Assertion type validation tests
-- Step command validation tests
-- Seed uniqueness and range tests
-- Structure tests (including character_creation subdirectory)
-- Specific scenario existence tests (including character creation)
-- Character creation config validation tests
-
-Character creation unit tests (`test_character_creation.py`) all pass - no regressions.
-
-## Technical Details
-
-### Character Creation Input Sequence
-1. Character name (e.g., "TestWarrior")
-2. Class number (1=Warrior, 2=Mage, 3=Rogue, 4=Ranger, 5=Cleric)
-3. Stat allocation method (2=random for simplicity)
-4. Confirmation ("yes")
-
-### Scenario Config Format
-```yaml
-config:
-  skip_character_creation: false
-  character_creation_inputs:
-    - "TestWarrior"
-    - "1"
-    - "2"
-    - "yes"
-```
-
-## E2E Validation
-
-The scenarios can be run with the ScenarioRunner to validate actual character creation through the game subprocess. This tests:
-- Character creation flow in JSON mode
-- Class selection via numeric input
-- Random stat generation
-- Character state serialization
-
-## Notes
-
-- Seeds 42020-42024 are used for the 5 character creation scenarios (within the 42001-42999 expected range)
-- Scenarios use random stats (method: 2) to avoid needing 6 additional stat inputs
-- The implementation maintains backward compatibility - existing scenarios work unchanged
+## E2E Test Validation
+The movement scenarios should validate:
+1. Basic overworld navigation (go north/south/east/west)
+2. SubGrid entry via `enter` command
+3. Interior navigation using `allowed_exits`
+4. Vertical navigation via `go down`/`go up`
+5. SubGrid exit via `exit` command

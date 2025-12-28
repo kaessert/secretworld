@@ -1,5 +1,6 @@
 # SubGrid entry/exit scenario - tests entering and exiting sub-locations
 # Validates that the player can enter dungeons/caves and exit back to overworld
+# Uses demo mode to ensure consistent test world with known enterable locations
 scenario:
   name: "SubGrid Entry and Exit"
   description: "Test entering sub-locations and exiting back to overworld"
@@ -7,52 +8,53 @@ scenario:
   config:
     max_commands: 50
     timeout: 120
+    demo_mode: true  # Use pre-generated test world with Dark Cave
 
   setup:
     - "dump_state"  # Get initial state
 
   steps:
-    # Step 1: Look to observe the surroundings
+    # Step 1: Verify starting location (Peaceful Village at [0,0])
     - command: "look"
       assertions:
-        - type: COMMAND_VALID
+        - type: NARRATIVE_MATCH
           field: ""
-          value: true
-          message: "look command should be valid"
+          value: "Peaceful Village"
+          message: "Should start at Peaceful Village"
 
-    # Step 2: Get current state
-    - command: "dump_state"
-      assertions:
-        - type: CONTENT_PRESENT
-          field: "location"
-          value: true
-          message: "Should have a current location"
-
-    # Step 3: Explore to find an enterable location (move around)
-    - command: "go north"
-      assertions:
-        - type: COMMAND_VALID
-          field: ""
-          value: true
-          message: "Movement should be valid"
-
-    # Step 4: Keep exploring
+    # Step 2: Move east to Dark Cave at [1,0]
     - command: "go east"
       assertions:
         - type: COMMAND_VALID
           field: ""
           value: true
-          message: "Movement should be valid"
+          message: "Movement east should be valid"
 
-    # Step 5: Look for enterables
+    # Step 3: Verify we're at Dark Cave
     - command: "look"
+      assertions:
+        - type: NARRATIVE_MATCH
+          field: ""
+          value: "Dark Cave"
+          message: "Should be at Dark Cave location"
+
+    # Step 4: Enter the cave (SubGrid entry)
+    - command: "enter"
       assertions:
         - type: COMMAND_VALID
           field: ""
           value: true
-          message: "look command should be valid"
+          message: "Enter command should be valid"
 
-    # Step 6: Check state after exploration
+    # Step 5: Verify we're inside the cave (SubGrid)
+    - command: "look"
+      assertions:
+        - type: NARRATIVE_MATCH
+          field: ""
+          value: "Cave Entrance"
+          message: "Should be at Cave Entrance inside the cave"
+
+    # Step 6: Get state to verify we're in a sub-location
     - command: "dump_state"
       wait_for: "location"
       assertions:
@@ -60,3 +62,28 @@ scenario:
           field: "location"
           value: true
           message: "Location should be present"
+
+    # Step 7: Exit back to overworld
+    - command: "exit"
+      assertions:
+        - type: COMMAND_VALID
+          field: ""
+          value: true
+          message: "Exit command should be valid"
+
+    # Step 8: Verify we're back on the overworld at Dark Cave
+    - command: "look"
+      assertions:
+        - type: NARRATIVE_MATCH
+          field: ""
+          value: "Dark Cave"
+          message: "Should be back at Dark Cave on overworld after exit"
+
+    # Step 9: Final state check
+    - command: "dump_state"
+      wait_for: "location"
+      assertions:
+        - type: CONTENT_PRESENT
+          field: "location"
+          value: true
+          message: "Location should be present after exit"
