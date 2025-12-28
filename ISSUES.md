@@ -272,13 +272,32 @@ Issues discovered through comprehensive map system playtesting in non-interactiv
 ---
 
 ### Procedural quest generation
-**Status**: ACTIVE
+**Status**: COMPLETED ✓
+**Date Completed**: 2025-12-28
 
-**Desired features**:
-- AI-generated side quests
-- Quest templates with procedural elements
-- Scaling difficulty
-- Quest chains
+**Implementation**:
+- `src/cli_rpg/procedural_quests.py` - Quest template system with:
+  - `QuestTemplateType` enum: 7 quest archetypes (KILL_BOSS, KILL_MOBS, COLLECT_ITEMS, EXPLORE_AREA, TALK_NPC, ESCORT, FETCH)
+  - `QuestTemplate` dataclass: Defines template structure with difficulty scaling, reward scaling, and category tags
+  - `QUEST_TEMPLATES`: Category-specific template pools (dungeon, cave, ruins, temple, town, village, default)
+  - `QUEST_CHAINS`: 3 predefined chain types (lost_artifact, goblin_war, temple_corruption)
+  - `select_quest_template()`: Deterministic template selection based on seed
+  - `scale_quest_difficulty()`: Difficulty and reward scaling based on player/danger level
+  - `generate_quest_chain()`: Create linked quest sequences
+- `src/cli_rpg/content_layer.py` - ContentLayer integration:
+  - `generate_quest_from_template()`: Main entry point for template-based quest generation
+  - AI content generation with fallback to deterministic templates
+- `src/cli_rpg/fallback_content.py` - Extended with `QUEST_TARGET_POOLS` and `get_quest_target()` method
+- `src/cli_rpg/models/content_request.py` - Added `QuestTemplateContentRequest` schema
+- 51 new tests in `test_procedural_quests.py` (33 tests) and `test_quest_template_content.py` (18 tests)
+
+**Difficulty Scaling Formula**:
+```
+difficulty_score = player_level × danger_level × template.difficulty_scaling
+target_count = base_target_count + (player_level // 3)
+gold_reward = base_gold_reward × (1 + player_level × 0.1) × difficulty_multiplier
+xp_reward = base_xp_reward × (1 + player_level × 0.15) × difficulty_multiplier
+```
 
 ---
 

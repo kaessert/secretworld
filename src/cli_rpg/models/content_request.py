@@ -79,6 +79,28 @@ class QuestContentRequest:
     coordinates: tuple[int, int, int]
 
 
+@dataclass
+class QuestTemplateContentRequest:
+    """Request for quest content from a QuestTemplate.
+
+    Used by ContentLayer to request AI-generated or fallback content
+    for a procedurally selected QuestTemplate.
+
+    Attributes:
+        template_type: The QuestTemplateType value (e.g., "kill_boss", "collect").
+        category: Location category for thematic content.
+        player_level: Player's level for context in content generation.
+        npc_name: Name of the quest-giving NPC (for narrative coherence).
+        coordinates: 3D coordinates for cache keying.
+    """
+
+    template_type: str
+    category: str
+    player_level: int
+    npc_name: str
+    coordinates: tuple[int, int, int]
+
+
 # =============================================================================
 # Response Models
 # =============================================================================

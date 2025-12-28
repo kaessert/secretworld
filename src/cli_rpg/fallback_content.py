@@ -9,7 +9,12 @@ when AIService is unavailable or fails.
 
 import random
 from dataclasses import dataclass, field
+from typing import TYPE_CHECKING
+
 from cli_rpg.procedural_interiors import RoomType
+
+if TYPE_CHECKING:
+    from cli_rpg.procedural_quests import QuestTemplateType
 
 
 # =============================================================================
@@ -1054,6 +1059,66 @@ QUEST_TEMPLATES: dict[str, list[dict]] = {
 
 
 # =============================================================================
+# Quest Target Pools (by QuestTemplateType string value)
+# These are used by procedural_quests.py for fallback content generation.
+# =============================================================================
+
+QUEST_TARGET_POOLS: dict[str, dict[str, list[str]]] = {
+    "kill_boss": {
+        "dungeon": ["Dark Lord", "Dungeon Master", "Shadow King", "Bone Tyrant"],
+        "cave": ["Cave Beast", "Giant Spider", "Stone Golem", "Crystal Wurm"],
+        "ruins": ["Ancient Guardian", "Ruin Spirit", "Forgotten King", "Spectral Warden"],
+        "temple": ["Corrupted High Priest", "Temple Avatar", "Fallen Deity", "Dark Acolyte"],
+        "default": ["Fearsome Monster", "Ancient Evil", "Dark Entity", "Dreaded Beast"],
+    },
+    "kill_mobs": {
+        "dungeon": ["Skeletons", "Goblins", "Undead", "Cultists"],
+        "cave": ["Cave Spiders", "Bats", "Cave Trolls", "Slimes"],
+        "ruins": ["Stone Guardians", "Ghosts", "Haunted Spirits", "Animated Armor"],
+        "temple": ["Corrupted Priests", "Temple Guards", "Zealots", "Possessed Monks"],
+        "default": ["Monsters", "Creatures", "Enemies", "Beasts"],
+    },
+    "collect": {
+        "dungeon": ["Ancient Coins", "Dungeon Keys", "Old Scrolls", "Rusty Relics"],
+        "cave": ["Rare Crystals", "Cave Mushrooms", "Glowing Gems", "Spider Silk"],
+        "ruins": ["Artifacts", "Relic Shards", "Ancient Texts", "Gilded Fragments"],
+        "temple": ["Sacred Relics", "Holy Symbols", "Prayer Beads", "Blessed Incense"],
+        "town": ["Supplies", "Trade Goods", "Merchant Wares", "Crafting Materials"],
+        "village": ["Herbs", "Farm Produce", "Handmade Goods", "Wild Berries"],
+        "default": ["Valuable Items", "Rare Objects", "Collectibles", "Treasures"],
+    },
+    "explore": {
+        "dungeon": ["Deep Chambers", "Hidden Vault", "Lower Depths", "Secret Passage"],
+        "cave": ["Crystal Cavern", "Underground Lake", "Deep Tunnels", "Hidden Grotto"],
+        "ruins": ["Lost Library", "Ancient Temple", "Forgotten Halls", "Crumbled Tower"],
+        "temple": ["Inner Sanctum", "Sacred Grove", "Holy Shrine", "Prayer Chamber"],
+        "default": ["Unknown Region", "Unexplored Area", "Hidden Place", "Secret Location"],
+    },
+    "talk": {
+        "dungeon": ["Imprisoned Sage", "Lost Explorer", "Dungeon Hermit", "Escaped Prisoner"],
+        "cave": ["Lost Miner", "Cave Hermit", "Stranded Traveler", "Trapped Scholar"],
+        "ruins": ["Ancient Ghost", "Ruin Scholar", "Old Guardian", "Spectral Historian"],
+        "temple": ["Temple Oracle", "High Priest", "Sacred Keeper", "Wise Monk"],
+        "town": ["Town Elder", "Local Sage", "Guild Master", "Merchant Lord"],
+        "village": ["Village Elder", "Wise Woman", "Local Healer", "Old Farmer"],
+        "default": ["Mysterious Figure", "Wise Elder", "Knowledgeable One", "Hidden Sage"],
+    },
+    "escort": {
+        "temple": ["Pilgrim", "Acolyte", "Sacred Messenger", "Holy Traveler"],
+        "town": ["Merchant", "Noble", "Traveler", "Diplomat"],
+        "village": ["Farmer", "Child", "Elderly Villager", "Young Apprentice"],
+        "default": ["Refugee", "Survivor", "Wanderer", "Lost Soul"],
+    },
+    "fetch": {
+        "town": ["Medicine", "Important Letter", "Trade Goods", "Legal Documents"],
+        "village": ["Herbal Remedy", "Lost Heirloom", "Farm Supplies", "Family Keepsake"],
+        "temple": ["Sacred Text", "Holy Relic", "Blessed Water", "Temple Offering"],
+        "default": ["Valuable Package", "Important Item", "Requested Object", "Precious Cargo"],
+    },
+}
+
+
+# =============================================================================
 # FallbackContentProvider Class
 # =============================================================================
 
@@ -1236,3 +1301,26 @@ class FallbackContentProvider:
             "difficulty": difficulty,
             "items": [item.copy() for item in items],
         }
+
+    def get_quest_target(self, template_type: str, category: str) -> str:
+        """Get a random target name for a quest template type.
+
+        Uses the QUEST_TARGET_POOLS to select an appropriate target
+        based on the template type and location category.
+
+        Args:
+            template_type: The QuestTemplateType value string
+                (e.g., "kill_boss", "collect", "explore").
+            category: The location category (dungeon, cave, temple, etc.)
+
+        Returns:
+            A target name string appropriate for the quest type and category.
+        """
+        type_pools = QUEST_TARGET_POOLS.get(template_type, QUEST_TARGET_POOLS.get("explore", {}))
+        category_lower = category.lower() if category else "default"
+
+        targets = type_pools.get(category_lower)
+        if not targets:
+            targets = type_pools.get("default", ["Target"])
+
+        return self._rng.choice(targets)

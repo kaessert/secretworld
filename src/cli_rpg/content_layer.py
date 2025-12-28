@@ -7,6 +7,7 @@ structure and AI-generated thematic content.
 
 Architecture:
 - ContentLayer.populate_subgrid(): Main entry point
+- ContentLayer.generate_quest_from_template(): Quest generation from templates
 - Transforms RoomTemplate → Location for each room
 - Applies room-type-specific content (boss, treasure, puzzle, hazards)
 - Supports AI content generation with graceful fallback via FallbackContentProvider
@@ -19,8 +20,15 @@ from typing import Optional, TYPE_CHECKING
 
 from cli_rpg.procedural_interiors import RoomTemplate, RoomType
 from cli_rpg.models.location import Location
+from cli_rpg.models.quest import Quest, QuestStatus
 from cli_rpg.world_grid import SubGrid, get_subgrid_bounds
 from cli_rpg.fallback_content import FallbackContentProvider
+from cli_rpg.procedural_quests import (
+    QuestTemplate,
+    QuestTemplateType,
+    scale_quest_difficulty,
+    _generate_fallback_quest_content,
+)
 
 if TYPE_CHECKING:
     from cli_rpg.ai_service import AIService
@@ -425,3 +433,145 @@ class ContentLayer:
         # Fallback to FallbackContentProvider
         provider = FallbackContentProvider(seed=rng.randint(0, 2**31))
         return provider.get_quest_content(category)
+
+    def generate_quest_from_template(
+        self,
+        template: QuestTemplate,
+        category: str,
+        player_level: int,
+        danger_level: int,
+        npc_name: str,
+        coords: tuple[int, int, int],
+        ai_service: Optional["AIService"],
+        generation_context: Optional["GenerationContext"],
+        seed: int,
+    ) -> Optional[Quest]:
+        """Generate a Quest from a QuestTemplate with AI or fallback content.
+
+        Uses scale_quest_difficulty() to determine scaled values, then populates
+        narrative content (name, description, target) via AI or fallback.
+
+        Args:
+            template: The QuestTemplate blueprint to populate.
+            category: Location category for thematic content.
+            player_level: Player's level for difficulty scaling.
+            danger_level: Region danger level (1-3 typically).
+            npc_name: Name of quest-giving NPC for context.
+            coords: 3D coordinates for cache keying.
+            ai_service: Optional AI service for content generation.
+            generation_context: Optional context for AI generation.
+            seed: Random seed for deterministic generation.
+
+        Returns:
+            Fully populated Quest object, or None if generation fails.
+        """
+        rng = random.Random(seed)
+
+        # Calculate scaled difficulty values
+        scaled = scale_quest_difficulty(template, player_level, danger_level)
+
+        # Try AI content generation first
+        content = self._generate_quest_template_content_ai(
+            template=template,
+            category=category,
+            player_level=player_level,
+            npc_name=npc_name,
+            ai_service=ai_service,
+            generation_context=generation_context,
+        )
+
+        # Fall back to template-based content if AI unavailable
+        if content is None:
+            content = _generate_fallback_quest_content(
+                template.template_type,
+                category,
+                rng.randint(0, 2**31),
+            )
+
+        if content is None:
+            logger.debug("Failed to generate quest content from template")
+            return None
+
+        try:
+            quest = Quest(
+                name=content["name"],
+                description=content["description"],
+                objective_type=template.objective_type,
+                target=content["target"],
+                target_count=scaled["target_count"],
+                gold_reward=scaled["gold_reward"],
+                xp_reward=scaled["xp_reward"],
+                difficulty=scaled["difficulty"],
+                recommended_level=scaled["recommended_level"],
+                quest_giver=npc_name if npc_name else None,
+                chain_position=template.chain_position,
+                status=QuestStatus.AVAILABLE,
+            )
+            return quest
+        except (ValueError, KeyError) as e:
+            logger.debug(f"Failed to create Quest from template content: {e}")
+            return None
+
+    def _generate_quest_template_content_ai(
+        self,
+        template: QuestTemplate,
+        category: str,
+        player_level: int,
+        npc_name: str,
+        ai_service: Optional["AIService"],
+        generation_context: Optional["GenerationContext"],
+    ) -> Optional[dict]:
+        """Try to generate quest content via AI service.
+
+        Args:
+            template: The QuestTemplate blueprint.
+            category: Location category.
+            player_level: Player's level.
+            npc_name: Quest-giving NPC name.
+            ai_service: AI service for content generation.
+            generation_context: Context for AI generation.
+
+        Returns:
+            Dict with 'name', 'description', 'target' if successful, None otherwise.
+        """
+        if ai_service is None:
+            return None
+
+        try:
+            # Check if ai_service has generate_quest_from_template method
+            if hasattr(ai_service, "generate_quest_from_template"):
+                content = ai_service.generate_quest_from_template(
+                    template_type=template.template_type.value,
+                    category=category,
+                    player_level=player_level,
+                    npc_name=npc_name,
+                    context=generation_context,
+                )
+                if content and all(k in content for k in ["name", "description", "target"]):
+                    return content
+
+            # Fallback to generate_quest if available
+            if hasattr(ai_service, "generate_quest") and generation_context:
+                world_context = generation_context.world if generation_context else None
+                region_context = generation_context.region if generation_context else None
+                theme = world_context.theme if world_context else "fantasy"
+
+                quest_data = ai_service.generate_quest(
+                    theme=theme,
+                    npc_name=npc_name,
+                    player_level=player_level,
+                    location_name=category,
+                    world_context=world_context,
+                    region_context=region_context,
+                )
+                if quest_data and "name" in quest_data:
+                    # Map AI response to our expected format
+                    return {
+                        "name": quest_data.get("name", "A Quest"),
+                        "description": quest_data.get("description", "Complete this task."),
+                        "target": quest_data.get("target", "Target"),
+                    }
+        except Exception as e:
+            logger.debug(f"AI quest template content generation failed: {e}")
+
+        return None

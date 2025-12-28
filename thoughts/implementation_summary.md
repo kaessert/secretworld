@@ -1,31 +1,86 @@
-# Implementation Summary: ISSUES.md Completion Updates
+# Implementation Summary: Procedural Quest Generation with ContentLayer Integration
 
 ## Date: 2025-12-28
 
-## What was implemented
-Updated ISSUES.md to mark completed items for the Procedural World Generation feature:
+## Overview
 
-### Changes Made
+Procedural quest generation system is **already fully implemented**. The implementation follows the template-content separation pattern: QuestTemplate defines structural parameters while ContentLayer fills in narrative content via AI or fallback.
 
-1. **Status Update (Line 6-7)**:
-   - Changed `**Status**: PLANNED` → `**Status**: COMPLETED ✓`
-   - Changed `**Priority**: CRITICAL BLOCKER` → `**Priority**: -`
+## Files Already Created
 
-2. **Phase 4 Header (Line 76)**:
-   - Added `✓ COMPLETE` to "Phase 4: Content Layer" header
-   - Marked item 12 (ContentCache) as completed: `12. ✓ Create ContentCache with deterministic keying (COMPLETED 2025-12-28)`
+### Core Implementation
 
-3. **Phase 6 Header and Items (Lines 87-90)**:
-   - Added `✓ COMPLETE` to "Phase 6: Testing" header
-   - Marked all three items as completed:
-     - `18. ✓ Unit tests for each generator algorithm (COMPLETED 2025-12-28: 41 tests in test_procedural_interiors.py)`
-     - `19. ✓ Tests for noise determinism (COMPLETED 2025-12-28: 12 tests in test_location_noise.py)`
-     - `20. ✓ Integration tests for full pipeline (COMPLETED 2025-12-28: 8 tests in test_content_layer.py, 11 tests in test_content_cache.py)`
+1. **`src/cli_rpg/procedural_quests.py`**
+   - `QuestTemplateType` enum: 7 quest archetypes (KILL_BOSS, KILL_MOBS, COLLECT_ITEMS, EXPLORE_AREA, TALK_NPC, ESCORT, FETCH)
+   - `QuestTemplate` dataclass: template_type, objective_type, base_target_count, difficulty_scaling, base_gold_reward, base_xp_reward, category_tags, chain_position
+   - `QUEST_TEMPLATES`: Category → template list mapping (dungeon, cave, ruins, temple, town, village, default)
+   - `QUEST_CHAINS`: 3 predefined chains (lost_artifact, goblin_war, temple_corruption)
+   - `select_quest_template()`: Deterministic template selection
+   - `scale_quest_difficulty()`: Player/danger level scaling
+   - `generate_quest_chain()`: Create linked quest sequences
+   - `_generate_fallback_quest_content()`: Fallback name/description generation
 
-## Files Modified
-- `ISSUES.md` - 3 edits to mark completed items
+2. **`src/cli_rpg/content_layer.py`** (modified)
+   - `generate_quest_from_template()`: Main entry point for quest generation
+   - `_generate_quest_template_content_ai()`: AI content generation helper
+   - Integrates with AIService and FallbackContentProvider
 
-## Verification
-- This is a documentation-only change
-- No tests required
-- The underlying implementations referenced (ContentCache, procedural_interiors tests, location_noise tests, content_layer tests, content_cache tests) were verified to exist and pass in the original plan verification step
+3. **`src/cli_rpg/fallback_content.py`** (modified)
+   - `QUEST_TARGET_POOLS`: Target name pools per template type and category
+   - `get_quest_target()`: Method for selecting appropriate targets
+
+4. **`src/cli_rpg/models/content_request.py`** (modified)
+   - `QuestTemplateContentRequest`: Typed request schema for template content
+
+### Test Files
+
+5. **`tests/test_procedural_quests.py`** - 33 tests covering:
+   - QuestTemplateType enum values
+   - QuestTemplate creation and validation
+   - QUEST_TEMPLATES coverage across categories
+   - select_quest_template() determinism
+   - scale_quest_difficulty() calculations
+   - Quest chain structure and linking
+
+6. **`tests/test_quest_template_content.py`** - 18 tests covering:
+   - ContentLayer.generate_quest_from_template() with fallback
+   - ContentLayer.generate_quest_from_template() with mock AI
+   - Fallback behavior when AI fails/returns incomplete
+   - FallbackContentProvider.get_quest_target()
+   - Quest chain generation with callbacks
+   - End-to-end flows for all categories and chains
+
+## Difficulty Scaling Formula
+
+```python
+difficulty_score = player_level × danger_level × template.difficulty_scaling
+
+# Maps to QuestDifficulty:
+TRIVIAL: score < 3   (multiplier: 0.5)
+EASY:    score < 6   (multiplier: 0.75)
+NORMAL:  score < 12  (multiplier: 1.0)
+HARD:    score < 20  (multiplier: 1.5)
+DEADLY:  score ≥ 20  (multiplier: 2.0)
+
+target_count = base_target_count + (player_level // 3)
+gold_reward = base_gold_reward × (1 + player_level × 0.1) × difficulty_multiplier
+xp_reward = base_xp_reward × (1 + player_level × 0.15) × difficulty_multiplier
+```
+
+## Test Results
+
+```
+tests/test_procedural_quests.py: 33 tests PASSED
+tests/test_quest_template_content.py: 18 tests PASSED
+Total: 51 new tests
+
+Full test suite: 5264 tests PASSED
+```
+
+## Success Criteria Met
+
+1. ✅ QuestTemplate provides deterministic quest structure from seed
+2. ✅ ContentLayer populates templates with AI content (or fallback)
+3. ✅ Difficulty scales with player level and region danger
+4. ✅ Quest chains can be generated procedurally
+5. ✅ All tests pass (51 new tests, exceeding target of 20+)
