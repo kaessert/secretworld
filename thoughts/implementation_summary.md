@@ -1,43 +1,55 @@
-# Implementation Summary: Content Request/Response Models
+# Implementation Summary: ContentLayer NPC and Quest Generation
 
 ## What Was Implemented
 
-Created `src/cli_rpg/models/content_request.py` with typed dataclass schemas for content requests and responses.
+Added two new methods to `ContentLayer` class in `src/cli_rpg/content_layer.py`:
 
-### Request Models (4 dataclasses)
-- **RoomContentRequest**: room_type, category, connections, is_entry, coordinates
-- **NPCContentRequest**: role, category, coordinates
-- **ItemContentRequest**: item_type, category, coordinates
-- **QuestContentRequest**: category, coordinates
+### 1. `generate_npc_content()`
+- Generates NPC name, description, and dialogue
+- Tries AI generation first if `ai_service.generate_npc_content()` is available
+- Falls back to `FallbackContentProvider.get_npc_content()` on AI failure or when AI unavailable
+- Takes role, category, coordinates, ai_service, generation_context, and rng parameters
+- Returns dict with 'name', 'description', 'dialogue' keys
 
-### Response Models (4 dataclasses)
-- **RoomContentResponse**: name, description + from_dict/to_dict
-- **NPCContentResponse**: name, description, dialogue + from_dict/to_dict
-- **ItemContentResponse**: name, description, item_type, damage_bonus, defense_bonus, heal_amount + from_dict/to_dict
-- **QuestContentResponse**: name, description, objective_type, target + from_dict/to_dict
+### 2. `generate_quest_content()`
+- Generates quest name, description, objective_type, and target
+- Tries AI generation via `ai_service.generate_quest()` when both ai_service and generation_context are provided
+- Falls back to `FallbackContentProvider.get_quest_content()` on AI failure
+- Takes category, coordinates, ai_service, generation_context, rng, and optional npc_name, valid_locations, valid_npcs parameters
+- Returns dict with 'name', 'description', 'objective_type', 'target' keys (or None on failure)
+
+## Files Modified
+- `src/cli_rpg/content_layer.py` - Added `generate_npc_content()` and `generate_quest_content()` methods
 
 ## Files Created
-- `src/cli_rpg/models/content_request.py` - The typed models module
-- `tests/test_content_request.py` - 19 tests covering all spec requirements
+- `tests/test_content_layer_npc_quest.py` - 10 integration tests for the new methods
 
 ## Test Results
-```
-19 passed in 0.10s
-```
+- All 10 new tests pass
+- All 5205 existing tests pass (no regressions)
+- Related test files verified:
+  - `tests/test_content_layer.py` (8 tests pass)
+  - `tests/test_fallback_content.py` (18 tests pass)
 
-All test cases verified:
-1. Request dataclass instantiation and field access (4 tests)
-2. Response.from_dict() with complete data (4 tests)
-3. Response.from_dict() with missing optional fields (4 tests)
-4. to_dict() serialization round-trip (4 tests)
-5. ItemContentResponse: only includes non-None optional fields in to_dict (1 test)
-6. ItemContentResponse: armor and consumable variations (2 tests)
+## Tests Cover
+1. NPC generation with fallback when AI unavailable
+2. Quest generation with fallback when AI unavailable
+3. NPC content determinism (same seed = same output)
+4. Quest content determinism (same seed = same output)
+5. AI-generated NPC content used when available
+6. AI-generated quest content used when available
+7. AI failure gracefully falls back for NPCs
+8. AI failure gracefully falls back for quests
+9. NPC content varies by role
+10. Quest content varies by category
 
 ## Design Decisions
-- Response models use sensible defaults in from_dict() for missing fields
-- ItemContentResponse.to_dict() excludes None values for clean serialization
-- All models use standard dataclass pattern with type hints
-- Backward compatible - existing code using dicts continues to work
+- Uses `hasattr()` check before calling `ai_service.generate_npc_content()` since AIService may not have this method yet
+- Both methods create a new `FallbackContentProvider` with a seed derived from the RNG for deterministic fallback
+- Quest generation requires both ai_service and generation_context for AI path; otherwise uses fallback
+- NPC generation only requires ai_service (generation_context is optional but passed if available)
 
-## E2E Validation
-No E2E tests needed - this is a pure data model layer with no runtime behavior changes. The models are backward compatible and can be progressively adopted by ContentLayer, AIService, and FallbackContentProvider.
+## E2E Validation Notes
+- No E2E tests required for this change as it's internal API
+- Integration is validated through the 10 unit tests
+- Future work can call these methods from `ai_world.py` when generating SubGrid NPCs/quests

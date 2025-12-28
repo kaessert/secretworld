@@ -322,3 +322,106 @@ class ContentLayer:
             "items": [item.copy() for item in items],
             "requires_key": None,
         }
+
+    def generate_npc_content(
+        self,
+        role: str,
+        category: str,
+        coords: tuple[int, int, int],
+        ai_service: Optional["AIService"],
+        generation_context: Optional["GenerationContext"],
+        rng: random.Random,
+    ) -> dict:
+        """Generate NPC name, description, and dialogue.
+
+        Tries AI generation first, falls back to FallbackContentProvider on failure.
+
+        Args:
+            role: NPC role (merchant, guard, quest_giver, villager, etc.)
+            category: Location category for context
+            coords: 3D coordinates for deterministic seeding
+            ai_service: Optional AI service for content generation
+            generation_context: Optional context for AI generation
+            rng: Random number generator for determinism
+
+        Returns:
+            Dict with 'name', 'description', 'dialogue' keys
+        """
+        # Try AI generation if available
+        if ai_service is not None:
+            try:
+                # Check if ai_service has generate_npc_content method
+                if hasattr(ai_service, "generate_npc_content"):
+                    content = ai_service.generate_npc_content(
+                        role=role,
+                        category=category,
+                        context=generation_context,
+                    )
+                    if (
+                        content
+                        and "name" in content
+                        and "description" in content
+                        and "dialogue" in content
+                    ):
+                        return content
+            except Exception as e:
+                logger.debug(f"AI NPC content generation failed: {e}")
+
+        # Fallback to FallbackContentProvider
+        provider = FallbackContentProvider(seed=rng.randint(0, 2**31))
+        return provider.get_npc_content(role, category)
+
+    def generate_quest_content(
+        self,
+        category: str,
+        coords: tuple[int, int, int],
+        ai_service: Optional["AIService"],
+        generation_context: Optional["GenerationContext"],
+        rng: random.Random,
+        npc_name: str = "",
+        valid_locations: Optional[set[str]] = None,
+        valid_npcs: Optional[set[str]] = None,
+    ) -> Optional[dict]:
+        """Generate quest name, description, and objectives.
+
+        Tries AI generation first, falls back to FallbackContentProvider on failure.
+
+        Args:
+            category: Location category for thematic quests
+            coords: 3D coordinates for deterministic seeding
+            ai_service: Optional AI service for content generation
+            generation_context: Optional context for AI generation
+            rng: Random number generator for determinism
+            npc_name: Name of quest-giving NPC for context
+            valid_locations: Optional set of valid location names for EXPLORE quests
+            valid_npcs: Optional set of valid NPC names for TALK quests
+
+        Returns:
+            Dict with 'name', 'description', 'objective_type', 'target' keys,
+            or None if generation fails
+        """
+        # Try AI generation if available
+        if ai_service is not None and generation_context is not None:
+            try:
+                world_context = generation_context.world
+                region_context = generation_context.region
+                theme = world_context.theme if world_context else "fantasy"
+
+                quest_data = ai_service.generate_quest(
+                    theme=theme,
+                    npc_name=npc_name,
+                    player_level=1,
+                    location_name="",
+                    valid_locations=valid_locations,
+                    valid_npcs=valid_npcs,
+                    world_context=world_context,
+                    region_context=region_context,
+                )
+                if quest_data:
+                    return quest_data
+            except Exception as e:
+                logger.debug(f"AI quest generation failed: {e}")
+
+        # Fallback to FallbackContentProvider
+        provider = FallbackContentProvider(seed=rng.randint(0, 2**31))
+        return provider.get_quest_content(category)

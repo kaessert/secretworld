@@ -1,391 +1,216 @@
-# Implementation Plan: Content Request/Response Models
+# Implementation Plan: Integrate ContentLayer with NPC and Quest Generation
 
 ## Summary
-Create `src/cli_rpg/models/content_request.py` with typed dataclass schemas for content requests and responses, formalizing the interface between procedural generators and the ContentLayer.
+Update NPC and quest generation flows to use the ContentLayer pipeline with ContentCache and FallbackContentProvider, completing Phase 5 Step 16 of the Procedural World Generation initiative.
 
 ## Context
-The ContentLayer currently uses informal dict structures for communicating between:
-- Procedural generators (RoomTemplate → content request)
-- AIService (content generation)
-- FallbackContentProvider (template-based fallback)
+The ContentLayer already handles room content generation (`generate_room_content()`), but NPC and quest generation in `ai_world.py` still use the old direct-to-AI pattern without leveraging:
+- `FallbackContentProvider.get_npc_content()` and `get_quest_content()` for deterministic fallbacks
+- `ContentCache` for deterministic caching by coordinates
+- Typed request/response models from `content_request.py`
 
-This creates an implicit contract. Formalizing it with typed dataclasses enables validation, better IDE support, and cleaner separation of concerns.
+## Current State
+- `ai_world._create_npcs_from_data()` takes AI-parsed NPC dicts directly
+- `ai_world._generate_quest_for_npc()` calls `AIService.generate_quest()` directly
+- No fallback path when AI is unavailable - NPCs/quests simply aren't generated
+- No coordinate-based caching for deterministic NPC/quest content
 
 ## Spec
-
-### Request Models (what the procedural layer sends)
-
-```python
-@dataclass
-class RoomContentRequest:
-    """Request for room name/description content."""
-    room_type: str           # "entry", "corridor", "chamber", "boss_room", "treasure", "puzzle"
-    category: str            # "dungeon", "cave", "temple", etc.
-    connections: list[str]   # ["north", "south", "down"]
-    is_entry: bool
-    coordinates: tuple[int, int, int]  # For cache keying
-
-@dataclass
-class NPCContentRequest:
-    """Request for NPC content."""
-    role: str                # "merchant", "guard", "quest_giver", etc.
-    category: str            # Location category for context
-    coordinates: tuple[int, int, int]
-
-@dataclass
-class ItemContentRequest:
-    """Request for item content."""
-    item_type: str           # "weapon", "armor", "consumable", "misc"
-    category: str            # Location category for thematic content
-    coordinates: tuple[int, int, int]
-
-@dataclass
-class QuestContentRequest:
-    """Request for quest content."""
-    category: str            # Location category
-    coordinates: tuple[int, int, int]
-```
-
-### Response Models (what ContentLayer/AI/Fallback returns)
-
-```python
-@dataclass
-class RoomContentResponse:
-    """Response containing room content."""
-    name: str
-    description: str
-
-@dataclass
-class NPCContentResponse:
-    """Response containing NPC content."""
-    name: str
-    description: str
-    dialogue: str
-
-@dataclass
-class ItemContentResponse:
-    """Response containing item content."""
-    name: str
-    description: str
-    item_type: str
-    damage_bonus: Optional[int] = None
-    defense_bonus: Optional[int] = None
-    heal_amount: Optional[int] = None
-
-@dataclass
-class QuestContentResponse:
-    """Response containing quest content."""
-    name: str
-    description: str
-    objective_type: str
-    target: str
-```
-
-### Factory/Conversion Methods
-Each response model includes `from_dict()` for compatibility with existing AIService/FallbackContentProvider dict returns.
+Add NPC and quest generation methods to ContentLayer that:
+1. Try AI generation if available
+2. Fall back to FallbackContentProvider on failure
+3. Use ContentCache for deterministic keying
 
 ## Implementation Steps
 
-1. **Create `src/cli_rpg/models/content_request.py`**
-   - Define 4 request dataclasses (Room, NPC, Item, Quest)
-   - Define 4 response dataclasses with `from_dict()` methods
-   - Add docstrings matching project style
+### Step 1: Add NPC generation method to ContentLayer
 
-2. **Add to `models/__init__.py`** (optional, for convenience)
+**File**: `src/cli_rpg/content_layer.py`
 
-## Files to Create
-- `src/cli_rpg/models/content_request.py`
+Add `generate_npc_content()` method:
+```python
+def generate_npc_content(
+    self,
+    role: str,
+    category: str,
+    coords: tuple[int, int, int],
+    ai_service: Optional["AIService"],
+    generation_context: Optional["GenerationContext"],
+    seed: int,
+) -> dict:
+    """Generate NPC name, description, and dialogue.
+
+    Tries AI first, falls back to FallbackContentProvider.
+    """
+```
+
+### Step 2: Add quest generation method to ContentLayer
+
+**File**: `src/cli_rpg/content_layer.py`
+
+Add `generate_quest_content()` method:
+```python
+def generate_quest_content(
+    self,
+    category: str,
+    coords: tuple[int, int, int],
+    ai_service: Optional["AIService"],
+    generation_context: Optional["GenerationContext"],
+    seed: int,
+    npc_name: str = "",
+    valid_locations: Optional[set[str]] = None,
+    valid_npcs: Optional[set[str]] = None,
+) -> Optional[dict]:
+    """Generate quest name, description, and objectives.
+
+    Tries AI first, falls back to FallbackContentProvider.
+    """
+```
+
+### Step 3: Add NPC population to ContentLayer.populate_subgrid()
+
+**File**: `src/cli_rpg/content_layer.py`
+
+Extend `_create_location_from_template()` to optionally generate NPCs for settlement categories:
+- Use role distribution based on room type (quest_giver in CHAMBER, merchant in ENTRY for towns)
+- Call `generate_npc_content()` for each NPC
+
+### Step 4: Update ai_world.py to use ContentLayer for SubGrid NPCs
+
+**File**: `src/cli_rpg/ai_world.py`
+
+Modify `generate_subgrid_for_location()` to pass NPC generation through ContentLayer pipeline instead of direct AI calls.
+
+### Step 5: Write integration tests
+
+**File**: `tests/test_content_layer_npc_quest.py`
+
+Tests:
+1. ContentLayer generates NPCs with fallback when AI unavailable
+2. ContentLayer generates quests with fallback when AI unavailable
+3. Same seed produces identical NPC content (determinism)
+4. Same seed produces identical quest content (determinism)
+5. AI-generated NPC content used when available
+6. AI-generated quest content used when available
 
 ## Files to Modify
-- None required (backward compatible - existing code continues using dicts)
+- `src/cli_rpg/content_layer.py` - Add NPC/quest generation methods
+- `src/cli_rpg/ai_world.py` - Use ContentLayer for SubGrid NPCs (optional, for full integration)
 
-## Future Integration Points
-Once created, these models can be progressively adopted:
-- ContentLayer methods can accept Request objects and return Response objects
-- AIService.generate_room_content() can return RoomContentResponse
-- FallbackContentProvider methods can return typed responses
+## Files to Create
+- `tests/test_content_layer_npc_quest.py` - Integration tests
 
-## Tests
+## Test Commands
 ```bash
-pytest tests/test_content_request.py -v  # New test file
+# Run new tests
+pytest tests/test_content_layer_npc_quest.py -v
+
+# Run related tests to ensure no regression
+pytest tests/test_content_layer.py tests/test_fallback_content.py -v
+
+# Run full suite
+pytest tests/ -v
 ```
 
-## Test Cases
-1. Request dataclass instantiation and field access
-2. Response.from_dict() with complete data
-3. Response.from_dict() with missing optional fields
-4. to_dict() serialization round-trip
+## Implementation Details
 
-## Implementation Code
+### ContentLayer.generate_npc_content()
 
 ```python
-"""Content request/response models for the ContentLayer.
+def generate_npc_content(
+    self,
+    role: str,
+    category: str,
+    coords: tuple[int, int, int],
+    ai_service: Optional["AIService"],
+    generation_context: Optional["GenerationContext"],
+    rng: random.Random,
+) -> dict:
+    """Generate NPC name, description, and dialogue.
 
-This module defines typed dataclass schemas for content requests and responses,
-providing a formal interface between procedural generators and content providers
-(AIService, FallbackContentProvider).
+    Args:
+        role: NPC role (merchant, guard, quest_giver, villager, etc.)
+        category: Location category for context
+        coords: 3D coordinates for deterministic seeding
+        ai_service: Optional AI service for content generation
+        generation_context: Optional context for AI generation
+        rng: Random number generator for determinism
 
-Request models describe what content is needed (room, NPC, item, quest).
-Response models describe what content is returned (names, descriptions, stats).
-"""
-
-from dataclasses import dataclass
-from typing import Optional
-
-
-# =============================================================================
-# Request Models
-# =============================================================================
-
-
-@dataclass
-class RoomContentRequest:
-    """Request for room name and description content.
-
-    Attributes:
-        room_type: Type of room (entry, corridor, chamber, boss_room, treasure, puzzle).
-        category: Location category (dungeon, cave, temple, etc.) for thematic content.
-        connections: List of connected directions (north, south, east, west, up, down).
-        is_entry: Whether this is an entry/exit point to the overworld.
-        coordinates: 3D coordinates (x, y, z) for cache keying and context.
+    Returns:
+        Dict with 'name', 'description', 'dialogue' keys
     """
+    # TODO: Add AI generation path when AIService has generate_npc_content()
+    # For now, use fallback directly
 
-    room_type: str
-    category: str
-    connections: list[str]
-    is_entry: bool
-    coordinates: tuple[int, int, int]
-
-
-@dataclass
-class NPCContentRequest:
-    """Request for NPC name, description, and dialogue content.
-
-    Attributes:
-        role: NPC's role (merchant, guard, quest_giver, villager, elder, etc.).
-        category: Location category for contextual content.
-        coordinates: 3D coordinates for cache keying.
-    """
-
-    role: str
-    category: str
-    coordinates: tuple[int, int, int]
-
-
-@dataclass
-class ItemContentRequest:
-    """Request for item name, description, and stats content.
-
-    Attributes:
-        item_type: Type of item (weapon, armor, consumable, misc).
-        category: Location category for thematic items.
-        coordinates: 3D coordinates for cache keying.
-    """
-
-    item_type: str
-    category: str
-    coordinates: tuple[int, int, int]
-
-
-@dataclass
-class QuestContentRequest:
-    """Request for quest name, description, and objective content.
-
-    Attributes:
-        category: Location category for thematic quests.
-        coordinates: 3D coordinates for cache keying.
-    """
-
-    category: str
-    coordinates: tuple[int, int, int]
-
-
-# =============================================================================
-# Response Models
-# =============================================================================
-
-
-@dataclass
-class RoomContentResponse:
-    """Response containing room name and description.
-
-    Attributes:
-        name: The room's display name.
-        description: The room's description text.
-    """
-
-    name: str
-    description: str
-
-    @classmethod
-    def from_dict(cls, data: dict) -> "RoomContentResponse":
-        """Create RoomContentResponse from dictionary.
-
-        Args:
-            data: Dictionary with "name" and "description" keys.
-
-        Returns:
-            RoomContentResponse instance.
-        """
-        return cls(
-            name=data.get("name", "Unknown Chamber"),
-            description=data.get("description", "A mysterious room."),
-        )
-
-    def to_dict(self) -> dict:
-        """Serialize to dictionary.
-
-        Returns:
-            Dictionary with "name" and "description" keys.
-        """
-        return {"name": self.name, "description": self.description}
-
-
-@dataclass
-class NPCContentResponse:
-    """Response containing NPC name, description, and dialogue.
-
-    Attributes:
-        name: The NPC's display name.
-        description: The NPC's physical/contextual description.
-        dialogue: The NPC's initial dialogue line.
-    """
-
-    name: str
-    description: str
-    dialogue: str
-
-    @classmethod
-    def from_dict(cls, data: dict) -> "NPCContentResponse":
-        """Create NPCContentResponse from dictionary.
-
-        Args:
-            data: Dictionary with "name", "description", and "dialogue" keys.
-
-        Returns:
-            NPCContentResponse instance.
-        """
-        return cls(
-            name=data.get("name", "Mysterious Stranger"),
-            description=data.get("description", "A person of unknown purpose."),
-            dialogue=data.get("dialogue", "..."),
-        )
-
-    def to_dict(self) -> dict:
-        """Serialize to dictionary.
-
-        Returns:
-            Dictionary with "name", "description", and "dialogue" keys.
-        """
-        return {
-            "name": self.name,
-            "description": self.description,
-            "dialogue": self.dialogue,
-        }
-
-
-@dataclass
-class ItemContentResponse:
-    """Response containing item name, description, and stats.
-
-    Attributes:
-        name: The item's display name.
-        description: The item's description text.
-        item_type: Type of item (weapon, armor, consumable, misc).
-        damage_bonus: Weapon damage bonus (weapons only).
-        defense_bonus: Armor defense bonus (armor only).
-        heal_amount: Healing amount (consumables only).
-    """
-
-    name: str
-    description: str
-    item_type: str
-    damage_bonus: Optional[int] = None
-    defense_bonus: Optional[int] = None
-    heal_amount: Optional[int] = None
-
-    @classmethod
-    def from_dict(cls, data: dict) -> "ItemContentResponse":
-        """Create ItemContentResponse from dictionary.
-
-        Args:
-            data: Dictionary with item fields.
-
-        Returns:
-            ItemContentResponse instance.
-        """
-        return cls(
-            name=data.get("name", "Unknown Item"),
-            description=data.get("description", "A mysterious object."),
-            item_type=data.get("item_type", "misc"),
-            damage_bonus=data.get("damage_bonus"),
-            defense_bonus=data.get("defense_bonus"),
-            heal_amount=data.get("heal_amount"),
-        )
-
-    def to_dict(self) -> dict:
-        """Serialize to dictionary.
-
-        Returns:
-            Dictionary with item fields.
-        """
-        result = {
-            "name": self.name,
-            "description": self.description,
-            "item_type": self.item_type,
-        }
-        if self.damage_bonus is not None:
-            result["damage_bonus"] = self.damage_bonus
-        if self.defense_bonus is not None:
-            result["defense_bonus"] = self.defense_bonus
-        if self.heal_amount is not None:
-            result["heal_amount"] = self.heal_amount
-        return result
-
-
-@dataclass
-class QuestContentResponse:
-    """Response containing quest name, description, and objective.
-
-    Attributes:
-        name: The quest's display name.
-        description: The quest's description text.
-        objective_type: Type of objective (kill, collect, explore, talk).
-        target: The objective's target (enemy name, item name, location, NPC).
-    """
-
-    name: str
-    description: str
-    objective_type: str
-    target: str
-
-    @classmethod
-    def from_dict(cls, data: dict) -> "QuestContentResponse":
-        """Create QuestContentResponse from dictionary.
-
-        Args:
-            data: Dictionary with quest fields.
-
-        Returns:
-            QuestContentResponse instance.
-        """
-        return cls(
-            name=data.get("name", "A Simple Task"),
-            description=data.get("description", "Complete an objective."),
-            objective_type=data.get("objective_type", "explore"),
-            target=data.get("target", "Destination"),
-        )
-
-    def to_dict(self) -> dict:
-        """Serialize to dictionary.
-
-        Returns:
-            Dictionary with quest fields.
-        """
-        return {
-            "name": self.name,
-            "description": self.description,
-            "objective_type": self.objective_type,
-            "target": self.target,
-        }
+    # Fallback to procedural names using FallbackContentProvider
+    provider = FallbackContentProvider(seed=rng.randint(0, 2**31))
+    return provider.get_npc_content(role, category)
 ```
+
+### ContentLayer.generate_quest_content()
+
+```python
+def generate_quest_content(
+    self,
+    category: str,
+    coords: tuple[int, int, int],
+    ai_service: Optional["AIService"],
+    generation_context: Optional["GenerationContext"],
+    rng: random.Random,
+    npc_name: str = "",
+    valid_locations: Optional[set[str]] = None,
+    valid_npcs: Optional[set[str]] = None,
+) -> Optional[dict]:
+    """Generate quest name, description, and objectives.
+
+    Args:
+        category: Location category for thematic quests
+        coords: 3D coordinates for deterministic seeding
+        ai_service: Optional AI service for content generation
+        generation_context: Optional context for AI generation
+        rng: Random number generator for determinism
+        npc_name: Name of quest-giving NPC for context
+        valid_locations: Optional set of valid location names for EXPLORE quests
+        valid_npcs: Optional set of valid NPC names for TALK quests
+
+    Returns:
+        Dict with 'name', 'description', 'objective_type', 'target' keys,
+        or None if generation fails
+    """
+    # Try AI generation if available
+    if ai_service is not None and generation_context is not None:
+        try:
+            world_context = generation_context.world
+            region_context = generation_context.region
+            theme = world_context.theme if world_context else "fantasy"
+
+            quest_data = ai_service.generate_quest(
+                theme=theme,
+                npc_name=npc_name,
+                player_level=1,
+                location_name="",
+                valid_locations=valid_locations,
+                valid_npcs=valid_npcs,
+                world_context=world_context,
+                region_context=region_context,
+            )
+            return quest_data
+        except Exception as e:
+            logger.debug(f"AI quest generation failed: {e}")
+
+    # Fallback to FallbackContentProvider
+    provider = FallbackContentProvider(seed=rng.randint(0, 2**31))
+    return provider.get_quest_content(category)
+```
+
+## Success Criteria
+1. All 5195+ existing tests continue to pass
+2. New tests for ContentLayer NPC/quest generation pass
+3. SubGrid locations can generate NPCs/quests without AI available
+4. Same seed produces identical NPC/quest content
+5. AI-generated content is used when available
+
+## Notes
+- This is a non-breaking change - existing code paths continue to work
+- Full integration with `ai_world.py` is optional for this increment
+- ContentCache integration can be added in a follow-up for coordinate-based caching

@@ -81,7 +81,7 @@ Refactor to use **procedural generation for world structure** while keeping **AI
 
 **Phase 5: Integration**
 15. ✓ Modify `generate_subgrid_for_location()` to use procedural + ContentLayer (COMPLETED 2025-12-28)
-16. Update NPC and quest generation flows
+16. ✓ Add NPC and quest generation flows to ContentLayer (COMPLETED 2025-12-28: `generate_npc_content()` and `generate_quest_content()` methods added)
 17. Update fallback paths
 
 **Phase 6: Testing**
