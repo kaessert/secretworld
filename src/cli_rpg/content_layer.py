@@ -9,7 +9,7 @@ Architecture:
 - ContentLayer.populate_subgrid(): Main entry point
 - Transforms RoomTemplate → Location for each room
 - Applies room-type-specific content (boss, treasure, puzzle, hazards)
-- Supports AI content generation with graceful fallback
+- Supports AI content generation with graceful fallback via FallbackContentProvider
 - Ensures determinism via seed parameter
 """
 
@@ -20,6 +20,7 @@ from typing import Optional, TYPE_CHECKING
 from cli_rpg.procedural_interiors import RoomTemplate, RoomType
 from cli_rpg.models.location import Location
 from cli_rpg.world_grid import SubGrid, get_subgrid_bounds
+from cli_rpg.fallback_content import FallbackContentProvider
 
 if TYPE_CHECKING:
     from cli_rpg.ai_service import AIService
@@ -28,64 +29,6 @@ if TYPE_CHECKING:
 
 # Set up logging
 logger = logging.getLogger(__name__)
-
-
-# Fallback names by room type
-FALLBACK_NAMES: dict[RoomType, list[str]] = {
-    RoomType.ENTRY: ["Entrance Chamber", "Entry Hall", "Threshold", "Vestibule"],
-    RoomType.CORRIDOR: ["Dark Corridor", "Narrow Passage", "Stone Hallway", "Winding Path"],
-    RoomType.CHAMBER: ["Ancient Chamber", "Dusty Room", "Stone Chamber", "Silent Hall"],
-    RoomType.BOSS_ROOM: ["Boss Lair", "Inner Sanctum", "Throne Room", "Final Chamber"],
-    RoomType.TREASURE: ["Treasure Vault", "Hidden Cache", "Gilded Chamber", "Hoard Room"],
-    RoomType.PUZZLE: ["Puzzle Room", "Trial Chamber", "Enigma Hall", "Test of Wits"],
-}
-
-
-# Fallback descriptions by room type and category
-FALLBACK_DESCRIPTIONS: dict[RoomType, dict[str, str]] = {
-    RoomType.ENTRY: {
-        "dungeon": "The entrance to the dungeon. Dark passages stretch ahead.",
-        "cave": "The cave mouth opens into darkness. Strange echoes surround you.",
-        "ruins": "Crumbling stones mark the entrance to these ancient ruins.",
-        "temple": "Sacred symbols adorn the threshold of this holy place.",
-        "default": "The entrance to this place. Adventure awaits within.",
-    },
-    RoomType.CORRIDOR: {
-        "dungeon": "A narrow passage with damp walls. Shadows dance at the edges of your vision.",
-        "cave": "A rocky tunnel twists through the darkness. Water drips somewhere nearby.",
-        "ruins": "A partially collapsed hallway. Rubble crunches underfoot.",
-        "temple": "A processional corridor lined with faded murals.",
-        "default": "A connecting passage leading deeper into the structure.",
-    },
-    RoomType.CHAMBER: {
-        "dungeon": "A larger room with crumbling pillars. Something valuable might be hidden here.",
-        "cave": "A cavern opens up around you. Stalactites hang from the ceiling.",
-        "ruins": "An ancient chamber, its original purpose lost to time.",
-        "temple": "A meditation chamber with worn prayer cushions.",
-        "default": "A spacious room with signs of ancient habitation.",
-    },
-    RoomType.BOSS_ROOM: {
-        "dungeon": "A massive chamber where something powerful lurks.",
-        "cave": "A vast underground dome. The beast's lair awaits.",
-        "ruins": "The heart of the ruins. An ancient guardian protects this place.",
-        "temple": "The inner sanctum. A sacred guardian challenges all who enter.",
-        "default": "A final chamber where danger awaits.",
-    },
-    RoomType.TREASURE: {
-        "dungeon": "A hidden vault filled with the spoils of past adventurers.",
-        "cave": "A glittering grotto where precious things have accumulated.",
-        "ruins": "A treasure room protected by ancient wards.",
-        "temple": "An offering chamber filled with sacred relics.",
-        "default": "A chamber where valuable items have been stored.",
-    },
-    RoomType.PUZZLE: {
-        "dungeon": "A room with strange mechanisms. A test of wit awaits.",
-        "cave": "A chamber with peculiar rock formations. Something seems off.",
-        "ruins": "An ancient trial chamber. The builders left puzzles for intruders.",
-        "temple": "A room of trials. Only the worthy may pass.",
-        "default": "A puzzle room designed to test intruders.",
-    },
-}
 
 
 # Treasure loot tables per category (simplified from ai_world.py)
@@ -283,27 +226,21 @@ class ContentLayer:
         category: str,
         rng: random.Random,
     ) -> tuple[str, str]:
-        """Generate fallback name and description.
+        """Generate fallback name and description using FallbackContentProvider.
 
         Args:
             template: Room template
             category: Location category
-            rng: Random number generator
+            rng: Random number generator (used to generate seed for provider)
 
         Returns:
             Tuple of (name, description)
         """
-        # Get name from room type
-        names = FALLBACK_NAMES.get(template.room_type, ["Unknown Chamber"])
-        name = rng.choice(names)
-
-        # Get description from room type + category
-        desc_by_category = FALLBACK_DESCRIPTIONS.get(
-            template.room_type, {"default": "A mysterious room."}
-        )
-        description = desc_by_category.get(category, desc_by_category.get("default", ""))
-
-        return name, description
+        # Create a FallbackContentProvider with a seed derived from the RNG
+        # This ensures determinism while delegating to the centralized provider
+        provider = FallbackContentProvider(seed=rng.randint(0, 2**31))
+        content = provider.get_room_content(template.room_type, category)
+        return content["name"], content["description"]
 
     def _apply_room_type_content(
         self,

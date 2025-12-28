@@ -97,6 +97,7 @@ src/cli_rpg/
 ├── procedural_interiors.py # RoomType enum, RoomTemplate dataclass, BSPNode/BSPGenerator for dungeon layouts, GeneratorProtocol, CATEGORY_GENERATORS for procedural interior layout
 ├── content_layer.py     # ContentLayer mediator: bridges procedural RoomTemplates with AI/fallback content to produce populated SubGrids
 ├── content_cache.py     # Deterministic content cache using world seed + coordinates for reproducible world generation
+├── fallback_content.py  # FallbackContentProvider: centralized deterministic fallback templates for rooms, NPCs, items, quests
 ├── test_world.py        # Demo mode fixture loading (load_test_world, create_demo_game_state)
 └── models/
     ├── character.py     # Player character model

@@ -58,6 +58,12 @@ This architecture reduces API calls and token usage by caching context at higher
 ### 4. Graceful Fallbacks
 - Game works without API key (uses fallback location templates)
 - Falls back to template-based location generation if AI fails
+- **FallbackContentProvider** (`fallback_content.py`): Centralized, deterministic fallback content for all content types:
+  - **Rooms**: 6+ names per RoomType (ENTRY, CORRIDOR, CHAMBER, BOSS_ROOM, TREASURE, PUZZLE) with category-specific descriptions for all 18+ enterable categories
+  - **NPCs**: 7 roles (merchant, guard, quest_giver, villager, elder, blacksmith, innkeeper) with 4-6 name/description variants each
+  - **Items**: 4 types (weapon, armor, consumable, misc) with category-specific variations
+  - **Quests**: Category-specific quest templates for dungeon, cave, ruins, temple, town, and default
+- Uses seeded RNG for reproducibility - same seed produces identical fallback content
 - Fallback locations include 5 terrain themes (wilderness, rocky, misty, grassy, dense thicket)
 - The world is truly infinite even without AI - fallback locations always have frontier exits
 - No crashes or data loss
