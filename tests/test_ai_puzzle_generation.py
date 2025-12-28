@@ -410,7 +410,7 @@ class TestSubGridPuzzleIntegration:
     def test_key_placed_before_locked_door(self):
         """Keys for locked doors should be placed in earlier rooms.
 
-        Spec: Key placed in room at distance < door_distance
+        Spec: Key placed in room at distance from entry < door_distance from entry
         """
         from cli_rpg.ai_world import generate_subgrid_for_location
         from cli_rpg.models.location import Location
@@ -431,6 +431,19 @@ class TestSubGridPuzzleIntegration:
                 theme="fantasy",
             )
 
+            # Find entry room coordinates for distance calculations
+            entry_coords = (0, 0, 0)
+            for loc in sub_grid._by_name.values():
+                if loc.is_exit_point:
+                    coords = loc.coordinates
+                    if coords:
+                        if len(coords) == 2:
+                            entry_coords = (coords[0], coords[1], 0)
+                        else:
+                            entry_coords = coords
+                    break
+            entry_x, entry_y, _ = entry_coords
+
             # Find all locked doors and their keys
             locked_doors = []
             for loc in sub_grid._by_name.values():
@@ -443,29 +456,35 @@ class TestSubGridPuzzleIntegration:
                 for door_loc, puzzle in locked_doors:
                     key_name = puzzle.required_key
                     door_coords = door_loc.coordinates
-                    door_distance = abs(door_coords[0]) + abs(door_coords[1])
+                    # Calculate distance from entry point, not origin
+                    door_distance = (
+                        abs(door_coords[0] - entry_x) + abs(door_coords[1] - entry_y)
+                    )
 
-                    # Search for the key in treasures
-                    found_key = False
+                    # Search for a key at valid distance (closer than door)
+                    # Since multiple doors may use same key type, we check that
+                    # at least one key exists at a valid distance
+                    found_valid_key = False
+                    all_key_distances = []
                     for loc in sub_grid._by_name.values():
                         for treasure in loc.treasures:
                             for item in treasure.get("items", []):
                                 if item.get("name") == key_name:
                                     key_coords = loc.coordinates
+                                    # Calculate distance from entry point
                                     key_distance = (
-                                        abs(key_coords[0]) + abs(key_coords[1])
+                                        abs(key_coords[0] - entry_x)
+                                        + abs(key_coords[1] - entry_y)
                                     )
-                                    assert (
-                                        key_distance < door_distance
-                                        or loc.is_exit_point
-                                    ), f"Key at distance {key_distance}, door at {door_distance}"
-                                    found_key = True
-                                    break
+                                    all_key_distances.append(key_distance)
+                                    if key_distance < door_distance or loc.is_exit_point:
+                                        found_valid_key = True
 
-                    # Key should be findable
-                    assert (
-                        found_key
-                    ), f"Key '{key_name}' not found for locked door at {door_loc.name}"
+                    # At least one key should be at valid distance
+                    assert found_valid_key, (
+                        f"No key '{key_name}' found at distance < {door_distance}. "
+                        f"Key distances: {all_key_distances}"
+                    )
                 return
 
         # If no locked doors in 20 attempts, that's okay (random generation)

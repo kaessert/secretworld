@@ -2,6 +2,231 @@
 
 ---
 
+### Demo Mode Does Not Skip Character Creation in Non-Interactive/JSON Modes
+**Status**: OPEN
+**Priority**: MEDIUM
+**Date Added**: 2025-12-28
+
+#### Problem
+The `--demo` flag is documented to "Skip character creation (uses pre-built Level 3 Warrior 'Demo Hero')" but when combined with `--non-interactive` or `--json` flags, character creation is NOT skipped. The game prompts for character creation input and fails with errors like:
+- `Error: No character name provided.`
+- `Error: No character class provided.`
+- `Error: Invalid class 'look'. Use 1-5 or class name...`
+
+#### Steps to Reproduce
+```bash
+# All of these fail - demo mode doesn't skip character creation
+echo "look" | cli-rpg --demo --non-interactive
+cli-rpg --demo --json
+echo "" | python -m cli_rpg.main --demo --non-interactive
+```
+
+#### Expected Behavior
+When `--demo` flag is used:
+1. Character creation should be skipped entirely (regardless of other flags)
+2. The pre-built "Demo Hero" Level 3 Warrior should be loaded automatically
+3. Game should start immediately at the pre-generated world's starting location
+4. Commands from stdin should be interpreted as gameplay commands, not character creation input
+
+#### Actual Behavior
+Demo mode still requires character creation input through stdin, making it unusable for:
+- Automated testing pipelines
+- CI/CD environments
+- JSON mode integration
+- Any non-interactive scripted scenarios
+
+#### Workaround
+Currently, users must provide full character creation input even with `--demo`, defeating the purpose of the demo mode for automated scenarios.
+
+#### Related Files
+- `src/cli_rpg/main.py` - `run_demo_mode()` function and flag handling
+- `src/cli_rpg/test_world.py` - `create_demo_game_state()` function
+
+---
+
+### All Named Locations Should Be Enterable
+**Status**: OPEN
+**Priority**: CRITICAL BLOCKER
+**Date Added**: 2025-12-28
+
+#### Problem
+Not all named locations on the overworld can be entered. Players encounter named locations (towns, dungeons, temples, ruins, etc.) that appear interesting but cannot use the `enter` command to explore them. Every named location should have a SubGrid interior with sublocations to explore.
+
+#### Expected Behavior
+- All named locations (locations with `is_named=True`) should be enterable
+- Each named location should generate a SubGrid when entered
+- SubGrid size should be determined by the location's category via `get_subgrid_bounds()`
+- Interior should contain explorable rooms, NPCs, items, and encounters appropriate to the location type
+
+#### Current Behavior
+Some named locations exist on the overworld but cannot be entered, breaking immersion and player expectations.
+
+#### Acceptance Criteria
+- [ ] All locations with `is_named=True` can be entered with the `enter` command
+- [ ] SubGrid generation works for all enterable location categories
+- [ ] Fallback content exists for any location type that might be generated
+- [ ] Unit tests verify all named location categories are enterable
+
+#### Related Files
+- `src/cli_rpg/world_tiles.py` - `ENTERABLE_CATEGORIES` definition
+- `src/cli_rpg/ai_world.py` - `generate_subgrid_for_location()`
+- `src/cli_rpg/game_state.py` - `enter()` command handling
+- `src/cli_rpg/world_grid.py` - `SUBGRID_BOUNDS` and `get_subgrid_bounds()`
+
+---
+
+### Scripted Playthrough for Feature Validation
+**Status**: ACTIVE
+**Priority**: HIGH
+**Date Added**: 2025-12-28
+
+#### Problem
+Game features are validated manually, which is time-consuming and error-prone. Need automated scripted playthroughs that exercise each major feature systematically to catch regressions and verify functionality.
+
+#### Goal
+Create scripted test sessions that walk through each game feature, issuing commands and validating expected outcomes.
+
+#### Features to Cover
+- [ ] Character creation (all 5 classes)
+- [ ] Movement and navigation (overworld, SubGrid entry/exit, vertical z-levels)
+- [ ] Combat (attack, abilities, flee, stealth kills, companion combat)
+- [ ] NPC interaction (talk, dialogue choices, arc progression, shop, quest acceptance)
+- [ ] Inventory management (equip, unequip, use, drop, armor restrictions, holy symbols)
+- [ ] Quests (accept, track, complete, world effects, quest chains)
+- [ ] Crafting and gathering (gather, craft, skill progression, rare recipes)
+- [ ] Exploration (map, secrets, puzzles, treasures, exploration bonus)
+- [ ] Rest and camping (rest, camp, forage, hunt, dreams)
+- [ ] Economy (buy, sell, price modifiers, supply/demand)
+- [ ] Environmental hazards (poison gas, darkness, flooding, temperature)
+- [ ] Interior events (cave-ins, monster migration, rivals, rituals, spreading hazards)
+- [ ] Ranger companion (tame, summon, dismiss, feed, combat integration)
+- [ ] Social skills (persuade, intimidate, bribe)
+- [ ] Save/load (persistence, backward compatibility)
+
+#### Critical Requirement: Real AI Content Generation
+**The scripted playthroughs MUST use real AI content generation, not mocks or fallbacks.**
+
+- Load `OPENAI_API_KEY` (or `ANTHROPIC_API_KEY`) from `.env` file
+- Use `python-dotenv` or shell `source .env && export OPENAI_API_KEY`
+- AI-generated content is crucial for validating:
+  - **Locations**: Names, descriptions, categories, theme consistency
+  - **NPCs**: Names, dialogue, personas, greetings, shop flavor text
+  - **Quests**: Narrative wrapping, objectives, completion text, world effects
+  - **Enemies**: Names, descriptions, stats, abilities, flavor text
+  - **Items**: Weapons, armor, consumables with themed names/stats
+  - **Lore**: World history, legends, prophecies, creation myths
+  - **Context layers**: WorldContext → RegionContext → SettlementContext propagation
+  - **ASCII art**: Location art, NPC art, quality and theme matching
+  - **Dreams**: Rest dream sequences matching world theme
+  - **Whispers**: Atmospheric whispers matching location/depth
+  - **Companion banter**: Context-aware travel comments
+  - **Environmental storytelling**: Corpses, journals, bloodstains
+  - **Shop inventories**: Themed merchant stock
+  - **Secret descriptions**: Hidden treasure, traps, lore hints
+  - **Puzzle riddles**: AI-generated riddle text for RIDDLE puzzles
+  - **Region landmarks**: AI-generated landmark names for EXPLORE quests
+  - **NPC relationships**: Family/network generation coherence
+
+#### Implementation Options
+1. **Extend existing simulation**: Build on `scripts/ai_agent.py` and `scripts/run_simulation.py`
+2. **Pytest-based scenarios**: Integration tests that run command sequences
+3. **Replay system**: Use `--replay` with pre-recorded sessions and `--validate` assertions
+
+#### Acceptance Criteria
+- [ ] Scripted playthrough covers all major features listed above
+- [ ] **Loads API key from .env and uses real AI generation**
+- [ ] Runs deterministically with fixed seed (structure deterministic, AI content cached)
+- [ ] Outputs pass/fail for each feature area
+- [ ] Can be run in CI/CD pipeline (with API key as secret)
+- [ ] Documents expected behavior for each test scenario
+- [ ] Logs AI-generated content for review (uses existing `log_ai_content()`)
+
+#### Related Files
+- `scripts/ai_agent.py` - Existing heuristic AI agent
+- `scripts/run_simulation.py` - Simulation runner
+- `src/cli_rpg/session_replay.py` - Replay system
+- `tests/e2e/` - Existing E2E test infrastructure
+
+---
+
+### Terrain Overwrite Check - Must Never Overwrite Existing Terrain
+**Status**: ACTIVE
+**Priority**: CRITICAL BLOCKER
+**Date Added**: 2025-12-28
+
+#### Problem
+Need to verify that once terrain is generated by WFC for a coordinate, it is NEVER overwritten. Terrain should be immutable after generation. If terrain is being overwritten, this would explain desyncs between map display and location data.
+
+#### Expected Behavior
+- WFC generates terrain for a chunk once (deterministic based on seed)
+- That terrain value is cached and never changed
+- Location.terrain should always match ChunkManager.get_tile_at() for same coords
+- No code path should modify existing terrain values
+
+#### Investigation Needed
+- Audit `ChunkManager` for any terrain mutation after initial generation
+- Check if `Location.terrain` can diverge from chunk terrain
+- Look for any code that sets terrain on existing locations
+- Verify chunk caching doesn't allow overwrites
+- Add assertions/guards against terrain mutation if missing
+
+#### Acceptance Criteria
+- [ ] Confirm terrain is never overwritten (or find and fix the bug)
+- [ ] Add assertion in ChunkManager to prevent terrain overwrites
+- [ ] Add test that verifies terrain immutability
+- [ ] Location.terrain always matches chunk terrain at same coordinates
+
+#### Related Files
+- `src/cli_rpg/wfc_chunks.py` - ChunkManager chunk storage and retrieval
+- `src/cli_rpg/wfc.py` - WFC terrain generation
+- `src/cli_rpg/ai_world.py` - Location creation with terrain assignment
+- `src/cli_rpg/game_state.py` - Location storage in world dict
+
+---
+
+### Exits Desync - Can Move Where Look Says You Can't
+**Status**: ACTIVE
+**Priority**: CRITICAL BLOCKER
+**Date Added**: 2025-12-28
+
+#### Problem
+Player can move in directions not shown as exits by the `look` command. The map shows passable terrain in all 4 cardinal directions, but `look` only reports a subset as valid exits.
+
+#### Symptoms
+```
+Map shows passable terrain in all directions around @:
+│-37        %   T   n   @   T   n   T    │
+                  west↑   ↑east (both passable forest/hills)
+
+look shows:
+Hilltop Path (0,-37)
+The trail winds up and down rolling terrain.
+Exits: north, west    ← missing east, south despite passable terrain on map
+```
+
+Player can still `go east` or `go south` even though those aren't listed as exits.
+
+#### Possible Causes
+1. **Location.exits not updated**: When locations are created/expanded, exits list not synced with actual passable neighbors
+2. **Exit calculation timing**: Exits calculated at location creation but neighbors added later
+3. **Map shows chunk terrain**: Map renderer uses ChunkManager terrain, but Location.exits uses different logic
+4. **Stale exit data**: Location exits not recalculated when adjacent locations are generated
+
+#### Investigation Needed
+- Check how `Location.exits` is populated vs how `move()` determines valid directions
+- Verify exit calculation in `expand_world()` / `expand_area()`
+- Check if exits are dynamically calculated or stored statically
+- Compare map passability logic vs exit list generation
+
+#### Related Files
+- `src/cli_rpg/models/location.py` - Location.exits field and get_exits()
+- `src/cli_rpg/game_state.py` - move() direction validation
+- `src/cli_rpg/ai_world.py` - expand_world(), expand_area() exit assignment
+- `src/cli_rpg/world_grid.py` - WorldGrid adjacency logic
+- `src/cli_rpg/map_renderer.py` - Terrain passability for display
+
+---
+
 ### Procedural World Generation with AI Content Layer
 **Status**: COMPLETED ✓
 **Priority**: -
@@ -969,3 +1194,64 @@ Added "Exit to: <parent_location>" display in location descriptions when viewing
 - `tests/test_exit_points.py`: Added `TestExitPointDisplay` test class with 3 test methods
 
 The indicator appears after the "Exits:" line (cardinal directions) but before the "Enter:" line, maintaining logical grouping of navigation information.
+
+---
+
+### Dungeon/Cave Sizes Too Small
+**Status**: COMPLETED ✓
+**Priority**: CRITICAL BLOCKER
+**Date Added**: 2025-12-28
+**Completed**: 2025-12-28
+
+#### Problem
+Dungeons and caves were generating with only 1-2 rooms, making them feel empty and unsatisfying to explore. Caves especially were tiny (3x3 bounds = 1-2 rooms).
+
+#### Resolution
+Increased SubGrid bounds for adventure locations to ensure more rooms:
+
+**Before**:
+- Cave: 3x3 single level → ~1-2 rooms
+- Dungeon: 7x7 with 3 levels → ~4-6 rooms
+- Ruins: 5x5 single level → ~2-3 rooms
+
+**After**:
+- Cave: 7x7 with 3 levels → ~8-12 rooms
+- Dungeon: 11x11 with 4 levels → ~15-25 rooms
+- Ruins: 7x7 with 2 levels → ~6-10 rooms
+- Mine: 7x7 with 4 levels → ~12-18 rooms
+- Tomb/Crypt: 7x7 with 3 levels → ~8-12 rooms
+- Temple: 11x11 with 4 levels → ~15-25 rooms
+- Monastery: 11x11 with 3 levels → ~12-20 rooms
+- Tower: 5x5 with 5 levels → ~8-12 rooms
+
+**Changes**:
+- `src/cli_rpg/world_grid.py`: Updated `SUBGRID_BOUNDS` dictionary with larger bounds
+- Added missing categories: `inn`, `shrine`, `outpost`, `camp`, `mine`, `tomb`, `crypt`, `monastery`
+- Updated default fallback to medium adventure size (7x7 with basement)
+
+---
+
+### Named Locations Not Enterable
+**Status**: COMPLETED ✓
+**Priority**: CRITICAL BLOCKER
+**Date Added**: 2025-12-28
+**Completed**: 2025-12-28
+
+#### Problem
+Named locations (e.g., "Gentle Slopes East") with NPCs could not be entered using the `enter` command, even though they were distinct points of interest.
+
+#### Root Cause
+1. `VALID_LOCATION_CATEGORIES` in `ai_service.py` was missing many enterable categories (temple, tomb, monastery, etc.)
+2. When AI generated locations with these categories, they were rejected and set to `None`
+3. The `enter()` method only checked for specific enterable categories, not whether a location was named
+
+#### Resolution
+1. Expanded `VALID_LOCATION_CATEGORIES` to include all enterable categories
+2. Updated `enter()` to allow entry for any named location (`is_named=True`)
+3. SubGrids are generated on-demand for named locations without existing content
+
+**Changes**:
+- `src/cli_rpg/ai_service.py`: Expanded `VALID_LOCATION_CATEGORIES` with all enterable types
+- `src/cli_rpg/world_tiles.py`: Expanded `ENTERABLE_CATEGORIES` and `FORCED_ENTERABLE_BY_TERRAIN`
+- `src/cli_rpg/game_state.py`: Updated `enter()` to allow named locations, added clear error for wilderness
+- `tests/test_game_state.py`: Updated test fixtures with `is_named=True`

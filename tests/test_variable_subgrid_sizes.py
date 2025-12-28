@@ -17,14 +17,14 @@ class TestSubGridBoundsConfig:
         assert SUBGRID_BOUNDS["town"] == (-5, 5, -5, 5, 0, 0)
 
     def test_bounds_config_has_dungeon(self):
-        """Dungeon should have medium 7x7 bounds with multi-level down."""
+        """Dungeon should have large 11x11 bounds with deep multi-level down."""
         # 6-tuple: (min_x, max_x, min_y, max_y, min_z, max_z)
-        assert SUBGRID_BOUNDS["dungeon"] == (-3, 3, -3, 3, -2, 0)
+        assert SUBGRID_BOUNDS["dungeon"] == (-5, 5, -5, 5, -3, 0)
 
     def test_bounds_config_has_cave(self):
-        """Cave should have tiny 3x3 bounds with one level down."""
+        """Cave should have medium 7x7 bounds with multi-level down."""
         # 6-tuple: (min_x, max_x, min_y, max_y, min_z, max_z)
-        assert SUBGRID_BOUNDS["cave"] == (-1, 1, -1, 1, -1, 0)
+        assert SUBGRID_BOUNDS["cave"] == (-3, 3, -3, 3, -2, 0)
 
     def test_bounds_config_has_city(self):
         """City should have huge 17x17 bounds (single level)."""
@@ -41,16 +41,16 @@ class TestGetSubgridBounds:
     """Tests for get_subgrid_bounds() helper function."""
 
     def test_returns_default_for_none(self):
-        """None category should return default bounds (6-tuple)."""
-        assert get_subgrid_bounds(None) == (-2, 2, -2, 2, 0, 0)
+        """None category should return default bounds (6-tuple with basement)."""
+        assert get_subgrid_bounds(None) == (-3, 3, -3, 3, -1, 0)
 
     def test_returns_town_bounds(self):
         """Town category should return large bounds (6-tuple)."""
         assert get_subgrid_bounds("town") == (-5, 5, -5, 5, 0, 0)
 
     def test_returns_dungeon_bounds(self):
-        """Dungeon category should return medium bounds with multi-level down (6-tuple)."""
-        assert get_subgrid_bounds("dungeon") == (-3, 3, -3, 3, -2, 0)
+        """Dungeon category should return large bounds with deep multi-level down (6-tuple)."""
+        assert get_subgrid_bounds("dungeon") == (-5, 5, -5, 5, -3, 0)
 
     def test_returns_city_bounds(self):
         """City category should return huge bounds (6-tuple)."""
@@ -63,9 +63,9 @@ class TestGetSubgridBounds:
         assert get_subgrid_bounds("ToWn") == (-5, 5, -5, 5, 0, 0)
 
     def test_returns_default_for_unknown(self):
-        """Unknown category should return default bounds (6-tuple)."""
-        assert get_subgrid_bounds("unknown_category") == (-2, 2, -2, 2, 0, 0)
-        assert get_subgrid_bounds("xyz123") == (-2, 2, -2, 2, 0, 0)
+        """Unknown category should return default bounds (6-tuple with basement)."""
+        assert get_subgrid_bounds("unknown_category") == (-3, 3, -3, 3, -1, 0)
+        assert get_subgrid_bounds("xyz123") == (-3, 3, -3, 3, -1, 0)
 
     def test_all_configured_categories_return_valid_bounds(self):
         """All configured categories should return valid 6-tuple bounds."""
@@ -85,11 +85,11 @@ class TestSubGridWithVariableBounds:
         """SubGrid with tiny bounds should reject out-of-bounds coordinates."""
         from cli_rpg.models.location import Location
 
-        bounds = get_subgrid_bounds("cave")  # 3x3
-        subgrid = SubGrid(bounds=bounds, parent_name="Cave Entrance")
+        bounds = get_subgrid_bounds("house")  # 3x3 single level
+        subgrid = SubGrid(bounds=bounds, parent_name="House Entrance")
 
         # Valid placement at (0, 0)
-        loc = Location(name="Inner Cave", description="Dark interior")
+        loc = Location(name="Living Room", description="Cozy interior")
         subgrid.add_location(loc, 0, 0)
         assert subgrid.get_by_coordinates(0, 0) == loc
 

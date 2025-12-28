@@ -423,8 +423,8 @@ class TestExpandAreaSubGrid:
 
         entry = basic_world["Dark Dungeon"]
         assert entry.sub_grid is not None
-        # dungeon category gets 7x7 bounds with z-axis for multi-level
-        assert entry.sub_grid.bounds == (-3, 3, -3, 3, -2, 0)
+        # dungeon category gets 11x11 bounds with z-axis for deep multi-level
+        assert entry.sub_grid.bounds == (-5, 5, -5, 5, -3, 0)
 
     def test_expand_area_subgrid_parent_name(self, mock_ai_service, basic_world):
         """SubGrid should have parent_name set to entry location name.

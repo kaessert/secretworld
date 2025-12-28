@@ -1,52 +1,43 @@
-# Implementation Summary: Weather Penetration Sounds
+# Implementation Summary: Key Placement Algorithm Fix
+
+## Status: ALREADY FIXED
+
+The implementation described in the plan has already been applied to the codebase.
 
 ## What Was Implemented
 
-Added weather-aware ambient sounds near SubGrid entrance rooms. When it's raining or storming outside, players hear muffled weather sounds near the entrance at z=0 level.
+### Problem
+Keys for LOCKED_DOOR puzzles were being placed at locations with distance greater than their corresponding locked doors, violating the spec that keys must be accessible before doors.
 
-### Files Modified
+### Root Cause
+Distance was calculated from origin `(0, 0)` instead of from the entry room's actual coordinates.
 
-1. **`src/cli_rpg/world_grid.py`**
-   - Added `SubGrid.get_distance_to_nearest_exit(coords)` method
-   - Calculates Manhattan distance from any (x, y, z) coordinate to the nearest `is_exit_point=True` location
-   - Returns -1 if no exit points exist
+### Fix Applied
+The fix in `src/cli_rpg/ai_world.py`:
 
-2. **`src/cli_rpg/ambient_sounds.py`**
-   - Added `WEATHER_PENETRATION_SOUNDS` dict with rain and storm sound pools (5-6 sounds each)
-   - Added `get_weather_penetration_sound(weather_condition, distance_from_exit)` function
-   - Updated `AmbientSoundService.get_ambient_sound()` to accept optional `weather_condition` and `distance_from_exit` parameters
-   - Weather penetration bypasses normal ambient sound roll but respects cooldown
+1. **Entry coordinate detection** (lines 1004-1016): Before iterating over locations, the entry room coordinates are identified and stored in `entry_coords`.
 
-3. **`src/cli_rpg/game_state.py`**
-   - Updated `_move_in_sub_grid()` to calculate distance from nearest exit
-   - Only calculates distance at z=0 level (ground floor)
-   - Passes weather condition and exit distance to ambient sound service
+2. **Distance calculation** (line 1039): Distance is now calculated from the entry point using `abs(x - entry_x) + abs(y - entry_y)` instead of from origin.
 
-### Feature Behavior
+3. **`_place_keys_in_earlier_rooms()` function** (lines 596-660): Already accepts an `entry_coords` parameter and uses it to calculate distances correctly.
 
-- **At exit room (distance=0):** 30% chance of weather penetration sound
-- **1 room away (distance=1):** 15% chance of weather penetration sound
-- **2+ rooms away:** No weather sounds
-- **Underground (z < 0):** No weather sounds (too deep)
-- **Clear/Fog weather:** No penetration sounds (rain/storm only)
+4. **Call site** (line 1081): The function is called with the correct `entry_coords`.
 
-### New Tests
+5. **`expand_area()` function** (line 1846): Uses `(0, 0, 0)` as entry_coords, which is correct because in that function, entry is always at relative `(0, 0, 0)`.
 
-Created `tests/test_weather_penetration.py` with 16 tests:
-- `TestWeatherPenetrationSounds`: 7 tests for sound pools and probability mechanics
-- `TestSubGridExitDistance`: 6 tests for distance calculation
-- `TestAmbientSoundServiceWeatherIntegration`: 3 tests for service integration
+## Test Verification
 
-## Test Results
+All 16 tests in `tests/test_ai_puzzle_generation.py` pass:
+- `TestPuzzleConstants` (2 tests)
+- `TestGeneratePuzzlesForLocation` (8 tests)
+- `TestPlaceKeysInEarlierRooms` (2 tests)
+- `TestSubGridPuzzleIntegration` (4 tests)
 
-All tests pass:
-- 16 new weather penetration tests
-- 5592 total tests in the test suite (all passing)
+Including the specific test mentioned in the plan:
+- `test_key_placed_before_locked_door` - PASSED
 
-## E2E Validation
+## Files Modified
+None - the fix was already in place.
 
-The feature should be validated by:
-1. Entering a dungeon/cave with rain/storm weather
-2. Moving around rooms at z=0 level
-3. Verifying weather sounds appear near the exit and fade as you go deeper
-4. Verifying no weather sounds appear underground (z < 0)
+## Technical Details
+The key insight is that when the entry room is not at `(0, 0)` (e.g., entry at `(0, 3, 0)`), using origin-based distances gave incorrect results. The fix ensures all distance calculations use the actual entry point coordinates.

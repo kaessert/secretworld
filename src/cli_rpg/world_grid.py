@@ -65,16 +65,25 @@ SUBGRID_BOUNDS: Dict[str, Tuple[int, int, int, int, int, int]] = {
     # Tiny (3x3) - Small structures
     "house": (-1, 1, -1, 1, 0, 0),        # single level
     "shop": (-1, 1, -1, 1, 0, 0),         # single level
-    "cave": (-1, 1, -1, 1, -1, 0),        # goes down one level
+    "inn": (-1, 1, -1, 1, 0, 1),          # main floor + upstairs
     # Small (5x5) - Medium structures
     "tavern": (-2, 2, -2, 2, 0, 1),       # main floor + upstairs
-    "ruins": (-2, 2, -2, 2, -1, 0),       # basement
+    "shrine": (-2, 2, -2, 2, 0, 0),       # single level
+    "outpost": (-2, 2, -2, 2, 0, 0),      # single level
+    "camp": (-2, 2, -2, 2, 0, 0),         # single level
     "settlement": (-2, 2, -2, 2, 0, 0),   # single level
-    # Medium (7x7) - Standard interiors
-    "dungeon": (-3, 3, -3, 3, -2, 0),     # multi-level down
+    # Medium (7x7) - Adventure locations
+    "cave": (-3, 3, -3, 3, -2, 0),        # multi-level down
+    "mine": (-3, 3, -3, 3, -3, 0),        # deep multi-level
+    "ruins": (-3, 3, -3, 3, -1, 0),       # basement level
+    "tomb": (-3, 3, -3, 3, -2, 0),        # multi-level down
+    "crypt": (-3, 3, -3, 3, -2, 0),       # multi-level down
+    # Large (11x11) - Major adventure locations
+    "dungeon": (-5, 5, -5, 5, -3, 0),     # deep multi-level down
+    "temple": (-5, 5, -5, 5, -2, 1),      # basement + main + upper
+    "monastery": (-5, 5, -5, 5, -1, 1),   # basement + main + upper
+    "tower": (-2, 2, -2, 2, 0, 4),        # tall multi-level up
     "forest": (-3, 3, -3, 3, 0, 0),       # single level
-    "temple": (-3, 3, -3, 3, -1, 1),      # basement + main + upper
-    "tower": (-1, 1, -1, 1, 0, 3),        # multi-level up
     "wilderness": (-3, 3, -3, 3, 0, 0),   # single level
     # Large (11x11) - Towns
     "town": (-5, 5, -5, 5, 0, 0),         # single level
@@ -85,8 +94,8 @@ SUBGRID_BOUNDS: Dict[str, Tuple[int, int, int, int, int, int]] = {
     "metropolis": (-12, 12, -12, 12, 0, 0),  # single level, multi-district
     # Enormous (33x33) - Capitals
     "capital": (-16, 16, -16, 16, 0, 0),     # single level, multi-district
-    # Default fallback
-    "default": (-2, 2, -2, 2, 0, 0),      # single level
+    # Default fallback (medium adventure size)
+    "default": (-3, 3, -3, 3, -1, 0),     # basement level
 }
 
 

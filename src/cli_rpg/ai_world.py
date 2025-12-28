@@ -596,13 +596,16 @@ def _generate_puzzles_for_location(
 def _place_keys_in_earlier_rooms(
     placed_locations: dict,
     keys_to_place: list[tuple[str, str, int]],
+    entry_coords: tuple[int, int, int] = (0, 0, 0),
 ) -> None:
     """Place keys in rooms before their corresponding locked doors.
 
     Args:
         placed_locations: Dict of {name: {location, relative_coords, is_entry}}
         keys_to_place: List of (key_name, category, door_distance) tuples
+        entry_coords: Entry room coordinates for distance calculation
     """
+    entry_x, entry_y, _ = entry_coords
     for key_name, category, door_distance in keys_to_place:
         # Find valid rooms (distance < door_distance, not entry)
         candidates = []
@@ -615,11 +618,12 @@ def _place_keys_in_earlier_rooms(
             # Skip rooms that have locked doors (keys shouldn't be behind other doors)
             if any(p.puzzle_type == PuzzleType.LOCKED_DOOR for p in loc.puzzles):
                 continue
+            # Calculate distance from entry point, not origin
             rel = data.get("relative_coords", (0, 0, 0))
             if len(rel) == 2:
-                dist = abs(rel[0]) + abs(rel[1])
+                dist = abs(rel[0] - entry_x) + abs(rel[1] - entry_y)
             else:
-                dist = abs(rel[0]) + abs(rel[1])
+                dist = abs(rel[0] - entry_x) + abs(rel[1] - entry_y)
             if dist < door_distance:
                 candidates.append((name, dist, loc))
 
@@ -997,6 +1001,20 @@ def generate_subgrid_for_location(
     all_keys_to_place = []
     category = location.category or "dungeon"
 
+    # Find entry coordinates for distance calculations
+    # Keys must be placed closer to entry than their locked doors
+    entry_coords = (0, 0, 0)
+    for loc in sub_grid._by_name.values():
+        if loc.is_exit_point:
+            coords = loc.coordinates
+            if coords:
+                if len(coords) == 2:
+                    entry_coords = (coords[0], coords[1], 0)
+                else:
+                    entry_coords = coords
+            break
+    entry_x, entry_y, _ = entry_coords
+
     # Iterate over all locations in the SubGrid
     for loc in sub_grid._by_name.values():
         # Location.coordinates is set by SubGrid.add_location()
@@ -1017,7 +1035,8 @@ def generate_subgrid_for_location(
         }
 
         if not loc.is_exit_point:
-            distance = abs(x) + abs(y)
+            # Calculate distance from entry point, not origin
+            distance = abs(x - entry_x) + abs(y - entry_y)
 
             # Secrets
             secrets = _generate_secrets_for_location(category, distance, z)
@@ -1059,7 +1078,7 @@ def generate_subgrid_for_location(
 
     # Place keys for locked door puzzles in earlier rooms
     if all_keys_to_place:
-        _place_keys_in_earlier_rooms(placed_locations, all_keys_to_place)
+        _place_keys_in_earlier_rooms(placed_locations, all_keys_to_place, entry_coords)
 
     return sub_grid
 
@@ -1822,8 +1841,9 @@ def expand_area(
         _place_treasures(placed_locations, entry_category or "dungeon")
 
         # Place keys for locked door puzzles in earlier rooms (Issue #23)
+        # In expand_area, entry is always at relative (0, 0, 0)
         if all_keys_to_place:
-            _place_keys_in_earlier_rooms(placed_locations, all_keys_to_place)
+            _place_keys_in_earlier_rooms(placed_locations, all_keys_to_place, (0, 0, 0))
 
         # Attach sub_grid to entry
         entry_loc.sub_grid = sub_grid

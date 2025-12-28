@@ -107,6 +107,73 @@ class Agent:
         self.sub_location_moves: int = 0  # Moves since entering sub-location
         self.max_sub_location_moves: int = 50  # Exit after this many moves
 
+        # Smart exploration tracking
+        self.visited_coordinates: set[tuple[int, int]] = set()  # Track (x,y) coords
+        self.current_coords: tuple[int, int] = (0, 0)  # Current position estimate
+        self.direction_history: list[str] = []  # Recent directions taken
+        self.needs_look: bool = True  # Should look before next action
+        self.consecutive_same_dir: int = 0  # How many times same dir was taken
+        self.last_direction: str = ""
+
+        # Combat state tracking for better detection
+        self.in_combat_override: bool = False  # Manual combat detection
+        self.commands_since_combat_check: int = 0
+
+    def _detect_combat_from_narrative(self, state: AgentState) -> bool:
+        """Detect if we're in combat from narrative text.
+
+        Args:
+            state: Current game state
+
+        Returns:
+            True if combat is detected
+        """
+        narrative = state.last_narrative.lower()
+        combat_indicators = [
+            "combat has begun",
+            "appears!",
+            "ambush",
+            "attacks you",
+            "enemy hp:",
+            "=== combat",
+            "a wild",
+            "creature lunges",
+            "you are attacked",
+        ]
+        return any(indicator in narrative for indicator in combat_indicators)
+
+    def _is_in_combat(self, state: AgentState) -> bool:
+        """Check if we're in combat using multiple detection methods.
+
+        Args:
+            state: Current game state
+
+        Returns:
+            True if in combat
+        """
+        # Direct state check
+        if state.in_combat:
+            return True
+
+        # Check narrative for combat indicators
+        if self._detect_combat_from_narrative(state):
+            self.in_combat_override = True
+            return True
+
+        # Check if commands indicate combat (only combat commands available)
+        combat_only_commands = {"attack", "defend", "flee", "block", "parry"}
+        if state.commands:
+            available = set(state.commands)
+            if combat_only_commands & available and "go" not in " ".join(state.commands):
+                self.in_combat_override = True
+                return True
+
+        # Reset override if we clearly aren't in combat
+        if state.exits or "go" in " ".join(state.commands):
+            self.in_combat_override = False
+
+        return self.in_combat_override
+
     def decide(self, state: AgentState) -> str:
         """Determine next command based on current state.
 
@@ -116,22 +183,73 @@ class Agent:
         Returns:
             Command string to send to game
         """
+        self.commands_since_combat_check += 1
+
         # Detect stuck state (same location, no progress)
         if state.location == self.last_location:
             self.stuck_counter += 1
         else:
             self.stuck_counter = 0
             self.last_location = state.location
+            self.needs_look = True  # Look when entering new location
             # Reset talked set when location changes
             self.talked_this_location.clear()
+            # Update coordinate tracking
+            self._update_coordinates()
 
-        if state.in_combat:
+        # Mark current position as visited
+        self.visited_coordinates.add(self.current_coords)
+
+        # PRIORITY 1: Combat detection with multiple methods
+        if self._is_in_combat(state):
+            if self.verbose:
+                print(f"[AGENT] Combat detected (in_combat={state.in_combat}, override={self.in_combat_override})")
             return self._combat_decision(state)
+
+        # PRIORITY 2: Look before taking major actions (new location or unclear state)
+        # But don't look repeatedly if we just looked
+        if self.needs_look and self.last_command != "look":
+            self.needs_look = False
+            if self.verbose:
+                print("[AGENT] Looking to assess surroundings")
+            self.last_command = "look"
+            return "look"
+
+        # If we have no exits and just looked, wait for state update
+        if not state.exits and self.last_command == "look":
+            # Try dump-state to get full state
+            if self.verbose:
+                print("[AGENT] No exits after look, requesting dump-state")
+            self.last_command = "dump-state"
+            return "dump-state"
 
         # Update goal based on state
         self._update_goal(state)
 
         return self._explore_decision(state)
+
+    def _update_coordinates(self) -> None:
+        """Update estimated coordinates based on last direction."""
+        self._update_coordinates_for_direction(self.last_direction)
+
+    def _update_coordinates_for_direction(self, direction: str) -> None:
+        """Update estimated coordinates for a given direction.
+
+        Args:
+            direction: Direction being moved
+        """
+        direction_map = {
+            "north": (0, 1),
+            "south": (0, -1),
+            "east": (1, 0),
+            "west": (-1, 0),
+        }
+        if direction in direction_map:
+            dx, dy = direction_map[direction]
+            x, y = self.current_coords
+            self.current_coords = (x + dx, y + dy)
+            # Mark new position as visited
+            self.visited_coordinates.add(self.current_coords)
 
     def _update_goal(self, state: AgentState) -> None:
         """Update the current high-level goal based on state.
@@ -182,10 +300,31 @@ class Agent:
         """
         hp_pct = state.health_percent
 
+        # Check if combat has ended (victory or fled)
+        narrative_lower = state.last_narrative.lower()
+        combat_ended_indicators = [
+            "defeated",
+            "slain",
+            "you killed",
+            "you have slain",
+            "fled successfully",
+            "you escaped",
+            "combat ends",
+            "victory",
+        ]
+        if any(indicator in narrative_lower for indicator in combat_ended_indicators):
+            self.in_combat_override = False
+            if self.verbose:
+                print("[AGENT] Combat ended, returning to exploration")
+            self.needs_look = True
+            self.last_command = "look"
+            return "look"
+
         # Flee at critical health
         if hp_pct < 0.20:
             if self.verbose:
                 print(f"[AGENT] Fleeing - HP critical ({hp_pct:.0%})")
+            self.last_command = "flee"
             return "flee"
 
         # Use healing if hurt and have potion
@@ -194,17 +333,20 @@ class Agent:
             if potion_name:
                 if self.verbose:
                     print(f"[AGENT] Using {potion_name} - HP low ({hp_pct:.0%})")
+                self.last_command = f"use {potion_name}"
                 return f"use {potion_name}"
 
         # Check if this enemy matches a kill quest target
         quest_target = state.get_kill_quest_target()
-        if quest_target and quest_target.lower() in state.enemy.lower():
+        if quest_target and state.enemy and quest_target.lower() in state.enemy.lower():
             if self.verbose:
                 print(f"[AGENT] Attacking quest target: {state.enemy}")
 
         # Default: attack
+        enemy_name = state.enemy or "enemy"
         if self.verbose:
-            print(f"[AGENT] Attacking {state.enemy} - HP ok ({hp_pct:.0%})")
+            print(f"[AGENT] Attacking {enemy_name} - HP {hp_pct:.0%}")
+        self.last_command = "attack"
         return "attack"
 
     def _explore_decision(self, state: AgentState) -> str:
@@ -444,6 +586,75 @@ class Agent:
         # Default to exploration to find quest objectives
         return self._overworld_exploration_decision(state)
 
+    def _get_smart_direction(self, state: AgentState) -> str:
+        """Choose direction intelligently based on exploration history.
+
+        Prioritizes:
+        1. Directions leading to unexplored coordinates
+        2. Directions not recently taken
+        3. East/West to expand exploration (avoid north/south ping-pong)
+
+        Args:
+            state: Current game state
+
+        Returns:
+            Direction to move
+        """
+        if not state.exits:
+            return "north"  # Fallback
+
+        direction_map = {
+            "north": (0, 1),
+            "south": (0, -1),
+            "east": (1, 0),
+            "west": (-1, 0),
+        }
+
+        # Score each available exit
+        exit_scores: dict[str, float] = {}
+        for exit_dir in state.exits:
+            if exit_dir not in direction_map:
+                continue  # Skip up/down for overworld
+
+            dx, dy = direction_map[exit_dir]
+            target_coords = (self.current_coords[0] + dx, self.current_coords[1] + dy)
+
+            score = 0.0
+
+            # Heavily prefer unexplored coordinates
+            if target_coords not in self.visited_coordinates:
+                score += 100.0
+
+            # Prefer east/west to expand horizontally
+            if exit_dir in ("east", "west"):
+                score += 20.0
+
+            # Penalize going same direction too many times
+            if exit_dir == self.last_direction:
+                # Increasing penalty for consecutive same direction
+                score -= 10.0 * (1 + self.consecutive_same_dir)
+
+            # Avoid reversing immediately (but less penalty if we've been going one way for a while)
+            opposites = {"north": "south", "south": "north", "east": "west", "west": "east"}
+            if exit_dir == opposites.get(self.last_direction):
+                if self.consecutive_same_dir < 3:
+                    score -= 30.0
+                else:
+                    # After going one direction for a while, reversing is ok
+                    score += 10.0
+
+            # Slight randomness to avoid deterministic loops
+            score += random.uniform(0, 15)
+
+            exit_scores[exit_dir] = score
+
+        if not exit_scores:
+            return random.choice(state.exits)
+
+        # Pick highest scoring direction
+        best_dir = max(exit_scores, key=lambda d: exit_scores[d])
+        return best_dir
+
     def _overworld_exploration_decision(self, state: AgentState) -> str:
         """Default exploration decision for overworld.
 
@@ -459,6 +670,7 @@ class Agent:
         if "bye" in state.commands:
             if self.verbose:
                 print("[AGENT] Saying bye")
+            self.last_command = "bye"
             return "bye"
 
         # Accept quests ONLY if we have NPCs and likely in a quest dialog
@@ -471,17 +683,29 @@ class Agent:
                 self._accept_attempts += 1
                 if self.verbose:
                     print("[AGENT] Accepting quest")
+                self.last_command = "accept"
                 return "accept"
         else:
             # Reset accept attempts when we move to a new context
             self._accept_attempts = 0
 
-        # Explore: move to random exit (PRIORITIZE MOVEMENT)
-        if state.exits:
-            direction = random.choice(state.exits)
+        # PRIORITY: Enter sub-locations (dungeons, caves) when healthy - before moving!
+        if state.enterables and hp_pct > 0.70 and self.failed_enter_attempts < 3:
+            enterable = state.enterables[0]
             if self.verbose:
-                print(f"[AGENT] Moving {direction}")
-            return f"go {direction}"
+                print(f"[AGENT] Entering sub-location: {enterable}")
+            self.failed_enter_attempts = 0
+            self.last_command = f"enter {enterable}"
+            return f"enter {enterable}"
+
+        # Only try generic enter ONCE per location, and only if we have enterables
+        if ("enter" in state.commands and state.enterables and
+                self.failed_enter_attempts < 1 and self.last_command != "enter"):
+            self.failed_enter_attempts += 1
+            if self.verbose:
+                print("[AGENT] Entering location")
+            self.last_command = "enter"
+            return "enter"
 
         # Talk to NPCs to get quests (if not already talked)
         for npc in state.npcs:
@@ -489,33 +713,44 @@ class Agent:
                 self.talked_this_location.add(npc)
                 if self.verbose:
                     print(f"[AGENT] Talking to {npc}")
+                self.last_command = f"talk {npc}"
                 return f"talk {npc}"
+
+        # Explore: use SMART direction selection
+        if state.exits:
+            direction = self._get_smart_direction(state)
+
+            # Track direction for smart exploration
+            if direction == self.last_direction:
+                self.consecutive_same_dir += 1
+            else:
+                self.consecutive_same_dir = 0
+            self.last_direction = direction
+            self.direction_history.append(direction)
+            if len(self.direction_history) > 20:
+                self.direction_history.pop(0)
+
+            # Update coordinates BEFORE moving (since state update is delayed)
+            self._update_coordinates_for_direction(direction)
+
+            if self.verbose:
+                unexplored = self._count_unexplored_adjacent()
+                print(f"[AGENT] Moving {direction} @ {self.current_coords} (unexplored: {unexplored})")
+
+            self.last_command = f"go {direction}"
+            return f"go {direction}"
 
         # Buy potions at shop if needed
         if "shop" in state.commands and state.gold > 50:
             if not state.has_healing_item():
                 if self.verbose:
                     print("[AGENT] Buying potion at shop")
+                self.last_command = "buy health potion"
                 return "buy health potion"
-
-        # Enter sub-locations (dungeons, caves) when healthy
-        if state.enterables and hp_pct > 0.70 and self.failed_enter_attempts < 3:
-            enterable = state.enterables[0]
-            if self.verbose:
-                print(f"[AGENT] Entering sub-location: {enterable}")
-            self.failed_enter_attempts = 0
-            return f"enter {enterable}"
 
         # Reset failed attempts if we've moved on
         if state.exits:
             self.failed_enter_attempts = 0
-
-        # Try generic enter if available
-        if "enter" in state.commands and self.failed_enter_attempts < 2:
-            self.failed_enter_attempts += 1
-            if self.verbose:
-                print("[AGENT] Entering location")
-            return "enter"
 
         # Stuck detection: if we've been stuck, try different commands
         if self.stuck_counter > 3:
@@ -524,18 +759,43 @@ class Agent:
                 npc = random.choice(state.npcs)
                 if self.verbose:
                     print(f"[AGENT] Stuck - trying to talk to {npc}")
+                self.last_command = f"talk {npc}"
                 return f"talk {npc}"
-            # Try a random direction even if not in exits
-            random_dirs = ["north", "south", "east", "west"]
-            direction = random.choice(random_dirs)
-            if self.verbose:
-                print(f"[AGENT] Stuck - trying random direction: {direction}")
-            return f"go {direction}"
+            # Try an unexplored direction
+            for dir in ["east", "west", "north", "south"]:
+                dx, dy = {"north": (0, 1), "south": (0, -1), "east": (1, 0), "west": (-1, 0)}[dir]
+                target = (self.current_coords[0] + dx, self.current_coords[1] + dy)
+                if target not in self.visited_coordinates:
+                    if self.verbose:
+                        print(f"[AGENT] Stuck - trying unexplored direction: {dir}")
+                    self.last_direction = dir
+                    self.last_command = f"go {dir}"
+                    return f"go {dir}"
 
-        # Fallback: look around to refresh state
+        # Fallback: if we've been looking too much, try a random direction
+        if self.last_command in ("look", "dump-state"):
+            # Force a move in any direction
+            for dir in ["north", "south", "east", "west"]:
+                if self.verbose:
+                    print(f"[AGENT] Fallback - forcing move {dir}")
+                self.last_direction = dir
+                self.last_command = f"go {dir}"
+                return f"go {dir}"
+
+        # Look around to refresh state
         if self.verbose:
             print("[AGENT] Looking around (fallback)")
+        self.last_command = "look"
         return "look"
+
+    def _count_unexplored_adjacent(self) -> int:
+        """Count unexplored adjacent tiles."""
+        count = 0
+        for dx, dy in [(0, 1), (0, -1), (1, 0), (-1, 0)]:
+            target = (self.current_coords[0] + dx, self.current_coords[1] + dy)
+            if target not in self.visited_coordinates:
+                count += 1
+        return count
 
 
 @dataclass
@@ -826,8 +1086,18 @@ class GameSession:
         try:
             # Wait for game to initialize and capture initial output
             # The game takes time to start - especially for world generation
-            time.sleep(2.0)
-            initial_output = self._read_output(wait_time=2.0, min_lines=1)
+            time.sleep(3.0)  # Longer wait for initial world generation
+            initial_output = self._read_output(wait_time=3.0, min_lines=1)
+
+            # If no output yet, keep waiting (world generation can take time)
+            retry_count = 0
+            while len(initial_output) == 0 and retry_count < 5:
+                retry_count += 1
+                if self.verbose:
+                    print(f"[SESSION] Waiting for game output (retry {retry_count})...")
+                time.sleep(1.0)
+                initial_output = self._read_output(wait_time=1.0, min_lines=1)
+
             if self.verbose:
                 print(f"[SESSION] Initial output: {len(initial_output)} lines")
                 for line in initial_output[:5]:
