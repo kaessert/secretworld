@@ -180,6 +180,7 @@ When exploring dungeon interiors (dungeons, caves, ruins, temples), dynamic even
 - **Monster Migrations** (3% per move): Monster activity shifts within the dungeon, modifying encounter rates in affected rooms (0.5x to 2.0x) for 2-6 hours.
 - **Rival Adventurers** (15% on entry): A competing adventurer party may spawn when you enter a dungeon, racing you to boss rooms or treasure chests. You'll receive warning messages as they progress (at 25%, 50%, 75% completion). If rivals reach their target first, they'll defeat the boss or open the treasure. Encountering rivals at their destination triggers combat with the full party (1-3 adventurers).
 - **Ritual in Progress** (15% on entry): Dark cultists may be performing a ritual when you enter. You have 8-12 turns to reach the ritual room and interrupt it. Warning messages appear at 25%, 50%, and 75% progress. Interrupting the ritual spawns a standard boss; letting it complete spawns an empowered boss with 1.5x stats.
+- **Spreading Hazards** (5% on entry): Fire or flooding may break out, starting in a random room and spreading to adjacent rooms over time. Fire deals 4-8 damage per turn in affected rooms. Flooding causes 50% movement failure and +3 tiredness. Hazards spread up to 3 rooms from the origin and dissipate after 8-16 hours.
 
 ### Combat System
 Combat encounters occur randomly as you explore. You may face multiple enemies at once (1-2 enemies at lower levels, up to 3 at level 4+). Enemies display ASCII art when combat begins.

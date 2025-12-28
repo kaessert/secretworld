@@ -26,6 +26,8 @@ HAZARD_TYPES = {
     "extreme_cold",
     "extreme_heat",
     "flooded",
+    "spreading_fire",
+    "spreading_flood",
 }
 
 # Category-specific hazard pools
@@ -138,6 +140,56 @@ def check_flooded_movement(character: "Character") -> bool:
         True if movement fails, False if successful
     """
     return random.random() < 0.5
+
+
+# Spreading hazard damage/effect constants
+SPREADING_FIRE_MIN_DAMAGE = 4
+SPREADING_FIRE_MAX_DAMAGE = 8
+SPREADING_FLOOD_TIREDNESS = 3
+
+
+def apply_spreading_fire(character: "Character") -> str:
+    """Apply spreading fire damage to character.
+
+    Deals 4-8 damage per move in fire area.
+
+    Args:
+        character: The player character
+
+    Returns:
+        Message describing the effect
+    """
+    damage = random.randint(SPREADING_FIRE_MIN_DAMAGE, SPREADING_FIRE_MAX_DAMAGE)
+    character.take_damage(damage)
+    return f"The spreading fire burns you! You take {damage} damage."
+
+
+def apply_spreading_flood(character: "Character") -> Tuple[str, bool]:
+    """Apply spreading flood effects to character.
+
+    Increases tiredness by 3 and has 50% chance to block movement.
+
+    Args:
+        character: The player character
+
+    Returns:
+        Tuple of (message, movement_blocked) where movement_blocked is True
+        if movement should fail due to the flood.
+    """
+    character.tiredness.increase(SPREADING_FLOOD_TIREDNESS)
+    movement_blocked = random.random() < 0.5
+
+    if movement_blocked:
+        return (
+            f"The flood waters slow you down! Tiredness +{SPREADING_FLOOD_TIREDNESS}. "
+            "You struggle against the current.",
+            True
+        )
+    else:
+        return (
+            f"You wade through the flood waters. Tiredness +{SPREADING_FLOOD_TIREDNESS}.",
+            False
+        )
 
 
 def can_mitigate_hazard(character: "Character", hazard_type: str) -> bool:
@@ -278,5 +330,13 @@ def check_hazards_on_entry(
             # Flooded effect is handled at movement time, not entry
             # Just add flavor message here
             messages.append("The room is partially flooded. Movement may be slowed.")
+
+        elif hazard == "spreading_fire":
+            msg = apply_spreading_fire(character)
+            messages.append(msg)
+
+        elif hazard == "spreading_flood":
+            msg, _ = apply_spreading_flood(character)
+            messages.append(msg)
 
     return messages

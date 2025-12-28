@@ -68,12 +68,14 @@ def ai_game_state(ai_service):
         GameState instance with live AI integration
     """
     from cli_rpg.game_state import GameState
-    from cli_rpg.models.character import Character
+    from cli_rpg.models.character import Character, CharacterClass
     from cli_rpg.models.location import Location
     from cli_rpg.wfc_chunks import ChunkManager
+    from cli_rpg.world_tiles import TileRegistry
 
     # Create chunk manager for terrain generation
-    chunk_manager = ChunkManager(seed=42)
+    tile_registry = TileRegistry()
+    chunk_manager = ChunkManager(tile_registry=tile_registry, world_seed=42)
 
     # Create a starting location
     starting_location = Location(
@@ -87,12 +89,19 @@ def ai_game_state(ai_service):
     )
 
     # Create the game state with AI service
+    character = Character(
+        name="Test Hero",
+        character_class=CharacterClass.WARRIOR,
+        strength=12,
+        dexterity=10,
+        intelligence=10,
+    )
     game_state = GameState(
-        theme="dark fantasy",
+        character=character,
         world={"Starting Point": starting_location},
-        current_location="Starting Point",
-        current_character=Character(name="Test Hero", character_class="warrior"),
+        starting_location="Starting Point",
         ai_service=ai_service,
+        theme="dark fantasy",
         chunk_manager=chunk_manager,
     )
 

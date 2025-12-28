@@ -1067,7 +1067,8 @@ class AIService:
         sub_theme_hint: str,
         entry_direction: str,
         context_locations: list[str],
-        size: int = 5
+        size: int = 5,
+        required_category: Optional[str] = None,
     ) -> list[dict]:
         """Generate a cluster of connected locations forming a thematic area.
 
@@ -1080,6 +1081,8 @@ class AIService:
             entry_direction: Direction from which the player enters the area
             context_locations: List of existing location names in the world
             size: Target number of locations (4-7, default 5)
+            required_category: If set, the entry location MUST have this category
+                              (e.g., "dungeon", "cave" for forced enterable locations)
 
         Returns:
             List of dictionaries, each containing:
@@ -1103,7 +1106,8 @@ class AIService:
             sub_theme_hint=sub_theme_hint,
             entry_direction=entry_direction,
             context_locations=context_locations,
-            size=size
+            size=size,
+            required_category=required_category,
         )
 
         # Check cache if enabled
@@ -1132,7 +1136,8 @@ class AIService:
         sub_theme_hint: str,
         entry_direction: str,
         context_locations: list[str],
-        size: int
+        size: int,
+        required_category: Optional[str] = None,
     ) -> str:
         """Build prompt for area generation.
 
@@ -1142,6 +1147,7 @@ class AIService:
             entry_direction: Direction player enters from
             context_locations: Existing location names
             size: Number of locations to generate
+            required_category: If set, entry location MUST have this category
 
         Returns:
             Formatted prompt string
@@ -1161,13 +1167,22 @@ class AIService:
         else:
             location_list = "None yet"
 
+        # Build category requirement if forced
+        if required_category:
+            category_requirement = f"""
+CRITICAL REQUIREMENT: The entry location at [0, 0] MUST have category "{required_category}".
+This is a mandatory enterable location (like a dungeon, cave, or ruins) that the player needs to explore.
+The area should be themed around this {required_category} - make it explorable and interesting."""
+        else:
+            category_requirement = ""
+
         prompt = f"""You are a creative game world designer. Generate a connected area of {size} locations for a {theme} RPG game.
 
 Area Theme: {sub_theme_hint}
 World Theme: {theme}
 Existing Locations: {location_list}
 Entry Direction: Player enters from the {entry_direction} (so entry location should have a {back_direction} exit back)
-
+{category_requirement}
 Requirements:
 1. Generate exactly {size} interconnected locations that form a cohesive themed area
 2. Each location needs a unique name (2-50 characters) that fits the "{sub_theme_hint}" theme
@@ -1179,7 +1194,7 @@ Requirements:
 8. The entry location MUST have a "{back_direction}" exit (to connect back to the existing world)
 9. Valid directions: north, south, east, west (no up/down for this area)
 10. Ensure internal consistency: if A connects north to B, then B must connect south to A
-11. Include a category for each location (one of: town, dungeon, wilderness, settlement, ruins, cave, forest, mountain, village)
+11. Include a category for each location (one of: town, dungeon, wilderness, settlement, ruins, cave, forest, mountain, village, temple, tower, mine, crypt)
 12. Optionally include 0-2 NPCs per location appropriate to that location
    - Each NPC needs: name (2-30 chars), description (1-200 chars), dialogue (a greeting), role (villager, merchant, or quest_giver)
 

@@ -1300,7 +1300,11 @@ class GameState:
 
         # Check for rival adventurer spawn (15% chance on SubGrid entry)
         if sub_grid_location is not None and self.current_sub_grid is not None:
-            from cli_rpg.interior_events import check_for_rival_spawn, check_for_ritual_spawn
+            from cli_rpg.interior_events import (
+                check_for_rival_spawn,
+                check_for_ritual_spawn,
+                check_for_spreading_hazard,
+            )
             rival_message = check_for_rival_spawn(self, self.current_sub_grid)
             if rival_message:
                 message += f"\n\n{rival_message}"
@@ -1309,6 +1313,11 @@ class GameState:
             ritual_message = check_for_ritual_spawn(self, self.current_sub_grid)
             if ritual_message:
                 message += f"\n\n{ritual_message}"
+
+            # Check for spreading hazard spawn (5% chance on SubGrid entry, separate roll)
+            hazard_message = check_for_spreading_hazard(self, self.current_sub_grid)
+            if hazard_message:
+                message += f"\n\n{hazard_message}"
 
         # Get the actual location for secret and boss checks
         sub_location = sub_grid_location if sub_grid_location is not None else self.world[matched_location]

@@ -1,70 +1,72 @@
-# Implementation Summary: E2E Test Infrastructure & Enterable Location Fix
+# Implementation Summary: Spreading Hazard System (Issue 25)
 
 ## Status: COMPLETE
 
-All 4971 tests pass. The E2E test infrastructure and enterable location fix are fully implemented.
+All 4992 tests pass. The spreading hazard system is fully implemented and integrated.
 
-## What Was Verified
+## What Was Implemented
 
-The plan for ensuring AI-generated worlds produce enterable locations was **already fully implemented**. All code changes from the plan were in place.
+The spreading hazard system for fire and flooding was fully implemented as part of the Dynamic Interior Events feature.
 
-### 1. E2E Test Infrastructure
+### Files Modified
 
-**Files created:**
-- `tests/e2e/__init__.py` - Package initialization
-- `tests/e2e/conftest.py` - E2E pytest configuration with:
-  - Custom `e2e` marker registration
-  - Automatic skip of E2E tests unless `--e2e` flag provided
-  - `ai_config`, `ai_service`, and `ai_game_state` fixtures
-- `tests/e2e/test_enterable_locations.py` - E2E tests including:
-  - `test_enterable_category_within_30_tiles` - Verifies enterable location spawns within 30 tiles
-  - `test_enter_command_works_on_enterable_location` - Verifies enter command works
-  - `test_subgrid_has_expected_content` - Verifies SubGrid has exit points and proper bounds
-  - `test_counter_resets_on_enterable_location` - Verifies counter reset behavior
+1. **`src/cli_rpg/interior_events.py`** - Core implementation:
+   - Extended `InteriorEvent` dataclass with:
+     - `hazard_type: Optional[str]` - "fire" or "flooding"
+     - `spread_rooms: Optional[dict]` - Maps `(x,y,z)` -> hour added
+     - `max_spread_radius: int` - Maximum rooms from origin (default 3)
+   - Added constants:
+     - `SPREADING_HAZARD_SPAWN_CHANCE = 0.05`
+     - `SPREADING_HAZARD_DURATION_RANGE = (8, 16)`
+     - `FIRE_DAMAGE_RANGE = (4, 8)`
+     - `FLOODING_TIREDNESS = 3`
+     - `MAX_SPREAD_RADIUS = 3`
+   - Added functions:
+     - `check_for_spreading_hazard()` - 5% spawn on SubGrid entry
+     - `spread_hazard()` - Spreads to adjacent rooms each hour
+     - `get_active_spreading_hazard_event()` - Get active hazard
+     - `clear_spreading_hazard()` - Remove hazard from all rooms on expiry
+   - Updated `progress_interior_events()` to handle spreading and expiry
 
-**Modified:**
-- `tests/conftest.py` - Added `--e2e` pytest command-line option
+2. **`src/cli_rpg/hazards.py`** - Effect handlers:
+   - Added hazard types: `"spreading_fire"`, `"spreading_flood"`
+   - `apply_spreading_fire()` - Deals 4-8 damage
+   - `apply_spreading_flood()` - 50% movement fail + 3 tiredness
+   - Updated `check_hazards_on_entry()` to process new hazard types
 
-### 2. AI Prompts Updated
+3. **`src/cli_rpg/game_state.py`** - Integration:
+   - Imported `check_for_spreading_hazard`
+   - Called spawn check in `enter()` method alongside rival/ritual spawns
 
-**File modified:** `src/cli_rpg/ai_config.py`
-
-Both `DEFAULT_LOCATION_PROMPT` and `DEFAULT_LOCATION_PROMPT_MINIMAL` now include explicit instructions to generate enterable categories ~30% of the time.
-
-### 3. Forced Enterable Location Spawn Logic
-
-**File modified:** `src/cli_rpg/world_tiles.py`
-
-Added:
-- `MAX_TILES_WITHOUT_ENTERABLE = 25` - Threshold for forcing enterable spawn
-- `FORCED_ENTERABLE_BY_TERRAIN` - Terrain-specific enterable category pools
-- `should_force_enterable_category(tiles_since_enterable)` - Check function
-- `get_forced_enterable_category(terrain)` - Returns thematically appropriate category
-
-### 4. GameState Integration
-
-**File modified:** `src/cli_rpg/game_state.py`
-
-- Added `tiles_since_enterable: int = 0` tracking field
-- Counter updates on movement
-- Forces enterable category when threshold exceeded during AI generation
-- Counter serialization/deserialization for save/load
-
-### 5. Unit Tests
-
-**File created:** `tests/test_enterable_spawn.py` - 11 tests covering all spawn logic
+4. **`tests/test_spreading_hazard.py`** - Comprehensive test coverage (21 tests):
+   - Model field tests (hazard_type, spread_rooms, max_spread_radius)
+   - Spawn mechanics (5% chance, 50/50 fire/flooding, valid categories)
+   - Spread mechanics (adjacent rooms, max radius limit, hazard updates)
+   - Effect tests (fire damage range, flooding movement penalty + tiredness)
+   - Expiry tests (clears after duration, removes from all rooms)
+   - Serialization tests (spread_rooms dict round-trip)
+   - Integration tests (progress_interior_events spreads hazard)
 
 ## Test Results
 
 ```
-tests/test_enterable_spawn.py: 11 passed
-tests/e2e/: 4 skipped (requires --e2e flag)
-Full suite: 4971 passed
+tests/test_spreading_hazard.py: 21 passed
+Full suite: 4992 passed
 ```
 
-## How to Run E2E Tests
+## Behavior Summary
 
-```bash
-# Requires OPENAI_API_KEY or ANTHROPIC_API_KEY
-pytest tests/e2e/ -v --e2e
-```
+- **Fire hazard**: Spawns at random room, spreads to adjacent rooms over time, deals 4-8 damage per turn
+- **Flooding hazard**: Spawns at random room, spreads to adjacent rooms, causes 50% movement failure + 3 tiredness per turn
+- Both spread 1 room per hour (integrated with `progress_interior_events`)
+- Max spread radius of 3 rooms from origin
+- Duration: 8-16 hours before dissipating
+- Spawn chance: 5% on SubGrid entry (same as cave-ins)
+- Valid categories: dungeon, cave, ruins, temple
+
+## E2E Validation Points
+
+- Enter a dungeon/cave/ruins/temple and verify 5% chance of seeing "fire has broken out" or "flooding has begun" message
+- Wait in affected SubGrid and observe hazard spreading to adjacent rooms
+- Verify fire damage (4-8) and flooding effects (tiredness + movement failure) when in affected rooms
+- Wait for duration to expire and verify hazard clears from all rooms

@@ -74,6 +74,25 @@ RIVAL_WARNING_MESSAGES = {
     75: "You hear combat sounds in the distance - someone else is fighting!",
 }
 
+# Spreading hazard constants
+# Spawn chance: 5% on SubGrid entry (same as cave-ins)
+SPREADING_HAZARD_SPAWN_CHANCE = 0.05
+
+# Duration range in hours for spreading hazards
+SPREADING_HAZARD_DURATION_RANGE = (8, 16)
+
+# Location categories where spreading hazards can occur (same as cave-ins)
+SPREADING_HAZARD_CATEGORIES = CAVE_IN_CATEGORIES
+
+# Fire damage range
+FIRE_DAMAGE_RANGE = (4, 8)
+
+# Flooding tiredness increase per move
+FLOODING_TIREDNESS = 3
+
+# Maximum spread radius from origin
+MAX_SPREAD_RADIUS = 3
+
 # Ritual event constants
 # Spawn chance: 15% on SubGrid entry (same as rivals)
 RITUAL_SPAWN_CHANCE = 0.15
@@ -138,6 +157,10 @@ class InteriorEvent:
     ritual_countdown: int = 0
     ritual_initial_countdown: int = 0  # Track initial for percentage calculations
     ritual_completed: bool = False
+    # Spreading hazard fields
+    hazard_type: Optional[str] = None  # "fire" or "flooding"
+    spread_rooms: Optional[dict] = None  # {(x,y,z): hour_added}
+    max_spread_radius: int = 3
 
     def is_expired(self, current_hour: int) -> bool:
         """Check if the event has expired based on current game time.
@@ -215,6 +238,15 @@ class InteriorEvent:
             result["ritual_initial_countdown"] = self.ritual_initial_countdown
         if self.ritual_completed:
             result["ritual_completed"] = self.ritual_completed
+        # Serialize spreading hazard fields
+        if self.hazard_type is not None:
+            result["hazard_type"] = self.hazard_type
+        if self.spread_rooms is not None:
+            result["spread_rooms"] = [
+                [list(coords), hour] for coords, hour in self.spread_rooms.items()
+            ]
+        if self.max_spread_radius != 3:  # Only serialize if non-default
+            result["max_spread_radius"] = self.max_spread_radius
         return result
 
     @classmethod
@@ -233,6 +265,13 @@ class InteriorEvent:
             affected_rooms = {
                 tuple(coords): modifier
                 for coords, modifier in data["affected_rooms"]
+            }
+
+        # Deserialize spread_rooms: list of [coords, hour] -> dict with tuple keys
+        spread_rooms = None
+        if "spread_rooms" in data and data["spread_rooms"] is not None:
+            spread_rooms = {
+                tuple(coords): hour for coords, hour in data["spread_rooms"]
             }
 
         return cls(
@@ -255,6 +294,10 @@ class InteriorEvent:
             ritual_countdown=data.get("ritual_countdown", 0),
             ritual_initial_countdown=data.get("ritual_initial_countdown", 0),
             ritual_completed=data.get("ritual_completed", False),
+            # Spreading hazard fields (with backward-compatible defaults)
+            hazard_type=data.get("hazard_type"),
+            spread_rooms=spread_rooms,
+            max_spread_radius=data.get("max_spread_radius", 3),
         )
 
 
@@ -397,6 +440,28 @@ def progress_interior_events(
                     "Creature activity returns to normal."
                 )
             )
+
+        elif event.event_type == "spreading_hazard":
+            if event.is_expired(current_hour):
+                # Clear the spreading hazard from all affected rooms
+                clear_spreading_hazard(sub_grid, event)
+                event.is_active = False
+                if event.hazard_type == "fire":
+                    messages.append(
+                        colors.heal(
+                            "The fire has burned itself out. The air clears."
+                        )
+                    )
+                else:
+                    messages.append(
+                        colors.heal(
+                            "The flood waters have receded. The area is passable again."
+                        )
+                    )
+            else:
+                # Spread the hazard each hour
+                spread_messages = spread_hazard(sub_grid, event, current_hour)
+                messages.extend(spread_messages)
 
     return messages
 
@@ -1154,3 +1219,224 @@ def get_ritual_encounter_at_location(
             return (ritual_event, is_empowered)
 
     return None
+
+
+# -----------------------------------------------------------------------------
+# Spreading Hazard Functions
+# -----------------------------------------------------------------------------
+
+
+def check_for_spreading_hazard(
+    game_state: "GameState",
+    sub_grid: "SubGrid",
+) -> Optional[str]:
+    """Check if a spreading hazard should spawn on SubGrid entry.
+
+    Spawns a spreading hazard (fire or flooding) with 5% chance.
+    The hazard starts at a random room (not entry point) and spreads
+    to adjacent rooms over time.
+
+    Args:
+        game_state: Current game state
+        sub_grid: The SubGrid the player is entering
+
+    Returns:
+        Message describing the hazard spawn if one occurred, None otherwise
+    """
+    # Check if parent location category allows spreading hazards
+    parent_location = game_state.world.get(sub_grid.parent_name)
+    if parent_location is None:
+        return None
+
+    parent_category = (parent_location.category or "").lower()
+    if parent_category not in SPREADING_HAZARD_CATEGORIES:
+        return None
+
+    # Check if spreading hazard event already exists (don't spawn twice)
+    if get_active_spreading_hazard_event(sub_grid) is not None:
+        return None
+
+    # Roll for hazard spawn
+    if random.random() > SPREADING_HAZARD_SPAWN_CHANCE:
+        return None
+
+    # Find valid spawn rooms (not entry points)
+    spawn_candidates = []
+    for coords, location in sub_grid._grid.items():
+        if not location.is_exit_point:
+            spawn_candidates.append(coords)
+
+    if not spawn_candidates:
+        return None  # No valid spawn locations
+
+    # Select random spawn location
+    spawn_coords = random.choice(spawn_candidates)
+    # Normalize to 3-tuple
+    if len(spawn_coords) == 2:
+        spawn_coords = (spawn_coords[0], spawn_coords[1], 0)
+
+    # 50/50 fire or flooding
+    hazard_type = "fire" if random.random() < 0.5 else "flooding"
+    hazard_type_display = "spreading_fire" if hazard_type == "fire" else "spreading_flood"
+
+    # Calculate duration
+    min_dur, max_dur = SPREADING_HAZARD_DURATION_RANGE
+    duration = random.randint(min_dur, max_dur)
+
+    # Create the event
+    event_id = f"spreading_hazard_{spawn_coords[0]}_{spawn_coords[1]}_{spawn_coords[2]}_{random.randint(1000, 9999)}"
+
+    event = InteriorEvent(
+        event_id=event_id,
+        event_type="spreading_hazard",
+        location_coords=spawn_coords,
+        blocked_direction="",
+        start_hour=game_state.game_time.total_hours,
+        duration_hours=duration,
+        hazard_type=hazard_type,
+        spread_rooms={spawn_coords: 0},  # Origin at hour 0
+        max_spread_radius=MAX_SPREAD_RADIUS,
+    )
+
+    sub_grid.interior_events.append(event)
+
+    # Add hazard to origin room
+    origin_room = sub_grid.get_by_coordinates(*spawn_coords)
+    if origin_room is not None:
+        if hazard_type_display not in origin_room.hazards:
+            origin_room.hazards.append(hazard_type_display)
+
+    # Return appropriate message
+    if hazard_type == "fire":
+        return colors.warning(
+            "You smell smoke in the air... A fire has broken out somewhere in the depths!"
+        )
+    else:
+        return colors.warning(
+            "You hear the sound of rushing water... Flooding has begun somewhere below!"
+        )
+
+
+def spread_hazard(
+    sub_grid: "SubGrid",
+    event: InteriorEvent,
+    current_hour: int,
+) -> List[str]:
+    """Spread hazard to adjacent rooms.
+
+    Finds frontier rooms (rooms at current max distance from origin)
+    and spreads the hazard to adjacent unaffected rooms.
+
+    Args:
+        sub_grid: The SubGrid containing the hazard
+        event: The spreading hazard event
+        current_hour: Current game hour for tracking when rooms were added
+
+    Returns:
+        List of messages about the spread
+    """
+    if event.hazard_type is None or event.spread_rooms is None:
+        return []
+
+    messages = []
+    origin = event.location_coords
+    if len(origin) == 2:
+        origin = (origin[0], origin[1], 0)
+
+    hazard_type_display = "spreading_fire" if event.hazard_type == "fire" else "spreading_flood"
+
+    # Find frontier rooms (those at max distance from origin)
+    max_distance = 0
+    for coords in event.spread_rooms.keys():
+        distance = abs(coords[0] - origin[0]) + abs(coords[1] - origin[1]) + abs(coords[2] - origin[2])
+        max_distance = max(max_distance, distance)
+
+    # Check if we've reached max radius
+    if max_distance >= event.max_spread_radius:
+        return []
+
+    # Get rooms at frontier (current max distance)
+    frontier_coords = []
+    for coords in event.spread_rooms.keys():
+        distance = abs(coords[0] - origin[0]) + abs(coords[1] - origin[1]) + abs(coords[2] - origin[2])
+        if distance == max_distance:
+            frontier_coords.append(coords)
+
+    # Direction offsets for adjacent rooms
+    direction_offsets = [
+        (1, 0, 0), (-1, 0, 0),  # East, West
+        (0, 1, 0), (0, -1, 0),  # North, South
+    ]
+
+    new_rooms = []
+    for coords in frontier_coords:
+        for dx, dy, dz in direction_offsets:
+            new_coords = (coords[0] + dx, coords[1] + dy, coords[2] + dz)
+
+            # Skip if already affected
+            if new_coords in event.spread_rooms:
+                continue
+
+            # Check if room exists at these coordinates
+            if not sub_grid.is_within_bounds(*new_coords):
+                continue
+
+            room = sub_grid.get_by_coordinates(*new_coords)
+            if room is None:
+                continue
+
+            # Check distance from origin
+            new_distance = abs(new_coords[0] - origin[0]) + abs(new_coords[1] - origin[1]) + abs(new_coords[2] - origin[2])
+            if new_distance > event.max_spread_radius:
+                continue
+
+            # Add to spread rooms
+            event.spread_rooms[new_coords] = current_hour
+            new_rooms.append(new_coords)
+
+            # Add hazard to room
+            if hazard_type_display not in room.hazards:
+                room.hazards.append(hazard_type_display)
+
+    if new_rooms:
+        if event.hazard_type == "fire":
+            messages.append(colors.warning("The fire spreads to adjacent rooms!"))
+        else:
+            messages.append(colors.warning("The flooding spreads to adjacent rooms!"))
+
+    return messages
+
+
+def get_active_spreading_hazard_event(sub_grid: "SubGrid") -> Optional[InteriorEvent]:
+    """Get the active spreading hazard event, if any.
+
+    Args:
+        sub_grid: The SubGrid to check
+
+    Returns:
+        The active spreading hazard event if one exists, None otherwise
+    """
+    for event in sub_grid.interior_events:
+        if event.is_active and event.event_type == "spreading_hazard":
+            return event
+    return None
+
+
+def clear_spreading_hazard(sub_grid: "SubGrid", event: InteriorEvent) -> None:
+    """Clear a spreading hazard from all affected rooms.
+
+    Removes the hazard type from all rooms in spread_rooms.
+
+    Args:
+        sub_grid: The SubGrid containing the hazard
+        event: The spreading hazard event to clear
+    """
+    if event.hazard_type is None or event.spread_rooms is None:
+        return
+
+    hazard_type_display = "spreading_fire" if event.hazard_type == "fire" else "spreading_flood"
+
+    for coords in event.spread_rooms.keys():
+        room = sub_grid.get_by_coordinates(*coords)
+        if room is not None and hazard_type_display in room.hazards:
+            room.hazards.remove(hazard_type_display)

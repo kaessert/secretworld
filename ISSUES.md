@@ -539,9 +539,9 @@ Created QuestNetworkManager for managing interconnected quest storylines.
 ---
 
 ### Issue 25: Dynamic Interior Events
-**Status**: PARTIAL ✓
+**Status**: COMPLETED ✓
 **Priority**: P3
-**Updated**: 2025-12-28 (Rival Adventurers)
+**Completed**: 2025-12-28
 
 **Problem**: World events only affect the overworld. Dungeon interiors feel static.
 
@@ -595,21 +595,42 @@ Created QuestNetworkManager for managing interconnected quest storylines.
 - `src/cli_rpg/game_state.py` - Integrated ritual spawning on `enter()` and progress/combat in `_move_in_sub_grid()`
 - 21 new tests in `tests/test_ritual_events.py`
 
+**Implementation (Spreading Hazards):**
+- `src/cli_rpg/interior_events.py` - Extended with:
+  - `SPREADING_HAZARD_SPAWN_CHANCE = 0.05`: 5% spawn chance on SubGrid entry
+  - `SPREADING_HAZARD_DURATION_RANGE = (8, 16)`: 8-16 hours before dissipating
+  - `FIRE_DAMAGE_RANGE = (4, 8)`: Fire deals 4-8 damage per turn
+  - `FLOODING_TIREDNESS = 3`: Flooding adds +3 tiredness per turn
+  - `MAX_SPREAD_RADIUS = 3`: Maximum spread from origin room
+  - `InteriorEvent` extended: `hazard_type`, `spread_rooms`, `max_spread_radius`
+  - `check_for_spreading_hazard()`: Spawns fire or flooding at random room
+  - `spread_hazard()`: Spreads to adjacent rooms each hour
+  - `get_active_spreading_hazard_event()`: Get active hazard event
+  - `clear_spreading_hazard()`: Remove hazard on expiry
+- `src/cli_rpg/hazards.py` - Added hazard types:
+  - `spreading_fire`: Deals 4-8 damage when entering affected room
+  - `spreading_flood`: 50% movement failure + 3 tiredness
+  - `apply_spreading_fire()` and `apply_spreading_flood()` effect handlers
+- `src/cli_rpg/game_state.py` - Integrated spreading hazard spawn check in `enter()` method
+- 21 new tests in `tests/test_spreading_hazard.py`
+
 **Acceptance Criteria:**
 - [x] **Cave-in**: Temporarily blocks passages (4-12 hours, auto-clears)
 - [x] **Monster migration**: Changes enemy spawn rates via room-specific modifiers (2-6 hours)
 - [x] **Rival adventurers**: NPCs racing player to boss/treasure (15% spawn, combat encounter)
 - [x] **Ritual in progress**: Time-limited boss fight (15% spawn, 8-12 turn countdown, empowered boss if completed)
-- [ ] **Spreading hazard**: Fire/flooding through dungeon
+- [x] **Spreading hazard**: Fire/flooding through dungeon (5% spawn, 4-8 fire damage, 50% flood movement fail + 3 tiredness, max 3-room spread, 8-16 hour duration)
 
 **Related Files:**
 - `src/cli_rpg/interior_events.py`
+- `src/cli_rpg/hazards.py`
 - `src/cli_rpg/world_grid.py`
 - `src/cli_rpg/game_state.py`
 - `src/cli_rpg/combat.py`
 - `src/cli_rpg/random_encounters.py`
 - `tests/test_rival_adventurers.py`
 - `tests/test_ritual_events.py`
+- `tests/test_spreading_hazard.py`
 
 ---
 
@@ -687,7 +708,7 @@ Created QuestNetworkManager for managing interconnected quest storylines.
 - ✓ Exploration progress tracking (Issue 24 complete)
 
 **Phase 5 - Dynamic Polish (P3)** - Issues 25-27
-- ✓ Interior events - cave-ins, monster migrations, rival adventurers (Issue 25 partial - ritual/spreading hazard remaining)
+- ✓ Interior events - cave-ins, monster migrations, rival adventurers, rituals, spreading hazards (Issue 25 complete)
 - ✓ Environmental hazards (Issue 26 complete)
 - ✓ Ambiance system - depth whispers & progressive dread (Issue 27 partial)
 
