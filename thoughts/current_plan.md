@@ -1,76 +1,175 @@
-# Implementation Plan: Add AIService Methods for Content Generation (Phase 4, Step 14)
+# Implementation Plan: Integrate Procedural Layout + ContentLayer in generate_subgrid_for_location()
 
-## Overview
-Add new AIService methods that bridge procedural generators with AI-generated content, specifically `generate_room_content()` which ContentLayer already calls but doesn't exist.
+## Summary
+Modify `generate_subgrid_for_location()` in `ai_world.py` to use procedural layout generators (`procedural_interiors.py`) + ContentLayer (`content_layer.py`) instead of the existing AI-based or fallback interior generation.
 
-## Spec
-1. `AIService.generate_room_content(room_type, category, connections, is_entry, context)` → `{"name": str, "description": str}`
-2. Methods use existing `_call_llm()` pattern for API calls
-3. Uses `progress_indicator()` for generation type "location"
-4. Graceful fallback: returns `None` on failure (ContentLayer handles fallback via FallbackContentProvider)
+## Current Architecture
+- `generate_subgrid_for_location()` (lines 980-1143): Uses AI's `generate_area_with_context()` or `generate_area()` for layout, then `_generate_fallback_interior()` as fallback
+- `ContentLayer.populate_subgrid()`: Transforms `RoomTemplate` list -> `SubGrid` with AI or fallback content
+- `procedural_interiors.generate_interior_layout()`: Returns `list[RoomTemplate]` based on category
 
-## Files to Modify
-
-### 1. `src/cli_rpg/ai_config.py`
-Add prompts:
-- `DEFAULT_ROOM_CONTENT_PROMPT` - room name/description generation
-- `room_content_prompt` field in AIConfig dataclass
-- Serialization in `to_dict()`/`from_dict()`
-
-### 2. `src/cli_rpg/ai_service.py`
-Add method:
-- `generate_room_content()` - JSON response with name/description
-- Uses existing `_call_llm()` pattern for API calls
-- Uses `progress_indicator()` for generation type "location"
-- Validates response has required keys before returning
-
-## Tests
-
-### `tests/test_ai_room_content.py` (new file)
-1. `test_generate_room_content_returns_name_and_description` - mock LLM returns valid JSON
-2. `test_generate_room_content_passes_room_type_to_prompt` - verify room_type in prompt
-3. `test_generate_room_content_passes_category_to_prompt` - verify category in prompt
-4. `test_generate_room_content_returns_none_on_invalid_json` - graceful degradation
-5. `test_generate_room_content_returns_none_on_missing_keys` - graceful degradation
-6. `test_generate_room_content_uses_context_theme` - generation context used
+## Target Architecture
+1. Generate layout using `generate_interior_layout(category, bounds, seed)`
+2. Populate content using `ContentLayer.populate_subgrid(room_templates, ...)`
+3. Apply existing post-processing (boss placement, treasures, puzzles, secrets, hazards)
 
 ## Implementation Steps
 
-1. Add `DEFAULT_ROOM_CONTENT_PROMPT` to `ai_config.py` (template for room name/description)
-2. Add `room_content_prompt` field to `AIConfig` dataclass with serialization
-3. Create `tests/test_ai_room_content.py` with 6 test cases
-4. Add `generate_room_content()` method to `AIService` class
-5. Run tests to verify implementation
+### 1. Add Imports to `ai_world.py`
+```python
+from cli_rpg.procedural_interiors import generate_interior_layout
+from cli_rpg.content_layer import ContentLayer
+from cli_rpg.models.generation_context import GenerationContext
+```
 
-## Detailed Prompt Template
+### 2. Modify `generate_subgrid_for_location()` Signature
+Add optional `seed` parameter for deterministic generation:
+```python
+def generate_subgrid_for_location(
+    location: Location,
+    ai_service: Optional[AIService],
+    theme: str,
+    world_context: Optional[WorldContext] = None,
+    region_context: Optional[RegionContext] = None,
+    seed: Optional[int] = None,  # NEW PARAMETER
+) -> SubGrid:
+```
+
+### 3. Replace Function Body
+Key changes:
+1. Derive seed from coordinates if not provided (for determinism)
+2. Call `generate_interior_layout()` instead of AI's `generate_area_with_context()`
+3. Use `ContentLayer.populate_subgrid()` for room content
+4. Apply post-processing (secrets, puzzles, hazards, treasures, boss)
+
+### 4. Post-Processing Logic
+After ContentLayer populates the SubGrid, iterate over locations to add:
+- Hidden secrets via `_generate_secrets_for_location()`
+- Environmental storytelling via `get_environmental_details()`
+- Puzzles via `_generate_puzzles_for_location()`
+- Hazards via `get_hazards_for_category()`
+- Treasure distribution via `_place_treasures()`
+- Key placement via `_place_keys_in_earlier_rooms()`
+
+### 5. Backward Compatibility
+- Existing tests work without `seed` parameter (derives from location.coordinates or random)
+- Boss placement, treasure, puzzle tests should pass unchanged
+- ContentLayer already handles boss_room and treasure room types
+
+## Files to Modify
+1. `src/cli_rpg/ai_world.py` - Main integration (lines 980-1143)
+
+## Tests to Verify
+```bash
+pytest tests/test_enterable_sublocations.py -v  # Existing SubGrid tests
+pytest tests/test_ai_world_treasure.py -v       # Treasure placement
+pytest tests/test_ai_puzzle_generation.py -v    # Puzzle generation
+pytest tests/test_multi_level_generation.py -v  # Multi-level support
+pytest tests/test_environmental_storytelling.py -v  # Env details
+```
+
+## Detailed Implementation
 
 ```python
-DEFAULT_ROOM_CONTENT_PROMPT = """Generate a room for a {theme} RPG interior location.
+def generate_subgrid_for_location(
+    location: Location,
+    ai_service: Optional[AIService],
+    theme: str,
+    world_context: Optional[WorldContext] = None,
+    region_context: Optional[RegionContext] = None,
+    seed: Optional[int] = None,
+) -> SubGrid:
+    """Generate a SubGrid using procedural layout + ContentLayer."""
+    from cli_rpg.procedural_interiors import generate_interior_layout
+    from cli_rpg.content_layer import ContentLayer
 
-Room Context:
-- Room Type: {room_type}
-- Location Category: {category}
-- Connected Directions: {connections}
-- Is Entry Point: {is_entry}
+    # 1. Derive seed if not provided
+    if seed is None:
+        if location.coordinates:
+            seed = hash(location.coordinates) & 0x7FFFFFFF
+        else:
+            seed = random.randint(0, 2**31 - 1)
 
-World Context:
-- Theme Essence: {theme_essence}
+    # 2. Get bounds from category
+    bounds = get_subgrid_bounds(location.category)
 
-Requirements:
-1. Create a unique room name (2-40 characters) fitting the room type and category
-2. Write a vivid description (50-200 characters) that creates atmosphere
+    # 3. Generate procedural layout
+    room_templates = generate_interior_layout(
+        category=location.category or "dungeon",
+        bounds=bounds,
+        seed=seed,
+    )
 
-Room Type Guidelines:
-- entry: Entrance/exit areas with hints of what lies ahead
-- corridor: Connecting passages with ambient details
-- chamber: Standard rooms for exploration
-- boss_room: Imposing chambers for major encounters
-- treasure: Rooms with valuable items or hidden caches
-- puzzle: Rooms with interactive challenges or mysteries
+    # 4. Build generation context
+    generation_context = None
+    if world_context is not None or region_context is not None:
+        from cli_rpg.models.generation_context import GenerationContext
+        generation_context = GenerationContext(
+            world_context=world_context,
+            region_context=region_context,
+        )
 
-Respond with valid JSON in this exact format:
-{{
-  "name": "Room Name",
-  "description": "A vivid description of the room."
-}}"""
+    # 5. Populate via ContentLayer
+    content_layer = ContentLayer()
+    sub_grid = content_layer.populate_subgrid(
+        room_templates=room_templates,
+        parent_location=location,
+        ai_service=ai_service,
+        generation_context=generation_context,
+        seed=seed,
+    )
+
+    # 6. Post-processing: secrets, puzzles, hazards, treasures
+    placed_locations = {}
+    all_keys_to_place = []
+    category = location.category or "dungeon"
+
+    for loc in sub_grid.all_locations():
+        coords = sub_grid.get_coordinates(loc)
+        if coords is None:
+            continue
+        x, y, z = coords
+
+        placed_locations[loc.name] = {
+            "location": loc,
+            "relative_coords": (x, y, z),
+            "is_entry": loc.is_exit_point,
+        }
+
+        if not loc.is_exit_point:
+            distance = abs(x) + abs(y)
+
+            # Secrets
+            secrets = _generate_secrets_for_location(category, distance, z)
+            loc.hidden_secrets.extend(secrets)
+
+            # Environmental storytelling
+            from cli_rpg.environmental_storytelling import get_environmental_details
+            env_details = get_environmental_details(category, distance, z)
+            loc.environmental_details.extend(env_details)
+
+            # Puzzles
+            puzzles, blocked, keys = _generate_puzzles_for_location(
+                category, distance, z
+            )
+            loc.puzzles.extend(puzzles)
+            loc.blocked_directions.extend(blocked)
+            for key_name, key_cat in keys:
+                all_keys_to_place.append((key_name, key_cat, distance))
+
+            # Hazards (avoid duplicates)
+            from cli_rpg.hazards import get_hazards_for_category
+            if not loc.hazards:
+                hazards = get_hazards_for_category(category, distance)
+                loc.hazards.extend(hazards)
+
+    # Place treasures
+    if placed_locations:
+        _place_treasures(placed_locations, category)
+
+    # Place keys
+    if all_keys_to_place:
+        _place_keys_in_earlier_rooms(placed_locations, all_keys_to_place)
+
+    return sub_grid
 ```

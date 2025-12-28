@@ -1,73 +1,88 @@
-# Implementation Summary: AIService.generate_room_content()
+# Implementation Summary: Procedural Layout + ContentLayer Integration
 
-## What was Implemented
+## What Was Implemented
 
-Added a new `generate_room_content()` method to AIService that bridges procedural interior generators with AI-generated content. This method is called by ContentLayer to generate room names and descriptions for procedural dungeon/cave/temple locations.
+### Modified `generate_subgrid_for_location()` in `ai_world.py`
+
+The function was completely refactored to use procedural layout generation instead of AI-based or fallback interior generation:
+
+**Before:**
+- Used AI's `generate_area_with_context()` or `generate_area()` for layout
+- Fell back to `_generate_fallback_interior()` which created hardcoded room layouts
+
+**After:**
+- Uses `procedural_interiors.generate_interior_layout(category, bounds, seed)` for spatial layout
+- Uses `ContentLayer.populate_subgrid()` to transform RoomTemplates into populated Locations
+- Post-processing applies secrets, puzzles, hazards, and treasures as before
+
+### Key Changes
+
+1. **Added `seed` parameter** to `generate_subgrid_for_location()` for deterministic generation
+   - If not provided, derives seed from location coordinates or generates random seed
+   - Maintains backward compatibility - existing calls without seed work correctly
+
+2. **Integrated procedural generators:**
+   - `BSPGenerator` for dungeons, temples, ruins, tombs, crypts, monasteries, shrines
+   - `CellularAutomataGenerator` for caves, mines
+   - `GridSettlementGenerator` for towns, villages, cities, settlements, outposts, camps
+   - `TowerGenerator` for towers (extends upward with boss at top)
+
+3. **ContentLayer populates SubGrid:**
+   - Transforms `RoomTemplate` blueprints into `Location` objects
+   - Applies room-type-specific content (boss enemies, treasure chests)
+   - Uses fallback content provider for names/descriptions
+
+4. **Fixed duplicate name issue in ContentLayer:**
+   - Added name tracking in `populate_subgrid()` to prevent duplicate location names
+   - Disambiguates duplicates by appending coordinates: `"Name (x,y,z)"`
 
 ### Files Modified
 
-1. **`src/cli_rpg/ai_config.py`**:
-   - Added `DEFAULT_ROOM_CONTENT_PROMPT` constant (lines 452-480)
-   - Added `room_content_prompt` field to AIConfig dataclass (line 533)
-   - Added serialization in `to_dict()` (line 706)
-   - Added deserialization in `from_dict()` (lines 770-772)
+1. `src/cli_rpg/ai_world.py` - Replaced function body (~70 lines changed)
+2. `src/cli_rpg/content_layer.py` - Added duplicate name handling (~8 lines added)
 
-2. **`src/cli_rpg/ai_service.py`**:
-   - Added `generate_room_content()` method (lines 3104-3144)
-   - Added `_build_room_content_prompt()` helper method (lines 3146-3189)
-   - Added `_parse_room_content_response()` helper method (lines 3191-3227)
+### API Changes
 
-3. **`tests/test_ai_room_content.py`** (new file):
-   - 11 test cases covering AIConfig and AIService functionality
-
-## Method Signature
+The function signature now includes an optional `seed` parameter:
 
 ```python
-def generate_room_content(
-    self,
-    room_type: str,
-    category: str,
-    connections: list[str],
-    is_entry: bool,
-    context: Optional[Any] = None,
-) -> Optional[dict]:
+def generate_subgrid_for_location(
+    location: Location,
+    ai_service: Optional[AIService],
+    theme: str,
+    world_context: Optional[WorldContext] = None,
+    region_context: Optional[RegionContext] = None,
+    seed: Optional[int] = None,  # NEW - optional for deterministic generation
+) -> SubGrid:
 ```
-
-### Parameters
-- `room_type`: Type of room (entry, corridor, chamber, boss_room, treasure, puzzle)
-- `category`: Location category (dungeon, cave, temple, etc.)
-- `connections`: List of connected directions (north, south, east, west)
-- `is_entry`: Whether this is an entry/exit point
-- `context`: Optional GenerationContext with world/region theme info
-
-### Returns
-Dictionary with "name" and "description" keys, or None on failure
-
-## Key Design Decisions
-
-1. **Graceful Degradation**: Returns `None` on any failure (invalid JSON, missing keys, API errors) to allow ContentLayer to fall back to FallbackContentProvider
-2. **Uses Existing Patterns**: Follows the same `_call_llm()` pattern as other generation methods
-3. **Progress Indicator**: Uses `generation_type="location"` for consistent UI feedback
-4. **Context Extraction**: Safely extracts theme info from GenerationContext with fallbacks
 
 ## Test Results
 
-```
-tests/test_ai_room_content.py - 11 tests passed
-Full test suite (5176 tests) - All passed
-```
+All tests pass:
+- `test_enterable_sublocations.py`: 40 passed
+- `test_ai_world_treasure.py`: 28 passed
+- `test_multi_level_generation.py`: 17 passed
+- `test_environmental_storytelling.py`: 11 passed
+- `test_ai_puzzle_generation.py`: 16 passed
+- `test_ai_world_boss.py`: 17 passed
+- `test_procedural_interiors.py`: 41 passed
+- `test_content_layer.py`: 8 passed
+
+**Full test suite: 5176 passed, 4 skipped, 1 warning**
+
+## Architecture Benefits
+
+1. **Determinism**: Same seed produces same layout and content
+2. **Category-specific layouts**: Different generator algorithms for different location types
+3. **Separation of concerns**: Layout generation separate from content population
+4. **Extensibility**: Easy to add new generator types in `CATEGORY_GENERATORS`
+5. **Backward compatibility**: Existing code continues to work without modification
 
 ## E2E Validation
 
-The implementation integrates with the existing ContentLayer which calls:
-```python
-content = ai_service.generate_room_content(
-    room_type=template.room_type.value,
-    category=category,
-    connections=template.connections,
-    is_entry=template.is_entry,
-    context=generation_context,
-)
-```
-
-This flow should be tested in an E2E scenario where a player enters a dungeon/cave to verify the full integration with procedural interior generation.
+E2E tests should validate:
+- Entering a dungeon generates procedural multi-level interior
+- Towns generate grid-like street patterns
+- Caves generate organic connected chambers
+- Towers generate vertical multi-floor layouts
+- Same world seed produces same interior layouts

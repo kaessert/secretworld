@@ -983,160 +983,133 @@ def generate_subgrid_for_location(
     theme: str,
     world_context: Optional[WorldContext] = None,
     region_context: Optional[RegionContext] = None,
+    seed: Optional[int] = None,
 ) -> SubGrid:
-    """Generate a SubGrid for an enterable named location on-demand.
+    """Generate a SubGrid using procedural layout + ContentLayer.
 
     This function creates interior rooms/areas for locations like dungeons,
     caves, towns, etc. that should have enterable interiors but don't yet
     have a SubGrid attached.
 
+    Uses procedural_interiors.generate_interior_layout() for spatial layout,
+    then ContentLayer.populate_subgrid() for content generation.
+
     Args:
         location: The parent location to generate a SubGrid for
         ai_service: Optional AI service for content generation
-        theme: World theme for generation
+        theme: World theme for generation (passed for API compatibility)
         world_context: Optional Layer 1 context for layered generation
         region_context: Optional Layer 2 context for layered generation
+        seed: Optional seed for deterministic generation
 
     Returns:
         A populated SubGrid with interior locations
     """
-    from cli_rpg.world_grid import SubGrid, get_subgrid_bounds
-    from cli_rpg.location_art import get_fallback_location_ascii_art
+    from cli_rpg.procedural_interiors import generate_interior_layout
+    from cli_rpg.content_layer import ContentLayer
 
-    # Get appropriate bounds for this location category
-    bounds = get_subgrid_bounds(location.category)
-    sub_grid = SubGrid(bounds=bounds, parent_name=location.name)
-
-    # Try AI generation if available
-    area_data = None
-    if ai_service is not None:
-        try:
-            if world_context is not None and region_context is not None:
-                # Use layered generation for coherent interiors
-                area_data = ai_service.generate_area_with_context(
-                    world_context=world_context,
-                    region_context=region_context,
-                    entry_direction="enter",  # Entering, not a cardinal direction
-                    size=5,  # Reasonable interior size
-                    terrain_type=location.terrain,
-                )
-            else:
-                # Use basic area generation
-                area_data = ai_service.generate_area(
-                    theme=theme,
-                    sub_theme_hint=f"interior of {location.category or 'building'}",
-                    entry_direction="enter",
-                    context_locations=[location.name],
-                    size=5,
-                )
-        except Exception as e:
-            logger.warning(f"AI area generation failed for {location.name}: {e}")
-            area_data = None
-
-    # Use fallback generation if AI failed or unavailable
-    if not area_data:
-        area_data = _generate_fallback_interior(location)
-
-    # Place locations in SubGrid
-    first_location = True
-    placed_locations = {}
-    all_keys_to_place = []  # Track keys for locked door puzzles
-
-    for loc_data in area_data:
-        # Support both 2D and 3D relative coordinates
-        rel_coords = loc_data.get("relative_coords", (0, 0, 0))
-        if len(rel_coords) == 2:
-            rel_x, rel_y = rel_coords
-            rel_z = 0
+    # 1. Derive seed if not provided (for determinism)
+    if seed is None:
+        if location.coordinates:
+            seed = hash(location.coordinates) & 0x7FFFFFFF
         else:
-            rel_x, rel_y, rel_z = rel_coords
+            seed = random.randint(0, 2**31 - 1)
 
-        # Check bounds (including z-bounds)
-        if not sub_grid.is_within_bounds(rel_x, rel_y, rel_z):
-            logger.debug(f"Skipping {loc_data['name']}: outside bounds")
-            continue
+    # 2. Get bounds from category
+    bounds = get_subgrid_bounds(location.category)
 
-        # Skip if coordinates occupied
-        if sub_grid.get_by_coordinates(rel_x, rel_y, rel_z) is not None:
-            continue
+    # 3. Generate procedural layout
+    room_templates = generate_interior_layout(
+        category=location.category or "dungeon",
+        bounds=bounds,
+        seed=seed,
+    )
 
-        # Generate ASCII art using fallback
-        loc_ascii_art = get_fallback_location_ascii_art(
-            category=loc_data.get("category", location.category),
-            location_name=loc_data["name"]
+    # 4. Build generation context (only if world_context is available - it's required)
+    generation_context = None
+    if world_context is not None:
+        from cli_rpg.models.generation_context import GenerationContext
+        generation_context = GenerationContext(
+            world=world_context,
+            region=region_context,
         )
 
-        # Infer hierarchy fields
-        loc_category = loc_data.get("category", location.category)
-        _, loc_is_safe_zone = _infer_hierarchy_from_category(loc_category)
+    # 5. Populate via ContentLayer
+    content_layer = ContentLayer()
+    sub_grid = content_layer.populate_subgrid(
+        room_templates=room_templates,
+        parent_location=location,
+        ai_service=ai_service,
+        generation_context=generation_context,
+        seed=seed,
+    )
 
-        # Create the interior location
-        new_loc = Location(
-            name=loc_data["name"],
-            description=loc_data["description"],
-            category=loc_category,
-            ascii_art=loc_ascii_art,
-            is_overworld=False,  # Interior locations are not overworld
-            is_safe_zone=loc_is_safe_zone,
-            is_exit_point=first_location,  # First location is entry/exit
-        )
+    # 6. Post-processing: secrets, puzzles, hazards, treasures
+    placed_locations = {}
+    all_keys_to_place = []
+    category = location.category or "dungeon"
 
-        # Add NPCs if present
-        if loc_data.get("npcs"):
-            location_npcs = _create_npcs_from_data(
-                loc_data["npcs"],
-                terrain_type=location.terrain,
-            )
-            for npc in location_npcs:
-                new_loc.npcs.append(npc)
+    # Iterate over all locations in the SubGrid
+    for loc in sub_grid._by_name.values():
+        # Location.coordinates is set by SubGrid.add_location()
+        coords = loc.coordinates
+        if coords is None:
+            continue
+        # Handle both 2D and 3D coordinates
+        if len(coords) == 2:
+            x, y = coords
+            z = 0
+        else:
+            x, y, z = coords
 
-        # Add hidden secrets to non-entry rooms
-        if not first_location:
-            distance = abs(rel_x) + abs(rel_y)
-            secrets = _generate_secrets_for_location(loc_category or "dungeon", distance, rel_z)
-            new_loc.hidden_secrets.extend(secrets)
+        placed_locations[loc.name] = {
+            "location": loc,
+            "relative_coords": (x, y, z),
+            "is_entry": loc.is_exit_point,
+        }
 
-            # Add environmental storytelling (Issue #27)
+        if not loc.is_exit_point:
+            distance = abs(x) + abs(y)
+
+            # Secrets
+            secrets = _generate_secrets_for_location(category, distance, z)
+            loc.hidden_secrets.extend(secrets)
+
+            # Environmental storytelling
             from cli_rpg.environmental_storytelling import get_environmental_details
-            env_details = get_environmental_details(loc_category or "dungeon", distance, rel_z)
-            new_loc.environmental_details.extend(env_details)
+            env_details = get_environmental_details(category, distance, z)
+            loc.environmental_details.extend(env_details)
 
-            # Add puzzles to non-entry rooms (Issue #23)
+            # Puzzles
             puzzles, blocked, keys = _generate_puzzles_for_location(
-                loc_category or "dungeon", distance, rel_z
+                category, distance, z
             )
-            new_loc.puzzles.extend(puzzles)
-            new_loc.blocked_directions.extend(blocked)
-            # Track keys with door distance for placement
+            loc.puzzles.extend(puzzles)
+            loc.blocked_directions.extend(blocked)
             for key_name, key_cat in keys:
                 all_keys_to_place.append((key_name, key_cat, distance))
 
-            # Add environmental hazards (Issue #26)
+            # Hazards (avoid duplicates - ContentLayer may have added some)
             from cli_rpg.hazards import get_hazards_for_category
-            hazards = get_hazards_for_category(loc_category or "dungeon", distance)
-            new_loc.hazards.extend(hazards)
-
-        sub_grid.add_location(new_loc, rel_x, rel_y, rel_z)
-        placed_locations[loc_data["name"]] = {
-            "location": new_loc,
-            "relative_coords": (rel_x, rel_y, rel_z),
-            "is_entry": first_location,
-        }
-        first_location = False
+            if not loc.hazards:
+                hazards = get_hazards_for_category(category, distance)
+                loc.hazards.extend(hazards)
 
     # Place boss in furthest room for dungeon-type categories (prefer lowest z)
+    # ContentLayer already sets boss_enemy on BOSS_ROOM type rooms, but we
+    # also apply the existing logic for backward compatibility
     if location.category in BOSS_CATEGORIES and placed_locations:
         boss_room_name = _find_furthest_room(placed_locations, prefer_lowest_z=True)
         if boss_room_name:
             boss_room = sub_grid.get_by_name(boss_room_name)
-            if boss_room:
+            if boss_room and boss_room.boss_enemy is None:
                 boss_room.boss_enemy = location.category  # Category-based boss
 
     # Place treasures in non-entry, non-boss rooms
     if placed_locations:
-        _place_treasures(placed_locations, location.category or "dungeon")
+        _place_treasures(placed_locations, category)
 
-    # Place keys for locked door puzzles in earlier rooms (Issue #23)
+    # Place keys for locked door puzzles in earlier rooms
     if all_keys_to_place:
         _place_keys_in_earlier_rooms(placed_locations, all_keys_to_place)
 

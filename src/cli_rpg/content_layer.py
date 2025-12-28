@@ -102,6 +102,9 @@ class ContentLayer:
         # Track placed locations for multi-pass processing
         placed_locations: dict[str, dict] = {}
 
+        # Track used names to avoid duplicates
+        used_names: set[str] = set()
+
         # First pass: Create locations from templates
         for template in room_templates:
             location = self._create_location_from_template(
@@ -118,6 +121,13 @@ class ContentLayer:
             if not sub_grid.is_within_bounds(x, y, z):
                 logger.debug(f"Skipping {location.name}: outside bounds")
                 continue
+
+            # Disambiguate duplicate names by appending coordinates
+            original_name = location.name
+            if original_name in used_names:
+                # Append coordinates to make name unique
+                location.name = f"{original_name} ({x},{y},{z})"
+            used_names.add(location.name)
 
             sub_grid.add_location(location, x, y, z)
             placed_locations[location.name] = {
