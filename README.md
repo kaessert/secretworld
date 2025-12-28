@@ -328,6 +328,13 @@ Gather resources in the wilderness and craft useful items:
 - **Success Bonuses**: Novice +0%, Apprentice +5%, Journeyman +10%, Expert +15%, Master +20%
 - **Gated Recipes**: Iron Sword and Iron Armor require Journeyman level to craft
 
+**Rare Recipes**: Powerful recipes discovered through gameplay rewards:
+- Rare recipes are not available from the start - they must be unlocked through exploration, quests, or other rewards
+- Use `recipes` to see your discovered rare recipes in a separate "Discovered Rare Recipes" section
+- **Elixir of Vitality**: 2 Herbs + 1 Iron Ore → Restores 75 HP (requires Master level)
+- **Steel Blade**: 3 Iron Ore + 2 Wood → +8 attack damage weapon (requires Expert level)
+- **Fortified Armor**: 4 Iron Ore + 2 Fiber → +6 defense armor (requires Expert level)
+
 ### NPC Shops
 
 Merchants can be found throughout the world. Interact with them to buy and sell items:

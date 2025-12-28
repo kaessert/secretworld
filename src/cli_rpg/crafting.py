@@ -197,6 +197,51 @@ CRAFT_XP_GAIN = 5
 
 
 # =============================================================================
+# Rare crafting recipes (must be discovered/unlocked)
+# =============================================================================
+
+RARE_RECIPES = {
+    "elixir of vitality": {
+        "name": "Elixir of Vitality",
+        "ingredients": {"Herbs": 2, "Iron Ore": 1},
+        "output": {
+            "name": "Elixir of Vitality",
+            "description": "A powerful healing elixir that restores vitality.",
+            "item_type": ItemType.CONSUMABLE,
+            "heal_amount": 75,
+        },
+    },
+    "steel blade": {
+        "name": "Steel Blade",
+        "ingredients": {"Iron Ore": 3, "Wood": 2},
+        "output": {
+            "name": "Steel Blade",
+            "description": "A finely crafted steel blade, superior to common iron.",
+            "item_type": ItemType.WEAPON,
+            "damage_bonus": 8,
+        },
+    },
+    "fortified armor": {
+        "name": "Fortified Armor",
+        "ingredients": {"Iron Ore": 4, "Fiber": 2},
+        "output": {
+            "name": "Fortified Armor",
+            "description": "Reinforced armor offering exceptional protection.",
+            "item_type": ItemType.ARMOR,
+            "defense_bonus": 6,
+        },
+    },
+}
+
+# Minimum crafting level required for rare recipes
+RARE_RECIPE_LEVEL: Dict[str, CraftingLevel] = {
+    "elixir of vitality": CraftingLevel.MASTER,
+    "steel blade": CraftingLevel.EXPERT,
+    "fortified armor": CraftingLevel.EXPERT,
+}
+
+
+# =============================================================================
 # Helper functions
 # =============================================================================
 
@@ -304,18 +349,41 @@ def execute_gather(game_state: "GameState") -> Tuple[bool, str]:
 # =============================================================================
 
 
-def get_recipes_list() -> str:
+def get_recipes_list(character: "Character" = None) -> str:
     """Return formatted list of available crafting recipes.
+
+    Args:
+        character: Optional character to show unlocked rare recipes for
 
     Returns:
         Formatted string with all recipes and their ingredients
     """
+    from cli_rpg.models.character import Character
+
     lines = ["Available Crafting Recipes:", "=" * 30]
     for key, recipe in CRAFTING_RECIPES.items():
         ingredients = ", ".join(
             f"{count}x {name}" for name, count in recipe["ingredients"].items()
         )
         lines.append(f"  {recipe['name']}: {ingredients}")
+
+    # Show discovered rare recipes if character provided
+    if character is not None:
+        unlocked = [
+            key for key in RARE_RECIPES.keys()
+            if character.has_recipe(key)
+        ]
+        if unlocked:
+            lines.append("")
+            lines.append("Discovered Rare Recipes:")
+            lines.append("=" * 30)
+            for key in unlocked:
+                recipe = RARE_RECIPES[key]
+                ingredients = ", ".join(
+                    f"{count}x {name}" for name, count in recipe["ingredients"].items()
+                )
+                lines.append(f"  {recipe['name']}: {ingredients}")
+
     return "\n".join(lines)
 
 
@@ -333,15 +401,29 @@ def execute_craft(game_state: "GameState", recipe_name: str) -> Tuple[bool, str]
     """
     # 1. Lookup recipe (case-insensitive)
     recipe_key = recipe_name.lower()
-    if recipe_key not in CRAFTING_RECIPES:
-        return (False, f"Unknown recipe: {recipe_name}. Use 'recipes' to see available recipes.")
-
-    recipe = CRAFTING_RECIPES[recipe_key]
     character = game_state.current_character
     inventory = character.inventory
 
+    # Check if it's a rare recipe
+    is_rare = recipe_key in RARE_RECIPES
+
+    if is_rare:
+        # Check if the rare recipe is unlocked
+        if not character.has_recipe(recipe_key):
+            return (
+                False,
+                f"You don't know this recipe. It must be discovered through "
+                "quests, treasure, or secrets.",
+            )
+        recipe = RARE_RECIPES[recipe_key]
+        required_level = RARE_RECIPE_LEVEL.get(recipe_key, CraftingLevel.NOVICE)
+    elif recipe_key in CRAFTING_RECIPES:
+        recipe = CRAFTING_RECIPES[recipe_key]
+        required_level = RECIPE_MIN_LEVEL.get(recipe_key, CraftingLevel.NOVICE)
+    else:
+        return (False, f"Unknown recipe: {recipe_name}. Use 'recipes' to see available recipes.")
+
     # 2. Check crafting level requirement
-    required_level = RECIPE_MIN_LEVEL.get(recipe_key, CraftingLevel.NOVICE)
     current_level = character.crafting_proficiency.get_level()
 
     # Compare levels by their XP thresholds

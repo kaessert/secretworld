@@ -2582,7 +2582,7 @@ def handle_exploration_command(game_state: GameState, command: str, args: list[s
 
     elif command == "recipes":
         from cli_rpg.crafting import get_recipes_list
-        return (True, f"\n{get_recipes_list()}")
+        return (True, f"\n{get_recipes_list(game_state.current_character)}")
 
     # Class-specific abilities: check class BEFORE combat state
     elif command == "bash":

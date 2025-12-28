@@ -1,4 +1,66 @@
-# Crafting Skill Progression - Implementation Summary
+# Rare Crafting Recipes as Rewards - Implementation Summary
+
+## Date: 2025-12-28
+
+## What Was Implemented
+
+Added rare crafting recipes that are gated behind discovery (not available from the start). Recipes are unlocked through gameplay rewards.
+
+### Character Model Updates (`src/cli_rpg/models/character.py`)
+- Added `unlocked_recipes: Set[str]` field (default: empty set)
+- Added `unlock_recipe(recipe_key: str) -> str` method to unlock rare recipes
+- Added `has_recipe(recipe_key: str) -> bool` method to check if recipe is unlocked
+- Updated `to_dict()` to serialize `unlocked_recipes` as a list
+- Updated `from_dict()` to deserialize `unlocked_recipes` with backward compatibility
+
+### Crafting System Updates (`src/cli_rpg/crafting.py`)
+- Added `RARE_RECIPES` dict containing 3 rare recipes:
+  - **Elixir of Vitality** (2 Herbs + 1 Iron Ore → 75 HP heal, requires MASTER level)
+  - **Steel Blade** (3 Iron Ore + 2 Wood → +8 damage, requires EXPERT level)
+  - **Fortified Armor** (4 Iron Ore + 2 Fiber → +6 defense, requires EXPERT level)
+- Added `RARE_RECIPE_LEVEL` dict with crafting level requirements
+- Updated `execute_craft()` to:
+  - Check if recipe is in RARE_RECIPES
+  - Require unlock before crafting rare recipes
+  - Use appropriate level requirements for rare recipes
+- Updated `get_recipes_list()` to:
+  - Accept optional `character` parameter
+  - Show "Discovered Rare Recipes" section when character has unlocked recipes
+
+### Main Game Integration (`src/cli_rpg/main.py`)
+- Updated `recipes` command to pass character to `get_recipes_list()` so players can see their unlocked rare recipes
+
+## New Tests Added (`tests/test_crafting.py`)
+Added 14 new tests for the rare recipe system:
+- `test_rare_recipes_not_in_base_recipes` - Verifies separation of rare recipes
+- `test_character_has_unlocked_recipes` - Verifies Character has unlocked_recipes field
+- `test_craft_fails_for_undiscovered_rare_recipe` - Verifies gating behavior
+- `test_craft_succeeds_after_unlocking_recipe` - Verifies unlock enables crafting
+- `test_unlock_recipe_adds_to_set` - Tests unlock_recipe method
+- `test_unlock_recipe_returns_message_for_already_unlocked` - Tests duplicate unlock
+- `test_has_recipe_method` - Tests has_recipe method
+- `test_recipes_list_shows_rare_section` - Tests UI with unlocked recipes
+- `test_recipes_list_without_rare_recipes` - Tests UI without unlocked recipes
+- `test_rare_recipe_serialization` - Tests save/load of unlocked_recipes
+- `test_rare_recipes_require_expert_level` - Verifies level requirements
+- `test_elixir_of_vitality_requires_master_level` - Verifies master requirement
+- `test_rare_recipe_requires_crafting_level` - Tests level gating in practice
+- `test_backward_compat_character_without_unlocked_recipes` - Tests old save compatibility
+
+## Test Results
+- All 50 crafting tests pass
+- All 5128 unit tests pass (no regressions)
+
+## E2E Test Considerations
+E2E tests should validate:
+1. Using `recipes` command shows both base and discovered rare recipes
+2. Crafting a rare recipe without unlocking shows appropriate error message
+3. After calling `character.unlock_recipe()`, the recipe becomes craftable
+4. Saved games preserve unlocked recipes
+
+---
+
+# Previous Implementation: Crafting Skill Progression - Implementation Summary
 
 ## Date: 2025-12-28
 

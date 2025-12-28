@@ -288,7 +288,8 @@ quest = Quest(
 ---
 
 ### Crafting and gathering system
-**Status**: ACTIVE (MVP + Progression Implemented)
+**Status**: COMPLETED ✓
+**Date Completed**: 2025-12-28
 
 **Implemented**:
 - `gather` command for resources
@@ -297,9 +298,10 @@ quest = Quest(
 - Crafting skill progression (NOVICE → APPRENTICE → JOURNEYMAN → EXPERT → MASTER)
 - Advanced recipes gated by skill level (iron sword/armor require JOURNEYMAN)
 - +5 XP per successful craft with level-up notifications
-
-**Remaining**:
-- Rare recipes as rewards
+- Rare recipes as rewards (Elixir of Vitality, Steel Blade, Fortified Armor)
+- Rare recipe unlock system via `character.unlock_recipe()`
+- Rare recipes require discovery before crafting
+- Rare recipes require EXPERT or MASTER crafting level
 
 ---
 

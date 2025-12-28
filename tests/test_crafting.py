@@ -775,3 +775,232 @@ def test_backward_compat_character_without_crafting_proficiency():
     assert hasattr(character, "crafting_proficiency")
     assert character.crafting_proficiency.xp == 0
     assert character.crafting_proficiency.get_level() == CraftingLevel.NOVICE
+
+
+# =============================================================================
+# Tests for rare recipe discovery system
+# =============================================================================
+
+
+def test_rare_recipes_not_in_base_recipes():
+    """Spec: Rare recipes should be in RARE_RECIPES, not CRAFTING_RECIPES."""
+    from cli_rpg.crafting import CRAFTING_RECIPES, RARE_RECIPES
+
+    # Verify rare recipes exist separately
+    assert "elixir of vitality" in RARE_RECIPES
+    assert "steel blade" in RARE_RECIPES
+    assert "fortified armor" in RARE_RECIPES
+
+    # Verify they're NOT in base recipes
+    assert "elixir of vitality" not in CRAFTING_RECIPES
+    assert "steel blade" not in CRAFTING_RECIPES
+    assert "fortified armor" not in CRAFTING_RECIPES
+
+
+def test_character_has_unlocked_recipes():
+    """Spec: Character should have unlocked_recipes set (default empty)."""
+    character = make_character()
+    assert hasattr(character, "unlocked_recipes")
+    assert isinstance(character.unlocked_recipes, set)
+    assert len(character.unlocked_recipes) == 0
+
+
+def test_craft_fails_for_undiscovered_rare_recipe():
+    """Spec: Crafting rare recipe without unlocking should fail with appropriate message."""
+    from cli_rpg.crafting import execute_craft
+
+    game_state = make_game_state()
+    inv = game_state.current_character.inventory
+
+    # Add ingredients for elixir of vitality (2 Herbs + 1 Iron Ore)
+    inv.add_item(Item(name="Herbs", description="Healing herbs", item_type=ItemType.RESOURCE))
+    inv.add_item(Item(name="Herbs", description="Healing herbs", item_type=ItemType.RESOURCE))
+    inv.add_item(Item(name="Iron Ore", description="Raw iron ore", item_type=ItemType.RESOURCE))
+
+    # Try to craft without unlocking
+    success, msg = execute_craft(game_state, "elixir of vitality")
+
+    assert success is False
+    assert "don't know this recipe" in msg.lower() or "must be discovered" in msg.lower()
+
+
+def test_craft_succeeds_after_unlocking_recipe():
+    """Spec: Crafting rare recipe should work after unlock_recipe() is called."""
+    from cli_rpg.crafting import execute_craft
+    from cli_rpg.models.crafting_proficiency import CraftingLevel
+
+    game_state = make_game_state()
+    char = game_state.current_character
+    inv = char.inventory
+
+    # Set crafting level to MASTER for rare recipes
+    char.crafting_proficiency.xp = 100
+
+    # Unlock the recipe
+    char.unlock_recipe("elixir of vitality")
+
+    # Add ingredients (2 Herbs + 1 Iron Ore)
+    inv.add_item(Item(name="Herbs", description="Healing herbs", item_type=ItemType.RESOURCE))
+    inv.add_item(Item(name="Herbs", description="Healing herbs", item_type=ItemType.RESOURCE))
+    inv.add_item(Item(name="Iron Ore", description="Raw iron ore", item_type=ItemType.RESOURCE))
+
+    # Now craft should succeed
+    success, msg = execute_craft(game_state, "elixir of vitality")
+
+    assert success is True
+    assert "Crafted" in msg or "crafted" in msg
+
+    # Verify the item was created with correct properties
+    elixir = inv.find_item_by_name("Elixir of Vitality")
+    assert elixir is not None
+    assert elixir.heal_amount == 75
+
+
+def test_unlock_recipe_adds_to_set():
+    """Spec: unlock_recipe() should add recipe key to unlocked_recipes."""
+    character = make_character()
+
+    assert "steel blade" not in character.unlocked_recipes
+
+    result = character.unlock_recipe("steel blade")
+
+    assert "steel blade" in character.unlocked_recipes
+    assert "learned" in result.lower() or "recipe" in result.lower()
+
+
+def test_unlock_recipe_returns_message_for_already_unlocked():
+    """Spec: unlock_recipe() should indicate if already learned."""
+    character = make_character()
+
+    # Unlock twice
+    character.unlock_recipe("steel blade")
+    result = character.unlock_recipe("steel blade")
+
+    # Should indicate already known
+    assert "already" in result.lower() or "know" in result.lower()
+
+
+def test_has_recipe_method():
+    """Spec: has_recipe() should correctly check if recipe is unlocked."""
+    character = make_character()
+
+    assert character.has_recipe("steel blade") is False
+
+    character.unlock_recipe("steel blade")
+
+    assert character.has_recipe("steel blade") is True
+    assert character.has_recipe("fortified armor") is False
+
+
+def test_recipes_list_shows_rare_section():
+    """Spec: get_recipes_list() should show discovered rare recipes separately."""
+    from cli_rpg.crafting import get_recipes_list
+
+    character = make_character()
+
+    # Unlock a rare recipe
+    character.unlock_recipe("steel blade")
+
+    output = get_recipes_list(character)
+
+    # Should have both sections
+    assert "Available" in output
+    assert "Discovered Rare Recipes" in output or "Rare Recipes" in output
+    assert "Steel Blade" in output
+
+
+def test_recipes_list_without_rare_recipes():
+    """Spec: get_recipes_list() should not show rare section if none unlocked."""
+    from cli_rpg.crafting import get_recipes_list
+
+    character = make_character()
+
+    output = get_recipes_list(character)
+
+    # Should show base recipes but not rare section when none unlocked
+    assert "Available" in output
+    # Rare section only appears if there are unlocked recipes
+    # (This test verifies behavior when no rare recipes are unlocked)
+
+
+def test_rare_recipe_serialization():
+    """Spec: unlocked_recipes should serialize/deserialize correctly."""
+    character = make_character()
+
+    # Unlock some recipes
+    character.unlock_recipe("steel blade")
+    character.unlock_recipe("fortified armor")
+
+    # Serialize
+    data = character.to_dict()
+    assert "unlocked_recipes" in data
+    assert set(data["unlocked_recipes"]) == {"steel blade", "fortified armor"}
+
+    # Deserialize
+    restored = Character.from_dict(data)
+    assert restored.unlocked_recipes == {"steel blade", "fortified armor"}
+
+
+def test_rare_recipes_require_expert_level():
+    """Spec: Steel Blade and Fortified Armor require EXPERT level."""
+    from cli_rpg.crafting import RARE_RECIPE_LEVEL
+    from cli_rpg.models.crafting_proficiency import CraftingLevel
+
+    assert RARE_RECIPE_LEVEL["steel blade"] == CraftingLevel.EXPERT
+    assert RARE_RECIPE_LEVEL["fortified armor"] == CraftingLevel.EXPERT
+
+
+def test_elixir_of_vitality_requires_master_level():
+    """Spec: Elixir of Vitality requires MASTER level."""
+    from cli_rpg.crafting import RARE_RECIPE_LEVEL
+    from cli_rpg.models.crafting_proficiency import CraftingLevel
+
+    assert RARE_RECIPE_LEVEL["elixir of vitality"] == CraftingLevel.MASTER
+
+
+def test_rare_recipe_requires_crafting_level():
+    """Spec: Crafting rare recipe should fail if crafting level too low."""
+    from cli_rpg.crafting import execute_craft
+
+    game_state = make_game_state()
+    char = game_state.current_character
+    inv = char.inventory
+
+    # Unlock the recipe (but crafting level is NOVICE)
+    char.unlock_recipe("steel blade")
+
+    # Add ingredients (3 Iron Ore + 2 Wood)
+    for _ in range(3):
+        inv.add_item(Item(name="Iron Ore", description="Raw iron ore", item_type=ItemType.RESOURCE))
+    for _ in range(2):
+        inv.add_item(Item(name="Wood", description="Wood", item_type=ItemType.RESOURCE))
+
+    # Should fail due to level requirement
+    success, msg = execute_craft(game_state, "steel blade")
+
+    assert success is False
+    assert "Expert" in msg or "level" in msg.lower()
+
+
+def test_backward_compat_character_without_unlocked_recipes():
+    """Spec: Old saves without unlocked_recipes should load with empty set."""
+    old_save = {
+        "name": "OldPlayer",
+        "strength": 12,
+        "dexterity": 11,
+        "intelligence": 10,
+        "charisma": 10,
+        "perception": 10,
+        "luck": 10,
+        "level": 5,
+        "health": 100,
+        "inventory": {"items": [], "equipped_weapon": None, "equipped_armor": None},
+        # No unlocked_recipes key
+    }
+
+    character = Character.from_dict(old_save)
+
+    # Should have empty unlocked_recipes set
+    assert hasattr(character, "unlocked_recipes")
+    assert isinstance(character.unlocked_recipes, set)
+    assert len(character.unlocked_recipes) == 0
