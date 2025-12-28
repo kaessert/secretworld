@@ -1,95 +1,82 @@
-# ContentLayer Mediator Implementation Plan
+# Implementation Plan: ContentCache with Deterministic Keying
+
+## Overview
+Create `src/cli_rpg/content_cache.py` to provide deterministic caching for AI-generated content. This enables reproducible worlds by caching content keyed by world seed + coordinates, separate from the existing prompt-based AIService cache.
 
 ## Spec
 
-Create `src/cli_rpg/content_layer.py` - a mediator class that bridges procedural layout generators (`RoomTemplate` from `procedural_interiors.py`) with AI content generation (`ai_service.py`), producing fully populated `SubGrid` instances with deterministic spatial structure and AI-generated thematic content.
+ContentCache is a standalone cache for procedural content that:
+1. Uses deterministic keys derived from world seed + spatial coordinates
+2. Stores content by content type (room, npc, quest, item)
+3. Supports disk persistence (JSON format)
+4. Integrates with ContentLayer for cache lookups/writes
+5. Does NOT use prompts as keys (unlike AIService cache)
 
-### Interface
+Key differences from AIService._cache:
+- **AIService cache**: Keys by prompt hash (MD5) - varies with prompt changes
+- **ContentCache**: Keys by seed + coords + type - deterministic across game runs
+
+## Files to Create
+
+### `src/cli_rpg/content_cache.py`
 ```python
-class ContentLayer:
-    def populate_subgrid(
-        self,
-        room_templates: list[RoomTemplate],
-        parent_location: Location,
-        ai_service: Optional[AIService],
-        generation_context: Optional[GenerationContext],
-        seed: int
-    ) -> SubGrid
+from dataclasses import dataclass, field
+from enum import Enum
+from typing import Optional
+import json
+import os
+
+class ContentType(Enum):
+    ROOM = "room"
+    NPC = "npc"
+    QUEST = "quest"
+    ITEM = "item"
+
+@dataclass
+class ContentCache:
+    seed: int
+    cache_dir: Optional[str] = None
+    _cache: dict[str, dict] = field(default_factory=dict)
+
+    def get(self, content_type: ContentType, coords: tuple[int, int, int]) -> Optional[dict]
+    def set(self, content_type: ContentType, coords: tuple[int, int, int], data: dict) -> None
+    def _make_key(self, content_type: ContentType, coords: tuple[int, int, int]) -> str
+    def save_to_disk(self) -> None
+    def load_from_disk(self) -> None
+    def clear(self) -> None
 ```
 
-### Responsibilities
-1. Transform `RoomTemplate` → `Location` for each room
-2. Generate AI content (name, description) based on room type and spatial context
-3. Apply procedural augmentation (treasures, puzzles, secrets, hazards)
-4. Handle AI fallback gracefully when service unavailable
-5. Ensure determinism via seed parameter
+### `tests/test_content_cache.py`
 
----
+## Tests (TDD)
 
-## Tests First
-
-**File:** `tests/test_content_layer.py`
-
-### Test Cases
-1. `test_content_layer_transforms_templates_to_locations` - Verifies RoomTemplate list → SubGrid with matching coordinates
-2. `test_content_layer_entry_room_is_exit_point` - Entry template → Location with `is_exit_point=True`
-3. `test_content_layer_boss_room_gets_boss_enemy` - BOSS_ROOM template → Location with `boss_enemy` set
-4. `test_content_layer_treasure_room_gets_treasures` - TREASURE template → Location with treasures list
-5. `test_content_layer_hazards_from_template` - `suggested_hazards` → Location `hazards`
-6. `test_content_layer_deterministic_with_seed` - Same seed → same output
-7. `test_content_layer_fallback_without_ai` - AI unavailable → fallback names/descriptions by room type
-8. `test_content_layer_ai_content_used_when_available` - Mock AI → Location has AI-generated content
-
----
+| # | Test Name | Verifies |
+|---|-----------|----------|
+| 1 | `test_deterministic_key_from_seed_and_coords` | Same seed+coords = same key |
+| 2 | `test_different_seeds_different_keys` | Different seed = different key |
+| 3 | `test_get_returns_none_when_not_cached` | Cache miss returns None |
+| 4 | `test_set_then_get_returns_data` | Cache hit returns stored data |
+| 5 | `test_disk_persistence_round_trip` | save/load preserves data |
+| 6 | `test_content_types_isolated` | room vs npc at same coords = different keys |
+| 7 | `test_3d_coords_in_key` | (x, y, z) all contribute to key |
+| 8 | `test_load_creates_empty_cache_when_file_missing` | Graceful handling of missing file |
+| 9 | `test_cache_dir_created_if_missing` | save() creates parent directories |
 
 ## Implementation Steps
 
-### Step 1: Create test file
-**File:** `tests/test_content_layer.py`
-- Import RoomTemplate, RoomType, Location, SubGrid
-- Create fixtures for sample room templates
-- Write 8 test cases (initially failing)
+1. Create `tests/test_content_cache.py` with failing tests
+2. Create `src/cli_rpg/content_cache.py`:
+   - ContentType enum
+   - ContentCache dataclass
+   - Key format: `f"{content_type.value}:{x}:{y}:{z}"` (seed is in filename)
+   - get/set methods
+   - Disk persistence: `{cache_dir}/content_seed_{seed}.json`
+3. Run tests until all pass
+4. Update ISSUES.md Phase 4 item 12 as complete
 
-### Step 2: Create ContentLayer class skeleton
-**File:** `src/cli_rpg/content_layer.py`
-- Define ContentLayer class
-- Define `populate_subgrid()` method signature
-- Add room type → fallback content mapping dict
+## Key Design Decisions
 
-### Step 3: Implement template → location transformation
-- Iterate room_templates
-- Create Location with coordinates from template
-- Set `is_exit_point` from `is_entry`
-- Set `hazards` from `suggested_hazards`
-
-### Step 4: Implement room type handling
-- BOSS_ROOM → set `boss_enemy` based on parent category
-- TREASURE → add treasures via `_place_treasures()` pattern
-- PUZZLE → add puzzles via `_generate_puzzles_for_location()` pattern
-
-### Step 5: Implement AI content generation
-- Build prompt context from room template + generation context
-- Call `ai_service.generate_room_content()` (new method needed)
-- OR call existing `generate_location_with_context()` with room hints
-
-### Step 6: Implement fallback content
-- Fallback names: "Entrance Chamber", "Dark Corridor", "Ancient Chamber", "Boss Lair", "Treasure Vault", "Puzzle Room"
-- Fallback descriptions: Procedural based on room type + parent category
-
-### Step 7: Wire into ai_world.py
-**File:** `src/cli_rpg/ai_world.py`
-- Import ContentLayer
-- In `generate_subgrid_for_location()`:
-  - Call `generate_interior_layout()` for room templates
-  - Call `ContentLayer.populate_subgrid()` to create SubGrid
-  - Replace current AI area generation flow
-
----
-
-## Files Modified
-
-| File | Change |
-|------|--------|
-| `tests/test_content_layer.py` | New - 8 test cases |
-| `src/cli_rpg/content_layer.py` | New - ContentLayer class |
-| `src/cli_rpg/ai_world.py` | Integrate ContentLayer in `generate_subgrid_for_location()` |
+- **Key format**: `"{content_type}:{x}:{y}:{z}"` - seed is per-file, not per-key
+- **File location**: `{cache_dir}/content_seed_{seed}.json` (default: `~/.cli_rpg/cache/`)
+- **No TTL**: Content is deterministic and permanent (world regeneration = new seed)
+- **Explicit save**: Call `save_to_disk()` on GameState cleanup or save

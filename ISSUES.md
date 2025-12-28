@@ -45,7 +45,7 @@ Refactor to use **procedural generation for world structure** while keeping **AI
 - ✓ `src/cli_rpg/procedural_interiors.py` - RoomType, RoomTemplate, GeneratorProtocol, CATEGORY_GENERATORS (CREATED 2025-12-28)
 - ✓ `src/cli_rpg/location_noise.py` - Simplex noise for location density (CREATED 2025-12-28)
 - ✓ `src/cli_rpg/content_layer.py` - Mediator between procedural and AI (CREATED 2025-12-28)
-- `src/cli_rpg/content_cache.py` - Deterministic content caching
+- ✓ `src/cli_rpg/content_cache.py` - Deterministic content caching (CREATED 2025-12-28)
 - `src/cli_rpg/fallback_content.py` - Expanded template fallbacks
 - `src/cli_rpg/models/content_request.py` - Request/response schemas
 

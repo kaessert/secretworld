@@ -1,68 +1,63 @@
-# ContentLayer Implementation Summary
+# ContentCache Implementation Summary
 
 ## What Was Implemented
 
-Created `src/cli_rpg/content_layer.py` - a mediator class that bridges procedural layout generators (`RoomTemplate` from `procedural_interiors.py`) with AI content generation, producing fully populated `SubGrid` instances.
-
-### ContentLayer Class
-
-The `ContentLayer` class provides:
-
-1. **`populate_subgrid()` method** - Main entry point that transforms a list of `RoomTemplate` objects into a populated `SubGrid`:
-   - Creates `Location` for each `RoomTemplate` at correct coordinates
-   - Sets `is_exit_point=True` for entry rooms
-   - Sets `boss_enemy` for BOSS_ROOM templates
-   - Creates treasure chests for TREASURE templates
-   - Transfers `suggested_hazards` to `Location.hazards`
-   - Uses AI content when available, falls back to procedural content
-
-2. **Fallback content system** - When AI is unavailable:
-   - `FALLBACK_NAMES` dict provides room-type-specific names (e.g., "Entrance Chamber", "Boss Lair", "Treasure Vault")
-   - `FALLBACK_DESCRIPTIONS` dict provides category-aware descriptions (dungeon, cave, ruins, temple)
-
-3. **Treasure generation** - For TREASURE room types:
-   - Category-themed chest names (e.g., "Iron Chest" for dungeons, "Sacred Chest" for temples)
-   - Category-themed loot tables with items
-
-4. **Deterministic generation** - Uses seed parameter for reproducible results
+Created `src/cli_rpg/content_cache.py` - a standalone cache for procedural content that uses deterministic keys derived from world seed + spatial coordinates.
 
 ### Files Created
 
-| File | Description |
-|------|-------------|
-| `src/cli_rpg/content_layer.py` | ContentLayer mediator class (275 lines) |
-| `tests/test_content_layer.py` | 8 comprehensive test cases |
+1. **`src/cli_rpg/content_cache.py`** - Main implementation
+   - `ContentType` enum: ROOM, NPC, QUEST, ITEM
+   - `ContentCache` dataclass with:
+     - `get(content_type, coords)` - retrieve cached content
+     - `set(content_type, coords, data)` - store content
+     - `_make_key(content_type, coords)` - generate deterministic key
+     - `save_to_disk()` - persist to JSON file
+     - `load_from_disk()` - load from JSON file
+     - `clear()` - clear all cached data
 
-### Test Results
+2. **`tests/test_content_cache.py`** - Comprehensive test suite (11 tests)
+   - `TestDeterministicKeys`: Verifies key generation is deterministic
+   - `TestCacheOperations`: Verifies get/set/clear behavior
+   - `TestDiskPersistence`: Verifies save/load round-trip
 
-All 8 tests pass:
-1. `test_content_layer_transforms_templates_to_locations` - ✅
-2. `test_content_layer_entry_room_is_exit_point` - ✅
-3. `test_content_layer_boss_room_gets_boss_enemy` - ✅
-4. `test_content_layer_treasure_room_gets_treasures` - ✅
-5. `test_content_layer_hazards_from_template` - ✅
-6. `test_content_layer_deterministic_with_seed` - ✅
-7. `test_content_layer_fallback_without_ai` - ✅
-8. `test_content_layer_ai_content_used_when_available` - ✅
+### Key Design Decisions
 
-Full test suite: 5135 passed, 4 skipped, 1 pre-existing failure (unrelated)
+- **Key format**: `"{content_type}:{x}:{y}:{z}"` - seed is per-file, not per-key
+- **File location**: `{cache_dir}/content_seed_{seed}.json`
+- **No TTL**: Content is deterministic and permanent
+- **Explicit save**: Call `save_to_disk()` on GameState cleanup or save
 
-### Technical Details
+### Differences from AIService Cache
 
-- The `ContentLayer` class expects AI services to implement a `generate_room_content()` method
-- Fallback content is structured to match the existing game's content patterns
-- The treasure system reuses the same item schemas as `ai_world.py`
-- The implementation is independent and can be wired into `generate_subgrid_for_location()` when ready
+| Feature | AIService._cache | ContentCache |
+|---------|-----------------|--------------|
+| Key source | Prompt hash (MD5) | Seed + coords + type |
+| Stability | Varies with prompt changes | Deterministic across runs |
+| Purpose | Reduce API calls | Reproducible worlds |
 
-### E2E Validation
+## Test Results
 
-The ContentLayer can be validated by:
-1. Creating a test that generates a SubGrid using procedural layouts
-2. Entering a dungeon/cave in game and verifying room names/descriptions
-3. Checking that boss rooms, treasure rooms, and hazards appear correctly
+```
+11 passed in 0.08s
+```
 
-### Notes
+All tests pass:
+- `test_deterministic_key_from_seed_and_coords`
+- `test_different_seeds_different_keys`
+- `test_content_types_isolated`
+- `test_3d_coords_in_key`
+- `test_get_returns_none_when_not_cached`
+- `test_set_then_get_returns_data`
+- `test_clear_removes_all_data`
+- `test_disk_persistence_round_trip`
+- `test_load_creates_empty_cache_when_file_missing`
+- `test_cache_dir_created_if_missing`
+- `test_different_seeds_different_files`
 
-- The existing `generate_subgrid_for_location()` in `ai_world.py` still uses the old AI area generation flow
-- Integration with procedural generators (`generate_interior_layout()`) is a future step
-- One pre-existing test failure (`test_ai_service_error_uses_fallback`) is unrelated - Mock serialization issue in autosave
+## E2E Validation
+
+This is a self-contained module with no external dependencies. E2E tests should validate:
+- Integration with ContentLayer for cache lookups/writes
+- Cache persistence across game sessions
+- Reproducible content generation with same seed
