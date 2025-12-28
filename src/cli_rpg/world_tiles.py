@@ -921,7 +921,7 @@ def get_cluster_category_bias(
 # Maximum tiles between enterable locations (forces dungeon/cave spawn)
 # After this many tiles without an enterable location, the next named location
 # will be forced to have an enterable category
-MAX_TILES_WITHOUT_ENTERABLE = 25
+MAX_TILES_WITHOUT_ENTERABLE = 15
 
 # Enterable category pools by terrain for forced spawn
 # Each terrain type maps to a list of thematically appropriate enterable categories

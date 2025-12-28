@@ -40,7 +40,7 @@ src/cli_rpg/
 ├── game_state.py        # Core game state management
 ├── world.py             # World generation and navigation
 ├── world_grid.py        # Grid-based spatial world system
-├── world_tiles.py       # Terrain tile definitions, adjacency rules, region planning, visibility radius, enterable categories, forced enterable spawn after 25 tiles
+├── world_tiles.py       # Terrain tile definitions, adjacency rules, region planning, visibility radius, enterable categories, forced enterable spawn after 15 tiles
 ├── wfc.py               # Wave Function Collapse terrain generation
 ├── wfc_chunks.py        # ChunkManager for infinite terrain via cached WFC chunks
 ├── map_renderer.py      # ASCII map display with visibility radius support

@@ -104,10 +104,10 @@ All new categories use 3x3 single-level bounds and SingleRoomGenerator.
 
 #### Remaining Work
 
-**1. Reduce Tiles Between Enterables (NOT YET DONE):**
+**1. Reduce Tiles Between Enterables (DONE):**
 ```python
 # world_tiles.py
-MAX_TILES_WITHOUT_ENTERABLE = 15  # Currently 25, reduce for more density
+MAX_TILES_WITHOUT_ENTERABLE = 15  # Reduced from 25 for more density
 ```
 
 **2. Increase Base Spawn Rates (NOT YET DONE):**

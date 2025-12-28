@@ -23,15 +23,15 @@ class TestEnterableSpawnLogic:
         assert not should_force_enterable_category(0)
         # At threshold-1, should not force
         assert not should_force_enterable_category(MAX_TILES_WITHOUT_ENTERABLE - 1)
-        # Verify the threshold is 25 as specified in the plan
-        assert MAX_TILES_WITHOUT_ENTERABLE == 25
-        assert not should_force_enterable_category(24)
+        # Verify the threshold is 15 for increased named location density
+        assert MAX_TILES_WITHOUT_ENTERABLE == 15
+        assert not should_force_enterable_category(14)
 
     def test_should_force_at_threshold(self):
         """Returns True when tiles_since_enterable >= MAX_TILES_WITHOUT_ENTERABLE."""
         # At exactly the threshold, should force
         assert should_force_enterable_category(MAX_TILES_WITHOUT_ENTERABLE)
-        assert should_force_enterable_category(25)
+        assert should_force_enterable_category(15)
         # Well above threshold should also force
         assert should_force_enterable_category(50)
         assert should_force_enterable_category(100)
