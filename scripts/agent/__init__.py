@@ -4,6 +4,12 @@ This package contains the personality system and agent logic for
 human-like automated playtesting of the CLI RPG.
 """
 
+from scripts.agent.memory import (
+    AgentMemory,
+    FailureRecord,
+    LocationMemory,
+    NPCMemory,
+)
 from scripts.agent.personality import (
     PersonalityType,
     PersonalityTraits,
@@ -12,6 +18,12 @@ from scripts.agent.personality import (
 )
 
 __all__ = [
+    # Memory system
+    "AgentMemory",
+    "FailureRecord",
+    "LocationMemory",
+    "NPCMemory",
+    # Personality system
     "PersonalityType",
     "PersonalityTraits",
     "PERSONALITY_PRESETS",

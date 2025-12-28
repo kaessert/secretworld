@@ -30,8 +30,9 @@ scripts/
 ├── run_simulation.py    # CLI entry point for running simulations
 ├── generate_test_world.py # Regenerate test world fixture if models change
 └── agent/
-    ├── __init__.py      # Package exports for personality system
-    └── personality.py   # PersonalityType enum, PersonalityTraits dataclass with 5 presets
+    ├── __init__.py      # Package exports for personality and memory systems
+    ├── personality.py   # PersonalityType enum, PersonalityTraits dataclass with 5 presets
+    └── memory.py        # AgentMemory, FailureRecord, NPCMemory, LocationMemory for learning from failures
 
 tests/e2e/
 ├── __init__.py          # E2E test package

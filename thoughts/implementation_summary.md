@@ -1,72 +1,53 @@
-# Implementation Summary: Agent Personality System (Phase 2)
+# Implementation Summary: Agent Memory System
 
 ## What Was Implemented
 
+Implemented `scripts/agent/memory.py` with failure tracking for Phase 2 of the Playtesting Infrastructure.
+
 ### New Files Created
 
-1. **`scripts/agent/__init__.py`** - Package init exposing personality system exports
-2. **`scripts/agent/personality.py`** - Core personality implementation
-3. **`tests/test_agent_personality.py`** - Comprehensive unit tests (31 tests)
+1. **`scripts/agent/memory.py`** - Core memory module with:
+   - `FailureRecord` dataclass - Tracks deaths/damage causes with enemy_name, location, cause, timestamp, health_at_failure
+   - `NPCMemory` dataclass - Tracks NPC interactions with trust clamping (-100 to 100), interaction history, quest tracking
+   - `LocationMemory` dataclass - Tracks location knowledge including danger_level (0.0-1.0), secrets, treasure, death count, visits
+   - `AgentMemory` class - Main container with methods:
+     - `record_failure()` - Records failures and marks enemies as dangerous on death
+     - `record_npc_interaction()` - Creates/updates NPC memories with trust changes
+     - `update_location()` - Tracks location visits, discoveries, and updates danger levels
+     - `is_enemy_dangerous()` - Checks if enemy has killed agent
+     - `get_location_danger()` - Returns danger level for known locations
+     - `to_dict()`/`from_dict()` - Full serialization support for checkpointing
 
-### Features Implemented
+2. **`tests/test_agent_memory.py`** - Comprehensive test suite with 18 tests:
+   - FailureRecord creation and serialization
+   - NPCMemory creation, serialization, and trust bounds clamping
+   - LocationMemory creation, serialization, and danger calculation
+   - AgentMemory operations (record_failure, record_npc_interaction, update_location)
+   - Query methods (is_enemy_dangerous, get_location_danger)
+   - Full serialization roundtrip
 
-#### PersonalityType Enum
-Five personality presets with distinct play styles:
-- `CAUTIOUS_EXPLORER` - Prioritizes safety and thorough exploration
-- `AGGRESSIVE_FIGHTER` - Seeks combat, takes risks
-- `COMPLETIONIST` - Does everything, talks to everyone
-- `SPEEDRUNNER` - Minimal interaction, efficient pathing
-- `ROLEPLAYER` - Balanced with focus on NPC interaction
+### Files Modified
 
-#### PersonalityTraits Dataclass
-Float traits (0.0-1.0) that influence agent decisions:
-- `risk_tolerance` - Willingness to fight at low HP, enter dangerous areas
-- `exploration_drive` - Priority on visiting new locations vs returning to known
-- `social_engagement` - Likelihood of talking to NPCs, accepting quests
-- `combat_aggression` - Preference for fighting vs fleeing
-- `resource_conservation` - Tendency to use potions sparingly, rest often
-
-#### Preset Values (Matching ISSUES.md Spec)
-| Type | Risk | Exploration | Social | Combat | Conservation |
-|------|------|-------------|--------|--------|--------------|
-| CAUTIOUS_EXPLORER | 0.2 | 0.9 | 0.7 | 0.3 | 0.7 |
-| AGGRESSIVE_FIGHTER | 0.9 | 0.4 | 0.3 | 0.9 | 0.2 |
-| COMPLETIONIST | 0.5 | 1.0 | 1.0 | 0.5 | 0.4 |
-| SPEEDRUNNER | 0.7 | 0.1 | 0.1 | 0.4 | 0.3 |
-| ROLEPLAYER | 0.5 | 0.7 | 0.9 | 0.5 | 0.5 |
-
-#### Serialization
-- `PersonalityTraits.to_dict()` - Serialize to dictionary for checkpoints
-- `PersonalityTraits.from_dict()` - Deserialize from dictionary
-
-#### Helper Function
-- `get_personality_traits(preset: PersonalityType) -> PersonalityTraits` - Get traits for a preset
+- **`scripts/agent/__init__.py`** - Added exports for AgentMemory, FailureRecord, LocationMemory, NPCMemory
 
 ## Test Results
 
-All 31 tests pass:
-- 6 tests for PersonalityType enum
-- 5 tests for PersonalityTraits dataclass fields
-- 6 tests for preset existence and values
-- 5 tests for trait validation (0.0-1.0 range)
-- 6 tests for get_personality_traits function
-- 3 tests for serialization round-trip
+All 49 tests pass (18 new memory tests + 31 existing personality tests):
+```
+tests/test_agent_memory.py: 18 passed
+tests/test_agent_personality.py: 31 passed
+```
 
-## Acceptance Criteria Completed
-- [x] PersonalityType enum with 5 values
-- [x] PersonalityTraits dataclass with 5 float fields
-- [x] All preset values match ISSUES.md spec
-- [x] Traits validated to 0.0-1.0 range
-- [x] Serialization works for checkpoint compatibility
-- [x] All tests pass
+## Design Decisions
 
-## Integration Points (Future Work)
-The personality system is now ready to be integrated with:
-- `Agent.__init__()` - Accept `personality: PersonalityType` parameter
-- `Agent._combat_decision()` - Use `combat_aggression` and `risk_tolerance`
-- `Agent._healing_decision()` - Use `resource_conservation`
-- `Agent._overworld_exploration_decision()` - Use `exploration_drive` and `social_engagement`
-- CLI `--personality` flag in `run_simulation.py`
+1. **Trust clamping in `__post_init__`** - NPCMemory uses `__post_init__` to automatically clamp trust_level to -100..100 range
+2. **Danger level dynamics** - Danger increases based on combat (+0.05) and deaths (+0.2), capped at 1.0
+3. **Dangerous enemies set** - Only "death" cause adds to dangerous_enemies, not "flee" or "critical_damage"
+4. **Defensive copying** - Serialization uses `.copy()` for lists to prevent mutation
 
-## E2E Validation
-No E2E tests required - this is a pure data model with no external dependencies.
+## E2E Test Considerations
+
+Integration tests should verify:
+- Memory persists across checkpoint save/load cycles
+- Agent decisions are influenced by dangerous_enemies set
+- Location danger affects agent exploration behavior
