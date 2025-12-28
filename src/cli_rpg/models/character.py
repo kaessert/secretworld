@@ -6,6 +6,7 @@ from typing import ClassVar, Dict, List, Optional, Tuple, TYPE_CHECKING
 from cli_rpg import colors
 from cli_rpg.sound_effects import sound_level_up
 
+from cli_rpg.models.crafting_proficiency import CraftingProficiency
 from cli_rpg.models.dread import DreadMeter
 from cli_rpg.models.tiredness import Tiredness
 from cli_rpg.models.weapon_proficiency import WeaponType, WeaponProficiency
@@ -122,6 +123,7 @@ class Character:
     stamina: int = field(init=False)
     max_stamina: int = field(init=False)
     weapon_proficiencies: Dict[WeaponType, WeaponProficiency] = field(default_factory=dict)
+    crafting_proficiency: CraftingProficiency = field(default_factory=CraftingProficiency)
 
     def __post_init__(self):
         """Validate attributes and calculate derived stats."""
@@ -1433,6 +1435,7 @@ class Character:
             "weapon_proficiencies": [
                 prof.to_dict() for prof in self.weapon_proficiencies.values()
             ],
+            "crafting_proficiency": self.crafting_proficiency.to_dict(),
         }
     
     @classmethod
@@ -1576,6 +1579,13 @@ class Character:
             for prof_data in data["weapon_proficiencies"]:
                 prof = WeaponProficiency.from_dict(prof_data)
                 character.weapon_proficiencies[prof.weapon_type] = prof
+        # Restore crafting proficiency (with backward compatibility, defaults to 0 XP)
+        if "crafting_proficiency" in data:
+            character.crafting_proficiency = CraftingProficiency.from_dict(
+                data["crafting_proficiency"]
+            )
+        else:
+            character.crafting_proficiency = CraftingProficiency()
         return character
     
     def __str__(self) -> str:

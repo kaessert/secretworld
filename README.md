@@ -128,8 +128,8 @@ python -m cli_rpg.main
 - `hunt` (hu) - Hunt game for meat and pelts (forest/wilderness only; DEX/PER-based success chance; 2-hour cooldown)
 - `track` (tr) - **Ranger only**: Detect enemies in adjacent locations (costs 10 stamina; success rate: 50% + 3% per PER point)
 - `gather` (ga) - Gather resources in wilderness areas (forest/wilderness yields wood and fiber; cave/dungeon yields iron ore and stone; PER-based success chance; 1-hour cooldown)
-- `recipes` - View all available crafting recipes with their ingredients
-- `craft <recipe>` (cr) - Craft an item from gathered resources (e.g., `craft torch`, `craft iron sword`)
+- `recipes` - View all available crafting recipes with their ingredients and level requirements
+- `craft <recipe>` (cr) - Craft an item from gathered resources (e.g., `craft torch`, `craft iron sword`). Crafting grants XP toward your crafting skill level. Advanced recipes (iron sword, iron armor) require JOURNEYMAN level.
 - `unlock <door> <key>` - Use a key to unlock a locked door puzzle (key is consumed on success)
 - `pull <lever>` - Pull a lever to open a blocked passage
 - `step <plate>` - Step on a pressure plate to trigger a mechanism
@@ -312,6 +312,21 @@ Defeated enemies have a chance to drop loot. Items include:
 - **Misc Items**: Flavor items like gold coins and monster parts
 
 Your inventory has a capacity of 20 items. Use `inventory` to view your items, `equip <item>` to equip weapons/armor, `unequip weapon|armor` to remove equipment, and `use <item>` for consumables. Equipped items apply their bonuses automatically during combat.
+
+### Crafting
+
+Gather resources in the wilderness and craft useful items:
+
+1. Use `gather` in wilderness or cave areas to collect resources (wood, fiber, iron ore, stone)
+2. Use `recipes` to see available crafting recipes and requirements
+3. Use `craft <recipe>` to create items (e.g., `craft torch`, `craft bandage`)
+
+**Crafting Proficiency**: Successful crafting builds your crafting skill:
+- **Proficiency Levels**: Novice → Apprentice → Journeyman → Expert → Master
+- **XP Per Craft**: +5 XP gained per successful craft
+- **Level Thresholds**: 0 XP (Novice), 25 XP (Apprentice), 50 XP (Journeyman), 75 XP (Expert), 100 XP (Master)
+- **Success Bonuses**: Novice +0%, Apprentice +5%, Journeyman +10%, Expert +15%, Master +20%
+- **Gated Recipes**: Iron Sword and Iron Armor require Journeyman level to craft
 
 ### NPC Shops
 

@@ -1,4 +1,81 @@
-# Implementation Summary: Branching Quest Paths
+# Crafting Skill Progression - Implementation Summary
+
+## Date: 2025-12-28
+
+## What Was Implemented
+
+Added a crafting skill progression system that tracks player skill in crafting and gates advanced recipes.
+
+### New Files Created
+
+1. **`src/cli_rpg/models/crafting_proficiency.py`**
+   - `CraftingLevel` enum: NOVICE, APPRENTICE, JOURNEYMAN, EXPERT, MASTER
+   - `CraftingProficiency` dataclass with `xp: int = 0`
+   - Methods: `get_level()`, `get_success_bonus()`, `gain_xp()`, `to_dict()`, `from_dict()`
+   - Level thresholds: 0/25/50/75/100 XP
+   - Success bonuses: 0%/5%/10%/15%/20% per level
+
+### Files Modified
+
+1. **`src/cli_rpg/models/character.py`**
+   - Added import for `CraftingProficiency`
+   - Added field: `crafting_proficiency: CraftingProficiency = field(default_factory=CraftingProficiency)`
+   - Updated `to_dict()` to serialize crafting proficiency
+   - Updated `from_dict()` to restore crafting proficiency with backward compatibility
+
+2. **`src/cli_rpg/crafting.py`**
+   - Added import for `CraftingLevel`
+   - Added `RECIPE_MIN_LEVEL` dict mapping recipes to required level (iron sword/armor require JOURNEYMAN)
+   - Added `CRAFT_XP_GAIN = 5` constant
+   - Updated `execute_craft()` to:
+     - Check crafting level requirement before allowing craft
+     - Grant +5 XP on successful craft
+     - Include level-up message in result when threshold crossed
+
+3. **`tests/test_crafting.py`**
+   - Added 11 new tests for crafting skill progression:
+     - `test_character_has_crafting_proficiency`
+     - `test_crafting_proficiency_levels_up`
+     - `test_craft_success_grants_xp`
+     - `test_crafting_level_affects_success_rate`
+     - `test_advanced_recipes_require_journeyman`
+     - `test_crafting_proficiency_serialization`
+     - `test_character_crafting_proficiency_serialization`
+     - `test_crafting_proficiency_gain_xp_returns_levelup_message`
+     - `test_crafting_proficiency_xp_capped_at_100`
+     - `test_craft_shows_levelup_message`
+     - `test_backward_compat_character_without_crafting_proficiency`
+
+## Test Results
+
+- All 36 crafting tests pass
+- Full test suite: 5339 tests pass
+- No regressions
+
+## Key Design Decisions
+
+1. **Followed WeaponProficiency pattern**: The implementation mirrors the existing weapon proficiency system for consistency.
+
+2. **XP thresholds match weapon proficiency**: 0/25/50/75/100 for familiarity.
+
+3. **Backward compatibility**: Old saves without `crafting_proficiency` key load with default (0 XP, NOVICE level).
+
+4. **Recipe gating**: Only iron sword and iron armor require JOURNEYMAN level. All other recipes are available at NOVICE.
+
+5. **Success bonus stored as float**: 0.0 to 0.20 (ready for future random crafting success mechanics).
+
+## E2E Test Considerations
+
+E2E tests should validate:
+- New characters start with NOVICE crafting level
+- Crafting basic recipes (torch, bandage) grants XP
+- After 5 basic crafts (25 XP), character reaches APPRENTICE
+- Iron sword/armor cannot be crafted until JOURNEYMAN (50 XP, 10 basic crafts)
+- Save/load preserves crafting proficiency XP
+
+---
+
+# Previous Implementation Summary: Branching Quest Paths
 
 ## Date: 2025-12-28
 

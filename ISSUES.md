@@ -288,15 +288,17 @@ quest = Quest(
 ---
 
 ### Crafting and gathering system
-**Status**: ACTIVE (MVP Implemented)
+**Status**: ACTIVE (MVP + Progression Implemented)
 
 **Implemented**:
 - `gather` command for resources
 - 8 crafting recipes
 - Location-specific resources
+- Crafting skill progression (NOVICE → APPRENTICE → JOURNEYMAN → EXPERT → MASTER)
+- Advanced recipes gated by skill level (iron sword/armor require JOURNEYMAN)
+- +5 XP per successful craft with level-up notifications
 
 **Remaining**:
-- Crafting skill progression
 - Rare recipes as rewards
 
 ---

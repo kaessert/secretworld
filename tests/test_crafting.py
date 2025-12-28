@@ -533,3 +533,245 @@ def test_craft_healing_salve_works():
     salve = inv.find_item_by_name("Healing Salve")
     assert salve is not None
     assert salve.heal_amount == 25
+
+
+# =============================================================================
+# Tests for crafting skill progression
+# =============================================================================
+
+
+def test_character_has_crafting_proficiency():
+    """Spec: Character should have crafting_proficiency field defaulting to level 1 (NOVICE)."""
+    from cli_rpg.models.crafting_proficiency import CraftingLevel
+
+    character = make_character()
+    assert hasattr(character, "crafting_proficiency")
+    assert character.crafting_proficiency.get_level() == CraftingLevel.NOVICE
+    assert character.crafting_proficiency.xp == 0
+
+
+def test_crafting_proficiency_levels_up():
+    """Spec: Crafting XP should level up at thresholds (25/50/75/100)."""
+    from cli_rpg.models.crafting_proficiency import CraftingProficiency, CraftingLevel
+
+    prof = CraftingProficiency()
+    assert prof.get_level() == CraftingLevel.NOVICE
+
+    # Level to Apprentice at 25 XP
+    prof.xp = 25
+    assert prof.get_level() == CraftingLevel.APPRENTICE
+
+    # Level to Journeyman at 50 XP
+    prof.xp = 50
+    assert prof.get_level() == CraftingLevel.JOURNEYMAN
+
+    # Level to Expert at 75 XP
+    prof.xp = 75
+    assert prof.get_level() == CraftingLevel.EXPERT
+
+    # Level to Master at 100 XP
+    prof.xp = 100
+    assert prof.get_level() == CraftingLevel.MASTER
+
+
+def test_craft_success_grants_xp():
+    """Spec: Successful craft should grant +5 crafting XP."""
+    from cli_rpg.crafting import execute_craft
+
+    game_state = make_game_state()
+    inv = game_state.current_character.inventory
+    char = game_state.current_character
+
+    # Initial XP should be 0
+    initial_xp = char.crafting_proficiency.xp
+    assert initial_xp == 0
+
+    # Add ingredients for torch (basic recipe)
+    wood = Item(name="Wood", description="Wood for crafting", item_type=ItemType.RESOURCE)
+    fiber = Item(name="Fiber", description="Fiber for crafting", item_type=ItemType.RESOURCE)
+    inv.add_item(wood)
+    inv.add_item(fiber)
+
+    success, msg = execute_craft(game_state, "torch")
+    assert success is True
+
+    # Should have gained 5 XP
+    assert char.crafting_proficiency.xp == initial_xp + 5
+
+
+def test_crafting_level_affects_success_rate():
+    """Spec: Higher crafting level should provide success rate bonus (+5% per level above Novice)."""
+    from cli_rpg.models.crafting_proficiency import CraftingProficiency, CraftingLevel
+
+    prof = CraftingProficiency()
+
+    # NOVICE = 0% bonus
+    assert prof.get_success_bonus() == 0.0
+
+    # APPRENTICE = +5% bonus
+    prof.xp = 25
+    assert prof.get_success_bonus() == 0.05
+
+    # JOURNEYMAN = +10% bonus
+    prof.xp = 50
+    assert prof.get_success_bonus() == 0.10
+
+    # EXPERT = +15% bonus
+    prof.xp = 75
+    assert prof.get_success_bonus() == 0.15
+
+    # MASTER = +20% bonus
+    prof.xp = 100
+    assert prof.get_success_bonus() == 0.20
+
+
+def test_advanced_recipes_require_journeyman():
+    """Spec: Iron sword/armor require Journeyman (level 3) to craft."""
+    from cli_rpg.crafting import execute_craft, RECIPE_MIN_LEVEL
+    from cli_rpg.models.crafting_proficiency import CraftingLevel
+
+    # Verify recipe requirements exist
+    assert "iron sword" in RECIPE_MIN_LEVEL
+    assert RECIPE_MIN_LEVEL["iron sword"] == CraftingLevel.JOURNEYMAN
+
+    assert "iron armor" in RECIPE_MIN_LEVEL
+    assert RECIPE_MIN_LEVEL["iron armor"] == CraftingLevel.JOURNEYMAN
+
+    # Test that a novice crafter cannot craft iron sword
+    game_state = make_game_state()
+    inv = game_state.current_character.inventory
+    char = game_state.current_character
+
+    # Add ingredients for iron sword (2 Iron Ore + 1 Wood)
+    for _ in range(2):
+        inv.add_item(
+            Item(name="Iron Ore", description="Raw iron ore", item_type=ItemType.RESOURCE)
+        )
+    inv.add_item(Item(name="Wood", description="Wood for crafting", item_type=ItemType.RESOURCE))
+
+    # Novice crafter should fail
+    assert char.crafting_proficiency.get_level() == CraftingLevel.NOVICE
+    success, msg = execute_craft(game_state, "iron sword")
+    assert success is False
+    assert "Journeyman" in msg or "level" in msg.lower()
+
+    # Now set crafter to Journeyman level
+    char.crafting_proficiency.xp = 50  # Journeyman threshold
+    assert char.crafting_proficiency.get_level() == CraftingLevel.JOURNEYMAN
+
+    # Re-add ingredients since they weren't consumed
+    for _ in range(2):
+        inv.add_item(
+            Item(name="Iron Ore", description="Raw iron ore", item_type=ItemType.RESOURCE)
+        )
+    inv.add_item(Item(name="Wood", description="Wood for crafting", item_type=ItemType.RESOURCE))
+
+    success, msg = execute_craft(game_state, "iron sword")
+    assert success is True
+    assert "Crafted" in msg or "crafted" in msg
+
+
+def test_crafting_proficiency_serialization():
+    """Spec: Proficiency should serialize/deserialize correctly."""
+    from cli_rpg.models.crafting_proficiency import CraftingProficiency
+
+    # Create with some XP
+    prof = CraftingProficiency(xp=60)
+
+    # Serialize
+    data = prof.to_dict()
+    assert data["xp"] == 60
+
+    # Deserialize
+    restored = CraftingProficiency.from_dict(data)
+    assert restored.xp == 60
+    assert restored.get_level() == prof.get_level()
+
+
+def test_character_crafting_proficiency_serialization():
+    """Spec: Character's crafting_proficiency should be saved and loaded correctly."""
+    character = make_character()
+
+    # Set some crafting XP
+    character.crafting_proficiency.xp = 45
+
+    # Serialize
+    data = character.to_dict()
+    assert "crafting_proficiency" in data
+    assert data["crafting_proficiency"]["xp"] == 45
+
+    # Deserialize
+    restored = Character.from_dict(data)
+    assert restored.crafting_proficiency.xp == 45
+
+
+def test_crafting_proficiency_gain_xp_returns_levelup_message():
+    """Spec: gain_xp should return a level-up message when threshold is crossed."""
+    from cli_rpg.models.crafting_proficiency import CraftingProficiency
+
+    prof = CraftingProficiency(xp=22)  # Just below Apprentice threshold
+
+    # Gain XP that crosses threshold
+    msg = prof.gain_xp(5)
+
+    assert msg is not None
+    assert "Apprentice" in msg or "crafting" in msg.lower()
+    assert prof.xp == 27
+
+
+def test_crafting_proficiency_xp_capped_at_100():
+    """Spec: Crafting XP should cap at 100."""
+    from cli_rpg.models.crafting_proficiency import CraftingProficiency
+
+    prof = CraftingProficiency(xp=98)
+    prof.gain_xp(10)
+
+    assert prof.xp == 100  # Capped, not 108
+
+
+def test_craft_shows_levelup_message():
+    """Spec: Crafting should show level-up message when proficiency increases."""
+    from cli_rpg.crafting import execute_craft
+
+    game_state = make_game_state()
+    char = game_state.current_character
+    inv = char.inventory
+
+    # Set XP just below threshold
+    char.crafting_proficiency.xp = 22  # +5 will cross 25 (Apprentice)
+
+    # Add ingredients for torch
+    inv.add_item(Item(name="Wood", description="Wood", item_type=ItemType.RESOURCE))
+    inv.add_item(Item(name="Fiber", description="Fiber", item_type=ItemType.RESOURCE))
+
+    success, msg = execute_craft(game_state, "torch")
+
+    assert success is True
+    assert "Apprentice" in msg or "level" in msg.lower() or "proficiency" in msg.lower()
+
+
+def test_backward_compat_character_without_crafting_proficiency():
+    """Spec: Old saves without crafting_proficiency should load with default."""
+    # Simulate old save data without crafting_proficiency
+    old_save = {
+        "name": "OldPlayer",
+        "strength": 12,
+        "dexterity": 11,
+        "intelligence": 10,
+        "charisma": 10,
+        "perception": 10,
+        "luck": 10,
+        "level": 5,
+        "health": 100,
+        "inventory": {"items": [], "equipped_weapon": None, "equipped_armor": None},
+        # No crafting_proficiency key
+    }
+
+    from cli_rpg.models.crafting_proficiency import CraftingLevel
+
+    character = Character.from_dict(old_save)
+
+    # Should have default crafting proficiency
+    assert hasattr(character, "crafting_proficiency")
+    assert character.crafting_proficiency.xp == 0
+    assert character.crafting_proficiency.get_level() == CraftingLevel.NOVICE

@@ -4,8 +4,9 @@ Provides the gather command for collecting resources from wilderness and cave ar
 """
 
 import random
-from typing import TYPE_CHECKING, Tuple
+from typing import TYPE_CHECKING, Dict, Tuple
 
+from cli_rpg.models.crafting_proficiency import CraftingLevel
 from cli_rpg.models.item import Item, ItemType
 from cli_rpg.models.location import Location
 
@@ -180,6 +181,20 @@ CRAFTING_RECIPES = {
     },
 }
 
+# =============================================================================
+# Recipe level requirements
+# =============================================================================
+
+# Minimum crafting level required for each recipe
+# Recipes not listed default to NOVICE (no requirement)
+RECIPE_MIN_LEVEL: Dict[str, CraftingLevel] = {
+    "iron sword": CraftingLevel.JOURNEYMAN,
+    "iron armor": CraftingLevel.JOURNEYMAN,
+}
+
+# XP gained per successful craft
+CRAFT_XP_GAIN = 5
+
 
 # =============================================================================
 # Helper functions
@@ -322,9 +337,24 @@ def execute_craft(game_state: "GameState", recipe_name: str) -> Tuple[bool, str]
         return (False, f"Unknown recipe: {recipe_name}. Use 'recipes' to see available recipes.")
 
     recipe = CRAFTING_RECIPES[recipe_key]
-    inventory = game_state.current_character.inventory
+    character = game_state.current_character
+    inventory = character.inventory
 
-    # 2. Check all ingredients present
+    # 2. Check crafting level requirement
+    required_level = RECIPE_MIN_LEVEL.get(recipe_key, CraftingLevel.NOVICE)
+    current_level = character.crafting_proficiency.get_level()
+
+    # Compare levels by their XP thresholds
+    from cli_rpg.models.crafting_proficiency import LEVEL_THRESHOLDS
+
+    if LEVEL_THRESHOLDS[current_level] < LEVEL_THRESHOLDS[required_level]:
+        return (
+            False,
+            f"This recipe requires {required_level.value} crafting level. "
+            f"(Current: {current_level.value})",
+        )
+
+    # 3. Check all ingredients present
     missing = []
     for ingredient_name, required_count in recipe["ingredients"].items():
         # Count matching items in inventory
@@ -335,19 +365,19 @@ def execute_craft(game_state: "GameState", recipe_name: str) -> Tuple[bool, str]
     if missing:
         return (False, f"Missing ingredients: {', '.join(missing)}")
 
-    # 3. Check inventory not full (we'll remove N ingredients and add 1 item)
+    # 4. Check inventory not full (we'll remove N ingredients and add 1 item)
     # Net change = 1 - len(ingredients), so only full if net positive and full
     ingredient_count = sum(recipe["ingredients"].values())
     if ingredient_count <= 1 and inventory.is_full():
         return (False, "Your inventory is full.")
 
-    # 4. Remove ingredients
+    # 5. Remove ingredients
     for ingredient_name, required_count in recipe["ingredients"].items():
         for _ in range(required_count):
             item = inventory.find_item_by_name(ingredient_name)
             inventory.remove_item(item)
 
-    # 5. Create and add output item
+    # 6. Create and add output item
     output_data = recipe["output"]
     crafted_item = Item(
         name=output_data["name"],
@@ -360,4 +390,12 @@ def execute_craft(game_state: "GameState", recipe_name: str) -> Tuple[bool, str]
     )
     inventory.add_item(crafted_item)
 
-    return (True, f"Crafted {crafted_item.name}!")
+    # 7. Grant crafting XP
+    levelup_msg = character.crafting_proficiency.gain_xp(CRAFT_XP_GAIN)
+
+    # 8. Build result message
+    result_msg = f"Crafted {crafted_item.name}!"
+    if levelup_msg:
+        result_msg += f"\n{levelup_msg}"
+
+    return (True, result_msg)

@@ -128,6 +128,7 @@ src/cli_rpg/
     ├── weather.py       # Weather system (clear, rain, storm, fog)
     ├── companion.py     # Companion model with bond levels
     ├── weapon_proficiency.py # Weapon proficiency progression system
+    ├── crafting_proficiency.py # Crafting skill progression system (NOVICE → MASTER levels)
     ├── faction.py       # Faction reputation system
     ├── world_context.py # Cached world theme context for layered AI generation
     ├── region_context.py # Region-level context for layered AI generation (Layer 2)
