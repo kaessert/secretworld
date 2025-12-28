@@ -292,8 +292,9 @@ class TestMapRendererExploration:
 
     def test_subgrid_map_visited_rooms_styling(self):
         """Visited and unvisited rooms should look different on map."""
-        # Spec: Visited rooms marked differently on map
+        # Spec: Visited rooms marked differently on map (green color)
         from cli_rpg.map_renderer import render_map
+        from cli_rpg import colors
 
         sub_grid = SubGrid(bounds=(-1, 1, -1, 1, 0, 0), parent_name="Dungeon")
         loc1 = Location(name="Room1", description="test", coordinates=(0, 0, 0))
@@ -304,10 +305,17 @@ class TestMapRendererExploration:
         # Mark only Room1 as visited
         sub_grid.mark_visited(0, 0, 0)
 
-        # Render map
-        output = render_map({}, "Room1", sub_grid=sub_grid)
+        # Enable colors for this test
+        colors.set_colors_enabled(True)
+        try:
+            # Render map from Room2 position (so both rooms show as letters, not @)
+            output = render_map({}, "Room2", sub_grid=sub_grid)
 
-        # The output should contain the map content
-        # This test verifies the feature works; specific styling is implementation detail
-        assert "Room1" in output or "@" in output  # Player position
-        assert "Room2" in output  # Other room should be in legend
+            # Room1 is visited - its marker should have green color code
+            assert colors.GREEN in output
+
+            # Legend should explain the visited styling
+            assert "visited" in output.lower()
+        finally:
+            # Reset color setting
+            colors.set_colors_enabled(None)

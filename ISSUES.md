@@ -718,7 +718,7 @@ Created QuestNetworkManager for managing interconnected quest storylines.
 - [x] "Fully explored" bonus (XP + gold) when all rooms visited
 - [x] Discovery milestones: first secret, all treasures, boss defeated - Infrastructure complete (2025-12-28), game loop integration pending
 - [x] Exploration percentage visible in `map` command
-- [ ] Visited rooms marked differently on map (deferred - current map already shows visited vs seen tiles)
+- [x] Visited rooms marked differently on map (visited rooms shown in green on SubGrid maps)
 
 ---
 

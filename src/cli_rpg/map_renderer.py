@@ -389,6 +389,11 @@ def _render_sub_grid_map(sub_grid: "SubGrid", current_location: str) -> str:
                     padded = (" " * (cell_width - 1)) + colors.bold_colorize("@", colors.CYAN)
                 else:
                     marker = location_symbols.get(loc.name, "?")
+                    # Check if room is visited - colorize green if so
+                    loc_x, loc_y = loc.coordinates[:2]
+                    loc_z = loc.coordinates[2] if len(loc.coordinates) == 3 else 0
+                    if (loc_x, loc_y, loc_z) in sub_grid.visited_rooms:
+                        marker = colors.colorize(marker, colors.GREEN)
                     padded = pad_marker(marker, cell_width)
                 row_parts.append(padded)
             elif in_bounds:
@@ -443,6 +448,7 @@ def _render_sub_grid_map(sub_grid: "SubGrid", current_location: str) -> str:
     lines.append("Legend:")
     lines.extend(sorted(legend_entries))  # Sort for consistency
     lines.append(f"  {BLOCKED_MARKER} = Wall/Boundary")
+    lines.append(f"  ({colors.colorize('Green', colors.GREEN)} = visited)")
     lines.append(exits_line)
 
     return "\n".join(lines)
