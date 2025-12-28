@@ -13,10 +13,12 @@ from unittest.mock import MagicMock
 from cli_rpg.ai_world import (
     expand_area,
     generate_subgrid_for_location,
-    TREASURE_LOOT_TABLES,
-    TREASURE_CHEST_NAMES,
     _place_treasures,
     BOSS_CATEGORIES,
+)
+from cli_rpg.fallback_content import (
+    TREASURE_LOOT_TABLES,
+    TREASURE_CHEST_NAMES,
 )
 from cli_rpg.models.location import Location
 

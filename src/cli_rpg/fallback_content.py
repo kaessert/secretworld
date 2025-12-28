@@ -847,6 +847,88 @@ ITEM_TEMPLATES: dict[str, dict[str, list[dict]]] = {
 # Quest Templates (by category)
 # =============================================================================
 
+# =============================================================================
+# Treasure Chest Templates (by category)
+# =============================================================================
+
+TREASURE_CHEST_NAMES: dict[str, list[str]] = {
+    "dungeon": ["Iron Chest", "Dusty Strongbox", "Forgotten Coffer"],
+    "cave": ["Stone Chest", "Crystal Box", "Hidden Cache"],
+    "ruins": ["Ancient Chest", "Ruined Coffer", "Gilded Box"],
+    "temple": ["Sacred Chest", "Offering Box", "Blessed Container"],
+    "forest": ["Mossy Chest", "Hollow Log Cache", "Vine-Covered Box"],
+    "default": ["Treasure Chest", "Wooden Chest", "Old Coffer"],
+}
+
+TREASURE_CHEST_DESCRIPTIONS: dict[str, list[str]] = {
+    "dungeon": [
+        "An old chest left behind by previous adventurers.",
+        "A dusty container sealed for ages.",
+        "A forgotten strongbox covered in cobwebs.",
+    ],
+    "cave": [
+        "A chest hidden among the rocks.",
+        "A stone container wedged in a crevice.",
+        "A cache concealed by cave formations.",
+    ],
+    "ruins": [
+        "An ancient container from a forgotten era.",
+        "A weathered chest bearing ancient symbols.",
+        "A relic box from a lost civilization.",
+    ],
+    "temple": [
+        "A sacred chest placed as an offering.",
+        "A blessed container holding temple treasures.",
+        "A ceremonial box with holy engravings.",
+    ],
+    "forest": [
+        "A chest concealed by overgrown vegetation.",
+        "A mossy container hidden beneath roots.",
+        "A cache tucked away in a hollow tree.",
+    ],
+    "default": [
+        "A mysterious treasure chest.",
+        "An old chest waiting to be opened.",
+        "A container holding unknown treasures.",
+    ],
+}
+
+# Treasure loot tables per location category
+# Items are selected randomly to populate treasure chests
+TREASURE_LOOT_TABLES: dict[str, list[dict]] = {
+    "dungeon": [
+        {"name": "Ancient Blade", "item_type": "weapon", "damage_bonus": 4},
+        {"name": "Rusted Key", "item_type": "misc"},
+        {"name": "Health Potion", "item_type": "consumable", "heal_amount": 25},
+    ],
+    "cave": [
+        {"name": "Glowing Crystal", "item_type": "misc"},
+        {"name": "Cave Spider Venom", "item_type": "consumable", "heal_amount": 15},
+        {"name": "Miner's Pickaxe", "item_type": "weapon", "damage_bonus": 3},
+    ],
+    "ruins": [
+        {"name": "Ancient Tome", "item_type": "misc"},
+        {"name": "Gilded Amulet", "item_type": "armor", "defense_bonus": 2},
+        {"name": "Relic Dust", "item_type": "consumable", "mana_restore": 20},
+    ],
+    "temple": [
+        {"name": "Holy Water", "item_type": "consumable", "heal_amount": 30},
+        {"name": "Sacred Relic", "item_type": "misc"},
+        {"name": "Blessed Medallion", "item_type": "armor", "defense_bonus": 3},
+    ],
+    "forest": [
+        {"name": "Forest Gem", "item_type": "misc"},
+        {"name": "Herbal Remedy", "item_type": "consumable", "heal_amount": 20},
+        {"name": "Wooden Bow", "item_type": "weapon", "damage_bonus": 3},
+    ],
+    "default": [
+        {"name": "Gold Coins", "item_type": "misc"},
+        {"name": "Health Potion", "item_type": "consumable", "heal_amount": 20},
+        {"name": "Iron Dagger", "item_type": "weapon", "damage_bonus": 2},
+    ],
+}
+
+
 QUEST_TEMPLATES: dict[str, list[dict]] = {
     "dungeon": [
         {
@@ -1108,4 +1190,49 @@ class FallbackContentProvider:
             "description": quest["description"],
             "objective_type": quest["objective_type"],
             "target": quest["target"],
+        }
+
+    def get_treasure_content(
+        self, category: str, distance: int = 1, z_level: int = 0
+    ) -> dict:
+        """Generate treasure chest name, description, and loot items.
+
+        Args:
+            category: Location category (dungeon, cave, temple, etc.)
+            distance: Manhattan distance from entry (affects difficulty)
+            z_level: Z-level of the location (negative = deeper, affects difficulty)
+
+        Returns:
+            Dict with 'name', 'description', 'difficulty', and 'items' list.
+        """
+        category_lower = category.lower() if category else "default"
+
+        # Get chest name
+        names = TREASURE_CHEST_NAMES.get(category_lower, TREASURE_CHEST_NAMES["default"])
+        name = self._rng.choice(names)
+
+        # Get chest description
+        descriptions = TREASURE_CHEST_DESCRIPTIONS.get(
+            category_lower, TREASURE_CHEST_DESCRIPTIONS["default"]
+        )
+        description = self._rng.choice(descriptions)
+
+        # Get loot table
+        loot_table = TREASURE_LOOT_TABLES.get(
+            category_lower, TREASURE_LOOT_TABLES["default"]
+        )
+
+        # Select 1-2 items from loot table
+        num_items = self._rng.randint(1, min(2, len(loot_table)))
+        items = self._rng.sample(loot_table, num_items)
+
+        # Lock difficulty scales with distance and depth (minimum 1)
+        # abs(z_level) because z_level is negative for deeper levels
+        difficulty = max(1, distance + abs(z_level) + self._rng.randint(0, 1))
+
+        return {
+            "name": name,
+            "description": description,
+            "difficulty": difficulty,
+            "items": [item.copy() for item in items],
         }

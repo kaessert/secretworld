@@ -224,6 +224,114 @@ class TestCategorySupport:
             "Dungeon and temple should have different descriptions"
 
 
+class TestGetTreasureContent:
+    """Tests for get_treasure_content method."""
+
+    def test_returns_treasure_data(self):
+        """Test: get_treasure_content returns dict with name, description, difficulty, items."""
+        provider = FallbackContentProvider(seed=42)
+        result = provider.get_treasure_content("dungeon", distance=2, z_level=-1)
+
+        assert "name" in result
+        assert "description" in result
+        assert "difficulty" in result
+        assert "items" in result
+        assert isinstance(result["name"], str)
+        assert isinstance(result["description"], str)
+        assert isinstance(result["difficulty"], int)
+        assert isinstance(result["items"], list)
+        assert len(result["name"]) > 0
+        assert len(result["description"]) > 0
+        assert result["difficulty"] >= 1
+        assert len(result["items"]) >= 1
+
+    def test_deterministic_with_same_seed(self):
+        """Test: Same seed produces identical treasure output."""
+        provider1 = FallbackContentProvider(seed=42)
+        provider2 = FallbackContentProvider(seed=42)
+
+        result1 = provider1.get_treasure_content("cave", distance=1, z_level=0)
+        result2 = provider2.get_treasure_content("cave", distance=1, z_level=0)
+
+        assert result1 == result2
+
+    def test_different_with_different_seeds(self):
+        """Test: Different seeds produce different output."""
+        provider1 = FallbackContentProvider(seed=42)
+        provider2 = FallbackContentProvider(seed=123)
+
+        # Make multiple calls and check that at least one differs
+        differences_found = False
+        for category in ["dungeon", "cave", "temple"]:
+            result1 = provider1.get_treasure_content(category)
+            result2 = provider2.get_treasure_content(category)
+            if result1["name"] != result2["name"] or result1["description"] != result2["description"]:
+                differences_found = True
+                break
+
+        assert differences_found, "Different seeds should produce at least some different content"
+
+    def test_difficulty_scales_with_distance(self):
+        """Test: Treasure difficulty scales with distance from entry."""
+        provider = FallbackContentProvider(seed=42)
+
+        result_close = provider.get_treasure_content("dungeon", distance=1, z_level=0)
+
+        provider2 = FallbackContentProvider(seed=42)
+        result_far = provider2.get_treasure_content("dungeon", distance=5, z_level=0)
+
+        # Difficulty at distance 5 should be higher than at distance 1
+        assert result_far["difficulty"] >= result_close["difficulty"]
+
+    def test_difficulty_scales_with_z_level(self):
+        """Test: Treasure difficulty scales with z-level depth."""
+        provider = FallbackContentProvider(seed=42)
+
+        result_shallow = provider.get_treasure_content("dungeon", distance=1, z_level=0)
+
+        provider2 = FallbackContentProvider(seed=42)
+        result_deep = provider2.get_treasure_content("dungeon", distance=1, z_level=-3)
+
+        # Difficulty at z=-3 should be higher than at z=0
+        assert result_deep["difficulty"] >= result_shallow["difficulty"]
+
+    def test_items_have_required_fields(self):
+        """Test: Loot items have name and item_type fields."""
+        provider = FallbackContentProvider(seed=42)
+        result = provider.get_treasure_content("dungeon", distance=1)
+
+        for item in result["items"]:
+            assert "name" in item
+            assert "item_type" in item
+            assert isinstance(item["name"], str)
+            assert isinstance(item["item_type"], str)
+
+    def test_category_specific_content(self):
+        """Test: Different categories produce themed content."""
+        provider = FallbackContentProvider(seed=42)
+        dungeon_result = provider.get_treasure_content("dungeon")
+
+        provider2 = FallbackContentProvider(seed=42)
+        temple_result = provider2.get_treasure_content("temple")
+
+        # Names should differ between dungeon and temple
+        # (At minimum, description themes should differ)
+        assert (
+            dungeon_result["name"] != temple_result["name"] or
+            dungeon_result["description"] != temple_result["description"]
+        ), "Dungeon and temple should have different themed content"
+
+    def test_default_category_fallback(self):
+        """Test: Unknown category falls back to default templates."""
+        provider = FallbackContentProvider(seed=42)
+        result = provider.get_treasure_content("unknown_category")
+
+        assert "name" in result
+        assert "description" in result
+        assert "items" in result
+        assert len(result["items"]) >= 1
+
+
 class TestReproducibility:
     """Tests for deterministic reproducibility across calls."""
 

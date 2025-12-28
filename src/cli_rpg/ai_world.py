@@ -14,6 +14,8 @@ from cli_rpg.models.quest import Quest, ObjectiveType
 from cli_rpg.world_grid import WorldGrid, SubGrid, DIRECTION_OFFSETS, get_subgrid_bounds
 from cli_rpg.world_tiles import ENTERABLE_CATEGORIES
 from cli_rpg.location_art import get_fallback_location_ascii_art
+from cli_rpg.fallback_content import FallbackContentProvider
+from cli_rpg.procedural_interiors import RoomType
 
 
 # Set up logging
@@ -179,6 +181,8 @@ def _place_treasures(
 def _create_treasure_chest(category: str, distance: int, z_level: int = 0) -> dict:
     """Create a treasure chest with thematic items.
 
+    Uses FallbackContentProvider for deterministic content generation.
+
     Args:
         category: Location category (dungeon, cave, etc.)
         distance: Manhattan distance from entry (affects difficulty)
@@ -187,37 +191,20 @@ def _create_treasure_chest(category: str, distance: int, z_level: int = 0) -> di
     Returns:
         Treasure dict with schema matching Location.treasures
     """
-    # Get thematic chest name
-    chest_names = TREASURE_CHEST_NAMES.get(category, ["Treasure Chest"])
-    chest_name = random.choice(chest_names)
+    # Create provider with seed from category + distance + z_level for determinism
+    seed = hash((category, distance, z_level))
+    provider = FallbackContentProvider(seed=seed)
 
-    # Get thematic loot
-    loot_table = TREASURE_LOOT_TABLES.get(category, TREASURE_LOOT_TABLES["dungeon"])
-    # Select 1-2 items from loot table
-    num_items = random.randint(1, min(2, len(loot_table)))
-    items = random.sample(loot_table, num_items)
-
-    # Lock difficulty scales with distance and depth (minimum 1)
-    # abs(z_level) because z_level is negative for deeper levels
-    difficulty = max(1, distance + abs(z_level) + random.randint(0, 1))
-
-    # Generate description based on chest name and category
-    descriptions = {
-        "dungeon": "An old chest left behind by previous adventurers.",
-        "cave": "A chest hidden among the rocks.",
-        "ruins": "An ancient container from a forgotten era.",
-        "temple": "A sacred chest placed as an offering.",
-        "forest": "A chest concealed by overgrown vegetation.",
-    }
-    description = descriptions.get(category, "A mysterious treasure chest.")
+    # Get treasure content from centralized provider
+    content = provider.get_treasure_content(category, distance, z_level)
 
     return {
-        "name": chest_name,
-        "description": description,
+        "name": content["name"],
+        "description": content["description"],
         "locked": True,
-        "difficulty": difficulty,
+        "difficulty": content["difficulty"],
         "opened": False,
-        "items": [item.copy() for item in items],
+        "items": content["items"],
         "requires_key": None,
     }
 
@@ -335,45 +322,6 @@ TERRAIN_SHOP_NAMES: dict[str, str] = {
     "plains": "Traveling Wares",
 }
 
-
-# Treasure loot tables per location category
-# Items are selected randomly to populate treasure chests
-TREASURE_LOOT_TABLES: dict[str, list[dict]] = {
-    "dungeon": [
-        {"name": "Ancient Blade", "item_type": "weapon", "damage_bonus": 4},
-        {"name": "Rusted Key", "item_type": "misc"},
-        {"name": "Health Potion", "item_type": "consumable", "heal_amount": 25},
-    ],
-    "cave": [
-        {"name": "Glowing Crystal", "item_type": "misc"},
-        {"name": "Cave Spider Venom", "item_type": "consumable", "heal_amount": 15},
-        {"name": "Miner's Pickaxe", "item_type": "weapon", "damage_bonus": 3},
-    ],
-    "ruins": [
-        {"name": "Ancient Tome", "item_type": "misc"},
-        {"name": "Gilded Amulet", "item_type": "armor", "defense_bonus": 2},
-        {"name": "Relic Dust", "item_type": "consumable", "mana_restore": 20},
-    ],
-    "temple": [
-        {"name": "Holy Water", "item_type": "consumable", "heal_amount": 30},
-        {"name": "Sacred Relic", "item_type": "misc"},
-        {"name": "Blessed Medallion", "item_type": "armor", "defense_bonus": 3},
-    ],
-    "forest": [
-        {"name": "Forest Gem", "item_type": "misc"},
-        {"name": "Herbal Remedy", "item_type": "consumable", "heal_amount": 20},
-        {"name": "Wooden Bow", "item_type": "weapon", "damage_bonus": 3},
-    ],
-}
-
-# Thematic chest names per category
-TREASURE_CHEST_NAMES: dict[str, list[str]] = {
-    "dungeon": ["Iron Chest", "Dusty Strongbox", "Forgotten Coffer"],
-    "cave": ["Stone Chest", "Crystal Box", "Hidden Cache"],
-    "ruins": ["Ancient Chest", "Ruined Coffer", "Gilded Box"],
-    "temple": ["Sacred Chest", "Offering Box", "Blessed Container"],
-    "forest": ["Mossy Chest", "Hollow Log Cache", "Vine-Covered Box"],
-}
 
 # Categories that should have treasure chests placed
 TREASURE_CATEGORIES = frozenset({"dungeon", "cave", "ruins", "temple", "forest"})
@@ -1120,6 +1068,7 @@ def _generate_fallback_interior(location: Location) -> list[dict]:
     """Generate fallback interior locations when AI is unavailable.
 
     Creates a simple but functional interior layout based on location category.
+    Uses FallbackContentProvider for deterministic content generation.
 
     Args:
         location: The parent location to generate interior for
@@ -1129,86 +1078,56 @@ def _generate_fallback_interior(location: Location) -> list[dict]:
     """
     category = (location.category or "building").lower()
 
-    # Category-specific interior templates
+    # Create provider with seed from location coordinates for determinism
+    coords = location.coordinates or (0, 0)
+    seed = hash((coords[0], coords[1], location.name))
+    provider = FallbackContentProvider(seed=seed)
+
+    # Define room layouts by category (structural, not content)
     if category in ("dungeon", "cave", "ruins"):
-        return [
-            {
-                "name": f"{location.name} Entrance",
-                "description": f"The entrance to {location.name}. Dark passages stretch ahead.",
-                "relative_coords": (0, 0),
-                "category": category,
-            },
-            {
-                "name": "Dark Corridor",
-                "description": "A narrow passage with damp walls. Shadows dance at the edges of your vision.",
-                "relative_coords": (0, 1),
-                "category": category,
-            },
-            {
-                "name": "Ancient Chamber",
-                "description": "A larger room with crumbling pillars. Something valuable might be hidden here.",
-                "relative_coords": (0, 2),
-                "category": category,
-            },
+        room_layout = [
+            (RoomType.ENTRY, (0, 0)),
+            (RoomType.CORRIDOR, (0, 1)),
+            (RoomType.CHAMBER, (0, 2)),
         ]
     elif category in ("town", "village", "city", "settlement"):
-        return [
-            {
-                "name": f"{location.name} Gate",
-                "description": f"The main entrance to {location.name}. Travelers come and go.",
-                "relative_coords": (0, 0),
-                "category": category,
-            },
-            {
-                "name": "Town Square",
-                "description": "The central gathering place. Merchants have set up stalls here.",
-                "relative_coords": (0, 1),
-                "category": category,
-            },
-            {
-                "name": "Marketplace",
-                "description": "A bustling area where goods are bought and sold.",
-                "relative_coords": (1, 1),
-                "category": category,
-            },
+        room_layout = [
+            (RoomType.ENTRY, (0, 0)),
+            (RoomType.CORRIDOR, (0, 1)),
+            (RoomType.CHAMBER, (1, 1)),
         ]
     elif category == "temple":
-        return [
-            {
-                "name": f"{location.name} Entrance",
-                "description": f"The sacred entrance to {location.name}. Incense fills the air.",
-                "relative_coords": (0, 0),
-                "category": category,
-            },
-            {
-                "name": "Prayer Hall",
-                "description": "A hall lined with prayer cushions and religious icons.",
-                "relative_coords": (0, 1),
-                "category": category,
-            },
-            {
-                "name": "Inner Sanctum",
-                "description": "The holiest part of the temple. Few are permitted here.",
-                "relative_coords": (0, 2),
-                "category": category,
-            },
+        room_layout = [
+            (RoomType.ENTRY, (0, 0)),
+            (RoomType.CORRIDOR, (0, 1)),
+            (RoomType.BOSS_ROOM, (0, 2)),
         ]
     else:
         # Generic interior for shops, taverns, inns, etc.
-        return [
-            {
-                "name": f"{location.name} Interior",
-                "description": f"Inside {location.name}. The space is well-maintained.",
-                "relative_coords": (0, 0),
-                "category": category,
-            },
-            {
-                "name": "Back Room",
-                "description": "A private area at the back of the establishment.",
-                "relative_coords": (0, 1),
-                "category": category,
-            },
+        room_layout = [
+            (RoomType.ENTRY, (0, 0)),
+            (RoomType.CHAMBER, (0, 1)),
         ]
+
+    # Generate content for each room using FallbackContentProvider
+    result = []
+    for idx, (room_type, rel_coords) in enumerate(room_layout):
+        content = provider.get_room_content(room_type, category)
+
+        # First room uses location name as prefix
+        if idx == 0:
+            name = f"{location.name} Entrance"
+        else:
+            name = content["name"]
+
+        result.append({
+            "name": name,
+            "description": content["description"],
+            "relative_coords": rel_coords,
+            "category": category,
+        })
+
+    return result
 
 
 def create_ai_world(
