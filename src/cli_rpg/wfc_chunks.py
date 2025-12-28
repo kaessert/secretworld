@@ -7,11 +7,14 @@ world coordinates.
 
 from dataclasses import dataclass, field
 from typing import Dict, Tuple, Optional, List, Set, TYPE_CHECKING
+import logging
 import random
 from collections import deque
 
 from cli_rpg.wfc import WFCGenerator, WFCCell
 from cli_rpg.world_tiles import TileRegistry, ADJACENCY_RULES, get_biased_weights
+
+logger = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
     from cli_rpg.models.location import Location
@@ -38,6 +41,7 @@ class ChunkManager:
     )
     _region_context: Optional["RegionContext"] = None
     _current_weight_overrides: Optional[Dict[str, float]] = None
+    _synced: bool = False
 
     def _get_weight(self, tile_name: str) -> float:
         """Get weight for a tile, using current weight override if available.
@@ -507,11 +511,19 @@ class ChunkManager:
         When a location exists at coordinates, its terrain should be
         set in the chunk to ensure passability checks are consistent.
 
+        WARNING: This should only be called during initial world setup.
+        Calling after sync_with_locations() will log a warning.
+
         Args:
             world_x: World X coordinate
             world_y: World Y coordinate
             terrain: Terrain tile name to set (e.g., "plains", "forest")
         """
+        if self._synced:
+            logger.warning(
+                f"Terrain modification at ({world_x}, {world_y}) after sync - "
+                f"this may violate terrain immutability contract"
+            )
         chunk_x = world_x // self.chunk_size
         chunk_y = world_y // self.chunk_size
         chunk = self.get_or_generate_chunk(chunk_x, chunk_y)
@@ -544,6 +556,30 @@ class ChunkManager:
             terrain = location.terrain if location.terrain else default_terrain
             self.set_tile_at(x, y, terrain)
 
+        # Mark as synced - any further terrain modifications will log warnings
+        self._synced = True
+
+    def assert_terrain_unchanged(
+        self, coords: Tuple[int, int], expected_terrain: str
+    ) -> None:
+        """Assert that terrain at coordinates matches expected value.
+
+        This is a defensive helper for validating terrain immutability.
+
+        Args:
+            coords: (x, y) world coordinates
+            expected_terrain: Expected terrain type at coordinates
+
+        Raises:
+            AssertionError: If terrain doesn't match expected value
+        """
+        actual_terrain = self.get_tile_at(*coords)
+        if actual_terrain != expected_terrain:
+            raise AssertionError(
+                f"Terrain immutability violation at {coords}: "
+                f"expected {expected_terrain!r}, got {actual_terrain!r}"
+            )
+
     def to_dict(self) -> dict:
         """Serialize ChunkManager state for persistence.
 
@@ -564,6 +600,7 @@ class ChunkManager:
             "world_seed": self.world_seed,
             "chunk_size": self.chunk_size,
             "chunks": serialized_chunks,
+            "synced": self._synced,
         }
 
     @classmethod
@@ -593,4 +630,5 @@ class ChunkManager:
             world_seed=data.get("world_seed", 0),
         )
         manager._chunks = chunks
+        manager._synced = data.get("synced", False)
         return manager
