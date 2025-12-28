@@ -166,7 +166,7 @@ class TestScenarioStructure:
 
     def test_all_subdirectories_have_scenarios(self):
         """Each feature subdirectory should have at least one scenario."""
-        expected_dirs = {"movement", "combat", "inventory", "npc", "exploration", "rest", "crafting"}
+        expected_dirs = {"movement", "combat", "inventory", "npc", "exploration", "rest", "crafting", "character_creation"}
 
         if not SCENARIOS_DIR.exists():
             pytest.skip("Scenarios directory not found")
@@ -293,3 +293,44 @@ class TestSpecificScenarios:
 
         file_names = {f.name for f in yaml_files}
         assert "basic_crafting.yaml" in file_names, "basic_crafting.yaml not found"
+
+    def test_character_creation_scenarios_exist(self):
+        """Character creation scenarios should test all 5 classes."""
+        char_creation_dir = SCENARIOS_DIR / "character_creation"
+
+        if not char_creation_dir.exists():
+            pytest.skip("Character creation directory not found")
+
+        yaml_files = list(char_creation_dir.glob("*.yaml"))
+        assert len(yaml_files) >= 5, "Expected at least 5 character creation scenarios (one per class)"
+
+        file_names = {f.name for f in yaml_files}
+        assert "warrior_creation.yaml" in file_names, "warrior_creation.yaml not found"
+        assert "mage_creation.yaml" in file_names, "mage_creation.yaml not found"
+        assert "rogue_creation.yaml" in file_names, "rogue_creation.yaml not found"
+        assert "ranger_creation.yaml" in file_names, "ranger_creation.yaml not found"
+        assert "cleric_creation.yaml" in file_names, "cleric_creation.yaml not found"
+
+    def test_character_creation_scenarios_use_creation_config(self):
+        """Character creation scenarios should have skip_character_creation: false."""
+        char_creation_dir = SCENARIOS_DIR / "character_creation"
+
+        if not char_creation_dir.exists():
+            pytest.skip("Character creation directory not found")
+
+        for yaml_file in char_creation_dir.glob("*.yaml"):
+            data = load_yaml_file(yaml_file)
+            scenario_data = data.get("scenario", data)
+            config = scenario_data.get("config", {})
+
+            # Verify skip_character_creation is false
+            assert config.get("skip_character_creation") is False, (
+                f"{yaml_file.name} should have skip_character_creation: false"
+            )
+
+            # Verify character_creation_inputs is present
+            inputs = config.get("character_creation_inputs", [])
+            assert len(inputs) >= 4, (
+                f"{yaml_file.name} should have at least 4 character creation inputs "
+                "(name, class, method, confirm)"
+            )

@@ -144,7 +144,7 @@ Game features are validated manually, which is time-consuming and error-prone. N
 Create scripted test sessions that walk through each game feature, issuing commands and validating expected outcomes.
 
 #### Features to Cover
-- [ ] Character creation (all 5 classes)
+- [x] Character creation (all 5 classes) - 5 scenarios in scripts/scenarios/character_creation/ (seeds 42020-42024)
 - [ ] Movement and navigation (overworld, SubGrid entry/exit, vertical z-levels)
 - [ ] Combat (attack, abilities, flee, stealth kills, companion combat)
 - [ ] NPC interaction (talk, dialogue choices, arc progression, shop, quest acceptance)

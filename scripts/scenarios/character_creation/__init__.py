@@ -1,0 +1,1 @@
+# Character creation validation scenarios

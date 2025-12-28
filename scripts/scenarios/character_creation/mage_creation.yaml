@@ -1,0 +1,35 @@
+# Mage character creation scenario - tests creating a Mage class character
+# Validates that character creation with Mage class (2) works correctly
+scenario:
+  name: "Mage Character Creation"
+  description: "Test creating a Mage class character with random stats"
+  seed: 42021
+  config:
+    max_commands: 10
+    timeout: 60
+    skip_character_creation: false
+    character_creation_inputs:
+      - "TestMage"
+      - "2"
+      - "2"
+      - "yes"
+  steps:
+    # Step 1: Verify character was created
+    - command: "dump_state"
+      assertions:
+        - type: CONTENT_PRESENT
+          field: "character_class"
+          value: true
+          message: "Character class should be present in state"
+
+    # Step 2: Verify character status
+    - command: "status"
+      assertions:
+        - type: COMMAND_VALID
+          field: ""
+          value: true
+          message: "Status command should be valid"
+        - type: NARRATIVE_MATCH
+          field: "last_narrative"
+          value: "Mage"
+          message: "Narrative should mention Mage class"

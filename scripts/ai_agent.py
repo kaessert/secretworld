@@ -987,8 +987,18 @@ class GameSession:
         except Exception:
             pass  # Process closed
 
-    def start(self) -> None:
-        """Start the game subprocess and reader thread."""
+    def start(
+        self,
+        skip_character_creation: bool = True,
+        creation_inputs: Optional[list[str]] = None,
+    ) -> None:
+        """Start the game subprocess and reader thread.
+
+        Args:
+            skip_character_creation: If True, use --skip-character-creation flag.
+            creation_inputs: Optional list of inputs for character creation.
+                             Only used when skip_character_creation=False.
+        """
         import pty
 
         # Force unbuffered I/O in child process
@@ -999,9 +1009,12 @@ class GameSession:
             sys.executable, "-u",  # -u for unbuffered stdout
             "-m", "cli_rpg.main",
             "--json",
-            "--skip-character-creation",
             f"--seed={self.seed}"
         ]
+
+        # Add skip-character-creation flag if requested
+        if skip_character_creation:
+            cmd.append("--skip-character-creation")
 
         # Use PTY to force line buffering (works better on Unix)
         master_fd, slave_fd = pty.openpty()
@@ -1026,6 +1039,16 @@ class GameSession:
         self._stop_reader = False
         self._reader_thread = threading.Thread(target=self._reader_worker, daemon=True)
         self._reader_thread.start()
+
+        # Send character creation inputs if provided
+        if not skip_character_creation and creation_inputs:
+            # Wait a moment for the process to start and prompt for input
+            time.sleep(0.5)
+            for input_line in creation_inputs:
+                if self.process and self.process.stdin:
+                    self.process.stdin.write(input_line + "\n")
+                    self.process.stdin.flush()
+                    time.sleep(0.1)  # Small delay between inputs
 
     def stop(self) -> None:
         """Stop the game subprocess and reader thread."""

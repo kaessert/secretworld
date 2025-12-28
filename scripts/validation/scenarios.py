@@ -265,11 +265,19 @@ class ScenarioRunner:
         assertions_failed = 0
         all_passed = True
 
-        try:
-            session.start()
+        # Get character creation configuration
+        skip_char_creation = scenario.config.get("skip_character_creation", True)
+        creation_inputs = scenario.config.get("character_creation_inputs", [])
 
-            # Wait for initial game startup
-            time.sleep(0.5)
+        try:
+            session.start(
+                skip_character_creation=skip_char_creation,
+                creation_inputs=creation_inputs,
+            )
+
+            # Wait for initial game startup (longer for character creation)
+            startup_wait = 1.0 if not skip_char_creation else 0.5
+            time.sleep(startup_wait)
             session._read_output(wait_time=0.5, min_lines=1)
 
             # Run setup commands
