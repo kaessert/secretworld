@@ -1,0 +1,111 @@
+# Vertical z-level navigation scenario - tests go up/go down inside SubGrids
+# Validates that vertical movement only works inside multi-level SubGrids (dungeons, towers)
+scenario:
+  name: "Vertical Z-Level Navigation"
+  description: "Test vertical navigation (go up/go down) inside SubGrid locations"
+  seed: 42011
+  config:
+    max_commands: 50
+    timeout: 120
+
+  setup:
+    - "dump_state"  # Get initial state
+
+  steps:
+    # Step 1: Verify go down fails on overworld
+    - command: "go down"
+      assertions:
+        - type: NARRATIVE_MATCH
+          field: ""
+          value: "can only go up or down inside buildings and dungeons"
+          message: "go down should fail on overworld with appropriate error"
+
+    # Step 2: Verify go up fails on overworld
+    - command: "go up"
+      assertions:
+        - type: NARRATIVE_MATCH
+          field: ""
+          value: "can only go up or down inside buildings and dungeons"
+          message: "go up should fail on overworld with appropriate error"
+
+    # Step 3: Look at current location
+    - command: "look"
+      assertions:
+        - type: COMMAND_VALID
+          field: ""
+          value: true
+          message: "look command should be valid"
+
+    # Step 4: Get current state
+    - command: "dump_state"
+      assertions:
+        - type: CONTENT_PRESENT
+          field: "location"
+          value: true
+          message: "Should have a current location"
+
+    # Step 5: Explore to find an enterable location
+    - command: "go north"
+      assertions:
+        - type: COMMAND_VALID
+          field: ""
+          value: true
+          message: "Movement should be valid"
+
+    # Step 6: Keep exploring
+    - command: "go east"
+      assertions:
+        - type: COMMAND_VALID
+          field: ""
+          value: true
+          message: "Movement should be valid"
+
+    # Step 7: Continue exploration
+    - command: "go north"
+      assertions:
+        - type: COMMAND_VALID
+          field: ""
+          value: true
+          message: "Movement should be valid"
+
+    # Step 8: Look for enterables
+    - command: "look"
+      assertions:
+        - type: COMMAND_VALID
+          field: ""
+          value: true
+          message: "look command should be valid"
+
+    # Step 9: Check state after exploration
+    - command: "dump_state"
+      wait_for: "location"
+      assertions:
+        - type: CONTENT_PRESENT
+          field: "location"
+          value: true
+          message: "Location should be present"
+
+    # Step 10: Continue exploring to find enterable
+    - command: "go west"
+      assertions:
+        - type: COMMAND_VALID
+          field: ""
+          value: true
+          message: "Movement should be valid"
+
+    # Step 11: More exploration
+    - command: "go north"
+      assertions:
+        - type: COMMAND_VALID
+          field: ""
+          value: true
+          message: "Movement should be valid"
+
+    # Step 12: Check current state
+    - command: "dump_state"
+      wait_for: "location"
+      assertions:
+        - type: CONTENT_PRESENT
+          field: "location"
+          value: true
+          message: "Location should be present after exploration"

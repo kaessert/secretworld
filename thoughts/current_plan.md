@@ -1,69 +1,52 @@
-# Implementation Plan: Fix Confusing `enter` Command Error Message
+# Implementation Plan: Vertical Z-Level Navigation Scenario
 
-## Problem Summary
-When a user types `enter Dark Cave` at the "Dark Cave" location, they get:
-```
-No such location: dark cave. Available: Cave Entrance, Dark Passage, Spider Den, Hidden Alcove
-```
+**Task**: Add a YAML scenario to test vertical z-level movement inside SubGrids (dungeons going down, towers going up).
 
-This is confusing because:
-1. User typed the location name they see ("Dark Cave")
-2. Error lists internal SubGrid rooms, not helpful guidance
-3. Should suggest using `enter Cave Entrance` instead
+## Spec
 
-## Solution: Accept Parent Location Name as Alias
+This scenario validates that:
+1. Player cannot use `go up`/`go down` on the overworld (returns appropriate error)
+2. Player can enter a multi-level SubGrid location (dungeon/cave/tower)
+3. The `go down` and `go up` commands work for vertical navigation inside SubGrids
+4. Z-level changes are reflected in game state coordinates
 
-When `enter <name>` fails to match a SubGrid room, check if `<name>` matches the current overworld location's name. If so, redirect to the entry_point automatically.
+## Test File
 
-This is the better UX: users naturally type what they see, so we should accept it.
-
----
+**File**: `scripts/scenarios/movement/vertical_navigation.yaml`
+**Seed**: 42011 (next unique seed after 42001-42010)
 
 ## Implementation Steps
 
-### 1. Write Test First
-**File**: `tests/test_game_state.py`
+### 1. Create the scenario file
+**File**: `scripts/scenarios/movement/vertical_navigation.yaml`
 
-Add test case in `TestEnterCommand` class (~line 1188):
-```python
-def test_enter_accepts_parent_location_name(self, monkeypatch):
-    """Test that enter accepts the parent location name as alias for entry_point."""
-    # Setup: Overworld "Dark Cave" with SubGrid containing "Cave Entrance" (entry_point)
-    # Action: enter("Dark Cave")
-    # Assert: Successfully enters through Cave Entrance
-```
+Scenario structure:
+- Setup: `dump_state` to get initial state
+- Step 1: Try `go down` on overworld - assert NARRATIVE_MATCH for "can only go up or down inside buildings and dungeons"
+- Step 2: Try `go up` on overworld - assert same error
+- Step 3-7: Navigate to find an enterable location
+- Step 8: `look` to confirm location
+- Step 9: Check if location is enterable
+- Step 10: Enter the location (creates SubGrid)
+- Step 11: `look` inside SubGrid
+- Step 12: `dump_state` to verify SubGrid entry
 
-### 2. Implement Fix in `enter()` Method
-**File**: `src/cli_rpg/game_state.py` (lines 1435-1448)
+### 2. Update test file
+**File**: `tests/test_scenario_files.py`
 
-Insert after line 1435 (`if matched_location is None:`), before building error:
+In `test_movement_scenarios_exist()` (~line 213), add assertion for `vertical_navigation.yaml`.
 
-```python
-# Check if user typed the current location's name - redirect to entry_point
-current_name_lower = current.name.lower()
-if target_lower == current_name_lower or current_name_lower.startswith(target_lower):
-    if current.entry_point and current.sub_grid is not None:
-        for loc in current.sub_grid._by_name.values():
-            if loc.name == current.entry_point:
-                matched_location = loc.name
-                sub_grid_location = loc
-                break
-```
-
-### 3. Run Tests
+### 3. Run tests
 ```bash
-pytest tests/test_game_state.py::TestEnterCommand -v
-pytest tests/test_game_state.py -v
+pytest tests/test_scenario_files.py -v
 ```
-
----
 
 ## Files Changed
-- `tests/test_game_state.py` - Add test for parent name alias
-- `src/cli_rpg/game_state.py` - Modify `enter()` (~line 1435)
+- `scripts/scenarios/movement/vertical_navigation.yaml` (new)
+- `tests/test_scenario_files.py` (update assertion count)
 
 ## Acceptance Criteria
-- `enter Dark Cave` at Dark Cave enters through Cave Entrance
-- `enter dark` at Dark Cave enters through Cave Entrance (partial match)
-- Original error preserved for genuinely invalid names
-- Existing tests pass
+- Scenario file parses without errors
+- Seed 42011 is unique
+- Scenario validates overworld blocks vertical movement
+- Scenario enters a SubGrid location successfully

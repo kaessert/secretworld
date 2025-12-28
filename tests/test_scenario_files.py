@@ -205,12 +205,13 @@ class TestSpecificScenarios:
             pytest.skip("Movement directory not found")
 
         yaml_files = list(movement_dir.glob("*.yaml"))
-        assert len(yaml_files) >= 2, "Expected at least 2 movement scenarios"
+        assert len(yaml_files) >= 3, "Expected at least 3 movement scenarios"
 
         # Check for specific files
         file_names = {f.name for f in yaml_files}
         assert "basic_navigation.yaml" in file_names, "basic_navigation.yaml not found"
         assert "subgrid_entry_exit.yaml" in file_names, "subgrid_entry_exit.yaml not found"
+        assert "vertical_navigation.yaml" in file_names, "vertical_navigation.yaml not found"
 
     def test_combat_scenarios_exist(self):
         """Combat scenarios should test attack and flee."""

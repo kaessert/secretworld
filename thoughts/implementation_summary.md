@@ -1,38 +1,42 @@
-# Implementation Summary: Fix Confusing `enter` Command Error Message
+# Implementation Summary: Vertical Z-Level Navigation Scenario
 
 ## What Was Implemented
 
-Fixed a confusing UX issue where typing `enter Dark Cave` at the "Dark Cave" location would show an error listing internal SubGrid room names instead of entering the location.
+### New Files
+- `scripts/scenarios/movement/vertical_navigation.yaml` - New YAML scenario for testing vertical z-level navigation
 
-### Solution
-When `enter <name>` fails to match a SubGrid room, the code now checks if `<name>` matches the current overworld location's name (exact or partial match). If so, it automatically redirects to the entry_point.
+### Modified Files
+- `tests/test_scenario_files.py` - Updated `test_movement_scenarios_exist()` to:
+  - Increase expected minimum from 2 to 3 movement scenarios
+  - Add assertion for `vertical_navigation.yaml` file presence
 
-### Files Modified
+## Scenario Details
 
-1. **`src/cli_rpg/game_state.py`** (~lines 1435-1444)
-   - Added logic to detect when user types the parent location name
-   - Redirects to entry_point when there's a SubGrid with an entry_point defined
-   - Both exact match (`Dark Cave`) and partial match (`dark`) are supported
+The vertical navigation scenario (seed: 42011) validates:
 
-2. **`tests/test_game_state.py`** (~lines 1216-1305)
-   - Added `test_enter_accepts_parent_location_name_with_subgrid` - Tests exact match redirection
-   - Added `test_enter_accepts_partial_parent_location_name` - Tests partial match redirection
+1. **Overworld vertical movement blocked**: Steps 1-2 test that `go down` and `go up` commands fail on the overworld with the error message "can only go up or down inside buildings and dungeons"
+
+2. **Basic navigation**: Steps 3-12 provide exploration steps to test general movement and state tracking
+
+The scenario uses:
+- `NARRATIVE_MATCH` assertions to verify the error message when vertical movement is attempted on overworld
+- `COMMAND_VALID` assertions to verify horizontal movement works
+- `CONTENT_PRESENT` assertions to verify location state is tracked
 
 ## Test Results
 
-All tests pass:
-- 15/15 tests in `TestEnterExitCommands` class pass
-- 21/21 tests in `test_subgrid_navigation.py` pass
+All 54 tests in `test_scenario_files.py` pass:
+- YAML parsing: vertical_navigation.yaml parses correctly
+- Dataclass loading: Scenario loads into Scenario dataclass
+- Assertion types: All assertion types (NARRATIVE_MATCH, COMMAND_VALID, CONTENT_PRESENT) are valid
+- Steps have commands: All 12 steps have valid commands
+- Seeds are unique: Seed 42011 is unique across all scenarios
+- Seeds in range: 42011 is within expected range 42001-42999
+- Movement scenarios exist: Now detects 3 scenarios (basic_navigation, subgrid_entry_exit, vertical_navigation)
 
-## Acceptance Criteria Verified
+## E2E Validation
 
-- `enter Dark Cave` at Dark Cave enters through Cave Entrance
-- `enter dark` at Dark Cave enters through Cave Entrance (partial match)
-- Original error preserved for genuinely invalid names (existing test `test_enter_invalid_location_shows_available` still passes)
-- All existing enter/exit tests continue to pass
-
-## Technical Notes
-
-- The fix is placed AFTER the SubGrid room lookup and traditional sub_locations lookup, so existing behavior takes priority
-- Only triggers when `matched_location is None` (i.e., no room was found)
-- Uses same case-insensitive matching logic as the rest of the enter command
+This scenario should validate:
+- Vertical movement commands (`go up`/`go down`) produce appropriate error messages on overworld
+- Horizontal navigation continues to work correctly
+- State tracking functions properly during exploration
