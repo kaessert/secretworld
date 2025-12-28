@@ -426,10 +426,50 @@ class CombatEncounter:
         - TRUSTED: +5%
         - DEVOTED: +10%
 
+        Also includes Ranger animal companion flank bonus:
+        - Wolf: +15%
+        - Hawk/Bear: +10%
+
         Returns:
             Total companion bonus as a decimal (e.g., 0.10 for +10%)
         """
-        return sum(c.get_combat_bonus() for c in self.companions)
+        bonus = sum(c.get_combat_bonus() for c in self.companions)
+
+        # Add Ranger animal companion flank bonus
+        if self.game_state is not None:
+            from cli_rpg.ranger_companion import get_companion_flank_bonus
+            bonus += get_companion_flank_bonus(self.game_state)
+
+        return bonus
+
+    def _animal_companion_attack(self, enemy: Enemy) -> Optional[str]:
+        """Execute the Ranger's animal companion attack.
+
+        The companion attacks after the player, dealing 50% of Ranger's
+        base strength minus enemy defense.
+
+        Args:
+            enemy: The enemy being attacked
+
+        Returns:
+            Attack message if companion attacked, None otherwise
+        """
+        if self.game_state is None:
+            return None
+
+        if not enemy.is_alive():
+            return None
+
+        from cli_rpg.ranger_companion import companion_attack
+        damage, message = companion_attack(self.game_state, enemy.defense)
+
+        if damage > 0:
+            enemy.take_damage(damage)
+            if not enemy.is_alive():
+                message += f"\n{colors.enemy(enemy.name)} has been defeated!"
+            return message
+
+        return None
 
     def _check_rain_extinguish(self) -> list[str]:
         """Check if rain extinguishes burn effects (40% chance each).
@@ -753,6 +793,11 @@ class CombatEncounter:
             if is_backstab:
                 self.stealth_kills += 1
             message += f"\n{colors.enemy(enemy.name)} has been defeated!"
+
+        # Animal companion attack (Ranger class - companion attacks after player)
+        companion_attack_msg = self._animal_companion_attack(enemy)
+        if companion_attack_msg:
+            message += f"\n{companion_attack_msg}"
 
         # Check if all enemies are dead
         if not self.get_living_enemies():

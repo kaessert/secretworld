@@ -125,7 +125,9 @@ def generate_hidden_room(
     return hidden_room
 
 
-def check_passive_detection(char: Character, location: Location) -> List[dict]:
+def check_passive_detection(
+    char: Character, location: Location, game_state=None
+) -> List[dict]:
     """Check for automatic secret detection based on PER when entering a location.
 
     Secrets with threshold <= character's perception are automatically detected
@@ -134,17 +136,24 @@ def check_passive_detection(char: Character, location: Location) -> List[dict]:
     Args:
         char: The player character with perception stat
         location: The location being entered/examined
+        game_state: Optional game state for animal companion bonuses
 
     Returns:
         List of secrets that were newly detected (dicts with type, description, threshold)
     """
+    # Calculate effective perception (base + hawk companion bonus)
+    effective_per = char.perception
+    if game_state is not None:
+        from cli_rpg.ranger_companion import get_companion_perception_bonus
+        effective_per += get_companion_perception_bonus(game_state)
+
     detected = []
     for secret in location.hidden_secrets:
         # Skip already discovered secrets
         if secret.get("discovered"):
             continue
-        # Check if perception meets threshold
-        if char.perception >= secret.get("threshold", 15):
+        # Check if perception meets threshold (with companion bonus)
+        if effective_per >= secret.get("threshold", 15):
             secret["discovered"] = True
             detected.append(secret)
     return detected
@@ -154,6 +163,7 @@ def perform_active_search(
     char: Character,
     location: Location,
     sub_grid: Optional["SubGrid"] = None,
+    game_state=None,
 ) -> Tuple[bool, str]:
     """Perform active search for hidden secrets using the 'search' command.
 
@@ -164,6 +174,7 @@ def perform_active_search(
         char: The player character performing the search
         location: The location being searched
         sub_grid: Optional SubGrid for creating hidden rooms when hidden_door found
+        game_state: Optional game state for animal companion bonuses
 
     Returns:
         Tuple of (found_something, message):
@@ -174,6 +185,10 @@ def perform_active_search(
     effective_per = char.perception + SEARCH_BONUS
     if char.has_active_light():
         effective_per += LIGHT_BONUS
+    # Add hawk companion bonus if available
+    if game_state is not None:
+        from cli_rpg.ranger_companion import get_companion_perception_bonus
+        effective_per += get_companion_perception_bonus(game_state)
 
     # Get undiscovered secrets
     undiscovered = [s for s in location.hidden_secrets if not s.get("discovered")]

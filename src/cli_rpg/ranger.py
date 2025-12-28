@@ -115,7 +115,12 @@ def execute_track(game_state: "GameState") -> Tuple[bool, str]:
     player.use_stamina(TRACK_STAMINA_COST)
 
     # Calculate success chance (Spec: base 50% + 3% per PER)
-    success_chance = min(100, TRACK_BASE_CHANCE + (player.perception * TRACK_PER_BONUS))
+    # Add +15% bonus from animal companion if present
+    from cli_rpg.ranger_companion import get_track_companion_bonus
+    companion_bonus = get_track_companion_bonus(game_state)
+    success_chance = min(
+        100, TRACK_BASE_CHANCE + (player.perception * TRACK_PER_BONUS) + companion_bonus
+    )
     roll = random.random() * 100
 
     if roll > success_chance:

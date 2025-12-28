@@ -1108,12 +1108,43 @@ def handle_exploration_command(game_state: GameState, command: str, args: list[s
             game_state.current_character,
             location,
             sub_grid=game_state.current_sub_grid,
+            game_state=game_state,  # For hawk perception bonus
         )
         return (True, f"\n{message}")
 
     elif command == "track":
         from cli_rpg.ranger import execute_track
         success, message = execute_track(game_state)
+        return (True, f"\n{message}")
+
+    elif command == "companion":
+        # Show animal companion status (Ranger only)
+        from cli_rpg.ranger_companion import execute_companion_status
+        message = execute_companion_status(game_state)
+        return (True, f"\n{message}")
+
+    elif command == "summon":
+        # Summon dismissed animal companion (Ranger only)
+        from cli_rpg.ranger_companion import execute_summon
+        success, message = execute_summon(game_state)
+        return (True, f"\n{message}")
+
+    elif command == "tame":
+        # Tame a wild animal (Ranger only)
+        if not args:
+            return (True, "\nTame what? Specify an animal type (wolf, hawk, bear).")
+        animal_type = " ".join(args)
+        from cli_rpg.ranger_companion import execute_tame
+        success, message = execute_tame(game_state, animal_type)
+        return (True, f"\n{message}")
+
+    elif command == "feed":
+        # Feed animal companion (Ranger only)
+        if not args:
+            return (True, "\nFeed what? Specify an item from your inventory.")
+        item_name = " ".join(args)
+        from cli_rpg.ranger_companion import execute_feed
+        success, message = execute_feed(game_state, item_name)
         return (True, f"\n{message}")
 
     elif command == "sneak":
@@ -2219,6 +2250,14 @@ def handle_exploration_command(game_state: GameState, command: str, args: list[s
         return (True, f"\n{npc.name} has joined your party!")
 
     elif command == "dismiss":
+        # Check if dismissing animal companion (Ranger with no args)
+        from cli_rpg.models.character import CharacterClass
+        if not args and game_state.current_character.character_class == CharacterClass.RANGER:
+            # Dismiss animal companion
+            from cli_rpg.ranger_companion import execute_dismiss
+            success, message = execute_dismiss(game_state)
+            return (True, f"\n{message}")
+
         if not args:
             return (True, "\nDismiss whom? Specify a companion name.")
 
@@ -2226,6 +2265,13 @@ def handle_exploration_command(game_state: GameState, command: str, args: list[s
         matching = [c for c in game_state.companions if c.name.lower() == companion_name]
 
         if not matching:
+            # Also check if it's the animal companion's name for Rangers
+            if (game_state.current_character.character_class == CharacterClass.RANGER
+                    and game_state.current_character.animal_companion is not None
+                    and game_state.current_character.animal_companion.name.lower() == companion_name):
+                from cli_rpg.ranger_companion import execute_dismiss
+                success, message = execute_dismiss(game_state)
+                return (True, f"\n{message}")
             return (True, f"\nNo companion named '{' '.join(args)}' in your party.")
 
         companion = matching[0]

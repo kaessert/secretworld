@@ -126,7 +126,11 @@ python -m cli_rpg.main
 - `camp` (ca) - Set up camp in wilderness areas (requires Camping Supplies; heals 50% HP, reduces dread by 30-40, advances time 8 hours; campfire cooks raw meat and may attract friendly visitors)
 - `forage` (fg) - Search for herbs and berries (forest/wilderness only; PER-based success chance; 1-hour cooldown)
 - `hunt` (hu) - Hunt game for meat and pelts (forest/wilderness only; DEX/PER-based success chance; 2-hour cooldown)
-- `track` (tr) - **Ranger only**: Detect enemies in adjacent locations (costs 10 stamina; success rate: 50% + 3% per PER point)
+- `track` (tr) - **Ranger only**: Detect enemies in adjacent locations (costs 10 stamina; success rate: 50% + 3% per PER point). Companion provides +15% bonus when present.
+- `tame <animal>` - **Ranger only**: Tame a wild animal to become your companion (wolf, hawk, or bear). Rangers can only bond with one animal for life.
+- `companion` - **Ranger only**: View your animal companion's status (health, bond level, abilities)
+- `summon` - **Ranger only**: Call your dismissed animal companion (costs 10 stamina)
+- `feed <item>` - **Ranger only**: Feed a consumable item to your animal companion to heal and increase bond
 - `gather` (ga) - Gather resources in wilderness areas (forest/wilderness yields wood and fiber; cave/dungeon yields iron ore and stone; PER-based success chance; 1-hour cooldown)
 - `recipes` - View all available crafting recipes with their ingredients and level requirements
 - `craft <recipe>` (cr) - Craft an item from gathered resources (e.g., `craft torch`, `craft iron sword`). Crafting grants XP toward your crafting skill level. Advanced recipes (iron sword, iron armor) require JOURNEYMAN level.
@@ -288,6 +292,17 @@ Multiple companions stack their bonuses additively. The bonus appears in combat 
 - **Pragmatic** companions remain neutral to all combat choices (no bond change)
 
 Companion reactions appear as flavor text after combat resolution.
+
+**Ranger Animal Companion:** Rangers can tame a wild animal to serve as a lifelong companion:
+- Use `tame <wolf|hawk|bear>` to bond with an animal (Ranger-only, one-time choice)
+- **Wolf**: +15% flank bonus in combat
+- **Hawk**: +3 Perception for secret detection
+- **Bear**: 2x health (60 HP base)
+- All companions attack enemies for 50% of Ranger's STR damage
+- All companions provide +15% bonus to the `track` command
+- Use `feed <consumable>` to heal your companion and increase bond level
+- Bond levels (STRANGER → DEVOTED) improve companion effectiveness
+- Use `summon`/`dismiss` to toggle companion presence (summon costs 10 stamina)
 
 **Combat Flow:**
 1. You attack, defend, or cast

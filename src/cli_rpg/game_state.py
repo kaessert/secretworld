@@ -87,6 +87,7 @@ KNOWN_COMMANDS: set[str] = {
     "search",  # Secret discovery
     "camp", "forage", "hunt", "gather", "craft", "recipes",  # Wilderness survival & crafting
     "track",  # Ranger ability
+    "companion", "summon", "feed", "tame",  # Ranger animal companion commands
     "proficiency",  # Weapon proficiency display
     "reputation",  # Faction reputation display
     "travel",  # Fast travel to discovered named locations

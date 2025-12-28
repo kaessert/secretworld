@@ -77,6 +77,7 @@ CLASS_ARMOR_RESTRICTIONS: Dict["CharacterClass", list] = {
 }
 
 if TYPE_CHECKING:
+    from cli_rpg.models.animal_companion import AnimalCompanion
     from cli_rpg.models.item import Item
     from cli_rpg.models.inventory import Inventory
     from cli_rpg.models.quest import Quest
@@ -141,6 +142,7 @@ class Character:
     weapon_proficiencies: Dict[WeaponType, WeaponProficiency] = field(default_factory=dict)
     crafting_proficiency: CraftingProficiency = field(default_factory=CraftingProficiency)
     unlocked_recipes: Set[str] = field(default_factory=set)
+    animal_companion: Optional["AnimalCompanion"] = None
 
     def __post_init__(self):
         """Validate attributes and calculate derived stats."""
@@ -1540,6 +1542,7 @@ class Character:
             ],
             "crafting_proficiency": self.crafting_proficiency.to_dict(),
             "unlocked_recipes": list(self.unlocked_recipes),
+            "animal_companion": self.animal_companion.to_dict() if self.animal_companion else None,
         }
     
     @classmethod
@@ -1692,6 +1695,10 @@ class Character:
             character.crafting_proficiency = CraftingProficiency()
         # Restore unlocked recipes (with backward compatibility, defaults to empty set)
         character.unlocked_recipes = set(data.get("unlocked_recipes", []))
+        # Restore animal companion (with backward compatibility, defaults to None)
+        if data.get("animal_companion") is not None:
+            from cli_rpg.models.animal_companion import AnimalCompanion
+            character.animal_companion = AnimalCompanion.from_dict(data["animal_companion"])
         return character
     
     def __str__(self) -> str:

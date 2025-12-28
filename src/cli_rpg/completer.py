@@ -161,6 +161,10 @@ class CommandCompleter:
             return self._complete_puzzle_by_type(text_lower, PuzzleType.RIDDLE)
         elif command == "activate":
             return self._complete_puzzle_by_type(text_lower, PuzzleType.SEQUENCE)
+        elif command == "feed":
+            return self._complete_feed(text_lower)
+        elif command == "tame":
+            return self._complete_tame(text_lower)
 
         return []
 
@@ -350,6 +354,43 @@ class CommandCompleter:
                 if not puzzle.solved:
                     names.append(puzzle.name)
         return [n for n in names if n.lower().startswith(text)]
+
+    def _complete_feed(self, text: str) -> List[str]:
+        """Complete item name for 'feed' command (Ranger animal companion).
+
+        Only returns CONSUMABLE items from inventory.
+
+        Args:
+            text: Partial item name text (lowercase)
+
+        Returns:
+            List of matching consumable item names
+        """
+        if self._game_state is None:
+            return []
+
+        inventory = self._game_state.current_character.inventory
+        consumables = [
+            item.name
+            for item in inventory.items
+            if item.item_type == ItemType.CONSUMABLE
+        ]
+
+        return [name for name in consumables if name.lower().startswith(text)]
+
+    def _complete_tame(self, text: str) -> List[str]:
+        """Complete animal type for 'tame' command (Ranger).
+
+        Returns valid animal types: Wolf, Hawk, Bear.
+
+        Args:
+            text: Partial animal type text (lowercase)
+
+        Returns:
+            List of matching animal type names
+        """
+        animal_types = ["Wolf", "Hawk", "Bear"]
+        return [name for name in animal_types if name.lower().startswith(text)]
 
 
 # Module-level singleton instance for use by input_handler

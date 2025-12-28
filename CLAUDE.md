@@ -85,6 +85,7 @@ src/cli_rpg/
 ├── crafting.py          # Resource gathering and crafting recipes (gather, craft, recipes commands)
 ├── economy.py           # Economy helper functions (price modifiers, event integration)
 ├── ranger.py            # Ranger class abilities (track command, wilderness bonus)
+├── ranger_companion.py  # Ranger animal companion commands (tame, summon, feed, companion status)
 ├── cleric.py            # Cleric class abilities (bless, smite commands)
 ├── faction_combat.py    # Faction reputation changes from combat outcomes
 ├── faction_shop.py      # Faction-based shop price modifiers
@@ -127,6 +128,7 @@ src/cli_rpg/
     ├── world_event.py   # World event model for timed events
     ├── weather.py       # Weather system (clear, rain, storm, fog)
     ├── companion.py     # Companion model with bond levels
+    ├── animal_companion.py # Ranger animal companion model (AnimalType enum, AnimalCompanion dataclass)
     ├── weapon_proficiency.py # Weapon proficiency progression system
     ├── crafting_proficiency.py # Crafting skill progression system (NOVICE → MASTER levels)
     ├── faction.py       # Faction reputation system
