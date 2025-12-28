@@ -1213,6 +1213,97 @@ class TestEnterExitCommands:
         assert "Tavern" in message
         assert "Market" in message
 
+    def test_enter_accepts_parent_location_name_with_subgrid(self, monkeypatch):
+        """Test that enter accepts the parent location name as alias for entry_point.
+
+        Spec: When user types 'enter Dark Cave' while at 'Dark Cave' overworld location,
+        it should redirect to the entry_point instead of showing an error about
+        internal SubGrid room names.
+        """
+        from cli_rpg.world_grid import SubGrid
+
+        monkeypatch.setattr("cli_rpg.game_state.autosave", lambda gs: None)
+
+        character = Character("Hero", strength=10, dexterity=10, intelligence=10)
+
+        # Create SubGrid with entry point
+        sub_grid = SubGrid(bounds=(-2, 2, -2, 2), parent_name="Dark Cave")
+
+        # Entry room at (0, 0) - also an exit point
+        cave_entrance = Location(
+            name="Cave Entrance",
+            description="The entrance to a dark cave.",
+            is_exit_point=True,
+        )
+        sub_grid.add_location(cave_entrance, 0, 0)
+
+        # Inner room at (0, 1) - NOT an exit point
+        dark_passage = Location(
+            name="Dark Passage",
+            description="A dark passage deeper into the cave.",
+            is_exit_point=False,
+        )
+        sub_grid.add_location(dark_passage, 0, 1)
+
+        # Create overworld location with sub_grid
+        dark_cave = Location(
+            name="Dark Cave",
+            description="A foreboding cave entrance.",
+            coordinates=(0, 0),
+            is_overworld=True,
+            sub_grid=sub_grid,
+            sub_locations=["Cave Entrance"],
+            entry_point="Cave Entrance",
+        )
+
+        world = {"Dark Cave": dark_cave}
+        game_state = GameState(character, world, "Dark Cave")
+
+        # User types "enter Dark Cave" - should redirect to Cave Entrance
+        success, message = game_state.enter("Dark Cave")
+        assert success is True
+        assert game_state.current_location == "Cave Entrance"
+        assert game_state.in_sub_location is True
+
+    def test_enter_accepts_partial_parent_location_name(self, monkeypatch):
+        """Test that enter accepts partial match of parent location name.
+
+        Spec: 'enter dark' at 'Dark Cave' should also redirect to entry_point.
+        """
+        from cli_rpg.world_grid import SubGrid
+
+        monkeypatch.setattr("cli_rpg.game_state.autosave", lambda gs: None)
+
+        character = Character("Hero", strength=10, dexterity=10, intelligence=10)
+
+        # Create SubGrid with entry point
+        sub_grid = SubGrid(bounds=(-2, 2, -2, 2), parent_name="Dark Cave")
+
+        cave_entrance = Location(
+            name="Cave Entrance",
+            description="The entrance to a dark cave.",
+            is_exit_point=True,
+        )
+        sub_grid.add_location(cave_entrance, 0, 0)
+
+        dark_cave = Location(
+            name="Dark Cave",
+            description="A foreboding cave entrance.",
+            coordinates=(0, 0),
+            is_overworld=True,
+            sub_grid=sub_grid,
+            sub_locations=["Cave Entrance"],
+            entry_point="Cave Entrance",
+        )
+
+        world = {"Dark Cave": dark_cave}
+        game_state = GameState(character, world, "Dark Cave")
+
+        # User types "enter dark" - should redirect to Cave Entrance
+        success, message = game_state.enter("dark")
+        assert success is True
+        assert game_state.current_location == "Cave Entrance"
+
 
 class TestLocationNoiseManagerIntegration:
     """Tests for LocationNoiseManager integration into GameState.

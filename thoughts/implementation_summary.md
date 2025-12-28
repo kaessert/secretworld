@@ -1,88 +1,38 @@
-# Implementation Summary: YAML Validation Scenarios
+# Implementation Summary: Fix Confusing `enter` Command Error Message
 
 ## What Was Implemented
 
-Created initial YAML validation scenarios for core game features (Phase 3, Step 5 of the Validation Framework).
+Fixed a confusing UX issue where typing `enter Dark Cave` at the "Dark Cave" location would show an error listing internal SubGrid room names instead of entering the location.
 
-### Files Created
+### Solution
+When `enter <name>` fails to match a SubGrid room, the code now checks if `<name>` matches the current overworld location's name (exact or partial match). If so, it automatically redirects to the entry_point.
 
-1. **`scripts/scenarios/__init__.py`** - Package initialization for scenarios directory
+### Files Modified
 
-2. **Movement Scenarios:**
-   - `scripts/scenarios/movement/basic_navigation.yaml` (seed 42001) - Tests `look`, `go <direction>` commands
-   - `scripts/scenarios/movement/subgrid_entry_exit.yaml` (seed 42002) - Tests sub-location entry/exit
+1. **`src/cli_rpg/game_state.py`** (~lines 1435-1444)
+   - Added logic to detect when user types the parent location name
+   - Redirects to entry_point when there's a SubGrid with an entry_point defined
+   - Both exact match (`Dark Cave`) and partial match (`dark`) are supported
 
-3. **Combat Scenarios:**
-   - `scripts/scenarios/combat/basic_attack.yaml` (seed 42003) - Tests `attack` command
-   - `scripts/scenarios/combat/flee_combat.yaml` (seed 42004) - Tests `flee` command
-
-4. **Inventory Scenarios:**
-   - `scripts/scenarios/inventory/equip_unequip.yaml` (seed 42005) - Tests `equip`, `unequip` commands
-   - `scripts/scenarios/inventory/use_item.yaml` (seed 42006) - Tests `use` command
-
-5. **NPC Scenarios:**
-   - `scripts/scenarios/npc/talk_dialogue.yaml` (seed 42007) - Tests `talk` command
-   - `scripts/scenarios/npc/shop_browse.yaml` (seed 42008) - Tests `shop`, `browse` commands
-
-6. **Exploration Scenarios:**
-   - `scripts/scenarios/exploration/look_map.yaml` (seed 42009) - Tests `look`, `map` commands
-
-7. **Rest Scenarios:**
-   - `scripts/scenarios/rest/basic_rest.yaml` (seed 42010) - Tests `rest` command
-
-8. **Test File:**
-   - `tests/test_scenario_files.py` - Comprehensive tests validating:
-     - YAML parsing without errors
-     - Scenario loads into dataclass
-     - Valid assertion types (AssertionType enum)
-     - Steps have commands
-     - Unique seeds across scenarios
-     - Seeds in expected range (42001-42999)
-     - Directory structure
-     - File count (minimum 10 files)
-     - Specific scenario existence checks
+2. **`tests/test_game_state.py`** (~lines 1216-1305)
+   - Added `test_enter_accepts_parent_location_name_with_subgrid` - Tests exact match redirection
+   - Added `test_enter_accepts_partial_parent_location_name` - Tests partial match redirection
 
 ## Test Results
 
-```
-50 passed in 0.41s
-```
+All tests pass:
+- 15/15 tests in `TestEnterExitCommands` class pass
+- 21/21 tests in `test_subgrid_navigation.py` pass
 
-All tests pass, validating:
-- 10 YAML scenario files parse correctly
-- All assertions use valid AssertionType enum values
-- Seeds are unique across all scenarios
-- Directory structure matches specification
-- All required scenario files exist
+## Acceptance Criteria Verified
 
-## Technical Details
+- `enter Dark Cave` at Dark Cave enters through Cave Entrance
+- `enter dark` at Dark Cave enters through Cave Entrance (partial match)
+- Original error preserved for genuinely invalid names (existing test `test_enter_invalid_location_shows_available` still passes)
+- All existing enter/exit tests continue to pass
 
-### Scenario Format
-Each scenario uses the wrapped format with:
-- `name`: Scenario identifier
-- `description`: Human-readable description
-- `seed`: Fixed seed (42001-42010) for reproducibility
-- `config`: `max_commands` and `timeout` settings
-- `setup`: Initial commands like `dump_state`
-- `steps`: List of command/assertion pairs
+## Technical Notes
 
-### Assertion Types Used
-- `COMMAND_VALID` - Validates command was accepted
-- `CONTENT_PRESENT` - Validates state field exists
-- `STATE_RANGE` - Validates numeric values in bounds
-
-### Design Decisions
-1. Used `dump_state` in setup to initialize game state
-2. Used `wait_for` on state fields that require time to populate
-3. Used conservative `STATE_RANGE` assertions to handle game variability
-4. Each scenario tests a focused feature area
-5. Seeds follow 42XXX pattern for easy identification
-
-## E2E Validation Notes
-
-These scenarios are designed to be run by the `ScenarioRunner` which spawns actual game sessions. Running the full scenarios requires:
-- Game process startup
-- AI service (optional, graceful fallback)
-- Character creation flow
-
-The test file validates scenario structure without requiring game execution.
+- The fix is placed AFTER the SubGrid room lookup and traditional sub_locations lookup, so existing behavior takes priority
+- Only triggers when `matched_location is None` (i.e., no room was found)
+- Uses same case-insensitive matching logic as the rest of the enter command

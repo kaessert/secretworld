@@ -1433,6 +1433,17 @@ class GameState:
                         break
 
         if matched_location is None:
+            # Check if user typed the current location's name - redirect to entry_point
+            current_name_lower = current.name.lower()
+            if target_lower == current_name_lower or current_name_lower.startswith(target_lower):
+                if current.entry_point and current.sub_grid is not None:
+                    for loc in current.sub_grid._by_name.values():
+                        if loc.name == current.entry_point:
+                            matched_location = loc.name
+                            sub_grid_location = loc
+                            break
+
+        if matched_location is None:
             # Build helpful error message with available locations
             available = []
             if current.sub_grid is not None:
