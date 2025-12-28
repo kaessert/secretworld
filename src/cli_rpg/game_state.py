@@ -10,6 +10,7 @@ if TYPE_CHECKING:
     from cli_rpg.world_grid import SubGrid
     from cli_rpg.wfc_chunks import ChunkManager
     from cli_rpg.background_gen import BackgroundGenerationQueue
+    from cli_rpg.models.quest import Quest
 from cli_rpg.models.game_time import GameTime
 from cli_rpg.models.location import Location
 from cli_rpg.models.npc import NPC
@@ -23,6 +24,7 @@ from cli_rpg.models.generation_context import GenerationContext
 from cli_rpg.models.quest_outcome import QuestOutcome
 from cli_rpg.models.world_state import WorldStateManager
 from cli_rpg.models.economy import EconomyState
+from cli_rpg.models.quest_network import QuestNetworkManager
 from cli_rpg.combat import (
     CombatEncounter,
     ai_spawn_enemy,
@@ -324,6 +326,8 @@ class GameState:
         self.background_gen_queue: Optional["BackgroundGenerationQueue"] = None
         # Economy system for dynamic supply/demand pricing
         self.economy_state = EconomyState()
+        # Quest network for chain/dependency tracking
+        self.quest_network = QuestNetworkManager()
         # Location noise manager for deterministic location density
         # Uses world seed from chunk_manager if available, otherwise random
         world_seed = chunk_manager.world_seed if chunk_manager else random.randint(0, 2**31)
@@ -1774,6 +1778,65 @@ class GameState:
                 relevant.append(outcome)
         return relevant
 
+    # Quest network integration methods
+    def register_quest(self, quest: "Quest") -> None:
+        """Register a quest in the quest network.
+
+        Adds the quest to the network for chain/dependency tracking.
+        Does not add to character.quests - use accept_quest for that.
+
+        Args:
+            quest: Quest to register
+        """
+        self.quest_network.add_quest(quest)
+
+    def get_completed_quest_names(self) -> list[str]:
+        """Get names of all completed quests from character.
+
+        Returns:
+            List of completed quest names (for dependency checks)
+        """
+        from cli_rpg.models.quest import QuestStatus
+
+        return [
+            q.name
+            for q in self.current_character.quests
+            if q.status == QuestStatus.COMPLETED
+        ]
+
+    def get_available_quests(self) -> list["Quest"]:
+        """Get quests available based on completed prerequisites.
+
+        Returns:
+            List of Quest objects with satisfied prerequisites
+        """
+        completed = self.get_completed_quest_names()
+        return self.quest_network.get_available_quests(completed)
+
+    def get_chain_progression(self, chain_id: str) -> tuple[int, int]:
+        """Get (completed, total) count for a quest chain.
+
+        Args:
+            chain_id: The chain identifier
+
+        Returns:
+            Tuple of (completed_count, total_count)
+        """
+        completed = self.get_completed_quest_names()
+        return self.quest_network.get_chain_progression(chain_id, completed)
+
+    def get_next_in_chain(self, chain_id: str) -> Optional["Quest"]:
+        """Get the next incomplete quest in a chain.
+
+        Args:
+            chain_id: The chain identifier
+
+        Returns:
+            Next Quest in chain, or None if chain is complete
+        """
+        completed = self.get_completed_quest_names()
+        return self.quest_network.get_next_in_chain(chain_id, completed)
+
     def get_or_create_world_context(self) -> WorldContext:
         """Get cached world context or generate/create default.
 
@@ -2073,6 +2136,7 @@ class GameState:
             "seen_tiles": list(self.seen_tiles),
             "world_state_manager": self.world_state_manager.to_dict(),
             "economy_state": self.economy_state.to_dict(),
+            "quest_network": self.quest_network.to_dict(),
             "location_noise_seed": self.location_noise_manager.world_seed,
         }
         # Include chunk_manager if present (WFC terrain)
@@ -2206,6 +2270,10 @@ class GameState:
         game_state.economy_state = EconomyState.from_dict(
             data.get("economy_state")
         )
+
+        # Restore quest_network (default to empty for backward compatibility)
+        if "quest_network" in data:
+            game_state.quest_network = QuestNetworkManager.from_dict(data["quest_network"])
 
         # Restore chunk_manager if present (WFC terrain)
         # Must restore before location_noise_manager for fallback seed logic

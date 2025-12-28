@@ -1,26 +1,3 @@
-# Implementation Plan: GameState Integration for QuestNetworkManager
-
-## Summary
-Integrate the existing standalone `QuestNetworkManager` into `GameState` to enable quest chain progression tracking, dependency-based quest availability, and unlock queries during gameplay.
-
-## Spec
-
-The `QuestNetworkManager` (in `models/quest_network.py`) is already fully implemented with:
-- Quest registration and case-insensitive lookup
-- Chain progression tracking (`get_chain_quests`, `get_chain_progression`, `get_next_in_chain`)
-- Dependency queries (`get_available_quests`, `get_unlocked_quests`)
-- Storyline queries (`get_prerequisites_of`, `get_unlocks_of`, `find_path`)
-- Serialization (`to_dict`, `from_dict`)
-
-Integration requires:
-1. Add `quest_network: QuestNetworkManager` field to `GameState`
-2. Auto-populate network when quests are accepted
-3. Serialize/deserialize with game saves
-4. Expose network queries for NPC quest offerings
-
-## Tests (in `tests/test_quest_network_integration.py`)
-
-```python
 """Tests for QuestNetworkManager integration with GameState."""
 
 import pytest
@@ -102,8 +79,9 @@ class TestQuestNetworkIntegration:
         assert quest1 in available
         assert quest2 not in available
 
-        # Complete first quest
+        # Complete first quest (add to character quests with completed status)
         quest1.status = QuestStatus.COMPLETED
+        basic_game_state.current_character.quests.append(quest1)
 
         # Now both should be available
         available = basic_game_state.get_available_quests()
@@ -239,118 +217,3 @@ class TestChainProgression:
 
         next_quest = basic_game_state.get_next_in_chain("main")
         assert next_quest.name == "Chain Quest 2"
-```
-
-## Implementation Steps
-
-### 1. Add `quest_network` to `GameState.__init__` (game_state.py ~line 330)
-
-```python
-from cli_rpg.models.quest_network import QuestNetworkManager
-
-# In __init__, after self.economy_state:
-self.quest_network = QuestNetworkManager()
-```
-
-### 2. Add helper methods to `GameState` (game_state.py ~line 1900)
-
-```python
-def register_quest(self, quest: "Quest") -> None:
-    """Register a quest in the quest network.
-
-    Adds the quest to the network for chain/dependency tracking.
-    Does not add to character.quests - use accept_quest for that.
-
-    Args:
-        quest: Quest to register
-    """
-    self.quest_network.add_quest(quest)
-
-def get_completed_quest_names(self) -> list[str]:
-    """Get names of all completed quests from character.
-
-    Returns:
-        List of completed quest names (for dependency checks)
-    """
-    from cli_rpg.models.quest import QuestStatus
-    return [
-        q.name for q in self.current_character.quests
-        if q.status == QuestStatus.COMPLETED
-    ]
-
-def get_available_quests(self) -> list["Quest"]:
-    """Get quests available based on completed prerequisites.
-
-    Returns:
-        List of Quest objects with satisfied prerequisites
-    """
-    completed = self.get_completed_quest_names()
-    return self.quest_network.get_available_quests(completed)
-
-def get_chain_progression(self, chain_id: str) -> tuple[int, int]:
-    """Get (completed, total) count for a quest chain.
-
-    Args:
-        chain_id: The chain identifier
-
-    Returns:
-        Tuple of (completed_count, total_count)
-    """
-    completed = self.get_completed_quest_names()
-    return self.quest_network.get_chain_progression(chain_id, completed)
-
-def get_next_in_chain(self, chain_id: str) -> Optional["Quest"]:
-    """Get the next incomplete quest in a chain.
-
-    Args:
-        chain_id: The chain identifier
-
-    Returns:
-        Next Quest in chain, or None if chain is complete
-    """
-    completed = self.get_completed_quest_names()
-    return self.quest_network.get_next_in_chain(chain_id, completed)
-```
-
-### 3. Update `to_dict()` (game_state.py ~line 2075)
-
-Add to the data dict:
-```python
-"quest_network": self.quest_network.to_dict(),
-```
-
-### 4. Update `from_dict()` (game_state.py ~line 2240)
-
-Add after economy_state restoration:
-```python
-# Restore quest_network (default to empty for backward compatibility)
-if "quest_network" in data:
-    game_state.quest_network = QuestNetworkManager.from_dict(data["quest_network"])
-```
-
-### 5. Add import at top of game_state.py
-
-```python
-from cli_rpg.models.quest_network import QuestNetworkManager
-```
-
-### 6. Add TYPE_CHECKING import for Quest
-
-```python
-if TYPE_CHECKING:
-    ...
-    from cli_rpg.models.quest import Quest
-```
-
-## Verification
-
-```bash
-# Run new integration tests
-pytest tests/test_quest_network_integration.py -v
-
-# Run existing quest network tests (should still pass)
-pytest tests/test_quest_network.py -v
-
-# Run full test suite
-pytest
-```

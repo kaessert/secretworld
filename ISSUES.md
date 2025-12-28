@@ -601,8 +601,12 @@ Created QuestNetworkManager for managing interconnected quest storylines.
   - Storyline queries: `get_prerequisites_of()`, `get_unlocks_of()`, `find_path()` (BFS pathfinding)
   - Full serialization: `to_dict()`, `from_dict()`
 - 19 tests in `tests/test_quest_network.py`
+- 10 tests in `tests/test_quest_network_integration.py` (GameState integration)
 
-**Note**: GameState integration deferred - standalone manager ready for future integration
+**GameState Integration (COMPLETED 2025-12-28)**:
+- `quest_network` field added to `GameState.__init__`
+- Helper methods: `register_quest()`, `get_completed_quest_names()`, `get_available_quests()`, `get_chain_progression()`, `get_next_in_chain()`
+- Full serialization/deserialization with backward compatibility for old saves
 
 ---
 
