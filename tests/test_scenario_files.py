@@ -214,18 +214,26 @@ class TestSpecificScenarios:
         assert "vertical_navigation.yaml" in file_names, "vertical_navigation.yaml not found"
 
     def test_combat_scenarios_exist(self):
-        """Combat scenarios should test attack and flee."""
+        """Combat scenarios should test attack, flee, and class abilities."""
         combat_dir = SCENARIOS_DIR / "combat"
 
         if not combat_dir.exists():
             pytest.skip("Combat directory not found")
 
         yaml_files = list(combat_dir.glob("*.yaml"))
-        assert len(yaml_files) >= 2, "Expected at least 2 combat scenarios"
+        assert len(yaml_files) >= 7, "Expected at least 7 combat scenarios"
 
         file_names = {f.name for f in yaml_files}
+        # Basic combat scenarios
         assert "basic_attack.yaml" in file_names, "basic_attack.yaml not found"
         assert "flee_combat.yaml" in file_names, "flee_combat.yaml not found"
+        # Class ability scenarios
+        assert "warrior_bash.yaml" in file_names, "warrior_bash.yaml not found"
+        assert "mage_spells.yaml" in file_names, "mage_spells.yaml not found"
+        assert "rogue_stealth.yaml" in file_names, "rogue_stealth.yaml not found"
+        assert "cleric_abilities.yaml" in file_names, "cleric_abilities.yaml not found"
+        # Demo mode combat scenario
+        assert "demo_combat.yaml" in file_names, "demo_combat.yaml not found"
 
     def test_inventory_scenarios_exist(self):
         """Inventory scenarios should test equip and use."""

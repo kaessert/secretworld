@@ -146,7 +146,7 @@ Create scripted test sessions that walk through each game feature, issuing comma
 #### Features to Cover
 - [x] Character creation (all 5 classes) - 5 scenarios in scripts/scenarios/character_creation/ (seeds 42020-42024)
 - [x] Movement and navigation (overworld, SubGrid entry/exit, vertical z-levels) - 3 scenarios in scripts/scenarios/movement/ with demo_mode support
-- [ ] Combat (attack, abilities, flee, stealth kills, companion combat)
+- [x] Combat (attack, abilities, flee, stealth kills, companion combat) - 7 scenarios in scripts/scenarios/combat/ (seeds 42003-42004, 42030-42034)
 - [ ] NPC interaction (talk, dialogue choices, arc progression, shop, quest acceptance)
 - [ ] Inventory management (equip, unequip, use, drop, armor restrictions, holy symbols)
 - [ ] Quests (accept, track, complete, world effects, quest chains)

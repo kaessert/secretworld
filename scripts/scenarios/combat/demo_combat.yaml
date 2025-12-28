@@ -1,0 +1,135 @@
+# Demo mode combat scenario - tests combat against the Giant Spider boss
+# Validates complete combat flow in the pre-generated test world
+# Uses demo mode to navigate to known boss location at Spider Den [-1, 1, 0]
+scenario:
+  name: "Demo Mode Boss Combat"
+  description: "Test complete combat flow against Giant Spider boss in Dark Cave"
+  seed: 42034
+  config:
+    max_commands: 50
+    timeout: 150
+    demo_mode: true  # Use pre-generated test world
+
+  setup:
+    - "dump_state"  # Get initial state
+
+  steps:
+    # Step 1: Verify starting location (Peaceful Village at [0,0])
+    - command: "look"
+      assertions:
+        - type: NARRATIVE_MATCH
+          field: ""
+          value: "Peaceful Village"
+          message: "Should start at Peaceful Village"
+
+    # Step 2: Check initial health before combat
+    - command: "dump_state"
+      assertions:
+        - type: CONTENT_PRESENT
+          field: "health"
+          value: true
+          message: "Health should be tracked"
+        - type: STATE_RANGE
+          field: "health"
+          value:
+            min: 100
+            max: 200
+          message: "Should have high health before combat"
+
+    # Step 3: Move east to Dark Cave at [1,0]
+    - command: "go east"
+      assertions:
+        - type: COMMAND_VALID
+          field: ""
+          value: true
+          message: "Movement east should be valid"
+
+    # Step 4: Verify we're at Dark Cave
+    - command: "look"
+      assertions:
+        - type: NARRATIVE_MATCH
+          field: ""
+          value: "Dark Cave"
+          message: "Should be at Dark Cave location"
+
+    # Step 5: Enter the cave (SubGrid entry)
+    - command: "enter"
+      assertions:
+        - type: COMMAND_VALID
+          field: ""
+          value: true
+          message: "Enter command should be valid"
+
+    # Step 6: Verify we're inside the cave
+    - command: "look"
+      assertions:
+        - type: NARRATIVE_MATCH
+          field: ""
+          value: "Cave Entrance"
+          message: "Should be at Cave Entrance inside the cave"
+
+    # Step 7: Move north to Dark Passage at [0, 1, 0]
+    - command: "go north"
+      assertions:
+        - type: COMMAND_VALID
+          field: ""
+          value: true
+          message: "Movement north should be valid"
+
+    # Step 8: Move west to Spider Den at [-1, 1, 0] - boss location
+    - command: "go west"
+      assertions:
+        - type: COMMAND_VALID
+          field: ""
+          value: true
+          message: "Movement west should be valid"
+
+    # Step 9: Verify we're at Spider Den
+    - command: "look"
+      assertions:
+        - type: NARRATIVE_MATCH
+          field: ""
+          value: "Spider Den"
+          message: "Should be at Spider Den with boss"
+
+    # Step 10: Combat should trigger - attack the boss
+    - command: "attack"
+      assertions:
+        - type: COMMAND_VALID
+          field: ""
+          value: true
+          message: "Attack command should work in combat"
+
+    # Step 11: Use bash (Warrior ability) for stun
+    - command: "bash"
+      assertions:
+        - type: COMMAND_VALID
+          field: ""
+          value: true
+          message: "Bash should work for Warrior"
+
+    # Step 12: Continue combat
+    - command: "attack"
+      assertions:
+        - type: COMMAND_VALID
+          field: ""
+          value: true
+          message: "Attack should continue to work"
+
+    # Step 13: Continue combat
+    - command: "attack"
+      assertions:
+        - type: COMMAND_VALID
+          field: ""
+          value: true
+          message: "Attack should continue to work"
+
+    # Step 14: Check state after combat
+    - command: "dump_state"
+      assertions:
+        - type: STATE_RANGE
+          field: "health"
+          value:
+            min: 1
+            max: 200
+          message: "Health should still be in valid range after combat"

@@ -1,0 +1,97 @@
+# Cleric abilities scenario - tests the Cleric's bless and smite abilities
+# Validates that the Cleric class can use divine abilities in combat
+scenario:
+  name: "Cleric Divine Abilities"
+  description: "Test Cleric bless and smite abilities in combat"
+  seed: 42033
+  config:
+    max_commands: 40
+    timeout: 120
+    skip_character_creation: false
+    character_creation_inputs:
+      - "TestCleric"
+      - "5"   # Cleric class
+      - "2"   # Random stats
+      - "yes"
+
+  setup:
+    - "dump_state"  # Get initial state
+
+  steps:
+    # Step 1: Verify we're the Cleric class
+    - command: "status"
+      assertions:
+        - type: COMMAND_VALID
+          field: ""
+          value: true
+          message: "Status command should be valid"
+        - type: NARRATIVE_MATCH
+          field: "last_narrative"
+          value: "Cleric"
+          message: "Character should be Cleric class"
+
+    # Step 2: Get initial state for mana tracking
+    - command: "dump_state"
+      assertions:
+        - type: CONTENT_PRESENT
+          field: "mana"
+          value: true
+          message: "Mana should be tracked for Cleric"
+
+    # Step 3: Explore to potentially trigger combat
+    - command: "go north"
+      assertions:
+        - type: COMMAND_VALID
+          field: ""
+          value: true
+          message: "Movement should work"
+
+    # Step 4: Continue exploration
+    - command: "go east"
+      assertions:
+        - type: COMMAND_VALID
+          field: ""
+          value: true
+          message: "Movement should work"
+
+    # Step 5: Continue exploration
+    - command: "go south"
+      assertions:
+        - type: COMMAND_VALID
+          field: ""
+          value: true
+          message: "Movement should work"
+
+    # Step 6: Continue exploration
+    - command: "go west"
+      assertions:
+        - type: COMMAND_VALID
+          field: ""
+          value: true
+          message: "Movement should work"
+
+    # Step 7: Test bless ability - core test of Cleric buff
+    - command: "bless"
+      assertions:
+        - type: COMMAND_VALID
+          field: ""
+          value: true
+          message: "Bless command should be recognized for Cleric"
+
+    # Step 8: Test smite ability - divine attack
+    - command: "smite"
+      assertions:
+        - type: COMMAND_VALID
+          field: ""
+          value: true
+          message: "Smite command should be recognized for Cleric"
+
+    # Step 9: Check mana after casting
+    - command: "dump_state"
+      assertions:
+        - type: STATE_RANGE
+          field: "mana"
+          value:
+            min: 0
+            max: 200
+          message: "Mana should be in valid range"

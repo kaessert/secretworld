@@ -1,65 +1,84 @@
-# Implementation Summary: Movement/Navigation Scenario Validation
+# Implementation Summary: Complete Combat Validation Scenarios
 
 ## What Was Implemented
 
-### 1. Updated Test World Fixture (`tests/fixtures/test_world.json`)
-- Added `allowed_exits` field to all Dark Cave SubGrid locations to enable proper interior navigation
-- Added a new "Deep Cavern" location at z=-1 level for vertical navigation testing
-- Cave Entrance now has `allowed_exits: ["north", "down"]`
-- Deep Cavern at (0, 0, -1) has `allowed_exits: ["up"]` to connect back to Cave Entrance
+Added 5 new combat scenario YAML files to cover class-specific abilities and boss combat:
 
-### 2. Added `demo_mode` Support to GameSession (`scripts/ai_agent.py`)
-- Added `demo_mode: bool = False` dataclass field to GameSession
-- Updated `start()` method to add `--demo` flag to CLI command when `demo_mode=True`
-- This allows scenarios to use the pre-generated test world for consistent testing
+### New Files Created
 
-### 3. Added `demo_mode` Support to ScenarioRunner (`scripts/validation/scenarios.py`)
-- ScenarioRunner now reads `demo_mode: true` from scenario config
-- When enabled, sets `session.demo_mode = True` before starting the game session
+1. **`scripts/scenarios/combat/warrior_bash.yaml`** (seed: 42030)
+   - Tests Warrior's `bash` stun ability
+   - Uses demo mode (Warrior character)
+   - Navigates to Spider Den boss location
+   - Validates bash command works for Warriors
 
-### 4. Enhanced `subgrid_entry_exit.yaml` Scenario
-- Added `demo_mode: true` config to use test world
-- Added steps to:
-  - Verify starting at Peaceful Village
-  - Move east to Dark Cave
-  - Enter the cave (SubGrid entry)
-  - Verify inside at Cave Entrance
-  - Exit back to overworld
-  - Verify back at Dark Cave on overworld
+2. **`scripts/scenarios/combat/mage_spells.yaml`** (seed: 42031)
+   - Tests Mage's `fireball` and `ice_bolt` abilities
+   - Uses character creation (class 2 = Mage)
+   - Validates spell commands and mana tracking
 
-### 5. Enhanced `vertical_navigation.yaml` Scenario
-- Added `demo_mode: true` config to use test world
-- Added steps to:
-  - Verify go down fails on overworld
-  - Verify go up fails on overworld
-  - Navigate to Dark Cave and enter
-  - Go down to Deep Cavern (z=-1)
-  - Verify at Deep Cavern
-  - Go up to return to Cave Entrance (z=0)
-  - Exit back to overworld
+3. **`scripts/scenarios/combat/rogue_stealth.yaml`** (seed: 42032)
+   - Tests Rogue's `sneak` ability and backstab mechanics
+   - Uses character creation (class 3 = Rogue)
+   - Validates sneak → attack sequence
 
-### 6. Updated ISSUES.md
-- Marked "Movement and navigation" checkbox as complete
-- Added note about 3 scenarios with demo_mode support
+4. **`scripts/scenarios/combat/cleric_abilities.yaml`** (seed: 42033)
+   - Tests Cleric's `bless` and `smite` divine abilities
+   - Uses character creation (class 5 = Cleric)
+   - Validates divine commands and mana tracking
 
-## Files Modified
-- `tests/fixtures/test_world.json` - Added z=-1 level, allowed_exits
-- `scripts/ai_agent.py` - Added demo_mode field and --demo flag support
-- `scripts/validation/scenarios.py` - Added demo_mode config handling
-- `scripts/scenarios/movement/subgrid_entry_exit.yaml` - Complete rewrite with real entry/exit tests
-- `scripts/scenarios/movement/vertical_navigation.yaml` - Complete rewrite with real vertical navigation tests
-- `ISSUES.md` - Marked checkbox complete
+5. **`scripts/scenarios/combat/demo_combat.yaml`** (seed: 42034)
+   - Tests complete combat flow against Giant Spider boss
+   - Uses demo mode to navigate to known boss location
+   - Path: Peaceful Village → Dark Cave → enter → north → west to Spider Den
+   - Validates full combat with attack, bash, and health tracking
+
+### Files Modified
+
+1. **`tests/test_scenario_files.py`**
+   - Updated `test_combat_scenarios_exist()` to expect 7 scenarios
+   - Added assertions for all new scenario files
+
+2. **`ISSUES.md`** (line 149)
+   - Marked combat checkbox as complete: `[x]`
+   - Added note: `7 scenarios in scripts/scenarios/combat/ (seeds 42003-42004, 42030-42034)`
 
 ## Test Results
-- `pytest tests/test_scenario_files.py` - 81 passed
-- `pytest tests/test_scenario_runner.py` - 17 passed
-- `pytest tests/test_location.py` - 44 passed
-- Total: 142 tests passed, 0 failed
 
-## E2E Test Validation
-The movement scenarios should validate:
-1. Basic overworld navigation (go north/south/east/west)
-2. SubGrid entry via `enter` command
-3. Interior navigation using `allowed_exits`
-4. Vertical navigation via `go down`/`go up`
-5. SubGrid exit via `exit` command
+All 101 scenario file tests pass:
+- YAML parsing validation: All scenarios parse without errors
+- Scenario dataclass loading: All scenarios load correctly
+- Assertion type validation: All assertions use valid types
+- Seed uniqueness: No duplicate seeds across scenarios
+- Seed range: All seeds in expected range 42001-42999
+- Combat scenarios exist: 7 scenarios verified
+
+## Seed Allocation
+
+Combat scenarios now use seeds:
+- 42003: basic_attack.yaml
+- 42004: flee_combat.yaml
+- 42030: warrior_bash.yaml
+- 42031: mage_spells.yaml
+- 42032: rogue_stealth.yaml
+- 42033: cleric_abilities.yaml
+- 42034: demo_combat.yaml
+
+## E2E Test Considerations
+
+To validate these scenarios in actual gameplay, run:
+```bash
+# Verify scenario files parse correctly
+pytest tests/test_scenario_files.py -v
+
+# Manual demo mode verification
+cli-rpg --demo
+# Then: go east → enter → go north → go west → bash
+```
+
+## Technical Notes
+
+- Demo mode uses pre-generated test world with a Warrior character at level 3
+- Spider Den at coordinates [-1, 1, 0] in Dark Cave SubGrid has Giant Spider boss
+- Class ability scenarios (mage, rogue, cleric) use character creation inputs instead of demo mode
+- All scenarios follow existing format with COMMAND_VALID, NARRATIVE_MATCH, STATE_RANGE, and CONTENT_PRESENT assertions

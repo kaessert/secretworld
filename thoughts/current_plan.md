@@ -1,65 +1,104 @@
-# Implementation Plan: Complete Movement/Navigation Scenario Validation
+# Implementation Plan: Complete Combat Validation Scenarios
 
 ## Summary
-Complete the movement/navigation scenarios so the checkbox in ISSUES.md can be marked done. The existing scenarios are incomplete - they don't actually test SubGrid entry/exit or vertical navigation inside dungeons.
+Add missing combat scenarios (abilities, stealth kills, companion combat) to complete the combat validation feature. The existing `basic_attack.yaml` and `flee_combat.yaml` scenarios only test basic commands - they don't exercise class-specific abilities or advanced combat mechanics.
 
 ## Current State
-- 3 movement scenarios exist: `basic_navigation.yaml`, `subgrid_entry_exit.yaml`, `vertical_navigation.yaml`
-- Static validation tests pass (scenario file parsing)
-- **Gap 1**: `subgrid_entry_exit.yaml` never uses `enter` or `exit` commands
-- **Gap 2**: `vertical_navigation.yaml` only tests failure on overworld, never success inside SubGrid
-- **Gap 3**: Test world fixture (`tests/fixtures/test_world.json`) has SubGrid with only z=0 level (no multi-level for vertical testing)
+- 2 combat scenarios exist: `basic_attack.yaml` (seed 42003), `flee_combat.yaml` (seed 42004)
+- Both scenarios randomly wander hoping to trigger combat, with minimal assertions
+- **Missing coverage**:
+  - Class abilities: `bash` (Warrior), `fireball`/`ice_bolt` (Mage), `sneak` (Rogue), `bless`/`smite` (Cleric)
+  - Stealth kills: Rogue `sneak` → `attack` backstab mechanic
+  - Companion combat: Ranger animal companion attacks during combat
+- Demo mode (`demo_mode: true`) can use test world fixture which has a boss (`Giant Spider`) at known location
 
 ## Implementation Steps
 
-### 1. Update test world fixture to support vertical navigation
-**File**: `tests/fixtures/test_world.json`
-- Add z=-1 level locations to the Dark Cave SubGrid
-- Add `allowed_exits` connections between rooms (including "down" and "up")
-- Ensure Cave Entrance connects to a lower level room
+### 1. Create `warrior_bash.yaml` scenario (seed: 42030)
+**File**: `scripts/scenarios/combat/warrior_bash.yaml`
+- Use `demo_mode: true` with Warrior character
+- Navigate to Dark Cave SubGrid and find enemy
+- Test `bash` command with assertions for:
+  - COMMAND_VALID: bash is recognized
+  - NARRATIVE_MATCH: output mentions "stun" or damage
 
-### 2. Enhance `subgrid_entry_exit.yaml` scenario
-**File**: `scripts/scenarios/movement/subgrid_entry_exit.yaml`
-- Use `demo_mode: true` config to load test world with known enterable location
-- Add step to move to Dark Cave location (go east from Peaceful Village at [0,0] to [1,0])
-- Add step: `enter` command to enter the cave
-- Add assertion: verify we're inside via narrative containing "Cave"
-- Add step: `exit` command to return to overworld
-- Add assertion: verify we're back on overworld
+### 2. Create `mage_spells.yaml` scenario (seed: 42031)
+**File**: `scripts/scenarios/combat/mage_spells.yaml`
+- Character creation for Mage class (class 2)
+- Navigate to trigger combat
+- Test `fireball` and `ice_bolt` commands with assertions for:
+  - COMMAND_VALID: spells are recognized
+  - STATE_RANGE: mana decreases after casting
 
-### 3. Enhance `vertical_navigation.yaml` scenario
-**File**: `scripts/scenarios/movement/vertical_navigation.yaml`
-- Use `demo_mode: true` config to load updated test world
-- Keep existing steps that test overworld failure
-- Add steps to navigate to Dark Cave and enter
-- Add step: `go down` inside the cave
-- Add assertion: verify successful movement via narrative
-- Add step: `go up` to return
-- Add assertion: verify successful movement via narrative
+### 3. Create `rogue_stealth.yaml` scenario (seed: 42032)
+**File**: `scripts/scenarios/combat/rogue_stealth.yaml`
+- Character creation for Rogue class (class 3)
+- Navigate to trigger combat
+- Test `sneak` → `attack` sequence with assertions for:
+  - COMMAND_VALID: sneak is recognized
+  - NARRATIVE_MATCH: output mentions "backstab" or "stealth"
 
-### 4. Add demo mode support to ScenarioRunner
-**File**: `scripts/validation/scenarios.py`
-- Check for `demo_mode: true` in scenario config
-- When `demo_mode: true`, add `--demo` flag to GameSession command
-- This ensures test world is loaded instead of random generation
+### 4. Create `cleric_abilities.yaml` scenario (seed: 42033)
+**File**: `scripts/scenarios/combat/cleric_abilities.yaml`
+- Character creation for Cleric class (class 5)
+- Navigate to trigger combat
+- Test `bless` and `smite` commands with assertions for:
+  - COMMAND_VALID: abilities are recognized
+  - STATE_RANGE: mana decreases after casting
 
-### 5. Update GameSession to support demo mode flag
-**File**: `scripts/ai_agent.py`
-- Add `demo_mode: bool = False` parameter to `GameSession.__init__`
-- When `demo_mode=True`, add `--demo` to command line args in `start()`
+### 5. Create `demo_combat.yaml` scenario (seed: 42034)
+**File**: `scripts/scenarios/combat/demo_combat.yaml`
+- Use `demo_mode: true` to load test world
+- Navigate to Dark Cave → Spider Den (boss location) at [-1, 1, 0]
+- Path: go east (to Dark Cave) → enter → go north → go west
+- Test combat against Giant Spider boss
+- Assertions for complete combat flow (attack, damage, victory)
 
-### 6. Update ISSUES.md to mark movement checkbox complete
-**File**: `ISSUES.md`
-- Change `[ ] Movement and navigation` to `[x] Movement and navigation`
+### 6. Update `test_scenario_files.py` to verify new scenarios
+**File**: `tests/test_scenario_files.py`
+- Update `test_combat_scenarios_exist` to expect 7 scenarios (not 2)
+- Add specific checks for new scenario files
+
+### 7. Update ISSUES.md combat checkbox
+**File**: `ISSUES.md` (line 149)
+- Change `[ ] Combat (attack, abilities, flee, stealth kills, companion combat)` to `[x] Combat ...`
+- Add note about scenarios: `- 7 scenarios in scripts/scenarios/combat/ (seeds 42003-42004, 42030-42034)`
+
+## Scenario Format Reference
+```yaml
+scenario:
+  name: "Scenario Name"
+  description: "Description"
+  seed: 42030
+  config:
+    max_commands: 30
+    timeout: 90
+    demo_mode: true  # OR character_creation_inputs for class-specific
+    character_creation_inputs:  # Only for non-demo mode
+      - "CharacterName"
+      - "2"  # Class: 1=Warrior, 2=Mage, 3=Rogue, 4=Ranger, 5=Cleric
+      - "2"  # Random stats
+      - "yes"
+  setup:
+    - "dump_state"
+  steps:
+    - command: "attack"
+      assertions:
+        - type: COMMAND_VALID
+          field: ""
+          value: true
+          message: "Attack should be valid"
+```
 
 ## Test Verification
 ```bash
-# Run scenario file tests
+# Run scenario file validation tests
+pytest tests/test_scenario_files.py::TestCombatScenarios -v
+
+# Run all scenario file tests
 pytest tests/test_scenario_files.py -v
 
-# Run scenario runner tests
-pytest tests/test_scenario_runner.py -v
-
-# Verify test world loads correctly
-python -c "from cli_rpg.test_world import create_demo_game_state; gs = create_demo_game_state(); print('OK')"
+# Verify demo mode combat works
+cli-rpg --demo
+# Then: go east → enter → go north → go west → attack
 ```
