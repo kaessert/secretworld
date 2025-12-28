@@ -1021,7 +1021,8 @@ class GameState:
     def _move_in_sub_grid(self, direction: str) -> tuple[bool, str]:
         """Handle movement within a sub-location grid.
 
-        Uses 3D coordinate-based movement within the sub-grid bounds.
+        Uses allowed_exits from procedural generation when available.
+        Falls back to 3D coordinate-based movement within the sub-grid bounds.
         Supports up/down movement for multi-level dungeons and towers.
 
         Args:
@@ -1046,20 +1047,72 @@ class GameState:
         if current.coordinates is None:
             return (False, "Cannot navigate - location has no coordinates.")
 
-        dx, dy, dz = SUBGRID_DIRECTION_OFFSETS[direction]
         # Get current z-coordinate (support both 2D and 3D locations)
         x, y = current.coordinates[:2]
         z = current.coordinates[2] if len(current.coordinates) > 2 else 0
-        target_coords = (x + dx, y + dy, z + dz)
 
-        # Check bounds
-        if not self.current_sub_grid.is_within_bounds(*target_coords):
-            if dz != 0:
-                return (False, "There's no way to go that direction.")
-            return (False, "You can't go that way - you've reached the edge of this area.")
+        destination = None
 
-        # Find location at target coordinates
-        destination = self.current_sub_grid.get_by_coordinates(*target_coords)
+        # Strategy 1: Use allowed_exits for procedurally-generated rooms
+        # This handles BSP-generated dungeons where rooms aren't at adjacent coordinates
+        if current.allowed_exits and direction in current.allowed_exits:
+            # Find connected room by looking for one with opposite direction in allowed_exits
+            opposite = {
+                "north": "south", "south": "north",
+                "east": "west", "west": "east",
+                "up": "down", "down": "up",
+            }[direction]
+
+            # Search all rooms in SubGrid for one that connects back
+            # Prioritize by distance (closest room in the right direction)
+            candidates = []
+            for loc in self.current_sub_grid._by_name.values():
+                if loc.name == current.name:
+                    continue
+                if opposite not in loc.allowed_exits:
+                    continue
+                if not loc.coordinates:
+                    continue
+
+                loc_x, loc_y = loc.coordinates[:2]
+                loc_z = loc.coordinates[2] if len(loc.coordinates) > 2 else 0
+
+                # Verify the room is in the correct relative position
+                # and add to candidates with distance for sorting
+                dx, dy, dz = loc_x - x, loc_y - y, loc_z - z
+                dist = abs(dx) + abs(dy) + abs(dz)
+
+                if direction == "north" and dy > 0 and loc_z == z:
+                    candidates.append((dist, loc))
+                elif direction == "south" and dy < 0 and loc_z == z:
+                    candidates.append((dist, loc))
+                elif direction == "east" and dx > 0 and loc_z == z:
+                    candidates.append((dist, loc))
+                elif direction == "west" and dx < 0 and loc_z == z:
+                    candidates.append((dist, loc))
+                elif direction == "up" and dz > 0:
+                    candidates.append((dist, loc))
+                elif direction == "down" and dz < 0:
+                    candidates.append((dist, loc))
+
+            # Pick closest candidate
+            if candidates:
+                candidates.sort(key=lambda c: c[0])
+                destination = candidates[0][1]
+
+        # Strategy 2: Fallback to coordinate-based lookup (for older saves or cellular automata)
+        if destination is None:
+            dx, dy, dz = SUBGRID_DIRECTION_OFFSETS[direction]
+            target_coords = (x + dx, y + dy, z + dz)
+
+            # Check bounds
+            if not self.current_sub_grid.is_within_bounds(*target_coords):
+                if dz != 0:
+                    return (False, "There's no way to go that direction.")
+                return (False, "You can't go that way - you've reached the edge of this area.")
+
+            # Find location at target coordinates
+            destination = self.current_sub_grid.get_by_coordinates(*target_coords)
 
         if destination is None:
             return (False, "The path is blocked by a wall.")

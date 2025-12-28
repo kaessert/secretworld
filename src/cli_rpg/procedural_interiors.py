@@ -1195,6 +1195,12 @@ CATEGORY_GENERATORS: dict[str, str] = {
     "tavern": "SingleRoomGenerator",
     "shop": "SingleRoomGenerator",
     "inn": "SingleRoomGenerator",
+    # Wilderness POIs (small explorable areas)
+    "grove": "SingleRoomGenerator",
+    "waystation": "SingleRoomGenerator",
+    "campsite": "SingleRoomGenerator",
+    "hollow": "SingleRoomGenerator",
+    "overlook": "SingleRoomGenerator",
 }
 
 

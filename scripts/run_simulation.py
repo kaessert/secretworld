@@ -13,10 +13,16 @@ Examples:
 """
 import argparse
 import json
+import os
 import random
 import sys
 import time
 from pathlib import Path
+
+from dotenv import load_dotenv
+
+# Load .env file from project root (search from script location, not CWD)
+load_dotenv()
 
 # Add parent to path for imports
 sys.path.insert(0, str(Path(__file__).parent.parent))
@@ -80,8 +86,23 @@ Examples:
         action="store_true",
         help="Run indefinitely (ignore max-commands, use Ctrl+C to stop)"
     )
+    parser.add_argument(
+        "--with-ai",
+        action="store_true",
+        help="Require real AI generation (fails if no API key found)"
+    )
 
     args = parser.parse_args()
+
+    # Validate API key if --with-ai is specified
+    if args.with_ai:
+        if not (os.getenv("OPENAI_API_KEY") or os.getenv("ANTHROPIC_API_KEY")):
+            print(
+                "Error: --with-ai requires OPENAI_API_KEY or ANTHROPIC_API_KEY "
+                "in environment or .env file"
+            )
+            return 1
+        print(f"AI Provider: {os.getenv('AI_PROVIDER', 'auto-detect')}")
 
     # Use random seed if not specified
     seed = args.seed if args.seed is not None else random.randint(0, 2**31 - 1)

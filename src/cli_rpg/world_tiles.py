@@ -343,7 +343,28 @@ ENTERABLE_CATEGORIES: frozenset = frozenset({
     "monastery", "shrine",  # Sacred/ancient locations
     "town", "village", "city", "settlement", "outpost", "camp",  # Settlements
     "tavern", "shop", "inn",  # Commercial buildings
+    # Wilderness POIs (small explorable areas)
+    "grove",       # Forest clearing with druid/hermit
+    "waystation",  # Mountain/road rest stop
+    "campsite",    # Wilderness camp
+    "hollow",      # Hidden forest area
+    "overlook",    # Scenic viewpoint with structure
 })
+
+
+# Maps non-enterable categories to appropriate enterable alternatives
+# Used when a named location has a non-enterable category
+WILDERNESS_ENTERABLE_FALLBACK: Dict[str, str] = {
+    "forest": "grove",       # Forest -> grove clearing
+    "wilderness": "campsite",  # Generic wilderness -> campsite
+    "mountain": "waystation",  # Mountain -> waystation
+    "desert": "campsite",    # Desert -> oasis campsite
+    "swamp": "hollow",       # Swamp -> hidden hollow
+    "beach": "campsite",     # Beach -> coastal campsite
+    "plains": "waystation",  # Plains -> road waystation
+    "hills": "overlook",     # Hills -> scenic overlook
+    "foothills": "waystation",  # Foothills -> mountain waystation
+}
 
 
 def is_enterable_category(category: Optional[str]) -> bool:
@@ -358,6 +379,39 @@ def is_enterable_category(category: Optional[str]) -> bool:
     if category is None:
         return False
     return category.lower() in ENTERABLE_CATEGORIES
+
+
+def get_enterable_category(category: Optional[str], terrain: Optional[str] = None) -> str:
+    """Get an enterable category, converting non-enterable if needed.
+
+    If category is already enterable, returns it unchanged.
+    If category is not enterable, uses terrain-based fallback.
+    If no fallback found, defaults to "campsite".
+
+    Args:
+        category: Location category (may be non-enterable)
+        terrain: Terrain type for fallback selection
+
+    Returns:
+        An enterable category string
+    """
+    if category is not None and is_enterable_category(category):
+        return category
+
+    # Try terrain-based fallback
+    if terrain is not None:
+        fallback = WILDERNESS_ENTERABLE_FALLBACK.get(terrain.lower())
+        if fallback:
+            return fallback
+
+    # Try category as terrain fallback
+    if category is not None:
+        fallback = WILDERNESS_ENTERABLE_FALLBACK.get(category.lower())
+        if fallback:
+            return fallback
+
+    # Default fallback
+    return "campsite"
 
 
 # Location types that can spawn on each terrain

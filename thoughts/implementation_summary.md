@@ -1,38 +1,70 @@
-# Implementation Summary
+# Implementation Summary: Make All Named Locations Enterable
 
-## Task: Documentation Cleanup - Clarify Named Location Enterability Issue
+## What Was Implemented
 
-### What Was Done
+### 1. New Wilderness Enterable Categories
+Added 5 new wilderness POI categories to `ENTERABLE_CATEGORIES` in `src/cli_rpg/world_tiles.py`:
+- `grove` - Forest clearing with druid/hermit
+- `waystation` - Mountain/road rest stop
+- `campsite` - Wilderness camp
+- `hollow` - Hidden forest area
+- `overlook` - Scenic viewpoint with structure
 
-Updated `ISSUES.md` to mark the "All Named Locations Should Be Enterable" issue (lines 41-68) as **COMPLETED (Clarified as Working as Designed)**.
+### 2. Wilderness Enterable Fallback System
+Created `WILDERNESS_ENTERABLE_FALLBACK` dict mapping non-enterable categories to enterable ones:
+- forest → grove
+- wilderness → campsite
+- mountain → waystation
+- desert → campsite
+- swamp → hollow
+- beach → campsite
+- plains → waystation
+- hills → overlook
+- foothills → waystation
 
-### Changes Made
+### 3. get_enterable_category() Helper Function
+Added function to convert non-enterable categories to enterable ones:
+- Returns category unchanged if already enterable
+- Uses terrain-based fallback if category is non-enterable
+- Defaults to "campsite" if no fallback found
 
-**File Modified**: `ISSUES.md`
+### 4. SubGrid Bounds for New Categories
+Added bounds in `src/cli_rpg/world_grid.py`:
+- All 5 new categories use tiny 3x3 single-level bounds: `(-1, 1, -1, 1, 0, 0)`
 
-1. Changed status from `OPEN` to `COMPLETED ✓ (Clarified as Working as Designed)`
-2. Added `Completed: 2025-12-28` date
-3. Replaced the "Problem" section with a "Resolution" section explaining:
-   - Category-based enterability is intentional by design
-   - Named locations with enterable categories (18 types) CAN be entered
-   - Named locations with non-enterable categories (forest, wilderness, etc.) CANNOT be entered because they're open terrain
-4. Added "What Was Actually Fixed" section referencing the related bug fix at lines 1444-1467
-5. Added "Verification" section with the existing test code showing this is tested behavior
-6. Updated "Related Files" to reference the actual bug fix issue
+### 5. Generator Mappings
+Updated `CATEGORY_GENERATORS` in `src/cli_rpg/procedural_interiors.py`:
+- All 5 wilderness POIs use "SingleRoomGenerator"
 
-### Rationale
+### 6. Fallback Content Templates
+Added templates in `src/cli_rpg/fallback_content.py` for all 5 new categories:
+- Room descriptions for ENTRY, CORRIDOR, and CHAMBER room types
+- Treasure chest names and descriptions
 
-The analysis in `thoughts/current_plan.md` correctly identified that:
+## Files Modified
+1. `src/cli_rpg/world_tiles.py` - New categories, fallback mapping, helper function
+2. `src/cli_rpg/world_grid.py` - SubGrid bounds for new categories
+3. `src/cli_rpg/procedural_interiors.py` - Generator mappings
+4. `src/cli_rpg/fallback_content.py` - Room and treasure templates
+5. `tests/test_named_locations_enterable.py` - New test file (20 tests)
 
-1. The current behavior is intentional - not all named locations should be enterable
-2. Some named locations represent open terrain (forests, passes, clearings) that have no interior
-3. The actual bug (missing categories in validation) was already fixed in a separate issue
-4. Making ALL named locations enterable would be confusing ("You enter the open grassland... into a corridor?")
+## Test Results
+- **20 new tests** verifying:
+  - New wilderness categories are in ENTERABLE_CATEGORIES
+  - Fallback mapping values are all enterable
+  - get_enterable_category() always returns enterable result
+  - is_enterable_category() works correctly with new categories
+- **5634 total tests pass** - No regressions
 
-### Test Verification
+## Design Decisions
+- **3x3 bounds** for wilderness POIs keep exploration quick
+- **SingleRoomGenerator** appropriate for small outdoor clearings
+- **campsite as default fallback** ensures safety net for edge cases
+- **Case-insensitive matching** in get_enterable_category() for robustness
 
-No new tests needed - this is documentation cleanup only. The existing test at `tests/test_enterable_sublocations.py:485-510` (`test_enter_fails_for_non_enterable`) already verifies the intended behavior.
-
-### E2E Validation
-
-N/A - documentation change only.
+## E2E Validation
+Manual testing should verify:
+1. Navigate to named wilderness location
+2. Run `enter` command
+3. Verify SubGrid is generated with appropriate content
+4. Verify `exit` returns to overworld

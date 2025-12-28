@@ -174,6 +174,32 @@ ROOM_DESCRIPTIONS: dict[RoomType, dict[str, list[str]]] = {
             "The innkeeper waves from behind the counter.",
             "Weary travelers rest in the inn's common room.",
         ],
+        # Wilderness POI categories
+        "grove": [
+            "A small clearing opens in the forest canopy.",
+            "Ancient trees form a natural archway into the grove.",
+            "Dappled sunlight filters through the leaves above.",
+        ],
+        "waystation": [
+            "A simple shelter offers respite from travel.",
+            "A weathered signpost marks this waystation.",
+            "Travelers have left marks on the waystation walls.",
+        ],
+        "campsite": [
+            "The remains of a campfire mark this resting spot.",
+            "A cleared area provides shelter from the elements.",
+            "Signs of previous camps dot this location.",
+        ],
+        "hollow": [
+            "A hidden depression in the terrain opens before you.",
+            "Thick vegetation conceals this secluded hollow.",
+            "The hollow feels strangely protected from the outside.",
+        ],
+        "overlook": [
+            "A scenic viewpoint reveals the lands below.",
+            "Rocky outcrops form a natural viewing platform.",
+            "The wind carries distant sounds to this overlook.",
+        ],
         "default": [
             "The entrance to this place. Adventure awaits within.",
             "A threshold beckons you forward.",
@@ -276,6 +302,32 @@ ROOM_DESCRIPTIONS: dict[RoomType, dict[str, list[str]]] = {
             "Worn carpet runs along the inn corridor.",
             "Doors to guest rooms line the passage.",
         ],
+        # Wilderness POI categories
+        "grove": [
+            "A winding path leads between ancient trees.",
+            "Ferns brush against you as you walk the trail.",
+            "Roots crisscross the forest floor.",
+        ],
+        "waystation": [
+            "A covered walkway connects the waystation areas.",
+            "Cobblestones mark the path between shelters.",
+            "Traveler's graffiti decorates the passage walls.",
+        ],
+        "campsite": [
+            "A worn path circles the central campfire.",
+            "Gear and supplies line the campsite path.",
+            "Footprints mark well-trodden routes through camp.",
+        ],
+        "hollow": [
+            "A narrow trail winds deeper into the hollow.",
+            "Overhanging branches form a natural tunnel.",
+            "The path descends further into the secluded area.",
+        ],
+        "overlook": [
+            "A rocky path leads along the overlook's edge.",
+            "Stone steps carved into the cliff face.",
+            "The trail offers glimpses of the vista below.",
+        ],
         "default": [
             "A connecting passage leading deeper into the structure.",
             "The corridor stretches onward.",
@@ -377,6 +429,32 @@ ROOM_DESCRIPTIONS: dict[RoomType, dict[str, list[str]]] = {
             "A guest room offers rest to weary travelers.",
             "The inn's common room is warm and welcoming.",
             "A private suite provides luxury accommodation.",
+        ],
+        # Wilderness POI categories
+        "grove": [
+            "A peaceful clearing surrounded by ancient trees.",
+            "Wildflowers carpet the grove floor.",
+            "A natural spring bubbles up from the ground.",
+        ],
+        "waystation": [
+            "A simple rest area with basic amenities.",
+            "Storage for travelers' supplies fills the room.",
+            "A small hearth provides warmth to weary travelers.",
+        ],
+        "campsite": [
+            "A sheltered area with a fire pit at center.",
+            "Sleeping areas have been prepared around the camp.",
+            "Supplies and equipment are stored here.",
+        ],
+        "hollow": [
+            "A secluded space hidden from the outside world.",
+            "Moss covers the rocks in this sheltered hollow.",
+            "The air is still and quiet in this hidden place.",
+        ],
+        "overlook": [
+            "A flat platform offering panoramic views.",
+            "Wind-carved rocks create natural seating.",
+            "The vista stretches to the distant horizon.",
         ],
         "default": [
             "A spacious room with signs of ancient habitation.",
@@ -884,6 +962,12 @@ TREASURE_CHEST_NAMES: dict[str, list[str]] = {
     "ruins": ["Ancient Chest", "Ruined Coffer", "Gilded Box"],
     "temple": ["Sacred Chest", "Offering Box", "Blessed Container"],
     "forest": ["Mossy Chest", "Hollow Log Cache", "Vine-Covered Box"],
+    # Wilderness POI categories
+    "grove": ["Root Cache", "Druid's Box", "Hidden Hollow"],
+    "waystation": ["Traveler's Chest", "Supply Crate", "Wayside Cache"],
+    "campsite": ["Supply Chest", "Camp Stash", "Abandoned Pack"],
+    "hollow": ["Concealed Box", "Hidden Stash", "Secret Cache"],
+    "overlook": ["Stone Cache", "Windswept Chest", "Lookout Stash"],
     "default": ["Treasure Chest", "Wooden Chest", "Old Coffer"],
 }
 
@@ -912,6 +996,32 @@ TREASURE_CHEST_DESCRIPTIONS: dict[str, list[str]] = {
         "A chest concealed by overgrown vegetation.",
         "A mossy container hidden beneath roots.",
         "A cache tucked away in a hollow tree.",
+    ],
+    # Wilderness POI categories
+    "grove": [
+        "A chest nestled among gnarled tree roots.",
+        "A box hidden beneath a canopy of leaves.",
+        "A cache left by forest dwellers.",
+    ],
+    "waystation": [
+        "A chest left by passing travelers.",
+        "A supply crate forgotten by merchants.",
+        "A cache tucked under a wayside bench.",
+    ],
+    "campsite": [
+        "A chest abandoned by previous campers.",
+        "A supply stash near the fire pit.",
+        "Gear left behind by travelers.",
+    ],
+    "hollow": [
+        "A box concealed in the shadowy hollow.",
+        "A stash hidden deep in the secluded space.",
+        "A cache protected by thick underbrush.",
+    ],
+    "overlook": [
+        "A chest wedged between weathered rocks.",
+        "A cache overlooking the vista below.",
+        "A box left by previous visitors.",
     ],
     "default": [
         "A mysterious treasure chest.",

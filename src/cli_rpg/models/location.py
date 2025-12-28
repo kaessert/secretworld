@@ -62,6 +62,7 @@ class Location:
     blocked_directions: List[str] = field(default_factory=list)  # Directions blocked by puzzles
     hazards: List[str] = field(default_factory=list)  # Environmental hazards (poison_gas, darkness, etc.)
     environmental_details: List[str] = field(default_factory=list)  # Environmental storytelling (corpses, bloodstains, journals)
+    allowed_exits: List[str] = field(default_factory=list)  # Explicit exits from procedural generation (overrides coordinate-based lookup)
 
     def __post_init__(self) -> None:
         """Validate location attributes after initialization."""
@@ -97,20 +98,23 @@ class Location:
         world: Optional[dict] = None,
         sub_grid: Optional["SubGrid"] = None,
     ) -> list[str]:
-        """Get available exit directions based on adjacent locations.
+        """Get available exit directions based on adjacent locations or allowed_exits.
 
-        Checks neighboring coordinates for locations. Requires either a world dict
-        or sub_grid to perform coordinate lookups.
+        For SubGrid (interior navigation):
+            If allowed_exits is set (from procedural generation), uses those directly.
+            This handles cases where rooms are not at adjacent coordinates but are
+            connected via corridors/passages defined in the procedural layout.
+            Falls back to coordinate-based lookup if allowed_exits is empty.
 
-        For SubGrid (interior navigation), includes vertical directions (up/down)
-        when adjacent locations exist at different z-levels.
+        For overworld navigation:
+            Checks neighboring coordinates for locations.
 
         Args:
             world: Optional world dict mapping names to Locations (for overworld)
             sub_grid: Optional SubGrid instance (for interior navigation)
 
         Returns:
-            A sorted list of direction names with adjacent locations
+            A sorted list of direction names with available exits
         """
         if self.coordinates is None:
             return []
@@ -120,7 +124,15 @@ class Location:
         z = self.coordinates[2] if len(self.coordinates) > 2 else 0
 
         if sub_grid is not None:
-            # 3D navigation for SubGrid (includes up/down)
+            # For SubGrid navigation: use allowed_exits if set (from procedural generation)
+            if self.allowed_exits:
+                # Use explicit exits from procedural generator
+                # Filter out blocked directions (from puzzles) and add temporary exits
+                directions = [d for d in self.allowed_exits if d not in self.blocked_directions]
+                directions.extend(d for d in self.temporary_exits if d not in directions)
+                return sorted(directions)
+
+            # Fallback: 3D coordinate-based navigation for SubGrid
             offsets_3d = {
                 "north": (0, 1, 0),
                 "south": (0, -1, 0),
@@ -416,6 +428,8 @@ class Location:
             data["hazards"] = self.hazards.copy()
         if self.environmental_details:
             data["environmental_details"] = self.environmental_details.copy()
+        if self.allowed_exits:
+            data["allowed_exits"] = self.allowed_exits.copy()
         return data
     
     @classmethod
@@ -488,6 +502,8 @@ class Location:
         hazards = data.get("hazards", [])
         # Parse environmental_details if present (backward compatibility)
         environmental_details = data.get("environmental_details", [])
+        # Parse allowed_exits if present (backward compatibility)
+        allowed_exits = data.get("allowed_exits", [])
         # Note: Legacy 'connections' field is ignored if present (backward compatibility)
         return cls(
             name=data["name"],
@@ -518,6 +534,7 @@ class Location:
             blocked_directions=blocked_directions,
             hazards=hazards,
             environmental_details=environmental_details,
+            allowed_exits=allowed_exits,
         )
     
     def __str__(self) -> str:

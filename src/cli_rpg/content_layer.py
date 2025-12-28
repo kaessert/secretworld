@@ -178,13 +178,14 @@ class ContentLayer:
             rng=rng,
         )
 
-        # Create base location
+        # Create base location with explicit exits from procedural generation
         location = Location(
             name=name,
             description=description,
             category=category,
             is_exit_point=template.is_entry,
             is_overworld=False,  # Interior locations are not overworld
+            allowed_exits=template.connections.copy(),  # Transfer procedural connections
         )
 
         # Apply room-type-specific content

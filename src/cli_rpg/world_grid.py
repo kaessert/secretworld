@@ -66,6 +66,12 @@ SUBGRID_BOUNDS: Dict[str, Tuple[int, int, int, int, int, int]] = {
     "house": (-1, 1, -1, 1, 0, 0),        # single level
     "shop": (-1, 1, -1, 1, 0, 0),         # single level
     "inn": (-1, 1, -1, 1, 0, 1),          # main floor + upstairs
+    # Tiny (3x3) - Wilderness POIs
+    "grove": (-1, 1, -1, 1, 0, 0),        # Forest clearing
+    "waystation": (-1, 1, -1, 1, 0, 0),   # Road rest stop
+    "campsite": (-1, 1, -1, 1, 0, 0),     # Wilderness camp
+    "hollow": (-1, 1, -1, 1, 0, 0),       # Hidden area
+    "overlook": (-1, 1, -1, 1, 0, 0),     # Viewpoint
     # Small (5x5) - Medium structures
     "tavern": (-2, 2, -2, 2, 0, 1),       # main floor + upstairs
     "shrine": (-2, 2, -2, 2, 0, 0),       # single level
