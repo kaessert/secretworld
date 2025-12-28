@@ -664,11 +664,23 @@ Created QuestNetworkManager for managing interconnected quest storylines.
 ---
 
 ### Issue 27: Dungeon Ambiance System
-**Status**: PARTIAL ✓
+**Status**: COMPLETED ✓
 **Priority**: P3
-**Updated**: 2025-12-28 (Increment 2)
+**Completed**: 2025-12-28
 
 **Problem**: Dungeons have limited atmospheric feedback beyond static descriptions.
+
+**Implementation (Increment 3 - Ambient Sounds):**
+- `src/cli_rpg/ambient_sounds.py` - New module with ambient sound system:
+  - `AmbientSoundService` class: Manages ambient sound triggers with cooldown tracking
+  - `CATEGORY_SOUNDS`: Category-specific sound pools (8-10 sounds each for dungeon, cave, ruins, temple)
+  - `DEPTH_SOUNDS`: Increasingly ominous sounds for deeper z-levels (-1, -2, -3+)
+  - `AMBIENT_SOUND_CHANCE = 0.15`: 15% base chance per move
+  - `DEPTH_SOUND_CHANCE_BONUS = 0.05`: +5% per depth level
+  - `SOUND_COOLDOWN_MOVES = 3`: Minimum moves between sounds
+  - `format_ambient_sound()`: Formats sounds with `[Sound]:` prefix and blue ANSI color
+- `src/cli_rpg/game_state.py` - Integrated `ambient_sound_service` with sound checks in `_move_in_sub_grid()`
+- 18 new tests in `tests/test_ambient_sounds.py`
 
 **Implementation (Increment 1 - Depth-Based Whispers):**
 - `src/cli_rpg/whisper.py` - Expanded whisper system:
@@ -692,18 +704,20 @@ Created QuestNetworkManager for managing interconnected quest storylines.
 - 9 tests in `tests/test_undead_night_effects.py`
 
 **Acceptance Criteria:**
-- [ ] **Ambient sounds**: Dripping water, distant screams
+- [x] **Ambient sounds**: Category-specific sounds (dripping water, rattling chains, distant screams) with depth-based ominous sounds
 - [x] **Progressive dread**: Deeper levels increase dread faster (up to 2x at z≤-3)
 - [x] **Environmental storytelling**: Corpses, bloodstains, journals (completed - see environmental_storytelling.py)
-- [ ] **Weather penetration**: Rain sounds near cave entrance
+- [ ] **Weather penetration**: Rain sounds near cave entrance (deferred - future enhancement)
 - [x] **Day/night effects**: Undead more active at night (+50% encounter rate, +20% attack, +10% health during 18:00-5:59)
 - [x] **Location-specific whispers**: Dungeon whispers differ from forest (8+ templates per category, new temple category)
 
 **Related Files:**
+- `src/cli_rpg/ambient_sounds.py`
 - `src/cli_rpg/whisper.py`
 - `src/cli_rpg/models/location.py`
 - `src/cli_rpg/game_state.py`
 - `src/cli_rpg/models/dread.py`
+- `tests/test_ambient_sounds.py`
 
 ---
 
@@ -722,7 +736,7 @@ Created QuestNetworkManager for managing interconnected quest storylines.
 **Phase 5 - Dynamic Polish (P3)** - Issues 25-27
 - ✓ Interior events - cave-ins, monster migrations, rival adventurers, rituals, spreading hazards (Issue 25 complete)
 - ✓ Environmental hazards (Issue 26 complete)
-- ✓ Ambiance system - depth whispers & progressive dread (Issue 27 partial)
+- ✓ Ambiance system - depth whispers, progressive dread, ambient sounds (Issue 27 complete)
 
 ### AI Content Generation (Remaining)
 

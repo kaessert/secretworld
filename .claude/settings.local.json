@@ -25,7 +25,8 @@
       "Bash(1 <<'EOF'\nlook\nstatus\ntalk Town Elder\nbye\ntalk Merchant\nshop\nbye\ngo north\nlook\ntalk Elara\nbye\ngo east\nlook\ngo south\nlook\nattack\nattack\nattack\nattack\nstatus\nEOF)",
       "Bash(1 <<'EOF'\ntravel Enchanted Vale\ntalk Eldora\naccept\nbye\ntalk Aurelia\naccept\nbye\nquests\ngo north\ngo north\nlook\ntalk\ngo east\ngo east\nlook\nsearch\nEOF)",
       "Bash(wc:*)",
-      "Bash(/dev/null <<'EOF'\nwarrior\nDungeonSeeker\nlook\nmap\nEOF)"
+      "Bash(/dev/null <<'EOF'\nwarrior\nDungeonSeeker\nlook\nmap\nEOF)",
+      "Bash(source:*)"
     ]
   }
 }

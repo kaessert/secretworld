@@ -34,6 +34,7 @@ from cli_rpg.autosave import autosave
 from cli_rpg import colors
 from cli_rpg.whisper import WhisperService, display_whisper
 from cli_rpg.companion_banter import CompanionBanterService, format_banter
+from cli_rpg.ambient_sounds import AmbientSoundService, format_ambient_sound
 from cli_rpg.random_encounters import check_for_random_encounter
 from cli_rpg.shadow_creature import check_and_trigger_shadow_attack
 from cli_rpg.hallucinations import check_for_hallucination, DREAD_REDUCTION_ON_DISPEL
@@ -283,6 +284,7 @@ class GameState:
         self.current_npc: Optional[NPC] = None  # NPC being talked to (for accept command)
         self.whisper_service = WhisperService(ai_service=ai_service)
         self.banter_service = CompanionBanterService()  # Companion banter during travel
+        self.ambient_sound_service = AmbientSoundService()  # Ambient sounds in SubGrids
         self.game_time = GameTime()  # Day/night cycle tracking
         self.weather = Weather()  # Weather system tracking
         self.choices: list[dict] = []  # Echo choices: tracking significant player decisions
@@ -1079,6 +1081,15 @@ class GameState:
         if whisper:
             print()  # Blank line for spacing before whisper
             display_whisper(whisper)
+
+        # Check for ambient sound (SubGrid only)
+        ambient = self.ambient_sound_service.get_ambient_sound(
+            category=destination.category or "dungeon",
+            depth=dest_z,
+        )
+        if ambient:
+            print()  # Blank line for spacing before sound
+            print(format_ambient_sound(ambient))
 
         # Progress interior events (clear expired cave-ins)
         from cli_rpg.interior_events import (

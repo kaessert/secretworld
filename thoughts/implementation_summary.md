@@ -1,76 +1,46 @@
-# Implementation Summary: Issue 27 - Dungeon Ambiance: Day/Night Undead Effects
+# Dungeon Ambient Sounds - Implementation Summary
 
 ## Status: COMPLETE
 
-All tests pass. The undead night effects feature is fully implemented.
+All tests pass (5019 total).
 
-## What Was Implemented
+## What was Implemented
 
-### Feature Overview
-Undead enemies are now more active at night (18:00-5:59), with increased encounter rates (+50%) and boosted stats (+20% attack, +10% health).
+### New Module: `src/cli_rpg/ambient_sounds.py`
+- **AmbientSoundService class**: Manages ambient sound triggers with cooldown tracking
+- **Sound pools**: Category-specific sounds for dungeon, cave, ruins, and temple (8-10 sounds each)
+- **Depth sounds**: Increasingly ominous sounds for deeper z-levels (-1, -2, -3)
+- **format_ambient_sound()**: Formats sounds with `[Sound]:` prefix and blue ANSI color
 
-### Files Modified
+### Key Constants
+- `AMBIENT_SOUND_CHANCE = 0.15` (15% base chance per move)
+- `DEPTH_SOUND_CHANCE_BONUS = 0.05` (+5% per depth level)
+- `SOUND_COOLDOWN_MOVES = 3` (minimum moves between sounds)
 
-1. **`src/cli_rpg/encounter_tables.py`**
-   - Added `UNDEAD_NIGHT_ENCOUNTER_MODIFIER = 1.5` constant
-   - Added `UNDEAD_CATEGORIES = {"dungeon", "ruins", "cave"}` set
-   - Added `get_undead_night_modifier(category, is_night)` function that returns 1.5 for undead categories at night, 1.0 otherwise
+### GameState Integration
+- Added `ambient_sound_service` attribute initialization in `__init__`
+- Added ambient sound check in `_move_in_sub_grid()` method (after whisper check)
+- Sound triggers only during SubGrid exploration (dungeons, caves, etc.)
 
-2. **`src/cli_rpg/combat.py`**
-   - Added `is_night: bool = False` parameter to `spawn_enemy()` function
-   - Added logic to boost undead enemy stats at night:
-     - Health: +10% (`scaled_health * 1.1`)
-     - Attack: +20% (`scaled_attack * 1.2`)
-   - Uses existing `is_undead()` function from `cli_rpg.cleric`
-
-3. **`src/cli_rpg/random_encounters.py`**
-   - Imported `get_undead_night_modifier` from encounter_tables
-   - Added night modifier to encounter rate calculation in `check_for_random_encounter()`
-   - Pass `is_night=game_state.game_time.is_night()` to `spawn_enemy()` in `_handle_hostile_encounter()`
-
-4. **`tests/test_random_encounters.py`**
-   - Updated two mock functions to accept the new `is_night` parameter
-
-### Files Created
-
-1. **`tests/test_undead_night_effects.py`**
-   - 9 tests covering:
-     - `test_undead_encounter_rate_increased_at_night` - Night modifier returns 1.5 for undead categories
-     - `test_undead_encounter_rate_normal_during_day` - Day modifier returns 1.0
-     - `test_non_undead_category_no_night_bonus` - Non-undead categories unaffected
-     - `test_night_modifier_uses_game_time` - Integration with GameTime.is_night()
-     - `test_undead_stats_boosted_at_night` - Undead stats boosted at night
-     - `test_undead_stats_normal_during_day` - No boost during day
-     - `test_non_undead_no_night_bonus` - Non-undead enemies unaffected
-     - `test_spawn_enemy_applies_night_bonus` - spawn_enemy applies bonus correctly
-     - `test_random_encounter_uses_night_modifier` - Integration test
+## Files Modified
+1. `src/cli_rpg/ambient_sounds.py` (new)
+2. `src/cli_rpg/game_state.py` (added import, service init, and trigger logic)
 
 ## Test Results
-
-```
-tests/test_undead_night_effects.py: 9 passed
-tests/test_random_encounters.py: 36 passed
-Full suite: 5000 passed, 1 failed (unrelated pre-existing failure in test_enterable_spawn.py)
-```
-
-## Technical Details
-
-### Undead Detection
-Uses existing `is_undead()` function from `cli_rpg/cleric.py` which checks enemy names against:
-- skeleton, zombie, ghost, wraith, undead, specter, lich, vampire
-
-### Night Time Definition
-Uses existing `GameTime.is_night()` method: 18:00-5:59 (6 PM to 5:59 AM)
-
-### Integration Points
-- Encounter rate modifier applied in `check_for_random_encounter()`
-- Stat bonus applied in `spawn_enemy()` after distance scaling
+- **18 new tests in `tests/test_ambient_sounds.py`** - All passing
+- **62 game_state tests** - All passing (no regressions)
+- **5019 total unit tests** - All passing
 
 ## E2E Validation
+The ambient sounds system should be validated by:
+1. Entering a dungeon/cave/ruins/temple SubGrid
+2. Moving around multiple times within the SubGrid
+3. Verifying `[Sound]:` messages appear periodically (~15% chance per move)
+4. Verifying deeper levels (z < 0) show sounds more frequently
+5. Verifying cooldown prevents sounds within 3 consecutive moves
 
-To validate this feature in-game:
-1. Start a game and navigate to a dungeon, ruins, or cave
-2. Use `time` command to check current time
-3. Wait until night (18:00+) using `rest` or similar commands
-4. Observe increased encounter frequency and tougher undead enemies
-5. Compare with daytime stats by resting until day (6:00)
+## Technical Notes
+- Sounds use the same output pattern as whispers (blank line + formatted text)
+- Blue ANSI color chosen for sounds to differentiate from magenta whispers
+- Default category "dungeon" used when location.category is None
+- Depth sounds have increasing probability at deeper levels (30% + 20% per level)

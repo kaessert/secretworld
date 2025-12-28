@@ -47,6 +47,11 @@ python -m cli_rpg.main
   - **Bloodstains**: Dried blood, splatter patterns, and trails
   - **Journals**: Scratched warnings, torn pages, and ancient inscriptions
   - Details appear more frequently the deeper you venture (distance and z-level scaling)
+- **Ambient Sounds**: When exploring dungeons, caves, ruins, and temples, ambient sounds create atmosphere:
+  - Category-specific sounds: dripping water in caves, rattling chains in dungeons, howling wind in ruins
+  - Depth-based sounds: deeper levels (z < 0) have increasingly ominous sounds
+  - 15% base chance per move, with +5% per depth level below surface
+  - 3-move cooldown prevents sound spam
 - **Experience System**: Level up by defeating enemies
 - **Colorized Output**: Color-coded terminal output for improved readability (enemies in red, locations in cyan, items in green, etc.)
 - **Tab Completion**: Auto-complete commands and contextual arguments (directions, NPCs, items) with Tab key
