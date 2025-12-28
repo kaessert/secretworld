@@ -192,9 +192,9 @@ Issues discovered through comprehensive map system playtesting in non-interactiv
 
 **Completed**:
 - ✅ RNG seeds included in logs for reproducibility (2025-12-27)
+- ✅ AI content logging for review (2025-12-28) - AI-generated content logged via `log_ai_content()` with `generation_type`, `prompt_hash`, `content`, and optional `raw_response`
 
 **Future enhancements**:
-- Log AI-generated content for review
 - Enable session replay from logged state
 
 ---

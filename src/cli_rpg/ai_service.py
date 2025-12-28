@@ -154,17 +154,27 @@ class AIService:
     # Type annotation for client that can be either OpenAI or Anthropic
     client: Any
 
-    def __init__(self, config: AIConfig):
+    # Type alias for content logger callback
+    ContentLoggerCallback = Callable[[str, str, Any, str], None]
+
+    def __init__(
+        self,
+        config: AIConfig,
+        content_logger: Optional["AIService.ContentLoggerCallback"] = None
+    ):
         """Initialize AI service.
 
         Args:
             config: AIConfig instance with API key and settings
+            content_logger: Optional callback for logging AI-generated content.
+                           Signature: (generation_type, prompt_hash, content, raw_response) -> None
 
         Raises:
             AIServiceError: If Anthropic provider is requested but package is not installed
         """
         self.config = config
         self.provider = config.provider
+        self._content_logger = content_logger
 
         # Initialize the appropriate client based on provider
         if self.provider == "anthropic":
@@ -234,13 +244,22 @@ class AIService:
             if cached_result is not None:
                 return cached_result
 
+        # Store raw response for logging (captured in closure)
+        raw_response_holder: list[str] = []
+
         # Define the generation function that will be retried on parse failures
         def _do_generate() -> dict:
             response_text = self._call_llm(prompt, generation_type="location")
+            raw_response_holder.clear()
+            raw_response_holder.append(response_text)
             return self._parse_location_response(response_text)
 
         # Call with retry wrapper for parse/validation failures
         location_data = self._generate_with_retry(_do_generate)
+
+        # Log the generated content
+        if raw_response_holder:
+            self._log_content("location", prompt, location_data, raw_response_holder[0])
 
         # Cache result if enabled
         if self.config.enable_caching:
@@ -314,6 +333,30 @@ class AIService:
                 return self._call_openai(prompt, is_ollama=True)
             else:
                 return self._call_openai(prompt)
+
+    def _log_content(
+        self,
+        generation_type: str,
+        prompt: str,
+        content: Any,
+        raw_response: str
+    ) -> None:
+        """Log AI-generated content via the content logger callback.
+
+        Args:
+            generation_type: Type of content generated (e.g., "location", "npc")
+            prompt: The prompt used for generation (used to compute hash)
+            content: The parsed generated content
+            raw_response: The raw LLM response string
+        """
+        if self._content_logger is None:
+            return
+
+        # Compute prompt hash (first 16 chars of SHA256)
+        prompt_hash = hashlib.sha256(prompt.encode()).hexdigest()[:16]
+
+        # Invoke the callback
+        self._content_logger(generation_type, prompt_hash, content, raw_response)
 
     def _call_openai(self, prompt: str, is_ollama: bool = False) -> str:
         """Call OpenAI API with retry logic.

@@ -3046,12 +3046,19 @@ def run_json_mode(
     set_effects_enabled(False)
     set_sound_enabled(False)
 
+    # Initialize logger early if log file specified (needed for AI content logging)
+    logger: Optional[GameplayLogger] = None
+    if log_file:
+        logger = GameplayLogger(log_file)
+
     # Load AI configuration
     ai_config = load_ai_config()
     ai_service = None
     if ai_config:
         try:
-            ai_service = AIService(ai_config)
+            # Pass logger callback if logging is enabled
+            content_logger = logger.log_ai_content if logger else None
+            ai_service = AIService(ai_config, content_logger=content_logger)
         except Exception:
             pass  # Silently fall back to non-AI mode
 
@@ -3096,10 +3103,8 @@ def run_json_mode(
     from cli_rpg.world import get_default_factions
     game_state.factions = get_default_factions()
 
-    # Initialize logger if log file specified
-    logger: Optional[GameplayLogger] = None
-    if log_file:
-        logger = GameplayLogger(log_file)
+    # Log session start if logger is active (logger already initialized earlier)
+    if logger:
         logger.log_session_start(
             character_name=character.name,
             location=starting_location,
@@ -3277,12 +3282,19 @@ def run_non_interactive(
     set_effects_enabled(False)
     set_sound_enabled(False)
 
+    # Initialize logger early if log file specified (needed for AI content logging)
+    logger: Optional[GameplayLogger] = None
+    if log_file:
+        logger = GameplayLogger(log_file)
+
     # Load AI configuration
     ai_config = load_ai_config()
     ai_service = None
     if ai_config:
         try:
-            ai_service = AIService(ai_config)
+            # Pass logger callback if logging is enabled
+            content_logger = logger.log_ai_content if logger else None
+            ai_service = AIService(ai_config, content_logger=content_logger)
         except Exception:
             pass  # Silently fall back to non-AI mode
 
@@ -3327,10 +3339,8 @@ def run_non_interactive(
     from cli_rpg.world import get_default_factions
     game_state.factions = get_default_factions()
 
-    # Initialize logger if log file specified
-    logger: Optional[GameplayLogger] = None
-    if log_file:
-        logger = GameplayLogger(log_file)
+    # Log session start if logger is active (logger already initialized earlier)
+    if logger:
         logger.log_session_start(
             character_name=character.name,
             location=starting_location,

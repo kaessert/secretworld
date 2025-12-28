@@ -8,6 +8,7 @@ Log entry types:
 - command: Player command input
 - response: Game response text
 - state: Game state snapshot (location, health, gold, level)
+- ai_content: AI-generated content (location, npc, enemy, quest, dialogue, etc.)
 - session_end: Final entry when session ends
 """
 import json
@@ -122,6 +123,30 @@ class GameplayLogger:
             reason: Reason for session end (e.g., "eof", "quit", "death")
         """
         self._write_entry("session_end", {"reason": reason})
+
+    def log_ai_content(
+        self,
+        generation_type: str,
+        prompt_hash: str,
+        content: Any,
+        raw_response: Optional[str] = None
+    ) -> None:
+        """Log AI-generated content for review.
+
+        Args:
+            generation_type: Type of content generated (e.g., "location", "npc", "quest")
+            prompt_hash: SHA256 hash prefix of the prompt (first 16 chars)
+            content: The parsed generated content (dict, list, or other serializable object)
+            raw_response: Optional raw LLM response for debugging
+        """
+        data: dict[str, Any] = {
+            "generation_type": generation_type,
+            "prompt_hash": prompt_hash,
+            "content": content,
+        }
+        if raw_response is not None:
+            data["raw_response"] = raw_response
+        self._write_entry("ai_content", data)
 
     def close(self) -> None:
         """Close the log file."""

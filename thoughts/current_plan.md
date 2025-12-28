@@ -1,60 +1,62 @@
-# Implementation Plan: Quest Prerequisites Based on NPC Arc Stage
+# Implementation Plan: Log AI-Generated Content for Review
 
 ## Summary
-Add `required_arc_stage` field to Quest model allowing quests to require minimum NPC relationship levels before they can be accepted.
+Add AI content logging to `GameplayLogger` so AI-generated content (locations, NPCs, dialogue, quests, etc.) can be reviewed from session transcripts.
+
+## Design Approach
+**Callback pattern**: Pass an optional `ai_content_logger` callback to `AIService` during initialization. The logger callback is invoked after each successful AI generation, avoiding tight coupling between AIService and GameplayLogger.
+
+## Specification
+- New log entry type: `ai_content` with fields:
+  - `generation_type`: string (e.g., "location", "npc", "enemy", "quest", "dialogue", "dream", "whisper")
+  - `prompt_hash`: string (SHA256 first 16 chars - for deduplication/caching analysis)
+  - `content`: parsed object (the actual generated content)
+  - `raw_response`: string (optional, full raw LLM response for debugging)
+- Logger callback signature: `Callable[[str, str, Any, str], None]` (generation_type, prompt_hash, content, raw_response)
+- Only log when logger callback is set (no-op otherwise)
 
 ## Files to Modify
 
-### 1. `src/cli_rpg/models/quest.py`
-- Add `required_arc_stage: Optional[str] = None` field to Quest dataclass (after `required_reputation`)
-- Update `to_dict()` to serialize new field
-- Update `from_dict()` to deserialize new field with None default
-
-### 2. `src/cli_rpg/npc_arc_quests.py` (new file)
-- Create helper functions for arc stage requirements:
-  - `ARC_STAGE_ORDER`: List defining stage hierarchy for comparison
-  - `get_arc_stage_index(stage_name: str) -> int`: Get numerical index for stage
-  - `check_arc_stage_requirement(arc: Optional[NPCArc], required: Optional[str]) -> Tuple[bool, Optional[str]]`: Check if arc meets requirement, return (allowed, rejection_reason)
-
-### 3. `src/cli_rpg/main.py` (~line 1838)
-- In accept command handler, after faction reputation check (line ~1836) and before prerequisite quests check (line ~1838):
-- Import `check_arc_stage_requirement` from `npc_arc_quests`
-- Add arc stage validation check
-- Return rejection message if insufficient: `"{npc.name} doesn't trust you enough to offer this quest. (Requires: {stage})"`
-
-## Stage Ordering (for comparison)
+### 1. `src/cli_rpg/logging_service.py`
+Add method:
+```python
+def log_ai_content(
+    self,
+    generation_type: str,
+    prompt_hash: str,
+    content: Any,
+    raw_response: Optional[str] = None
+) -> None:
 ```
-ENEMY < HOSTILE < WARY < STRANGER < ACQUAINTANCE < TRUSTED < DEVOTED
-```
-NPCs without arc initialized are treated as STRANGER (index 3).
 
-## Tests: `tests/test_quest_arc_requirements.py`
+### 2. `src/cli_rpg/ai_service.py`
+- Add `content_logger` callback param to `__init__`
+- Add helper `_log_content(generation_type, prompt, content, raw_response)` that:
+  - Computes prompt hash
+  - Calls callback if set
+- Call `_log_content` in `_call_llm` after successful response (pass through to callers)
+- Modify key generation methods to pass parsed content to logger
 
-1. `test_quest_no_arc_requirement_always_available` - None required_arc_stage passes
-2. `test_quest_requires_stranger_accepts_stranger` - Stranger arc passes stranger requirement
-3. `test_quest_requires_trusted_rejects_stranger` - Stranger arc fails trusted requirement
-4. `test_quest_requires_trusted_accepts_trusted` - Trusted arc passes trusted requirement
-5. `test_quest_requires_acquaintance_accepts_higher` - Trusted passes acquaintance requirement
-6. `test_quest_requires_devoted_rejects_trusted` - Trusted arc fails devoted requirement
-7. `test_npc_no_arc_treated_as_stranger` - None arc treated as STRANGER
-8. `test_quest_serialization_with_required_arc_stage` - to_dict includes field
-9. `test_quest_deserialization_with_required_arc_stage` - from_dict parses field
-10. `test_quest_deserialization_without_required_arc_stage` - from_dict defaults None
-11. `test_accept_command_rejects_insufficient_arc` - Integration test for main.py
-12. `test_accept_command_accepts_sufficient_arc` - Integration test for main.py
+### 3. `src/cli_rpg/main.py`
+- In `run_game_non_interactive()` and `run_game_interactive()`:
+  - Create logger callback that wraps `GameplayLogger.log_ai_content`
+  - Pass callback to `AIService` constructor when logger is active
 
-## Implementation Order
+## Tests
 
-1. Add `required_arc_stage` field to Quest model with serialization
-2. Create `npc_arc_quests.py` with stage comparison helper
-3. Write unit tests for Quest model changes and helper functions
-4. Integrate arc check into main.py accept command handler
-5. Write integration tests for accept command
-6. Run full test suite
-7. Update ISSUES.md Issue 13 to mark quest prerequisites complete
+### `tests/test_ai_content_logging.py`
+1. `test_log_ai_content_writes_entry`: Verify `log_ai_content` writes correct JSON structure
+2. `test_ai_service_calls_logger_on_generation`: Mock AIService response, verify callback invoked with correct args
+3. `test_no_logging_when_callback_not_set`: Verify no errors when callback is None
+4. `test_prompt_hash_is_consistent`: Same prompt produces same hash
 
-## Backward Compatibility
+## Implementation Steps
 
-- `required_arc_stage` defaults to `None` (no requirement)
-- NPCs without arc initialized are treated as STRANGER stage
-- Existing quests and saves unaffected (from_dict handles missing field)
+1. Add `log_ai_content` method to `GameplayLogger`
+2. Write tests for `log_ai_content`
+3. Add `content_logger` callback to `AIService.__init__`
+4. Add `_log_content` helper method to `AIService`
+5. Modify `_call_llm` to capture and pass raw response for logging
+6. Wire up logger callback in `main.py` entry points
+7. Write integration test verifying end-to-end flow
+8. Run full test suite

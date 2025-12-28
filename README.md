@@ -726,6 +726,7 @@ cli-rpg --json --delay 200 < commands.txt
 - `command` - Player input commands
 - `response` - Game output text
 - `state` - Game state snapshots (location, health, gold, level)
+- `ai_content` - AI-generated content with `generation_type`, `prompt_hash`, and `content`
 - `session_end` - Session termination with reason (eof/quit/death)
 
 ### JSON Output Mode
