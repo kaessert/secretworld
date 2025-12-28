@@ -822,6 +822,173 @@ class BSPGenerator:
                 room.room_type = RoomType.CORRIDOR
 
 
+class GridSettlementGenerator:
+    """Grid-based generator for settlement layouts (towns, cities, villages).
+
+    Creates orthogonal street grids with building locations. Streets form
+    a grid pattern (CORRIDOR rooms), with buildings placed along streets
+    (CHAMBER rooms). Entry point is placed at the center of the settlement.
+    """
+
+    # Street spacing (every N tiles in each direction)
+    STREET_SPACING = 3
+
+    def __init__(self, bounds: tuple[int, int, int, int, int, int], seed: int):
+        """Initialize with SubGrid bounds and random seed.
+
+        Args:
+            bounds: 6-tuple (min_x, max_x, min_y, max_y, min_z, max_z).
+            seed: Random seed for deterministic generation.
+        """
+        self.bounds = bounds
+        self.seed = seed
+        self.rng = random.Random(seed)
+        self.min_x, self.max_x, self.min_y, self.max_y, self.min_z, self.max_z = bounds
+        self.width = self.max_x - self.min_x + 1
+        self.height = self.max_y - self.min_y + 1
+
+    def generate(self) -> list[RoomTemplate]:
+        """Generate layout returning list of RoomTemplate blueprints."""
+        rooms: list[RoomTemplate] = []
+        coord_to_room: dict[tuple[int, int, int], RoomTemplate] = {}
+
+        # Generate street grid
+        street_coords = self._generate_street_grid()
+
+        # Create rooms for streets
+        for x, y in street_coords:
+            room = RoomTemplate(
+                coords=(x, y, 0),
+                room_type=RoomType.CORRIDOR,
+                connections=[],
+                is_entry=False,
+            )
+            rooms.append(room)
+            coord_to_room[(x, y, 0)] = room
+
+        # Add building locations along streets
+        building_coords = self._generate_buildings(street_coords)
+        for x, y in building_coords:
+            if (x, y, 0) not in coord_to_room:
+                room = RoomTemplate(
+                    coords=(x, y, 0),
+                    room_type=RoomType.CHAMBER,
+                    connections=[],
+                    is_entry=False,
+                )
+                rooms.append(room)
+                coord_to_room[(x, y, 0)] = room
+
+        # Ensure we have at least an entry room
+        if not rooms:
+            center_x = (self.min_x + self.max_x) // 2
+            center_y = (self.min_y + self.max_y) // 2
+            entry_room = RoomTemplate(
+                coords=(center_x, center_y, 0),
+                room_type=RoomType.ENTRY,
+                connections=[],
+                is_entry=True,
+            )
+            rooms.append(entry_room)
+            coord_to_room[(center_x, center_y, 0)] = entry_room
+
+        # Add connections based on adjacency
+        self._add_connections(rooms, coord_to_room)
+
+        # Assign entry room (center of settlement)
+        self._assign_entry(rooms)
+
+        return rooms
+
+    def _generate_street_grid(self) -> set[tuple[int, int]]:
+        """Generate street coordinates as a grid pattern."""
+        streets: set[tuple[int, int]] = set()
+        center_x = (self.min_x + self.max_x) // 2
+        center_y = (self.min_y + self.max_y) // 2
+
+        # Main streets through center
+        for x in range(self.min_x, self.max_x + 1):
+            streets.add((x, center_y))
+        for y in range(self.min_y, self.max_y + 1):
+            streets.add((center_x, y))
+
+        # Additional cross-streets at intervals
+        spacing = max(2, self.STREET_SPACING)
+
+        # Horizontal streets
+        for offset in range(spacing, max(self.height // 2, 1) + 1, spacing):
+            if center_y + offset <= self.max_y:
+                for x in range(self.min_x, self.max_x + 1):
+                    streets.add((x, center_y + offset))
+            if center_y - offset >= self.min_y:
+                for x in range(self.min_x, self.max_x + 1):
+                    streets.add((x, center_y - offset))
+
+        # Vertical streets
+        for offset in range(spacing, max(self.width // 2, 1) + 1, spacing):
+            if center_x + offset <= self.max_x:
+                for y in range(self.min_y, self.max_y + 1):
+                    streets.add((center_x + offset, y))
+            if center_x - offset >= self.min_x:
+                for y in range(self.min_y, self.max_y + 1):
+                    streets.add((center_x - offset, y))
+
+        return streets
+
+    def _generate_buildings(
+        self, street_coords: set[tuple[int, int]]
+    ) -> list[tuple[int, int]]:
+        """Generate building locations adjacent to streets."""
+        buildings: list[tuple[int, int]] = []
+        potential: set[tuple[int, int]] = set()
+
+        # Find all non-street tiles adjacent to streets
+        for sx, sy in street_coords:
+            for dx, dy in [(0, 1), (0, -1), (1, 0), (-1, 0)]:
+                nx, ny = sx + dx, sy + dy
+                if (nx, ny) not in street_coords:
+                    if self.min_x <= nx <= self.max_x and self.min_y <= ny <= self.max_y:
+                        potential.add((nx, ny))
+
+        # Randomly select ~50% of potential building spots
+        for coord in potential:
+            if self.rng.random() < 0.5:
+                buildings.append(coord)
+
+        return buildings
+
+    def _add_connections(
+        self,
+        rooms: list[RoomTemplate],
+        coord_to_room: dict[tuple[int, int, int], RoomTemplate],
+    ) -> None:
+        """Add directional connections based on adjacency."""
+        for room in rooms:
+            x, y, z = room.coords
+            for direction in ["north", "south", "east", "west"]:
+                dx, dy, dz = DIRECTION_OFFSETS[direction]
+                neighbor_coord = (x + dx, y + dy, z + dz)
+                if neighbor_coord in coord_to_room:
+                    if direction not in room.connections:
+                        room.connections.append(direction)
+
+    def _assign_entry(self, rooms: list[RoomTemplate]) -> None:
+        """Assign entry room at center of settlement."""
+        if not rooms:
+            return
+
+        center_x = (self.min_x + self.max_x) // 2
+        center_y = (self.min_y + self.max_y) // 2
+
+        # Find room closest to center
+        entry_room = min(
+            rooms,
+            key=lambda r: abs(r.coords[0] - center_x) + abs(r.coords[1] - center_y),
+        )
+        entry_room.room_type = RoomType.ENTRY
+        entry_room.is_entry = True
+
+
 # Maps location categories to generator types.
 # All categories from ENTERABLE_CATEGORIES in world_tiles.py must be mapped.
 CATEGORY_GENERATORS: dict[str, str] = {
@@ -877,6 +1044,11 @@ def generate_interior_layout(
     # Use CellularAutomataGenerator for cave-type locations
     if generator_type == "CellularAutomataGenerator":
         generator = CellularAutomataGenerator(bounds=bounds, seed=seed)
+        return generator.generate()
+
+    # Use GridSettlementGenerator for settlement-type locations
+    if generator_type == "GridSettlementGenerator":
+        generator = GridSettlementGenerator(bounds=bounds, seed=seed)
         return generator.generate()
 
     # Fallback for other generator types (not yet implemented)

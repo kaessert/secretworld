@@ -197,3 +197,116 @@ class TestGenerateInteriorLayout:
             assert isinstance(result, list)
             # Should return at least an entry point
             assert len(result) >= 1
+
+
+class TestGridSettlementGenerator:
+    """Tests for GridSettlementGenerator for town/city layouts.
+
+    Spec: Grid-based generator for settlement interiors using orthogonal
+    street layouts with buildings along streets.
+    """
+
+    def test_generator_exists(self):
+        """GridSettlementGenerator class is importable."""
+        from cli_rpg.procedural_interiors import GridSettlementGenerator
+
+        assert GridSettlementGenerator is not None
+
+    def test_implements_protocol(self):
+        """GridSettlementGenerator follows GeneratorProtocol."""
+        from cli_rpg.procedural_interiors import GridSettlementGenerator
+
+        bounds = (-5, 5, -5, 5, 0, 0)  # town size
+        gen = GridSettlementGenerator(bounds=bounds, seed=42)
+        result = gen.generate()
+        assert isinstance(result, list)
+
+    def test_returns_room_templates(self):
+        """generate() returns list of RoomTemplate."""
+        from cli_rpg.procedural_interiors import GridSettlementGenerator, RoomTemplate
+
+        bounds = (-5, 5, -5, 5, 0, 0)
+        gen = GridSettlementGenerator(bounds=bounds, seed=42)
+        result = gen.generate()
+        assert len(result) > 0
+        for room in result:
+            assert isinstance(room, RoomTemplate)
+
+    def test_has_entry_room(self):
+        """Generated layout includes at least one entry room."""
+        from cli_rpg.procedural_interiors import GridSettlementGenerator, RoomType
+
+        bounds = (-5, 5, -5, 5, 0, 0)
+        gen = GridSettlementGenerator(bounds=bounds, seed=42)
+        result = gen.generate()
+        entry_rooms = [r for r in result if r.is_entry]
+        assert len(entry_rooms) >= 1
+
+    def test_entry_at_top_z_level(self):
+        """Entry room is at z=0 (top level for settlements)."""
+        from cli_rpg.procedural_interiors import GridSettlementGenerator
+
+        bounds = (-5, 5, -5, 5, 0, 0)
+        gen = GridSettlementGenerator(bounds=bounds, seed=42)
+        result = gen.generate()
+        entry_rooms = [r for r in result if r.is_entry]
+        assert all(r.coords[2] == 0 for r in entry_rooms)
+
+    def test_deterministic_with_same_seed(self):
+        """Same seed produces identical layout."""
+        from cli_rpg.procedural_interiors import GridSettlementGenerator
+
+        bounds = (-5, 5, -5, 5, 0, 0)
+        gen1 = GridSettlementGenerator(bounds=bounds, seed=12345)
+        gen2 = GridSettlementGenerator(bounds=bounds, seed=12345)
+        result1 = gen1.generate()
+        result2 = gen2.generate()
+        assert len(result1) == len(result2)
+        for r1, r2 in zip(result1, result2):
+            assert r1.coords == r2.coords
+            assert r1.room_type == r2.room_type
+
+    def test_different_seed_different_layout(self):
+        """Different seeds produce different layouts."""
+        from cli_rpg.procedural_interiors import GridSettlementGenerator
+
+        bounds = (-5, 5, -5, 5, 0, 0)
+        gen1 = GridSettlementGenerator(bounds=bounds, seed=111)
+        gen2 = GridSettlementGenerator(bounds=bounds, seed=222)
+        result1 = gen1.generate()
+        result2 = gen2.generate()
+        coords1 = [r.coords for r in result1]
+        coords2 = [r.coords for r in result2]
+        # Very unlikely to be identical with different seeds
+        assert coords1 != coords2 or len(result1) != len(result2)
+
+    def test_has_connected_rooms(self):
+        """Rooms have connections to adjacent rooms."""
+        from cli_rpg.procedural_interiors import GridSettlementGenerator
+
+        bounds = (-5, 5, -5, 5, 0, 0)
+        gen = GridSettlementGenerator(bounds=bounds, seed=42)
+        result = gen.generate()
+        # At least some rooms should have connections
+        rooms_with_connections = [r for r in result if len(r.connections) > 0]
+        assert len(rooms_with_connections) > 0
+
+    def test_grid_pattern_has_corridors(self):
+        """Grid layout produces CORRIDOR rooms (streets/intersections)."""
+        from cli_rpg.procedural_interiors import GridSettlementGenerator, RoomType
+
+        bounds = (-5, 5, -5, 5, 0, 0)
+        gen = GridSettlementGenerator(bounds=bounds, seed=42)
+        result = gen.generate()
+        corridors = [r for r in result if r.room_type == RoomType.CORRIDOR]
+        # Grid should have some corridor/street tiles
+        assert len(corridors) > 0
+
+    def test_small_bounds_still_works(self):
+        """Generator handles small bounds (village-sized)."""
+        from cli_rpg.procedural_interiors import GridSettlementGenerator
+
+        bounds = (-1, 1, -1, 1, 0, 0)  # 3x3
+        gen = GridSettlementGenerator(bounds=bounds, seed=42)
+        result = gen.generate()
+        assert len(result) >= 1  # At least entry room

@@ -1,201 +1,305 @@
-# Implementation Plan: CellularAutomataGenerator for Caves and Mines
+# GridSettlementGenerator Implementation Plan
 
 ## Spec
 
-Implement `CellularAutomataGenerator` class in `procedural_interiors.py` using cellular automata algorithm to generate organic, cave-like interior layouts for caves and mines (categories mapped to `"CellularAutomataGenerator"` in `CATEGORY_GENERATORS`).
+Implement `GridSettlementGenerator` for town/city/village/settlement/outpost/camp interiors using a grid-based street layout pattern. This differs from BSP (dungeon corridors) and cellular automata (organic caves) by creating orthogonal street grids with buildings.
 
-### Requirements
-1. **Cellular Automata Algorithm**: Use 4-5 rule (cell becomes solid if ≥5 neighbors are solid) to generate organic cave shapes
-2. **Initial Noise**: Start with random noise (45-55% fill) then apply automata rules 4-5 iterations
-3. **Flood Fill Connectivity**: Ensure all traversable cells connect to entry point
-4. **3D Support**: Handle multi-level caves (z-axis from bounds)
-5. **Room Type Assignment**: ENTRY at top level, BOSS_ROOM at deepest dead-end, TREASURE/PUZZLE at isolated areas
-6. **Deterministic**: Same seed produces identical layouts
-7. **Bounds-Aware**: Respect 6-tuple bounds `(min_x, max_x, min_y, max_y, min_z, max_z)`
-8. **Organic Connections**: Directions based on actual traversable neighbors (not BSP corridors)
+**Key Requirements:**
+- Generate orthogonal street grid (intersections become CORRIDOR rooms)
+- Place buildings/points of interest along streets (CHAMBER rooms)
+- Entry point at center or edge of grid
+- Single z-level (z=0) for all settlements
+- Deterministic via seed
+- Follow `GeneratorProtocol` interface
 
-### Public Interface
+## Tests
+
+Add to `tests/test_procedural_interiors.py`:
+
 ```python
-class CellularAutomataGenerator:
-    """Cellular automata generator for cave/mine layouts."""
+class TestGridSettlementGenerator:
+    """Tests for GridSettlementGenerator for town/city layouts."""
 
-    INITIAL_FILL_PROBABILITY = 0.45  # 45% initial solid cells
-    AUTOMATA_ITERATIONS = 4          # Number of smoothing passes
-    BIRTH_THRESHOLD = 5              # Become solid if ≥5 neighbors solid
-    DEATH_THRESHOLD = 4              # Stay solid if ≥4 neighbors solid
+    def test_generator_exists(self):
+        """GridSettlementGenerator class is importable."""
+        from cli_rpg.procedural_interiors import GridSettlementGenerator
+        assert GridSettlementGenerator is not None
+
+    def test_implements_protocol(self):
+        """GridSettlementGenerator follows GeneratorProtocol."""
+        from cli_rpg.procedural_interiors import GridSettlementGenerator
+        bounds = (-5, 5, -5, 5, 0, 0)  # town size
+        gen = GridSettlementGenerator(bounds=bounds, seed=42)
+        result = gen.generate()
+        assert isinstance(result, list)
+
+    def test_returns_room_templates(self):
+        """generate() returns list of RoomTemplate."""
+        from cli_rpg.procedural_interiors import GridSettlementGenerator, RoomTemplate
+        bounds = (-5, 5, -5, 5, 0, 0)
+        gen = GridSettlementGenerator(bounds=bounds, seed=42)
+        result = gen.generate()
+        assert len(result) > 0
+        for room in result:
+            assert isinstance(room, RoomTemplate)
+
+    def test_has_entry_room(self):
+        """Generated layout includes at least one entry room."""
+        from cli_rpg.procedural_interiors import GridSettlementGenerator, RoomType
+        bounds = (-5, 5, -5, 5, 0, 0)
+        gen = GridSettlementGenerator(bounds=bounds, seed=42)
+        result = gen.generate()
+        entry_rooms = [r for r in result if r.is_entry]
+        assert len(entry_rooms) >= 1
+
+    def test_entry_at_top_z_level(self):
+        """Entry room is at z=0 (top level for settlements)."""
+        from cli_rpg.procedural_interiors import GridSettlementGenerator
+        bounds = (-5, 5, -5, 5, 0, 0)
+        gen = GridSettlementGenerator(bounds=bounds, seed=42)
+        result = gen.generate()
+        entry_rooms = [r for r in result if r.is_entry]
+        assert all(r.coords[2] == 0 for r in entry_rooms)
+
+    def test_deterministic_with_same_seed(self):
+        """Same seed produces identical layout."""
+        from cli_rpg.procedural_interiors import GridSettlementGenerator
+        bounds = (-5, 5, -5, 5, 0, 0)
+        gen1 = GridSettlementGenerator(bounds=bounds, seed=12345)
+        gen2 = GridSettlementGenerator(bounds=bounds, seed=12345)
+        result1 = gen1.generate()
+        result2 = gen2.generate()
+        assert len(result1) == len(result2)
+        for r1, r2 in zip(result1, result2):
+            assert r1.coords == r2.coords
+            assert r1.room_type == r2.room_type
+
+    def test_different_seed_different_layout(self):
+        """Different seeds produce different layouts."""
+        from cli_rpg.procedural_interiors import GridSettlementGenerator
+        bounds = (-5, 5, -5, 5, 0, 0)
+        gen1 = GridSettlementGenerator(bounds=bounds, seed=111)
+        gen2 = GridSettlementGenerator(bounds=bounds, seed=222)
+        result1 = gen1.generate()
+        result2 = gen2.generate()
+        coords1 = [r.coords for r in result1]
+        coords2 = [r.coords for r in result2]
+        # Very unlikely to be identical with different seeds
+        assert coords1 != coords2 or len(result1) != len(result2)
+
+    def test_has_connected_rooms(self):
+        """Rooms have connections to adjacent rooms."""
+        from cli_rpg.procedural_interiors import GridSettlementGenerator
+        bounds = (-5, 5, -5, 5, 0, 0)
+        gen = GridSettlementGenerator(bounds=bounds, seed=42)
+        result = gen.generate()
+        # At least some rooms should have connections
+        rooms_with_connections = [r for r in result if len(r.connections) > 0]
+        assert len(rooms_with_connections) > 0
+
+    def test_grid_pattern_has_corridors(self):
+        """Grid layout produces CORRIDOR rooms (streets/intersections)."""
+        from cli_rpg.procedural_interiors import GridSettlementGenerator, RoomType
+        bounds = (-5, 5, -5, 5, 0, 0)
+        gen = GridSettlementGenerator(bounds=bounds, seed=42)
+        result = gen.generate()
+        corridors = [r for r in result if r.room_type == RoomType.CORRIDOR]
+        # Grid should have some corridor/street tiles
+        assert len(corridors) > 0
+
+    def test_small_bounds_still_works(self):
+        """Generator handles small bounds (village-sized)."""
+        from cli_rpg.procedural_interiors import GridSettlementGenerator
+        bounds = (-1, 1, -1, 1, 0, 0)  # 3x3
+        gen = GridSettlementGenerator(bounds=bounds, seed=42)
+        result = gen.generate()
+        assert len(result) >= 1  # At least entry room
+```
+
+## Implementation
+
+In `src/cli_rpg/procedural_interiors.py`:
+
+1. Add `GridSettlementGenerator` class after `CellularAutomataGenerator` (around line 490):
+
+```python
+class GridSettlementGenerator:
+    """Grid-based generator for settlement layouts (towns, cities, villages).
+
+    Creates orthogonal street grids with building locations. Streets form
+    a grid pattern (CORRIDOR rooms), with buildings placed along streets
+    (CHAMBER rooms). Entry point is placed at the center of the settlement.
+    """
+
+    # Street spacing (every N tiles in each direction)
+    STREET_SPACING = 3
 
     def __init__(self, bounds: tuple[int, int, int, int, int, int], seed: int):
         """Initialize with SubGrid bounds and random seed."""
+        self.bounds = bounds
+        self.seed = seed
+        self.rng = random.Random(seed)
+        self.min_x, self.max_x, self.min_y, self.max_y, self.min_z, self.max_z = bounds
+        self.width = self.max_x - self.min_x + 1
+        self.height = self.max_y - self.min_y + 1
 
     def generate(self) -> list[RoomTemplate]:
         """Generate layout returning list of RoomTemplate blueprints."""
+        rooms: list[RoomTemplate] = []
+        coord_to_room: dict[tuple[int, int, int], RoomTemplate] = {}
+
+        # Generate street grid
+        street_coords = self._generate_street_grid()
+
+        # Create rooms for streets
+        for x, y in street_coords:
+            room = RoomTemplate(
+                coords=(x, y, 0),
+                room_type=RoomType.CORRIDOR,
+                connections=[],
+                is_entry=False,
+            )
+            rooms.append(room)
+            coord_to_room[(x, y, 0)] = room
+
+        # Add building locations along streets
+        building_coords = self._generate_buildings(street_coords)
+        for x, y in building_coords:
+            if (x, y, 0) not in coord_to_room:
+                room = RoomTemplate(
+                    coords=(x, y, 0),
+                    room_type=RoomType.CHAMBER,
+                    connections=[],
+                    is_entry=False,
+                )
+                rooms.append(room)
+                coord_to_room[(x, y, 0)] = room
+
+        # Ensure we have at least an entry room
+        if not rooms:
+            center_x = (self.min_x + self.max_x) // 2
+            center_y = (self.min_y + self.max_y) // 2
+            entry_room = RoomTemplate(
+                coords=(center_x, center_y, 0),
+                room_type=RoomType.ENTRY,
+                connections=[],
+                is_entry=True,
+            )
+            rooms.append(entry_room)
+            coord_to_room[(center_x, center_y, 0)] = entry_room
+
+        # Add connections based on adjacency
+        self._add_connections(rooms, coord_to_room)
+
+        # Assign entry room (center of settlement)
+        self._assign_entry(rooms)
+
+        return rooms
+
+    def _generate_street_grid(self) -> set[tuple[int, int]]:
+        """Generate street coordinates as a grid pattern."""
+        streets: set[tuple[int, int]] = set()
+        center_x = (self.min_x + self.max_x) // 2
+        center_y = (self.min_y + self.max_y) // 2
+
+        # Main streets through center
+        for x in range(self.min_x, self.max_x + 1):
+            streets.add((x, center_y))
+        for y in range(self.min_y, self.max_y + 1):
+            streets.add((center_x, y))
+
+        # Additional cross-streets at intervals
+        spacing = max(2, self.STREET_SPACING)
+
+        # Horizontal streets
+        for offset in range(spacing, max(self.height // 2, 1) + 1, spacing):
+            if center_y + offset <= self.max_y:
+                for x in range(self.min_x, self.max_x + 1):
+                    streets.add((x, center_y + offset))
+            if center_y - offset >= self.min_y:
+                for x in range(self.min_x, self.max_x + 1):
+                    streets.add((x, center_y - offset))
+
+        # Vertical streets
+        for offset in range(spacing, max(self.width // 2, 1) + 1, spacing):
+            if center_x + offset <= self.max_x:
+                for y in range(self.min_y, self.max_y + 1):
+                    streets.add((center_x + offset, y))
+            if center_x - offset >= self.min_x:
+                for y in range(self.min_y, self.max_y + 1):
+                    streets.add((center_x - offset, y))
+
+        return streets
+
+    def _generate_buildings(
+        self, street_coords: set[tuple[int, int]]
+    ) -> list[tuple[int, int]]:
+        """Generate building locations adjacent to streets."""
+        buildings: list[tuple[int, int]] = []
+        potential: set[tuple[int, int]] = set()
+
+        # Find all non-street tiles adjacent to streets
+        for sx, sy in street_coords:
+            for dx, dy in [(0, 1), (0, -1), (1, 0), (-1, 0)]:
+                nx, ny = sx + dx, sy + dy
+                if (nx, ny) not in street_coords:
+                    if self.min_x <= nx <= self.max_x and self.min_y <= ny <= self.max_y:
+                        potential.add((nx, ny))
+
+        # Randomly select ~50% of potential building spots
+        for coord in potential:
+            if self.rng.random() < 0.5:
+                buildings.append(coord)
+
+        return buildings
+
+    def _add_connections(
+        self,
+        rooms: list[RoomTemplate],
+        coord_to_room: dict[tuple[int, int, int], RoomTemplate],
+    ) -> None:
+        """Add directional connections based on adjacency."""
+        for room in rooms:
+            x, y, z = room.coords
+            for direction in ["north", "south", "east", "west"]:
+                dx, dy, dz = DIRECTION_OFFSETS[direction]
+                neighbor_coord = (x + dx, y + dy, z + dz)
+                if neighbor_coord in coord_to_room:
+                    if direction not in room.connections:
+                        room.connections.append(direction)
+
+    def _assign_entry(self, rooms: list[RoomTemplate]) -> None:
+        """Assign entry room at center of settlement."""
+        if not rooms:
+            return
+
+        center_x = (self.min_x + self.max_x) // 2
+        center_y = (self.min_y + self.max_y) // 2
+
+        # Find room closest to center
+        entry_room = min(
+            rooms,
+            key=lambda r: abs(r.coords[0] - center_x) + abs(r.coords[1] - center_y),
+        )
+        entry_room.room_type = RoomType.ENTRY
+        entry_room.is_entry = True
 ```
 
-### Algorithm Steps
-1. Create 2D grid for each z-level, initialize with random noise (45% solid)
-2. Apply cellular automata rules 4 iterations:
-   - Count 8 neighbors (including diagonals) for each cell
-   - Cell becomes solid if ≥5 neighbors are solid
-   - Cell becomes open if <4 neighbors are solid
-3. Identify largest connected region via flood fill from center
-4. Discard disconnected regions (fill them as solid)
-5. Convert remaining open cells to RoomTemplates with coordinate-based connections
-6. For multi-level: add stair connections between levels
-7. Assign room types based on distance from entry and dead-end status
+2. Update `generate_interior_layout()` to use GridSettlementGenerator (around line 870):
 
----
-
-## Tests First (TDD)
-
-Create `tests/test_cellular_automata_generator.py`:
-
-### Core Algorithm Tests
-1. `test_generator_returns_room_templates` - generate() returns list[RoomTemplate]
-2. `test_generator_has_entry_room` - Layout has exactly one ENTRY room with is_entry=True
-3. `test_entry_room_at_top_level` - Entry room z-coord equals max_z from bounds
-4. `test_generator_deterministic` - Same seed produces identical output
-5. `test_generator_different_seeds_differ` - Different seeds produce different layouts
-6. `test_rooms_within_bounds` - All room coords within specified bounds
-
-### Cave-Specific Tests
-7. `test_all_rooms_connected` - All rooms reachable from entry (flood fill works)
-8. `test_organic_layout_not_rectangular` - Layout has irregular shape (not grid-aligned)
-9. `test_connections_based_on_adjacency` - Connections reflect actual adjacent rooms
-10. `test_dead_ends_exist` - Caves have dead-end rooms (1 connection)
-
-### Multi-Level Tests
-11. `test_multi_level_generates_stairs` - Multi-level bounds produce "up"/"down" connections
-12. `test_boss_room_at_deepest_level` - BOSS_ROOM placed at min_z
-
-### Room Type Tests
-13. `test_treasure_rooms_at_dead_ends` - TREASURE rooms have 1-2 connections
-14. `test_connections_are_valid_directions` - All connections are valid (n/s/e/w/up/down)
-
-### Integration Tests
-15. `test_generate_interior_layout_uses_cellular` - Factory uses CellularAutomataGenerator for "cave"
-16. `test_category_cave_produces_valid_layout` - Cave category works end-to-end
-17. `test_category_mine_produces_valid_layout` - Mine category works end-to-end
-
----
-
-## Implementation Steps
-
-### Step 1: Create test file
-- File: `tests/test_cellular_automata_generator.py`
-- Import from `cli_rpg.procedural_interiors`
-- Write all 17 tests (expect failures initially)
-
-### Step 2: Implement CellularAutomataGenerator class
-- File: `src/cli_rpg/procedural_interiors.py`
-- Add `CellularAutomataGenerator` class implementing `GeneratorProtocol`
-- Implement `_initialize_grid()` - random noise generation
-- Implement `_apply_automata()` - cellular automata smoothing
-- Implement `_flood_fill()` - connectivity check and region isolation
-- Implement `_grid_to_rooms()` - convert grid cells to RoomTemplates
-- Implement `_add_connections()` - direction-based connections from adjacency
-
-### Step 3: Handle multi-level caves
-- Implement `_generate_level()` - single z-level generation
-- Implement `_connect_levels()` - stair placement between z-levels
-- Handle z-axis iteration (max_z down to min_z)
-
-### Step 4: Room type assignment
-- Implement `_assign_room_types()`:
-  - ENTRY at center of max_z level
-  - BOSS_ROOM at min_z, furthest from entry
-  - TREASURE/PUZZLE at dead ends (30%/20% probability)
-  - CORRIDOR for 3+ connections
-  - CHAMBER for rest
-
-### Step 5: Integrate with generate_interior_layout
-- File: `src/cli_rpg/procedural_interiors.py`
-- Update `generate_interior_layout()` to instantiate `CellularAutomataGenerator` when `CATEGORY_GENERATORS[category] == "CellularAutomataGenerator"`
-
-### Step 6: Run full test suite
-- `pytest tests/test_cellular_automata_generator.py -v`
-- `pytest` (ensure no regressions in 5081+ tests)
-
----
-
-## Key Implementation Details
-
-### Cellular Automata Core
 ```python
-def _apply_automata(self, grid: list[list[bool]], iterations: int) -> list[list[bool]]:
-    """Apply cellular automata rules to smooth the grid."""
-    for _ in range(iterations):
-        new_grid = [[False] * len(grid[0]) for _ in range(len(grid))]
-        for y in range(len(grid)):
-            for x in range(len(grid[0])):
-                neighbors = self._count_neighbors(grid, x, y)
-                if grid[y][x]:  # Currently solid
-                    new_grid[y][x] = neighbors >= self.DEATH_THRESHOLD
-                else:  # Currently open
-                    new_grid[y][x] = neighbors >= self.BIRTH_THRESHOLD
-        grid = new_grid
-    return grid
-
-def _count_neighbors(self, grid: list[list[bool]], x: int, y: int) -> int:
-    """Count solid neighbors (8-directional including diagonals)."""
-    count = 0
-    for dy in [-1, 0, 1]:
-        for dx in [-1, 0, 1]:
-            if dx == 0 and dy == 0:
-                continue
-            nx, ny = x + dx, y + dy
-            if 0 <= nx < len(grid[0]) and 0 <= ny < len(grid):
-                if grid[ny][nx]:
-                    count += 1
-            else:
-                count += 1  # Out of bounds counts as solid
-    return count
+def generate_interior_layout(
+    category: str, bounds: tuple, seed: int
+) -> list[RoomTemplate]:
+    ...
+    # Use GridSettlementGenerator for settlements
+    if generator_type == "GridSettlementGenerator":
+        generator = GridSettlementGenerator(bounds=bounds, seed=seed)
+        return generator.generate()
+    ...
 ```
 
-### Flood Fill for Connectivity
-```python
-def _flood_fill(self, grid: list[list[bool]], start_x: int, start_y: int) -> set[tuple[int, int]]:
-    """Find all connected open cells from start position."""
-    if grid[start_y][start_x]:
-        return set()  # Start is solid
+## Files to Modify
 
-    connected = set()
-    stack = [(start_x, start_y)]
-
-    while stack:
-        x, y = stack.pop()
-        if (x, y) in connected:
-            continue
-        if x < 0 or x >= len(grid[0]) or y < 0 or y >= len(grid):
-            continue
-        if grid[y][x]:  # Solid cell
-            continue
-
-        connected.add((x, y))
-        stack.extend([(x+1, y), (x-1, y), (x, y+1), (x, y-1)])
-
-    return connected
-```
-
-### Connection Directions
-```python
-def _add_connections(self, rooms: list[RoomTemplate]) -> None:
-    """Add directional connections based on adjacency."""
-    coord_to_room = {r.coords: r for r in rooms}
-
-    for room in rooms:
-        x, y, z = room.coords
-        # Check each cardinal direction
-        for direction, (dx, dy, dz) in DIRECTION_OFFSETS.items():
-            neighbor_coord = (x + dx, y + dy, z + dz)
-            if neighbor_coord in coord_to_room:
-                if direction not in room.connections:
-                    room.connections.append(direction)
-```
-
-### Room Type Assignment
-- ENTRY: Center of max_z level (closest to (0, 0, max_z))
-- BOSS_ROOM: Furthest from entry at min_z level
-- TREASURE: 30% of dead ends (1 connection)
-- PUZZLE: 20% of dead ends
-- CORRIDOR: 3+ connections
-- CHAMBER: Default
+1. `src/cli_rpg/procedural_interiors.py` - Add GridSettlementGenerator class + update factory
+2. `tests/test_procedural_interiors.py` - Add TestGridSettlementGenerator test class
