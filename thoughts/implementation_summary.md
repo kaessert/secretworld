@@ -1,60 +1,96 @@
-# Implementation Summary: AI Content Logging
+# Implementation Summary: Session Replay from Logged State
 
 ## Date: 2025-12-28
 
 ## What Was Implemented
 
-The AI content logging feature is fully implemented and working. This feature allows AI-generated content (locations, NPCs, dialogue, quests, etc.) to be logged to session transcripts for review.
+### New CLI Flags
 
-### Components Implemented
+Added three new command-line arguments to `main.py`:
 
-1. **GameplayLogger.log_ai_content()** (`src/cli_rpg/logging_service.py`)
-   - Method that writes `ai_content` log entries with JSON Lines format
-   - Fields: `generation_type`, `prompt_hash`, `content`, and optional `raw_response`
-   - Uses the existing `_write_entry()` infrastructure
+1. `--replay <LOG_FILE>` - Replay session from a log file
+2. `--validate` - Validate replay state matches logged state (use with --replay)
+3. `--continue-at N` - Continue interactively after replaying N commands (use with --replay)
 
-2. **AIService content logger callback** (`src/cli_rpg/ai_service.py`)
-   - `content_logger` callback parameter in `__init__`
-   - `_log_content()` helper method that computes SHA256 hash prefix (16 chars) and invokes callback
-   - Logging integrated into `generate_location()` (called after successful generation)
+### New Module: `src/cli_rpg/session_replay.py`
 
-3. **Wiring in main.py** (`src/cli_rpg/main.py`)
-   - `content_logger` callback created from `GameplayLogger.log_ai_content` when logger is active
-   - Passed to `AIService` constructor in both `run_game_non_interactive()` (line 3060) and `run_game_interactive()` (line 3296)
+Created a new module with the following components:
 
-### Test Coverage
+- `LogEntry` dataclass - Represents a single log entry with timestamp, type, and data
+- `StateSnapshot` dataclass - Represents a game state snapshot for validation
+- `parse_log_file(log_path)` - Generator that yields LogEntry objects from JSON Lines files
+- `extract_seed(log_path)` - Extracts RNG seed from session_start entry
+- `extract_commands(log_path, limit)` - Extracts command inputs from log, with optional limit
+- `extract_states(log_path)` - Extracts state snapshots for validation
+- `validate_state(expected, actual)` - Compares expected state to actual, returns differences
 
-9 tests in `tests/test_ai_content_logging.py`:
-- **TestLogAiContent**: 3 tests for the `log_ai_content` method
-  - `test_log_ai_content_writes_entry`: Verifies correct JSON structure
-  - `test_log_ai_content_includes_raw_response`: Verifies raw_response included when provided
-  - `test_log_ai_content_various_types`: Tests different generation types
-- **TestPromptHash**: 2 tests for hash consistency
-  - `test_prompt_hash_is_consistent`: Same prompt produces same hash
-  - `test_different_prompts_different_hashes`: Different prompts produce different hashes
-- **TestAIServiceContentLogger**: 4 tests for callback integration
-  - `test_ai_service_calls_logger_on_generation`: Callback invoked with correct args
-  - `test_no_logging_when_callback_not_set`: No errors when callback is None
-  - `test_logger_receives_raw_response`: Raw LLM response passed to callback
-- **TestIntegrationWithGameplayLogger**: End-to-end test with real GameplayLogger
+### New Function: `run_replay_mode()` in `main.py`
+
+Added a new mode function that:
+
+1. Extracts seed and commands from a log file
+2. Seeds the RNG for deterministic replay
+3. Creates a default character and game world
+4. Replays each command in sequence
+5. Optionally validates state after each command
+6. Can switch to interactive mode after N commands
+7. Supports JSON output mode for structured output
+
+### Wiring Changes
+
+- Moved `--replay` check before `--json` check in `main()` so both flags work together
+- `--replay --json` outputs JSON Lines format during replay
+
+## Files Modified
+
+1. `src/cli_rpg/main.py`
+   - Added 3 new CLI arguments (--replay, --validate, --continue-at)
+   - Added `run_replay_mode()` function (~175 lines)
+   - Updated main() to check --replay before other modes
+
+2. `src/cli_rpg/session_replay.py` (NEW)
+   - Created new module with log parsing and validation utilities
+
+3. `tests/test_session_replay.py` (NEW)
+   - 26 comprehensive tests covering all functionality
 
 ## Test Results
 
-- All 9 AI content logging tests pass
-- Full test suite: 5540 passed in 126s
+All 26 new tests pass:
+- `TestParseLogFile` - 4 tests for log parsing
+- `TestExtractSeed` - 3 tests for seed extraction
+- `TestExtractCommands` - 3 tests for command extraction
+- `TestExtractStates` - 2 tests for state extraction
+- `TestValidateState` - 3 tests for state validation
+- `TestReplayFlagAccepted` - 3 tests for CLI argument parsing
+- `TestReplayMode` - 5 tests for replay mode functionality
+- `TestReplayModeIntegration` - 3 tests for end-to-end integration
 
-## Technical Details
+Full test suite: 5566 passed, 4 skipped, 1 warning
 
-- **Prompt hash**: First 16 characters of SHA256 hash of the prompt string
-- **Callback signature**: `Callable[[str, str, Any, str], None]` (generation_type, prompt_hash, content, raw_response)
-- **Log entry format**: JSON Lines with `type: "ai_content"`
+## Usage Examples
 
-## E2E Validation
+```bash
+# Basic replay
+cli-rpg --replay session.log
 
-The implementation can be validated by:
-1. Running the game with `--log-file session.log`
-2. Making moves that trigger AI generation
-3. Checking the log file for `ai_content` entries with structure:
-   ```json
-   {"timestamp": "...", "type": "ai_content", "generation_type": "location", "prompt_hash": "abc123...", "content": {...}}
-   ```
+# Replay with validation (exits 1 on mismatch)
+cli-rpg --replay session.log --validate
+
+# Replay first 5 commands, then continue interactively
+cli-rpg --replay session.log --continue-at 5
+
+# Replay with JSON output
+cli-rpg --replay session.log --json
+
+# Combined: validate with JSON errors
+cli-rpg --replay session.log --validate --json
+```
+
+## E2E Testing Notes
+
+E2E tests should validate:
+1. Creating a session with `--log-file`, then replaying with `--replay`
+2. Verification that output is consistent between original and replay
+3. Validation mode correctly detects real differences (e.g., different seeds)
+4. Continue-at mode correctly resumes interactive input

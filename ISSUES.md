@@ -188,14 +188,12 @@ Issues discovered through comprehensive map system playtesting in non-interactiv
 ---
 
 ### Non-interactive mode enhancements
-**Status**: ACTIVE
+**Status**: COMPLETED ✓
 
 **Completed**:
 - ✅ RNG seeds included in logs for reproducibility (2025-12-27)
 - ✅ AI content logging for review (2025-12-28) - AI-generated content logged via `log_ai_content()` with `generation_type`, `prompt_hash`, `content`, and optional `raw_response`
-
-**Future enhancements**:
-- Enable session replay from logged state
+- ✅ Session replay from logged state (2025-12-28) - `--replay`, `--validate`, `--continue-at` flags with `session_replay.py` module
 
 ---
 

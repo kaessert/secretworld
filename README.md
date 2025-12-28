@@ -729,6 +729,40 @@ cli-rpg --json --delay 200 < commands.txt
 - `ai_content` - AI-generated content with `generation_type`, `prompt_hash`, and `content`
 - `session_end` - Session termination with reason (eof/quit/death)
 
+### Session Replay
+
+Replay sessions from log files for debugging, testing, or reproducing issues:
+
+```bash
+# Basic replay - replays all commands from log file
+cli-rpg --replay session.log
+
+# Replay with validation - exits with code 1 if state mismatches
+cli-rpg --replay session.log --validate
+
+# Replay first 5 commands, then continue interactively
+cli-rpg --replay session.log --continue-at 5
+
+# Replay with JSON output
+cli-rpg --replay session.log --json
+
+# Combined: validate with JSON errors
+cli-rpg --replay session.log --validate --json
+```
+
+**Features:**
+- Extracts RNG seed from log file for deterministic replay
+- Replays commands in sequence from `session_start` to `session_end`
+- `--validate` compares game state after each command against logged state
+- `--continue-at N` replays N commands then switches to interactive mode
+- Works with `--json` for structured output during replay
+
+**Use cases:**
+- Reproduce bugs from user-submitted log files
+- Verify determinism by replaying and validating state
+- Debug issues by continuing interactively at a specific point
+- Test game balance by replaying combat encounters
+
 ### JSON Output Mode
 
 For programmatic consumption and AI agent integration, use the `--json` flag to output structured JSON Lines:

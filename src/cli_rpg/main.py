@@ -3251,6 +3251,184 @@ def run_json_mode(
     return 0
 
 
+def run_replay_mode(
+    log_file: str,
+    validate: bool = False,
+    continue_at: Optional[int] = None,
+    json_output: bool = False
+) -> int:
+    """Replay a session from a log file.
+
+    This mode replays commands from a previously logged session, enabling:
+    1. Deterministic replay using the original RNG seed
+    2. Validation that game responses match (for debugging regressions)
+    3. Option to continue interactively from any point in the log
+
+    Args:
+        log_file: Path to the log file to replay
+        validate: If True, validate state matches at each step
+        continue_at: If set, switch to interactive after N commands
+        json_output: If True, emit JSON output instead of text
+
+    Returns:
+        Exit code (0 for success, 1 for validation failure)
+    """
+    import random
+    from cli_rpg.colors import set_colors_enabled
+    from cli_rpg.models.character import Character, CharacterClass
+    from cli_rpg.session_replay import (
+        extract_seed, extract_commands, extract_states, validate_state
+    )
+    from cli_rpg.json_output import emit_state, emit_narrative, emit_error
+
+    # Disable ANSI colors, typewriter effects, and sounds for replay
+    set_colors_enabled(False)
+    set_effects_enabled(False)
+    set_sound_enabled(False)
+
+    # Extract seed and commands from log
+    seed = extract_seed(log_file)
+    commands = extract_commands(log_file, limit=continue_at)
+    states = extract_states(log_file) if validate else []
+
+    # Seed RNG for reproducibility
+    if seed is not None:
+        random.seed(seed)
+
+    # Load AI configuration
+    ai_config = load_ai_config()
+    ai_service = None
+    if ai_config:
+        try:
+            ai_service = AIService(ai_config)
+        except Exception:
+            pass  # Silently fall back to non-AI mode
+
+    # Create default character (replay uses same default as non-interactive)
+    character = Character(
+        name="Agent",
+        character_class=CharacterClass.WARRIOR,
+        strength=10,
+        dexterity=10,
+        intelligence=10,
+        charisma=10,
+        perception=10,
+        luck=10
+    )
+
+    # Create world and game state
+    world, starting_location = create_world(ai_service=ai_service, theme="fantasy", strict=False)
+
+    # Generate WFC ChunkManager seed
+    import random as rnd
+    chunk_seed = seed if seed is not None else rnd.randint(0, 2**31 - 1)
+
+    # Initialize WFC ChunkManager for terrain generation
+    from cli_rpg.wfc_chunks import ChunkManager
+    from cli_rpg.world_tiles import DEFAULT_TILE_REGISTRY
+    chunk_manager = ChunkManager(
+        tile_registry=DEFAULT_TILE_REGISTRY,
+        world_seed=chunk_seed,
+    )
+    chunk_manager.sync_with_locations(world)
+
+    game_state = GameState(
+        character,
+        world,
+        starting_location=starting_location,
+        ai_service=ai_service,
+        theme="fantasy",
+        chunk_manager=chunk_manager,
+    )
+
+    # Initialize default factions
+    from cli_rpg.world import get_default_factions
+    game_state.factions = get_default_factions()
+
+    # Replay commands
+    state_index = 0
+    validation_failures = []
+
+    for i, command_input in enumerate(commands):
+        command, args = parse_command(command_input)
+
+        if game_state.is_in_combat():
+            continue_game, message = handle_combat_command(game_state, command, args, non_interactive=True)
+        elif game_state.is_in_conversation and command == "unknown":
+            continue_game, message = handle_conversation_input(game_state, command_input)
+        else:
+            continue_game, message = handle_exploration_command(game_state, command, args, non_interactive=True)
+
+        # Output (JSON or text)
+        if json_output:
+            emit_narrative(message.strip())
+            emit_state(
+                location=game_state.current_location,
+                health=game_state.current_character.health,
+                max_health=game_state.current_character.max_health,
+                gold=game_state.current_character.gold,
+                level=game_state.current_character.level
+            )
+        else:
+            print(f"[{i+1}/{len(commands)}] > {command_input}")
+            print(message.strip())
+
+        # Validate state if enabled
+        if validate and state_index < len(states):
+            expected = states[state_index]
+            actual = {
+                "location": game_state.current_location,
+                "health": game_state.current_character.health,
+                "gold": game_state.current_character.gold,
+                "level": game_state.current_character.level
+            }
+            diffs = validate_state(expected, actual)
+            if diffs:
+                validation_failures.append((i+1, diffs))
+                if json_output:
+                    emit_error(code="STATE_MISMATCH", message="; ".join(diffs))
+                else:
+                    print(f"⚠️  State mismatch at command {i+1}: {'; '.join(diffs)}")
+            state_index += 1
+
+        if not continue_game:
+            break
+
+        # Check if player died
+        if not game_state.current_character.is_alive():
+            if json_output:
+                emit_narrative("GAME OVER - You have fallen in battle.")
+            else:
+                print("GAME OVER - You have fallen in battle.")
+            break
+
+    # Continue interactively if requested
+    if continue_at and continue_at <= len(commands):
+        print(f"\n--- Replay complete. Continuing interactively from command {continue_at} ---\n")
+        # Switch to interactive input loop
+        for line in sys.stdin:
+            command_input = line.strip()
+            if not command_input:
+                continue
+            command, args = parse_command(command_input)
+            if game_state.is_in_combat():
+                continue_game, message = handle_combat_command(game_state, command, args)
+            else:
+                continue_game, message = handle_exploration_command(game_state, command, args)
+            print(message.strip())
+            if not continue_game:
+                break
+
+    # Report validation summary
+    if validate and validation_failures:
+        print(f"\n❌ Validation failed: {len(validation_failures)} state mismatches")
+        return 1
+    elif validate:
+        print(f"\n✓ Validation passed: all states matched")
+
+    return 0
+
+
 def run_non_interactive(
     log_file: Optional[str] = None,
     delay_ms: int = 0,
@@ -3533,6 +3711,23 @@ def parse_args(args: Optional[list] = None):
         action="store_true",
         help="Start in demo mode with pre-generated world (no AI, no character creation)"
     )
+    parser.add_argument(
+        "--replay",
+        type=str,
+        metavar="LOG_FILE",
+        help="Replay session from a log file"
+    )
+    parser.add_argument(
+        "--validate",
+        action="store_true",
+        help="Validate replay state matches logged state (use with --replay)"
+    )
+    parser.add_argument(
+        "--continue-at",
+        type=int,
+        metavar="N",
+        help="Continue interactively after replaying N commands (use with --replay)"
+    )
     return parser.parse_args(args)
 
 
@@ -3558,6 +3753,15 @@ def main(args: Optional[list] = None) -> int:
 
     # Clamp delay to valid range (0-60000ms)
     delay_ms = max(0, min(60000, parsed_args.delay))
+
+    # Check --replay first since it can be combined with --json
+    if parsed_args.replay:
+        return run_replay_mode(
+            log_file=parsed_args.replay,
+            validate=parsed_args.validate,
+            continue_at=parsed_args.continue_at,
+            json_output=parsed_args.json
+        )
 
     if parsed_args.json:
         return run_json_mode(

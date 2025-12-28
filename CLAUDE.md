@@ -63,6 +63,7 @@ src/cli_rpg/
 ├── frames.py            # Stylized borders and frames for UI elements
 ├── json_output.py       # JSON Lines output for --json mode
 ├── logging_service.py   # Gameplay logging for --log-file option
+├── session_replay.py    # Session replay from log files (--replay, --validate, --continue-at)
 ├── input_handler.py     # Readline-based input with command history
 ├── completer.py         # Tab auto-completion for commands and arguments
 ├── whisper.py           # Ambient whisper system for atmosphere
