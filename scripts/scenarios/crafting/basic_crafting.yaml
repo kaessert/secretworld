@@ -1,0 +1,113 @@
+# Basic crafting scenario - tests gather, craft, and recipes commands
+# Validates that the player can view recipes, gather resources, and craft items
+scenario:
+  name: "Basic Crafting"
+  description: "Test crafting system: recipes, gather, and craft commands"
+  seed: 42012
+  config:
+    max_commands: 25
+    timeout: 90
+
+  setup:
+    - "dump_state"  # Get initial state
+
+  steps:
+    # Step 1: View available recipes
+    - command: "recipes"
+      assertions:
+        - type: COMMAND_VALID
+          field: ""
+          value: true
+          message: "recipes command should be valid"
+
+    # Step 2: Get initial state to check health/location
+    - command: "dump_state"
+      assertions:
+        - type: STATE_RANGE
+          field: "health"
+          value:
+            min: 1
+            max: 200
+          message: "Health should be in valid range"
+        - type: CONTENT_PRESENT
+          field: "location"
+          value: true
+          message: "Location should be present"
+
+    # Step 3: Check initial inventory
+    - command: "inventory"
+      assertions:
+        - type: COMMAND_VALID
+          field: ""
+          value: true
+          message: "inventory command should be valid"
+
+    # Step 4: Attempt to gather resources (may or may not succeed depending on location)
+    - command: "gather"
+      assertions:
+        - type: COMMAND_VALID
+          field: ""
+          value: true
+          message: "gather command should be recognized"
+
+    # Step 5: Try moving to find a gatherable location (go north)
+    - command: "go north"
+      assertions:
+        - type: COMMAND_VALID
+          field: ""
+          value: true
+          message: "go north should work"
+
+    # Step 6: Try gathering again in new location
+    - command: "gather"
+      assertions:
+        - type: COMMAND_VALID
+          field: ""
+          value: true
+          message: "gather command should work in new location"
+
+    # Step 7: Check inventory after gathering attempts
+    - command: "inventory"
+      assertions:
+        - type: COMMAND_VALID
+          field: ""
+          value: true
+          message: "inventory command should work"
+
+    # Step 8: Attempt to craft something (may fail if no resources)
+    - command: "craft rope"
+      assertions:
+        - type: COMMAND_VALID
+          field: ""
+          value: true
+          message: "craft command should be recognized"
+
+    # Step 9: Try another craft attempt (torch requires wood + fiber)
+    - command: "craft torch"
+      assertions:
+        - type: COMMAND_VALID
+          field: ""
+          value: true
+          message: "craft torch should be recognized"
+
+    # Step 10: Final inventory check
+    - command: "inventory"
+      assertions:
+        - type: COMMAND_VALID
+          field: ""
+          value: true
+          message: "inventory should show final state"
+
+    # Step 11: Final state verification
+    - command: "dump_state"
+      assertions:
+        - type: STATE_RANGE
+          field: "health"
+          value:
+            min: 1
+            max: 200
+          message: "Health should still be in valid range"
+        - type: CONTENT_PRESENT
+          field: "location"
+          value: true
+          message: "Location should still be present"

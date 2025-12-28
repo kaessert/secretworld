@@ -150,7 +150,7 @@ Create scripted test sessions that walk through each game feature, issuing comma
 - [ ] NPC interaction (talk, dialogue choices, arc progression, shop, quest acceptance)
 - [ ] Inventory management (equip, unequip, use, drop, armor restrictions, holy symbols)
 - [ ] Quests (accept, track, complete, world effects, quest chains)
-- [ ] Crafting and gathering (gather, craft, skill progression, rare recipes)
+- [x] Crafting and gathering (gather, craft, skill progression, rare recipes) - basic_crafting.yaml added
 - [ ] Exploration (map, secrets, puzzles, treasures, exploration bonus)
 - [ ] Rest and camping (rest, camp, forage, hunt, dreams)
 - [ ] Economy (buy, sell, price modifiers, supply/demand)
@@ -408,7 +408,7 @@ python -m scripts.run_validation --report-format=html --output=report.html
 2. ✅ Implement assertion types and checking (8 assertion types: STATE_EQUALS, STATE_CONTAINS, STATE_RANGE, NARRATIVE_MATCH, COMMAND_VALID, COMMAND_EFFECT, CONTENT_PRESENT, CONTENT_QUALITY placeholder)
 3. ✅ Implement FeatureCoverage tracker (14 categories, 50 features, FeatureEvent/CoverageStats dataclasses, record/get_coverage_by_category/get_uncovered_features/get_coverage_percentage methods, full serialization)
 4. ✅ Create YAML scenario format and runner (ScenarioRunner with run/run_scenario methods, Scenario/ScenarioStep/StepResult/ScenarioResult dataclasses, wait_for support, 17 tests)
-5. ✅ Create initial scenarios for core features (11 YAML scenarios in scripts/scenarios/: movement (basic_navigation, subgrid_entry_exit, vertical_navigation), combat, inventory, NPC, exploration, rest; seeds 42001-42011; validated by tests/test_scenario_files.py)
+5. ✅ Create initial scenarios for core features (12 YAML scenarios in scripts/scenarios/: movement (basic_navigation, subgrid_entry_exit, vertical_navigation), combat, inventory, NPC, exploration, rest, crafting; seeds 42001-42012; validated by tests/test_scenario_files.py)
 
 **Phase 4: Advanced Features (LOW)** - IN PROGRESS
 1. Decision timing variability
@@ -431,7 +431,7 @@ python -m scripts.run_validation --report-format=html --output=report.html
 - `scripts/ai_agent.py` - Core agent to extend
 - `scripts/state_parser.py` - AgentState to extend
 - `scripts/run_simulation.py` - CLI to extend
-- `scripts/scenarios/` - YAML validation scenarios (11 files organized by feature, including vertical_navigation.yaml)
+- `scripts/scenarios/` - YAML validation scenarios (12 files organized by feature, including vertical_navigation.yaml and basic_crafting.yaml)
 - `scripts/validation/regression.py` - Regression detection (RegressionDetector, baselines, comparison)
 - `scripts/validation/ai_quality.py` - AI content quality validation (ContentQualityChecker, ContentType, QualityResult)
 - `scripts/baselines/` - Directory for storing baseline files

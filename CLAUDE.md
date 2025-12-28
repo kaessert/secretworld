@@ -49,7 +49,8 @@ scripts/
     ├── inventory/       # Inventory scenarios (equip_unequip.yaml, use_item.yaml)
     ├── npc/             # NPC interaction scenarios (talk_dialogue.yaml, shop_browse.yaml)
     ├── exploration/     # Exploration scenarios (look_map.yaml)
-    └── rest/            # Rest scenarios (basic_rest.yaml)
+    ├── rest/            # Rest scenarios (basic_rest.yaml)
+    └── crafting/        # Crafting scenarios (basic_crafting.yaml)
 
 tests/e2e/
 ├── __init__.py          # E2E test package

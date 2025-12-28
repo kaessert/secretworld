@@ -1,155 +1,42 @@
-# AI Content Quality Validation Implementation Plan
+# Implementation Plan: Add Basic Crafting Scenario
 
-## Overview
-Implement `CONTENT_QUALITY` assertion type in `scripts/validation/assertions.py` and create `scripts/validation/ai_quality.py` to validate AI-generated content meets quality standards.
+## Task
+Add a crafting validation scenario (`scripts/scenarios/crafting/basic_crafting.yaml`) that tests the `gather`, `craft`, and `recipes` commands.
 
 ## Spec
+Test the crafting system by:
+1. View available recipes with `recipes` command
+2. Attempt to gather resources in a valid location (forest/wilderness/cave)
+3. Check inventory for gathered resources
+4. Attempt to craft an item using resources
+5. Verify crafted item appears in inventory
 
-### ContentQualityCheck Types
-Quality checks for different AI-generated content:
-- **Location**: name length (3-50 chars), description length (20-500 chars), valid category
-- **NPC**: name length (2-40 chars), description non-empty, dialogue non-empty
-- **Quest**: name non-empty, description length (10-300 chars), valid objective_type
-- **Item**: name non-empty, description non-empty, valid item_type
+## Files to Create
 
-### Quality Dimensions
-- `min_length` / `max_length` - String length bounds
-- `non_empty` - Content is not empty/None
-- `valid_values` - Value is in allowed set
-- `coherence` - Content relates to context (category/theme)
-- `no_placeholder` - No "Unknown", "TODO", "placeholder" text
+### 1. `scripts/scenarios/crafting/__init__.py`
+Empty package init file.
 
-### CONTENT_QUALITY Assertion
-```python
-# Expected format in assertion:
-expected = {
-    "content_type": "location",  # location, npc, quest, item
-    "checks": ["min_length", "max_length", "valid_values"],
-    "thresholds": {"min_length": 20, "max_length": 500}
-}
-```
+### 2. `scripts/scenarios/crafting/basic_crafting.yaml`
+Scenario with seed: 42012, covering:
+- `recipes` command validation (COMMAND_VALID)
+- `gather` command (may need wilderness/forest location)
+- `inventory` to verify resources
+- `craft` command attempt
+- State assertions for health range, location presence
 
-## Tests (scripts/validation/)
+## Test Updates
 
-### test_ai_quality.py
-1. `test_content_type_enum_values` - Verify ContentType enum has location, npc, quest, item
-2. `test_quality_check_location_valid` - Location with valid name/desc/category passes
-3. `test_quality_check_location_short_name` - Location with 2-char name fails
-4. `test_quality_check_location_invalid_category` - Location with bad category fails
-5. `test_quality_check_npc_valid` - NPC with name/desc/dialogue passes
-6. `test_quality_check_npc_empty_dialogue` - NPC with empty dialogue fails
-7. `test_quality_check_quest_valid` - Quest with valid fields passes
-8. `test_quality_check_item_valid` - Item with valid fields passes
-9. `test_quality_check_placeholder_detection` - Content with "Unknown Chamber" fails
-10. `test_quality_checker_batch` - Batch check returns all results
-11. `test_quality_result_serialization` - QualityResult to_dict/from_dict roundtrip
-
-### test_validation_assertions.py (update)
-12. `test_check_content_quality_passes` - CONTENT_QUALITY with valid content passes
-13. `test_check_content_quality_fails` - CONTENT_QUALITY with invalid content fails
+### 3. `tests/test_scenario_files.py`
+Add "crafting" to `expected_dirs` in `test_all_subdirectories_have_scenarios()` and add `test_crafting_scenarios_exist()` method.
 
 ## Implementation Steps
 
-### 1. Create `scripts/validation/ai_quality.py`
-```python
-# New file with:
-class ContentType(Enum):
-    LOCATION = auto()
-    NPC = auto()
-    QUEST = auto()
-    ITEM = auto()
-
-@dataclass
-class QualityResult:
-    passed: bool
-    content_type: ContentType
-    checks_passed: list[str]
-    checks_failed: list[str]
-    details: dict[str, str]
-
-class ContentQualityChecker:
-    # Constants for thresholds
-    LOCATION_NAME_MIN = 3
-    LOCATION_NAME_MAX = 50
-    LOCATION_DESC_MIN = 20
-    LOCATION_DESC_MAX = 500
-    NPC_NAME_MIN = 2
-    NPC_NAME_MAX = 40
-    QUEST_DESC_MIN = 10
-    QUEST_DESC_MAX = 300
-
-    # Placeholder patterns to detect
-    PLACEHOLDER_PATTERNS = [
-        r"^unknown",
-        r"^todo",
-        r"placeholder",
-        r"^test\s",
-        r"^example\s",
-    ]
-
-    def check_location(self, content: dict) -> QualityResult
-    def check_npc(self, content: dict) -> QualityResult
-    def check_quest(self, content: dict) -> QualityResult
-    def check_item(self, content: dict) -> QualityResult
-    def check(self, content_type: ContentType, content: dict) -> QualityResult
-    def check_batch(self, items: list[tuple[ContentType, dict]]) -> list[QualityResult]
-```
-
-### 2. Update `scripts/validation/assertions.py`
-Add `_check_content_quality` method to `AssertionChecker`:
-```python
-def _check_content_quality(
-    self,
-    assertion: Assertion,
-    state: Any,
-    prev_state: Optional[Any],
-    output: str,
-) -> AssertionResult:
-    """Check CONTENT_QUALITY assertion using ContentQualityChecker."""
-    from scripts.validation.ai_quality import ContentQualityChecker, ContentType
-
-    content = self._get_field_value(state, assertion.field)
-    config = assertion.expected or {}
-    content_type_str = config.get("content_type", "location")
-    content_type = ContentType[content_type_str.upper()]
-
-    checker = ContentQualityChecker()
-    result = checker.check(content_type, content)
-
-    if result.passed:
-        return AssertionResult(assertion=assertion, passed=True, actual=content)
-    else:
-        error = f"Quality checks failed: {', '.join(result.checks_failed)}"
-        return AssertionResult(assertion=assertion, passed=False, actual=content, error=error)
-```
-
-Add to checkers dict in `check()` method:
-```python
-AssertionType.CONTENT_QUALITY: self._check_content_quality,
-```
-
-### 3. Update `scripts/validation/__init__.py`
-Add exports:
-```python
-from .ai_quality import (
-    ContentQualityChecker,
-    ContentType,
-    QualityResult,
-)
-```
-
-### 4. Write tests
-- Create `tests/test_ai_quality.py` with 11 tests
-- Update `tests/test_validation_assertions.py` - change line 528 test expectation
-
-## Files to Modify
-1. `scripts/validation/ai_quality.py` - NEW (ContentQualityChecker, ContentType, QualityResult)
-2. `scripts/validation/assertions.py` - Add _check_content_quality method
-3. `scripts/validation/__init__.py` - Add ai_quality exports
-4. `tests/test_ai_quality.py` - NEW (11 tests)
-5. `tests/test_validation_assertions.py` - Update CONTENT_QUALITY test (line 514-528)
-
-## Verification
-```bash
-pytest tests/test_ai_quality.py tests/test_validation_assertions.py -v
-```
+1. Create `scripts/scenarios/crafting/__init__.py` (empty)
+2. Create `scripts/scenarios/crafting/basic_crafting.yaml` with:
+   - seed: 42012
+   - config: max_commands: 25, timeout: 90
+   - Steps: recipes, gather (may fail if wrong location), inventory, craft attempt
+3. Update `tests/test_scenario_files.py`:
+   - Add "crafting" to expected_dirs set
+   - Add `test_crafting_scenarios_exist()` test method
+4. Run tests: `pytest tests/test_scenario_files.py -v`

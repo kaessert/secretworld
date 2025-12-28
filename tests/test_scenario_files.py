@@ -166,7 +166,7 @@ class TestScenarioStructure:
 
     def test_all_subdirectories_have_scenarios(self):
         """Each feature subdirectory should have at least one scenario."""
-        expected_dirs = {"movement", "combat", "inventory", "npc", "exploration", "rest"}
+        expected_dirs = {"movement", "combat", "inventory", "npc", "exploration", "rest", "crafting"}
 
         if not SCENARIOS_DIR.exists():
             pytest.skip("Scenarios directory not found")
@@ -280,3 +280,16 @@ class TestSpecificScenarios:
 
         file_names = {f.name for f in yaml_files}
         assert "basic_rest.yaml" in file_names, "basic_rest.yaml not found"
+
+    def test_crafting_scenarios_exist(self):
+        """Crafting scenarios should test gather, craft, and recipes."""
+        crafting_dir = SCENARIOS_DIR / "crafting"
+
+        if not crafting_dir.exists():
+            pytest.skip("Crafting directory not found")
+
+        yaml_files = list(crafting_dir.glob("*.yaml"))
+        assert len(yaml_files) >= 1, "Expected at least 1 crafting scenario"
+
+        file_names = {f.name for f in yaml_files}
+        assert "basic_crafting.yaml" in file_names, "basic_crafting.yaml not found"
