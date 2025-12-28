@@ -1215,11 +1215,13 @@ class GameState:
 
         # On-demand SubGrid generation for named locations or enterable categories
         from cli_rpg.world_tiles import is_enterable_category
-        can_enter = is_enterable_category(current.category)
-        if not can_enter:
+        can_generate_subgrid = is_enterable_category(current.category)
+        has_existing_content = current.sub_grid is not None or bool(current.sub_locations)
+
+        if not can_generate_subgrid and not has_existing_content:
             return (False, "There's nothing to enter here. This is open wilderness.")
         # Only generate SubGrid if no legacy sub_locations exist
-        if current.sub_grid is None and not current.sub_locations:
+        if not has_existing_content:
             # Generate SubGrid on-demand for enterable locations
             from cli_rpg.ai_world import generate_subgrid_for_location
             current.sub_grid = generate_subgrid_for_location(
