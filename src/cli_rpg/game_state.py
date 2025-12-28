@@ -93,6 +93,11 @@ KNOWN_COMMANDS: set[str] = {
     "unlock", "pull", "step", "answer", "activate",  # Puzzle commands
 }
 
+# Discovery milestone XP rewards (per SubGrid)
+MILESTONE_XP_FIRST_SECRET = 25
+MILESTONE_XP_ALL_TREASURES = 25
+MILESTONE_XP_BOSS_DEFEATED = 25
+
 # Dread increases by location category (darker areas = more dread)
 DREAD_BY_CATEGORY: dict[str, int] = {
     "dungeon": 15,
@@ -482,6 +487,71 @@ class GameState:
             return None
         lines = [f"{colors.success('You notice:')} {s['description']}" for s in detected]
         return "\n".join(lines)
+
+    def check_and_award_milestones(self, event_type: str) -> Optional[str]:
+        """Check and award discovery milestones based on event type.
+
+        Milestones are tracked per-SubGrid and only awarded once per SubGrid.
+        Each milestone awards XP and displays a celebration message.
+
+        Args:
+            event_type: Type of event that triggered the check:
+                - "secret": First secret discovered
+                - "treasure": All treasures opened
+                - "boss": Boss defeated
+
+        Returns:
+            Celebration message if milestone awarded, None otherwise.
+        """
+        # Milestones only apply when inside a SubGrid
+        if not self.in_sub_location or self.current_sub_grid is None:
+            return None
+
+        sub_grid = self.current_sub_grid
+
+        if event_type == "secret":
+            # First secret found milestone
+            if sub_grid.first_secret_found:
+                return None  # Already awarded
+            sub_grid.first_secret_found = True
+            self.current_character.gain_xp(MILESTONE_XP_FIRST_SECRET)
+            return (
+                f"{colors.heal('★ FIRST SECRET DISCOVERED! ★')} "
+                f"You've found your first secret in {sub_grid.parent_name}! "
+                f"+{MILESTONE_XP_FIRST_SECRET} XP"
+            )
+
+        elif event_type == "treasure":
+            # All treasures opened milestone
+            if sub_grid.all_treasures_opened:
+                return None  # Already awarded
+            if not sub_grid.are_all_treasures_opened():
+                return None  # Not all treasures opened yet
+            sub_grid.all_treasures_opened = True
+            self.current_character.gain_xp(MILESTONE_XP_ALL_TREASURES)
+            return (
+                f"{colors.heal('★ ALL TREASURES FOUND! ★')} "
+                f"You've opened every treasure in {sub_grid.parent_name}! "
+                f"+{MILESTONE_XP_ALL_TREASURES} XP"
+            )
+
+        elif event_type == "boss":
+            # Boss defeated milestone
+            if sub_grid.boss_milestone_awarded:
+                return None  # Already awarded
+            # Verify boss was actually defeated
+            location = self.get_current_location()
+            if not location.boss_defeated:
+                return None  # Boss not defeated yet
+            sub_grid.boss_milestone_awarded = True
+            self.current_character.gain_xp(MILESTONE_XP_BOSS_DEFEATED)
+            return (
+                f"{colors.heal('★ BOSS VANQUISHED! ★')} "
+                f"You've defeated the boss of {sub_grid.parent_name}! "
+                f"+{MILESTONE_XP_BOSS_DEFEATED} XP"
+            )
+
+        return None
 
     def is_in_combat(self) -> bool:
         """Check if combat is currently active.

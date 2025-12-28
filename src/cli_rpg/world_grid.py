@@ -137,6 +137,10 @@ class SubGrid:
     visited_rooms: set = field(default_factory=set)
     exploration_bonus_awarded: bool = False
     interior_events: List["InteriorEvent"] = field(default_factory=list)
+    # Discovery milestone tracking
+    first_secret_found: bool = False
+    all_treasures_opened: bool = False
+    boss_milestone_awarded: bool = False
 
     def add_location(self, location: Location, x: int, y: int, z: int = 0) -> None:
         """Add a location within bounds.
@@ -253,6 +257,37 @@ class SubGrid:
             return True
         return len(self.visited_rooms) >= total_rooms
 
+    def get_treasure_stats(self) -> tuple[int, int]:
+        """Get treasure opening statistics for milestone tracking.
+
+        Counts treasure chests across all locations in the SubGrid.
+
+        Returns:
+            Tuple of (opened_count, total_count) for treasures.
+        """
+        opened = 0
+        total = 0
+        for location in self._by_name.values():
+            for treasure in location.treasures:
+                total += 1
+                if treasure.get("opened", False):
+                    opened += 1
+        return (opened, total)
+
+    def are_all_treasures_opened(self) -> bool:
+        """Check if all treasure chests in the SubGrid have been opened.
+
+        Returns True if there are no treasures (vacuously true) or
+        if all treasures have been opened.
+
+        Returns:
+            True if all treasures opened, False otherwise.
+        """
+        opened, total = self.get_treasure_stats()
+        if total == 0:
+            return True
+        return opened >= total
+
     def to_dict(self) -> dict:
         """Serialize the sub-grid to a dictionary.
 
@@ -272,6 +307,10 @@ class SubGrid:
             "visited_rooms": [list(coords) for coords in self.visited_rooms],
             "exploration_bonus_awarded": self.exploration_bonus_awarded,
             "interior_events": [e.to_dict() for e in self.interior_events],
+            # Discovery milestone tracking
+            "first_secret_found": self.first_secret_found,
+            "all_treasures_opened": self.all_treasures_opened,
+            "boss_milestone_awarded": self.boss_milestone_awarded,
         }
 
     @classmethod
@@ -305,6 +344,10 @@ class SubGrid:
         grid.interior_events = [
             InteriorEvent.from_dict(e) for e in data.get("interior_events", [])
         ]
+        # Restore discovery milestone fields (default to False for backward compat)
+        grid.first_secret_found = data.get("first_secret_found", False)
+        grid.all_treasures_opened = data.get("all_treasures_opened", False)
+        grid.boss_milestone_awarded = data.get("boss_milestone_awarded", False)
 
         for loc_data in data.get("locations", []):
             location = Location.from_dict(loc_data)

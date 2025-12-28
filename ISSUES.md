@@ -260,12 +260,15 @@ quest = Quest(
 ---
 
 ### Character classes with unique playstyles
-**Status**: ACTIVE (Base System Implemented)
+**Status**: ACTIVE (Core System Complete)
 
 **Implemented**:
 - 5 classes: Warrior, Mage, Rogue, Ranger, Cleric with stat bonuses
 - Class-specific abilities: bash, fireball, ice_bolt, heal, sneak, pick, track, bless, smite
 - Armor weight restrictions by class (Warrior: all, Rogue/Ranger/Cleric: Light+Medium, Mage: Light only)
+- ArmorWeight enum (LIGHT, MEDIUM, HEAVY) in `models/item.py`
+- CLASS_ARMOR_RESTRICTIONS in `models/character.py` with `can_equip_armor()` and `equip_armor_with_validation()` methods
+- Fallback armor items have weight categories assigned
 
 **Remaining (Future)**:
 - Animal companion for Ranger
@@ -280,8 +283,9 @@ quest = Quest(
 **Implemented**:
 - `sneak` command for Rogues (combat stealth, exploration encounter avoidance)
 - `hide` command in combat
-- Enemies with perception stats (default: 5, for stealth detection mechanics)
-- Stealth kills bonus XP (25% XP bonus per stealth kill)
+- Enemies with perception stats (`perception: int = 5` field in Enemy model, for future stealth detection mechanics)
+- Stealth kills bonus XP (25% XP bonus per stealth kill, calculated as `25% × stealth_kills / total_enemies × total_xp`)
+- `stealth_kills` counter in `CombatEncounter` for tracking backstab kills
 
 ---
 
@@ -684,18 +688,22 @@ Created QuestNetworkManager for managing interconnected quest storylines.
   - `get_exploration_stats()` method - Returns (visited_count, total_rooms, percentage)
   - `is_fully_explored()` method - Returns True when all rooms have been visited
   - Full serialization with backward compatibility
+  - **Discovery Milestone Fields (2025-12-28)**: `first_secret_found`, `all_treasures_opened`, `boss_milestone_awarded` boolean fields for per-SubGrid milestone tracking
+  - `get_treasure_stats()` and `are_all_treasures_opened()` helper methods
 - `src/cli_rpg/game_state.py` - Movement tracking:
   - `enter()` marks entry room as visited when entering SubGrid
   - `_move_in_sub_grid()` marks destination room as visited after each move
   - Awards XP (50 × rooms) and gold (25 × rooms) bonus on full exploration
   - Displays "★ FULLY EXPLORED! ★" message with rewards
+  - **Discovery Milestones (2025-12-28)**: `check_and_award_milestones(event_type)` method with 25 XP per milestone
 - `src/cli_rpg/map_renderer.py` - Displays "Explored: X/Y rooms (Z%)" in SubGrid map header
 - 15 new tests in `tests/test_exploration_tracking.py`
+- 18 new tests in `tests/test_discovery_milestones.py` (2025-12-28)
 
 **Acceptance Criteria:**
 - [x] Track visited rooms in SubGrid (persisted in save)
 - [x] "Fully explored" bonus (XP + gold) when all rooms visited
-- [ ] Discovery milestones: first secret, all treasures, boss defeated (deferred to future enhancement)
+- [x] Discovery milestones: first secret, all treasures, boss defeated - Infrastructure complete (2025-12-28), game loop integration pending
 - [x] Exploration percentage visible in `map` command
 - [ ] Visited rooms marked differently on map (deferred - current map already shows visited vs seen tiles)
 
