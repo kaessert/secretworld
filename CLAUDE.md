@@ -39,7 +39,9 @@ scripts/
 │   ├── __init__.py      # Package exports for validation framework
 │   ├── assertions.py    # AssertionType enum (8 types), Assertion/AssertionResult dataclasses, AssertionChecker for state validation
 │   ├── coverage.py      # FeatureCategory enum (14 categories), FeatureEvent, CoverageStats, FeatureCoverage tracker for playtest coverage analysis
-│   └── scenarios.py     # YAML scenario format: Scenario/ScenarioStep dataclasses, ScenarioRunner for automated playthrough validation
+│   ├── scenarios.py     # YAML scenario format: Scenario/ScenarioStep dataclasses, ScenarioRunner for automated playthrough validation
+│   ├── regression.py    # RegressionDetector, RegressionBaseline, RegressionReport for detecting feature regressions
+│   └── ai_quality.py    # ContentQualityChecker, ContentType, QualityResult for AI content validation (length bounds, placeholder detection, valid values)
 └── scenarios/           # YAML validation scenarios for core game features
     ├── __init__.py
     ├── movement/        # Navigation scenarios (basic_navigation.yaml, subgrid_entry_exit.yaml)

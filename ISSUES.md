@@ -415,7 +415,7 @@ python -m scripts.run_validation --report-format=html --output=report.html
 2. Social intelligence and dialogue choices
 3. Strategic planning for dungeons/quests
 4. ✅ Regression detection (`scripts/validation/regression.py` with `RegressionDetector`, `RegressionBaseline`, `RegressionReport`, baseline comparison)
-5. AI content quality validation
+5. ✅ AI content quality validation (`scripts/validation/ai_quality.py` with `ContentQualityChecker`, `ContentType`, `QualityResult` - validates location/NPC/quest/item content for length bounds, placeholder detection, valid values)
 
 ---
 
@@ -425,7 +425,7 @@ python -m scripts.run_validation --report-format=html --output=report.html
 - [x] Track which features are exercised, identify coverage gaps (Phase 3 - FeatureCoverage tracker COMPLETE)
 - [x] Initial YAML scenarios for core features created and validated (Phase 3 Step 5 - 11 scenarios COMPLETE)
 - [x] Detect feature regressions automatically with clear reports (Phase 4 - `RegressionDetector` COMPLETE)
-- [ ] Validate AI-generated content meets quality standards (Phase 4)
+- [x] Validate AI-generated content meets quality standards (Phase 4 - `ContentQualityChecker` COMPLETE with 12 tests)
 
 #### Related Files
 - `scripts/ai_agent.py` - Core agent to extend
@@ -433,9 +433,12 @@ python -m scripts.run_validation --report-format=html --output=report.html
 - `scripts/run_simulation.py` - CLI to extend
 - `scripts/scenarios/` - YAML validation scenarios (11 files organized by feature, including vertical_navigation.yaml)
 - `scripts/validation/regression.py` - Regression detection (RegressionDetector, baselines, comparison)
+- `scripts/validation/ai_quality.py` - AI content quality validation (ContentQualityChecker, ContentType, QualityResult)
 - `scripts/baselines/` - Directory for storing baseline files
 - `tests/test_scenario_files.py` - Scenario validation tests
 - `tests/test_validation_regression.py` - Regression detection tests (16 tests)
+- `tests/test_ai_quality.py` - AI quality validation tests (12 tests)
+- `tests/test_validation_assertions.py` - Assertion checker tests including CONTENT_QUALITY type
 - `src/cli_rpg/persistence.py` - Game save/load to integrate
 
 #### Full Plan

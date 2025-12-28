@@ -123,6 +123,7 @@ class AssertionChecker:
             AssertionType.COMMAND_VALID: self._check_command_valid,
             AssertionType.COMMAND_EFFECT: self._check_command_effect,
             AssertionType.CONTENT_PRESENT: self._check_content_present,
+            AssertionType.CONTENT_QUALITY: self._check_content_quality,
         }
 
         checker_fn = checkers.get(assertion.type)
@@ -386,3 +387,37 @@ class AssertionChecker:
             passed=True,
             actual=content,
         )
+
+    def _check_content_quality(
+        self,
+        assertion: Assertion,
+        state: Any,
+        prev_state: Optional[Any],
+        output: str,
+    ) -> AssertionResult:
+        """Check CONTENT_QUALITY assertion using ContentQualityChecker.
+
+        Args:
+            assertion: The assertion to check (expected contains content_type config)
+            state: Current game state
+            prev_state: Previous game state (unused)
+            output: Command output text (unused)
+
+        Returns:
+            AssertionResult with passed status and details
+        """
+        from scripts.validation.ai_quality import ContentQualityChecker, ContentType
+
+        content = self._get_field_value(state, assertion.field)
+        config = assertion.expected or {}
+        content_type_str = config.get("content_type", "location")
+        content_type = ContentType[content_type_str.upper()]
+
+        checker = ContentQualityChecker()
+        result = checker.check(content_type, content)
+
+        if result.passed:
+            return AssertionResult(assertion=assertion, passed=True, actual=content)
+        else:
+            error = f"Quality checks failed: {', '.join(result.checks_failed)}"
+            return AssertionResult(assertion=assertion, passed=False, actual=content, error=error)

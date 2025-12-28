@@ -511,18 +511,47 @@ class TestAssertionChecker:
         assert isinstance(result, AssertionResult)
         assert result.assertion == assertion
 
-    def test_check_unknown_type_raises(self, checker, sample_state):
-        """Test that invalid assertion type raises ValueError.
+    def test_check_content_quality_passes(self, checker):
+        """Test CONTENT_QUALITY with valid content passes.
 
-        Spec: Unknown assertion types should raise ValueError.
+        Spec: CONTENT_QUALITY passes when content meets quality standards.
         """
-        # Create an assertion with a mock invalid type
+        state = {
+            "location": {
+                "name": "Dark Forest Clearing",
+                "description": "A shadowy clearing surrounded by ancient trees.",
+                "category": "forest",
+            }
+        }
         assertion = Assertion(
-            type=AssertionType.CONTENT_QUALITY,  # Placeholder type for future
-            field="test",
-            expected=None,
+            type=AssertionType.CONTENT_QUALITY,
+            field="location",
+            expected={"content_type": "location"},
         )
 
-        # CONTENT_QUALITY is not yet implemented, should raise
-        with pytest.raises(ValueError, match="not implemented"):
-            checker.check(assertion, sample_state)
+        result = checker.check(assertion, state)
+
+        assert result.passed is True
+
+    def test_check_content_quality_fails(self, checker):
+        """Test CONTENT_QUALITY with invalid content fails.
+
+        Spec: CONTENT_QUALITY fails when content has quality issues.
+        """
+        state = {
+            "location": {
+                "name": "Go",  # Too short (2 chars, min 3)
+                "description": "Short",  # Too short (5 chars, min 20)
+                "category": "invalid",  # Invalid category
+            }
+        }
+        assertion = Assertion(
+            type=AssertionType.CONTENT_QUALITY,
+            field="location",
+            expected={"content_type": "location"},
+        )
+
+        result = checker.check(assertion, state)
+
+        assert result.passed is False
+        assert "failed" in result.error.lower()
