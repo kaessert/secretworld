@@ -77,7 +77,7 @@ Refactor to use **procedural generation for world structure** while keeping **AI
 11. ✓ Create ContentLayer mediator class (COMPLETED 2025-12-28)
 12. Create ContentCache with deterministic keying
 13. ✓ Create FallbackContentProvider with expanded templates (COMPLETED 2025-12-28)
-14. Add new AIService methods for content generation
+14. ✓ Add new AIService methods for content generation (COMPLETED 2025-12-28: `generate_room_content()` method added)
 
 **Phase 5: Integration**
 15. Modify `generate_subgrid_for_location()` to use procedural + ContentLayer

@@ -449,6 +449,37 @@ Instructions:
 Respond with ONLY the dialogue text, no quotes or formatting."""
 
 
+# Default prompt template for room content generation (procedural interiors)
+DEFAULT_ROOM_CONTENT_PROMPT = """Generate a room for a {theme} RPG interior location.
+
+Room Context:
+- Room Type: {room_type}
+- Location Category: {category}
+- Connected Directions: {connections}
+- Is Entry Point: {is_entry}
+
+World Context:
+- Theme Essence: {theme_essence}
+
+Requirements:
+1. Create a unique room name (2-40 characters) fitting the room type and category
+2. Write a vivid description (50-200 characters) that creates atmosphere
+
+Room Type Guidelines:
+- entry: Entrance/exit areas with hints of what lies ahead
+- corridor: Connecting passages with ambient details
+- chamber: Standard rooms for exploration
+- boss_room: Imposing chambers for major encounters
+- treasure: Rooms with valuable items or hidden caches
+- puzzle: Rooms with interactive challenges or mysteries
+
+Respond with valid JSON in this exact format:
+{{
+  "name": "Room Name",
+  "description": "A vivid description of the room."
+}}"""
+
+
 @dataclass
 class AIConfig:
     """Configuration for AI services.
@@ -499,6 +530,7 @@ class AIConfig:
     region_context_prompt: str = field(default=DEFAULT_REGION_CONTEXT_PROMPT)
     location_prompt_minimal: str = field(default=DEFAULT_LOCATION_PROMPT_MINIMAL)
     npc_prompt_minimal: str = field(default=DEFAULT_NPC_PROMPT_MINIMAL)
+    room_content_prompt: str = field(default=DEFAULT_ROOM_CONTENT_PROMPT)
 
     def __post_init__(self) -> None:
         """Validate configuration after initialization."""
@@ -671,6 +703,7 @@ class AIConfig:
             "region_context_prompt": self.region_context_prompt,
             "location_prompt_minimal": self.location_prompt_minimal,
             "npc_prompt_minimal": self.npc_prompt_minimal,
+            "room_content_prompt": self.room_content_prompt,
         }
     
     @classmethod
@@ -733,5 +766,8 @@ class AIConfig:
             ),
             npc_prompt_minimal=data.get(
                 "npc_prompt_minimal", DEFAULT_NPC_PROMPT_MINIMAL
+            ),
+            room_content_prompt=data.get(
+                "room_content_prompt", DEFAULT_ROOM_CONTENT_PROMPT
             ),
         )

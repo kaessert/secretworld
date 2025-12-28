@@ -3101,6 +3101,131 @@ The category field in your JSON response MUST be "{required_category}"."""
         # Use existing NPC validation
         return self._parse_npcs(npcs_data, location_name)
 
+    def generate_room_content(
+        self,
+        room_type: str,
+        category: str,
+        connections: list[str],
+        is_entry: bool,
+        context: Optional[Any] = None,
+    ) -> Optional[dict]:
+        """Generate room name and description for procedural interior locations.
+
+        Called by ContentLayer to bridge procedural generators with AI-generated
+        content. Returns None on failure to allow fallback to FallbackContentProvider.
+
+        Args:
+            room_type: Type of room (entry, corridor, chamber, boss_room, treasure, puzzle)
+            category: Location category (dungeon, cave, temple, etc.)
+            connections: List of connected directions (north, south, east, west)
+            is_entry: Whether this is an entry/exit point
+            context: Optional GenerationContext with world/region theme info
+
+        Returns:
+            Dictionary with "name" and "description" keys, or None on failure
+        """
+        # Build prompt
+        prompt = self._build_room_content_prompt(
+            room_type=room_type,
+            category=category,
+            connections=connections,
+            is_entry=is_entry,
+            context=context
+        )
+
+        try:
+            # Call LLM with progress indicator for "location" type
+            response_text = self._call_llm(prompt, generation_type="location")
+
+            # Parse response
+            return self._parse_room_content_response(response_text)
+        except Exception as e:
+            logger.debug(f"Room content generation failed: {e}")
+            return None
+
+    def _build_room_content_prompt(
+        self,
+        room_type: str,
+        category: str,
+        connections: list[str],
+        is_entry: bool,
+        context: Optional[Any] = None,
+    ) -> str:
+        """Build prompt for room content generation.
+
+        Args:
+            room_type: Type of room
+            category: Location category
+            connections: Connected directions
+            is_entry: Whether this is an entry point
+            context: Optional GenerationContext
+
+        Returns:
+            Formatted prompt string
+        """
+        # Extract theme info from context if available
+        if context is not None:
+            try:
+                prompt_context = context.to_prompt_context()
+                theme = prompt_context.get("theme", "fantasy")
+                theme_essence = prompt_context.get("theme_essence", theme)
+            except (AttributeError, TypeError):
+                theme = "fantasy"
+                theme_essence = theme
+        else:
+            theme = "fantasy"
+            theme_essence = theme
+
+        # Format connections as a readable string
+        connections_str = ", ".join(connections) if connections else "none"
+
+        return self.config.room_content_prompt.format(
+            theme=theme,
+            room_type=room_type,
+            category=category,
+            connections=connections_str,
+            is_entry=str(is_entry).lower(),
+            theme_essence=theme_essence
+        )
+
+    def _parse_room_content_response(self, response_text: str) -> Optional[dict]:
+        """Parse and validate LLM response for room content generation.
+
+        Args:
+            response_text: Raw response text from LLM
+
+        Returns:
+            Dictionary with "name" and "description" keys, or None on failure
+        """
+        # Extract JSON from markdown code blocks if present
+        json_text = self._extract_json_from_response(response_text)
+
+        try:
+            data = json.loads(json_text)
+        except json.JSONDecodeError:
+            # Attempt to repair truncated JSON
+            repaired = self._repair_truncated_json(json_text)
+            if repaired != json_text:
+                try:
+                    data = json.loads(repaired)
+                except json.JSONDecodeError:
+                    return None
+            else:
+                return None
+
+        # Validate required keys
+        if "name" not in data or "description" not in data:
+            return None
+
+        # Validate types
+        if not isinstance(data["name"], str) or not isinstance(data["description"], str):
+            return None
+
+        return {
+            "name": data["name"].strip(),
+            "description": data["description"].strip()
+        }
+
     def generate_area_with_context(
         self,
         world_context: "WorldContext",
