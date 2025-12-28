@@ -66,7 +66,7 @@ Refactor to use **procedural generation for world structure** while keeping **AI
 4. ✓ Implement BSPGenerator (dungeons, temples, ruins, tombs, crypts, monasteries, shrines) (COMPLETED 2025-12-28)
 5. ✓ Implement CellularAutomataGenerator (caves, mines) (COMPLETED 2025-12-28)
 6. ✓ Implement GridSettlementGenerator (towns, cities, villages, settlements, outposts, camps) (COMPLETED 2025-12-28)
-7. Implement TowerGenerator (towers)
+7. ✓ Implement TowerGenerator (towers) (COMPLETED 2025-12-28)
 
 **Phase 3: Location Noise System**
 8. Implement LocationNoiseManager with noise layers

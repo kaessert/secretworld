@@ -310,3 +310,149 @@ class TestGridSettlementGenerator:
         gen = GridSettlementGenerator(bounds=bounds, seed=42)
         result = gen.generate()
         assert len(result) >= 1  # At least entry room
+
+
+class TestTowerGenerator:
+    """Tests for TowerGenerator for vertical tower layouts.
+
+    Spec: TowerGenerator generates vertical layouts for tower-type locations:
+    - Extends upward (z > 0), opposite of dungeon behavior
+    - Entry at ground level (z=0), boss/treasure at top (z=max)
+    - Each floor is a single room connected by stairs (up/down)
+    - Room types: ENTRY at z=0, CHAMBER for middle floors, BOSS_ROOM at top
+    - 30% chance for treasure room on non-boss dead-end floors
+    """
+
+    def test_generator_exists(self):
+        """TowerGenerator class is importable."""
+        from cli_rpg.procedural_interiors import TowerGenerator
+
+        assert TowerGenerator is not None
+
+    def test_implements_protocol(self):
+        """TowerGenerator follows GeneratorProtocol."""
+        from cli_rpg.procedural_interiors import TowerGenerator
+
+        # Tower bounds: 3x3 horizontal, z=0 to z=4 vertical
+        bounds = (-1, 1, -1, 1, 0, 4)
+        gen = TowerGenerator(bounds=bounds, seed=42)
+        result = gen.generate()
+        assert isinstance(result, list)
+
+    def test_returns_room_templates(self):
+        """generate() returns list of RoomTemplate."""
+        from cli_rpg.procedural_interiors import TowerGenerator, RoomTemplate
+
+        bounds = (-1, 1, -1, 1, 0, 4)
+        gen = TowerGenerator(bounds=bounds, seed=42)
+        result = gen.generate()
+        assert len(result) > 0
+        for room in result:
+            assert isinstance(room, RoomTemplate)
+
+    def test_has_entry_room(self):
+        """Generated layout includes at least one entry room."""
+        from cli_rpg.procedural_interiors import TowerGenerator
+
+        bounds = (-1, 1, -1, 1, 0, 4)
+        gen = TowerGenerator(bounds=bounds, seed=42)
+        result = gen.generate()
+        entry_rooms = [r for r in result if r.is_entry]
+        assert len(entry_rooms) >= 1
+
+    def test_entry_at_ground_level(self):
+        """Entry room is at z=0 (ground level)."""
+        from cli_rpg.procedural_interiors import TowerGenerator
+
+        bounds = (-1, 1, -1, 1, 0, 4)
+        gen = TowerGenerator(bounds=bounds, seed=42)
+        result = gen.generate()
+        entry_rooms = [r for r in result if r.is_entry]
+        assert len(entry_rooms) >= 1
+        # Entry must be at z=0 (ground level)
+        assert all(r.coords[2] == 0 for r in entry_rooms)
+
+    def test_boss_at_top_level(self):
+        """BOSS_ROOM is at z=max_z (top level)."""
+        from cli_rpg.procedural_interiors import TowerGenerator, RoomType
+
+        bounds = (-1, 1, -1, 1, 0, 4)
+        gen = TowerGenerator(bounds=bounds, seed=42)
+        result = gen.generate()
+        boss_rooms = [r for r in result if r.room_type == RoomType.BOSS_ROOM]
+        assert len(boss_rooms) >= 1
+        # Boss room must be at max_z (top floor)
+        assert all(r.coords[2] == 4 for r in boss_rooms)
+
+    def test_extends_upward(self):
+        """Rooms span z=0 to z=max_z (positive z only)."""
+        from cli_rpg.procedural_interiors import TowerGenerator
+
+        bounds = (-1, 1, -1, 1, 0, 4)
+        gen = TowerGenerator(bounds=bounds, seed=42)
+        result = gen.generate()
+        z_values = {r.coords[2] for r in result}
+        # Should have rooms at multiple z levels
+        assert min(z_values) == 0  # Ground floor
+        assert max(z_values) == 4  # Top floor
+        # All z values should be non-negative
+        assert all(z >= 0 for z in z_values)
+
+    def test_has_vertical_connections(self):
+        """Floors are connected with up/down stairs."""
+        from cli_rpg.procedural_interiors import TowerGenerator
+
+        bounds = (-1, 1, -1, 1, 0, 4)
+        gen = TowerGenerator(bounds=bounds, seed=42)
+        result = gen.generate()
+        # Find rooms with up/down connections
+        rooms_with_up = [r for r in result if "up" in r.connections]
+        rooms_with_down = [r for r in result if "down" in r.connections]
+        # With 5 floors, we need up/down connections
+        assert len(rooms_with_up) > 0
+        assert len(rooms_with_down) > 0
+
+    def test_deterministic_with_same_seed(self):
+        """Same seed produces identical layout."""
+        from cli_rpg.procedural_interiors import TowerGenerator
+
+        bounds = (-1, 1, -1, 1, 0, 4)
+        gen1 = TowerGenerator(bounds=bounds, seed=12345)
+        gen2 = TowerGenerator(bounds=bounds, seed=12345)
+        result1 = gen1.generate()
+        result2 = gen2.generate()
+        assert len(result1) == len(result2)
+        for r1, r2 in zip(result1, result2):
+            assert r1.coords == r2.coords
+            assert r1.room_type == r2.room_type
+
+    def test_different_seed_different_layout(self):
+        """Different seeds produce different layouts."""
+        from cli_rpg.procedural_interiors import TowerGenerator
+
+        bounds = (-1, 1, -1, 1, 0, 4)
+        gen1 = TowerGenerator(bounds=bounds, seed=111)
+        gen2 = TowerGenerator(bounds=bounds, seed=222)
+        result1 = gen1.generate()
+        result2 = gen2.generate()
+        # May differ in room types, positions, or count (due to treasure room randomness)
+        room_types1 = [r.room_type for r in result1]
+        room_types2 = [r.room_type for r in result2]
+        coords1 = [r.coords for r in result1]
+        coords2 = [r.coords for r in result2]
+        # Either room counts, types, or coords should differ
+        assert (
+            room_types1 != room_types2
+            or len(result1) != len(result2)
+            or coords1 != coords2
+        )
+
+    def test_small_bounds_works(self):
+        """Generator handles minimal 3x3x4 bounds."""
+        from cli_rpg.procedural_interiors import TowerGenerator
+
+        bounds = (-1, 1, -1, 1, 0, 3)  # 3x3 horizontal, 4 floors
+        gen = TowerGenerator(bounds=bounds, seed=42)
+        result = gen.generate()
+        # Should have at least entry + boss rooms
+        assert len(result) >= 2

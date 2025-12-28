@@ -989,6 +989,187 @@ class GridSettlementGenerator:
         entry_room.is_entry = True
 
 
+class TowerGenerator:
+    """Vertical generator for tower layouts extending upward (z > 0).
+
+    Creates multi-floor towers where each floor is a small room (1-3 tiles)
+    connected by stairs. Entry at ground level, boss at top.
+    """
+
+    TREASURE_CHANCE = 0.3  # 30% chance for treasure room on side chambers
+
+    def __init__(self, bounds: tuple[int, int, int, int, int, int], seed: int):
+        """Initialize TowerGenerator with bounds and seed.
+
+        Args:
+            bounds: 6-tuple (min_x, max_x, min_y, max_y, min_z, max_z)
+            seed: Random seed for deterministic generation
+        """
+        self.bounds = bounds
+        self.seed = seed
+        self.rng = random.Random(seed)
+        self.min_x, self.max_x, self.min_y, self.max_y, self.min_z, self.max_z = bounds
+
+    def generate(self) -> list[RoomTemplate]:
+        """Generate layout returning list of RoomTemplate blueprints.
+
+        Creates one main room per z-level from min_z to max_z.
+        Entry at z=min_z (ground), boss at z=max_z (top).
+        Optional side rooms on floors (30% chance for treasure).
+        """
+        rooms: list[RoomTemplate] = []
+        coord_to_room: dict[tuple[int, int, int], RoomTemplate] = {}
+
+        # Center of the tower footprint
+        center_x = (self.min_x + self.max_x) // 2
+        center_y = (self.min_y + self.max_y) // 2
+
+        # Generate rooms for each floor
+        for z in range(self.min_z, self.max_z + 1):
+            room = self._create_floor_room(center_x, center_y, z)
+            rooms.append(room)
+            coord_to_room[(center_x, center_y, z)] = room
+
+            # Add optional side chamber on some floors (not ground or top)
+            if z != self.min_z and z != self.max_z:
+                self._add_side_chamber(rooms, coord_to_room, center_x, center_y, z)
+
+        # Connect floors with up/down stairs
+        self._add_vertical_connections(rooms, coord_to_room)
+
+        return rooms
+
+    def _create_floor_room(self, x: int, y: int, z: int) -> RoomTemplate:
+        """Create the main room for a floor.
+
+        Args:
+            x: X coordinate
+            y: Y coordinate
+            z: Z level (floor number)
+
+        Returns:
+            RoomTemplate for this floor
+        """
+        # Determine room type based on floor level
+        if z == self.min_z:
+            room_type = RoomType.ENTRY
+            is_entry = True
+        elif z == self.max_z:
+            room_type = RoomType.BOSS_ROOM
+            is_entry = False
+        else:
+            room_type = RoomType.CHAMBER
+            is_entry = False
+
+        return RoomTemplate(
+            coords=(x, y, z),
+            room_type=room_type,
+            connections=[],
+            is_entry=is_entry,
+        )
+
+    def _add_side_chamber(
+        self,
+        rooms: list[RoomTemplate],
+        coord_to_room: dict[tuple[int, int, int], RoomTemplate],
+        center_x: int,
+        center_y: int,
+        z: int,
+    ) -> None:
+        """Optionally add a side chamber to a floor.
+
+        30% chance to add a treasure room on a non-boss floor.
+        """
+        if self.rng.random() >= self.TREASURE_CHANCE:
+            return
+
+        # Pick a random adjacent position
+        offsets = [(1, 0), (-1, 0), (0, 1), (0, -1)]
+        self.rng.shuffle(offsets)
+
+        for dx, dy in offsets:
+            nx, ny = center_x + dx, center_y + dy
+            # Check if within bounds
+            if self.min_x <= nx <= self.max_x and self.min_y <= ny <= self.max_y:
+                coord = (nx, ny, z)
+                if coord not in coord_to_room:
+                    side_room = RoomTemplate(
+                        coords=coord,
+                        room_type=RoomType.TREASURE,
+                        connections=[],
+                        is_entry=False,
+                    )
+                    rooms.append(side_room)
+                    coord_to_room[coord] = side_room
+
+                    # Connect side room to main room
+                    main_room = coord_to_room[(center_x, center_y, z)]
+                    self._connect_adjacent_rooms(main_room, side_room)
+                    return
+
+    def _connect_adjacent_rooms(
+        self, room1: RoomTemplate, room2: RoomTemplate
+    ) -> None:
+        """Connect two horizontally adjacent rooms."""
+        x1, y1, z1 = room1.coords
+        x2, y2, z2 = room2.coords
+
+        dx = x2 - x1
+        dy = y2 - y1
+
+        if dx == 1:
+            if "east" not in room1.connections:
+                room1.connections.append("east")
+            if "west" not in room2.connections:
+                room2.connections.append("west")
+        elif dx == -1:
+            if "west" not in room1.connections:
+                room1.connections.append("west")
+            if "east" not in room2.connections:
+                room2.connections.append("east")
+        elif dy == 1:
+            if "north" not in room1.connections:
+                room1.connections.append("north")
+            if "south" not in room2.connections:
+                room2.connections.append("south")
+        elif dy == -1:
+            if "south" not in room1.connections:
+                room1.connections.append("south")
+            if "north" not in room2.connections:
+                room2.connections.append("north")
+
+    def _add_vertical_connections(
+        self,
+        rooms: list[RoomTemplate],
+        coord_to_room: dict[tuple[int, int, int], RoomTemplate],
+    ) -> None:
+        """Add up/down connections between floors.
+
+        Each floor's main room connects to the floor above/below.
+        """
+        center_x = (self.min_x + self.max_x) // 2
+        center_y = (self.min_y + self.max_y) // 2
+
+        for z in range(self.min_z, self.max_z + 1):
+            coord = (center_x, center_y, z)
+            if coord not in coord_to_room:
+                continue
+
+            room = coord_to_room[coord]
+
+            # Connect up if there's a floor above
+            above_coord = (center_x, center_y, z + 1)
+            if above_coord in coord_to_room and z < self.max_z:
+                if "up" not in room.connections:
+                    room.connections.append("up")
+
+            # Connect down if there's a floor below
+            below_coord = (center_x, center_y, z - 1)
+            if below_coord in coord_to_room and z > self.min_z:
+                if "down" not in room.connections:
+                    room.connections.append("down")
+
+
 # Maps location categories to generator types.
 # All categories from ENTERABLE_CATEGORIES in world_tiles.py must be mapped.
 CATEGORY_GENERATORS: dict[str, str] = {
@@ -1049,6 +1230,11 @@ def generate_interior_layout(
     # Use GridSettlementGenerator for settlement-type locations
     if generator_type == "GridSettlementGenerator":
         generator = GridSettlementGenerator(bounds=bounds, seed=seed)
+        return generator.generate()
+
+    # Use TowerGenerator for tower-type locations
+    if generator_type == "TowerGenerator":
+        generator = TowerGenerator(bounds=bounds, seed=seed)
         return generator.generate()
 
     # Fallback for other generator types (not yet implemented)
