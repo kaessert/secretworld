@@ -666,7 +666,7 @@ Created QuestNetworkManager for managing interconnected quest storylines.
 ### Issue 27: Dungeon Ambiance System
 **Status**: PARTIAL ✓
 **Priority**: P3
-**Updated**: 2025-12-27 (Increment 1)
+**Updated**: 2025-12-28 (Increment 2)
 
 **Problem**: Dungeons have limited atmospheric feedback beyond static descriptions.
 
@@ -679,12 +679,24 @@ Created QuestNetworkManager for managing interconnected quest storylines.
   - `get_whisper(depth)`: Updated signature with depth parameter for location-aware whispers
 - `src/cli_rpg/game_state.py` - Integrated depth whispers and dread modifiers into SubGrid movement
 
+**Implementation (Increment 2 - Undead Night Effects):**
+- `src/cli_rpg/encounter_tables.py` - Undead night modifiers:
+  - `UNDEAD_NIGHT_ENCOUNTER_MODIFIER = 1.5`: +50% encounter rate at night
+  - `UNDEAD_CATEGORIES = {"dungeon", "ruins", "cave"}`: Categories affected by night bonus
+  - `get_undead_night_modifier()`: Returns modifier based on category and time of day
+- `src/cli_rpg/combat.py` - Undead stat boosts at night:
+  - `spawn_enemy()` accepts `is_night` parameter
+  - Undead enemies at night: +20% attack, +10% health
+  - Uses existing `is_undead()` function from `cli_rpg.cleric`
+- `src/cli_rpg/random_encounters.py` - Integrated night modifiers into encounter rate calculation
+- 9 tests in `tests/test_undead_night_effects.py`
+
 **Acceptance Criteria:**
 - [ ] **Ambient sounds**: Dripping water, distant screams
 - [x] **Progressive dread**: Deeper levels increase dread faster (up to 2x at z≤-3)
 - [x] **Environmental storytelling**: Corpses, bloodstains, journals (completed - see environmental_storytelling.py)
 - [ ] **Weather penetration**: Rain sounds near cave entrance
-- [ ] **Day/night effects**: Undead more active at night
+- [x] **Day/night effects**: Undead more active at night (+50% encounter rate, +20% attack, +10% health during 18:00-5:59)
 - [x] **Location-specific whispers**: Dungeon whispers differ from forest (8+ templates per category, new temple category)
 
 **Related Files:**

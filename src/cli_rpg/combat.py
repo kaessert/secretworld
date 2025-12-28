@@ -2175,7 +2175,8 @@ def spawn_enemy(
     level: int,
     location_category: Optional[str] = None,
     terrain_type: Optional[str] = None,
-    distance: int = 0
+    distance: int = 0,
+    is_night: bool = False,
 ) -> Enemy:
     """
     Spawn an enemy appropriate for the location and player level.
@@ -2189,6 +2190,8 @@ def spawn_enemy(
                      When provided, takes precedence over location_category.
                      Valid: forest, plains, desert, swamp, hills, beach, foothills, mountain
         distance: Manhattan distance from origin for difficulty scaling (default 0)
+        is_night: Whether it is currently night time. Undead enemies get +20% attack
+                 and +10% health at night (Issue 27).
 
     Returns:
         Enemy instance with stats scaled by distance
@@ -2252,6 +2255,13 @@ def spawn_enemy(
     scaled_attack = int(base_attack * multiplier)
     scaled_defense = int(base_defense * multiplier)
     scaled_xp = int(base_xp * multiplier)
+
+    # Issue 27: Apply night bonus for undead enemies
+    # At night, undead get +20% attack and +10% health
+    from cli_rpg.cleric import is_undead
+    if is_night and is_undead(enemy_name):
+        scaled_health = int(scaled_health * 1.1)  # +10% health
+        scaled_attack = int(scaled_attack * 1.2)  # +20% attack
 
     # Get fallback ASCII art based on enemy name
     ascii_art = get_fallback_ascii_art(enemy_name)

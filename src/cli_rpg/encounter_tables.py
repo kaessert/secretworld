@@ -88,6 +88,13 @@ CATEGORY_MERCHANT_ITEMS: dict[str, list[str]] = {
 # Default merchant items when category is unknown
 DEFAULT_MERCHANT_ITEMS: list[str] = ["healing_potion", "torch", "rations"]
 
+# Night undead modifier (50% increase)
+# Issue 27: Undead enemies are more active at night
+UNDEAD_NIGHT_ENCOUNTER_MODIFIER = 1.5
+
+# Categories that have undead enemies
+UNDEAD_CATEGORIES = {"dungeon", "ruins", "cave"}
+
 
 def get_enemies_for_category(category: str) -> list[str]:
     """Get enemy list for a location category.
@@ -126,3 +133,21 @@ def get_merchant_items(category: str) -> list[str]:
         or DEFAULT_MERCHANT_ITEMS if category is unknown
     """
     return CATEGORY_MERCHANT_ITEMS.get(category, DEFAULT_MERCHANT_ITEMS)
+
+
+def get_undead_night_modifier(category: str, is_night: bool) -> float:
+    """Get encounter rate modifier for undead at night.
+
+    Issue 27: Undead enemies are more active at night.
+    At night (18:00-5:59), undead encounter rates increase by 50%.
+
+    Args:
+        category: Location category (e.g., "dungeon", "cave", "ruins")
+        is_night: Whether it's currently night
+
+    Returns:
+        1.5 if night and undead category, 1.0 otherwise
+    """
+    if is_night and category in UNDEAD_CATEGORIES:
+        return UNDEAD_NIGHT_ENCOUNTER_MODIFIER
+    return 1.0

@@ -2865,7 +2865,8 @@ Note: Use "EXISTING_WORLD" as placeholder for the connection back to the source 
         source_location: Optional[str] = None,
         direction: Optional[str] = None,
         terrain_type: Optional[str] = None,
-        neighboring_locations: Optional[list[dict]] = None
+        neighboring_locations: Optional[list[dict]] = None,
+        required_category: Optional[str] = None,
     ) -> dict:
         """Generate a new location using layered context (Layer 3).
 
@@ -2880,6 +2881,8 @@ Note: Use "EXISTING_WORLD" as placeholder for the connection back to the source 
             direction: Optional direction of expansion from source
             terrain_type: Optional terrain type (e.g., "desert", "forest") for coherent generation
             neighboring_locations: Optional list of dicts with name and direction for spatial coherence
+            required_category: If set, the location MUST have this category
+                              (e.g., "dungeon", "cave" for forced enterable locations)
 
         Returns:
             Dictionary with keys: name, description, category, npcs (empty list)
@@ -2896,7 +2899,8 @@ Note: Use "EXISTING_WORLD" as placeholder for the connection back to the source 
             source_location=source_location,
             direction=direction,
             terrain_type=terrain_type,
-            neighboring_locations=neighboring_locations
+            neighboring_locations=neighboring_locations,
+            required_category=required_category,
         )
 
         # Check cache if enabled
@@ -2931,7 +2935,8 @@ Note: Use "EXISTING_WORLD" as placeholder for the connection back to the source 
         source_location: Optional[str],
         direction: Optional[str],
         terrain_type: Optional[str] = None,
-        neighboring_locations: Optional[list[dict]] = None
+        neighboring_locations: Optional[list[dict]] = None,
+        required_category: Optional[str] = None,
     ) -> str:
         """Build prompt for location generation using layered context.
 
@@ -2942,6 +2947,7 @@ Note: Use "EXISTING_WORLD" as placeholder for the connection back to the source 
             direction: Deprecated, kept for API compatibility
             terrain_type: Optional terrain type for coherent generation
             neighboring_locations: Optional list of dicts with name and direction for spatial coherence
+            required_category: If set, the location MUST have this category
 
         Returns:
             Formatted prompt string using minimal template
@@ -2966,6 +2972,16 @@ Note: Use "EXISTING_WORLD" as placeholder for the connection back to the source 
             terrain_type=terrain_text,
             neighboring_locations=neighbors_text
         )
+
+        # Add required category enforcement if set
+        if required_category:
+            category_requirement = f"""
+
+CRITICAL REQUIREMENT: This location MUST have category "{required_category}".
+This is a mandatory enterable location that the player needs to explore.
+Generate a {required_category} with an evocative name and description.
+The category field in your JSON response MUST be "{required_category}"."""
+            prompt = prompt + category_requirement
 
         return prompt
 
@@ -3082,7 +3098,8 @@ Note: Use "EXISTING_WORLD" as placeholder for the connection back to the source 
         region_context: "RegionContext",
         entry_direction: str,
         size: int = 5,
-        terrain_type: Optional[str] = None
+        terrain_type: Optional[str] = None,
+        required_category: Optional[str] = None,
     ) -> list[dict]:
         """Generate an area of connected locations using layered context.
 
@@ -3095,6 +3112,8 @@ Note: Use "EXISTING_WORLD" as placeholder for the connection back to the source 
             entry_direction: Direction player is coming from
             size: Target number of locations (4-7, default 5)
             terrain_type: Optional terrain type for coherent generation
+            required_category: If set, the entry location MUST have this category
+                              (e.g., "dungeon", "cave" for forced enterable locations)
 
         Returns:
             List of location dicts with relative_coords, name, description, category, npcs
@@ -3107,12 +3126,17 @@ Note: Use "EXISTING_WORLD" as placeholder for the connection back to the source 
 
         # Generate each location using layered context
         area_locations = []
-        for rel_coords in layout:
+        for i, rel_coords in enumerate(layout):
+            # Entry location (first one at [0,0]) uses required_category if set
+            is_entry = (i == 0 and rel_coords == (0, 0))
+            entry_required_category = required_category if is_entry else None
+
             # Layer 3: Generate location
             location_data = self.generate_location_with_context(
                 world_context=world_context,
                 region_context=region_context,
-                terrain_type=terrain_type
+                terrain_type=terrain_type,
+                required_category=entry_required_category,
             )
 
             # Layer 4: Generate NPCs for this location

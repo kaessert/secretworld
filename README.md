@@ -167,6 +167,11 @@ Encounter types when triggered:
 - **Merchant Encounters** (25%): A traveling merchant appears with location-appropriate items for sale (use `talk` to shop)
 - **Wanderer Encounters** (15%): A mysterious traveler offers lore and atmosphere (use `talk` to converse)
 
+**Undead Night Effects**: In dungeons, ruins, and caves, undead enemies become more active at night (18:00-5:59):
+- +50% encounter rate for undead enemies
+- Undead stats boosted: +20% attack, +10% health
+- Use the `time` command to check the current time and plan accordingly
+
 Merchants and wanderers are added to your current location and can be interacted with normally.
 
 **Safe Zones**: Towns, villages, and other safe locations (marked as `is_safe_zone`) are protected from random encounters, allowing you to shop and rest without interruption.

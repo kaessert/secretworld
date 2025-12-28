@@ -659,6 +659,15 @@ class GameState:
                 terrain or "plains"
             )
 
+            # Force named location if we need to force an enterable location
+            # (enterable locations like dungeons, caves must be named POIs)
+            if not generate_named and should_force_enterable_category(self.tiles_since_enterable):
+                generate_named = True
+                logger.info(
+                    f"Forcing named location at {target_coords} to generate "
+                    f"enterable location after {self.tiles_since_enterable} tiles"
+                )
+
             if not generate_named:
                 # Generate unnamed location from template (fast, no AI)
                 try:

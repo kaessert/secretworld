@@ -23,40 +23,53 @@ class TestEnterableLocationGeneration:
 
         This tests that the forced spawn mechanism ensures players encounter
         enterable locations within a reasonable number of moves.
+
+        Uses coordinate tracking to always move to unexplored tiles.
         """
         enterable_found = False
         tiles_visited = 0
-        max_tiles = 30
+        max_tiles = 40
 
-        # Store starting position for reference
-        start_coords = ai_game_state.world[ai_game_state.current_location].coordinates
+        # Track visited coordinates to avoid revisiting
+        visited_coords = {ai_game_state.get_current_location().coordinates}
 
-        # Try to walk in each direction, cycling through
-        directions = ["north", "east", "south", "west"]
+        # Direction vectors
+        direction_deltas = {
+            "north": (0, 1), "south": (0, -1),
+            "east": (1, 0), "west": (-1, 0)
+        }
 
         for i in range(max_tiles):
             # Get current location
             current_loc = ai_game_state.get_current_location()
+            current_coords = current_loc.coordinates
 
             # Check if current location is enterable
             if current_loc.category and current_loc.category.lower() in ENTERABLE_CATEGORIES:
                 enterable_found = True
                 break
 
-            # Try to move in the next direction
-            direction = directions[i % 4]
-            success, _ = ai_game_state.move(direction)
+            # Find unexplored adjacent tile
+            moved = False
+            for direction, (dx, dy) in direction_deltas.items():
+                target = (current_coords[0] + dx, current_coords[1] + dy)
+                if target not in visited_coords:
+                    success, _ = ai_game_state.move(direction)
+                    if success:
+                        visited_coords.add(target)
+                        tiles_visited += 1
+                        moved = True
+                        break
 
-            if success:
-                tiles_visited += 1
-            else:
-                # If move failed, try another direction
-                for alt_dir in directions:
-                    if alt_dir != direction:
-                        success, _ = ai_game_state.move(alt_dir)
-                        if success:
-                            tiles_visited += 1
-                            break
+            # If all adjacent tiles visited, try any direction
+            if not moved:
+                for direction in ["north", "east", "south", "west"]:
+                    success, _ = ai_game_state.move(direction)
+                    if success:
+                        tiles_visited += 1
+                        new_coords = ai_game_state.get_current_location().coordinates
+                        visited_coords.add(new_coords)
+                        break
 
         # Final check of current location
         current_loc = ai_game_state.get_current_location()

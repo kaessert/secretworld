@@ -1,143 +1,117 @@
-# Implementation Plan: Spreading Hazard System (Issue 25)
+# Issue 27 - Dungeon Ambiance: Day/Night Undead Effects
 
-## Feature Spec
+## Spec
 
-Implement spreading hazards (fire/flooding) that propagate through dungeon tiles over time, completing the Dynamic Interior Events feature (Issue 25).
+**Feature**: Undead enemies are more active at night (more frequent, stronger)
 
-### Behavior
-- **Fire hazard**: Spawns at a random room, spreads to adjacent rooms over time, deals 4-8 damage per turn, can be mitigated by water-based items
-- **Flooding hazard**: Spawns at a room, spreads to adjacent rooms, causes movement penalty (50% failure), increases tiredness +3 per turn
-- Both spread 1 room per hour (integrated with `progress_interior_events`)
-- Max spread radius of 3 rooms from origin
-- Duration: 8-16 hours before dissipating
-- Spawn chance: 5% on SubGrid entry (same as cave-ins)
+**Behavior**:
+- At night (18:00-5:59), undead encounter rates increase by 50%
+- At night, undead enemy stats gain +20% attack and +10% health
+- Affected enemies: Skeleton, Zombie, Ghost, Wraith, Phantom, Specter, Lich, Vampire (matches `cleric.py` UNDEAD_TERMS)
+- Applies in dungeons, ruins, and caves where undead spawn
 
-### Data Model
-Extend `InteriorEvent` with:
-- `hazard_type: Optional[str]` - "fire" or "flooding"
-- `spread_rooms: Optional[dict]` - Maps `(x,y,z)` -> turn added (for spread tracking)
-- `max_spread_radius: int` - Maximum rooms from origin (default 3)
+**Integration points**:
+- `encounter_tables.py`: Add `get_undead_night_modifier()` for undead categories
+- `combat.py`: Add `apply_undead_night_bonus()` in `spawn_enemy()`
+- `random_encounters.py`: Apply night modifier to encounter rate
 
 ## Tests (TDD)
 
-### File: `tests/test_spreading_hazard.py`
+### File: `tests/test_undead_night_effects.py`
 
-1. **Test spreading hazard model**: `InteriorEvent` has `hazard_type`, `spread_rooms`, `max_spread_radius` fields
-2. **Test fire hazard spawning**: `check_for_spreading_hazard()` creates fire event with 5% chance
-3. **Test flooding hazard spawning**: 50% fire, 50% flooding selection
-4. **Test valid spawn categories**: Only dungeon/cave/ruins/temple (same as cave-ins)
-5. **Test spread mechanics**: `spread_hazard()` adds adjacent rooms each hour
-6. **Test spread limit**: Hazard stops spreading at `max_spread_radius`
-7. **Test fire damage application**: `apply_spreading_hazard()` deals 4-8 damage for fire
-8. **Test flooding effect**: Flooding causes 50% movement failure + 3 tiredness
-9. **Test hazard expiry**: Hazard clears after `duration_hours`, removes all spread_rooms from affected locations
-10. **Test location hazards updated**: Spread rooms have hazard added to `location.hazards` list
-11. **Test serialization**: `spread_rooms` dict serializes/deserializes correctly
-12. **Test integration with progress_interior_events**: Spreading occurs during time progression
+1. `test_undead_encounter_rate_increased_at_night` - Night undead encounter modifier is 1.5
+2. `test_undead_encounter_rate_normal_during_day` - Day undead encounter modifier is 1.0
+3. `test_undead_stats_boosted_at_night` - Undead attack +20%, health +10% at night
+4. `test_undead_stats_normal_during_day` - No stat boost during day
+5. `test_non_undead_no_night_bonus` - Non-undead enemies unaffected by night
+6. `test_night_modifier_uses_game_time` - Modifier checks GameTime.is_night()
+7. `test_spawn_enemy_applies_night_bonus` - spawn_enemy() applies bonus when is_night=True
+8. `test_random_encounter_uses_night_modifier` - check_for_random_encounter() uses night modifier
 
 ## Implementation Steps
 
-### Step 1: Extend InteriorEvent model
-**File**: `src/cli_rpg/interior_events.py`
-
-Add to `InteriorEvent` dataclass:
-```python
-hazard_type: Optional[str] = None  # "fire" or "flooding"
-spread_rooms: Optional[dict] = None  # {(x,y,z): hour_added}
-max_spread_radius: int = 3
-```
-
-Update `to_dict()` and `from_dict()` for new fields.
-
-### Step 2: Add spreading hazard constants
-**File**: `src/cli_rpg/interior_events.py`
+### Step 1: Add night encounter functions to `encounter_tables.py`
 
 ```python
-SPREADING_HAZARD_SPAWN_CHANCE = 0.05  # 5% on SubGrid entry
-SPREADING_HAZARD_DURATION_RANGE = (8, 16)
-SPREADING_HAZARD_CATEGORIES = CAVE_IN_CATEGORIES  # dungeon, cave, ruins, temple
-FIRE_DAMAGE_RANGE = (4, 8)
-FLOODING_TIREDNESS = 3
-MAX_SPREAD_RADIUS = 3
+# Night undead modifier (50% increase)
+UNDEAD_NIGHT_ENCOUNTER_MODIFIER = 1.5
+
+# Categories that have undead enemies
+UNDEAD_CATEGORIES = {"dungeon", "ruins"}
+
+def get_undead_night_modifier(category: str, is_night: bool) -> float:
+    """Get encounter rate modifier for undead at night.
+
+    Args:
+        category: Location category
+        is_night: Whether it's currently night
+
+    Returns:
+        1.5 if night and undead category, 1.0 otherwise
+    """
+    if is_night and category in UNDEAD_CATEGORIES:
+        return UNDEAD_NIGHT_ENCOUNTER_MODIFIER
+    return 1.0
 ```
 
-### Step 3: Implement spawn function
-**File**: `src/cli_rpg/interior_events.py`
+### Step 2: Add night stat bonus to `combat.py`
+
+In `spawn_enemy()`, after calculating base stats, check if enemy is undead and is_night:
 
 ```python
-def check_for_spreading_hazard(
-    game_state: "GameState",
-    sub_grid: "SubGrid",
-) -> Optional[str]:
-    """Check if a spreading hazard spawns on SubGrid entry."""
+# Add parameter
+def spawn_enemy(
+    location_name: str,
+    level: int,
+    location_category: Optional[str] = None,
+    terrain_type: Optional[str] = None,
+    distance: int = 0,
+    is_night: bool = False  # NEW PARAMETER
+) -> Enemy:
+    ...
+    # After scaling by distance, apply night bonus for undead
+    from cli_rpg.cleric import is_undead
+    if is_night and is_undead(enemy_name):
+        scaled_health = int(scaled_health * 1.1)   # +10% health
+        scaled_attack = int(scaled_attack * 1.2)   # +20% attack
 ```
 
-- 5% spawn chance
-- Random room selection (not entry point)
-- 50% fire, 50% flooding
-- Create InteriorEvent with `hazard_type` and initial `spread_rooms`
-- Add hazard to origin room's `location.hazards` list
+### Step 3: Pass is_night to spawn_enemy in `random_encounters.py`
 
-### Step 4: Implement spread function
-**File**: `src/cli_rpg/interior_events.py`
+In `_handle_hostile_encounter()`:
 
 ```python
-def spread_hazard(
-    sub_grid: "SubGrid",
-    event: InteriorEvent,
-    current_hour: int,
-) -> List[str]:
-    """Spread hazard to adjacent rooms."""
+enemy = spawn_enemy(
+    location_name=location.name,
+    level=level,
+    location_category=location.category,
+    terrain_type=location.terrain,
+    is_night=game_state.game_time.is_night(),  # NEW
+)
 ```
 
-- Find frontier rooms (rooms at current max distance from origin)
-- For each frontier room, check adjacent rooms within bounds
-- Add new rooms to `spread_rooms` if within `max_spread_radius`
-- Add hazard type to new room's `location.hazards` list
-- Return messages about spread
+### Step 4: Apply night encounter modifier in `random_encounters.py`
 
-### Step 5: Integrate with progress_interior_events
-**File**: `src/cli_rpg/interior_events.py`
+In `check_for_random_encounter()`, after getting base encounter rate:
 
-Update `progress_interior_events()` to:
-- Call `spread_hazard()` for active spreading hazard events
-- Handle expiry by removing hazard from all `spread_rooms` locations
-
-### Step 6: Update hazards.py for spreading hazard effects
-**File**: `src/cli_rpg/hazards.py`
-
-Add to `HAZARD_TYPES`:
 ```python
-"spreading_fire",
-"spreading_flood",
+from cli_rpg.encounter_tables import get_encounter_rate, get_undead_night_modifier
+
+# Get base rate
+encounter_rate = get_encounter_rate(location.category) if location.category else RANDOM_ENCOUNTER_CHANCE
+
+# Apply night undead modifier
+is_night = game_state.game_time.is_night()
+encounter_rate *= get_undead_night_modifier(location.category or "", is_night)
 ```
 
-Add to `CATEGORY_HAZARDS` (all enterable categories):
-```python
-# Note: These are added dynamically by spreading hazard system
-```
+## Files Modified
 
-Add effect functions:
-```python
-def apply_spreading_fire(character: "Character") -> str:
-    """Apply spreading fire damage (4-8)."""
+1. `src/cli_rpg/encounter_tables.py` - Add `UNDEAD_NIGHT_ENCOUNTER_MODIFIER`, `UNDEAD_CATEGORIES`, `get_undead_night_modifier()`
+2. `src/cli_rpg/combat.py` - Add `is_night` parameter to `spawn_enemy()`, apply undead night stat bonus
+3. `src/cli_rpg/random_encounters.py` - Pass `is_night` to spawn_enemy, apply night encounter modifier
+4. `tests/test_undead_night_effects.py` - 8 new tests
 
-def apply_spreading_flood(character: "Character") -> Tuple[str, int]:
-    """Apply spreading flood effects (50% movement fail, +3 tiredness)."""
-```
+## Files Created
 
-Update `check_hazards_on_entry()` to handle new hazard types.
-
-### Step 7: Integrate spawn on SubGrid entry
-**File**: `src/cli_rpg/game_state.py`
-
-In `enter()` method, after rival/ritual spawn checks:
-```python
-from cli_rpg.interior_events import check_for_spreading_hazard
-hazard_spawn_message = check_for_spreading_hazard(self, self.current_sub_grid)
-if hazard_spawn_message:
-    message += f"\n{hazard_spawn_message}"
-```
-
-### Step 8: Update ISSUES.md
-Mark "Spreading hazard" acceptance criteria as complete.
+1. `tests/test_undead_night_effects.py`

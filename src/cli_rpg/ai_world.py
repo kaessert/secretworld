@@ -1682,7 +1682,8 @@ def expand_area(
             region_context=region_context,
             entry_direction=direction,
             size=size,
-            terrain_type=terrain_type
+            terrain_type=terrain_type,
+            required_category=category_hint,  # Force enterable category when set
         )
     else:
         # Fall back to monolithic generation
@@ -1691,7 +1692,8 @@ def expand_area(
             sub_theme_hint=sub_theme,
             entry_direction=direction,
             context_locations=list(world.keys()),
-            size=size
+            size=size,
+            required_category=category_hint,  # Force enterable category when set
         )
 
     if not area_data:
@@ -1707,6 +1709,23 @@ def expand_area(
             region_context=region_context,
             terrain_type=terrain_type
         )
+
+    # Validate and enforce required category on entry location
+    if category_hint:
+        for loc_data in area_data:
+            rel_coords = loc_data.get("relative_coords", [0, 0])
+            # Entry location is at [0, 0] (or [0, 0, 0] for 3D)
+            is_entry = (rel_coords[0] == 0 and rel_coords[1] == 0 and
+                       (len(rel_coords) < 3 or rel_coords[2] == 0))
+            if is_entry:
+                actual_category = (loc_data.get("category") or "").lower()
+                if actual_category != category_hint.lower():
+                    logger.info(
+                        f"Forcing entry location category from '{actual_category}' "
+                        f"to '{category_hint}' (required enterable location)"
+                    )
+                    loc_data["category"] = category_hint
+                break
 
     # Place area locations on the grid
     opposite = get_opposite_direction(direction)

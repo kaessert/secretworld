@@ -362,10 +362,11 @@ class TestHostileEncounter:
         original_spawn = None
         captured_args = {}
 
-        def mock_spawn_enemy(location_name, level, location_category=None, terrain_type=None, distance=0):
+        def mock_spawn_enemy(location_name, level, location_category=None, terrain_type=None, distance=0, is_night=False):
             captured_args["location_name"] = location_name
             captured_args["location_category"] = location_category
             captured_args["terrain_type"] = terrain_type
+            captured_args["is_night"] = is_night
             # Return a valid enemy
             return Enemy(
                 name="Wolf", health=30, max_health=30,
@@ -682,9 +683,10 @@ class TestTerrainAwareEncounters:
 
         captured_args = {}
 
-        def mock_spawn_enemy(location_name, level, location_category=None, terrain_type=None, distance=0):
+        def mock_spawn_enemy(location_name, level, location_category=None, terrain_type=None, distance=0, is_night=False):
             captured_args["terrain_type"] = terrain_type
             captured_args["location_category"] = location_category
+            captured_args["is_night"] = is_night
             return Enemy(
                 name="Scorpion", health=30, max_health=30,
                 attack_power=5, defense=2, xp_reward=20

@@ -12,7 +12,7 @@ from cli_rpg.models.npc import NPC
 from cli_rpg.models.shop import Shop, ShopItem
 from cli_rpg.models.item import Item, ItemType
 from cli_rpg.combat import spawn_enemy, CombatEncounter
-from cli_rpg.encounter_tables import get_encounter_rate, get_merchant_items
+from cli_rpg.encounter_tables import get_encounter_rate, get_merchant_items, get_undead_night_modifier
 from cli_rpg import colors
 
 if TYPE_CHECKING:
@@ -252,6 +252,10 @@ def check_for_random_encounter(game_state: "GameState") -> Optional[str]:
     # Issue 21: Location-specific encounter rates
     encounter_rate = get_encounter_rate(location.category) if location.category else RANDOM_ENCOUNTER_CHANCE
 
+    # Issue 27: Apply night undead modifier
+    is_night = game_state.game_time.is_night()
+    encounter_rate *= get_undead_night_modifier(location.category or "", is_night)
+
     # Issue 25: Apply monster migration modifier if inside SubGrid
     if game_state.current_sub_grid and location.coordinates:
         from cli_rpg.interior_events import get_encounter_modifier_at_location
@@ -289,11 +293,13 @@ def _handle_hostile_encounter(game_state: "GameState") -> str:
 
     # Spawn enemy using existing system
     # Priority: terrain (WFC-generated) > category (semantic) > name matching
+    # Issue 27: Pass is_night for undead stat bonus
     enemy = spawn_enemy(
         location_name=location.name,
         level=level,
         location_category=location.category,
         terrain_type=location.terrain,
+        is_night=game_state.game_time.is_night(),
     )
 
     # Create combat encounter
