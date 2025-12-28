@@ -28,7 +28,10 @@ scripts/
 ├── state_parser.py      # JSON output parsing for agent state
 ├── ai_agent.py          # Heuristic-based AI agent for playtesting
 ├── run_simulation.py    # CLI entry point for running simulations
-└── generate_test_world.py # Regenerate test world fixture if models change
+├── generate_test_world.py # Regenerate test world fixture if models change
+└── agent/
+    ├── __init__.py      # Package exports for personality system
+    └── personality.py   # PersonalityType enum, PersonalityTraits dataclass with 5 presets
 
 tests/e2e/
 ├── __init__.py          # E2E test package

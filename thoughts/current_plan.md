@@ -1,113 +1,74 @@
-# Plan: Phase 1 - Save/Load Infrastructure for Automated Playtesting
+# Implementation Plan: Human-Like Agent Core (Phase 2 - Personality System)
 
-**Task**: Create agent checkpoint system for save/restore capabilities during simulations.
+## Goal
+Implement `scripts/agent/personality.py` with 5 personality presets that will influence agent decision-making, establishing the foundation for human-like behavior.
 
-## Spec
+## Specification
 
-The checkpoint system allows:
-1. Saving agent state + game state at key points (quest accept, dungeon entry, boss fights)
-2. Resuming interrupted sessions from crash recovery
-3. Branching exploration from any checkpoint
+### PersonalityType Enum
+Five presets with distinct play styles:
+- `CAUTIOUS_EXPLORER` - Prioritizes safety and thorough exploration
+- `AGGRESSIVE_FIGHTER` - Seeks combat, takes risks
+- `COMPLETIONIST` - Does everything, talks to everyone
+- `SPEEDRUNNER` - Minimal interaction, efficient pathing
+- `ROLEPLAYER` - Balanced with focus on NPC interaction
+
+### PersonalityTraits Dataclass
+Float traits (0.0-1.0) that influence decisions:
+- `risk_tolerance` - Willingness to fight at low HP, enter dangerous areas
+- `exploration_drive` - Priority on visiting new locations vs returning to known
+- `social_engagement` - Likelihood of talking to NPCs, accepting quests
+- `combat_aggression` - Preference for fighting vs fleeing
+- `resource_conservation` - Tendency to use potions sparingly, rest often
+
+### Preset Values (from ISSUES.md)
+| Type | Risk | Exploration | Social | Combat | Conservation |
+|------|------|-------------|--------|--------|--------------|
+| CAUTIOUS_EXPLORER | 0.2 | 0.9 | 0.7 | 0.3 | 0.7 |
+| AGGRESSIVE_FIGHTER | 0.9 | 0.4 | 0.3 | 0.9 | 0.2 |
+| COMPLETIONIST | 0.5 | 1.0 | 1.0 | 0.5 | 0.4 |
+| SPEEDRUNNER | 0.7 | 0.1 | 0.1 | 0.4 | 0.3 |
+| ROLEPLAYER | 0.5 | 0.7 | 0.9 | 0.5 | 0.5 |
 
 ## Implementation Steps
 
-### Step 1: Create `scripts/agent_checkpoint.py` with AgentCheckpoint dataclass
+### 1. Create package structure
+- Create `scripts/agent/__init__.py`
+- Create `scripts/agent/personality.py`
 
+### 2. Implement personality.py
 ```python
-@dataclass
-class AgentCheckpoint:
-    """Complete agent state for persistence."""
-    current_goal: str                    # AgentGoal enum value
-    visited_coordinates: list[tuple]     # Exploration history
-    current_coords: tuple[int, int]      # Position estimate
-    direction_history: list[str]
-    talked_this_location: list[str]
-    sub_location_moves: int
-    stats: dict                          # SessionStats.to_dict()
-    checkpoint_type: str                 # auto, quest, boss, dungeon, branch
-    game_save_path: str                  # Link to game save file
-    seed: int
-    timestamp: str
-    command_index: int
-
-    def to_dict() -> dict
-    def from_dict(data: dict) -> AgentCheckpoint
+# Contents:
+# - PersonalityType(Enum) with 5 presets
+# - PersonalityTraits dataclass with 5 float fields
+# - PERSONALITY_PRESETS dict mapping type -> traits
+# - get_personality_traits(preset: PersonalityType) -> PersonalityTraits
+# - Serialization methods (to_dict/from_dict) for checkpoint compatibility
 ```
 
-### Step 2: Create `scripts/checkpoint_triggers.py` with CheckpointTrigger enum
+### 3. Write tests
+- `tests/test_agent_personality.py`
+- Test enum values exist
+- Test all presets have valid trait ranges (0.0-1.0)
+- Test serialization round-trip
+- Test get_personality_traits returns correct values
 
-```python
-class CheckpointTrigger(Enum):
-    QUEST_ACCEPT = auto()
-    QUEST_COMPLETE = auto()
-    DUNGEON_ENTRY = auto()
-    DUNGEON_EXIT = auto()
-    BOSS_ENCOUNTER = auto()
-    BOSS_DEFEAT = auto()
-    DEATH = auto()
-    LEVEL_UP = auto()
-    INTERVAL = auto()       # Every 50 commands
-    CRASH_RECOVERY = auto()
+## Files to Create
+1. `scripts/agent/__init__.py` - Package init exposing PersonalityType, PersonalityTraits
+2. `scripts/agent/personality.py` - Core personality implementation
+3. `tests/test_agent_personality.py` - Unit tests
 
-def detect_trigger(prev_state, curr_state, command_count) -> Optional[CheckpointTrigger]
-```
+## Integration Points (future)
+- `Agent.__init__()` will accept `personality: PersonalityType` parameter
+- `Agent._combat_decision()` will use `combat_aggression` and `risk_tolerance`
+- `Agent._healing_decision()` will use `resource_conservation`
+- `Agent._overworld_exploration_decision()` will use `exploration_drive` and `social_engagement`
+- CLI `--personality` flag in `run_simulation.py`
 
-### Step 3: Create `scripts/agent_persistence.py` with SessionManager
-
-```python
-class SessionManager:
-    """Manages checkpoint directories and files."""
-
-    def __init__(self, base_dir: str = "simulation_saves")
-    def create_session(self, seed: int) -> str  # Returns session_id
-    def save_checkpoint(self, checkpoint: AgentCheckpoint, trigger: CheckpointTrigger)
-    def load_checkpoint(self, checkpoint_id: str) -> AgentCheckpoint
-    def list_checkpoints(self, session_id: str) -> list[dict]
-    def get_crash_recovery(self) -> Optional[AgentCheckpoint]
-    def update_crash_recovery(self, checkpoint: AgentCheckpoint)
-```
-
-### Step 4: Add checkpoint methods to Agent class in `scripts/ai_agent.py`
-
-```python
-# In Agent class:
-def to_checkpoint_dict(self) -> dict
-def restore_from_checkpoint(self, data: dict) -> None
-```
-
-### Step 5: Integrate checkpointing into GameSession
-
-```python
-# In GameSession:
-def _create_checkpoint(self, trigger: CheckpointTrigger) -> None
-def _check_triggers(self, prev_state: AgentState) -> Optional[CheckpointTrigger]
-
-@classmethod
-def from_checkpoint(cls, checkpoint_id: str) -> "GameSession"
-```
-
-### Step 6: Add CLI flags to `scripts/run_simulation.py`
-
-- `--recover` - Resume from last crash recovery
-- `--from-checkpoint=ID` - Resume from specific checkpoint
-- `--no-checkpoints` - Disable automatic checkpointing
-
-## Test Plan
-
-Create `tests/test_agent_checkpoint.py`:
-1. Test AgentCheckpoint serialization roundtrip
-2. Test CheckpointTrigger detection for each trigger type
-3. Test SessionManager save/load/list operations
-4. Test Agent.to_checkpoint_dict/restore_from_checkpoint
-5. Test GameSession.from_checkpoint recovery
-
-## Files to Create/Modify
-
-| File | Action |
-|------|--------|
-| `scripts/agent_checkpoint.py` | CREATE |
-| `scripts/checkpoint_triggers.py` | CREATE |
-| `scripts/agent_persistence.py` | CREATE |
-| `scripts/ai_agent.py` | MODIFY - add checkpoint methods |
-| `scripts/run_simulation.py` | MODIFY - add CLI flags |
-| `tests/test_agent_checkpoint.py` | CREATE |
+## Acceptance Criteria
+- [ ] PersonalityType enum with 5 values
+- [ ] PersonalityTraits dataclass with 5 float fields
+- [ ] All preset values match ISSUES.md spec
+- [ ] Traits validated to 0.0-1.0 range
+- [ ] Serialization works for checkpoint compatibility
+- [ ] All tests pass
