@@ -921,6 +921,8 @@ class GameSession:
     enable_checkpoints: bool = True  # Whether to create checkpoints
     session_manager: Optional["SessionManager"] = None  # Checkpoint manager
     session_id: Optional[str] = None  # Current session ID
+    personality: Optional[str] = None  # Personality type name (for HumanLikeAgent)
+    character_class: Optional[str] = None  # Character class name (for HumanLikeAgent)
 
     process: Optional[subprocess.Popen] = field(default=None, init=False)
     state: AgentState = field(default_factory=AgentState, init=False)
@@ -933,7 +935,29 @@ class GameSession:
     _prev_state: Optional[AgentState] = field(default=None, init=False)  # For trigger detection
 
     def __post_init__(self):
-        self.agent = Agent(verbose=self.verbose)
+        # Create agent - use HumanLikeAgent if personality or class specified
+        if self.personality or self.character_class:
+            from scripts.human_like_agent import HumanLikeAgent
+            from scripts.agent import PersonalityType, CharacterClassName
+
+            # Parse personality type
+            personality = PersonalityType.CAUTIOUS_EXPLORER
+            if self.personality:
+                personality = PersonalityType[self.personality.upper()]
+
+            # Parse character class
+            char_class = CharacterClassName.WARRIOR
+            if self.character_class:
+                char_class = CharacterClassName[self.character_class.upper()]
+
+            self.agent = HumanLikeAgent(
+                personality=personality,
+                character_class=char_class,
+                verbose=self.verbose,
+            )
+        else:
+            self.agent = Agent(verbose=self.verbose)
+
         # Import here to avoid circular imports
         if self.enable_checkpoints and self.session_manager is None:
             from scripts.agent_persistence import SessionManager

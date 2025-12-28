@@ -27,7 +27,8 @@ scripts/
 ├── __init__.py          # Package initialization
 ├── state_parser.py      # JSON output parsing for agent state
 ├── ai_agent.py          # Heuristic-based AI agent for playtesting
-├── run_simulation.py    # CLI entry point for running simulations
+├── human_like_agent.py  # HumanLikeAgent with personality, class behaviors, and memory
+├── run_simulation.py    # CLI entry point for running simulations (--personality, --class flags)
 ├── generate_test_world.py # Regenerate test world fixture if models change
 └── agent/
     ├── __init__.py      # Package exports for personality and memory systems

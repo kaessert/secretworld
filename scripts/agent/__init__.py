@@ -29,6 +29,9 @@ from scripts.agent.personality import (
     get_personality_traits,
 )
 
+# Import HumanLikeAgent - deferred to avoid circular import
+# Users should import from scripts.human_like_agent directly
+
 __all__ = [
     # Class behavior system
     "CharacterClassName",

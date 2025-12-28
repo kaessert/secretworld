@@ -395,13 +395,13 @@ python -m scripts.run_validation --report-format=html --output=report.html
 5. ✅ Integrate into GameSession (`_check_triggers()`, `_create_checkpoint()`, `from_checkpoint()`)
 6. ✅ Add CLI flags to run_simulation.py (`--recover`, `--from-checkpoint`, `--no-checkpoints`, `--checkpoints-dir`)
 
-**Phase 2: Human-Like Agent Core (HIGH)** - IN PROGRESS
+**Phase 2: Human-Like Agent Core (HIGH)** ✅ COMPLETE
 1. ✅ Create `scripts/agent/` package
 2. ✅ Implement personality.py with 5 presets (PersonalityType enum, PersonalityTraits dataclass, serialization)
 3. ✅ Implement memory.py with failure tracking (FailureRecord, NPCMemory, LocationMemory, AgentMemory)
 4. ✅ Implement class_behaviors.py for all 5 classes (CharacterClassName enum, ClassBehaviorConfig, ClassBehavior Protocol, 5 behavior classes with combat/exploration strategies, 47 tests)
 5. ✅ Extend AgentState with environmental fields (`time_of_day`, `hour`, `season`, `weather`, `tiredness`) and helper methods (`is_night()`, `is_tired()`, `is_exhausted()`, `is_bad_weather()`, `should_rest()`)
-6. Refactor Agent to HumanLikeAgent
+6. ✅ Create HumanLikeAgent class (`scripts/human_like_agent.py`) integrating personality, class behaviors, and memory with observable behavioral differences (21 tests)
 
 **Phase 3: Validation Framework (MEDIUM)**
 1. Create `scripts/validation/` package
@@ -421,7 +421,7 @@ python -m scripts.run_validation --report-format=html --output=report.html
 
 #### Acceptance Criteria
 - [x] Can interrupt simulation, resume from checkpoint, get identical results (Phase 1 - COMPLETE)
-- [ ] Observable behavioral differences between personalities and classes (Phase 2)
+- [x] Observable behavioral differences between personalities and classes (Phase 2 - COMPLETE)
 - [ ] Track which features are exercised, identify coverage gaps (Phase 3)
 - [ ] Detect feature regressions automatically with clear reports (Phase 3)
 - [ ] Validate AI-generated content meets quality standards (Phase 4)

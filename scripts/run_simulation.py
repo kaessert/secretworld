@@ -114,6 +114,21 @@ Examples:
         default="simulation_saves",
         help="Directory for checkpoint storage (default: simulation_saves)"
     )
+    parser.add_argument(
+        "--personality",
+        type=str,
+        default=None,
+        choices=["cautious_explorer", "aggressive_fighter", "completionist", "speedrunner", "roleplayer"],
+        help="Agent personality type (enables HumanLikeAgent)"
+    )
+    parser.add_argument(
+        "--class",
+        dest="character_class",
+        type=str,
+        default=None,
+        choices=["warrior", "mage", "rogue", "ranger", "cleric"],
+        help="Agent character class (enables HumanLikeAgent)"
+    )
 
     args = parser.parse_args()
 
@@ -186,12 +201,20 @@ Examples:
             action_delay=args.delay,
             enable_checkpoints=not args.no_checkpoints,
             session_manager=session_manager if not args.no_checkpoints else None,
+            personality=args.personality,
+            character_class=args.character_class,
         )
 
     if args.unlimited:
         print(f"Starting simulation with seed={seed}, unlimited mode (Ctrl+C to stop)")
     else:
         print(f"Starting simulation with seed={seed}, max_commands={args.max_commands}")
+
+    # Show agent configuration if using HumanLikeAgent
+    if args.personality or args.character_class:
+        personality = args.personality or "cautious_explorer"
+        char_class = args.character_class or "warrior"
+        print(f"Agent: HumanLikeAgent (personality={personality}, class={char_class})")
 
     if not args.no_checkpoints:
         print(f"Checkpoints enabled (saving to {args.checkpoints_dir}/)")

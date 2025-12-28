@@ -1,70 +1,111 @@
-# Plan: Extend AgentState with Environmental Fields
+# Plan: Refactor Agent to HumanLikeAgent (Phase 2.6)
 
 ## Spec
 
-Add environmental awareness fields to `AgentState` in `scripts/state_parser.py`:
-- `time_of_day: str` - "day" or "night" (from GameTime.get_period())
-- `hour: int` - Current hour 0-23 (from GameTime.hour)
-- `season: str` - "spring", "summer", "autumn", "winter"
-- `weather: str` - "clear", "rain", "storm", "fog"
-- `tiredness: int` - Current tiredness level 0-100
+Integrate the completed personality, memory, and class behavior systems into the main Agent class to create a HumanLikeAgent that exhibits observable behavioral differences based on personality traits and character class.
 
-The `dread` field already exists (line 85). Parse these from `dump_state` JSON which includes:
-- `game_time.hour`, `game_time.total_hours` (derive period/season)
-- `weather.condition`
-- `character.tiredness.current`
+**Behavioral Changes:**
+- Personality traits (risk_tolerance, exploration_drive, social_engagement, combat_aggression, resource_conservation) modify decision thresholds
+- Class behaviors provide class-specific combat commands (bash, cast, sneak, etc.)
+- Memory system influences decisions based on past failures and location danger
+- Environmental awareness (time_of_day, tiredness, weather) affects behavior
 
-Helper methods to add:
-- `is_night() -> bool` - Check if night time (agent should be cautious of undead +50%)
-- `is_tired() -> bool` - Check if tiredness >= 60 (should consider rest)
-- `is_exhausted() -> bool` - Check if tiredness >= 80 (attack/perception penalty)
-- `is_bad_weather() -> bool` - Check for storm/fog (extra dread, visibility issues)
-- `should_rest() -> bool` - Composite check: tired AND (not in combat) AND (rest available)
+## Tests (in `tests/test_human_like_agent.py`)
 
-## Tests
+1. **Agent creation with personality/class/memory**
+   - `test_create_with_personality_type`: HumanLikeAgent accepts PersonalityType, stores traits
+   - `test_create_with_character_class`: Accepts CharacterClassName, gets behavior
+   - `test_create_with_memory`: AgentMemory is initialized and accessible
+   - `test_default_is_cautious_warrior`: Default personality is CAUTIOUS_EXPLORER, default class is WARRIOR
 
-Add to `tests/test_ai_agent.py` in new `TestEnvironmentalAwareness` class:
+2. **Personality affects decision thresholds**
+   - `test_aggressive_fighter_flees_later`: AGGRESSIVE_FIGHTER (risk_tolerance=0.9) flees at lower HP than CAUTIOUS_EXPLORER (0.2)
+   - `test_completionist_talks_more`: COMPLETIONIST (social_engagement=1.0) prioritizes NPC interaction
+   - `test_speedrunner_skips_npcs`: SPEEDRUNNER (social_engagement=0.1) skips optional NPC talks
+   - `test_exploration_drive_affects_dungeon_depth`: Higher exploration_drive = more moves in sub-locations
 
-1. **Field parsing from dump_state**:
-   - `test_update_state_parses_game_time` - hour, time_of_day, season
-   - `test_update_state_parses_weather` - weather condition
-   - `test_update_state_parses_tiredness` - tiredness from character
+3. **Class behavior integration**
+   - `test_warrior_uses_bash`: Warrior class uses bash command in combat when available
+   - `test_mage_casts_spells`: Mage casts fireball/ice_bolt when mana sufficient
+   - `test_rogue_uses_sneak`: Rogue hides then sneak attacks
+   - `test_ranger_summons_companion`: Ranger summons companion in exploration
+   - `test_cleric_smites_undead`: Cleric uses smite against undead enemies
 
-2. **Helper method tests**:
-   - `test_is_night_true_at_night_hours` - hour 18-23, 0-5
-   - `test_is_night_false_at_day_hours` - hour 6-17
-   - `test_is_tired_threshold` - tiredness >= 60
-   - `test_is_exhausted_threshold` - tiredness >= 80
-   - `test_is_bad_weather_storm_fog` - storm and fog return True
-   - `test_is_bad_weather_clear_rain` - clear and rain return False
-   - `test_should_rest_composite` - combines tiredness + not in combat + rest command
+4. **Memory influences decisions**
+   - `test_avoids_dangerous_enemies`: Agent flees from enemies that killed it before
+   - `test_location_danger_affects_entry`: High-danger locations entered more cautiously
+   - `test_npc_memory_persists`: NPC interactions are remembered across locations
 
-3. **Season derivation**:
-   - `test_season_from_total_hours` - spring days 1-30, summer 31-60, etc.
+5. **Environmental awareness**
+   - `test_night_affects_combat`: Night time (is_night=True) increases caution
+   - `test_tiredness_triggers_rest`: High tiredness triggers rest decision
+   - `test_weather_affects_exploration`: Bad weather reduces exploration priority
+
+6. **Serialization**
+   - `test_to_checkpoint_dict_includes_new_fields`: Checkpoint includes personality, class, memory
+   - `test_restore_from_checkpoint_restores_all`: All state restored from checkpoint
 
 ## Implementation Steps
 
-1. **Add new fields to AgentState** (`scripts/state_parser.py:85-86`):
-   ```python
-   # After existing dread field (line 85)
-   time_of_day: str = "day"
-   hour: int = 6
-   season: str = "spring"
-   weather: str = "clear"
-   tiredness: int = 0
-   ```
+### Step 1: Create `scripts/human_like_agent.py`
 
-2. **Add helper methods to AgentState** (after `has_unexplored_exits`, ~line 170):
-   - `is_night()` - return `self.hour >= 18 or self.hour < 6`
-   - `is_tired()` - return `self.tiredness >= 60`
-   - `is_exhausted()` - return `self.tiredness >= 80`
-   - `is_bad_weather()` - return `self.weather in ("storm", "fog")`
-   - `should_rest()` - return `self.is_tired() and not self.in_combat and "rest" in self.commands`
+```python
+class HumanLikeAgent(Agent):
+    """Agent with personality, class behaviors, and memory for human-like play."""
 
-3. **Update `update_state()` for dump_state** (~line 252):
-   - Parse `game_time` dict: extract `hour`, derive `time_of_day` and `season` from `total_hours`
-   - Parse `weather` dict: extract `condition`
-   - Parse `character.tiredness.current`
+    def __init__(
+        self,
+        personality: PersonalityType = PersonalityType.CAUTIOUS_EXPLORER,
+        character_class: CharacterClassName = CharacterClassName.WARRIOR,
+        verbose: bool = False,
+    ):
+        super().__init__(verbose=verbose)
+        self.personality_type = personality
+        self.traits = get_personality_traits(personality)
+        self.character_class = character_class
+        self.class_behavior = get_class_behavior(character_class)
+        self.memory = AgentMemory()
+```
 
-4. **Write tests** in `tests/test_ai_agent.py`:
-   - Add `TestEnvironmentalAwareness` class with all tests listed above
+### Step 2: Override `_combat_decision()` to use class behaviors
+
+- Call `self.class_behavior.get_combat_command(state, self.memory)`
+- If returns command, use it; otherwise fall back to base attack
+- Use `self.class_behavior.should_flee()` for flee decision
+- Modify flee threshold by `traits.risk_tolerance`
+
+### Step 3: Override `_explore_decision()` to use personality + class
+
+- Scale NPC talk probability by `traits.social_engagement`
+- Scale dungeon entry by `traits.exploration_drive` and `traits.risk_tolerance`
+- Call `self.class_behavior.get_exploration_command()` for class-specific actions
+- Use memory's `is_enemy_dangerous()` and `get_location_danger()`
+
+### Step 4: Add environmental awareness to decisions
+
+- Check `state.is_night()` for undead caution (combat_aggression modifier)
+- Check `state.should_rest()` for tiredness-based rest
+- Check `state.is_bad_weather()` for exploration reduction
+
+### Step 5: Update serialization
+
+- `to_checkpoint_dict()`: Add personality_type, character_class, memory.to_dict()
+- `restore_from_checkpoint()`: Restore personality, class, memory from dict
+
+### Step 6: Update `GameSession` in `ai_agent.py`
+
+- Add `personality` and `character_class` parameters
+- Pass to HumanLikeAgent constructor instead of Agent
+
+### Step 7: Update `run_simulation.py` CLI
+
+- Add `--personality=<type>` flag (default: cautious)
+- Add `--class=<name>` flag (default: warrior)
+
+## Files to Create/Modify
+
+1. **Create**: `scripts/human_like_agent.py` - HumanLikeAgent class
+2. **Create**: `tests/test_human_like_agent.py` - Tests for new agent
+3. **Modify**: `scripts/ai_agent.py` - Update GameSession to use HumanLikeAgent
+4. **Modify**: `scripts/run_simulation.py` - Add CLI flags
+5. **Modify**: `scripts/agent/__init__.py` - Export HumanLikeAgent
