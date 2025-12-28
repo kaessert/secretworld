@@ -118,6 +118,9 @@ class Agent:
         # Combat state tracking for better detection
         self.in_combat_override: bool = False  # Manual combat detection
         self.commands_since_combat_check: int = 0
+        self.consecutive_attacks: int = 0  # Track attacks without progress
+        self.last_enemy_health: int = 0  # Detect if attacks are working
+        self.max_consecutive_attacks: int = 10  # Bail out after this many
 
     def _detect_combat_from_narrative(self, state: AgentState) -> bool:
         """Detect if we're in combat from narrative text.
@@ -151,39 +154,53 @@ class Agent:
         Returns:
             True if in combat
         """
+        # FIRST: Check for too many consecutive attacks (stuck in combat loop)
+        if self.consecutive_attacks >= self.max_consecutive_attacks:
+            if self.verbose:
+                print(f"[AGENT] Bailing out of combat - {self.consecutive_attacks} attacks with no progress")
+            self._reset_combat_state(state)
+            return False
+
+        # If we have exits, we're not in active combat - reset and return
+        if state.exits and len(state.exits) > 0:
+            self._reset_combat_state(state)
+            return False
+
         # Direct state check - primary source of truth
         if state.in_combat:
-            self.in_combat_override = True
             return True
 
         # Check narrative for combat indicators
         if self._detect_combat_from_narrative(state):
-            self.in_combat_override = True
-            return True
-
-        # Check if enemy exists (combat message sets this)
-        if state.enemy and state.enemy_health > 0:
-            self.in_combat_override = True
             return True
 
         # Check last narrative for "Can't do that during combat"
         if "can't do that during combat" in state.last_narrative.lower():
-            self.in_combat_override = True
             return True
 
         # Check if commands indicate combat (only combat commands available)
         combat_only_commands = {"attack", "defend", "flee", "block", "parry"}
         if state.commands:
             available = set(state.commands)
-            if combat_only_commands & available and "enter" not in state.commands:
-                self.in_combat_override = True
+            # Only if we ONLY have combat commands and no movement
+            non_combat = {"go", "look", "enter", "exit", "talk", "shop", "inventory"}
+            if combat_only_commands & available and not (non_combat & available):
                 return True
 
-        # Reset override only if we have clear non-combat indicators
-        if state.exits and not state.enemy:
-            self.in_combat_override = False
+        return False
 
-        return self.in_combat_override
+    def _reset_combat_state(self, state: AgentState) -> None:
+        """Reset all combat-related tracking.
+
+        Args:
+            state: Game state to update
+        """
+        self.in_combat_override = False
+        self.consecutive_attacks = 0
+        self.last_enemy_health = 0
+        state.enemy = ""
+        state.enemy_health = 0
+        state.in_combat = False
 
     def decide(self, state: AgentState) -> str:
         """Determine next command based on current state.
@@ -326,11 +343,7 @@ class Agent:
             "you won",
         ]
         if any(indicator in narrative_lower for indicator in combat_ended_indicators):
-            self.in_combat_override = False
-            # Clear enemy state
-            state.enemy = ""
-            state.enemy_health = 0
-            state.in_combat = False
+            self._reset_combat_state(state)
             if self.verbose:
                 print("[AGENT] Combat ended, returning to exploration")
             self.needs_look = True
@@ -339,9 +352,7 @@ class Agent:
 
         # Also check if enemy health is 0 (we won)
         if state.enemy_health <= 0 and state.enemy:
-            self.in_combat_override = False
-            state.enemy = ""
-            state.in_combat = False
+            self._reset_combat_state(state)
             if self.verbose:
                 print("[AGENT] Enemy defeated, returning to exploration")
             self.needs_look = True
@@ -372,6 +383,15 @@ class Agent:
 
         # Default: attack
         enemy_name = state.enemy or "enemy"
+
+        # Track attack progress - are we actually doing damage?
+        if state.enemy_health > 0:
+            if state.enemy_health == self.last_enemy_health:
+                self.consecutive_attacks += 1
+            else:
+                self.consecutive_attacks = 0
+            self.last_enemy_health = state.enemy_health
+
         if self.verbose:
             print(f"[AGENT] Attacking {enemy_name} - HP {hp_pct:.0%}")
         self.last_command = "attack"

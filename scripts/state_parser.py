@@ -216,7 +216,21 @@ def update_state(state: AgentState, message: dict[str, Any]) -> None:
             state.health = message["player_health"]
 
     elif msg_type == "actions":
-        state.exits = message.get("exits", [])
+        # Merge exits from actions with any parsed from narrative
+        # (narrative often has more complete exits)
+        json_exits = message.get("exits", [])
+        if state.exits:
+            # Merge: keep unique, preferring narrative exits first
+            seen = set()
+            merged = []
+            for exit_dir in state.exits + json_exits:
+                if exit_dir not in seen:
+                    merged.append(exit_dir)
+                    seen.add(exit_dir)
+            state.exits = merged
+        else:
+            state.exits = json_exits
+
         state.npcs = message.get("npcs", [])
         state.commands = message.get("commands", [])
         # Actions are emitted when NOT in combat
@@ -228,6 +242,8 @@ def update_state(state: AgentState, message: dict[str, Any]) -> None:
     elif msg_type == "narrative":
         text = message.get("text", "")
         state.last_narrative = text
+        # Parse exits from narrative (often more complete than JSON)
+        _parse_exits_from_narrative(state, text)
         # Parse "Enter: ..." from narrative for sub-location detection
         _parse_enterables_from_narrative(state, text)
         # Parse quest availability hints
@@ -321,6 +337,40 @@ def _parse_enterables_from_narrative(state: AgentState, text: str) -> None:
         enterables = [e.strip() for e in enterables_text.split(",") if e.strip()]
         if enterables:
             state.enterables = enterables
+
+
+def _parse_exits_from_narrative(state: AgentState, text: str) -> None:
+    """Extract exit directions from narrative text.
+
+    The narrative often includes more exits than the JSON (which only shows
+    directions with existing locations). Merge narrative exits with JSON exits.
+
+    Args:
+        state: AgentState to update
+        text: Narrative text to parse
+    """
+    # Look for "Exits:" lines in narrative
+    exits_match = re.search(r"Exits?:\s*(.+?)(?:\n|$)", text, re.IGNORECASE)
+    if exits_match:
+        exits_text = exits_match.group(1).strip()
+        # Parse comma-separated or space-separated directions
+        valid_dirs = {"north", "south", "east", "west", "up", "down"}
+        narrative_exits = []
+        for word in re.split(r"[,\s]+", exits_text.lower()):
+            word = word.strip()
+            if word in valid_dirs:
+                narrative_exits.append(word)
+
+        # Merge with existing exits (prefer narrative for completeness)
+        if narrative_exits:
+            # Keep unique, preserving order
+            combined = []
+            seen = set()
+            for exit_dir in narrative_exits + state.exits:
+                if exit_dir not in seen:
+                    combined.append(exit_dir)
+                    seen.add(exit_dir)
+            state.exits = combined
 
 
 def _parse_quest_hints_from_narrative(state: AgentState, text: str) -> None:

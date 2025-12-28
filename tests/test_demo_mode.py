@@ -190,3 +190,82 @@ class TestDemoModePregenFixture:
 
         assert game_state.game_time is not None
         assert game_state.game_time.hour == 8  # Morning start
+
+
+class TestDemoModeWithNonInteractiveFlags:
+    """Tests for demo mode combined with --non-interactive and --json flags.
+
+    Spec: --demo should skip character creation even with --json or --non-interactive.
+    """
+
+    def test_json_mode_with_demo_uses_demo_game_state(self):
+        """--demo --json should use demo game state, not stdin character creation."""
+        from cli_rpg.main import run_json_mode
+        from io import StringIO
+
+        # Provide only "quit" - if character creation runs, it will fail
+        with patch('sys.stdin', StringIO("quit\n")):
+            result = run_json_mode(demo=True)
+
+        # Should succeed (exit with 0) because demo mode skips character creation
+        assert result == 0
+
+    def test_non_interactive_mode_with_demo_uses_demo_game_state(self):
+        """--demo --non-interactive should use demo game state, not stdin."""
+        from cli_rpg.main import run_non_interactive
+        from io import StringIO
+
+        # Provide only "quit" - if character creation runs, it will fail
+        with patch('sys.stdin', StringIO("quit\n")):
+            result = run_non_interactive(demo=True)
+
+        # Should succeed (exit with 0) because demo mode skips character creation
+        assert result == 0
+
+    def test_json_mode_demo_flag_in_main(self):
+        """main() with --demo --json passes demo=True to run_json_mode."""
+        from cli_rpg.main import parse_args
+
+        args = parse_args(["--demo", "--json"])
+
+        assert args.demo is True
+        assert args.json is True
+
+    def test_non_interactive_demo_flag_in_main(self):
+        """main() with --demo --non-interactive passes demo=True."""
+        from cli_rpg.main import parse_args
+
+        args = parse_args(["--demo", "--non-interactive"])
+
+        assert args.demo is True
+        assert args.non_interactive is True
+
+    @patch('cli_rpg.main.run_json_mode')
+    def test_main_passes_demo_to_json_mode(self, mock_run_json):
+        """main() should pass demo flag to run_json_mode when both --demo and --json."""
+        from cli_rpg.main import main
+
+        mock_run_json.return_value = 0
+
+        result = main(["--demo", "--json"])
+
+        assert result == 0
+        mock_run_json.assert_called_once()
+        # Verify demo=True was passed
+        call_kwargs = mock_run_json.call_args[1]
+        assert call_kwargs.get("demo") is True
+
+    @patch('cli_rpg.main.run_non_interactive')
+    def test_main_passes_demo_to_non_interactive(self, mock_run_non_interactive):
+        """main() should pass demo flag to run_non_interactive when both --demo and --non-interactive."""
+        from cli_rpg.main import main
+
+        mock_run_non_interactive.return_value = 0
+
+        result = main(["--demo", "--non-interactive"])
+
+        assert result == 0
+        mock_run_non_interactive.assert_called_once()
+        # Verify demo=True was passed
+        call_kwargs = mock_run_non_interactive.call_args[1]
+        assert call_kwargs.get("demo") is True

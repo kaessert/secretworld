@@ -3014,7 +3014,8 @@ def run_json_mode(
     log_file: Optional[str] = None,
     delay_ms: int = 0,
     skip_character_creation: bool = False,
-    seed: Optional[int] = None
+    seed: Optional[int] = None,
+    demo: bool = False
 ) -> int:
     """Run game in JSON mode, emitting structured JSON Lines output.
 
@@ -3028,6 +3029,7 @@ def run_json_mode(
         skip_character_creation: If True, use default character. If False, read
             character creation inputs from stdin.
         seed: Optional RNG seed. If None, a random seed will be generated.
+        demo: If True, use pre-generated demo world instead of character creation.
 
     Returns:
         Exit code (0 for success, 1 for error)
@@ -3062,46 +3064,60 @@ def run_json_mode(
         except Exception:
             pass  # Silently fall back to non-AI mode
 
-    # Create character
-    if skip_character_creation:
-        # Use default character (backward compatible behavior)
-        character = Character(name="Agent", strength=10, dexterity=10, intelligence=10, character_class=CharacterClass.WARRIOR)
-    else:
-        # Read character creation from stdin
-        character, error = create_character_non_interactive(json_mode=True)
-        if character is None:
-            emit_error(code="character_creation_failed", message=error)
+    # Demo mode: use pre-generated world
+    if demo:
+        from cli_rpg.test_world import create_demo_game_state
+        try:
+            game_state = create_demo_game_state(ai_service=ai_service)
+            character = game_state.current_character
+            # Generate seed for logging if not provided
+            import random as rnd
+            if seed is None:
+                seed = rnd.randint(0, 2**31 - 1)
+        except FileNotFoundError:
+            emit_error(code="demo_world_not_found", message="Demo world fixture not found")
             return 1
+    else:
+        # Create character
+        if skip_character_creation:
+            # Use default character (backward compatible behavior)
+            character = Character(name="Agent", strength=10, dexterity=10, intelligence=10, character_class=CharacterClass.WARRIOR)
+        else:
+            # Read character creation from stdin
+            character, error = create_character_non_interactive(json_mode=True)
+            if character is None:
+                emit_error(code="character_creation_failed", message=error)
+                return 1
 
-    world, starting_location = create_world(ai_service=ai_service, theme="fantasy", strict=False)
+        world, starting_location = create_world(ai_service=ai_service, theme="fantasy", strict=False)
 
-    # Generate seed if not provided, and use it for ChunkManager
-    import random as rnd
-    if seed is None:
-        seed = rnd.randint(0, 2**31 - 1)
+        # Generate seed if not provided, and use it for ChunkManager
+        import random as rnd
+        if seed is None:
+            seed = rnd.randint(0, 2**31 - 1)
 
-    # Initialize WFC ChunkManager for terrain generation
-    from cli_rpg.wfc_chunks import ChunkManager
-    from cli_rpg.world_tiles import DEFAULT_TILE_REGISTRY
-    chunk_manager = ChunkManager(
-        tile_registry=DEFAULT_TILE_REGISTRY,
-        world_seed=seed,
-    )
-    # Sync WFC terrain with existing location coordinates
-    chunk_manager.sync_with_locations(world)
+        # Initialize WFC ChunkManager for terrain generation
+        from cli_rpg.wfc_chunks import ChunkManager
+        from cli_rpg.world_tiles import DEFAULT_TILE_REGISTRY
+        chunk_manager = ChunkManager(
+            tile_registry=DEFAULT_TILE_REGISTRY,
+            world_seed=seed,
+        )
+        # Sync WFC terrain with existing location coordinates
+        chunk_manager.sync_with_locations(world)
 
-    game_state = GameState(
-        character,
-        world,
-        starting_location=starting_location,
-        ai_service=ai_service,
-        theme="fantasy",
-        chunk_manager=chunk_manager,
-    )
+        game_state = GameState(
+            character,
+            world,
+            starting_location=starting_location,
+            ai_service=ai_service,
+            theme="fantasy",
+            chunk_manager=chunk_manager,
+        )
 
-    # Initialize default factions
-    from cli_rpg.world import get_default_factions
-    game_state.factions = get_default_factions()
+        # Initialize default factions
+        from cli_rpg.world import get_default_factions
+        game_state.factions = get_default_factions()
 
     # Log session start if logger is active (logger already initialized earlier)
     if logger:
@@ -3433,7 +3449,8 @@ def run_non_interactive(
     log_file: Optional[str] = None,
     delay_ms: int = 0,
     skip_character_creation: bool = False,
-    seed: Optional[int] = None
+    seed: Optional[int] = None,
+    demo: bool = False
 ) -> int:
     """Run game in non-interactive mode, reading commands from stdin.
 
@@ -3446,6 +3463,7 @@ def run_non_interactive(
         skip_character_creation: If True, use default character. If False, read
             character creation inputs from stdin.
         seed: Optional RNG seed. If None, a random seed will be generated.
+        demo: If True, use pre-generated demo world instead of character creation.
 
     Returns:
         Exit code (0 for success, 1 for error)
@@ -3476,52 +3494,66 @@ def run_non_interactive(
         except Exception:
             pass  # Silently fall back to non-AI mode
 
-    # Create character
-    if skip_character_creation:
-        # Use default character (backward compatible behavior)
-        character = Character(name="Agent", strength=10, dexterity=10, intelligence=10, character_class=CharacterClass.WARRIOR)
-    else:
-        # Read character creation from stdin
-        character, error = create_character_non_interactive(json_mode=False)
-        if character is None:
-            print(error)
+    # Demo mode: use pre-generated world
+    if demo:
+        from cli_rpg.test_world import create_demo_game_state
+        try:
+            game_state = create_demo_game_state(ai_service=ai_service)
+            character = game_state.current_character
+            # Generate seed for logging if not provided
+            import random as rnd
+            if seed is None:
+                seed = rnd.randint(0, 2**31 - 1)
+        except FileNotFoundError:
+            print("Error: Demo world fixture not found")
             return 1
+    else:
+        # Create character
+        if skip_character_creation:
+            # Use default character (backward compatible behavior)
+            character = Character(name="Agent", strength=10, dexterity=10, intelligence=10, character_class=CharacterClass.WARRIOR)
+        else:
+            # Read character creation from stdin
+            character, error = create_character_non_interactive(json_mode=False)
+            if character is None:
+                print(error)
+                return 1
 
-    world, starting_location = create_world(ai_service=ai_service, theme="fantasy", strict=False)
+        world, starting_location = create_world(ai_service=ai_service, theme="fantasy", strict=False)
 
-    # Generate seed if not provided, and use it for ChunkManager
-    import random as rnd
-    if seed is None:
-        seed = rnd.randint(0, 2**31 - 1)
+        # Generate seed if not provided, and use it for ChunkManager
+        import random as rnd
+        if seed is None:
+            seed = rnd.randint(0, 2**31 - 1)
 
-    # Initialize WFC ChunkManager for terrain generation
-    from cli_rpg.wfc_chunks import ChunkManager
-    from cli_rpg.world_tiles import DEFAULT_TILE_REGISTRY
-    chunk_manager = ChunkManager(
-        tile_registry=DEFAULT_TILE_REGISTRY,
-        world_seed=seed,
-    )
-    # Sync WFC terrain with existing location coordinates
-    chunk_manager.sync_with_locations(world)
+        # Initialize WFC ChunkManager for terrain generation
+        from cli_rpg.wfc_chunks import ChunkManager
+        from cli_rpg.world_tiles import DEFAULT_TILE_REGISTRY
+        chunk_manager = ChunkManager(
+            tile_registry=DEFAULT_TILE_REGISTRY,
+            world_seed=seed,
+        )
+        # Sync WFC terrain with existing location coordinates
+        chunk_manager.sync_with_locations(world)
 
-    game_state = GameState(
-        character,
-        world,
-        starting_location=starting_location,
-        ai_service=ai_service,
-        theme="fantasy",
-        chunk_manager=chunk_manager,
-    )
+        game_state = GameState(
+            character,
+            world,
+            starting_location=starting_location,
+            ai_service=ai_service,
+            theme="fantasy",
+            chunk_manager=chunk_manager,
+        )
 
-    # Initialize default factions
-    from cli_rpg.world import get_default_factions
-    game_state.factions = get_default_factions()
+        # Initialize default factions
+        from cli_rpg.world import get_default_factions
+        game_state.factions = get_default_factions()
 
     # Log session start if logger is active (logger already initialized earlier)
     if logger:
         logger.log_session_start(
             character_name=character.name,
-            location=starting_location,
+            location=game_state.current_location,
             theme="fantasy",
             seed=seed
         )
@@ -3768,7 +3800,8 @@ def main(args: Optional[list] = None) -> int:
             log_file=parsed_args.log_file,
             delay_ms=delay_ms,
             skip_character_creation=parsed_args.skip_character_creation,
-            seed=seed
+            seed=seed,
+            demo=parsed_args.demo
         )
 
     if parsed_args.non_interactive:
@@ -3776,7 +3809,8 @@ def main(args: Optional[list] = None) -> int:
             log_file=parsed_args.log_file,
             delay_ms=delay_ms,
             skip_character_creation=parsed_args.skip_character_creation,
-            seed=seed
+            seed=seed,
+            demo=parsed_args.demo
         )
 
     if parsed_args.demo:
