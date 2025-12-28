@@ -1,134 +1,107 @@
-# Plan: Validation Framework - Phase 3 (assertions.py)
+# FeatureCoverage Tracker Implementation Plan
+
+## Summary
+Implement `scripts/validation/coverage.py` - a tracker for which game features are exercised during playtesting, enabling coverage gap identification.
 
 ## Spec
 
-Create `scripts/validation/assertions.py` with core assertion types for automated validation of game state during playtesting. This is the foundation of the validation framework.
+### FeatureCategory Enum
+Categories matching ISSUES.md "Features to Cover":
+- CHARACTER_CREATION (all 5 classes)
+- MOVEMENT (overworld, subgrid, vertical z-levels)
+- COMBAT (attack, abilities, flee, stealth, companions)
+- NPC_INTERACTION (dialogue, shops, quests, arc progression)
+- INVENTORY (equip, unequip, use, drop, restrictions)
+- QUESTS (accept, track, complete, world effects, chains)
+- CRAFTING (gather, craft, skill progression, recipes)
+- EXPLORATION (map, secrets, puzzles, treasures)
+- REST_CAMPING (rest, camp, forage, hunt, dreams)
+- ECONOMY (buy, sell, price modifiers, supply/demand)
+- ENVIRONMENTAL (hazards, interior events)
+- RANGER_COMPANION (tame, summon, feed, combat)
+- SOCIAL_SKILLS (persuade, intimidate, bribe)
+- PERSISTENCE (save, load)
 
-**Assertion Types (from ISSUES.md):**
-- `STATE_EQUALS` - Exact match of state field to expected value
-- `STATE_CONTAINS` - State field contains expected substring/element
-- `STATE_RANGE` - State field value within min/max bounds
-- `NARRATIVE_MATCH` - Regex pattern matching on narrative text
-- `COMMAND_VALID` - Command was accepted (no error)
-- `COMMAND_EFFECT` - Command produced expected state change
-- `CONTENT_PRESENT` - AI-generated content exists (not empty/None)
-- `CONTENT_QUALITY` - AI content meets quality threshold (future)
+### FeatureEvent Dataclass
+```python
+@dataclass
+class FeatureEvent:
+    feature: str           # Feature identifier (e.g., "combat.attack")
+    category: FeatureCategory
+    timestamp: float       # time.time()
+    command: str           # Command that triggered this
+    context: dict          # Optional metadata
+```
 
-## Tests (in `tests/test_validation_assertions.py`)
+### FeatureCoverage Class
+```python
+class FeatureCoverage:
+    def __init__(self):
+        self.events: list[FeatureEvent]
+        self._feature_definitions: dict[FeatureCategory, set[str]]
 
-### AssertionType enum
-1. `test_assertion_type_has_all_types`: Enum has all 8 assertion types
-2. `test_assertion_type_values_are_unique`: All enum values are distinct
+    def record(self, feature: str, category: FeatureCategory, command: str, context: dict = None)
+    def get_coverage_by_category(self) -> dict[FeatureCategory, CoverageStats]
+    def get_uncovered_features(self) -> dict[FeatureCategory, set[str]]
+    def get_coverage_percentage(self) -> float
+    def to_dict(self) -> dict
+    @classmethod
+    def from_dict(cls, data: dict) -> "FeatureCoverage"
+```
 
-### Assertion dataclass
-3. `test_assertion_creation`: Assertion has type, field, expected, message
-4. `test_assertion_serialization`: to_dict/from_dict roundtrip works
+### CoverageStats Dataclass
+```python
+@dataclass
+class CoverageStats:
+    total: int        # Total features in category
+    covered: int      # Features exercised
+    events: int       # Total events recorded
+    features: set[str]  # Which features were hit
+```
 
-### AssertionResult dataclass
-5. `test_assertion_result_passed`: Result stores passed=True, no error
-6. `test_assertion_result_failed`: Result stores passed=False, error message
-7. `test_assertion_result_serialization`: to_dict/from_dict roundtrip
+### FEATURE_DEFINITIONS
+Constant mapping each category to its required features:
+```python
+FEATURE_DEFINITIONS = {
+    FeatureCategory.COMBAT: {
+        "combat.attack", "combat.ability", "combat.flee",
+        "combat.stealth_kill", "combat.companion_attack"
+    },
+    FeatureCategory.MOVEMENT: {
+        "movement.overworld", "movement.subgrid_entry",
+        "movement.subgrid_exit", "movement.vertical"
+    },
+    # ... etc
+}
+```
 
-### AssertionChecker class
-8. `test_check_state_equals_passes`: Exact match returns passed=True
-9. `test_check_state_equals_fails`: Mismatch returns passed=False, error
-10. `test_check_state_equals_nested_field`: Dot notation for nested fields
-11. `test_check_state_contains_passes`: Contains check for string
-12. `test_check_state_contains_list`: Contains check for list element
-13. `test_check_state_contains_fails`: Missing element returns failed
-14. `test_check_state_range_passes`: Value within range
-15. `test_check_state_range_below`: Value below min returns failed
-16. `test_check_state_range_above`: Value above max returns failed
-17. `test_check_narrative_match_passes`: Regex matches narrative text
-18. `test_check_narrative_match_fails`: Regex doesn't match
-19. `test_check_command_valid_passes`: No error message = valid
-20. `test_check_command_valid_fails`: Error in output = invalid
-21. `test_check_command_effect_passes`: Expected state change occurred
-22. `test_check_command_effect_fails`: State change did not occur
-23. `test_check_content_present_passes`: Non-empty content exists
-24. `test_check_content_present_fails`: Empty or None content
-25. `test_check_returns_result_object`: All checks return AssertionResult
-26. `test_check_unknown_type_raises`: Invalid assertion type raises ValueError
+## Tests (tests/test_validation_coverage.py)
+
+1. **test_feature_category_has_all_categories** - 14 categories defined
+2. **test_feature_event_creation** - All fields populated
+3. **test_feature_event_serialization** - to_dict/from_dict roundtrip
+4. **test_coverage_record_event** - Recording adds to events list
+5. **test_coverage_record_multiple_same_feature** - Multiple events same feature
+6. **test_coverage_by_category** - Stats per category
+7. **test_uncovered_features** - Returns unexercised features
+8. **test_coverage_percentage** - Total percentage calculation
+9. **test_coverage_empty** - 0% coverage when no events
+10. **test_coverage_serialization** - to_dict/from_dict roundtrip
+11. **test_feature_definitions_complete** - All categories have definitions
 
 ## Implementation Steps
 
-### Step 1: Create `scripts/validation/__init__.py`
-- Package initialization with exports
+1. Create `scripts/validation/coverage.py`:
+   - FeatureCategory enum (14 categories)
+   - FEATURE_DEFINITIONS constant
+   - FeatureEvent dataclass with serialization
+   - CoverageStats dataclass
+   - FeatureCoverage class with all methods
 
-### Step 2: Create `scripts/validation/assertions.py`
+2. Create `tests/test_validation_coverage.py`:
+   - 11 tests covering spec
 
-```python
-from dataclasses import dataclass, field
-from enum import Enum, auto
-from typing import Any, Optional
-import re
+3. Update `scripts/validation/__init__.py`:
+   - Export FeatureCategory, FeatureEvent, FeatureCoverage, CoverageStats
 
-
-class AssertionType(Enum):
-    """Types of assertions for state validation."""
-    STATE_EQUALS = auto()
-    STATE_CONTAINS = auto()
-    STATE_RANGE = auto()
-    NARRATIVE_MATCH = auto()
-    COMMAND_VALID = auto()
-    COMMAND_EFFECT = auto()
-    CONTENT_PRESENT = auto()
-    CONTENT_QUALITY = auto()
-
-
-@dataclass
-class Assertion:
-    """Single assertion to validate against game state."""
-    type: AssertionType
-    field: str  # State field to check (dot notation for nested)
-    expected: Any  # Expected value/pattern/range
-    message: str = ""  # Custom failure message
-
-
-@dataclass
-class AssertionResult:
-    """Result of running an assertion."""
-    assertion: Assertion
-    passed: bool
-    actual: Any = None
-    error: str = ""
-
-
-class AssertionChecker:
-    """Checks assertions against game state."""
-
-    def check(
-        self,
-        assertion: Assertion,
-        state: Any,
-        prev_state: Optional[Any] = None,
-        output: str = "",
-    ) -> AssertionResult:
-        """Check an assertion against the current state."""
-        # Dispatch to type-specific checker
-        ...
-```
-
-### Step 3: Implement `_get_field_value()` helper
-- Parse dot notation (e.g., "character.health")
-- Handle dict and object attribute access
-- Return None for missing fields
-
-### Step 4: Implement type-specific check methods
-- `_check_state_equals()`: Compare with `==`
-- `_check_state_contains()`: Use `in` operator
-- `_check_state_range()`: Check `min <= value <= max`
-- `_check_narrative_match()`: Use `re.search()`
-- `_check_command_valid()`: Check for error patterns in output
-- `_check_command_effect()`: Compare prev_state vs state
-- `_check_content_present()`: Check not None/empty
-
-### Step 5: Create tests in `tests/test_validation_assertions.py`
-- Follow existing test patterns (see test_agent_memory.py)
-- Use pytest, descriptive names, docstrings with "Spec:"
-
-## Files to Create
-
-1. **Create**: `scripts/validation/__init__.py`
-2. **Create**: `scripts/validation/assertions.py`
-3. **Create**: `tests/test_validation_assertions.py`
+4. Run tests: `pytest tests/test_validation_coverage.py -v`

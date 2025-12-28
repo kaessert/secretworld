@@ -6,10 +6,22 @@ from .assertions import (
     AssertionResult,
     AssertionType,
 )
+from .coverage import (
+    CoverageStats,
+    FeatureCategory,
+    FeatureCoverage,
+    FeatureEvent,
+    FEATURE_DEFINITIONS,
+)
 
 __all__ = [
     "Assertion",
     "AssertionChecker",
     "AssertionResult",
     "AssertionType",
+    "CoverageStats",
+    "FeatureCategory",
+    "FeatureCoverage",
+    "FeatureEvent",
+    "FEATURE_DEFINITIONS",
 ]

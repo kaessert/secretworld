@@ -406,7 +406,7 @@ python -m scripts.run_validation --report-format=html --output=report.html
 **Phase 3: Validation Framework (MEDIUM)** - IN PROGRESS
 1. ✅ Create `scripts/validation/` package
 2. ✅ Implement assertion types and checking (8 assertion types: STATE_EQUALS, STATE_CONTAINS, STATE_RANGE, NARRATIVE_MATCH, COMMAND_VALID, COMMAND_EFFECT, CONTENT_PRESENT, CONTENT_QUALITY placeholder)
-3. Implement FeatureCoverage tracker
+3. ✅ Implement FeatureCoverage tracker (14 categories, 50 features, FeatureEvent/CoverageStats dataclasses, record/get_coverage_by_category/get_uncovered_features/get_coverage_percentage methods, full serialization)
 4. Create YAML scenario format and runner
 5. Create initial scenarios for core features
 
@@ -422,7 +422,7 @@ python -m scripts.run_validation --report-format=html --output=report.html
 #### Acceptance Criteria
 - [x] Can interrupt simulation, resume from checkpoint, get identical results (Phase 1 - COMPLETE)
 - [x] Observable behavioral differences between personalities and classes (Phase 2 - COMPLETE)
-- [ ] Track which features are exercised, identify coverage gaps (Phase 3)
+- [x] Track which features are exercised, identify coverage gaps (Phase 3 - FeatureCoverage tracker COMPLETE)
 - [ ] Detect feature regressions automatically with clear reports (Phase 3)
 - [ ] Validate AI-generated content meets quality standards (Phase 4)
 

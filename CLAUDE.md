@@ -37,7 +37,8 @@ scripts/
 │   └── class_behaviors.py # CharacterClassName enum, ClassBehaviorConfig, 5 behavior classes (Warrior, Mage, Rogue, Ranger, Cleric) with class-specific combat/exploration strategies
 └── validation/
     ├── __init__.py      # Package exports for validation framework
-    └── assertions.py    # AssertionType enum (8 types), Assertion/AssertionResult dataclasses, AssertionChecker for state validation
+    ├── assertions.py    # AssertionType enum (8 types), Assertion/AssertionResult dataclasses, AssertionChecker for state validation
+    └── coverage.py      # FeatureCategory enum (14 categories), FeatureEvent, CoverageStats, FeatureCoverage tracker for playtest coverage analysis
 
 tests/e2e/
 ├── __init__.py          # E2E test package
