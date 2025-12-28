@@ -294,6 +294,8 @@ Companion reactions appear as flavor text after combat resolution.
 2. All living enemies attack (unless you fled successfully)
 3. Combat continues until all enemies are defeated, you are defeated, or you successfully flee
 
+**Stealth Kill Bonus (Rogue):** Rogues who kill enemies with backstab attacks (while in stealth) receive a 25% XP bonus for each stealth kill. The bonus is calculated as: `25% × (stealth kills / total enemies) × total XP`.
+
 **Victory**: Gain XP and gold, potentially level up, and may receive loot drops
 **Defeat**: Game over (can restore health for testing)
 **Flee**: Escape without gaining XP, gold, or loot

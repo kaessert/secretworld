@@ -418,3 +418,97 @@ class TestCharacterStealthMethods:
         was_stealthed = player.consume_stealth()
 
         assert was_stealthed is False
+
+
+class TestSneakKillBonusXP:
+    """Spec: Killing enemy with backstab grants 25% bonus XP."""
+
+    def test_stealth_kill_grants_bonus_xp(self):
+        """Spec: Backstab kill grants 25% bonus XP on combat end."""
+        # Create Rogue with max STR to one-shot enemy
+        player = Character(
+            name="Shadow",
+            strength=20,  # Max stat to deal enough damage
+            dexterity=14,
+            intelligence=8,
+            character_class=CharacterClass.ROGUE
+        )
+        # Use enemy with xp_reward=40 to avoid level-up (base + bonus = 50 < 100 to level)
+        enemy = Enemy(
+            name="Goblin",
+            health=1,  # Very low health to guarantee one-shot
+            max_health=1,
+            attack_power=5,
+            defense=0,
+            xp_reward=40  # 40 base + 10 bonus = 50 total, no level up
+        )
+        combat = CombatEncounter(player=player, enemy=enemy)
+        combat.start()
+
+        # Enter stealth first
+        combat.player_sneak()
+        assert player.is_stealthed()
+
+        initial_xp = player.xp
+        initial_level = player.level
+
+        # Attack from stealth - should kill enemy
+        with patch("random.random", return_value=0.99):  # No crits
+            victory, message = combat.player_attack()
+
+        # Verify it was a stealth kill
+        assert victory is True
+        assert combat.stealth_kills == 1
+        assert "backstab" in message.lower()
+
+        # End combat and check XP bonus
+        result = combat.end_combat(victory=True)
+
+        # Should have stealth bonus message
+        assert "stealth bonus" in result.lower()
+
+        # Player should get 50 XP (40 base + 10 bonus = 25% of 40)
+        xp_gained = player.xp - initial_xp
+        assert xp_gained == 50
+        assert player.level == initial_level  # No level up
+
+    def test_no_bonus_for_normal_kills(self):
+        """Spec: Normal kills don't grant stealth bonus XP."""
+        player = Character(
+            name="Tank",
+            strength=20,  # Max stat
+            dexterity=8,
+            intelligence=8,
+            character_class=CharacterClass.WARRIOR
+        )
+        enemy = Enemy(
+            name="Goblin",
+            health=1,  # Low health for one-shot
+            max_health=1,
+            attack_power=5,
+            defense=0,
+            xp_reward=50  # 50 XP, no level up
+        )
+        combat = CombatEncounter(player=player, enemy=enemy)
+        combat.start()
+
+        initial_xp = player.xp
+
+        # Attack normally (no stealth)
+        with patch("random.random", return_value=0.99):  # No crits
+            victory, message = combat.player_attack()
+
+        # Verify it was a normal kill
+        assert victory is True
+        assert combat.stealth_kills == 0
+        assert "backstab" not in message.lower()
+
+        # End combat
+        result = combat.end_combat(victory=True)
+
+        # Should NOT have stealth bonus message
+        assert "stealth bonus" not in result.lower()
+
+        # Player should get exactly 50 XP (no stealth bonus)
+        xp_gained = player.xp - initial_xp
+        assert xp_gained == 50

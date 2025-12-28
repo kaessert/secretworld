@@ -1,61 +1,77 @@
-# Add Perception Stat to Enemy Model
+# Implementation Plan: Stealth Kills Bonus XP
 
 ## Spec
-Add a `perception` stat to enemies that will be used for stealth detection. When a player attempts to sneak past enemies, the enemy's perception will be factored into the detection check (player stealth vs enemy perception).
-
-**Behavior:**
-- Default perception: 5 (baseline awareness)
-- Perception scales with enemy level: `perception = 5 + (level // 2)`
-- High perception enemies (scouts, sentries): +3 bonus
-- Low perception enemies (mindless undead, beasts): -2 penalty
-- Stealth check formula: `player_sneak_chance - (enemy_perception * 2)` (capped at 10-90%)
+Award bonus XP when player kills an enemy with a backstab (attack from stealth). Bonus: 25% of enemy's base XP reward per stealth kill.
 
 ## Files to Modify
+- `src/cli_rpg/combat.py` - Track stealth kills, apply bonus in `end_combat()`
+- `tests/test_sneak.py` - Add test for stealth kill XP bonus
 
-1. **`src/cli_rpg/models/enemy.py`**
-   - Add `perception: int = 5` field to Enemy dataclass
-   - Add to `to_dict()` serialization
-   - Add to `from_dict()` deserialization with default fallback
+## Implementation Steps
 
-2. **`tests/test_enemy.py`**
-   - Add test for default perception value
-   - Update `test_to_dict_serializes_enemy` to include perception
-   - Update `test_from_dict_deserializes_enemy` to include perception
-   - Update `test_serialization_roundtrip` to verify perception
+### 1. Add test for stealth kill XP bonus
+**File:** `tests/test_sneak.py`
 
-3. **`src/cli_rpg/combat.py`** - `spawn_enemy()` function
-   - Calculate perception based on level: `5 + (level // 2)`
-   - Apply enemy-type modifiers (scouts: +3, beasts/undead: -2)
-   - Pass perception to Enemy constructor
+Add new test class after existing tests:
+```python
+class TestSneakKillBonusXP:
+    """Spec: Killing enemy with backstab grants 25% bonus XP."""
 
-4. **`src/cli_rpg/game_state.py`** - `calculate_sneak_success_chance()`
-   - Add optional `enemy_perception: int = 5` parameter
-   - Modify formula to factor in perception: subtract `enemy_perception * 2` from base chance
+    def test_stealth_kill_grants_bonus_xp(self):
+        """Spec: Backstab kill grants 25% bonus XP on combat end."""
+        # Create Rogue with high STR to one-shot enemy
+        # Use enemy with xp_reward=100 for easy math
+        # Sneak -> attack -> verify combat.stealth_kills == 1
+        # Call end_combat(victory=True)
+        # Assert "Stealth bonus" in message
+        # Assert player got 125 XP (100 base + 25 bonus)
 
-5. **`src/cli_rpg/random_encounters.py`** - `check_random_encounter()`
-   - After spawning enemy, pass enemy perception to sneak check
-   - Update message to show detection by enemy type
+    def test_no_bonus_for_normal_kills(self):
+        """Spec: Normal kills don't grant stealth bonus XP."""
+        # Kill without stealth
+        # Assert combat.stealth_kills == 0
+        # Assert no "Stealth bonus" message
+        # Assert player got exactly 100 XP
+```
 
-6. **`src/cli_rpg/ai_config.py`** - `DEFAULT_ENEMY_GENERATION_PROMPT`
-   - Add perception to JSON schema in prompt
-   - Add perception to stats scaling guidelines
+### 2. Add stealth_kills counter to CombatEncounter.__init__()
+**File:** `src/cli_rpg/combat.py`, line ~403 (after combo system state)
 
-7. **`src/cli_rpg/ai_service.py`** - `_parse_enemy_response()`
-   - Add "perception" to optional validated fields
-   - Default to level-based calculation if not provided by AI
+```python
+# Stealth kill tracking for bonus XP
+self.stealth_kills = 0
+```
 
-## Test Plan
+### 3. Track stealth kills in player_attack()
+**File:** `src/cli_rpg/combat.py`, lines 749-750
 
-1. Run existing `tests/test_enemy.py` - should fail initially for serialization tests
-2. Implement Enemy model changes
-3. Update tests for new perception field
-4. Run `pytest tests/test_enemy.py -v` - should pass
-5. Run `pytest --cov=src/cli_rpg` - verify no regressions
+Modify enemy death check to increment counter:
+```python
+if not enemy.is_alive():
+    if is_backstab:
+        self.stealth_kills += 1
+    message += f"\n{colors.enemy(enemy.name)} has been defeated!"
+```
 
-## Implementation Order
+### 4. Apply stealth kill bonus XP in end_combat()
+**File:** `src/cli_rpg/combat.py`, lines 1958-1961
 
-1. Add perception field to Enemy model + serialization
-2. Update tests for Enemy model
-3. Calculate perception in spawn_enemy()
-4. Update sneak check to use enemy perception
-5. Update AI prompt and parsing (optional enhancement)
+After calculating total_xp, add bonus before calling gain_xp:
+```python
+# Sum XP from all enemies
+total_xp = sum(e.xp_reward for e in self.enemies)
+
+# Add stealth kill bonus (25% per stealth kill)
+stealth_bonus = 0
+if self.stealth_kills > 0:
+    stealth_bonus = int(total_xp * 0.25 * self.stealth_kills / len(self.enemies))
+    messages.append(f"Stealth bonus: +{stealth_bonus} XP!")
+
+xp_messages = self.player.gain_xp(total_xp + stealth_bonus)
+```
+
+## Verification
+```bash
+pytest tests/test_sneak.py::TestSneakKillBonusXP -v
+pytest tests/test_sneak.py -v
+```

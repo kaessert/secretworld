@@ -401,6 +401,9 @@ class CombatEncounter:
         self.damage_taken_while_defending: int = 0
         self.pending_combo: Optional[str] = None
 
+        # Stealth kill tracking for bonus XP
+        self.stealth_kills = 0
+
     def _check_and_consume_stun(self) -> Optional[str]:
         """Check if player is stunned and consume the stun effect if so.
 
@@ -747,6 +750,8 @@ class CombatEncounter:
             message += f"\n{colors.heal(proficiency_message)}"
 
         if not enemy.is_alive():
+            if is_backstab:
+                self.stealth_kills += 1
             message += f"\n{colors.enemy(enemy.name)} has been defeated!"
 
         # Check if all enemies are dead
@@ -1957,7 +1962,14 @@ class CombatEncounter:
 
             # Sum XP from all enemies
             total_xp = sum(e.xp_reward for e in self.enemies)
-            xp_messages = self.player.gain_xp(total_xp)
+
+            # Add stealth kill bonus (25% per stealth kill)
+            stealth_bonus = 0
+            if self.stealth_kills > 0:
+                stealth_bonus = int(total_xp * 0.25 * self.stealth_kills / len(self.enemies))
+                messages.append(f"Stealth bonus: +{stealth_bonus} XP!")
+
+            xp_messages = self.player.gain_xp(total_xp + stealth_bonus)
             messages.extend(xp_messages)
 
             # Award gold based on sum of enemy levels, modified by luck (±5% per luck from 10)

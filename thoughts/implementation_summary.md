@@ -1,3 +1,54 @@
+# Stealth Kills Bonus XP - Implementation Summary
+
+## Date: 2025-12-28
+
+## What Was Implemented
+
+Added a 25% XP bonus for killing enemies with backstab (stealth) attacks.
+
+### Files Modified
+
+1. **`src/cli_rpg/combat.py`**:
+   - Added `self.stealth_kills = 0` counter in `CombatEncounter.__init__()` (line 405)
+   - Added stealth kill tracking in `player_attack()` - increments counter when enemy dies from backstab (lines 752-754)
+   - Added stealth bonus XP calculation in `end_combat()` - awards 25% bonus per stealth kill (lines 1966-1970)
+
+2. **`tests/test_sneak.py`**:
+   - Added `TestSneakKillBonusXP` test class with two tests:
+     - `test_stealth_kill_grants_bonus_xp`: Verifies 25% bonus XP is awarded for stealth kills
+     - `test_no_bonus_for_normal_kills`: Verifies no bonus for normal (non-stealth) kills
+
+### Implementation Details
+
+The stealth bonus formula in `end_combat()`:
+```python
+stealth_bonus = int(total_xp * 0.25 * self.stealth_kills / len(self.enemies))
+```
+
+This ensures:
+- 25% bonus per stealth kill relative to total enemy XP
+- Scales correctly for multi-enemy encounters
+- Displays "Stealth bonus: +X XP!" message when applicable
+
+## Test Results
+
+All tests pass:
+- 15 sneak tests (including 2 new stealth kill bonus tests)
+- 59 combat tests (existing functionality unaffected)
+
+```
+tests/test_sneak.py::TestSneakKillBonusXP::test_stealth_kill_grants_bonus_xp PASSED
+tests/test_sneak.py::TestSneakKillBonusXP::test_no_bonus_for_normal_kills PASSED
+```
+
+## E2E Validation Points
+
+- Rogue players should see "Stealth bonus: +X XP!" message after winning combat with stealth kills
+- Non-rogue classes or normal kills should NOT see stealth bonus message
+- Total XP gained should include the 25% bonus per stealth kill
+
+---
+
 # Add Perception Stat to Enemy Model - Implementation Summary
 
 ## Date: 2025-12-28

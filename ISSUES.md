@@ -275,15 +275,14 @@ quest = Quest(
 ---
 
 ### Stealth & sneaking
-**Status**: ACTIVE (Partial)
+**Status**: COMPLETED ✓
+**Date Completed**: 2025-12-28
 
 **Implemented**:
 - `sneak` command for Rogues (combat stealth, exploration encounter avoidance)
 - `hide` command in combat
 - Enemies with perception stats (default: 5, for stealth detection mechanics)
-
-**Remaining**:
-- Stealth kills bonus XP
+- Stealth kills bonus XP (25% XP bonus per stealth kill)
 
 ---
 
