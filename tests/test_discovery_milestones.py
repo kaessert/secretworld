@@ -489,3 +489,267 @@ class TestMilestoneIntegration:
         restored_sub_grid = restored_gs.world["Town Square"].sub_grid
         assert restored_sub_grid.first_secret_found is True
         assert restored_sub_grid.all_treasures_opened is True
+
+
+# ============================================================================
+# Test Game Loop Integration (Issue 24)
+# ============================================================================
+
+
+class TestGameLoopIntegration:
+    """Tests for milestone triggers integrated into the game loop."""
+
+    def test_search_command_triggers_secret_milestone(self):
+        """Search command includes milestone message when finding first secret.
+
+        Spec: search command calls check_and_award_milestones("secret") when
+        a secret is successfully discovered, and the milestone message is
+        included in the command output.
+        """
+        from cli_rpg.main import handle_exploration_command
+
+        # Setup: character in SubGrid with discoverable secret
+        char = Character(name="Tester", strength=10, dexterity=10, intelligence=10)
+        char.perception = 20  # High perception to guarantee finding secret
+
+        # Create SubGrid with a secret
+        overworld_loc = Location(
+            name="Ancient Ruins",
+            description="Crumbling ruins.",
+            is_overworld=True,
+            coordinates=(0, 0),
+        )
+        sub_grid = SubGrid(parent_name="Ancient Ruins")
+        # Use hidden_secrets (with threshold field) as expected by perform_active_search
+        secret_room = Location(
+            name="Secret Chamber",
+            description="A hidden room.",
+            is_exit_point=True,
+            hidden_secrets=[{
+                "name": "Hidden Cache",
+                "description": "A concealed cache behind loose stones.",
+                "discovered": False,
+                "threshold": 10,  # Low threshold so it's easily found
+            }],
+        )
+        sub_grid.add_location(secret_room, 0, 0, 0)
+        overworld_loc.sub_grid = sub_grid
+
+        world = {"Ancient Ruins": overworld_loc}
+        gs = GameState(character=char, world=world, starting_location="Ancient Ruins")
+
+        # Enter SubGrid
+        gs.in_sub_location = True
+        gs.current_sub_grid = sub_grid
+        gs.current_location = "Secret Chamber"
+
+        initial_xp = gs.current_character.xp
+
+        # Execute search command
+        success, message = handle_exploration_command(gs, "search", [])
+
+        # Verify milestone was awarded and message included
+        assert "FIRST SECRET DISCOVERED" in message
+        assert "Ancient Ruins" in message
+        assert gs.current_character.xp > initial_xp
+        assert sub_grid.first_secret_found is True
+
+    def test_search_command_no_milestone_when_no_secret_found(self):
+        """Search command doesn't include milestone when no secret is found.
+
+        Spec: Milestone only triggers when search actually finds something.
+        """
+        from cli_rpg.main import handle_exploration_command
+
+        # Setup: character in SubGrid with no secrets
+        char = Character(name="Tester", strength=10, dexterity=10, intelligence=10)
+        char.perception = 5
+
+        overworld_loc = Location(
+            name="Empty Cave",
+            description="An empty cave.",
+            is_overworld=True,
+            coordinates=(0, 0),
+        )
+        sub_grid = SubGrid(parent_name="Empty Cave")
+        empty_room = Location(
+            name="Empty Room",
+            description="Nothing here.",
+            is_exit_point=True,
+            hidden_secrets=[],  # No secrets (use hidden_secrets not secrets)
+        )
+        sub_grid.add_location(empty_room, 0, 0, 0)
+        overworld_loc.sub_grid = sub_grid
+
+        world = {"Empty Cave": overworld_loc}
+        gs = GameState(character=char, world=world, starting_location="Empty Cave")
+
+        # Enter SubGrid
+        gs.in_sub_location = True
+        gs.current_sub_grid = sub_grid
+        gs.current_location = "Empty Room"
+
+        initial_xp = gs.current_character.xp
+
+        # Execute search command
+        success, message = handle_exploration_command(gs, "search", [])
+
+        # Verify no milestone
+        assert "FIRST SECRET DISCOVERED" not in message
+        assert gs.current_character.xp == initial_xp
+        assert sub_grid.first_secret_found is False
+
+    def test_open_command_triggers_treasure_milestone(self):
+        """Open command includes milestone message when opening final treasure.
+
+        Spec: open command calls check_and_award_milestones("treasure") after
+        opening a chest, and includes the milestone message when it's the last
+        treasure in the SubGrid.
+        """
+        from cli_rpg.main import handle_exploration_command
+
+        # Setup: character in SubGrid with one treasure
+        char = Character(name="Tester", strength=10, dexterity=10, intelligence=10)
+
+        overworld_loc = Location(
+            name="Treasure Vault",
+            description="A vault with treasure.",
+            is_overworld=True,
+            coordinates=(0, 0),
+        )
+        sub_grid = SubGrid(parent_name="Treasure Vault")
+        treasure_room = Location(
+            name="Vault Room",
+            description="A room with a chest.",
+            is_exit_point=True,
+            treasures=[
+                {"name": "Gold Chest", "locked": False, "opened": False, "items": [
+                    {"name": "Gold Coins", "item_type": "misc", "value": 100}
+                ]}
+            ],
+        )
+        sub_grid.add_location(treasure_room, 0, 0, 0)
+        overworld_loc.sub_grid = sub_grid
+
+        world = {"Treasure Vault": overworld_loc}
+        gs = GameState(character=char, world=world, starting_location="Treasure Vault")
+
+        # Enter SubGrid
+        gs.in_sub_location = True
+        gs.current_sub_grid = sub_grid
+        gs.current_location = "Vault Room"
+
+        initial_xp = gs.current_character.xp
+
+        # Execute open command
+        success, message = handle_exploration_command(gs, "open", ["gold", "chest"])
+
+        # Verify milestone was awarded and message included
+        assert "ALL TREASURES FOUND" in message
+        assert "Treasure Vault" in message
+        assert gs.current_character.xp > initial_xp
+        assert sub_grid.all_treasures_opened is True
+
+    def test_open_command_no_milestone_when_treasures_remain(self):
+        """Open command doesn't include milestone when other treasures remain.
+
+        Spec: Milestone only triggers when ALL treasures are opened.
+        """
+        from cli_rpg.main import handle_exploration_command
+
+        # Setup: character in SubGrid with two treasures
+        char = Character(name="Tester", strength=10, dexterity=10, intelligence=10)
+
+        overworld_loc = Location(
+            name="Dual Vault",
+            description="A vault with treasures.",
+            is_overworld=True,
+            coordinates=(0, 0),
+        )
+        sub_grid = SubGrid(parent_name="Dual Vault")
+        treasure_room = Location(
+            name="Vault Room",
+            description="A room with chests.",
+            is_exit_point=True,
+            treasures=[
+                {"name": "Gold Chest", "locked": False, "opened": False, "items": []},
+                {"name": "Silver Chest", "locked": False, "opened": False, "items": []},
+            ],
+        )
+        sub_grid.add_location(treasure_room, 0, 0, 0)
+        overworld_loc.sub_grid = sub_grid
+
+        world = {"Dual Vault": overworld_loc}
+        gs = GameState(character=char, world=world, starting_location="Dual Vault")
+
+        # Enter SubGrid
+        gs.in_sub_location = True
+        gs.current_sub_grid = sub_grid
+        gs.current_location = "Vault Room"
+
+        initial_xp = gs.current_character.xp
+
+        # Execute open command for first chest
+        success, message = handle_exploration_command(gs, "open", ["gold", "chest"])
+
+        # Verify no milestone (one chest still closed)
+        assert "ALL TREASURES FOUND" not in message
+        assert gs.current_character.xp == initial_xp
+        assert sub_grid.all_treasures_opened is False
+
+    def test_boss_defeat_triggers_boss_milestone(self):
+        """Boss defeat includes milestone message after boss is vanquished.
+
+        Spec: After mark_boss_defeated() is called and combat ends victoriously,
+        check_and_award_milestones("boss") is called and the milestone message
+        is included in the combat output.
+        """
+        from cli_rpg.main import handle_combat_command
+        from cli_rpg.combat import CombatEncounter
+        from cli_rpg.models.enemy import Enemy
+
+        # Setup: character in SubGrid in combat with boss
+        char = Character(name="Tester", strength=20, dexterity=10, intelligence=10)
+        char.max_hp = 100
+        char.current_hp = 100
+
+        overworld_loc = Location(
+            name="Dragon Lair",
+            description="A lair with a dragon.",
+            is_overworld=True,
+            coordinates=(0, 0),
+            boss_enemy="dragon",
+        )
+        sub_grid = SubGrid(parent_name="Dragon Lair")
+        boss_room = Location(
+            name="Boss Chamber",
+            description="The dragon's chamber.",
+            is_exit_point=True,
+            boss_enemy="dragon",
+        )
+        sub_grid.add_location(boss_room, 0, 0, 0)
+        overworld_loc.sub_grid = sub_grid
+
+        world = {"Dragon Lair": overworld_loc}
+        gs = GameState(character=char, world=world, starting_location="Dragon Lair")
+
+        # Enter SubGrid
+        gs.in_sub_location = True
+        gs.current_sub_grid = sub_grid
+        gs.current_location = "Boss Chamber"
+
+        # Start combat with a weak boss for testing
+        boss = Enemy(name="Dragon", health=1, max_health=1, attack_power=1, defense=0, xp_reward=100, is_boss=True)
+        gs.current_combat = CombatEncounter(player=char, enemies=[boss], companions=[])
+        gs.current_combat.is_active = True  # Activate combat state
+
+        initial_xp = gs.current_character.xp
+
+        # Execute attack command to defeat the boss
+        success, message = handle_combat_command(gs, "attack", ["dragon"])
+
+        # Verify milestone was awarded and message included
+        assert "BOSS VANQUISHED" in message
+        assert "Dragon Lair" in message
+        assert gs.current_character.xp > initial_xp
+        assert sub_grid.boss_milestone_awarded is True

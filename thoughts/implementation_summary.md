@@ -617,6 +617,67 @@ The feature should validate:
 
 ---
 
+# Discovery Milestone Game Loop Integration - Implementation Summary
+
+## Date: 2025-12-28
+
+## What Was Verified
+
+The discovery milestone system was **already fully integrated** into the game loop at all three trigger points. No code changes were needed.
+
+### Integration Points (Already Complete)
+
+1. **Secret Discovery Milestone** (`main.py` lines 1125-1129)
+   - After `perform_active_search()` returns success, `check_and_award_milestones("secret")` is called
+   - Milestone message is appended to the search result
+
+2. **Boss Defeat Milestone** (`main.py` lines 970-973)
+   - After `mark_boss_defeated()` is called, `check_and_award_milestones("boss")` is called
+   - Milestone message is included in combat victory output
+
+3. **Treasure Opening Milestone** (`main.py` lines 2483-2492)
+   - After chest is opened, `check_and_award_milestones("treasure")` is called
+   - Milestone message is appended to the open chest result
+
+### Test Results
+
+All 23 tests pass in `tests/test_discovery_milestones.py`:
+
+```
+tests/test_discovery_milestones.py::TestSubGridMilestoneTracking::test_subgrid_default_milestone_fields PASSED
+tests/test_discovery_milestones.py::TestSubGridMilestoneTracking::test_subgrid_milestone_fields_serialization PASSED
+tests/test_discovery_milestones.py::TestSubGridMilestoneTracking::test_subgrid_backward_compatibility_defaults PASSED
+tests/test_discovery_milestones.py::TestTreasureStats::test_get_treasure_stats_no_treasures PASSED
+tests/test_discovery_milestones.py::TestTreasureStats::test_get_treasure_stats_with_treasures PASSED
+tests/test_discovery_milestones.py::TestTreasureStats::test_are_all_treasures_opened_true PASSED
+tests/test_discovery_milestones.py::TestTreasureStats::test_are_all_treasures_opened_false PASSED
+tests/test_discovery_milestones.py::TestTreasureStats::test_are_all_treasures_opened_no_treasures PASSED
+tests/test_discovery_milestones.py::TestFirstSecretMilestone::test_first_secret_milestone_awards_xp PASSED
+tests/test_discovery_milestones.py::TestFirstSecretMilestone::test_first_secret_milestone_only_once PASSED
+tests/test_discovery_milestones.py::TestFirstSecretMilestone::test_first_secret_milestone_message_format PASSED
+tests/test_discovery_milestones.py::TestAllTreasuresMilestone::test_all_treasures_milestone_awards_xp PASSED
+tests/test_discovery_milestones.py::TestAllTreasuresMilestone::test_all_treasures_milestone_only_once PASSED
+tests/test_discovery_milestones.py::TestAllTreasuresMilestone::test_partial_treasures_no_milestone PASSED
+tests/test_discovery_milestones.py::TestBossDefeatedMilestone::test_boss_milestone_awards_xp PASSED
+tests/test_discovery_milestones.py::TestBossDefeatedMilestone::test_boss_milestone_only_once PASSED
+tests/test_discovery_milestones.py::TestBossDefeatedMilestone::test_boss_milestone_requires_subgrid PASSED
+tests/test_discovery_milestones.py::TestMilestoneIntegration::test_milestone_persists_in_save_load PASSED
+tests/test_discovery_milestones.py::TestGameLoopIntegration::test_search_command_triggers_secret_milestone PASSED
+tests/test_discovery_milestones.py::TestGameLoopIntegration::test_search_command_no_milestone_when_no_secret_found PASSED
+tests/test_discovery_milestones.py::TestGameLoopIntegration::test_open_command_triggers_treasure_milestone PASSED
+tests/test_discovery_milestones.py::TestGameLoopIntegration::test_open_command_no_milestone_when_treasures_remain PASSED
+tests/test_discovery_milestones.py::TestGameLoopIntegration::test_boss_defeat_triggers_boss_milestone PASSED
+```
+
+### E2E Test Considerations
+
+1. **Secret Milestone**: Enter a SubGrid, use `search` command to find a secret. Expect "FIRST SECRET DISCOVERED" message with +25 XP.
+2. **Treasure Milestone**: Open all treasure chests in a SubGrid. Expect "ALL TREASURES FOUND" message with +25 XP after the last chest.
+3. **Boss Milestone**: Defeat the boss in a SubGrid. Expect "BOSS VANQUISHED" message with +25 XP.
+4. **One-time Awards**: Each milestone only triggers once per SubGrid (flag is persisted).
+
+---
+
 # Ranger Animal Companion - Implementation Summary
 
 ## Date: 2025-12-28

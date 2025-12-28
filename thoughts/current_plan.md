@@ -1,25 +1,45 @@
-# Assessment Result: No Failing Tests
+# Discovery Milestone Game Loop Integration (Issue 24)
 
-## Summary
+## Task
+Wire `check_and_award_milestones()` into the game loop at three trigger points: secret discovery, treasure opening, and boss defeat.
 
-The test `test_boss_chamber_no_respawn_after_defeat` mentioned as failing is now **PASSING**.
+## Implementation
 
-## Verification
-
-```bash
-pytest tests/test_boss_chamber.py::TestBossChamberNoRespawn::test_boss_chamber_no_respawn_after_defeat -v
-# Result: PASSED
-
-pytest
-# Result: 5493 passed, 4 skipped, 1 warning
+### 1. Secret Discovery Milestone (main.py ~line 1113)
+After `perform_active_search()` returns success, call milestone check:
+```python
+# After line 1113: return (True, f"\n{message}")
+if found:
+    milestone_msg = game_state.check_and_award_milestones("secret")
+    if milestone_msg:
+        message = f"{message}\n{milestone_msg}"
+return (True, f"\n{message}")
 ```
 
-## ISSUES.md Status
+### 2. Treasure Opening Milestone (main.py ~line 2467)
+After chest is opened and items transferred, call milestone check:
+```python
+# After the "items_added" logic, before return
+milestone_msg = game_state.check_and_award_milestones("treasure")
+if milestone_msg:
+    # Append to output message
+```
 
-All major issues are marked COMPLETED. Only remaining active items:
-- "Non-interactive mode enhancements" - future enhancements (log AI content, session replay)
-- Issue 24 deferred item: "Visited rooms marked differently on map" - intentionally deferred
+### 3. Boss Defeat Milestone (main.py ~line 961)
+After `game_state.mark_boss_defeated()`, call milestone check:
+```python
+# After line 961: game_state.mark_boss_defeated()
+milestone_msg = game_state.check_and_award_milestones("boss")
+if milestone_msg:
+    output += f"\n{milestone_msg}"
+```
 
-## Action Required
+## Files to Modify
+- `src/cli_rpg/main.py` - Add 3 milestone check calls
 
-**None** - The test suite is green. No implementation work needed.
+## Tests
+Add integration tests to verify milestone messages appear in game output:
+- `tests/test_discovery_milestones.py` - Add tests for game loop integration:
+  - Test secret milestone triggers on search command
+  - Test treasure milestone triggers on open command
+  - Test boss milestone triggers after boss defeat

@@ -435,6 +435,14 @@ def handle_combat_command(game_state: GameState, command: str, args: list[str], 
             # All enemies defeated - record each in bestiary
             for enemy in combat.enemies:
                 game_state.current_character.record_enemy_defeat(enemy)
+
+            # Check if this was a boss fight (Issue 24)
+            if any(e.is_boss for e in combat.enemies):
+                game_state.mark_boss_defeated()
+                milestone_msg = game_state.check_and_award_milestones("boss")
+                if milestone_msg:
+                    output += f"\n{milestone_msg}"
+
             end_message = combat.end_combat(victory=True)
             output += f"\n{end_message}"
             # Track quest progress for kill objectives (for each enemy)
@@ -959,6 +967,10 @@ def handle_combat_command(game_state: GameState, command: str, args: list[str], 
             # Check if this was a boss fight
             if any(e.is_boss for e in combat.enemies):
                 game_state.mark_boss_defeated()
+                # Check for boss defeated milestone (Issue 24)
+                milestone_msg = game_state.check_and_award_milestones("boss")
+                if milestone_msg:
+                    output += f"\n{milestone_msg}"
 
             # Combat ends with victory - award XP and loot
             victory_message = combat.end_combat(victory=True)
@@ -1110,6 +1122,11 @@ def handle_exploration_command(game_state: GameState, command: str, args: list[s
             sub_grid=game_state.current_sub_grid,
             game_state=game_state,  # For hawk perception bonus
         )
+        # Check for first secret discovered milestone (Issue 24)
+        if found:
+            milestone_msg = game_state.check_and_award_milestones("secret")
+            if milestone_msg:
+                message = f"{message}\n{milestone_msg}"
         return (True, f"\n{message}")
 
     elif command == "track":
@@ -2462,11 +2479,18 @@ def handle_exploration_command(game_state: GameState, command: str, args: list[s
             if game_state.current_character.inventory.add_item(new_item):
                 items_added.append(new_item.name)
 
+        # Check for all treasures opened milestone (Issue 24)
+        milestone_msg = game_state.check_and_award_milestones("treasure")
+
         if items_added:
             items_list = ", ".join(items_added)
-            return (True, f"\nYou open {target_chest['name']} and find: {items_list}")
+            result_msg = f"\nYou open {target_chest['name']} and find: {items_list}"
         else:
-            return (True, f"\nYou open {target_chest['name']}, but it's empty.")
+            result_msg = f"\nYou open {target_chest['name']}, but it's empty."
+
+        if milestone_msg:
+            result_msg = f"{result_msg}\n{milestone_msg}"
+        return (True, result_msg)
 
     elif command == "help":
         return (True, "\n" + get_command_reference())
