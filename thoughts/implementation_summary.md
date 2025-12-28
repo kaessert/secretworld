@@ -1,53 +1,67 @@
-# Implementation Summary: Agent Memory System
+# Implementation Summary: class_behaviors.py
 
 ## What Was Implemented
 
-Implemented `scripts/agent/memory.py` with failure tracking for Phase 2 of the Playtesting Infrastructure.
+Created `scripts/agent/class_behaviors.py` with class-specific combat and exploration strategies for all 5 character classes (Warrior, Mage, Rogue, Ranger, Cleric) to make the AI agent behave differently based on character class.
 
-### New Files Created
+### Files Created/Modified
 
-1. **`scripts/agent/memory.py`** - Core memory module with:
-   - `FailureRecord` dataclass - Tracks deaths/damage causes with enemy_name, location, cause, timestamp, health_at_failure
-   - `NPCMemory` dataclass - Tracks NPC interactions with trust clamping (-100 to 100), interaction history, quest tracking
-   - `LocationMemory` dataclass - Tracks location knowledge including danger_level (0.0-1.0), secrets, treasure, death count, visits
-   - `AgentMemory` class - Main container with methods:
-     - `record_failure()` - Records failures and marks enemies as dangerous on death
-     - `record_npc_interaction()` - Creates/updates NPC memories with trust changes
-     - `update_location()` - Tracks location visits, discoveries, and updates danger levels
-     - `is_enemy_dangerous()` - Checks if enemy has killed agent
-     - `get_location_danger()` - Returns danger level for known locations
-     - `to_dict()`/`from_dict()` - Full serialization support for checkpointing
+1. **`scripts/agent/class_behaviors.py`** (new - 347 lines)
+   - `CharacterClassName` enum - mirrors game's CharacterClass (WARRIOR, MAGE, ROGUE, RANGER, CLERIC)
+   - `ClassBehaviorConfig` dataclass - thresholds and cooldowns with `to_dict`/`from_dict` serialization
+   - `ClassBehavior` Protocol - defines interface with `get_combat_command`, `get_exploration_command`, `should_flee`
+   - 5 concrete behavior classes:
+     - `WarriorBehavior` - bash, stance switching (aggressive/berserker), 15% flee threshold
+     - `MageBehavior` - fireball/ice_bolt, self-heal, mana conservation, 25% flee threshold
+     - `RogueBehavior` - hide/sneak attack cycle, dungeon secret searching (30% chance), 20% flee
+     - `RangerBehavior` - companion summoning, tracking, feeding wounded companion, wilderness comfort
+     - `ClericBehavior` - smite undead, bless at combat start, heal, holy symbol equipped
+   - `BEHAVIOR_REGISTRY` dict - maps CharacterClassName to behavior instances
+   - `get_class_behavior()` helper function
 
-2. **`tests/test_agent_memory.py`** - Comprehensive test suite with 18 tests:
-   - FailureRecord creation and serialization
-   - NPCMemory creation, serialization, and trust bounds clamping
-   - LocationMemory creation, serialization, and danger calculation
-   - AgentMemory operations (record_failure, record_npc_interaction, update_location)
-   - Query methods (is_enemy_dangerous, get_location_danger)
-   - Full serialization roundtrip
+2. **`scripts/agent/__init__.py`** (updated)
+   - Added exports for all new classes and functions
 
-### Files Modified
+3. **`tests/test_agent_class_behaviors.py`** (new - 47 tests)
+   - Tests for CharacterClassName enum
+   - Tests for ClassBehaviorConfig dataclass
+   - Tests for registry and get_class_behavior
+   - Tests for each behavior class (Warrior, Mage, Rogue, Ranger, Cleric)
+   - Serialization tests for ClassBehaviorConfig
 
-- **`scripts/agent/__init__.py`** - Added exports for AgentMemory, FailureRecord, LocationMemory, NPCMemory
+### Class Behavior Details
+
+| Class   | Combat                              | Exploration              | Flee Threshold |
+|---------|-------------------------------------|--------------------------|----------------|
+| Warrior | bash, stance aggressive/berserker   | Direct approach          | 15% (brave)    |
+| Mage    | fireball/ice_bolt, self-heal        | Conserve mana            | 25% (fragile)  |
+| Rogue   | sneak attacks, hide                 | Search secrets (30%)     | 20%            |
+| Ranger  | companion fights alongside          | summon, track, feed      | 20% (15% wild) |
+| Cleric  | smite undead, bless, heal           | Equip holy symbol        | 20%            |
 
 ## Test Results
 
-All 49 tests pass (18 new memory tests + 31 existing personality tests):
 ```
-tests/test_agent_memory.py: 18 passed
-tests/test_agent_personality.py: 31 passed
+============================= test session starts ==============================
+tests/test_agent_class_behaviors.py ... 47 passed in 0.15s
+tests/test_agent_*.py ... 116 passed in 0.25s
 ```
 
-## Design Decisions
+All tests pass including:
+- 47 new class behavior tests
+- 69 existing agent tests (personality, memory, checkpoint)
 
-1. **Trust clamping in `__post_init__`** - NPCMemory uses `__post_init__` to automatically clamp trust_level to -100..100 range
-2. **Danger level dynamics** - Danger increases based on combat (+0.05) and deaths (+0.2), capped at 1.0
-3. **Dangerous enemies set** - Only "death" cause adds to dangerous_enemies, not "flee" or "critical_damage"
-4. **Defensive copying** - Serialization uses `.copy()` for lists to prevent mutation
+## Technical Notes
 
-## E2E Test Considerations
+- Uses Protocol for duck-typing (class behaviors don't need to inherit from a base class)
+- Each behavior class maintains internal state (e.g., `_is_hidden` for Rogue, `_mana_percent` for Mage)
+- Behaviors return `None` to signal "use default attack" - caller handles fallback
+- Mage's `_mana_percent` is set externally (could be parsed from game state in future)
+- Random elements for variety (Mage spell choice, Rogue search probability, Ranger track probability)
 
-Integration tests should verify:
-- Memory persists across checkpoint save/load cycles
-- Agent decisions are influenced by dangerous_enemies set
-- Location danger affects agent exploration behavior
+## E2E Test Validation
+
+The class behaviors integrate with the AI agent system and can be validated by:
+1. Running simulation with different character classes
+2. Verifying class-specific commands are issued in combat/exploration
+3. Checking flee behavior matches class thresholds

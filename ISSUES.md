@@ -399,7 +399,7 @@ python -m scripts.run_validation --report-format=html --output=report.html
 1. ✅ Create `scripts/agent/` package
 2. ✅ Implement personality.py with 5 presets (PersonalityType enum, PersonalityTraits dataclass, serialization)
 3. ✅ Implement memory.py with failure tracking (FailureRecord, NPCMemory, LocationMemory, AgentMemory)
-4. Implement class_behaviors.py for all 5 classes
+4. ✅ Implement class_behaviors.py for all 5 classes (CharacterClassName enum, ClassBehaviorConfig, ClassBehavior Protocol, 5 behavior classes with combat/exploration strategies, 47 tests)
 5. Extend AgentState with environmental fields
 6. Refactor Agent to HumanLikeAgent
 

@@ -32,7 +32,8 @@ scripts/
 └── agent/
     ├── __init__.py      # Package exports for personality and memory systems
     ├── personality.py   # PersonalityType enum, PersonalityTraits dataclass with 5 presets
-    └── memory.py        # AgentMemory, FailureRecord, NPCMemory, LocationMemory for learning from failures
+    ├── memory.py        # AgentMemory, FailureRecord, NPCMemory, LocationMemory for learning from failures
+    └── class_behaviors.py # CharacterClassName enum, ClassBehaviorConfig, 5 behavior classes (Warrior, Mage, Rogue, Ranger, Cleric) with class-specific combat/exploration strategies
 
 tests/e2e/
 ├── __init__.py          # E2E test package
