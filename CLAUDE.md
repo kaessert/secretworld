@@ -30,11 +30,14 @@ scripts/
 ├── human_like_agent.py  # HumanLikeAgent with personality, class behaviors, and memory
 ├── run_simulation.py    # CLI entry point for running simulations (--personality, --class flags)
 ├── generate_test_world.py # Regenerate test world fixture if models change
-└── agent/
-    ├── __init__.py      # Package exports for personality and memory systems
-    ├── personality.py   # PersonalityType enum, PersonalityTraits dataclass with 5 presets
-    ├── memory.py        # AgentMemory, FailureRecord, NPCMemory, LocationMemory for learning from failures
-    └── class_behaviors.py # CharacterClassName enum, ClassBehaviorConfig, 5 behavior classes (Warrior, Mage, Rogue, Ranger, Cleric) with class-specific combat/exploration strategies
+├── agent/
+│   ├── __init__.py      # Package exports for personality and memory systems
+│   ├── personality.py   # PersonalityType enum, PersonalityTraits dataclass with 5 presets
+│   ├── memory.py        # AgentMemory, FailureRecord, NPCMemory, LocationMemory for learning from failures
+│   └── class_behaviors.py # CharacterClassName enum, ClassBehaviorConfig, 5 behavior classes (Warrior, Mage, Rogue, Ranger, Cleric) with class-specific combat/exploration strategies
+└── validation/
+    ├── __init__.py      # Package exports for validation framework
+    └── assertions.py    # AssertionType enum (8 types), Assertion/AssertionResult dataclasses, AssertionChecker for state validation
 
 tests/e2e/
 ├── __init__.py          # E2E test package

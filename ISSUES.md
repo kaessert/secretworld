@@ -403,9 +403,9 @@ python -m scripts.run_validation --report-format=html --output=report.html
 5. ✅ Extend AgentState with environmental fields (`time_of_day`, `hour`, `season`, `weather`, `tiredness`) and helper methods (`is_night()`, `is_tired()`, `is_exhausted()`, `is_bad_weather()`, `should_rest()`)
 6. ✅ Create HumanLikeAgent class (`scripts/human_like_agent.py`) integrating personality, class behaviors, and memory with observable behavioral differences (21 tests)
 
-**Phase 3: Validation Framework (MEDIUM)**
-1. Create `scripts/validation/` package
-2. Implement assertion types and checking
+**Phase 3: Validation Framework (MEDIUM)** - IN PROGRESS
+1. ✅ Create `scripts/validation/` package
+2. ✅ Implement assertion types and checking (8 assertion types: STATE_EQUALS, STATE_CONTAINS, STATE_RANGE, NARRATIVE_MATCH, COMMAND_VALID, COMMAND_EFFECT, CONTENT_PRESENT, CONTENT_QUALITY placeholder)
 3. Implement FeatureCoverage tracker
 4. Create YAML scenario format and runner
 5. Create initial scenarios for core features
@@ -434,3 +434,59 @@ python -m scripts.run_validation --report-format=html --output=report.html
 
 #### Full Plan
 See: `/Users/tkaesser/.claude/plans/rippling-percolating-biscuit.md`
+
+---
+
+### Confusing `enter` Command Error Message at Named Locations
+**Status**: OPEN
+**Priority**: MEDIUM
+**Date Added**: 2025-12-28
+
+#### Problem
+When a user is at a named location (e.g., "Dark Cave") that has an enterable SubGrid, the `look` command shows:
+```
+Dark Cave
+A gaping cave mouth opens in the hillside. Cold air flows from within.
+Exits: west
+Enter: Cave Entrance
+```
+
+The natural user behavior is to type `enter Dark Cave` (the location name they see), but this fails with a confusing error message:
+
+```
+> enter Dark Cave
+No such location: dark cave. Available: Cave Entrance, Dark Passage, Spider Den, Hidden Alcove
+```
+
+#### Steps to Reproduce
+1. Start game in demo mode: `cli-rpg --demo`
+2. Navigate to Dark Cave: `go east`
+3. Look at the location: `look` (note it shows "Enter: Cave Entrance")
+4. Try to enter using the location name: `enter Dark Cave`
+5. Observe error message lists internal SubGrid room names
+
+#### Expected Behavior
+Either:
+1. **Option A**: Accept `enter Dark Cave` as a synonym for entering the location's SubGrid entrance
+2. **Option B**: Provide a more helpful error message such as:
+   ```
+   Cannot enter 'Dark Cave' directly. Use 'enter Cave Entrance' to explore the interior.
+   ```
+
+#### Actual Behavior
+Error message says "No such location: dark cave" and then lists internal SubGrid room names (Dark Passage, Spider Den, Hidden Alcove) that are not useful to the user at this point, since they need to enter through "Cave Entrance" first.
+
+#### Root Cause
+The `enter` command searches for locations by name, but:
+1. The user sees the overworld location name "Dark Cave"
+2. The enterable SubGrid entrance is named "Cave Entrance"
+3. The error message lists all SubGrid rooms, not just valid entry points
+
+#### Suggested Fix
+1. When `enter <location_name>` fails, check if the current location has a SubGrid entrance with a different name
+2. If so, provide a targeted hint: "Did you mean 'enter Cave Entrance'?"
+3. Alternatively, allow entering by the parent location name when there's only one entrance
+
+#### Related Files
+- `src/cli_rpg/game_state.py` - `enter()` command implementation
+- `src/cli_rpg/models/location.py` - Location model and SubGrid relationships
