@@ -716,7 +716,7 @@ Created QuestNetworkManager for managing interconnected quest storylines.
 **Acceptance Criteria:**
 - [x] Track visited rooms in SubGrid (persisted in save)
 - [x] "Fully explored" bonus (XP + gold) when all rooms visited
-- [x] Discovery milestones: first secret, all treasures, boss defeated - Infrastructure complete (2025-12-28), game loop integration pending
+- [x] Discovery milestones: first secret, all treasures, boss defeated - Complete with game loop integration (2025-12-28)
 - [x] Exploration percentage visible in `map` command
 - [x] Visited rooms marked differently on map (visited rooms shown in green on SubGrid maps)
 
