@@ -860,6 +860,7 @@ class TestEnterExitCommands:
             "Shadowmere City",
             "A sprawling dark city",
             is_overworld=True,
+            is_named=True,
             sub_locations=["Tavern", "Blacksmith"],
         )
         tavern = Location(
@@ -896,6 +897,7 @@ class TestEnterExitCommands:
             "Shadowmere City",
             "A sprawling dark city",
             is_overworld=True,
+            is_named=True,
             sub_locations=["Tavern", "Blacksmith"],
             entry_point="Tavern",
         )
@@ -931,6 +933,7 @@ class TestEnterExitCommands:
             "Shadowmere City",
             "A city",
             is_overworld=True,
+            is_named=True,
             sub_locations=["Tavern", "Blacksmith"],
         )
         tavern = Location("Tavern", "A tavern", parent_location="Shadowmere City")
@@ -978,6 +981,7 @@ class TestEnterExitCommands:
             "City",
             "A city",
             is_overworld=True,
+            is_named=True,
             sub_locations=["Tavern"],
         )
         tavern = Location("Tavern", "A tavern", parent_location="City")
@@ -1003,6 +1007,7 @@ class TestEnterExitCommands:
             "City",
             "A city",
             is_overworld=True,
+            is_named=True,
             sub_locations=["Tavern"],
             entry_point=None,  # No default entry point
         )
@@ -1030,6 +1035,7 @@ class TestEnterExitCommands:
             "City",
             "A city",
             is_overworld=True,
+            is_named=True,
             sub_locations=["Tavern"],
         )
         tavern = Location("Tavern", "A tavern", parent_location="City")
@@ -1162,6 +1168,7 @@ class TestEnterExitCommands:
             "Ancient Forest",
             "A mystical forest",
             is_overworld=True,
+            is_named=True,
             sub_locations=["Spectral Grove", "Moonlit Clearing"],
         )
         spectral = Location("Spectral Grove", "A ghostly grove", parent_location="Ancient Forest")
@@ -1188,6 +1195,7 @@ class TestEnterExitCommands:
             "City",
             "A bustling city",
             is_overworld=True,
+            is_named=True,
             sub_locations=["Tavern", "Market"],
         )
         tavern = Location("Tavern", "A tavern", parent_location="City")

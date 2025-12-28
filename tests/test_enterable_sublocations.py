@@ -507,7 +507,7 @@ class TestEnterGeneratesSubgridOnDemand:
         success, message = game_state.enter()
 
         assert success is False
-        assert "Enter where?" in message or "no locations to enter" in message
+        assert "nothing to enter" in message or "open wilderness" in message
 
     def test_enter_sets_entry_point(self, basic_character, dungeon_location):
         """Verify enter() sets entry_point after generating SubGrid.
